@@ -1,12 +1,14 @@
 import json
 
 from openai.types.chat import (
+    ChatCompletion,
     ChatCompletionAssistantMessageParam,
     ChatCompletionContentPartImageParam,
     ChatCompletionContentPartInputAudioParam,
     ChatCompletionContentPartParam,
     ChatCompletionContentPartTextParam,
     ChatCompletionDeveloperMessageParam,
+    ChatCompletionMessage,
     ChatCompletionMessageParam,
     ChatCompletionMessageToolCallParam,
     ChatCompletionNamedToolChoiceParam,
@@ -21,9 +23,12 @@ from openai.types.shared_params.function_definition import FunctionDefinition
 from inspect_ai._util.content import Content
 from inspect_ai._util.images import file_as_data_uri
 from inspect_ai._util.url import is_http_url
+from inspect_ai.model._call_tools import parse_tool_call
+from inspect_ai.model._model_output import ChatCompletionChoice, Logprobs
 from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
 
-from ._chat_message import ChatMessage
+from ._chat_message import ChatMessage, ChatMessageAssistant
+from ._model_output import as_stop_reason
 
 
 def openai_chat_tool_call(tool_call: ToolCall) -> ChatCompletionMessageToolCallParam:
@@ -145,3 +150,44 @@ def openai_chat_tool_choice(
         return "required"
     else:
         return tool_choice
+
+
+def chat_tool_calls_from_openai(
+    message: ChatCompletionMessage, tools: list[ToolInfo]
+) -> list[ToolCall] | None:
+    if message.tool_calls:
+        return [
+            parse_tool_call(call.id, call.function.name, call.function.arguments, tools)
+            for call in message.tool_calls
+        ]
+    else:
+        return None
+
+
+def chat_message_assistant_from_openai(
+    message: ChatCompletionMessage, tools: list[ToolInfo]
+) -> ChatMessageAssistant:
+    return ChatMessageAssistant(
+        content=message.content or "",
+        source="generate",
+        tool_calls=chat_tool_calls_from_openai(message, tools),
+    )
+
+
+def chat_choices_from_openai(
+    response: ChatCompletion, tools: list[ToolInfo]
+) -> list[ChatCompletionChoice]:
+    choices = list(response.choices)
+    choices.sort(key=lambda c: c.index)
+    return [
+        ChatCompletionChoice(
+            message=chat_message_assistant_from_openai(choice.message, tools),
+            stop_reason=as_stop_reason(choice.finish_reason),
+            logprobs=(
+                Logprobs(**choice.logprobs.model_dump())
+                if choice.logprobs is not None
+                else None
+            ),
+        )
+        for choice in choices
+    ]

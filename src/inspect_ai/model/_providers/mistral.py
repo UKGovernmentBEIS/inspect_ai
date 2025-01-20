@@ -46,6 +46,7 @@ from inspect_ai._util.content import Content, ContentImage, ContentText
 from inspect_ai._util.images import file_as_data_uri
 from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
 
+from .._call_tools import parse_tool_call
 from .._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
@@ -59,7 +60,7 @@ from .._model_output import (
     ModelUsage,
     StopReason,
 )
-from .util import environment_prerequisite_error, model_base_url, parse_tool_call
+from .util import environment_prerequisite_error, model_base_url
 
 AZURE_MISTRAL_API_KEY = "AZURE_MISTRAL_API_KEY"
 AZUREAI_MISTRAL_API_KEY = "AZUREAI_MISTRAL_API_KEY"

@@ -9,6 +9,7 @@ from typing_extensions import override
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_info import ToolInfo
 
+from ..._call_tools import parse_tool_call, tool_parse_error_message
 from ..._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
@@ -16,7 +17,6 @@ from ..._chat_message import (
     ChatMessageTool,
 )
 from .chatapi import ChatAPIHandler, ChatAPIMessage
-from .util import parse_tool_call, tool_parse_error_message
 
 logger = getLogger(__name__)
 

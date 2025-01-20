@@ -24,13 +24,13 @@ from .._model_output import (
     ModelOutput,
     ModelUsage,
     StopReason,
+    as_stop_reason,
 )
+from .._openai import chat_message_assistant_from_openai
 from .openai import (
     OpenAIAPI,
-    chat_message_assistant_from_openai,
 )
 from .util import (
-    as_stop_reason,
     chat_api_input,
     chat_api_request,
     environment_prerequisite_error,

@@ -24,15 +24,13 @@ from inspect_ai.model import (
 )
 from inspect_ai.tool import ToolCall, ToolInfo
 
+from .._call_tools import parse_tool_call, tool_parse_error_message
 from .._model_call import ModelCall
-from .._model_output import ModelUsage, StopReason
+from .._model_output import ModelUsage, StopReason, as_stop_reason
 from .._providers.util import (
     ChatAPIHandler,
     ChatAPIMessage,
-    as_stop_reason,
     chat_api_input,
-    parse_tool_call,
-    tool_parse_error_message,
 )
 
 logger = getLogger(__name__)

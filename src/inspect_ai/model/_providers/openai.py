@@ -14,23 +14,22 @@ from openai import (
 from openai._types import NOT_GIVEN
 from openai.types.chat import (
     ChatCompletion,
-    ChatCompletionMessage,
 )
 from typing_extensions import override
 
 from inspect_ai._util.constants import DEFAULT_MAX_RETRIES
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.logger import warn_once
-from inspect_ai.tool import ToolCall, ToolChoice, ToolInfo
+from inspect_ai.model._openai import chat_choices_from_openai
+from inspect_ai.tool import ToolChoice, ToolInfo
 
-from .._chat_message import ChatMessage, ChatMessageAssistant
+from .._chat_message import ChatMessage
 from .._generate_config import GenerateConfig
 from .._image import image_url_filter
 from .._model import ModelAPI
 from .._model_call import ModelCall
 from .._model_output import (
     ChatCompletionChoice,
-    Logprobs,
     ModelOutput,
     ModelUsage,
     StopReason,
@@ -42,10 +41,8 @@ from .._openai import (
 )
 from .openai_o1 import generate_o1
 from .util import (
-    as_stop_reason,
     environment_prerequisite_error,
     model_base_url,
-    parse_tool_call,
 )
 
 logger = getLogger(__name__)
@@ -53,25 +50,6 @@ logger = getLogger(__name__)
 OPENAI_API_KEY = "OPENAI_API_KEY"
 AZURE_OPENAI_API_KEY = "AZURE_OPENAI_API_KEY"
 AZUREAI_OPENAI_API_KEY = "AZUREAI_OPENAI_API_KEY"
-
-
-def chat_choices_from_openai(
-    response: ChatCompletion, tools: list[ToolInfo]
-) -> list[ChatCompletionChoice]:
-    choices = list(response.choices)
-    choices.sort(key=lambda c: c.index)
-    return [
-        ChatCompletionChoice(
-            message=chat_message_assistant_from_openai(choice.message, tools),
-            stop_reason=as_stop_reason(choice.finish_reason),
-            logprobs=(
-                Logprobs(**choice.logprobs.model_dump())
-                if choice.logprobs is not None
-                else None
-            ),
-        )
-        for choice in choices
-    ]
 
 
 class OpenAIAPI(ModelAPI):
@@ -335,25 +313,3 @@ class OpenAIAPI(ModelAPI):
             )
         else:
             raise e
-
-
-def chat_tool_calls_from_openai(
-    message: ChatCompletionMessage, tools: list[ToolInfo]
-) -> list[ToolCall] | None:
-    if message.tool_calls:
-        return [
-            parse_tool_call(call.id, call.function.name, call.function.arguments, tools)
-            for call in message.tool_calls
-        ]
-    else:
-        return None
-
-
-def chat_message_assistant_from_openai(
-    message: ChatCompletionMessage, tools: list[ToolInfo]
-) -> ChatMessageAssistant:
-    return ChatMessageAssistant(
-        content=message.content or "",
-        source="generate",
-        tool_calls=chat_tool_calls_from_openai(message, tools),
-    )
