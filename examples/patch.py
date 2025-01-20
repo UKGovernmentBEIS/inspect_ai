@@ -1,11 +1,11 @@
 import asyncio
-from typing import Optional, Type
+from typing import Any, Optional, Type
 
 from openai import AsyncOpenAI
 from openai._base_client import AsyncAPIClient, _AsyncStreamT
 from openai._models import FinalRequestOptions
 from openai._types import ResponseT
-from pydantic_core import to_json
+from openai.types.chat import ChatCompletion, ChatCompletionMessageParam
 
 original_request = getattr(AsyncAPIClient, "request")
 
@@ -18,10 +18,20 @@ async def patched_request(
     stream: bool = False,
     stream_cls: type[_AsyncStreamT] | None = None,
     remaining_retries: Optional[int] = None,
-) -> ResponseT:
-    print("CALLED PATCHED REQUEST")
-    print(to_json(options, indent=2, fallback=lambda _: None).decode())
-    response = await original_request(
+) -> Any:
+    # TODO: some additional header we put in from our call to generate
+    # TODO: checking that the get_model call succeeds
+    # TODO: checking the baseURL if it comes in different (probably will from together)
+
+    # do we need to forward this request to inspect_ai.model?
+    if options.url == "/chat/completions":
+        if options.json_data is not None:
+            model = getattr(options.json_data, "model", "")
+            if "/" in model:
+                return await inspect_model_request(model, options)
+
+    # otherwise just delegate
+    return await original_request(
         self,
         cast_to,
         options,
@@ -30,11 +40,15 @@ async def patched_request(
         remaining_retries=remaining_retries,
     )
 
-    print(response)
-    print(type(response))
-    # openai.types.chat.chat_completion.ChatCompletion
-    # print(to_json(response, indent=2, fallback=lambda _: None))
-    return response
+
+async def inspect_model_request(
+    model: str, options: FinalRequestOptions
+) -> ChatCompletion:
+    # TODO: openai messages to inspect messages
+    messages: list[ChatCompletionMessageParam] = getattr(options.json_data, "messages")
+
+    # TODO: Inspect completion to openai completion
+    return ChatCompletion()
 
 
 setattr(AsyncAPIClient, "request", patched_request)
