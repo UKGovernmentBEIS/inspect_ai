@@ -74,9 +74,8 @@ class PlainDisplay(Display):
             footer=None,
             log_location=None,
         )
-        print("\n")
+        print("Running task:")
         rich.print(panel)
-        print("\n")  # Add space before progress starts
 
         # Create and yield task display
         task = TaskWithResult(profile, None)
