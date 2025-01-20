@@ -13,6 +13,7 @@
 - Log warning when a non-fatal sample error occurs (i.e. errors permitted by the `fail_on_error` option) 
 - Inspect View: allow filtering samples by compound expressions including multiple scorers. (thanks @andrei-apollo)
 - Inspect View: improve rendering performance and stability for the viewer when viewing very large eval logs or samples with a large number of steps.
+- Task display: Improved `plain` mode with periodic updates on progress, metrics, etc.
 
 ## v0.3.58 (16 January 2025)
 
