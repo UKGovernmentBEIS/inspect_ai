@@ -112,6 +112,7 @@ class PlainProgress(Progress):
     def complete(self) -> None:
         self.current = self.total
 
+
 class PlainTaskDisplay(TaskDisplay):
     def __init__(self, task: TaskWithResult):
         self.task = task
@@ -119,7 +120,7 @@ class PlainTaskDisplay(TaskDisplay):
         self.samples_complete = 0
         self.samples_total = 0
         self.current_metrics: list[TaskDisplayMetric] | None = None
-        print()  # Blank line for progress
+        self.last_progress = 0  # Track last progress percentage
 
     @contextlib.contextmanager
     def progress(self) -> Iterator[Progress]:
@@ -127,25 +128,34 @@ class PlainTaskDisplay(TaskDisplay):
         yield self.progress_display
 
     def _print_status(self) -> None:
-        # Build status line
-        status_parts = []
+        """Print status updates on new lines when there's meaningful progress"""
+        if not self.progress_display:
+            return
 
-        # Add step progress
-        if self.progress_display:
-            percent = int(self.progress_display.current / self.progress_display.total * 100)
+        # Calculate current progress percentage
+        current_progress = int(self.progress_display.current / self.progress_display.total * 100)
+
+        # Only print on percentage changes to avoid too much output
+        if current_progress != self.last_progress:
+            status_parts = []
+
+            # Add step progress
             status_parts.append(
-                f"Steps: {self.progress_display.current}/{self.progress_display.total} ({percent}%)")
+                f"Steps: {self.progress_display.current}/{self.progress_display.total} ({current_progress}%)"
+            )
 
-        # Add sample progress
-        status_parts.append(f"Samples: {self.samples_complete}/{self.samples_total}")
+            # Add sample progress
+            status_parts.append(f"Samples: {self.samples_complete}/{self.samples_total}")
 
-        # Add metrics
-        if self.current_metrics:
-            metric_str = task_metric(self.current_metrics)
-            status_parts.append(metric_str)
+            # Add metrics
+            if self.current_metrics:
+                metric_str = task_metric(self.current_metrics)
+                status_parts.append(metric_str)
 
-        # Print single status line with carriage return
-        print(f"\r{' | '.join(status_parts)}", end="", flush=True)
+            # Print on new line
+            print(" | ".join(status_parts))
+
+            self.last_progress = current_progress
 
     def sample_complete(self, complete: int, total: int) -> None:
         self.samples_complete = complete
@@ -158,7 +168,6 @@ class PlainTaskDisplay(TaskDisplay):
 
     def complete(self, result: TaskResult) -> None:
         self.task.result = result
-        print()  # New line after progress
         print("Task complete.")
 
         # Print final status
