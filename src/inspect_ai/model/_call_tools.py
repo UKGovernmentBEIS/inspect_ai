@@ -329,7 +329,7 @@ def tool_params(input: dict[str, Any], func: Callable[..., Any]) -> dict[str, An
     docstring = inspect.getdoc(func)
 
     # if the function takes **kwargs: Any then just pass the tool arguments through
-    if type_hints == {"kwargs": Any}:
+    if "kwargs" in type_hints and type_hints["kwargs"] == Any:
         return input
 
     # build params
