@@ -1,3 +1,4 @@
+import clsx from "clsx";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ApplicationIcons } from "../appearance/icons";
 import { useResizeObserver } from "../utils/dom";
@@ -9,6 +10,7 @@ interface ExpandablePanelProps {
   lines?: number;
   children?: React.ReactNode;
   style?: React.CSSProperties;
+  className?: string | string[];
 }
 
 export const ExpandablePanel: React.FC<ExpandablePanelProps> = ({
@@ -17,6 +19,7 @@ export const ExpandablePanel: React.FC<ExpandablePanelProps> = ({
   lines = 15,
   children,
   style,
+  className,
 }) => {
   const [isCollapsed, setIsCollapsed] = useState(collapse);
   const [showToggle, setShowToggle] = useState(false);
@@ -55,10 +58,15 @@ export const ExpandablePanel: React.FC<ExpandablePanelProps> = ({
   };
 
   return (
-    <div style={baseStyles}>
+    <div className={clsx(className)}>
       <div
+        style={baseStyles}
         ref={contentRef}
-        className={`expandable-panel ${isCollapsed ? "expandable-collapsed" : ""} ${border ? "expandable-bordered" : ""}`}
+        className={clsx(
+          "expandable-panel",
+          isCollapsed ? "expandable-collapsed" : undefined,
+          border ? "expandable-bordered" : undefined,
+        )}
       >
         {children}
       </div>

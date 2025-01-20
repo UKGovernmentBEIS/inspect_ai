@@ -807,10 +807,10 @@ var require_assets = __commonJS({
            * @memberof Prism
            * @public
            */
-          highlightAllUnder: function(container, async, callback) {
+          highlightAllUnder: function(container2, async, callback) {
             var env = {
               callback,
-              container,
+              container: container2,
               selector: 'code[class*="language-"], [class*="language-"] code, code[class*="lang-"], [class*="lang-"] code'
             };
             _2.hooks.run("before-highlightall", env);
@@ -1783,8 +1783,8 @@ var require_assets = __commonJS({
            *
            * @param {ParentNode} [container=document]
            */
-          highlight: function highlight(container) {
-            var elements = (container || document).querySelectorAll(SELECTOR);
+          highlight: function highlight(container2) {
+            var elements = (container2 || document).querySelectorAll(SELECTOR);
             for (var i2 = 0, element; element = elements[i2++]; ) {
               Prism2.highlightElement(element);
             }
@@ -1902,7 +1902,7 @@ var require_assets = __commonJS({
                   }
                   var ClipboardActionDefault = function ClipboardActionDefault2() {
                     var options = arguments.length > 0 && arguments[0] !== void 0 ? arguments[0] : {};
-                    var _options$action = options.action, action = _options$action === void 0 ? "copy" : _options$action, container = options.container, target = options.target, text2 = options.text;
+                    var _options$action = options.action, action = _options$action === void 0 ? "copy" : _options$action, container2 = options.container, target = options.target, text2 = options.text;
                     if (action !== "copy" && action !== "cut") {
                       throw new Error('Invalid "action" value, use either "copy" or "cut"');
                     }
@@ -1920,12 +1920,12 @@ var require_assets = __commonJS({
                     }
                     if (text2) {
                       return actions_copy(text2, {
-                        container
+                        container: container2
                       });
                     }
                     if (target) {
                       return action === "cut" ? actions_cut(target) : actions_copy(target, {
-                        container
+                        container: container2
                       });
                     }
                   };
@@ -3021,13 +3021,13 @@ var require_assets = __commonJS({
       var _element$ownerDocumen;
       var html = getDocumentElement(element);
       var winScroll = getWindowScroll(element);
-      var body = (_element$ownerDocumen = element.ownerDocument) == null ? void 0 : _element$ownerDocumen.body;
-      var width = max$2(html.scrollWidth, html.clientWidth, body ? body.scrollWidth : 0, body ? body.clientWidth : 0);
-      var height = max$2(html.scrollHeight, html.clientHeight, body ? body.scrollHeight : 0, body ? body.clientHeight : 0);
+      var body2 = (_element$ownerDocumen = element.ownerDocument) == null ? void 0 : _element$ownerDocumen.body;
+      var width = max$2(html.scrollWidth, html.clientWidth, body2 ? body2.scrollWidth : 0, body2 ? body2.clientWidth : 0);
+      var height = max$2(html.scrollHeight, html.clientHeight, body2 ? body2.scrollHeight : 0, body2 ? body2.clientHeight : 0);
       var x2 = -winScroll.scrollLeft + getWindowScrollBarX(element);
       var y2 = -winScroll.scrollTop;
-      if (getComputedStyle$1(body || html).direction === "rtl") {
-        x2 += max$2(html.clientWidth, body ? body.clientWidth : 0) - width;
+      if (getComputedStyle$1(body2 || html).direction === "rtl") {
+        x2 += max$2(html.clientWidth, body2 ? body2.clientWidth : 0) - width;
       }
       return {
         width,
@@ -5439,8 +5439,8 @@ var require_assets = __commonJS({
           return;
         }
         const openToggles = SelectorEngine.find(SELECTOR_DATA_TOGGLE_SHOWN);
-        for (const toggle of openToggles) {
-          const context = Dropdown.getInstance(toggle);
+        for (const toggle2 of openToggles) {
+          const context = Dropdown.getInstance(toggle2);
           if (!context || context._config.autoClose === false) {
             continue;
           }
@@ -6543,10 +6543,10 @@ var require_assets = __commonJS({
         const tip = this._getTipElement();
         this._element.setAttribute("aria-describedby", tip.getAttribute("id"));
         const {
-          container
+          container: container2
         } = this._config;
         if (!this._element.ownerDocument.documentElement.contains(this.tip)) {
-          container.append(tip);
+          container2.append(tip);
           EventHandler.trigger(this._element, this.constructor.eventName(EVENT_INSERTED));
         }
         this._popper = this._createPopper(tip);
@@ -7289,14 +7289,14 @@ var require_assets = __commonJS({
         if (!outerElem.classList.contains(CLASS_DROPDOWN)) {
           return;
         }
-        const toggle = (selector, className2) => {
+        const toggle2 = (selector, className2) => {
           const element2 = SelectorEngine.findOne(selector, outerElem);
           if (element2) {
             element2.classList.toggle(className2, open);
           }
         };
-        toggle(SELECTOR_DROPDOWN_TOGGLE, CLASS_NAME_ACTIVE);
-        toggle(SELECTOR_DROPDOWN_MENU, CLASS_NAME_SHOW$1);
+        toggle2(SELECTOR_DROPDOWN_TOGGLE, CLASS_NAME_ACTIVE);
+        toggle2(SELECTOR_DROPDOWN_MENU, CLASS_NAME_SHOW$1);
         outerElem.setAttribute("aria-expanded", open);
       }
       _setAttributeIfNotExists(element, attribute2, value) {
@@ -10076,7 +10076,8 @@ var require_assets = __commonJS({
       border,
       lines = 15,
       children: children2,
-      style: style2
+      style: style2,
+      className: className2
     }) => {
       const [isCollapsed, setIsCollapsed] = h(collapse);
       const [showToggle, setShowToggle] = h(false);
@@ -10103,10 +10104,11 @@ var require_assets = __commonJS({
         ...style2
       };
       return /* @__PURE__ */ u("div", {
-        style: baseStyles,
+        className: clsx(className2),
         children: [/* @__PURE__ */ u("div", {
+          style: baseStyles,
           ref: contentRef,
-          className: `expandable-panel ${isCollapsed ? "expandable-collapsed" : ""} ${border ? "expandable-bordered" : ""}`,
+          className: clsx("expandable-panel", isCollapsed ? "expandable-collapsed" : void 0, border ? "expandable-bordered" : void 0),
           children: children2
         }), showToggle && /* @__PURE__ */ u(MoreToggle, {
           collapsed: isCollapsed,
@@ -16597,7 +16599,7 @@ var require_assets = __commonJS({
     const hidden = "_hidden_tm52u_5";
     const pills = "_pills_tm52u_9";
     const pill = "_pill_tm52u_9";
-    const styles$3 = {
+    const styles$7 = {
       visible,
       hidden,
       pills,
@@ -16622,13 +16624,13 @@ var require_assets = __commonJS({
       const navBodies = children2.map((child) => {
         var _a2;
         return /* @__PURE__ */ u("div", {
-          className: ((_a2 = child["props"]) == null ? void 0 : _a2.title) === activeItem ? styles$3.visible : styles$3.hidden,
+          className: ((_a2 = child["props"]) == null ? void 0 : _a2.title) === activeItem ? styles$7.visible : styles$7.hidden,
           children: ["$", child]
         });
       });
       return /* @__PURE__ */ u("div", {
         children: [/* @__PURE__ */ u("ul", {
-          className: clsx("nav", "nav-pills", styles$3.pills),
+          className: clsx("nav", "nav-pills", styles$7.pills),
           role: "tablist",
           "aria-orientation": "horizontal",
           children: navPills
@@ -16648,7 +16650,7 @@ var require_assets = __commonJS({
           type: "button",
           role: "tab",
           "aria-selected": active,
-          className: clsx("nav-link", "text-style-label", active ? "active " : "", styles$3.pill),
+          className: clsx("nav-link", "text-style-label", active ? "active " : "", styles$7.pill),
           onClick: () => {
             setActiveItem(title);
           },
@@ -20873,7 +20875,7 @@ self.onmessage = function (e) {
       }
       return (await api$2("GET", `/api/log-headers?${params.toString()}`)).parsed;
     }
-    async function api$2(method, path, body) {
+    async function api$2(method, path, body2) {
       const headers = {
         Accept: "application/json",
         Pragma: "no-cache",
@@ -20883,7 +20885,7 @@ self.onmessage = function (e) {
       const response = await fetch(`${path}`, {
         method,
         headers,
-        body
+        body: body2
       });
       if (response.ok) {
         const text2 = await response.text();
@@ -23832,10 +23834,10 @@ self.onmessage = function (e) {
            * @memberof Prism
            * @public
            */
-          highlightAllUnder: function(container, async, callback) {
+          highlightAllUnder: function(container2, async, callback) {
             var env = {
               callback,
-              container,
+              container: container2,
               selector: 'code[class*="language-"], [class*="language-"] code, code[class*="lang-"], [class*="lang-"] code'
             };
             _2.hooks.run("before-highlightall", env);
@@ -24537,7 +24539,7 @@ self.onmessage = function (e) {
         })
       });
     };
-    const styles$2 = {
+    const styles$6 = {
       "json-tab": "_json-tab_w7sx0_1"
     };
     const kJsonMaxSize = 1e7;
@@ -24549,7 +24551,7 @@ self.onmessage = function (e) {
       if (json.length > kJsonMaxSize && capabilities.downloadFiles) {
         const file = `${filename(logFile)}.json`;
         return /* @__PURE__ */ u("div", {
-          className: styles$2["json-tab"],
+          className: styles$6["json-tab"],
           children: /* @__PURE__ */ u(DownloadPanel, {
             message: "The JSON for this log file is too large to render.",
             buttonLabel: "Download JSON File",
@@ -24567,6 +24569,28 @@ self.onmessage = function (e) {
           })
         });
       }
+    };
+    const navbarContainer = "_navbarContainer_838qu_1";
+    const navbarToggle = "_navbarToggle_838qu_8";
+    const navbarBody = "_navbarBody_838qu_13";
+    const navbarBodyContainer = "_navbarBodyContainer_838qu_19";
+    const navbarTaskTitle = "_navbarTaskTitle_838qu_25";
+    const navbarTaskModel = "_navbarTaskModel_838qu_30";
+    const navbarSecondaryContainer = "_navbarSecondaryContainer_838qu_34";
+    const navbarStatus = "_navbarStatus_838qu_42";
+    const navbarWrapper = "_navbarWrapper_838qu_48";
+    const navbarInnerWrapper = "_navbarInnerWrapper_838qu_51";
+    const styles$5 = {
+      navbarContainer,
+      navbarToggle,
+      navbarBody,
+      navbarBodyContainer,
+      navbarTaskTitle,
+      navbarTaskModel,
+      navbarSecondaryContainer,
+      navbarStatus,
+      navbarWrapper,
+      navbarInnerWrapper
     };
     const CopyButton = ({
       value,
@@ -24600,6 +24624,268 @@ self.onmessage = function (e) {
         })
       });
     };
+    const container$1 = "_container_1w9cu_1";
+    const wrapper = "_wrapper_1w9cu_8";
+    const toggle = "_toggle_1w9cu_14";
+    const body = "_body_1w9cu_19";
+    const bodyContainer = "_bodyContainer_1w9cu_25";
+    const taskTitle = "_taskTitle_1w9cu_31";
+    const taskModel = "_taskModel_1w9cu_36";
+    const taskStatus = "_taskStatus_1w9cu_40";
+    const secondaryContainer = "_secondaryContainer_1w9cu_46";
+    const styles$4 = {
+      container: container$1,
+      wrapper,
+      toggle,
+      body,
+      bodyContainer,
+      taskTitle,
+      taskModel,
+      taskStatus,
+      secondaryContainer
+    };
+    const simpleMetricsRows = "_simpleMetricsRows_13pa9_1";
+    const multiMetricsRows = "_multiMetricsRows_13pa9_12";
+    const verticalMetricReducer = "_verticalMetricReducer_13pa9_26";
+    const verticalMetricName = "_verticalMetricName_13pa9_33";
+    const verticalMetricValue = "_verticalMetricValue_13pa9_41";
+    const multiScorerReducer = "_multiScorerReducer_13pa9_47";
+    const multiScorerLabel = "_multiScorerLabel_13pa9_52";
+    const multiScorerValue = "_multiScorerValue_13pa9_58";
+    const multiScorerValueContent = "_multiScorerValueContent_13pa9_65";
+    const styles$3 = {
+      simpleMetricsRows,
+      multiMetricsRows,
+      verticalMetricReducer,
+      verticalMetricName,
+      verticalMetricValue,
+      multiScorerReducer,
+      multiScorerLabel,
+      multiScorerValue,
+      multiScorerValueContent
+    };
+    const ResultsPanel = ({
+      results
+    }) => {
+      var _a2, _b2;
+      if (((_a2 = results == null ? void 0 : results.scores) == null ? void 0 : _a2.length) === 1) {
+        const scorers = {};
+        results.scores.map((score2) => {
+          scorers[score2.name] = Object.keys(score2.metrics).map((key2) => {
+            return {
+              reducer: score2.reducer,
+              metric: {
+                name: key2,
+                value: score2.metrics[key2].value,
+                options: {},
+                metadata: {}
+              }
+            };
+          });
+        });
+        const metrics = Object.values(scorers)[0];
+        return /* @__PURE__ */ u("div", {
+          className: styles$3.simpleMetricsRows,
+          children: metrics.map((metric, i2) => {
+            return /* @__PURE__ */ u(VerticalMetric, {
+              metricSummary: metric,
+              isFirst: i2 === 0
+            });
+          })
+        });
+      } else {
+        return /* @__PURE__ */ u("div", {
+          className: styles$3.multiMetricsRows,
+          children: (_b2 = results == null ? void 0 : results.scores) == null ? void 0 : _b2.map((score2, index) => {
+            return /* @__PURE__ */ u(MultiScorerMetric, {
+              scorer: score2,
+              isFirst: index === 0
+            });
+          })
+        });
+      }
+    };
+    const VerticalMetric = ({
+      metricSummary,
+      isFirst
+    }) => {
+      const reducer_component = metricSummary.reducer ? /* @__PURE__ */ u("div", {
+        className: clsx("text-style-label", "text-style-secondary", styles$3.verticalMetricReducer),
+        children: metricSummary.reducer
+      }) : "";
+      return /* @__PURE__ */ u("div", {
+        style: {
+          paddingLeft: isFirst ? "0" : "1em"
+        },
+        children: [/* @__PURE__ */ u("div", {
+          class: clsx("vertical-metric-label", "text-style-label", "text-style-secondary", styles$3.verticalMetricName),
+          children: metricSummary.metric.name
+        }), reducer_component, /* @__PURE__ */ u("div", {
+          class: clsx("vertical-metric-value", styles$3.verticalMetricValue),
+          children: formatPrettyDecimal(metricSummary.metric.value)
+        })]
+      });
+    };
+    const MultiScorerMetric = ({
+      scorer,
+      isFirst
+    }) => {
+      const metricsLen = Object.keys(scorer.metrics).length === 1;
+      const titleFontClz = metricsLen ? "text-size-larger" : "text-size-base";
+      const reducerFontClz = metricsLen ? "text-size-small" : "text-size-smaller";
+      const valueFontClz = metricsLen ? "text-size-base" : "text-size-base";
+      const reducer_component = scorer.reducer ? /* @__PURE__ */ u("div", {
+        className: clsx(reducerFontClz, "text-style-label", "text-style-secondary", styles$3.multiScorerReducer),
+        children: scorer.reducer
+      }) : "";
+      return /* @__PURE__ */ u("div", {
+        style: {
+          paddingLeft: isFirst ? "0" : "1.5em"
+        },
+        children: [/* @__PURE__ */ u("div", {
+          className: clsx(titleFontClz, "text-style-label", "text-style-secondary", "multi-score-label", styles$3.multiScorerLabel),
+          children: scorer.name
+        }), reducer_component, /* @__PURE__ */ u("div", {
+          className: clsx(valueFontClz, styles$3.multiScorerValue),
+          children: Object.keys(scorer.metrics).map((key2) => {
+            const metric = scorer.metrics[key2];
+            return /* @__PURE__ */ u("div", {
+              children: [/* @__PURE__ */ u("div", {
+                children: metric.name
+              }), /* @__PURE__ */ u("div", {
+                className: styles$3.multiScorerValueContent,
+                children: formatPrettyDecimal(metric.value)
+              })]
+            });
+          })
+        })]
+      });
+    };
+    const statusPanel = "_statusPanel_1fzh4_1";
+    const statusIcon = "_statusIcon_1fzh4_10";
+    const styles$2 = {
+      statusPanel,
+      statusIcon
+    };
+    const CancelledPanel = ({
+      sampleCount
+    }) => {
+      return /* @__PURE__ */ u(StatusPanel, {
+        icon: ApplicationIcons.logging["info"],
+        status: "Cancelled",
+        sampleCount
+      });
+    };
+    const ErroredPanel = ({
+      sampleCount
+    }) => {
+      return /* @__PURE__ */ u(StatusPanel, {
+        icon: ApplicationIcons.logging["error"],
+        status: "Task Failed",
+        sampleCount
+      });
+    };
+    const RunningPanel = ({
+      sampleCount
+    }) => {
+      return /* @__PURE__ */ u(StatusPanel, {
+        icon: ApplicationIcons.running,
+        status: "Running",
+        sampleCount
+      });
+    };
+    const StatusPanel = ({
+      icon,
+      status,
+      sampleCount
+    }) => {
+      return /* @__PURE__ */ u("div", {
+        className: styles$2.statusPanel,
+        children: [/* @__PURE__ */ u("i", {
+          class: clsx(icon, styles$2.statusIcon),
+          style: {}
+        }), /* @__PURE__ */ u("div", {
+          children: [/* @__PURE__ */ u("div", {
+            children: ["$", status]
+          }), /* @__PURE__ */ u("div", {
+            children: ["($", sampleCount, " $", sampleCount === 1 ? "sample" : "samples", ")"]
+          })]
+        })]
+      });
+    };
+    const PrimaryBar = ({
+      showToggle,
+      offcanvas,
+      status,
+      evalResults,
+      samples,
+      file,
+      evalSpec
+    }) => {
+      let statusPanel2;
+      if (status === "success") {
+        statusPanel2 = /* @__PURE__ */ u(ResultsPanel, {
+          results: evalResults
+        });
+      } else if (status === "cancelled") {
+        statusPanel2 = /* @__PURE__ */ u(CancelledPanel, {
+          sampleCount: (samples == null ? void 0 : samples.length) || 0
+        });
+      } else if (status === "started") {
+        statusPanel2 = /* @__PURE__ */ u(RunningPanel, {
+          sampleCount: (samples == null ? void 0 : samples.length) || 0
+        });
+      } else if (status === "error") {
+        statusPanel2 = /* @__PURE__ */ u(ErroredPanel, {
+          sampleCount: (samples == null ? void 0 : samples.length) || 0
+        });
+      }
+      const logFileName = file ? filename(file) : "";
+      return /* @__PURE__ */ u("div", {
+        className: clsx(styles$4.wrapper),
+        children: [/* @__PURE__ */ u("div", {
+          className: clsx("navbar-brand", "navbar-text", "mb-0", styles$4.container),
+          children: [showToggle ? /* @__PURE__ */ u("button", {
+            id: "sidebarToggle",
+            className: clsx("btn", offcanvas ? void 0 : "d-md-none", styles$4.toggle),
+            type: "button",
+            "data-bs-toggle": "offcanvas",
+            "data-bs-target": "#sidebarOffCanvas",
+            "aria-controls": "sidebarOffCanvas",
+            children: /* @__PURE__ */ u("i", {
+              class: ApplicationIcons.menu
+            })
+          }) : "", /* @__PURE__ */ u("div", {
+            className: styles$4.body,
+            children: [/* @__PURE__ */ u("div", {
+              className: styles$4.bodyContainer,
+              children: [/* @__PURE__ */ u("div", {
+                id: "task-title",
+                className: clsx("task-title", "text-wrap", styles$4.taskTitle),
+                title: evalSpec == null ? void 0 : evalSpec.task,
+                children: evalSpec == null ? void 0 : evalSpec.task
+              }), /* @__PURE__ */ u("div", {
+                id: "task-model",
+                className: clsx("task-model", "text-wrap", styles$4.taskModel, "text-size-base"),
+                title: evalSpec == null ? void 0 : evalSpec.model,
+                children: evalSpec == null ? void 0 : evalSpec.model
+              })]
+            }), /* @__PURE__ */ u("div", {
+              className: clsx("text-size-small", styles$4.secondaryContainer),
+              children: [/* @__PURE__ */ u("div", {
+                className: clsx("navbar-secondary-text", "text-wrap"),
+                children: logFileName
+              }), file ? /* @__PURE__ */ u(CopyButton, {
+                value: file
+              }) : ""]
+            })]
+          })]
+        }), /* @__PURE__ */ u("div", {
+          className: clsx(styles$4.taskStatus, "navbar-text"),
+          children: statusPanel2
+        })]
+      });
+    };
     const LabeledValue = ({
       layout = "column",
       style: style2,
@@ -24625,17 +24911,19 @@ self.onmessage = function (e) {
         })]
       });
     };
-    const staticCol = "_staticCol_16s1c_1";
-    const justifyLeft = "_justifyLeft_16s1c_5";
-    const justifyCenter = "_justifyCenter_16s1c_9";
-    const justifyRight = "_justifyRight_16s1c_13";
-    const valueGrid = "_valueGrid_16s1c_17";
+    const staticCol = "_staticCol_xzzhl_1";
+    const justifyLeft = "_justifyLeft_xzzhl_5";
+    const justifyCenter = "_justifyCenter_xzzhl_9";
+    const justifyRight = "_justifyRight_xzzhl_13";
+    const valueGrid = "_valueGrid_xzzhl_17";
+    const container = "_container_xzzhl_25";
     const styles$1 = {
       staticCol,
       justifyLeft,
       justifyCenter,
       justifyRight,
-      valueGrid
+      valueGrid,
+      container
     };
     const SecondaryBar = ({
       evalSpec,
@@ -24644,8 +24932,7 @@ self.onmessage = function (e) {
       evalStats,
       samples,
       evalDescriptor,
-      status,
-      style: style2
+      status
     }) => {
       if (!evalSpec || status !== "success") {
         return "";
@@ -24704,10 +24991,7 @@ self.onmessage = function (e) {
         });
       }
       return /* @__PURE__ */ u(ExpandablePanel, {
-        style: {
-          margin: "0",
-          ...style2
-        },
+        className: styles$1.container,
         collapse: true,
         lines: 4,
         children: /* @__PURE__ */ u("div", {
@@ -24795,342 +25079,26 @@ self.onmessage = function (e) {
       offcanvas,
       status
     }) => {
-      const toggleOffCanClass = offcanvas ? "" : " d-md-none";
-      const logFileName = file ? filename(file) : "";
-      const task = evalSpec == null ? void 0 : evalSpec.task;
-      const model = evalSpec == null ? void 0 : evalSpec.model;
-      const results = evalResults;
-      const created = evalSpec == null ? void 0 : evalSpec.created;
-      let statusPanel;
-      if (status === "success") {
-        statusPanel = m$1`<${ResultsPanel} results="${results}" />`;
-      } else if (status === "cancelled") {
-        statusPanel = m$1`<${CancelledPanel}
-      sampleCount=${(samples == null ? void 0 : samples.length) || 0}
-    />`;
-      } else if (status === "started") {
-        statusPanel = m$1`<${RunningPanel} sampleCount=${(samples == null ? void 0 : samples.length) || 0} />`;
-      } else if (status === "error") {
-        statusPanel = m$1`<${ErroredPanel} sampleCount=${(samples == null ? void 0 : samples.length) || 0} />`;
-      }
-      const navbarContents = logFileName ? m$1` <div
-          class="navbar-brand navbar-text mb-0"
-          style=${{
-        display: "flex",
-        paddingTop: 0,
-        marginLeft: "0.5rem",
-        minWidth: "250px"
-      }}
-        >
-          ${showToggle ? m$1`<button
-                id="sidebarToggle"
-                class="btn${toggleOffCanClass}"
-                type="button"
-                data-bs-toggle="offcanvas"
-                data-bs-target="#sidebarOffCanvas"
-                aria-controls="sidebarOffCanvas"
-                style=${{
-        padding: "0rem 0.1rem 0.1rem 0rem",
-        display: "flex"
-      }}
-              >
-                <i class=${ApplicationIcons.menu}></i>
-              </button> ` : ""}
-          <div
-            style=${{
-        display: "flex",
-        flexDirection: "column",
-        marginLeft: "0.2rem"
-      }}
-          >
-            <div
-              style=${{
-        marginTop: "0.1rem",
-        display: "grid",
-        gridTemplateColumns: "minmax(30px,max-content) minmax(100px, max-content)"
-      }}
-            >
-              <div
-                id="task-title"
-                style=${{
-        fontWeight: 600,
-        marginRight: "0.3rem",
-        ...ApplicationStyles.wrapText()
-      }}
-                class="task-title"
-                title=${task}
-              >
-                ${task}
-              </div>
-              <div
-                id="task-model"
-                style=${{
-        fontSize: FontSize.base,
-        paddingTop: "0.4rem",
-        ...ApplicationStyles.wrapText()
-      }}
-                class="task-model"
-                title=${model}
-              >
-                ${model}
-              </div>
-            </div>
-            <div
-              style=${{
-        opacity: "0.7",
-        marginTop: "0.1rem",
-        paddingBottom: 0,
-        fontSize: FontSize.small,
-        display: "grid",
-        gridTemplateColumns: "minmax(0,max-content) max-content"
-      }}
-            >
-              <div
-                class="navbar-secondary-text"
-                style=${{
-        ...ApplicationStyles.wrapText()
-      }}
-              >
-                ${logFileName}
-              </div>
-              <${CopyButton} value=${file} />
-            </div>
-          </div>
-        </div>
-
-        <div id="task-created" style=${{ display: "none" }}>${created}</div>
-
-        <div
-          class="navbar-text"
-          style=${{
-        justifyContent: "end",
-        marginRight: "1em",
-        marginBottom: "0"
-      }}
-        >
-          ${statusPanel}
-        </div>` : "";
-      return m$1`
-    <nav
-      class="navbar sticky-top"
-      style=${{
-        flexWrap: "nowrap"
-      }}
-    >
-      <div
-        style=${{
-        display: "grid",
-        gridTemplateColumns: "1fr auto",
-        width: "100%"
-      }}
-      >
-        ${navbarContents}
-        <${SecondaryBar}
-          evalSpec=${evalSpec}
-          evalPlan=${evalPlan}
-          evalResults=${evalResults}
-          evalStats=${evalStats}
-          samples=${samples}
-          evalDescriptor=${evalDescriptor}
-          status=${status}
-          style=${{ gridColumn: "1/-1" }}
-        />
-      </div>
-    </nav>
-  `;
-    };
-    const StatusPanel = ({ icon, status, sampleCount }) => {
-      return m$1`<div
-    style=${{
-        padding: "1em",
-        marginTop: "0.5em",
-        textTransform: "uppercase",
-        fontSize: FontSize.smaller,
-        display: "grid",
-        gridTemplateColumns: "auto auto"
-      }}
-  >
-    <i
-      class="${icon}"
-      style=${{
-        fontSize: FontSize.large,
-        marginRight: "0.3em",
-        marginTop: "-0.1em"
-      }}
-    />
-    <div>
-      <div>${status}</div>
-      <div>(${sampleCount} ${sampleCount === 1 ? "sample" : "samples"})</div>
-    </div>
-  </div>`;
-    };
-    const CancelledPanel = ({ sampleCount }) => {
-      return m$1`<${StatusPanel}
-    icon=${ApplicationIcons.logging["info"]}
-    status="Cancelled"
-    sampleCount=${sampleCount}
-  />`;
-    };
-    const ErroredPanel = ({ sampleCount }) => {
-      return m$1`<${StatusPanel}
-    icon=${ApplicationIcons.logging["error"]}
-    status="Task Failed"
-    sampleCount=${sampleCount}
-  />`;
-    };
-    const RunningPanel = ({ sampleCount }) => {
-      return m$1`<${StatusPanel}
-    icon=${ApplicationIcons.running}
-    status="Running"
-    sampleCount=${sampleCount}
-  />`;
-    };
-    const ResultsPanel = ({ results }) => {
-      var _a2, _b2;
-      if (((_a2 = results == null ? void 0 : results.scores) == null ? void 0 : _a2.length) === 1) {
-        const scorers = {};
-        results.scores.map((score2) => {
-          scorers[score2.name] = Object.keys(score2.metrics).map((key2) => {
-            return {
-              name: key2,
-              value: score2.metrics[key2].value,
-              reducer: score2.reducer
-            };
-          });
-        });
-        const metrics = Object.values(scorers)[0];
-        return m$1`<div
-      style=${{
-          display: "flex",
-          flexDirection: "row",
-          flexWrap: "wrap",
-          justifyContent: "end",
-          height: "100%",
-          alignItems: "center",
-          maxHeight: "15em",
-          overflow: "scroll"
-        }}
-    >
-      ${metrics.map((metric, i2) => {
-          return m$1`<${VerticalMetric} metric=${metric} isFirst=${i2 === 0} />`;
-        })}
-    </div>`;
-      } else {
-        return m$1`<div
-      style=${{
-          display: "flex",
-          flexDirection: "row",
-          flexWrap: "wrap",
-          justifyContent: "end",
-          height: "100%",
-          alignItems: "center",
-          marginTop: "0.2rem",
-          paddingBottom: "0.4rem",
-          rowGap: "1em",
-          maxHeight: "15em",
-          overflow: "scroll"
-        }}
-    >
-      ${(_b2 = results == null ? void 0 : results.scores) == null ? void 0 : _b2.map((score2, index) => {
-          return m$1`<${MultiScorerMetric}
-          scorer=${score2}
-          isFirst=${index === 0}
-        />`;
-        })}
-    </div>`;
-      }
-    };
-    const VerticalMetric = ({ metric, isFirst }) => {
-      const reducer_component = metric.reducer ? m$1` <div
-        style=${{
-        fontSize: FontSize.smaller,
-        textAlign: "center",
-        paddingTop: "0.3rem",
-        marginBottom: "-0.3rem",
-        ...TextStyle.label,
-        ...TextStyle.secondary
-      }}
-      >
-        ${// @ts-expect-error
-      metric.reducer}
-      </div>` : "";
-      return m$1`<div style=${{ paddingLeft: isFirst ? "0" : "1em" }}>
-    <div
-      class="vertical-metric-label"
-      style=${{
-        fontSize: FontSize.smaller,
-        ...TextStyle.secondary,
-        textAlign: "center",
-        paddingTop: "0.3rem",
-        marginBottom: "-0.2rem",
-        ...TextStyle.label,
-        ...TextStyle.secondary,
-        borderBottom: "solid var(--bs-border-color) 1px"
-      }}
-    >
-      ${metric.name}
-    </div>
-    ${reducer_component}
-    <div
-      class="vertical-metric-value"
-      style=${{
-        fontSize: FontSize.larger,
-        fontWeight: "500",
-        textAlign: "center"
-      }}
-    >
-      ${formatPrettyDecimal(metric.value)}
-    </div>
-  </div>`;
-    };
-    const MultiScorerMetric = ({ scorer, isFirst }) => {
-      const titleFontSize = Object.keys(scorer.metrics).length === 1 ? FontSize.larger : FontSize.base;
-      const reducerFontSize = Object.keys(scorer.metrics).length === 1 ? FontSize.small : FontSize.smaller;
-      const valueFontSize = Object.keys(scorer.metrics).length === 1 ? FontSize.base : FontSize.base;
-      const reducer_component = scorer.reducer ? m$1`<div
-        style=${{
-        fontSize: reducerFontSize,
-        textAlign: "center",
-        marginBottom: "-0.3rem",
-        ...TextStyle.label,
-        ...TextStyle.secondary
-      }}
-      >
-        ${scorer.reducer}
-      </div>` : "";
-      return m$1`<div style=${{ paddingLeft: isFirst ? "0" : "1.5em" }}>
-    <div
-      style=${{
-        fontSize: titleFontSize,
-        textAlign: "center",
-        borderBottom: "solid var(--bs-border-color) 1px",
-        marginBottom: "-0.1rem",
-        ...TextStyle.label,
-        ...TextStyle.secondary
-      }}
-      class="multi-score-label"
-    >
-      ${scorer.name}
-    </div>
-    ${reducer_component}
-    <div
-      style=${{
-        display: "grid",
-        gridTemplateColumns: "auto auto",
-        gridColumnGap: "0.3rem",
-        gridRowGap: "0",
-        fontSize: valueFontSize
-      }}
-    >
-      ${Object.keys(scorer.metrics).map((key2) => {
-        const metric = scorer.metrics[key2];
-        return m$1` <div>${metric.name}</div>
-          <div style=${{ fontWeight: "600" }}>
-            ${formatPrettyDecimal(metric.value)}
-          </div>`;
-      })}
-    </div>
-  </div>`;
+      return /* @__PURE__ */ u("nav", {
+        className: clsx("navbar", "sticky-top", styles$5.navbarWrapper),
+        children: [/* @__PURE__ */ u(PrimaryBar, {
+          file,
+          evalSpec,
+          evalResults,
+          samples,
+          showToggle,
+          offcanvas,
+          status
+        }), /* @__PURE__ */ u(SecondaryBar, {
+          evalSpec,
+          evalPlan,
+          evalResults,
+          evalStats,
+          samples,
+          evalDescriptor,
+          status
+        })]
+      });
     };
     const CardHeader = ({
       id,
@@ -28314,9 +28282,9 @@ self.onmessage = function (e) {
         const path = svg2.children[1];
         svg2.style.display = "none";
         const destination = getElementText(arrowParent.querySelector(".jsondiffpatch-moved-destination"));
-        const container = arrowParent.parentNode;
+        const container2 = arrowParent.parentNode;
         let destinationElem;
-        eachChildren(container, (child) => {
+        eachChildren(container2, (child) => {
           if (child.getAttribute("data-key") === destination) {
             destinationElem = child;
           }
@@ -33910,7 +33878,7 @@ ${events}
           events=${event.events}
           depth=${depth + 1}
         />` : "";
-      const body = event.type === "fork" ? m$1`
+      const body2 = event.type === "fork" ? m$1`
           <div title="Summary" style=${{ width: "100%", margin: "0.5em 0em" }}>
             <div style=${{ ...TextStyle.label }}>Inputs</div>
             <div style=${{ marginBottom: "1em" }}>
@@ -33944,7 +33912,7 @@ ${events}
         setEventState({ ...eventState, collapsed });
       }}              
     >
-      ${body}
+      ${body2}
     </${EventPanel}>`;
     };
     const SubtaskSummary = ({ input, result }) => {
@@ -48307,10 +48275,10 @@ ${events}
       })
     });
     class PanelGroup {
-      constructor(view, top2, container) {
+      constructor(view, top2, container2) {
         this.view = view;
         this.top = top2;
-        this.container = container;
+        this.container = container2;
         this.dom = void 0;
         this.classes = "";
         this.panels = [];
@@ -52928,14 +52896,14 @@ ${events}
     function completionTooltip(stateField, applyCompletion2) {
       return (view) => new CompletionTooltip(view, stateField, applyCompletion2);
     }
-    function scrollIntoView(container, element) {
-      let parent = container.getBoundingClientRect();
+    function scrollIntoView(container2, element) {
+      let parent = container2.getBoundingClientRect();
       let self2 = element.getBoundingClientRect();
-      let scaleY = parent.height / container.offsetHeight;
+      let scaleY = parent.height / container2.offsetHeight;
       if (self2.top < parent.top)
-        container.scrollTop -= (parent.top - self2.top) / scaleY;
+        container2.scrollTop -= (parent.top - self2.top) / scaleY;
       else if (self2.bottom > parent.bottom)
-        container.scrollTop += (self2.bottom - parent.bottom) / scaleY;
+        container2.scrollTop += (self2.bottom - parent.bottom) / scaleY;
     }
     function score(option) {
       return (option.boost || 0) * 100 + (option.apply ? 10 : 0) + (option.info ? 5 : 0) + (option.type ? 1 : 0);

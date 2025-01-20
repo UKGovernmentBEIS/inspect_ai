@@ -71,8 +71,43 @@ body[class^="vscode-"] .app-main-grid {
   color: var(--bs-secondary);
 }
 
-text-style-tertiary {
+.text-style-tertiary {
   color: var(--bs-tertiary-color);
+}
+
+/* Inspect Font Size Styles */
+.text-size-title {
+  font-size: var(--inspect-font-size-title);
+}
+
+.text-size-title-secondary {
+  font-size: var(--inspect-font-size-title-secondary);
+}
+
+.text-size-larger {
+  font-size: var(--inspect-font-size-larger);
+}
+
+.text-size-large {
+  font-size: var(--inspect-font-size-large);
+}
+
+.text-size-base {
+  font-size: var(--inspect-font-size-base);
+}
+
+.text-size-small {
+  font-size: var(--inspect-font-size-small);
+}
+
+.text-size-smaller {
+  font-size: var(--inspect-font-size-smaller);
+}
+
+.text-wrap {
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
 }
 
 body[class^="vscode-"] {

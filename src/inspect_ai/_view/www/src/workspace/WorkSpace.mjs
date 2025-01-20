@@ -13,7 +13,7 @@ import { EmptyPanel } from "../components/EmptyPanel";
 import { TabPanel, TabSet } from "../components/TabSet.mjs";
 import { ToolButton } from "../components/ToolButton";
 import { JsonTab } from "../json/JsonTab";
-import { Navbar } from "../navbar/Navbar.mjs";
+import { Navbar } from "../navbar/Navbar";
 import { PlanCard } from "../plan/PlanCard.mjs";
 import { SamplesTab } from "../samples/SamplesTab.mjs";
 import { SampleTools } from "../samples/SamplesTools.mjs";
