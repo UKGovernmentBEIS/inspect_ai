@@ -169,10 +169,3 @@ class PlainTaskDisplay(TaskDisplay):
     def complete(self, result: TaskResult) -> None:
         self.task.result = result
         print("Task complete.")
-
-        # Print final status
-        if self.samples_total > 0:
-            print(f"Final: {self.samples_complete}/{self.samples_total} samples processed")
-            if self.current_metrics:
-                metric_str = task_metric(self.current_metrics)
-                print(f"Metrics: {metric_str}")
