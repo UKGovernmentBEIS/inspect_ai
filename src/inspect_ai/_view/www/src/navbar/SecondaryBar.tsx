@@ -22,7 +22,6 @@ interface SecondaryBarProps {
   evalDescriptor?: EvalDescriptor;
   samples?: SampleSummary[];
   status?: string;
-  style?: React.CSSProperties;
 }
 
 /**
@@ -36,7 +35,6 @@ export const SecondaryBar: React.FC<SecondaryBarProps> = ({
   samples,
   evalDescriptor,
   status,
-  style,
 }) => {
   if (!evalSpec || status !== "success") {
     return "";
@@ -108,11 +106,7 @@ export const SecondaryBar: React.FC<SecondaryBarProps> = ({
   }
 
   return (
-    <ExpandablePanel
-      style={{ margin: "0", ...style }}
-      collapse={true}
-      lines={4}
-    >
+    <ExpandablePanel className={styles.container} collapse={true} lines={4}>
       <div
         className={styles.valueGrid}
         style={{
