@@ -2,8 +2,9 @@ from collections.abc import Sequence
 from contextvars import ContextVar
 from copy import deepcopy
 from dataclasses import dataclass
+from itertools import tee
 from random import Random
-from typing import Any, Type, Union, cast, overload
+from typing import Any, Iterable, SupportsIndex, Type, Union, cast, overload
 
 from pydantic_core import to_jsonable_python
 
@@ -15,11 +16,13 @@ from inspect_ai.model import (
     ModelOutput,
 )
 from inspect_ai.model._call_tools import tools_info
+from inspect_ai.model._chat_message import ChatMessageBase
 from inspect_ai.model._model import sample_total_tokens
 from inspect_ai.scorer._metric import Score
 from inspect_ai.scorer._target import Target
 from inspect_ai.tool import Tool, ToolChoice
 from inspect_ai.tool._tool_def import ToolDef
+from inspect_ai.util._limit import SampleLimitExceededError
 from inspect_ai.util._store import Store, store_jsonable
 from inspect_ai.util._store_model import SMT
 
@@ -170,7 +173,7 @@ class TaskState:
         self.metadata = metadata
         """Metadata from the `Sample` for this `TaskState`"""
 
-        self.messages = messages
+        self.messages: list[ChatMessage] = ChatMessageList(messages)
         """
         Chat conversation history for sample.
 
@@ -387,3 +390,56 @@ def state_jsonable(state: TaskState | None = None) -> dict[str, Any]:
 def sample_jsonable(sample: Sample) -> dict[str, Any]:
     jsonable = to_jsonable_python(sample, exclude_none=True, fallback=lambda _x: None)
     return cast(dict[str, Any], deepcopy(jsonable))
+
+
+class ChatMessageList(list[ChatMessage]):
+    def __init__(self, iterable: Iterable[ChatMessage]):
+        super().__init__(iterable)
+
+    def _check_size(self, additional_items: int = 1) -> None:
+        from inspect_ai.log._samples import active_sample_message_limit
+
+        messages_limit = active_sample_message_limit()
+        if messages_limit is not None:
+            messages = len(self) + additional_items
+            if messages > messages_limit:
+                raise SampleLimitExceededError(
+                    "message", value=messages, limit=messages_limit
+                )
+
+    def append(self, item: ChatMessage) -> None:
+        self._check_size()
+        super().append(item)
+
+    def extend(self, items: Iterable[ChatMessage]) -> None:
+        items, length = self._iterable_length(items)
+        self._check_size(length)
+        super().extend(items)
+
+    def insert(self, index: SupportsIndex, item: ChatMessage) -> None:
+        self._check_size()
+        super().insert(index, item)
+
+    @overload
+    def __setitem__(self, index: SupportsIndex, item: ChatMessage) -> None: ...
+
+    @overload
+    def __setitem__(self, index: slice, item: Iterable[ChatMessage]) -> None: ...
+
+    def __setitem__(
+        self, index: SupportsIndex | slice, item: ChatMessage | Iterable[ChatMessage]
+    ) -> None:
+        if isinstance(index, slice) and not isinstance(item, ChatMessageBase):
+            item, length = self._iterable_length(item)
+            size_change = length - len(self[index])
+            if size_change > 0:
+                self._check_size(size_change)
+
+        super().__setitem__(index, item)  # type: ignore[assignment,index]
+
+    def _iterable_length(
+        self, items: Iterable[ChatMessage]
+    ) -> tuple[Iterable[ChatMessage], int]:
+        items, counter = tee(items)
+        length = sum(1 for _ in counter)
+        return items, length
