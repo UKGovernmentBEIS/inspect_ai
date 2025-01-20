@@ -12,7 +12,7 @@ from ..core.display import (
     TaskResult,
     TaskScreen,
     TaskSpec,
-    TaskWithResult, TR,
+    TaskWithResult, TR, TaskError,
 )
 from ..core.footer import task_footer, task_resources, task_http_rate_limits
 from ..core.panel import task_targets, task_title, task_panel
@@ -85,22 +85,8 @@ class PlainDisplay(Display):
 
     def _print_results(self) -> None:
         """Print final results using rich panels"""
-        for task in self.tasks:
-            if task.result:
-                # Use rich panel for final summary
-                panel = task_panel(
-                    profile=task.profile,
-                    show_model=True,
-                    body=task_stats(task.result.stats),
-                    subtitle=(
-                        task_config(task.profile),
-                        task_targets(task.profile)
-                    ),
-                    footer=task_footer(),
-                    log_location=task.profile.log_location
-                )
-                print("\n")
-                rich.print(panel)
+        panels = tasks_results(self.tasks)
+        rich.print(panels)
 
 
 class PlainProgress(Progress):
