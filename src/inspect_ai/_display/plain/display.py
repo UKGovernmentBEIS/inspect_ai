@@ -14,10 +14,13 @@ from ..core.display import (
     TaskSpec,
     TaskWithResult, TR,
 )
-from ..core.footer import task_footer
+from ..core.footer import task_footer, task_resources, task_http_rate_limits
 from ..core.panel import task_targets, task_title, task_panel
 from ..core.results import task_metric, tasks_results, task_stats
 import rich
+
+from ...util._concurrency import concurrency_status
+
 
 class PlainDisplay(Display):
     def __init__(self) -> None:
@@ -152,10 +155,25 @@ class PlainTaskDisplay(TaskDisplay):
                 metric_str = task_metric(self.current_metrics)
                 status_parts.append(metric_str)
 
+            # Add resource usage
+            # Very similar to ``inspect_ai._display.core.footer.task_resources``, but without
+            # the rich formatting added in the ``task_dict`` call
+            resources_dict: dict[str, str] = {}
+            for model, resource in concurrency_status().items():
+                resources_dict[model] = f"{resource[0]}/{resource[1]}"
+            resources = "".join([f"{key}: {value}" for key, value in resources_dict.items()])
+            status_parts.append(resources)
+
+            # Add rate limits
+            rate_limits = task_http_rate_limits()
+            if rate_limits:
+                status_parts.append(rate_limits)
+
             # Print on new line
             print(" | ".join(status_parts))
 
             self.last_progress = current_progress
+
 
     def sample_complete(self, complete: int, total: int) -> None:
         self.samples_complete = complete
