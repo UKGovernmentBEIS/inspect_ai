@@ -106,13 +106,10 @@ class PlainProgress(Progress):
 
     def update(self, n: int = 1) -> None:
         self.current += n
-        percent = int(self.current / self.total * 100)
-        print(f"\rProgress: {self.current}/{self.total} ({percent}%)", end="", flush=True)
+        # No direct printing - PlainTaskDisplay handles it
 
     def complete(self) -> None:
-        print("\rProgress: Complete (100%)")
-        print()  # Add newline after completion
-
+        self.current = self.total
 
 class PlainTaskDisplay(TaskDisplay):
     def __init__(self, task: TaskWithResult):
@@ -120,28 +117,52 @@ class PlainTaskDisplay(TaskDisplay):
         self.progress_display: PlainProgress | None = None
         self.samples_complete = 0
         self.samples_total = 0
+        self.current_metrics: list[TaskDisplayMetric] | None = None
+        print()  # Blank line for progress
 
     @contextlib.contextmanager
     def progress(self) -> Iterator[Progress]:
         self.progress_display = PlainProgress(self.task.profile.steps)
         yield self.progress_display
 
+    def _print_status(self) -> None:
+        # Build status line
+        status_parts = []
+
+        # Add step progress
+        if self.progress_display:
+            percent = int(self.progress_display.current / self.progress_display.total * 100)
+            status_parts.append(
+                f"Steps: {self.progress_display.current}/{self.progress_display.total} ({percent}%)")
+
+        # Add sample progress
+        status_parts.append(f"Samples: {self.samples_complete}/{self.samples_total}")
+
+        # Add metrics
+        if self.current_metrics:
+            metric_str = task_metric(self.current_metrics)
+            status_parts.append(metric_str)
+
+        # Print single status line with carriage return
+        print(f"\r{' | '.join(status_parts)}", end="", flush=True)
+
     def sample_complete(self, complete: int, total: int) -> None:
         self.samples_complete = complete
         self.samples_total = total
-        print(f"\rSamples: {complete}/{total} ", end="", flush=True)
+        self._print_status()
 
     def update_metrics(self, metrics: list[TaskDisplayMetric]) -> None:
-        if metrics:
-            # Print metrics on same line as samples
-            metric_str = task_metric(metrics)
-            print(f"| {metric_str}", end="", flush=True)
+        self.current_metrics = metrics
+        self._print_status()
 
     def complete(self, result: TaskResult) -> None:
         self.task.result = result
-        if self.progress_display:
-            self.progress_display.complete()
+        print()  # New line after progress
+        print("Task complete.")
 
-        # Print final sample/metric status on new line
+        # Print final status
         if self.samples_total > 0:
             print(f"Final: {self.samples_complete}/{self.samples_total} samples processed")
+            if self.current_metrics:
+                metric_str = task_metric(self.current_metrics)
+                print(f"Metrics: {metric_str}")
