@@ -174,7 +174,7 @@ class PlainTaskDisplay(TaskDisplay):
             resources_dict: dict[str, str] = {}
             for model, resource in concurrency_status().items():
                 resources_dict[model] = f"{resource[0]:2d}/{resource[1]:2d}"
-            resources = "".join(
+            resources = ", ".join(
                 [f"{key}: {value}" for key, value in resources_dict.items()]
             )
             status_parts.append(resources)
