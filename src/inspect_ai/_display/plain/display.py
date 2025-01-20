@@ -2,8 +2,12 @@ import asyncio
 import contextlib
 from typing import Any, AsyncIterator, Coroutine, Iterator
 
+import rich
+
+from ...util._concurrency import concurrency_status
 from ..core.config import task_config
 from ..core.display import (
+    TR,
     Display,
     Progress,
     TaskDisplay,
@@ -12,14 +16,11 @@ from ..core.display import (
     TaskResult,
     TaskScreen,
     TaskSpec,
-    TaskWithResult, TR, TaskError,
+    TaskWithResult,
 )
-from ..core.footer import task_footer, task_resources, task_http_rate_limits
-from ..core.panel import task_targets, task_title, task_panel
-from ..core.results import task_metric, tasks_results, task_stats
-import rich
-
-from ...util._concurrency import concurrency_status
+from ..core.footer import task_http_rate_limits
+from ..core.panel import task_panel, task_targets
+from ..core.results import task_metric, tasks_results
 
 
 class PlainDisplay(Display):
@@ -44,7 +45,7 @@ class PlainDisplay(Display):
 
     @contextlib.asynccontextmanager
     async def task_screen(
-            self, tasks: list[TaskSpec], parallel: bool
+        self, tasks: list[TaskSpec], parallel: bool
     ) -> AsyncIterator[TaskScreen]:
         self.total_tasks = len(tasks)
         self.tasks = []
@@ -67,10 +68,7 @@ class PlainDisplay(Display):
             profile=profile,
             show_model=True,
             body="",  # Empty body since we haven't started yet
-            subtitle=(
-                task_config(profile),
-                task_targets(profile)
-            ),
+            subtitle=(task_config(profile), task_targets(profile)),
             footer=None,
             log_location=None,
         )
@@ -121,7 +119,9 @@ class PlainTaskDisplay(TaskDisplay):
             return
 
         # Calculate current progress percentage
-        current_progress = int(self.progress_display.current / self.progress_display.total * 100)
+        current_progress = int(
+            self.progress_display.current / self.progress_display.total * 100
+        )
 
         # Only print on percentage changes to avoid too much output
         if current_progress != self.last_progress:
@@ -133,7 +133,9 @@ class PlainTaskDisplay(TaskDisplay):
             )
 
             # Add sample progress
-            status_parts.append(f"Samples: {self.samples_complete}/{self.samples_total}")
+            status_parts.append(
+                f"Samples: {self.samples_complete}/{self.samples_total}"
+            )
 
             # Add metrics
             if self.current_metrics:
@@ -146,7 +148,9 @@ class PlainTaskDisplay(TaskDisplay):
             resources_dict: dict[str, str] = {}
             for model, resource in concurrency_status().items():
                 resources_dict[model] = f"{resource[0]}/{resource[1]}"
-            resources = "".join([f"{key}: {value}" for key, value in resources_dict.items()])
+            resources = "".join(
+                [f"{key}: {value}" for key, value in resources_dict.items()]
+            )
             status_parts.append(resources)
 
             # Add rate limits
@@ -158,7 +162,6 @@ class PlainTaskDisplay(TaskDisplay):
             print(" | ".join(status_parts))
 
             self.last_progress = current_progress
-
 
     def sample_complete(self, complete: int, total: int) -> None:
         self.samples_complete = complete
