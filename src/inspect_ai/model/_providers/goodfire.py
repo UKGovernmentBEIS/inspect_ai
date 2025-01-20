@@ -118,31 +118,42 @@ class GoodfireAPI(ModelAPI):
         Returns:
            ModelOutput: The model's output.
         """
-        completions = self.client.chat.completions
-        response = completions.create(  # type: ignore
-            model=self.model_name,
-            messages=[self._to_goodfire_message(msg) for msg in input],
-            max_completion_tokens=int(config.max_tokens) if config.max_tokens is not None else 4096,
-            temperature=float(config.temperature) if config.temperature is not None else 0.7,
-            top_p=float(config.top_p) if config.top_p is not None else 0.95,
-            stream=False,
-        )
-        response_dict = response.model_dump()
+        try:
+            # Convert messages and prepare request params
+            messages = [self._to_goodfire_message(msg) for msg in input]
+            params = {
+                "model": self.model_name,
+                "messages": messages,
+                "max_completion_tokens": int(config.max_tokens) if config.max_tokens is not None else 4096,
+                "temperature": float(config.temperature) if config.temperature is not None else 0.7,
+                "top_p": float(config.top_p) if config.top_p is not None else 0.95,
+                "stream": False,
+            }
 
-        output = ModelOutput.from_content(
-            model=self.model_name,
-            content=response_dict["choices"][0]["message"]["content"],
-            stop_reason="stop",
-        )
+            # Make API request
+            response = self.client.chat.completions.create(**params)  # type: ignore
+            response_dict = response.model_dump()
 
-        if "usage" in response_dict:
-            output.usage = ModelUsage(
-                input_tokens=response_dict["usage"]["prompt_tokens"],
-                output_tokens=response_dict["usage"]["completion_tokens"],
-                total_tokens=response_dict["usage"]["total_tokens"],
+            # Create output with main content
+            output = ModelOutput.from_content(
+                model=self.model_name,
+                content=response_dict["choices"][0]["message"]["content"],
+                stop_reason="stop",  # Goodfire doesn't provide finish_reason
             )
 
-        return output
+            # Add usage statistics if available
+            if "usage" in response_dict:
+                output.usage = ModelUsage(
+                    input_tokens=response_dict["usage"]["prompt_tokens"],
+                    output_tokens=response_dict["usage"]["completion_tokens"],
+                    total_tokens=response_dict["usage"]["total_tokens"],
+                )
+
+            return output
+
+        except Exception as e:
+            logger.error(f"Error in generate: {str(e)}", exc_info=True)
+            raise
 
     def _to_goodfire_message(self, message: ChatMessage) -> GoodfireChatMessage:
         """Convert an Inspect message to a Goodfire message.
