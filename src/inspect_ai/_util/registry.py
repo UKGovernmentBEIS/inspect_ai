@@ -394,4 +394,4 @@ def registry_value(o: object) -> Any:
 
 
 def registry_create_from_dict(d: RegistryDict) -> object:
-    return registry_create(d["type"], d["name"], **d["params"])
+    return registry_create(d["type"], d["name"], **d["params"]) 
