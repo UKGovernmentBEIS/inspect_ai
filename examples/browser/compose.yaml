@@ -3,6 +3,5 @@ services:
     build:
       context: ../../src/inspect_ai/tool/_tools/_web_browser/_resources
       dockerfile: Dockerfile
-      target: headful
     ports:
       - "127.0.0.1:5900:5900"
