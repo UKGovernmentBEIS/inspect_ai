@@ -5,7 +5,7 @@ import { ApplicationIcons } from "../../appearance/icons";
 
 import { formatNumber } from "../../utils/format";
 import { ANSIDisplay } from "../AnsiDisplay";
-import { MetaDataView } from "../MetaDataView.mjs";
+import { MetaDataView } from "../MetaDataView";
 import { ChatMessageRenderer } from "./ChatMessageRenderer.mjs";
 import { Buckets } from "./Types.mjs";
 

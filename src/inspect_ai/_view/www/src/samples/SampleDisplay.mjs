@@ -1,7 +1,7 @@
 import { html } from "htm/preact";
 
 import { ChatViewVirtualList } from "../components/ChatView.mjs";
-import { MetaDataView } from "../components/MetaDataView.mjs";
+import { MetaDataView } from "../components/MetaDataView";
 import { TabPanel, TabSet } from "../components/TabSet.mjs";
 
 import { inputString } from "../utils/format";
@@ -330,7 +330,7 @@ const metadataViewsForSample = (id, sample) => {
         <${CardBody}>
           <${MetaDataView}
             id="task-sample-metadata-${id}"
-            classes="tab-pane"
+            className="tab-pane"
             entries="${sample?.metadata}"
             style=${{ marginTop: "0" }}
           />
@@ -347,7 +347,7 @@ const metadataViewsForSample = (id, sample) => {
         <${CardBody}>
           <${MetaDataView}
             id="task-sample-store-${id}"
-            classes="tab-pane"
+            className="tab-pane"
             entries="${sample?.store}"
             style=${{ marginTop: "0" }}
           />

@@ -4926,82 +4926,80 @@ var require_assets = __commonJS({
           }
       }
     };
+    const table$2 = "_table_1memb_1";
+    const th = "_th_1memb_7";
+    const cell = "_cell_1memb_11";
+    const compact = "_compact_1memb_15";
+    const cellKey = "_cellKey_1memb_19";
+    const cellValue = "_cellValue_1memb_31";
+    const styles$h = {
+      table: table$2,
+      th,
+      cell,
+      compact,
+      cellKey,
+      cellValue
+    };
     const MetaDataView = ({
       id,
-      baseClass,
-      classes,
       style: style2,
       entries,
       tableOptions,
-      compact
+      compact: compact2,
+      className: className2
     }) => {
-      const baseId = baseClass || "metadataview";
-      const cellStyle = compact ? { padding: "0em" } : { padding: "0.3em 0.3em 0.3em 0em" };
-      const cellKeyStyle = compact ? {
-        fontWeight: "400",
-        paddingRight: "0.2em",
-        whiteSpace: "nowrap"
-      } : {
-        fontWeight: "400",
-        paddingRight: "1em",
-        whiteSpace: "nowrap"
-      };
-      const cellValueStyle = {
-        fontWeight: "300",
-        whiteSpace: "pre-wrap",
-        wordWrap: "anywhere",
-        fontSize: FontSize.small
-      };
-      const cellKeyTextStyle = {
-        fontSize: FontSize.small
-      };
+      const baseId = "metadataview";
       tableOptions = tableOptions || "sm";
       const tblClz = (tableOptions || "").split(",").map((option) => {
         return `table-${option}`;
       });
-      let coercedEntries;
-      if (entries) {
-        if (Array.isArray(entries)) {
-          coercedEntries = entries;
-        } else {
-          coercedEntries = Object.entries(entries || {}).map(([key2, value]) => {
-            return { name: key2, value };
-          });
-        }
-      }
+      const coercedEntries = toNameValues(entries);
       const entryEls = (coercedEntries || []).map((entry2, index) => {
         const id2 = `${baseId}-value-${index}`;
-        return m$1`<tr class="${baseId}-row">
-      <td
-        class="${baseId}-key"
-        style=${{ ...cellStyle, ...cellKeyStyle, ...cellKeyTextStyle }}
-      >
-        ${entry2.name}
-      </td>
-      <td class="${baseId}-value" style=${{ ...cellStyle, ...cellValueStyle }}>
-        <${RenderedContent} id=${id2} entry=${entry2} />
-      </td>
-    </tr>`;
+        return /* @__PURE__ */ u("tr", {
+          children: [/* @__PURE__ */ u("td", {
+            className: clsx(styles$h.cell, styles$h.cellKey, "text-size-small"),
+            children: entry2.name
+          }), /* @__PURE__ */ u("td", {
+            className: clsx(styles$h.cell, styles$h.cellValue, "text-size-small"),
+            children: /* @__PURE__ */ u(RenderedContent, {
+              id: id2,
+              entry: entry2
+            })
+          })]
+        });
       });
-      return m$1`<table
-    ...${{ id }}
-    class="${classes || ""} table ${tblClz.join(" ")}"
-    style=${{
-        paddingLeft: "0",
-        marginLeft: "0",
-        marginBottom: "0.2rem",
-        ...style2
-      }}
-  >
-    <thead>
-      <tr>
-        <th colspan="2" style="${{ padding: 0 }}"></th>
-      </tr>
-    </thead>
-    <tbody>
-      ${entryEls}
-    </tbody>
-  </table>`;
+      return /* @__PURE__ */ u("table", {
+        id,
+        className: clsx("table", tblClz, styles$h.table, compact2 ? styles$h.compact : void 0, className2),
+        style: style2,
+        children: [/* @__PURE__ */ u("thead", {
+          children: /* @__PURE__ */ u("tr", {
+            children: /* @__PURE__ */ u("th", {
+              colspan: 2,
+              className: "th"
+            })
+          })
+        }), /* @__PURE__ */ u("tbody", {
+          children: entryEls
+        })]
+      });
+    };
+    const toNameValues = (entries) => {
+      if (entries) {
+        if (Array.isArray(entries)) {
+          return entries;
+        } else {
+          return Object.entries(entries || {}).map(([key2, value]) => {
+            return {
+              name: key2,
+              value
+            };
+          });
+        }
+      } else {
+        return entries;
+      }
     };
     const useResizeObserver = (callback) => {
       const elementRef = A$1(null);
@@ -20300,7 +20298,6 @@ self.onmessage = function (e) {
         contents: m$1`
       <${MetaDataView}
         style=${planMetadataStyle}
-        classes="task-title-deets-grid"
         entries="${taskInformation}"
         tableOptions="borderless,sm"
       />
@@ -20313,7 +20310,6 @@ self.onmessage = function (e) {
           contents: m$1`
         <${MetaDataView}
           style=${planMetadataStyle}
-          classes="task-plan-task-args-grid"
           entries="${task_args}"
           tableOptions="sm"
         />
@@ -20327,7 +20323,6 @@ self.onmessage = function (e) {
           contents: m$1`
         <${MetaDataView}
           style=${planMetadataStyle}
-          classes="task-plan-model-args-grid"
           entries="${model_args}"
           tableOptions="sm"
         />
@@ -20341,7 +20336,6 @@ self.onmessage = function (e) {
           contents: m$1`
         <${MetaDataView}
           style=${planMetadataStyle}
-          classes="task-plan-configuration"
           entries="${config2}"
           tableOptions="sm"
         />
@@ -20355,7 +20349,6 @@ self.onmessage = function (e) {
           contents: m$1`
         <${MetaDataView}
           style=${planMetadataStyle}
-          classes="task-plan-generate-configuration"
           entries="${generate_config}"
           tableOptions="sm"
         />
@@ -20369,7 +20362,6 @@ self.onmessage = function (e) {
           contents: m$1`
         <${MetaDataView}
           style=${planMetadataStyle}
-          classes="task-plan-metadata"
           entries="${metadata}"
           tableOptions="sm"
         />
@@ -29539,7 +29531,7 @@ ${events}
         <${CardBody}>
           <${MetaDataView}
             id="task-sample-metadata-${id}"
-            classes="tab-pane"
+            className="tab-pane"
             entries="${sample == null ? void 0 : sample.metadata}"
             style=${{ marginTop: "0" }}
           />
@@ -29555,7 +29547,7 @@ ${events}
         <${CardBody}>
           <${MetaDataView}
             id="task-sample-store-${id}"
-            classes="tab-pane"
+            className="tab-pane"
             entries="${sample == null ? void 0 : sample.store}"
             style=${{ marginTop: "0" }}
           />
