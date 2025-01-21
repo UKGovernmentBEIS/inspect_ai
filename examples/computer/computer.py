@@ -13,7 +13,7 @@ After each step, carefully evaluate the resulting screenshot to see if the comma
 Explicitly show your thinking: "I have evaluated step X..." If not correct, try again. Only when
 you confirm a step was executed correctly should you move on to the next one.
 
-Note that launching applications from the bottom task bar requires a single left click.
+Note that launching applications from desktop icons requires a double click.
 """
 
 
