@@ -1,4 +1,9 @@
 services:
   default:
-    image: aisiuk/inspect-web-browser-tool
-    init: true
+    build:
+      context: ../../src/inspect_ai/tool/_tools/_web_browser/_resources
+      dockerfile: Dockerfile
+    environment:
+      - HEADLESS=${INSPECT_WEB_BROWSER_TOOL_HEADLESS-True}
+    ports:
+      - "127.0.0.1:5900:5900"
