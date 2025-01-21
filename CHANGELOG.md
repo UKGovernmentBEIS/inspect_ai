@@ -14,6 +14,7 @@
 - Inspect View: allow filtering samples by compound expressions including multiple scorers. (thanks @andrei-apollo)
 - Inspect View: improve rendering performance and stability for the viewer when viewing very large eval logs or samples with a large number of steps.
 - Task display: Improved `plain` mode with periodic updates on progress, metrics, etc.
+- Google: Update to v0.8.4 of google-generativeai (py.typed support and removal of logprobs generation options)
 
 ## v0.3.58 (16 January 2025)
 
