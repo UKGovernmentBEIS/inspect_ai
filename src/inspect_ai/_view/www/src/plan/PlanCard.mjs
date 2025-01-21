@@ -3,7 +3,7 @@ import { html } from "htm/preact";
 import { FontSize, TextStyle } from "../appearance/fonts";
 import { ApplicationIcons } from "../appearance/icons";
 import { Card, CardBody, CardHeader } from "../components/Card";
-import { MetaDataView } from "../components/MetaDataView.mjs";
+import { MetaDataView } from "../components/MetaDataView";
 import { toTitleCase } from "../utils/format";
 import { ghCommitUrl } from "../utils/git";
 
@@ -268,7 +268,6 @@ const PlanDetailView = ({ evaluation, plan, scores }) => {
     contents: html`
       <${MetaDataView}
         style=${planMetadataStyle}
-        classes="task-title-deets-grid"
         entries="${taskInformation}"
         tableOptions="borderless,sm"
       />
@@ -282,7 +281,6 @@ const PlanDetailView = ({ evaluation, plan, scores }) => {
       contents: html`
         <${MetaDataView}
           style=${planMetadataStyle}
-          classes="task-plan-task-args-grid"
           entries="${task_args}"
           tableOptions="sm"
         />
@@ -296,7 +294,6 @@ const PlanDetailView = ({ evaluation, plan, scores }) => {
       contents: html`
         <${MetaDataView}
           style=${planMetadataStyle}
-          classes="task-plan-model-args-grid"
           entries="${model_args}"
           tableOptions="sm"
         />
@@ -311,7 +308,6 @@ const PlanDetailView = ({ evaluation, plan, scores }) => {
       contents: html`
         <${MetaDataView}
           style=${planMetadataStyle}
-          classes="task-plan-configuration"
           entries="${config}"
           tableOptions="sm"
         />
@@ -326,7 +322,6 @@ const PlanDetailView = ({ evaluation, plan, scores }) => {
       contents: html`
         <${MetaDataView}
           style=${planMetadataStyle}
-          classes="task-plan-generate-configuration"
           entries="${generate_config}"
           tableOptions="sm"
         />
@@ -341,7 +336,6 @@ const PlanDetailView = ({ evaluation, plan, scores }) => {
       contents: html`
         <${MetaDataView}
           style=${planMetadataStyle}
-          classes="task-plan-metadata"
           entries="${metadata}"
           tableOptions="sm"
         />

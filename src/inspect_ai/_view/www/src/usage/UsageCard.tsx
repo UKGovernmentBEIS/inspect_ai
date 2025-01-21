@@ -2,7 +2,7 @@ import clsx from "clsx";
 import { FontSize } from "../appearance/fonts";
 import { ApplicationIcons } from "../appearance/icons";
 import { Card, CardBody, CardHeader } from "../components/Card";
-import { MetaDataView } from "../components/MetaDataView.mjs";
+import { MetaDataView } from "../components/MetaDataView";
 import { EvalStats } from "../types/log";
 import { formatDuration } from "../utils/format";
 import { ModelTokenTable } from "./ModelTokenTable";

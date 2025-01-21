@@ -15545,6 +15545,41 @@ ul.jsondiffpatch-textdiff {
     opacity: 0;
   }
 }
+._table_1memb_1 {
+  padding-left: 0;
+  margin-left: 0;
+  margin-bottom: 0.2rem;
+}
+
+._th_1memb_7 {
+  padding: 0;
+}
+
+._cell_1memb_11 {
+  padding: 0.3em 0.3em 0.3em 0em;
+}
+
+._compact_1memb_15 ._cell_1memb_11 {
+  padding: 0;
+}
+
+._cellKey_1memb_19 {
+  font-weight: 400;
+  padding-right: 1em;
+  white-space: nowrap;
+}
+
+._compact_1memb_15 ._cellKey_1memb_19 {
+  font-weight: 400;
+  padding-right: 0.2em;
+  white-space: nowrap;
+}
+
+._cellValue_1memb_31 {
+  font-weight: 300;
+  white-space: pre-wrap;
+  word-wrap: anywhere;
+}
 .expandable-bordered {
   border: solid var(--bs-light-border-subtle) 1px;
 }
