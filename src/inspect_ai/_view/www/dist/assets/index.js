@@ -3106,7 +3106,7 @@ var require_assets = __commonJS({
     function sleep$1(ms) {
       return new Promise((resolve) => setTimeout(resolve, ms));
     }
-    function throttle$1(func, wait, options = {}) {
+    function throttle$2(func, wait, options = {}) {
       let context;
       let args;
       let result;
@@ -4932,7 +4932,7 @@ var require_assets = __commonJS({
     const compact = "_compact_1memb_15";
     const cellKey = "_cellKey_1memb_19";
     const cellValue = "_cellValue_1memb_31";
-    const styles$i = {
+    const styles$j = {
       table: table$2,
       th,
       cell: cell$1,
@@ -4958,10 +4958,10 @@ var require_assets = __commonJS({
         const id2 = `${baseId}-value-${index}`;
         return /* @__PURE__ */ u("tr", {
           children: [/* @__PURE__ */ u("td", {
-            className: clsx(styles$i.cell, styles$i.cellKey, "text-size-small"),
+            className: clsx(styles$j.cell, styles$j.cellKey, "text-size-small"),
             children: entry2.name
           }), /* @__PURE__ */ u("td", {
-            className: clsx(styles$i.cell, styles$i.cellValue, "text-size-small"),
+            className: clsx(styles$j.cell, styles$j.cellValue, "text-size-small"),
             children: /* @__PURE__ */ u(RenderedContent, {
               id: id2,
               entry: entry2
@@ -4971,7 +4971,7 @@ var require_assets = __commonJS({
       });
       return /* @__PURE__ */ u("table", {
         id,
-        className: clsx("table", tblClz, styles$i.table, compact2 ? styles$i.compact : void 0, className2),
+        className: clsx("table", tblClz, styles$j.table, compact2 ? styles$j.compact : void 0, className2),
         style: style2,
         children: [/* @__PURE__ */ u("thead", {
           children: /* @__PURE__ */ u("tr", {
@@ -11065,198 +11065,195 @@ var require_assets = __commonJS({
           return "video/mpeg";
       }
     };
-    const VirtualList = A(
-      ({
-        data,
-        renderRow,
-        overscanCount = 15,
-        estimatedRowHeight = 50,
-        sync = false,
-        scrollRef,
-        ...props
-      }, ref) => {
-        const [height, setHeight] = h(0);
-        const [offset, setOffset] = h(0);
-        const [listMetrics, setListMetrics] = h({
-          rowHeights: /* @__PURE__ */ new Map(),
-          totalHeight: data.length * estimatedRowHeight
+    const container$4 = "_container_1vi7u_1";
+    const hidden$1 = "_hidden_1vi7u_8";
+    const content$1 = "_content_1vi7u_12";
+    const styles$i = {
+      container: container$4,
+      hidden: hidden$1,
+      content: content$1
+    };
+    const VirtualList = A(({
+      data,
+      renderRow,
+      overscanCount = 15,
+      estimatedRowHeight = 50,
+      sync = false,
+      scrollRef,
+      ...props
+    }, ref) => {
+      const [height, setHeight] = h(0);
+      const [offset, setOffset] = h(0);
+      const [listMetrics, setListMetrics] = h({
+        rowHeights: /* @__PURE__ */ new Map(),
+        totalHeight: data.length * estimatedRowHeight
+      });
+      const baseRef = A$1(null);
+      const containerRef = A$1(null);
+      const rowRefs = A$1(/* @__PURE__ */ new Map());
+      const getRowHeight = (index) => {
+        return listMetrics.rowHeights.get(index) || estimatedRowHeight;
+      };
+      const rowPositions = T$1(() => {
+        let currentPosition = 0;
+        const positions = /* @__PURE__ */ new Map();
+        for (let i2 = 0; i2 < data.length; i2++) {
+          positions.set(i2, currentPosition);
+          currentPosition += getRowHeight(i2);
+        }
+        return positions;
+      }, [listMetrics.rowHeights, data.length, getRowHeight]);
+      F$1(ref, () => ({
+        focus: () => {
+          var _a2;
+          (_a2 = baseRef.current) == null ? void 0 : _a2.focus();
+        },
+        scrollToIndex: (index, direction) => {
+          const scrollElement = (scrollRef == null ? void 0 : scrollRef.current) || baseRef.current;
+          if (!scrollElement || index < 0 || index >= data.length) return;
+          const currentScrollTop = scrollElement.scrollTop;
+          const viewportHeight = scrollElement.offsetHeight;
+          const rowTop = rowPositions.get(index) || 0;
+          const rowHeight = getRowHeight(index);
+          const rowBottom = rowTop + rowHeight;
+          const isVisible = rowTop >= currentScrollTop && rowBottom <= currentScrollTop + viewportHeight;
+          if (isVisible) return;
+          let newScrollTop;
+          if (direction === "up") {
+            newScrollTop = rowTop;
+          } else {
+            newScrollTop = rowBottom - viewportHeight;
+          }
+          newScrollTop = Math.max(0, Math.min(newScrollTop, listMetrics.totalHeight - viewportHeight));
+          scrollElement.scrollTop = newScrollTop;
+        }
+      }), [rowPositions, data.length]);
+      const measureRows = () => {
+        let updates = [];
+        rowRefs.current.forEach((element, index) => {
+          if (element) {
+            const measuredHeight = element.offsetHeight;
+            if (measuredHeight && measuredHeight !== listMetrics.rowHeights.get(index)) {
+              updates.push([index, measuredHeight]);
+            }
+          }
         });
-        const baseRef = A$1(null);
-        const containerRef = A$1(null);
-        const rowRefs = A$1(/* @__PURE__ */ new Map());
-        const getRowHeight = (index) => {
-          return listMetrics.rowHeights.get(index) || estimatedRowHeight;
-        };
-        const rowPositions = T$1(() => {
-          let currentPosition = 0;
-          const positions = /* @__PURE__ */ new Map();
-          for (let i2 = 0; i2 < data.length; i2++) {
-            positions.set(i2, currentPosition);
-            currentPosition += getRowHeight(i2);
-          }
-          return positions;
-        }, [listMetrics.rowHeights, data.length]);
-        F$1(
-          ref,
-          () => ({
-            focus: () => {
-              baseRef.current;
-            },
-            scrollToIndex: (index, direction) => {
-              const scrollElement = (scrollRef == null ? void 0 : scrollRef.current) || baseRef.current;
-              if (!scrollElement || index < 0 || index >= data.length) return;
-              const currentScrollTop = scrollElement.scrollTop;
-              const viewportHeight = scrollElement.offsetHeight;
-              const rowTop = rowPositions.get(index) || 0;
-              const rowHeight = getRowHeight(index);
-              const rowBottom = rowTop + rowHeight;
-              const isVisible = rowTop >= currentScrollTop && rowBottom <= currentScrollTop + viewportHeight;
-              if (isVisible) {
-                return;
-              }
-              let newScrollTop;
-              if (direction === "up") {
-                newScrollTop = rowTop;
-              } else {
-                newScrollTop = rowBottom - viewportHeight;
-              }
-              newScrollTop = Math.max(
-                0,
-                Math.min(newScrollTop, listMetrics.totalHeight - viewportHeight)
-              );
-              scrollElement.scrollTop = newScrollTop;
-            }
-          }),
-          [rowPositions, data.length]
-        );
-        const measureRows = () => {
-          let updates = [];
-          rowRefs.current.forEach((element, index) => {
-            if (element) {
-              const measuredHeight = element.offsetHeight;
-              if (measuredHeight && measuredHeight !== listMetrics.rowHeights.get(index)) {
-                updates.push([index, measuredHeight]);
-              }
-            }
-          });
-          if (updates.length === 0) return;
-          const newHeights = new Map(listMetrics.rowHeights);
-          updates.forEach(([index, height2]) => {
-            newHeights.set(index, height2);
-          });
-          let newTotalHeight = 0;
-          for (let i2 = 0; i2 < data.length; i2++) {
-            newTotalHeight += newHeights.get(i2) || estimatedRowHeight;
-          }
-          setListMetrics({
-            rowHeights: newHeights,
-            totalHeight: newTotalHeight
-          });
-        };
-        const resize = () => {
-          const scrollElement = (scrollRef == null ? void 0 : scrollRef.current) || baseRef.current;
-          if (scrollElement && height !== scrollElement.offsetHeight) {
-            setHeight(scrollElement.offsetHeight);
-          }
-        };
-        const handleScroll = throttle$1(() => {
-          const scrollElement = (scrollRef == null ? void 0 : scrollRef.current) || baseRef.current;
-          if (scrollElement) {
-            setOffset(scrollElement.scrollTop);
-          }
-          if (sync) {
-            setOffset((prev) => prev);
-          }
-        }, 100);
-        y(() => {
-          resize();
-          const scrollElement = (scrollRef == null ? void 0 : scrollRef.current) || baseRef.current;
-          if (scrollElement) {
-            scrollElement.addEventListener("scroll", handleScroll);
-            window.addEventListener("resize", resize);
-            return () => {
-              scrollElement.removeEventListener("scroll", handleScroll);
-              window.removeEventListener("resize", resize);
-            };
-          }
-        }, [scrollRef == null ? void 0 : scrollRef.current]);
-        y(() => {
-          measureRows();
+        if (updates.length === 0) return;
+        const newHeights = new Map(listMetrics.rowHeights);
+        updates.forEach(([index, height2]) => {
+          newHeights.set(index, height2);
         });
-        const findRowAtOffset = (targetOffset) => {
-          if (targetOffset <= 0) return 0;
-          if (targetOffset >= listMetrics.totalHeight) return data.length - 1;
-          let low = 0;
-          let high = data.length - 1;
-          let lastValid = 0;
-          while (low <= high) {
-            const mid = Math.floor((low + high) / 2);
-            const rowStart = rowPositions.get(mid) || 0;
-            if (rowStart <= targetOffset) {
-              lastValid = mid;
-              low = mid + 1;
-            } else {
-              high = mid - 1;
-            }
+        let newTotalHeight = 0;
+        for (let i2 = 0; i2 < data.length; i2++) {
+          newTotalHeight += newHeights.get(i2) || estimatedRowHeight;
+        }
+        setListMetrics({
+          rowHeights: newHeights,
+          totalHeight: newTotalHeight
+        });
+      };
+      const resize = () => {
+        const scrollElement = (scrollRef == null ? void 0 : scrollRef.current) || baseRef.current;
+        if (scrollElement && height !== scrollElement.offsetHeight) {
+          setHeight(scrollElement.offsetHeight);
+        }
+      };
+      const handleScroll = throttle$1(() => {
+        const scrollElement = (scrollRef == null ? void 0 : scrollRef.current) || baseRef.current;
+        if (scrollElement) {
+          setOffset(scrollElement.scrollTop);
+        }
+        if (sync) {
+          setOffset((prev) => prev);
+        }
+      }, 100);
+      y(() => {
+        resize();
+        const scrollElement = (scrollRef == null ? void 0 : scrollRef.current) || baseRef.current;
+        if (scrollElement) {
+          scrollElement.addEventListener("scroll", handleScroll);
+          window.addEventListener("resize", resize);
+          return () => {
+            scrollElement.removeEventListener("scroll", handleScroll);
+            window.removeEventListener("resize", resize);
+          };
+        }
+      }, [scrollRef == null ? void 0 : scrollRef.current]);
+      y(() => {
+        measureRows();
+      });
+      const findRowAtOffset = (targetOffset) => {
+        if (targetOffset <= 0) return 0;
+        if (targetOffset >= listMetrics.totalHeight) return data.length - 1;
+        let low = 0;
+        let high = data.length - 1;
+        let lastValid = 0;
+        while (low <= high) {
+          const mid = Math.floor((low + high) / 2);
+          const rowStart = rowPositions.get(mid) || 0;
+          if (rowStart <= targetOffset) {
+            lastValid = mid;
+            low = mid + 1;
+          } else {
+            high = mid - 1;
           }
-          return lastValid;
-        };
-        const firstVisibleIdx = findRowAtOffset(offset);
-        const lastVisibleIdx = findRowAtOffset(offset + height);
-        const start = Math.max(0, firstVisibleIdx - overscanCount);
-        const end = Math.min(data.length, lastVisibleIdx + overscanCount);
-        const renderedRows = T$1(() => {
-          const selection = data.slice(start, end);
-          return selection.map((item2, index) => {
-            const actualIndex = start + index;
-            return m$1`
-          <div
-            key=${`list-item-${actualIndex}`}
-            ref=${(el) => {
+        }
+        return lastValid;
+      };
+      const firstVisibleIdx = findRowAtOffset(offset);
+      const lastVisibleIdx = findRowAtOffset(offset + height);
+      const start = Math.max(0, firstVisibleIdx - overscanCount);
+      const end = Math.min(data.length, lastVisibleIdx + overscanCount);
+      const renderedRows = T$1(() => {
+        const selection = data.slice(start, end);
+        return selection.map((item2, index) => {
+          const actualIndex = start + index;
+          return /* @__PURE__ */ u("div", {
+            ref: (el) => {
               if (el) {
                 rowRefs.current.set(actualIndex, el);
               } else {
                 rowRefs.current.delete(actualIndex);
               }
-            }}
-          >
-            ${renderRow(item2, actualIndex)}
-          </div>
-        `;
-          });
-        }, [data, start, end, renderRow]);
-        const style_inner = {
-          position: "relative",
-          overflow: (scrollRef == null ? void 0 : scrollRef.current) ? "visible" : "hidden",
-          width: "100%",
-          minHeight: "100%"
-        };
-        const style_content = {
-          position: "absolute",
-          top: 0,
-          left: 0,
-          height: "100%",
-          width: "100%",
-          overflow: "visible"
-        };
-        const top2 = rowPositions.get(start) || 0;
-        const scrollProps = scrollRef ? {} : { onscroll: handleScroll };
-        return m$1`
-      <div ref=${baseRef} ...${props} ...${scrollProps}>
-        <div
-          style=${{ ...style_inner, height: `${listMetrics.totalHeight}px` }}
-        >
-          <div
-            style=${{ ...style_content, top: `${top2}px` }}
-            ref=${containerRef}
-          >
-            ${renderedRows}
-          </div>
-        </div>
-      </div>
-    `;
-      }
-    );
+            },
+            children: renderRow(item2, actualIndex)
+          }, `list-item-${actualIndex}`);
+        });
+      }, [data, start, end, renderRow]);
+      const top2 = rowPositions.get(start) || 0;
+      const scrollProps = scrollRef ? {} : {
+        onScroll: handleScroll
+      };
+      return /* @__PURE__ */ u("div", {
+        ref: baseRef,
+        ...props,
+        ...scrollProps,
+        children: /* @__PURE__ */ u("div", {
+          className: clsx(styles$i.container, !(scrollRef == null ? void 0 : scrollRef.current) ? styles$i.hidden : void 0),
+          style: {
+            height: `${listMetrics.totalHeight}px`
+          },
+          children: /* @__PURE__ */ u("div", {
+            className: styles$i.content,
+            style: {
+              transform: `translateY(${top2}px)`
+            },
+            ref: containerRef,
+            children: renderedRows
+          })
+        })
+      });
+    });
+    const throttle$1 = (func, limit) => {
+      let inThrottle;
+      return function(...args) {
+        if (!inThrottle) {
+          func.apply(this, args);
+          inThrottle = true;
+          setTimeout(() => inThrottle = false, limit);
+        }
+      };
+    };
     const ChatViewVirtualList = ({
       id,
       messages,
@@ -52071,7 +52068,7 @@ Supported expressions:
     D$2(m$1`<${App}
     api=${api}
     initialState=${initialState}
-    saveInitialState=${throttle$1((state) => {
+    saveInitialState=${throttle$2((state) => {
       const vscode2 = getVscodeApi();
       if (vscode2) {
         vscode2.setState(filterState(state));

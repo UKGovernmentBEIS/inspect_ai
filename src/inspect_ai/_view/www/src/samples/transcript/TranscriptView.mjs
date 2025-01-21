@@ -2,6 +2,7 @@
 import { html } from "htm/preact";
 import { useCallback, useState } from "preact/hooks";
 import { FontSize } from "../../appearance/fonts";
+import { VirtualList } from "../../components/VirtualList";
 import { ApprovalEventView } from "./ApprovalEventView.mjs";
 import { ErrorEventView } from "./ErrorEventView.mjs";
 import { InfoEventView } from "./InfoEventView.mjs";
@@ -16,8 +17,6 @@ import { StepEventView } from "./StepEventView.mjs";
 import { SubtaskEventView } from "./SubtaskEventView.mjs";
 import { ToolEventView } from "./ToolEventView.mjs";
 import { EventNode } from "./Types.mjs";
-// @ts-ignore
-import { VirtualList } from "../../components/VirtualList.mjs";
 
 /**
  * Renders the TranscriptView component.

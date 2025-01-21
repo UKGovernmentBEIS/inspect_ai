@@ -14,7 +14,7 @@ import { SampleError } from "./SampleError.mjs";
 
 import { EmptyPanel } from "../components/EmptyPanel";
 import { MessageBand } from "../components/MessageBand";
-import { VirtualList } from "../components/VirtualList.mjs";
+import { VirtualList } from "../components/VirtualList";
 import { arrayToString, formatNoDecimal, inputString } from "../utils/format";
 
 const kSampleHeight = 88;

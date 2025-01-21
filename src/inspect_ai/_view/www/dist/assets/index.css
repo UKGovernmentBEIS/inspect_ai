@@ -15623,6 +15623,25 @@ ul.jsondiffpatch-textdiff {
 .markdown-ordered-list-item {
   margin-bottom: 0.2em;
 }
+._container_1vi7u_1 {
+  position: relative;
+  width: 100%;
+  min-height: 100%;
+  overflow: visible;
+}
+
+._container_1vi7u_1._hidden_1vi7u_8 {
+  overflow: hidden;
+}
+
+._content_1vi7u_12 {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 100%;
+  overflow: visible;
+}
 ._visible_tm52u_1 {
   display: block;
 }

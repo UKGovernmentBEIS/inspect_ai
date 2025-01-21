@@ -8,7 +8,7 @@ import { ExpandablePanel } from "./ExpandablePanel";
 import { MarkdownDiv } from "./MarkdownDiv";
 import { MessageContent } from "./MessageContent.mjs";
 import { resolveToolInput, ToolCallView } from "./Tools.mjs";
-import { VirtualList } from "./VirtualList.mjs";
+import { VirtualList } from "./VirtualList";
 
 /**
  * Renders the ChatViewVirtualList component.

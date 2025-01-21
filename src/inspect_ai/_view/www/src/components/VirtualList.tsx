@@ -1,27 +1,38 @@
-import { html } from "htm/preact";
-import { useRef, useState, useEffect, useMemo } from "preact/hooks";
-import { forwardRef, useImperativeHandle } from "preact/compat";
-import { throttle } from "../utils/sync";
+import clsx from "clsx";
+import React, {
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import styles from "./VirtualList.module.css";
 
-/**
- * A virtualized list component that efficiently renders large lists by only
- * rendering the items that are currently visible in the viewport.
- * Supports dynamic row heights that are measured after rendering.
- *
- * @template T
- * @param {Object} props - The component props
- * @param {T[]} props.data - Array of items to be rendered in the list
- * @param {(item: T, index: number) => preact.VNode} props.renderRow - Function to render each row
- * @param {number} [props.overscanCount=15] - Number of extra rows to render above and below the visible area
- * @param {number} [props.estimatedRowHeight=50] - Estimated height of each row before measurement
- * @param {boolean} [props.sync=false] - If true, forces a re-render on scroll
- * @param {import("preact").RefObject<HTMLElement>} [props.scrollRef] - Optional ref for the scroll container
- * @param {import("preact").Ref<{ scrollToIndex: (index: number) => void }>} ref - Ref object exposing the list's methods
- * @returns {preact.VNode} The virtualized list component
- */
+interface VirtualListRef {
+  focus: () => void;
+  scrollToIndex: (index: number, direction?: "up" | "down") => void;
+}
+
+interface VirtualListProps<T> {
+  data: T[];
+  renderRow: (item: T, index: number) => React.ReactNode;
+  overscanCount?: number;
+  estimatedRowHeight?: number;
+  sync?: boolean;
+  scrollRef?: React.RefObject<HTMLElement>;
+  className?: string;
+  style?: React.CSSProperties;
+}
+
+interface ListMetrics {
+  rowHeights: Map<number, number>;
+  totalHeight: number;
+}
+
 export const VirtualList = forwardRef(
-  (
-    /** @type {props} */ {
+  <T,>(
+    {
       data,
       renderRow,
       overscanCount = 15,
@@ -29,30 +40,27 @@ export const VirtualList = forwardRef(
       sync = false,
       scrollRef,
       ...props
-    },
-    ref,
+    }: VirtualListProps<T>,
+    ref: React.Ref<VirtualListRef>,
   ) => {
     const [height, setHeight] = useState(0);
     const [offset, setOffset] = useState(0);
-
-    const [listMetrics, setListMetrics] = useState({
+    const [listMetrics, setListMetrics] = useState<ListMetrics>({
       rowHeights: new Map(),
       totalHeight: data.length * estimatedRowHeight,
     });
 
-    const baseRef = useRef(null);
-    const containerRef = useRef(null);
-    const rowRefs = useRef(new Map());
+    const baseRef = useRef<HTMLDivElement>(null);
+    const containerRef = useRef<HTMLDivElement>(null);
+    const rowRefs = useRef<Map<number, HTMLElement>>(new Map());
 
-    // Function to get row height (measured or estimated)
-    const getRowHeight = (index) => {
+    const getRowHeight = (index: number): number => {
       return listMetrics.rowHeights.get(index) || estimatedRowHeight;
     };
 
-    // Calculate row positions based on current heights
     const rowPositions = useMemo(() => {
       let currentPosition = 0;
-      const positions = new Map();
+      const positions = new Map<number, number>();
 
       for (let i = 0; i < data.length; i++) {
         positions.set(i, currentPosition);
@@ -60,16 +68,15 @@ export const VirtualList = forwardRef(
       }
 
       return positions;
-    }, [listMetrics.rowHeights, data.length]);
+    }, [listMetrics.rowHeights, data.length, getRowHeight]);
 
-    // Expose scrollToIndex method via ref
     useImperativeHandle(
       ref,
       () => ({
         focus: () => {
-          baseRef.current;
+          baseRef.current?.focus();
         },
-        scrollToIndex: (index, direction) => {
+        scrollToIndex: (index: number, direction?: "up" | "down") => {
           const scrollElement = scrollRef?.current || baseRef.current;
           if (!scrollElement || index < 0 || index >= data.length) return;
 
@@ -85,12 +92,10 @@ export const VirtualList = forwardRef(
           const isVisible =
             rowTop >= currentScrollTop &&
             rowBottom <= currentScrollTop + viewportHeight;
-          if (isVisible) {
-            return;
-          }
+          if (isVisible) return;
 
           // Calculate new scroll position based on direction
-          let newScrollTop;
+          let newScrollTop: number;
           if (direction === "up") {
             // Align top of element with top of viewport
             newScrollTop = rowTop;
@@ -112,13 +117,11 @@ export const VirtualList = forwardRef(
 
     // Measure rendered rows and update heights if needed
     const measureRows = () => {
-      // Keep track of updated heights
-      let updates = [];
+      let updates: [number, number][] = [];
 
       rowRefs.current.forEach((element, index) => {
         if (element) {
           const measuredHeight = element.offsetHeight;
-          // If the measured height is different, schedule an update
           if (
             measuredHeight &&
             measuredHeight !== listMetrics.rowHeights.get(index)
@@ -128,22 +131,18 @@ export const VirtualList = forwardRef(
         }
       });
 
-      // If no rows changed, do nothing
       if (updates.length === 0) return;
 
-      // Create a new Map of rowHeights so we don't mutate state directly
       const newHeights = new Map(listMetrics.rowHeights);
       updates.forEach(([index, height]) => {
         newHeights.set(index, height);
       });
 
-      // Recompute total height only once
       let newTotalHeight = 0;
       for (let i = 0; i < data.length; i++) {
         newTotalHeight += newHeights.get(i) || estimatedRowHeight;
       }
 
-      // Now update our single state object in one go:
       setListMetrics({
         rowHeights: newHeights,
         totalHeight: newTotalHeight,
@@ -190,7 +189,7 @@ export const VirtualList = forwardRef(
       measureRows();
     });
 
-    const findRowAtOffset = (targetOffset) => {
+    const findRowAtOffset = (targetOffset: number): number => {
       if (targetOffset <= 0) return 0;
       if (targetOffset >= listMetrics.totalHeight) return data.length - 1;
 
@@ -219,15 +218,14 @@ export const VirtualList = forwardRef(
     const start = Math.max(0, firstVisibleIdx - overscanCount);
     const end = Math.min(data.length, lastVisibleIdx + overscanCount);
 
-    // Memoize the rendered rows to prevent unnecessary re-renders
     const renderedRows = useMemo(() => {
       const selection = data.slice(start, end);
       return selection.map((item, index) => {
         const actualIndex = start + index;
-        return html`
+        return (
           <div
-            key=${`list-item-${actualIndex}`}
-            ref=${(el) => {
+            key={`list-item-${actualIndex}`}
+            ref={(el) => {
               if (el) {
                 rowRefs.current.set(actualIndex, el);
               } else {
@@ -235,46 +233,47 @@ export const VirtualList = forwardRef(
               }
             }}
           >
-            ${renderRow(item, actualIndex)}
+            {renderRow(item, actualIndex)}
           </div>
-        `;
+        );
       });
     }, [data, start, end, renderRow]);
 
-    const style_inner = {
-      position: "relative",
-      overflow: scrollRef?.current ? "visible" : "hidden",
-      width: "100%",
-      minHeight: "100%",
-    };
-
-    const style_content = {
-      position: "absolute",
-      top: 0,
-      left: 0,
-      height: "100%",
-      width: "100%",
-      overflow: "visible",
-    };
-
     const top = rowPositions.get(start) || 0;
 
-    // Only attach onscroll to baseRef if no scrollRef is provided
-    const scrollProps = scrollRef ? {} : { onscroll: handleScroll };
+    // only attach scroll handler if there isn't a scroll ref
+    const scrollProps = scrollRef ? {} : { onScroll: handleScroll };
 
-    return html`
-      <div ref=${baseRef} ...${props} ...${scrollProps}>
+    return (
+      <div ref={baseRef} {...props} {...scrollProps}>
         <div
-          style=${{ ...style_inner, height: `${listMetrics.totalHeight}px` }}
+          className={clsx(
+            styles.container,
+            !scrollRef?.current ? styles.hidden : undefined,
+          )}
+          style={{ height: `${listMetrics.totalHeight}px` }}
         >
           <div
-            style=${{ ...style_content, top: `${top}px` }}
-            ref=${containerRef}
+            className={styles.content}
+            style={{ transform: `translateY(${top}px)` }}
+            ref={containerRef}
           >
-            ${renderedRows}
+            {renderedRows}
           </div>
         </div>
       </div>
-    `;
+    );
   },
 );
+
+// Throttle utility function
+const throttle = (func: (...args: any[]) => void, limit: number) => {
+  let inThrottle: boolean;
+  return function (this: any, ...args: any[]) {
+    if (!inThrottle) {
+      func.apply(this, args);
+      inThrottle = true;
+      setTimeout(() => (inThrottle = false), limit);
+    }
+  };
+};
