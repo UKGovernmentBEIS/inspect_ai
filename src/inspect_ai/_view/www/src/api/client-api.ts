@@ -1,4 +1,3 @@
-//@ts-check
 import { openRemoteLogFile, RemoteLogFile } from "../remote/remoteLogFile";
 import { FileSizeLimitError } from "../remote/remoteZipFile";
 import { EvalLog, EvalSample } from "../types/log";
