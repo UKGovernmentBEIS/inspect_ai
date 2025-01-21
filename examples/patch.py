@@ -1,10 +1,13 @@
 import asyncio
+import os
 from typing import Any, Optional, Type
 
 from openai import AsyncOpenAI
 from openai._base_client import AsyncAPIClient, _AsyncStreamT
 from openai._models import FinalRequestOptions
 from openai._types import ResponseT
+
+from inspect_ai.model._model import get_model
 
 original_request = getattr(AsyncAPIClient, "request")
 
@@ -19,18 +22,21 @@ async def patched_request(
     remaining_retries: Optional[int] = None,
 ) -> Any:
     # TODO: consider co-routine based patching?
-    # TODO: handle 'no model' assuming their validation allows it?
-    # TODO: some additional header we put in from our call to generate
-    # TODO: checking that the get_model call succeeds
-    # TODO: checking the baseURL if it comes in different (probably will from together)
 
-    # do we need to forward this request to inspect_ai.model?
-    if options.url == "/chat/completions":
-        if options.json_data is not None:
-            model = getattr(options.json_data, "model", "")
-            if "/" in model:
-                pass
-                # return await inspect_model_request(model, options)
+    # we have patched the underlying request method so now need to figure out when to
+    # patch and when to stand down
+    if (
+        # completions request
+        options.url == "/chat/completions"
+        # call to openai not another service (e.g. TogetherAI)
+        and self.base_url == "https://api.openai.com/v1"
+    ):
+        # check that we use "/" in model name (i.e. not a request for a standard
+        # openai model)
+        model = getattr(options.json_data or {}, "model", "")
+        if "/" in model:
+            pass
+            # return await inspect_model_request(model, options)
 
     # otherwise just delegate
     return await original_request(
@@ -43,6 +49,9 @@ async def patched_request(
     )
 
 
+setattr(AsyncAPIClient, "request", patched_request)
+
+
 # async def inspect_model_request(
 #     model: str, options: FinalRequestOptions
 # ) -> ChatCompletion:
@@ -51,9 +60,6 @@ async def patched_request(
 
 #     # TODO: Inspect completion to openai completion
 #     return ChatCompletion()
-
-
-setattr(AsyncAPIClient, "request", patched_request)
 
 
 async def main():
