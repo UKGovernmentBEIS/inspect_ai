@@ -4932,7 +4932,7 @@ var require_assets = __commonJS({
     const compact = "_compact_1memb_15";
     const cellKey = "_cellKey_1memb_19";
     const cellValue = "_cellValue_1memb_31";
-    const styles$j = {
+    const styles$k = {
       table: table$2,
       th,
       cell: cell$1,
@@ -4958,10 +4958,10 @@ var require_assets = __commonJS({
         const id2 = `${baseId}-value-${index}`;
         return /* @__PURE__ */ u("tr", {
           children: [/* @__PURE__ */ u("td", {
-            className: clsx(styles$j.cell, styles$j.cellKey, "text-size-small"),
+            className: clsx(styles$k.cell, styles$k.cellKey, "text-size-small"),
             children: entry2.name
           }), /* @__PURE__ */ u("td", {
-            className: clsx(styles$j.cell, styles$j.cellValue, "text-size-small"),
+            className: clsx(styles$k.cell, styles$k.cellValue, "text-size-small"),
             children: /* @__PURE__ */ u(RenderedContent, {
               id: id2,
               entry: entry2
@@ -4971,7 +4971,7 @@ var require_assets = __commonJS({
       });
       return /* @__PURE__ */ u("table", {
         id,
-        className: clsx("table", tblClz, styles$j.table, compact2 ? styles$j.compact : void 0, className2),
+        className: clsx("table", tblClz, styles$k.table, compact2 ? styles$k.compact : void 0, className2),
         style: style2,
         children: [/* @__PURE__ */ u("thead", {
           children: /* @__PURE__ */ u("tr", {
@@ -11066,12 +11066,12 @@ var require_assets = __commonJS({
       }
     };
     const container$4 = "_container_1vi7u_1";
-    const hidden$1 = "_hidden_1vi7u_8";
-    const content$1 = "_content_1vi7u_12";
-    const styles$i = {
+    const hidden$2 = "_hidden_1vi7u_8";
+    const content$2 = "_content_1vi7u_12";
+    const styles$j = {
       container: container$4,
-      hidden: hidden$1,
-      content: content$1
+      hidden: hidden$2,
+      content: content$2
     };
     const VirtualList = A(({
       data,
@@ -11242,12 +11242,12 @@ var require_assets = __commonJS({
         ...props,
         ...scrollProps,
         children: /* @__PURE__ */ u("div", {
-          className: clsx(styles$i.container, !(scrollRef == null ? void 0 : scrollRef.current) ? styles$i.hidden : void 0),
+          className: clsx(styles$j.container, !(scrollRef == null ? void 0 : scrollRef.current) ? styles$j.hidden : void 0),
           style: {
             height: `${listMetrics.totalHeight}px`
           },
           children: /* @__PURE__ */ u("div", {
-            className: styles$i.content,
+            className: styles$j.content,
             style: {
               transform: `translateY(${top2}px)`
             },
@@ -11556,12 +11556,12 @@ var require_assets = __commonJS({
       }
     };
     const visible = "_visible_tm52u_1";
-    const hidden = "_hidden_tm52u_5";
+    const hidden$1 = "_hidden_tm52u_5";
     const pills = "_pills_tm52u_9";
     const pill = "_pill_tm52u_9";
-    const styles$h = {
+    const styles$i = {
       visible,
-      hidden,
+      hidden: hidden$1,
       pills,
       pill
     };
@@ -11584,13 +11584,13 @@ var require_assets = __commonJS({
       const navBodies = children2.map((child) => {
         var _a2;
         return /* @__PURE__ */ u("div", {
-          className: ((_a2 = child["props"]) == null ? void 0 : _a2.title) === activeItem ? styles$h.visible : styles$h.hidden,
+          className: ((_a2 = child["props"]) == null ? void 0 : _a2.title) === activeItem ? styles$i.visible : styles$i.hidden,
           children: ["$", child]
         });
       });
       return /* @__PURE__ */ u("div", {
         children: [/* @__PURE__ */ u("ul", {
-          className: clsx("nav", "nav-pills", styles$h.pills),
+          className: clsx("nav", "nav-pills", styles$i.pills),
           role: "tablist",
           "aria-orientation": "horizontal",
           children: navPills
@@ -11610,7 +11610,7 @@ var require_assets = __commonJS({
           type: "button",
           role: "tab",
           "aria-selected": active2,
-          className: clsx("nav-link", "text-style-label", active2 ? "active " : "", styles$h.pill),
+          className: clsx("nav-link", "text-style-label", active2 ? "active " : "", styles$i.pill),
           onClick: () => {
             setActiveItem(title2);
           },
@@ -15124,7 +15124,7 @@ categories: ${categories.join(" ")}`;
       };
     };
     const dirname$1 = "_dirname_16ra5_1";
-    const styles$g = {
+    const styles$h = {
       dirname: dirname$1
     };
     const LogDirectoryTitleView = ({
@@ -15143,7 +15143,7 @@ categories: ${categories.join(" ")}`;
             children: "Log Directory"
           }), /* @__PURE__ */ u("span", {
             title: displayDir,
-            className: clsx("text-size-base", styles$g.dirname),
+            className: clsx("text-size-base", styles$h.dirname),
             children: offcanvas ? displayDir : ""
           })]
         });
@@ -15169,18 +15169,18 @@ categories: ${categories.join(" ")}`;
     const sidebar = "_sidebar_1u82r_1";
     const sidebarClosed = "_sidebarClosed_1u82r_15";
     const sidebarOpen = "_sidebarOpen_1u82r_19";
-    const header = "_header_1u82r_23";
+    const header$1 = "_header_1u82r_23";
     const toggle$1 = "_toggle_1u82r_39";
     const progress = "_progress_1u82r_46";
     const list = "_list_1u82r_50";
     const backdrop = "_backdrop_1u82r_55";
     const active = "_active_1u82r_62";
     const item = "_item_1u82r_66";
-    const styles$f = {
+    const styles$g = {
       sidebar,
       sidebarClosed,
       sidebarOpen,
-      header,
+      header: header$1,
       toggle: toggle$1,
       progress,
       list,
@@ -15191,7 +15191,7 @@ categories: ${categories.join(" ")}`;
     const error = "_error_srruf_1";
     const running = "_running_srruf_6";
     const cancelled = "_cancelled_srruf_13";
-    const styles$e = {
+    const styles$f = {
       error,
       running,
       cancelled
@@ -15200,7 +15200,7 @@ categories: ${categories.join(" ")}`;
     const metric = "_metric_1frsg_8";
     const metricName$1 = "_metricName_1frsg_17";
     const metricReducer$1 = "_metricReducer_1frsg_21";
-    const styles$d = {
+    const styles$e = {
       container: container$3,
       metric,
       metricName: metricName$1,
@@ -15210,15 +15210,15 @@ categories: ${categories.join(" ")}`;
       scorer
     }) => {
       return /* @__PURE__ */ u("div", {
-        className: styles$d.container,
+        className: styles$e.container,
         children: Object.keys(scorer.metrics).map((metric2) => {
           return /* @__PURE__ */ u("div", {
-            className: styles$d.metric,
+            className: styles$e.metric,
             children: [/* @__PURE__ */ u("div", {
-              className: clsx("text-style-secondary", "text-style-label", "text-size-small", styles$d.metricName),
+              className: clsx("text-style-secondary", "text-style-label", "text-size-small", styles$e.metricName),
               children: scorer.metrics[metric2].name
             }), scorer.reducer ? /* @__PURE__ */ u("div", {
-              className: clsx("text-size-small", styles$d.metricReducer),
+              className: clsx("text-size-small", styles$e.metricReducer),
               children: ["$", scorer.reducer]
             }) : "", /* @__PURE__ */ u("div", {
               className: "text-size-title-secondary",
@@ -15234,7 +15234,7 @@ categories: ${categories.join(" ")}`;
     const metricReducer = "_metricReducer_5kpg1_22";
     const metricValues = "_metricValues_5kpg1_27";
     const metricValue = "_metricValue_5kpg1_27";
-    const styles$c = {
+    const styles$d = {
       container: container$2,
       scoreWrapper,
       metricName,
@@ -15246,20 +15246,20 @@ categories: ${categories.join(" ")}`;
       scores: scores2
     }) => {
       return /* @__PURE__ */ u("div", {
-        className: styles$c.container,
+        className: styles$d.container,
         children: scores2.map((score2) => {
           const name2 = score2.name;
           const reducer = score2.reducer;
           return /* @__PURE__ */ u("div", {
-            className: styles$c.scoreWrapper,
+            className: styles$d.scoreWrapper,
             children: [/* @__PURE__ */ u("div", {
-              className: clsx("text-style-secondary", "text-style-label", "text-size-small", styles$c.metricName),
+              className: clsx("text-style-secondary", "text-style-label", "text-size-small", styles$d.metricName),
               children: name2
             }), reducer ? /* @__PURE__ */ u("div", {
-              className: clsx("text-size-small", styles$c.metricReducer),
+              className: clsx("text-size-small", styles$d.metricReducer),
               children: reducer
             }) : "", /* @__PURE__ */ u("div", {
-              className: clsx("text-size-small", styles$c.metricValues),
+              className: clsx("text-size-small", styles$d.metricValues),
               children: Object.keys(score2.metrics).map((key2) => {
                 const metric2 = score2.metrics[key2];
                 return /* @__PURE__ */ u(xn.Fragment, {
@@ -15267,7 +15267,7 @@ categories: ${categories.join(" ")}`;
                     className: clsx("text-style-secondary", "text-style-label"),
                     children: metric2.name
                   }), /* @__PURE__ */ u("div", {
-                    className: styles$c.metricValue,
+                    className: styles$d.metricValue,
                     children: formatPrettyDecimal(metric2.value)
                   })]
                 }, key2);
@@ -15314,7 +15314,7 @@ categories: ${categories.join(" ")}`;
       message
     }) => {
       return /* @__PURE__ */ u("div", {
-        className: clsx("text-style-secondary", "text-style-label", "text-size-small", styles$e.cancelled),
+        className: clsx("text-style-secondary", "text-style-label", "text-size-small", styles$f.cancelled),
         children: message
       });
     };
@@ -15322,7 +15322,7 @@ categories: ${categories.join(" ")}`;
       message
     }) => {
       return /* @__PURE__ */ u("div", {
-        className: clsx("text-style-secondary", "text-style-label", "text-size-small", styles$e.running),
+        className: clsx("text-style-secondary", "text-style-label", "text-size-small", styles$f.running),
         children: /* @__PURE__ */ u("div", {
           children: message
         })
@@ -15332,18 +15332,18 @@ categories: ${categories.join(" ")}`;
       message
     }) => {
       return /* @__PURE__ */ u("div", {
-        className: clsx(styles$e.error, "text-size-small"),
+        className: clsx(styles$f.error, "text-size-small"),
         children: message
       });
     };
     const entry = "_entry_12m5n_1";
-    const title = "_title_12m5n_7";
+    const title$1 = "_title_12m5n_7";
     const task = "_task_12m5n_12";
     const params = "_params_12m5n_18";
     const scores = "_scores_12m5n_22";
-    const styles$b = {
+    const styles$c = {
       entry,
-      title,
+      title: title$1,
       task,
       params,
       scores
@@ -15374,11 +15374,11 @@ categories: ${categories.join(" ")}`;
       })}` : "";
       return /* @__PURE__ */ u(xn.Fragment, {
         children: [/* @__PURE__ */ u("div", {
-          className: styles$b.entry,
+          className: styles$c.entry,
           children: [/* @__PURE__ */ u("div", {
-            className: styles$b.title,
+            className: styles$c.title,
             children: [/* @__PURE__ */ u("div", {
-              className: clsx(styles$b.task, "text-size-title-secondary"),
+              className: clsx(styles$c.task, "text-size-title-secondary"),
               children: ((_i = logHeader == null ? void 0 : logHeader.eval) == null ? void 0 : _i.task) || task2
             }), /* @__PURE__ */ u("small", {
               className: clsx("mb-1", "text-size-small"),
@@ -15393,7 +15393,7 @@ categories: ${categories.join(" ")}`;
             logHeader
           })]
         }), /* @__PURE__ */ u("div", {
-          className: clsx(styles$b.params, "three-line-clamp"),
+          className: clsx(styles$c.params, "three-line-clamp"),
           children: /* @__PURE__ */ u("small", {
             className: "mb-1",
             children: hyperparameters ? Object.keys(hyperparameters).map((key2) => {
@@ -15406,11 +15406,11 @@ categories: ${categories.join(" ")}`;
             }).join(", ") : ""
           })
         }), (((_j = logHeader == null ? void 0 : logHeader.eval) == null ? void 0 : _j.dataset) || ((_k = logHeader == null ? void 0 : logHeader.results) == null ? void 0 : _k.scores)) && (logHeader == null ? void 0 : logHeader.status) === "success" ? /* @__PURE__ */ u("div", {
-          className: clsx("text-truncate", "text-size-small", styles$b.scores),
+          className: clsx("text-truncate", "text-size-small", styles$c.scores),
           children: [/* @__PURE__ */ u("div", {
             children: ["dataset: ", datasetName || "(samples)"]
           }), /* @__PURE__ */ u("div", {
-            className: clsx("text-truncate", styles$b.scoreInfo),
+            className: clsx("text-truncate", styles$c.scoreInfo),
             children: [scorerLabel, ": ", scorerNames || "(none)"]
           })]
         }) : ""]
@@ -15430,18 +15430,18 @@ categories: ${categories.join(" ")}`;
       };
       return /* @__PURE__ */ u(k$2, {
         children: [offcanvas && /* @__PURE__ */ u("div", {
-          className: styles$f.backdrop,
+          className: styles$g.backdrop,
           onClick: handleToggle
         }), /* @__PURE__ */ u("div", {
-          className: clsx(styles$f.sidebar, offcanvas ? styles$f.sidebarOpen : styles$f.sidebarClosed),
+          className: clsx(styles$g.sidebar, offcanvas ? styles$g.sidebarOpen : styles$g.sidebarClosed),
           children: [/* @__PURE__ */ u("div", {
-            className: styles$f.header,
+            className: styles$g.header,
             children: [/* @__PURE__ */ u(LogDirectoryTitleView, {
               log_dir: logs.log_dir,
               offcanvas
             }), /* @__PURE__ */ u("button", {
               onClick: handleToggle,
-              className: clsx("btn", styles$f.toggle),
+              className: clsx("btn", styles$g.toggle),
               type: "button",
               "aria-label": "Close sidebar",
               children: /* @__PURE__ */ u("i", {
@@ -15449,16 +15449,16 @@ categories: ${categories.join(" ")}`;
               })
             })]
           }), /* @__PURE__ */ u("div", {
-            className: styles$f.progress,
+            className: styles$g.progress,
             children: /* @__PURE__ */ u(ProgressBar, {
               animating: loading
             })
           }), /* @__PURE__ */ u("ul", {
-            className: clsx("list-group", styles$f.list),
+            className: clsx("list-group", styles$g.list),
             children: logs.files.map((file, index) => {
               const logHeader = logHeaders[file.name];
               return /* @__PURE__ */ u("li", {
-                className: clsx("list-group-item", "list-group-item-action", styles$f.item, selectedIndex === index ? styles$f.active : void 0),
+                className: clsx("list-group-item", "list-group-item-action", styles$g.item, selectedIndex === index ? styles$g.active : void 0),
                 onClick: () => onSelectedIndexChanged(index),
                 children: /* @__PURE__ */ u(SidebarLogEntry, {
                   logHeader,
@@ -19493,7 +19493,7 @@ self.onmessage = function (e) {
       }
       return value2;
     };
-    const styles$a = {
+    const styles$b = {
       "json-tab": "_json-tab_w7sx0_1"
     };
     const kJsonMaxSize = 1e7;
@@ -19505,7 +19505,7 @@ self.onmessage = function (e) {
       if (json.length > kJsonMaxSize && capabilities.downloadFiles) {
         const file = `${filename(logFile)}.json`;
         return /* @__PURE__ */ u("div", {
-          className: styles$a["json-tab"],
+          className: styles$b["json-tab"],
           children: /* @__PURE__ */ u(DownloadPanel, {
             message: "The JSON for this log file is too large to render.",
             buttonLabel: "Download JSON File",
@@ -19534,7 +19534,7 @@ self.onmessage = function (e) {
     const navbarStatus = "_navbarStatus_838qu_42";
     const navbarWrapper = "_navbarWrapper_838qu_48";
     const navbarInnerWrapper = "_navbarInnerWrapper_838qu_51";
-    const styles$9 = {
+    const styles$a = {
       navbarContainer,
       navbarToggle,
       navbarBody,
@@ -19587,7 +19587,7 @@ self.onmessage = function (e) {
     const taskModel = "_taskModel_1w9cu_36";
     const taskStatus = "_taskStatus_1w9cu_40";
     const secondaryContainer = "_secondaryContainer_1w9cu_46";
-    const styles$8 = {
+    const styles$9 = {
       container: container$1,
       wrapper: wrapper$2,
       toggle,
@@ -19607,7 +19607,7 @@ self.onmessage = function (e) {
     const multiScorerLabel = "_multiScorerLabel_13pa9_52";
     const multiScorerValue = "_multiScorerValue_13pa9_58";
     const multiScorerValueContent = "_multiScorerValueContent_13pa9_65";
-    const styles$7 = {
+    const styles$8 = {
       simpleMetricsRows,
       multiMetricsRows,
       verticalMetricReducer,
@@ -19639,7 +19639,7 @@ self.onmessage = function (e) {
         });
         const metrics = Object.values(scorers)[0];
         return /* @__PURE__ */ u("div", {
-          className: styles$7.simpleMetricsRows,
+          className: styles$8.simpleMetricsRows,
           children: metrics.map((metric2, i2) => {
             return /* @__PURE__ */ u(VerticalMetric, {
               metricSummary: metric2,
@@ -19649,7 +19649,7 @@ self.onmessage = function (e) {
         });
       } else {
         return /* @__PURE__ */ u("div", {
-          className: styles$7.multiMetricsRows,
+          className: styles$8.multiMetricsRows,
           children: (_b2 = results == null ? void 0 : results.scores) == null ? void 0 : _b2.map((score2, index) => {
             return /* @__PURE__ */ u(MultiScorerMetric, {
               scorer: score2,
@@ -19664,7 +19664,7 @@ self.onmessage = function (e) {
       isFirst
     }) => {
       const reducer_component = metricSummary.reducer ? /* @__PURE__ */ u("div", {
-        className: clsx("text-style-label", "text-style-secondary", styles$7.verticalMetricReducer),
+        className: clsx("text-style-label", "text-style-secondary", styles$8.verticalMetricReducer),
         children: metricSummary.reducer
       }) : "";
       return /* @__PURE__ */ u("div", {
@@ -19672,10 +19672,10 @@ self.onmessage = function (e) {
           paddingLeft: isFirst ? "0" : "1em"
         },
         children: [/* @__PURE__ */ u("div", {
-          class: clsx("vertical-metric-label", "text-style-label", "text-style-secondary", styles$7.verticalMetricName),
+          class: clsx("vertical-metric-label", "text-style-label", "text-style-secondary", styles$8.verticalMetricName),
           children: metricSummary.metric.name
         }), reducer_component, /* @__PURE__ */ u("div", {
-          class: clsx("vertical-metric-value", styles$7.verticalMetricValue),
+          class: clsx("vertical-metric-value", styles$8.verticalMetricValue),
           children: formatPrettyDecimal(metricSummary.metric.value)
         })]
       });
@@ -19689,7 +19689,7 @@ self.onmessage = function (e) {
       const reducerFontClz = metricsLen ? "text-size-small" : "text-size-smaller";
       const valueFontClz = metricsLen ? "text-size-base" : "text-size-base";
       const reducer_component = scorer.reducer ? /* @__PURE__ */ u("div", {
-        className: clsx(reducerFontClz, "text-style-label", "text-style-secondary", styles$7.multiScorerReducer),
+        className: clsx(reducerFontClz, "text-style-label", "text-style-secondary", styles$8.multiScorerReducer),
         children: scorer.reducer
       }) : "";
       return /* @__PURE__ */ u("div", {
@@ -19697,17 +19697,17 @@ self.onmessage = function (e) {
           paddingLeft: isFirst ? "0" : "1.5em"
         },
         children: [/* @__PURE__ */ u("div", {
-          className: clsx(titleFontClz, "text-style-label", "text-style-secondary", "multi-score-label", styles$7.multiScorerLabel),
+          className: clsx(titleFontClz, "text-style-label", "text-style-secondary", "multi-score-label", styles$8.multiScorerLabel),
           children: scorer.name
         }), reducer_component, /* @__PURE__ */ u("div", {
-          className: clsx(valueFontClz, styles$7.multiScorerValue),
+          className: clsx(valueFontClz, styles$8.multiScorerValue),
           children: Object.keys(scorer.metrics).map((key2) => {
             const metric2 = scorer.metrics[key2];
             return /* @__PURE__ */ u("div", {
               children: [/* @__PURE__ */ u("div", {
                 children: metric2.name
               }), /* @__PURE__ */ u("div", {
-                className: styles$7.multiScorerValueContent,
+                className: styles$8.multiScorerValueContent,
                 children: formatPrettyDecimal(metric2.value)
               })]
             });
@@ -19717,7 +19717,7 @@ self.onmessage = function (e) {
     };
     const statusPanel = "_statusPanel_1fzh4_1";
     const statusIcon = "_statusIcon_1fzh4_10";
-    const styles$6 = {
+    const styles$7 = {
       statusPanel,
       statusIcon
     };
@@ -19754,9 +19754,9 @@ self.onmessage = function (e) {
       sampleCount
     }) => {
       return /* @__PURE__ */ u("div", {
-        className: styles$6.statusPanel,
+        className: styles$7.statusPanel,
         children: [/* @__PURE__ */ u("i", {
-          class: clsx(icon, styles$6.statusIcon),
+          class: clsx(icon, styles$7.statusIcon),
           style: {}
         }), /* @__PURE__ */ u("div", {
           children: [/* @__PURE__ */ u("div", {
@@ -19800,34 +19800,34 @@ self.onmessage = function (e) {
         setOffcanvas(!offcanvas);
       };
       return /* @__PURE__ */ u("div", {
-        className: clsx(styles$8.wrapper),
+        className: clsx(styles$9.wrapper),
         children: [/* @__PURE__ */ u("div", {
-          className: clsx("navbar-brand", "navbar-text", "mb-0", styles$8.container),
+          className: clsx("navbar-brand", "navbar-text", "mb-0", styles$9.container),
           children: [showToggle ? /* @__PURE__ */ u("button", {
             id: "sidebarToggle",
             onClick: handleToggle,
-            className: clsx("btn", offcanvas ? "d-md-none" : void 0, styles$8.toggle),
+            className: clsx("btn", offcanvas ? "d-md-none" : void 0, styles$9.toggle),
             type: "button",
             children: /* @__PURE__ */ u("i", {
               class: ApplicationIcons.menu
             })
           }) : "", /* @__PURE__ */ u("div", {
-            className: styles$8.body,
+            className: styles$9.body,
             children: [/* @__PURE__ */ u("div", {
-              className: styles$8.bodyContainer,
+              className: styles$9.bodyContainer,
               children: [/* @__PURE__ */ u("div", {
                 id: "task-title",
-                className: clsx("task-title", "text-truncate", styles$8.taskTitle),
+                className: clsx("task-title", "text-truncate", styles$9.taskTitle),
                 title: evalSpec == null ? void 0 : evalSpec.task,
                 children: evalSpec == null ? void 0 : evalSpec.task
               }), /* @__PURE__ */ u("div", {
                 id: "task-model",
-                className: clsx("task-model", "text-truncate", styles$8.taskModel, "text-size-base"),
+                className: clsx("task-model", "text-truncate", styles$9.taskModel, "text-size-base"),
                 title: evalSpec == null ? void 0 : evalSpec.model,
                 children: evalSpec == null ? void 0 : evalSpec.model
               })]
             }), /* @__PURE__ */ u("div", {
-              className: clsx("text-size-small", styles$8.secondaryContainer),
+              className: clsx("text-size-small", styles$9.secondaryContainer),
               children: [/* @__PURE__ */ u("div", {
                 className: clsx("navbar-secondary-text", "text-truncate"),
                 children: logFileName
@@ -19837,7 +19837,7 @@ self.onmessage = function (e) {
             })]
           })]
         }), /* @__PURE__ */ u("div", {
-          className: clsx(styles$8.taskStatus, "navbar-text"),
+          className: clsx(styles$9.taskStatus, "navbar-text"),
           children: statusPanel2
         })]
       });
@@ -19873,7 +19873,7 @@ self.onmessage = function (e) {
     const justifyRight = "_justifyRight_xzzhl_13";
     const valueGrid = "_valueGrid_xzzhl_17";
     const container = "_container_xzzhl_25";
-    const styles$5 = {
+    const styles$6 = {
       staticCol,
       justifyLeft,
       justifyCenter,
@@ -19904,7 +19904,7 @@ self.onmessage = function (e) {
         size: "minmax(12%, auto)",
         value: /* @__PURE__ */ u(LabeledValue, {
           label: "Dataset",
-          className: styles$5.staticCol,
+          className: styles$6.staticCol,
           children: /* @__PURE__ */ u(DatasetSummary, {
             dataset: evalSpec.dataset,
             samples,
@@ -19917,7 +19917,7 @@ self.onmessage = function (e) {
         size: "minmax(12%, auto)",
         value: /* @__PURE__ */ u(LabeledValue, {
           label,
-          className: clsx(styles$5.staticCol, hasConfig ? styles$5.justifyLeft : styles$5.justifyCenter),
+          className: clsx(styles$6.staticCol, hasConfig ? styles$6.justifyLeft : styles$6.justifyCenter),
           children: /* @__PURE__ */ u(ScorerSummary, {
             evalDescriptor
           })
@@ -19928,7 +19928,7 @@ self.onmessage = function (e) {
           size: "minmax(12%, auto)",
           value: /* @__PURE__ */ u(LabeledValue, {
             label: "Config",
-            className: styles$5.justifyRight,
+            className: styles$6.justifyRight,
             children: /* @__PURE__ */ u(ParamSummary, {
               params: hyperparameters
             })
@@ -19941,17 +19941,17 @@ self.onmessage = function (e) {
           size: "minmax(12%, auto)",
           value: /* @__PURE__ */ u(LabeledValue, {
             label: "Duration",
-            className: styles$5.justifyRight,
+            className: styles$6.justifyRight,
             children: totalDuration
           })
         });
       }
       return /* @__PURE__ */ u(ExpandablePanel, {
-        className: styles$5.container,
+        className: styles$6.container,
         collapse: true,
         lines: 4,
         children: /* @__PURE__ */ u("div", {
-          className: styles$5.valueGrid,
+          className: styles$6.valueGrid,
           style: {
             gridTemplateColumns: `${values.map((val) => {
               return val.size;
@@ -20034,7 +20034,7 @@ self.onmessage = function (e) {
       status
     }) => {
       return /* @__PURE__ */ u("nav", {
-        className: clsx("navbar", "sticky-top", styles$9.navbarWrapper),
+        className: clsx("navbar", "sticky-top", styles$a.navbarWrapper),
         children: [/* @__PURE__ */ u(PrimaryBar, {
           file,
           evalSpec,
@@ -20439,36 +20439,32 @@ self.onmessage = function (e) {
     </div>
   `;
     };
-    const MessageBand = ({
-      message,
-      hidden: hidden2,
-      setHidden,
-      type
-    }) => {
-      const className2 = [type];
-      if (hidden2) {
-        className2.push("hidden");
-      }
-      return /* @__PURE__ */ u("div", {
-        className: clsx("message-band", className2),
-        children: [/* @__PURE__ */ u("i", {
-          className: ApplicationIcons.logging[type]
-        }), message, /* @__PURE__ */ u("button", {
-          className: clsx("btn", "message-band-btn", type),
-          title: "Close",
-          onClick: () => {
-            setHidden(true);
-          },
-          children: /* @__PURE__ */ u("i", {
-            className: ApplicationIcons.close
-          })
-        })]
-      });
+    const title = "_title_yj2nt_1";
+    const detail = "_detail_yj2nt_5";
+    const detailText = "_detailText_yj2nt_13";
+    const close = "_close_yj2nt_18";
+    const modal = "_modal_yj2nt_26";
+    const hidden = "_hidden_yj2nt_31";
+    const modalBody = "_modalBody_yj2nt_35";
+    const content$1 = "_content_yj2nt_41";
+    const header = "_header_yj2nt_45";
+    const titleTool = "_titleTool_yj2nt_50";
+    const styles$5 = {
+      title,
+      detail,
+      detailText,
+      close,
+      modal,
+      hidden,
+      modalBody,
+      content: content$1,
+      header,
+      titleTool
     };
     const LargeModal = ({
       id,
       title: title2,
-      detail,
+      detail: detail2,
       detailTools,
       footer,
       onkeyup,
@@ -20478,154 +20474,103 @@ self.onmessage = function (e) {
       children: children2,
       initialScrollPositionRef,
       setInitialScrollPosition,
-      warning,
-      warningHidden,
-      setWarningHidden,
       scrollRef
     }) => {
-      const modalFooter = footer ? m$1`<div class="modal-footer">${footer}</div>` : "";
-      scrollRef = scrollRef || A$1(
-        /** @type {HTMLElement|null} */
-        null
-      );
+      const modalFooter = footer ? /* @__PURE__ */ u("div", {
+        className: "modal-footer",
+        children: footer
+      }) : "";
+      scrollRef = scrollRef || A$1(null);
       y(() => {
         if (scrollRef.current) {
           setTimeout(() => {
-            if (scrollRef.current.scrollTop !== (initialScrollPositionRef == null ? void 0 : initialScrollPositionRef.current)) {
-              scrollRef.current.scrollTop = initialScrollPositionRef == null ? void 0 : initialScrollPositionRef.current;
+            if (scrollRef.current && initialScrollPositionRef.current && scrollRef.current.scrollTop !== (initialScrollPositionRef == null ? void 0 : initialScrollPositionRef.current)) {
+              scrollRef.current.scrollTop = initialScrollPositionRef.current;
             }
           }, 0);
         }
       }, []);
-      const onScroll = q$1(
-        (e2) => {
-          setInitialScrollPosition(e2.srcElement.scrollTop);
-        },
-        [setInitialScrollPosition]
-      );
+      const onScroll = q$1((e2) => {
+        setInitialScrollPosition(e2.srcElement.scrollTop);
+      }, [setInitialScrollPosition]);
       const headerEls = [];
-      headerEls.push(
-        m$1`<div
-      class="modal-title"
-      style=${{ fontSize: FontSize.smaller, flex: "1 1 auto" }}
-    >
-      ${title2 || ""}
-    </div>`
-      );
-      if (detail) {
-        headerEls.push(
-          m$1`<div
-        style=${{
-            marginLeft: "auto",
-            marginRight: "auto",
-            display: "flex",
-            flex: "1 1 auto",
-            justifyContent: "center"
-          }}
-      >
-        ${detailTools.left ? detailTools.left.map((tool) => {
+      headerEls.push(/* @__PURE__ */ u("div", {
+        className: clsx("modal-title", "text-size-smaller", styles$5.title),
+        children: title2 || ""
+      }));
+      if (detail2) {
+        headerEls.push(/* @__PURE__ */ u("div", {
+          className: styles$5.detail,
+          children: [(detailTools == null ? void 0 : detailTools.left) ? detailTools.left.map((tool) => {
             return m$1`<${TitleTool} ...${tool} />`;
-          }) : ""}
-        <div
-          style=${{
-            fontSize: FontSize.smaller,
-            display: "flex",
-            alignItems: "center"
-          }}
-        >
-          <div>${detail}</div>
-        </div>
-        ${detailTools.right ? detailTools.right.map((tool) => {
+          }) : "", /* @__PURE__ */ u("div", {
+            className: clsx("text-size-smaller", styles$5.detailText),
+            children: /* @__PURE__ */ u("div", {
+              children: detail2
+            })
+          }), (detailTools == null ? void 0 : detailTools.right) ? detailTools.right.map((tool) => {
             return m$1`<${TitleTool} ...${tool} />`;
-          }) : ""}
-      </div>`
-        );
+          }) : ""]
+        }));
       }
-      headerEls.push(m$1`<button
-      type="button"
-      class="btn btn-close-large-dialog"
-      onclick=${() => {
-        onHide();
-      }}
-      aria-label="Close"
-      style=${{
-        borderWidth: "0px",
-        fontSize: FontSize.larger,
-        fontWeight: "300",
-        padding: "0em 0.5em",
-        flex: 1,
-        textAlign: "right"
-      }}
-    >
-      <${HtmlEntity}>&times;</${HtmlEntity}>
-    </button>`);
-      return m$1`<div
-    id=${id}
-    class="modal"
-    tabindex="0"
-    role="dialog"
-    onkeyup=${onkeyup}
-    style=${{
-        borderRadius: "var(--bs-border-radius)",
-        display: visible2 ? "block" : "none"
-      }}
-    tabindex=${visible2 ? 0 : void 0}
-  >
-    <div
-      class="modal-dialog modal-dialog-scrollable"
-      style=${{
-        maxWidth: "100%",
-        marginLeft: "var(--bs-modal-margin)",
-        marginRight: "var(--bs-modal-margin)"
-      }}
-      role="document"
-    >
-      <div class="modal-content" style=${{ height: "100%" }}>
-        <div
-          class="modal-header"
-          style=${{ padding: "0 0 0 1em", display: "flex" }}
-        >
-          ${headerEls}
-        </div>
-        <${ProgressBar}
-          animating=${showProgress}
-          containerStyle=${{
-        marginBottom: "-2px",
-        backgroundColor: "var(--bs-body-bg)"
-      }}
-        />
-
-        ${warning ? m$1`<${MessageBand}
-              message=${warning}
-              hidden=${warningHidden}
-              setHidden=${setWarningHidden}
-              type="warning"
-            />` : ""}
-        <div class="modal-body" ref=${scrollRef} onscroll=${onScroll}>
-          ${children2}
-        </div>
-        ${modalFooter}
-      </div>
-    </div>
-  </div>`;
+      headerEls.push(/* @__PURE__ */ u("button", {
+        type: "button",
+        className: clsx("btn", "btn-close-large-dialog", "text-size-larger", styles$5.close),
+        onClick: onHide,
+        "aria-label": "Close",
+        children: /* @__PURE__ */ u(HtmlEntity, {
+          html: "&times;"
+        })
+      }));
+      return /* @__PURE__ */ u("div", {
+        id,
+        className: clsx("modal", styles$5.modal, !visible2 ? styles$5.hidden : void 0),
+        role: "dialog",
+        onKeyUp: onkeyup,
+        tabindex: visible2 ? 0 : void 0,
+        children: /* @__PURE__ */ u("div", {
+          className: clsx("modal-dialog", "modal-dialog-scrollable", styles$5.modalBody),
+          role: "document",
+          children: /* @__PURE__ */ u("div", {
+            className: clsx("modal-content", styles$5.content),
+            children: [/* @__PURE__ */ u("div", {
+              className: clsx("modal-header", styles$5.header),
+              children: headerEls
+            }), /* @__PURE__ */ u(ProgressBar, {
+              animating: showProgress
+            }), /* @__PURE__ */ u("div", {
+              class: "modal-body",
+              ref: scrollRef,
+              onScroll,
+              children: children2
+            }), modalFooter]
+          })
+        })
+      });
     };
-    const HtmlEntity = ({ children: children2 }) => m$1`<span dangerouslySetInnerHTML=${{ __html: children2 }} />`;
-    const TitleTool = ({ label, icon, enabled, onclick }) => {
-      return m$1`<button
-    type="button"
-    class="btn btn-outline"
-    aria-label=${label}
-    onclick=${onclick}
-    disabled=${!enabled}
-    style=${{
-        paddingTop: 0,
-        paddingBottom: 0,
-        border: "none",
-        fontSize: FontSize.small
-      }}
-  >
-    <i class="${icon}" />
-  </button>`;
+    const HtmlEntity = ({
+      html: html2
+    }) => /* @__PURE__ */ u("span", {
+      dangerouslySetInnerHTML: {
+        __html: html2
+      }
+    });
+    const TitleTool = ({
+      label,
+      icon,
+      enabled,
+      onClick
+    }) => {
+      return /* @__PURE__ */ u("button", {
+        type: "button",
+        className: clsx("btn", "btn-outline", "text-size-small", styles$5.titleTool),
+        "aria-label": label,
+        onClick,
+        disabled: !enabled,
+        children: /* @__PURE__ */ u("i", {
+          class: icon
+        })
+      });
     };
     function escapeSelector(id) {
       return id.replace(/([ #.;,?!+*~'":^$[\]()=>|/\\])/g, "\\$1");
@@ -29706,13 +29651,13 @@ ${events}
         const nextTool = {
           label: "Next Sample",
           icon: ApplicationIcons.next,
-          onclick: nextSample,
+          onClick: nextSample,
           enabled: !!nextSample
         };
         const prevTool = {
           label: "Previous Sample",
           icon: ApplicationIcons.previous,
-          onclick: prevSample,
+          onClick: prevSample,
           enabled: !!prevSample
         };
         return {
@@ -29768,6 +29713,32 @@ ${events}
     >
         ${children2}
     </${LargeModal}>`;
+    };
+    const MessageBand = ({
+      message,
+      hidden: hidden2,
+      setHidden,
+      type
+    }) => {
+      const className2 = [type];
+      if (hidden2) {
+        className2.push("hidden");
+      }
+      return /* @__PURE__ */ u("div", {
+        className: clsx("message-band", className2),
+        children: [/* @__PURE__ */ u("i", {
+          className: ApplicationIcons.logging[type]
+        }), message, /* @__PURE__ */ u("button", {
+          className: clsx("btn", "message-band-btn", type),
+          title: "Close",
+          onClick: () => {
+            setHidden(true);
+          },
+          children: /* @__PURE__ */ u("i", {
+            className: ApplicationIcons.close
+          })
+        })]
+      });
     };
     const kSampleHeight = 88;
     const kSeparatorHeight = 24;
@@ -46215,9 +46186,9 @@ ${events}
       let strategy = tree.type.prop(indentNodeProp);
       if (strategy)
         return strategy;
-      let first = tree.firstChild, close;
-      if (first && (close = first.type.prop(NodeProp.closedBy))) {
-        let last = tree.lastChild, closed = last && close.indexOf(last.name) > -1;
+      let first = tree.firstChild, close2;
+      if (first && (close2 = first.type.prop(NodeProp.closedBy))) {
+        let last = tree.lastChild, closed = last && close2.indexOf(last.name) > -1;
         return (cx) => delimitedStrategy(cx, true, 1, void 0, closed && !ignoreClosed(cx) ? last.from : void 0);
       }
       return tree.parent == null ? topIndent : null;
@@ -49170,12 +49141,12 @@ ${events}
       return data.length ? data[0] : {};
     }
     const SearchMargin = 50;
-    function findBlockComment(state, { open, close }, from, to) {
+    function findBlockComment(state, { open, close: close2 }, from, to) {
       let textBefore = state.sliceDoc(from - SearchMargin, from);
       let textAfter = state.sliceDoc(to, to + SearchMargin);
       let spaceBefore = /\s*$/.exec(textBefore)[0].length, spaceAfter = /^\s*/.exec(textAfter)[0].length;
       let beforeOff = textBefore.length - spaceBefore;
-      if (textBefore.slice(beforeOff - open.length, beforeOff) == open && textAfter.slice(spaceAfter, spaceAfter + close.length) == close) {
+      if (textBefore.slice(beforeOff - open.length, beforeOff) == open && textAfter.slice(spaceAfter, spaceAfter + close2.length) == close2) {
         return {
           open: { pos: from - spaceBefore, margin: spaceBefore && 1 },
           close: { pos: to + spaceAfter, margin: spaceAfter && 1 }
@@ -49189,15 +49160,15 @@ ${events}
         endText = state.sliceDoc(to - SearchMargin, to);
       }
       let startSpace = /^\s*/.exec(startText)[0].length, endSpace = /\s*$/.exec(endText)[0].length;
-      let endOff = endText.length - endSpace - close.length;
-      if (startText.slice(startSpace, startSpace + open.length) == open && endText.slice(endOff, endOff + close.length) == close) {
+      let endOff = endText.length - endSpace - close2.length;
+      if (startText.slice(startSpace, startSpace + open.length) == open && endText.slice(endOff, endOff + close2.length) == close2) {
         return {
           open: {
             pos: from + startSpace + open.length,
             margin: /\s/.test(startText.charAt(startSpace + open.length)) ? 1 : 0
           },
           close: {
-            pos: to - endSpace - close.length,
+            pos: to - endSpace - close2.length,
             margin: /\s/.test(endText.charAt(endOff - 1)) ? 1 : 0
           }
         };
@@ -49234,8 +49205,8 @@ ${events}
         let changes = [];
         for (let i2 = 0, comment2; i2 < comments.length; i2++)
           if (comment2 = comments[i2]) {
-            let token2 = tokens[i2], { open, close } = comment2;
-            changes.push({ from: open.pos - token2.open.length, to: open.pos + open.margin }, { from: close.pos - close.margin, to: close.pos + token2.close.length });
+            let token2 = tokens[i2], { open, close: close2 } = comment2;
+            changes.push({ from: open.pos - token2.open.length, to: open.pos + open.margin }, { from: close2.pos - close2.margin, to: close2.pos + token2.close.length });
           }
         return { changes };
       }

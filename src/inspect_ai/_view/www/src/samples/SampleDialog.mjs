@@ -2,7 +2,7 @@ import { html } from "htm/preact";
 import { useCallback, useMemo, useRef } from "preact/hooks";
 
 import { ApplicationIcons } from "../appearance/icons";
-import { LargeModal } from "../components/LargeModal.mjs";
+import { LargeModal } from "../components/LargeModal";
 
 import { ErrorPanel } from "../components/ErrorPanel";
 import { SampleDisplay } from "./SampleDisplay.mjs";
@@ -49,14 +49,14 @@ export const SampleDialog = ({
     const nextTool = {
       label: "Next Sample",
       icon: ApplicationIcons.next,
-      onclick: nextSample,
+      onClick: nextSample,
       enabled: !!nextSample,
     };
 
     const prevTool = {
       label: "Previous Sample",
       icon: ApplicationIcons.previous,
-      onclick: prevSample,
+      onClick: prevSample,
       enabled: !!prevSample,
     };
 
