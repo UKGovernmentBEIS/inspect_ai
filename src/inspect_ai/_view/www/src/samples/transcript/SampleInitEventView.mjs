@@ -2,7 +2,7 @@
 import { html } from "htm/preact";
 import { ApplicationIcons } from "../../appearance/icons";
 import { ChatView } from "../../components/ChatView.mjs";
-import { MetaDataGrid } from "../../components/MetaDataGrid.mjs";
+import { MetaDataGrid } from "../../components/MetaDataGrid";
 import { formatDateTime } from "../../utils/format";
 import { toArray } from "../../utils/type";
 import { EventPanel } from "./EventPanel.mjs";

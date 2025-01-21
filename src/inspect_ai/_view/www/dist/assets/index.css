@@ -16187,6 +16187,21 @@ ul.jsondiffpatch-textdiff {
 .message-band-btn.warning {
   color: var(--bs-warning-text-emphasis);
 }
+._grid_12d2w_1 {
+  display: grid;
+  grid-template-columns: max-content auto;
+  column-gap: 1em;
+}
+
+._cell_12d2w_7 {
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+._value_12d2w_12 {
+  white-space: pre-wrap;
+  word-wrap: anywhere;
+}
 ._wrapper_b0it4_1 {
   display: grid;
   grid-template-columns: 0 auto auto;

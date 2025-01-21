@@ -749,8 +749,8 @@ var require_assets = __commonJS({
               }
               var old = root2[inside2];
               root2[inside2] = ret;
-              _2.languages.DFS(_2.languages, function(key2, value) {
-                if (value === old && key2 != inside2) {
+              _2.languages.DFS(_2.languages, function(key2, value2) {
+                if (value2 === old && key2 != inside2) {
                   this[key2] = ret;
                 }
               });
@@ -1173,9 +1173,9 @@ var require_assets = __commonJS({
           this.tail = tail;
           this.length = 0;
         }
-        function addAfter(list2, node, value) {
+        function addAfter(list2, node, value2) {
           var next = node.next;
-          var newNode = { value, prev: node, next };
+          var newNode = { value: value2, prev: node, next };
           node.next = newNode;
           next.prev = newNode;
           list2.length++;
@@ -1848,7 +1848,7 @@ var require_assets = __commonJS({
                     return selectedText;
                   };
                   var actions_cut = ClipboardActionCut;
-                  function createFakeElement(value) {
+                  function createFakeElement(value2) {
                     var isRTL = document.documentElement.getAttribute("dir") === "rtl";
                     var fakeElement = document.createElement("textarea");
                     fakeElement.style.fontSize = "12pt";
@@ -1860,11 +1860,11 @@ var require_assets = __commonJS({
                     var yPosition = window.pageYOffset || document.documentElement.scrollTop;
                     fakeElement.style.top = "".concat(yPosition, "px");
                     fakeElement.setAttribute("readonly", "");
-                    fakeElement.value = value;
+                    fakeElement.value = value2;
                     return fakeElement;
                   }
-                  var fakeCopyAction = function fakeCopyAction2(value, options) {
-                    var fakeElement = createFakeElement(value);
+                  var fakeCopyAction = function fakeCopyAction2(value2, options) {
+                    var fakeElement = createFakeElement(value2);
                     options.container.appendChild(fakeElement);
                     var selectedText = select_default()(fakeElement);
                     command2("copy");
@@ -2232,18 +2232,18 @@ var require_assets = __commonJS({
               879: (
                 /***/
                 function(__unused_webpack_module, exports3) {
-                  exports3.node = function(value) {
-                    return value !== void 0 && value instanceof HTMLElement && value.nodeType === 1;
+                  exports3.node = function(value2) {
+                    return value2 !== void 0 && value2 instanceof HTMLElement && value2.nodeType === 1;
                   };
-                  exports3.nodeList = function(value) {
-                    var type = Object.prototype.toString.call(value);
-                    return value !== void 0 && (type === "[object NodeList]" || type === "[object HTMLCollection]") && "length" in value && (value.length === 0 || exports3.node(value[0]));
+                  exports3.nodeList = function(value2) {
+                    var type = Object.prototype.toString.call(value2);
+                    return value2 !== void 0 && (type === "[object NodeList]" || type === "[object HTMLCollection]") && "length" in value2 && (value2.length === 0 || exports3.node(value2[0]));
                   };
-                  exports3.string = function(value) {
-                    return typeof value === "string" || value instanceof String;
+                  exports3.string = function(value2) {
+                    return typeof value2 === "string" || value2 instanceof String;
                   };
-                  exports3.fn = function(value) {
-                    var type = Object.prototype.toString.call(value);
+                  exports3.fn = function(value2) {
+                    var type = Object.prototype.toString.call(value2);
                     return type === "[object Function]";
                   };
                 }
@@ -4360,7 +4360,7 @@ var require_assets = __commonJS({
            * @returns
            */
           static equivalent(left, right) {
-            const setReplacer = (_2, value) => value instanceof Set ? !value.size ? void 0 : [...value] : value;
+            const setReplacer = (_2, value2) => value2 instanceof Set ? !value2.size ? void 0 : [...value2] : value2;
             return left === right || JSON.stringify(left, setReplacer) === JSON.stringify(right, setReplacer);
           }
           //#endregion Public Methods
@@ -4731,16 +4731,16 @@ var require_assets = __commonJS({
             return this._text;
           }
         }
-        const rangeParam = (value, defaultValue, minValue) => {
-          const param = getParam(value, defaultValue);
+        const rangeParam = (value2, defaultValue, minValue) => {
+          const param = getParam(value2, defaultValue);
           return Math.max(param, minValue);
         };
-        const getParam = (value, defaultValue) => {
-          const param = parseInt(value);
+        const getParam = (value2, defaultValue) => {
+          const param = parseInt(value2);
           return Number.isNaN(param) ? defaultValue : param;
         };
-        const twoDigitHex = (value) => {
-          const hex = Math.max(Math.min(255, value), 0).toString(16);
+        const twoDigitHex = (value2) => {
+          const hex = Math.max(Math.min(255, value2), 0).toString(16);
           return hex.length === 2 ? hex : "0" + hex;
         };
       });
@@ -4928,14 +4928,14 @@ var require_assets = __commonJS({
     };
     const table$2 = "_table_1memb_1";
     const th = "_th_1memb_7";
-    const cell = "_cell_1memb_11";
+    const cell$1 = "_cell_1memb_11";
     const compact = "_compact_1memb_15";
     const cellKey = "_cellKey_1memb_19";
     const cellValue = "_cellValue_1memb_31";
-    const styles$h = {
+    const styles$i = {
       table: table$2,
       th,
-      cell,
+      cell: cell$1,
       compact,
       cellKey,
       cellValue
@@ -4958,10 +4958,10 @@ var require_assets = __commonJS({
         const id2 = `${baseId}-value-${index}`;
         return /* @__PURE__ */ u("tr", {
           children: [/* @__PURE__ */ u("td", {
-            className: clsx(styles$h.cell, styles$h.cellKey, "text-size-small"),
+            className: clsx(styles$i.cell, styles$i.cellKey, "text-size-small"),
             children: entry2.name
           }), /* @__PURE__ */ u("td", {
-            className: clsx(styles$h.cell, styles$h.cellValue, "text-size-small"),
+            className: clsx(styles$i.cell, styles$i.cellValue, "text-size-small"),
             children: /* @__PURE__ */ u(RenderedContent, {
               id: id2,
               entry: entry2
@@ -4971,7 +4971,7 @@ var require_assets = __commonJS({
       });
       return /* @__PURE__ */ u("table", {
         id,
-        className: clsx("table", tblClz, styles$h.table, compact2 ? styles$h.compact : void 0, className2),
+        className: clsx("table", tblClz, styles$i.table, compact2 ? styles$i.compact : void 0, className2),
         style: style2,
         children: [/* @__PURE__ */ u("thead", {
           children: /* @__PURE__ */ u("tr", {
@@ -4990,10 +4990,10 @@ var require_assets = __commonJS({
         if (Array.isArray(entries)) {
           return entries;
         } else {
-          return Object.entries(entries || {}).map(([key2, value]) => {
+          return Object.entries(entries || {}).map(([key2, value2]) => {
             return {
               name: key2,
-              value
+              value: value2
             };
           });
         }
@@ -5850,8 +5850,8 @@ var require_assets = __commonJS({
         return jumpOffset !== 0 && char === jumpOffset ? nodeIdx : -1;
       }
       if (jumpOffset) {
-        const value = char - jumpOffset;
-        return value < 0 || value >= branchCount ? -1 : decodeTree[nodeIdx + value] - 1;
+        const value2 = char - jumpOffset;
+        return value2 < 0 || value2 >= branchCount ? -1 : decodeTree[nodeIdx + value2] - 1;
       }
       let lo = nodeIdx;
       let hi = lo + branchCount - 1;
@@ -6588,9 +6588,9 @@ var require_assets = __commonJS({
         this.attrs = [attrData];
       }
     };
-    Token.prototype.attrSet = function attrSet(name2, value) {
+    Token.prototype.attrSet = function attrSet(name2, value2) {
       const idx = this.attrIndex(name2);
-      const attrData = [name2, value];
+      const attrData = [name2, value2];
       if (idx < 0) {
         this.attrPush(attrData);
       } else {
@@ -6599,18 +6599,18 @@ var require_assets = __commonJS({
     };
     Token.prototype.attrGet = function attrGet(name2) {
       const idx = this.attrIndex(name2);
-      let value = null;
+      let value2 = null;
       if (idx >= 0) {
-        value = this.attrs[idx][1];
+        value2 = this.attrs[idx][1];
       }
-      return value;
+      return value2;
     };
-    Token.prototype.attrJoin = function attrJoin(name2, value) {
+    Token.prototype.attrJoin = function attrJoin(name2, value2) {
       const idx = this.attrIndex(name2);
       if (idx < 0) {
-        this.attrPush([name2, value]);
+        this.attrPush([name2, value2]);
       } else {
-        this.attrs[idx][1] = this.attrs[idx][1] + " " + value;
+        this.attrs[idx][1] = this.attrs[idx][1] + " " + value2;
       }
     };
     function StateCore(src, md, env) {
@@ -9750,17 +9750,17 @@ var require_assets = __commonJS({
       let counter = 0;
       const length = string2.length;
       while (counter < length) {
-        const value = string2.charCodeAt(counter++);
-        if (value >= 55296 && value <= 56319 && counter < length) {
+        const value2 = string2.charCodeAt(counter++);
+        if (value2 >= 55296 && value2 <= 56319 && counter < length) {
           const extra = string2.charCodeAt(counter++);
           if ((extra & 64512) == 56320) {
-            output.push(((value & 1023) << 10) + (extra & 1023) + 65536);
+            output.push(((value2 & 1023) << 10) + (extra & 1023) + 65536);
           } else {
-            output.push(value);
+            output.push(value2);
             counter--;
           }
         } else {
-          output.push(value);
+          output.push(value2);
         }
       }
       return output;
@@ -10745,12 +10745,12 @@ var require_assets = __commonJS({
       output,
       mode
     }) => {
-      function isContentImage(value) {
-        if (value && typeof value === "object") {
-          if (value.type === "image") {
+      function isContentImage(value2) {
+        if (value2 && typeof value2 === "object") {
+          if (value2.type === "image") {
             return true;
-          } else if (value.type === "tool") {
-            if (Array.isArray(value.content) && value.content.some(isContentImage)) {
+          } else if (value2.type === "tool") {
+            if (Array.isArray(value2.content) && value2.content.some(isContentImage)) {
               return true;
             }
           }
@@ -10935,8 +10935,8 @@ var require_assets = __commonJS({
       }
     };
     const extractInput = (inputKey, args) => {
-      const formatArg = (key2, value) => {
-        const quotedValue = typeof value === "string" ? `"${value}"` : value;
+      const formatArg = (key2, value2) => {
+        const quotedValue = typeof value2 === "string" ? `"${value2}"` : value2;
         return `${key2}: ${quotedValue}`;
       };
       if (args) {
@@ -11549,7 +11549,7 @@ var require_assets = __commonJS({
     const hidden = "_hidden_tm52u_5";
     const pills = "_pills_tm52u_9";
     const pill = "_pill_tm52u_9";
-    const styles$g = {
+    const styles$h = {
       visible,
       hidden,
       pills,
@@ -11574,13 +11574,13 @@ var require_assets = __commonJS({
       const navBodies = children2.map((child) => {
         var _a2;
         return /* @__PURE__ */ u("div", {
-          className: ((_a2 = child["props"]) == null ? void 0 : _a2.title) === activeItem ? styles$g.visible : styles$g.hidden,
+          className: ((_a2 = child["props"]) == null ? void 0 : _a2.title) === activeItem ? styles$h.visible : styles$h.hidden,
           children: ["$", child]
         });
       });
       return /* @__PURE__ */ u("div", {
         children: [/* @__PURE__ */ u("ul", {
-          className: clsx("nav", "nav-pills", styles$g.pills),
+          className: clsx("nav", "nav-pills", styles$h.pills),
           role: "tablist",
           "aria-orientation": "horizontal",
           children: navPills
@@ -11600,7 +11600,7 @@ var require_assets = __commonJS({
           type: "button",
           role: "tab",
           "aria-selected": active2,
-          className: clsx("nav-link", "text-style-label", active2 ? "active " : "", styles$g.pill),
+          className: clsx("nav-link", "text-style-label", active2 ? "active " : "", styles$h.pill),
           onClick: () => {
             setActiveItem(title2);
           },
@@ -11652,14 +11652,14 @@ var require_assets = __commonJS({
       }).find((renderer2) => {
         return renderer2.canRender(entry2);
       });
-      let value = entry2.value;
+      let value2 = entry2.value;
       if (renderer) {
         const { rendered } = renderer.render(id, entry2);
         if (rendered !== void 0) {
-          value = rendered;
+          value2 = rendered;
         }
       }
-      return m$1`${value}`;
+      return m$1`${value2}`;
     };
     const contentRenderers = {
       AnsiString: {
@@ -11918,8 +11918,8 @@ ${entry2.value}</pre
               }
             }).map((sample) => {
               return scoreValue(sample, scoreLabel);
-            }).filter((value) => {
-              return value !== null;
+            }).filter((value2) => {
+              return value2 !== null;
             })
           )
         ];
@@ -12227,8 +12227,8 @@ ${entry2.value}</pre
                 const scores2 = [];
                 const keys = Object.keys(score2);
                 keys.forEach((key2, index) => {
-                  const value = score2[key2];
-                  const formattedValue = isNumeric(value) ? formatPrettyDecimal(parseFloat(value)) : value;
+                  const value2 = score2[key2];
+                  const formattedValue = isNumeric(value2) ? formatPrettyDecimal(parseFloat(value2)) : value2;
                   const style2 = {
                     display: "flex",
                     flexDirection: "column",
@@ -14533,59 +14533,59 @@ ${entry2.value}</pre
     function mod(a2, b2) {
       return (a2 % b2 + b2) % b2;
     }
-    function unbox(value) {
-      if (typeof value !== "object") return value;
-      if (value instanceof Number || value instanceof String || value instanceof Boolean)
-        return value.valueOf();
+    function unbox(value2) {
+      if (typeof value2 !== "object") return value2;
+      if (value2 instanceof Number || value2 instanceof String || value2 instanceof Boolean)
+        return value2.valueOf();
     }
-    function unwrap$1(value) {
-      if (Array.isArray(value) && value.length === 1) value = value[0];
-      return unbox(value);
+    function unwrap$1(value2) {
+      if (Array.isArray(value2) && value2.length === 1) value2 = value2[0];
+      return unbox(value2);
     }
-    function prettyType(value) {
-      value = unwrap$1(value);
-      if (value === void 0) return "undefined";
-      if (value === null) return "null";
-      if (value === true) return "true";
-      if (value === false) return "false";
-      if (typeof value === "number") return "number";
-      if (typeof value === "string") return "text";
-      if (typeof value !== "object" && typeof value !== "function")
+    function prettyType(value2) {
+      value2 = unwrap$1(value2);
+      if (value2 === void 0) return "undefined";
+      if (value2 === null) return "null";
+      if (value2 === true) return "true";
+      if (value2 === false) return "false";
+      if (typeof value2 === "number") return "number";
+      if (typeof value2 === "string") return "text";
+      if (typeof value2 !== "object" && typeof value2 !== "function")
         return "unknown type";
-      if (Array.isArray(value)) return "list";
+      if (Array.isArray(value2)) return "list";
       return "object";
     }
-    function num(value) {
-      value = unwrap$1(value);
-      if (typeof value === "number") return value;
-      throw new UnexpectedTypeError("number", prettyType(value));
+    function num(value2) {
+      value2 = unwrap$1(value2);
+      if (typeof value2 === "number") return value2;
+      throw new UnexpectedTypeError("number", prettyType(value2));
     }
-    function str(value) {
-      value = unwrap$1(value);
-      if (typeof value === "string") return value;
-      throw new UnexpectedTypeError("text", prettyType(value));
+    function str(value2) {
+      value2 = unwrap$1(value2);
+      if (typeof value2 === "string") return value2;
+      throw new UnexpectedTypeError("text", prettyType(value2));
     }
-    function numstr(value) {
-      value = unwrap$1(value);
-      if (typeof value === "string" || typeof value === "number") return value;
-      throw new UnexpectedTypeError("text or number", prettyType(value));
+    function numstr(value2) {
+      value2 = unwrap$1(value2);
+      if (typeof value2 === "string" || typeof value2 === "number") return value2;
+      throw new UnexpectedTypeError("text or number", prettyType(value2));
     }
-    function bool(value) {
-      value = unwrap$1(value);
-      if (typeof value === "boolean") return value;
+    function bool(value2) {
+      value2 = unwrap$1(value2);
+      if (typeof value2 === "boolean") return value2;
       throw new UnexpectedTypeError(
         "logical value (“true” or “false”)",
-        prettyType(value)
+        prettyType(value2)
       );
     }
-    function arr(value) {
-      if (value === void 0 || value === null) {
-        throw new UnexpectedTypeError("list", prettyType(value));
+    function arr(value2) {
+      if (value2 === void 0 || value2 === null) {
+        throw new UnexpectedTypeError("list", prettyType(value2));
       }
-      if (Array.isArray(value)) {
-        return value;
+      if (Array.isArray(value2)) {
+        return value2;
       } else {
-        return [value];
+        return [value2];
       }
     }
     function flatten$1(input) {
@@ -14623,7 +14623,7 @@ ${entry2.value}</pre
           ternary: 0,
           modulo: 0
         };
-        return (cause, value) => {
+        return (cause, value2) => {
           switch (cause) {
             case "ternary":
               if (warnedTimes.ternary++ >= warnMax) break;
@@ -14638,7 +14638,7 @@ ${entry2.value}</pre
               );
               break;
           }
-          return value;
+          return value2;
         };
       }(),
       buildString(quote, literal2) {
@@ -14785,14 +14785,14 @@ ${entry2.value}</pre
         }
       };
     }
-    const coerceValue = (value, descriptor) => {
+    const coerceValue = (value2, descriptor) => {
       if (descriptor && descriptor.scoreType === kScoreTypeBoolean) {
-        return Boolean(value);
+        return Boolean(value2);
       } else {
-        return value;
+        return value2;
       }
     };
-    const isFilteringSupportedForValue = (value) => ["string", "number", "boolean"].includes(typeof value);
+    const isFilteringSupportedForValue = (value2) => ["string", "number", "boolean"].includes(typeof value2);
     const bannedShortScoreNames = (scores2) => {
       const used = /* @__PURE__ */ new Set();
       const banned = /* @__PURE__ */ new Set();
@@ -14812,8 +14812,8 @@ ${entry2.value}</pre
     const scoreVariables = (evalDescriptor, sampleScores) => {
       const bannedShortNames = bannedShortScoreNames(evalDescriptor.scores);
       const variables = {};
-      const addScore = (variableName, scoreLabel, value) => {
-        const coercedValue = coerceValue(value, evalDescriptor.scoreDescriptor(scoreLabel));
+      const addScore = (variableName, scoreLabel, value2) => {
+        const coercedValue = coerceValue(value2, evalDescriptor.scoreDescriptor(scoreLabel));
         if (isFilteringSupportedForValue(coercedValue)) {
           variables[variableName] = coercedValue;
         }
@@ -14824,16 +14824,16 @@ ${entry2.value}</pre
           name: scorer
         }, score2.value);
         if (typeof score2.value === "object") {
-          for (const [name2, value] of Object.entries(score2.value)) {
+          for (const [name2, value2] of Object.entries(score2.value)) {
             addScore(`${scorer}.${name2}`, {
               scorer,
               name: name2
-            }, value);
+            }, value2);
             if (!bannedShortNames.has(name2)) {
               addScore(name2, {
                 scorer,
                 name: name2
-              }, value);
+              }, value2);
             }
           }
         }
@@ -14843,7 +14843,7 @@ ${entry2.value}</pre
     const scoreFilterItems = (evalDescriptor) => {
       const items = [];
       const bannedShortNames = bannedShortScoreNames(evalDescriptor.scores);
-      const valueToString = (value) => typeof value === "string" ? `"${value}"` : String(value);
+      const valueToString = (value2) => typeof value2 === "string" ? `"${value2}"` : String(value2);
       const addScore = (scoreLabel, shortName, qualifiedName) => {
         const canonicalName = shortName || qualifiedName;
         if (!canonicalName) {
@@ -15114,7 +15114,7 @@ categories: ${categories.join(" ")}`;
       };
     };
     const dirname$1 = "_dirname_16ra5_1";
-    const styles$f = {
+    const styles$g = {
       dirname: dirname$1
     };
     const LogDirectoryTitleView = ({
@@ -15133,7 +15133,7 @@ categories: ${categories.join(" ")}`;
             children: "Log Directory"
           }), /* @__PURE__ */ u("span", {
             title: displayDir,
-            className: clsx("text-size-base", styles$f.dirname),
+            className: clsx("text-size-base", styles$g.dirname),
             children: offcanvas ? displayDir : ""
           })]
         });
@@ -15166,7 +15166,7 @@ categories: ${categories.join(" ")}`;
     const backdrop = "_backdrop_1u82r_55";
     const active = "_active_1u82r_62";
     const item = "_item_1u82r_66";
-    const styles$e = {
+    const styles$f = {
       sidebar,
       sidebarClosed,
       sidebarOpen,
@@ -15181,7 +15181,7 @@ categories: ${categories.join(" ")}`;
     const error = "_error_srruf_1";
     const running = "_running_srruf_6";
     const cancelled = "_cancelled_srruf_13";
-    const styles$d = {
+    const styles$e = {
       error,
       running,
       cancelled
@@ -15190,7 +15190,7 @@ categories: ${categories.join(" ")}`;
     const metric = "_metric_1frsg_8";
     const metricName$1 = "_metricName_1frsg_17";
     const metricReducer$1 = "_metricReducer_1frsg_21";
-    const styles$c = {
+    const styles$d = {
       container: container$3,
       metric,
       metricName: metricName$1,
@@ -15200,15 +15200,15 @@ categories: ${categories.join(" ")}`;
       scorer
     }) => {
       return /* @__PURE__ */ u("div", {
-        className: styles$c.container,
+        className: styles$d.container,
         children: Object.keys(scorer.metrics).map((metric2) => {
           return /* @__PURE__ */ u("div", {
-            className: styles$c.metric,
+            className: styles$d.metric,
             children: [/* @__PURE__ */ u("div", {
-              className: clsx("text-style-secondary", "text-style-label", "text-size-small", styles$c.metricName),
+              className: clsx("text-style-secondary", "text-style-label", "text-size-small", styles$d.metricName),
               children: scorer.metrics[metric2].name
             }), scorer.reducer ? /* @__PURE__ */ u("div", {
-              className: clsx("text-size-small", styles$c.metricReducer),
+              className: clsx("text-size-small", styles$d.metricReducer),
               children: ["$", scorer.reducer]
             }) : "", /* @__PURE__ */ u("div", {
               className: "text-size-title-secondary",
@@ -15224,7 +15224,7 @@ categories: ${categories.join(" ")}`;
     const metricReducer = "_metricReducer_5kpg1_22";
     const metricValues = "_metricValues_5kpg1_27";
     const metricValue = "_metricValue_5kpg1_27";
-    const styles$b = {
+    const styles$c = {
       container: container$2,
       scoreWrapper,
       metricName,
@@ -15236,20 +15236,20 @@ categories: ${categories.join(" ")}`;
       scores: scores2
     }) => {
       return /* @__PURE__ */ u("div", {
-        className: styles$b.container,
+        className: styles$c.container,
         children: scores2.map((score2) => {
           const name2 = score2.name;
           const reducer = score2.reducer;
           return /* @__PURE__ */ u("div", {
-            className: styles$b.scoreWrapper,
+            className: styles$c.scoreWrapper,
             children: [/* @__PURE__ */ u("div", {
-              className: clsx("text-style-secondary", "text-style-label", "text-size-small", styles$b.metricName),
+              className: clsx("text-style-secondary", "text-style-label", "text-size-small", styles$c.metricName),
               children: name2
             }), reducer ? /* @__PURE__ */ u("div", {
-              className: clsx("text-size-small", styles$b.metricReducer),
+              className: clsx("text-size-small", styles$c.metricReducer),
               children: reducer
             }) : "", /* @__PURE__ */ u("div", {
-              className: clsx("text-size-small", styles$b.metricValues),
+              className: clsx("text-size-small", styles$c.metricValues),
               children: Object.keys(score2.metrics).map((key2) => {
                 const metric2 = score2.metrics[key2];
                 return /* @__PURE__ */ u(xn.Fragment, {
@@ -15257,7 +15257,7 @@ categories: ${categories.join(" ")}`;
                     className: clsx("text-style-secondary", "text-style-label"),
                     children: metric2.name
                   }), /* @__PURE__ */ u("div", {
-                    className: styles$b.metricValue,
+                    className: styles$c.metricValue,
                     children: formatPrettyDecimal(metric2.value)
                   })]
                 }, key2);
@@ -15304,7 +15304,7 @@ categories: ${categories.join(" ")}`;
       message
     }) => {
       return /* @__PURE__ */ u("div", {
-        className: clsx("text-style-secondary", "text-style-label", "text-size-small", styles$d.cancelled),
+        className: clsx("text-style-secondary", "text-style-label", "text-size-small", styles$e.cancelled),
         children: message
       });
     };
@@ -15312,7 +15312,7 @@ categories: ${categories.join(" ")}`;
       message
     }) => {
       return /* @__PURE__ */ u("div", {
-        className: clsx("text-style-secondary", "text-style-label", "text-size-small", styles$d.running),
+        className: clsx("text-style-secondary", "text-style-label", "text-size-small", styles$e.running),
         children: /* @__PURE__ */ u("div", {
           children: message
         })
@@ -15322,7 +15322,7 @@ categories: ${categories.join(" ")}`;
       message
     }) => {
       return /* @__PURE__ */ u("div", {
-        className: clsx(styles$d.error, "text-size-small"),
+        className: clsx(styles$e.error, "text-size-small"),
         children: message
       });
     };
@@ -15331,7 +15331,7 @@ categories: ${categories.join(" ")}`;
     const task = "_task_12m5n_12";
     const params = "_params_12m5n_18";
     const scores = "_scores_12m5n_22";
-    const styles$a = {
+    const styles$b = {
       entry,
       title,
       task,
@@ -15364,11 +15364,11 @@ categories: ${categories.join(" ")}`;
       })}` : "";
       return /* @__PURE__ */ u(xn.Fragment, {
         children: [/* @__PURE__ */ u("div", {
-          className: styles$a.entry,
+          className: styles$b.entry,
           children: [/* @__PURE__ */ u("div", {
-            className: styles$a.title,
+            className: styles$b.title,
             children: [/* @__PURE__ */ u("div", {
-              className: clsx(styles$a.task, "text-size-title-secondary"),
+              className: clsx(styles$b.task, "text-size-title-secondary"),
               children: ((_i = logHeader == null ? void 0 : logHeader.eval) == null ? void 0 : _i.task) || task2
             }), /* @__PURE__ */ u("small", {
               className: clsx("mb-1", "text-size-small"),
@@ -15383,7 +15383,7 @@ categories: ${categories.join(" ")}`;
             logHeader
           })]
         }), /* @__PURE__ */ u("div", {
-          className: clsx(styles$a.params, "three-line-clamp"),
+          className: clsx(styles$b.params, "three-line-clamp"),
           children: /* @__PURE__ */ u("small", {
             className: "mb-1",
             children: hyperparameters ? Object.keys(hyperparameters).map((key2) => {
@@ -15396,11 +15396,11 @@ categories: ${categories.join(" ")}`;
             }).join(", ") : ""
           })
         }), (((_j = logHeader == null ? void 0 : logHeader.eval) == null ? void 0 : _j.dataset) || ((_k = logHeader == null ? void 0 : logHeader.results) == null ? void 0 : _k.scores)) && (logHeader == null ? void 0 : logHeader.status) === "success" ? /* @__PURE__ */ u("div", {
-          className: clsx("text-truncate", "text-size-small", styles$a.scores),
+          className: clsx("text-truncate", "text-size-small", styles$b.scores),
           children: [/* @__PURE__ */ u("div", {
             children: ["dataset: ", datasetName || "(samples)"]
           }), /* @__PURE__ */ u("div", {
-            className: clsx("text-truncate", styles$a.scoreInfo),
+            className: clsx("text-truncate", styles$b.scoreInfo),
             children: [scorerLabel, ": ", scorerNames || "(none)"]
           })]
         }) : ""]
@@ -15420,18 +15420,18 @@ categories: ${categories.join(" ")}`;
       };
       return /* @__PURE__ */ u(k$2, {
         children: [offcanvas && /* @__PURE__ */ u("div", {
-          className: styles$e.backdrop,
+          className: styles$f.backdrop,
           onClick: handleToggle
         }), /* @__PURE__ */ u("div", {
-          className: clsx(styles$e.sidebar, offcanvas ? styles$e.sidebarOpen : styles$e.sidebarClosed),
+          className: clsx(styles$f.sidebar, offcanvas ? styles$f.sidebarOpen : styles$f.sidebarClosed),
           children: [/* @__PURE__ */ u("div", {
-            className: styles$e.header,
+            className: styles$f.header,
             children: [/* @__PURE__ */ u(LogDirectoryTitleView, {
               log_dir: logs.log_dir,
               offcanvas
             }), /* @__PURE__ */ u("button", {
               onClick: handleToggle,
-              className: clsx("btn", styles$e.toggle),
+              className: clsx("btn", styles$f.toggle),
               type: "button",
               "aria-label": "Close sidebar",
               children: /* @__PURE__ */ u("i", {
@@ -15439,16 +15439,16 @@ categories: ${categories.join(" ")}`;
               })
             })]
           }), /* @__PURE__ */ u("div", {
-            className: styles$e.progress,
+            className: styles$f.progress,
             children: /* @__PURE__ */ u(ProgressBar, {
               animating: loading
             })
           }), /* @__PURE__ */ u("ul", {
-            className: clsx("list-group", styles$e.list),
+            className: clsx("list-group", styles$f.list),
             children: logs.files.map((file, index) => {
               const logHeader = logHeaders[file.name];
               return /* @__PURE__ */ u("li", {
-                className: clsx("list-group-item", "list-group-item-action", styles$e.item, selectedIndex === index ? styles$e.active : void 0),
+                className: clsx("list-group-item", "list-group-item-action", styles$f.item, selectedIndex === index ? styles$f.active : void 0),
                 onClick: () => onSelectedIndexChanged(index),
                 children: /* @__PURE__ */ u(SidebarLogEntry, {
                   logHeader,
@@ -15460,21 +15460,21 @@ categories: ${categories.join(" ")}`;
         })]
       });
     };
-    const resolveAttachments = (value, attachments) => {
+    const resolveAttachments = (value2, attachments) => {
       const kContentProtocol = "tc://";
       const kAttachmentProtocol = "attachment://";
-      if (Array.isArray(value)) {
-        return value.map((v2) => resolveAttachments(v2, attachments));
+      if (Array.isArray(value2)) {
+        return value2.map((v2) => resolveAttachments(v2, attachments));
       }
-      if (value && typeof value === "object") {
+      if (value2 && typeof value2 === "object") {
         const resolvedObject = {};
-        for (const key2 of Object.keys(value)) {
-          resolvedObject[key2] = resolveAttachments(value[key2], attachments);
+        for (const key2 of Object.keys(value2)) {
+          resolvedObject[key2] = resolveAttachments(value2[key2], attachments);
         }
         return resolvedObject;
       }
-      if (typeof value === "string") {
-        let resolvedValue = value;
+      if (typeof value2 === "string") {
+        let resolvedValue = value2;
         if (resolvedValue.startsWith(kContentProtocol)) {
           resolvedValue = resolvedValue.replace(kContentProtocol, kAttachmentProtocol);
         }
@@ -15483,7 +15483,7 @@ categories: ${categories.join(" ")}`;
         }
         return resolvedValue;
       }
-      return value;
+      return value2;
     };
     let vscodeApi;
     const getVscodeApi = () => {
@@ -16720,16 +16720,16 @@ self.onmessage = function (e) {
       return root;
     };
     function internalize(holder, name2, reviver) {
-      const value = holder[name2];
-      if (value != null && typeof value === "object") {
-        if (Array.isArray(value)) {
-          for (let i2 = 0; i2 < value.length; i2++) {
+      const value2 = holder[name2];
+      if (value2 != null && typeof value2 === "object") {
+        if (Array.isArray(value2)) {
+          for (let i2 = 0; i2 < value2.length; i2++) {
             const key2 = String(i2);
-            const replacement = internalize(value, key2, reviver);
+            const replacement = internalize(value2, key2, reviver);
             if (replacement === void 0) {
-              delete value[key2];
+              delete value2[key2];
             } else {
-              Object.defineProperty(value, key2, {
+              Object.defineProperty(value2, key2, {
                 value: replacement,
                 writable: true,
                 enumerable: true,
@@ -16738,12 +16738,12 @@ self.onmessage = function (e) {
             }
           }
         } else {
-          for (const key2 in value) {
-            const replacement = internalize(value, key2, reviver);
+          for (const key2 in value2) {
+            const replacement = internalize(value2, key2, reviver);
             if (replacement === void 0) {
-              delete value[key2];
+              delete value2[key2];
             } else {
-              Object.defineProperty(value, key2, {
+              Object.defineProperty(value2, key2, {
                 value: replacement,
                 writable: true,
                 enumerable: true,
@@ -16753,7 +16753,7 @@ self.onmessage = function (e) {
           }
         }
       }
-      return reviver.call(holder, name2, value);
+      return reviver.call(holder, name2, value2);
     }
     let lexState;
     let buffer$1;
@@ -17249,10 +17249,10 @@ self.onmessage = function (e) {
         throw invalidChar(read());
       }
     };
-    function newToken(type, value) {
+    function newToken(type, value2) {
       return {
         type,
-        value,
+        value: value2,
         line,
         column
       };
@@ -17422,15 +17422,15 @@ self.onmessage = function (e) {
       }
     };
     function push() {
-      let value;
+      let value2;
       switch (token.type) {
         case "punctuator":
           switch (token.value) {
             case "{":
-              value = {};
+              value2 = {};
               break;
             case "[":
-              value = [];
+              value2 = [];
               break;
           }
           break;
@@ -17438,27 +17438,27 @@ self.onmessage = function (e) {
         case "boolean":
         case "numeric":
         case "string":
-          value = token.value;
+          value2 = token.value;
           break;
       }
       if (root === void 0) {
-        root = value;
+        root = value2;
       } else {
         const parent = stack[stack.length - 1];
         if (Array.isArray(parent)) {
-          parent.push(value);
+          parent.push(value2);
         } else {
           Object.defineProperty(parent, key, {
-            value,
+            value: value2,
             writable: true,
             enumerable: true,
             configurable: true
           });
         }
       }
-      if (value !== null && typeof value === "object") {
-        stack.push(value);
-        if (Array.isArray(value)) {
+      if (value2 !== null && typeof value2 === "object") {
+        stack.push(value2);
+        if (Array.isArray(value2)) {
           parseState = "beforeArrayValue";
         } else {
           parseState = "beforePropertyName";
@@ -17531,7 +17531,7 @@ self.onmessage = function (e) {
       err2.columnNumber = column;
       return err2;
     }
-    var stringify = function stringify2(value, replacer, space) {
+    var stringify = function stringify2(value2, replacer, space) {
       const stack2 = [];
       let indent = "";
       let propertyList;
@@ -17572,27 +17572,27 @@ self.onmessage = function (e) {
       } else if (typeof space === "string") {
         gap = space.substr(0, 10);
       }
-      return serializeProperty("", { "": value });
+      return serializeProperty("", { "": value2 });
       function serializeProperty(key2, holder) {
-        let value2 = holder[key2];
-        if (value2 != null) {
-          if (typeof value2.toJSON5 === "function") {
-            value2 = value2.toJSON5(key2);
-          } else if (typeof value2.toJSON === "function") {
-            value2 = value2.toJSON(key2);
+        let value3 = holder[key2];
+        if (value3 != null) {
+          if (typeof value3.toJSON5 === "function") {
+            value3 = value3.toJSON5(key2);
+          } else if (typeof value3.toJSON === "function") {
+            value3 = value3.toJSON(key2);
           }
         }
         if (replacerFunc) {
-          value2 = replacerFunc.call(holder, key2, value2);
+          value3 = replacerFunc.call(holder, key2, value3);
         }
-        if (value2 instanceof Number) {
-          value2 = Number(value2);
-        } else if (value2 instanceof String) {
-          value2 = String(value2);
-        } else if (value2 instanceof Boolean) {
-          value2 = value2.valueOf();
+        if (value3 instanceof Number) {
+          value3 = Number(value3);
+        } else if (value3 instanceof String) {
+          value3 = String(value3);
+        } else if (value3 instanceof Boolean) {
+          value3 = value3.valueOf();
         }
-        switch (value2) {
+        switch (value3) {
           case null:
             return "null";
           case true:
@@ -17600,18 +17600,18 @@ self.onmessage = function (e) {
           case false:
             return "false";
         }
-        if (typeof value2 === "string") {
-          return quoteString(value2);
+        if (typeof value3 === "string") {
+          return quoteString(value3);
         }
-        if (typeof value2 === "number") {
-          return String(value2);
+        if (typeof value3 === "number") {
+          return String(value3);
         }
-        if (typeof value2 === "object") {
-          return Array.isArray(value2) ? serializeArray(value2) : serializeObject(value2);
+        if (typeof value3 === "object") {
+          return Array.isArray(value3) ? serializeArray(value3) : serializeObject(value3);
         }
         return void 0;
       }
-      function quoteString(value2) {
+      function quoteString(value3) {
         const quotes = {
           "'": 0.1,
           '"': 0.2
@@ -17631,8 +17631,8 @@ self.onmessage = function (e) {
           "\u2029": "\\u2029"
         };
         let product = "";
-        for (let i2 = 0; i2 < value2.length; i2++) {
-          const c2 = value2[i2];
+        for (let i2 = 0; i2 < value3.length; i2++) {
+          const c2 = value3[i2];
           switch (c2) {
             case "'":
             case '"':
@@ -17640,7 +17640,7 @@ self.onmessage = function (e) {
               product += c2;
               continue;
             case "\0":
-              if (util.isDigit(value2[i2 + 1])) {
+              if (util.isDigit(value3[i2 + 1])) {
                 product += "\\x00";
                 continue;
               }
@@ -17660,17 +17660,17 @@ self.onmessage = function (e) {
         product = product.replace(new RegExp(quoteChar, "g"), replacements[quoteChar]);
         return quoteChar + product + quoteChar;
       }
-      function serializeObject(value2) {
-        if (stack2.indexOf(value2) >= 0) {
+      function serializeObject(value3) {
+        if (stack2.indexOf(value3) >= 0) {
           throw TypeError("Converting circular structure to JSON5");
         }
-        stack2.push(value2);
+        stack2.push(value3);
         let stepback = indent;
         indent = indent + gap;
-        let keys = propertyList || Object.keys(value2);
+        let keys = propertyList || Object.keys(value3);
         let partial = [];
         for (const key2 of keys) {
-          const propertyString = serializeProperty(key2, value2);
+          const propertyString = serializeProperty(key2, value3);
           if (propertyString !== void 0) {
             let member = serializeKey(key2) + ":";
             if (gap !== "") {
@@ -17713,16 +17713,16 @@ self.onmessage = function (e) {
         }
         return key2;
       }
-      function serializeArray(value2) {
-        if (stack2.indexOf(value2) >= 0) {
+      function serializeArray(value3) {
+        if (stack2.indexOf(value3) >= 0) {
           throw TypeError("Converting circular structure to JSON5");
         }
-        stack2.push(value2);
+        stack2.push(value3);
         let stepback = indent;
         indent = indent + gap;
         let partial = [];
-        for (let i2 = 0; i2 < value2.length; i2++) {
-          const propertyString = serializeProperty(String(i2), value2);
+        for (let i2 = 0; i2 < value3.length; i2++) {
+          const propertyString = serializeProperty(String(i2), value3);
           partial.push(propertyString !== void 0 ? propertyString : "null");
         }
         let final;
@@ -18699,8 +18699,8 @@ self.onmessage = function (e) {
               }
               var old = root2[inside2];
               root2[inside2] = ret;
-              _2.languages.DFS(_2.languages, function(key2, value) {
-                if (value === old && key2 != inside2) {
+              _2.languages.DFS(_2.languages, function(key2, value2) {
+                if (value2 === old && key2 != inside2) {
                   this[key2] = ret;
                 }
               });
@@ -19123,9 +19123,9 @@ self.onmessage = function (e) {
           this.tail = tail;
           this.length = 0;
         }
-        function addAfter(list2, node, value) {
+        function addAfter(list2, node, value2) {
           var next = node.next;
-          var newNode = { value, prev: node, next };
+          var newNode = { value: value2, prev: node, next };
           node.next = newNode;
           next.prev = newNode;
           list2.length++;
@@ -19462,28 +19462,28 @@ self.onmessage = function (e) {
         })
       });
     };
-    const resolveBase64 = (value) => {
+    const resolveBase64 = (value2) => {
       const prefix = "data:image";
-      if (Array.isArray(value)) {
-        return value.map((v2) => resolveBase64(v2));
+      if (Array.isArray(value2)) {
+        return value2.map((v2) => resolveBase64(v2));
       }
-      if (value && typeof value === "object") {
+      if (value2 && typeof value2 === "object") {
         const resolvedObject = {};
-        for (const key2 of Object.keys(value)) {
-          resolvedObject[key2] = resolveBase64(value[key2]);
+        for (const key2 of Object.keys(value2)) {
+          resolvedObject[key2] = resolveBase64(value2[key2]);
         }
         return resolvedObject;
       }
-      if (typeof value === "string") {
-        let resolvedValue = value;
+      if (typeof value2 === "string") {
+        let resolvedValue = value2;
         if (resolvedValue.startsWith(prefix)) {
           resolvedValue = "[base64 image]";
         }
         return resolvedValue;
       }
-      return value;
+      return value2;
     };
-    const styles$9 = {
+    const styles$a = {
       "json-tab": "_json-tab_w7sx0_1"
     };
     const kJsonMaxSize = 1e7;
@@ -19495,7 +19495,7 @@ self.onmessage = function (e) {
       if (json.length > kJsonMaxSize && capabilities.downloadFiles) {
         const file = `${filename(logFile)}.json`;
         return /* @__PURE__ */ u("div", {
-          className: styles$9["json-tab"],
+          className: styles$a["json-tab"],
           children: /* @__PURE__ */ u(DownloadPanel, {
             message: "The JSON for this log file is too large to render.",
             buttonLabel: "Download JSON File",
@@ -19524,7 +19524,7 @@ self.onmessage = function (e) {
     const navbarStatus = "_navbarStatus_838qu_42";
     const navbarWrapper = "_navbarWrapper_838qu_48";
     const navbarInnerWrapper = "_navbarInnerWrapper_838qu_51";
-    const styles$8 = {
+    const styles$9 = {
       navbarContainer,
       navbarToggle,
       navbarBody,
@@ -19537,7 +19537,7 @@ self.onmessage = function (e) {
       navbarInnerWrapper
     };
     const CopyButton = ({
-      value,
+      value: value2,
       onCopySuccess,
       onCopyError,
       className: className2 = "",
@@ -19546,7 +19546,7 @@ self.onmessage = function (e) {
       const [isCopied, setIsCopied] = h(false);
       const handleClick = async () => {
         try {
-          await navigator.clipboard.writeText(value);
+          await navigator.clipboard.writeText(value2);
           setIsCopied(true);
           onCopySuccess == null ? void 0 : onCopySuccess();
           setTimeout(() => {
@@ -19577,7 +19577,7 @@ self.onmessage = function (e) {
     const taskModel = "_taskModel_1w9cu_36";
     const taskStatus = "_taskStatus_1w9cu_40";
     const secondaryContainer = "_secondaryContainer_1w9cu_46";
-    const styles$7 = {
+    const styles$8 = {
       container: container$1,
       wrapper: wrapper$2,
       toggle,
@@ -19597,7 +19597,7 @@ self.onmessage = function (e) {
     const multiScorerLabel = "_multiScorerLabel_13pa9_52";
     const multiScorerValue = "_multiScorerValue_13pa9_58";
     const multiScorerValueContent = "_multiScorerValueContent_13pa9_65";
-    const styles$6 = {
+    const styles$7 = {
       simpleMetricsRows,
       multiMetricsRows,
       verticalMetricReducer,
@@ -19629,7 +19629,7 @@ self.onmessage = function (e) {
         });
         const metrics = Object.values(scorers)[0];
         return /* @__PURE__ */ u("div", {
-          className: styles$6.simpleMetricsRows,
+          className: styles$7.simpleMetricsRows,
           children: metrics.map((metric2, i2) => {
             return /* @__PURE__ */ u(VerticalMetric, {
               metricSummary: metric2,
@@ -19639,7 +19639,7 @@ self.onmessage = function (e) {
         });
       } else {
         return /* @__PURE__ */ u("div", {
-          className: styles$6.multiMetricsRows,
+          className: styles$7.multiMetricsRows,
           children: (_b2 = results == null ? void 0 : results.scores) == null ? void 0 : _b2.map((score2, index) => {
             return /* @__PURE__ */ u(MultiScorerMetric, {
               scorer: score2,
@@ -19654,7 +19654,7 @@ self.onmessage = function (e) {
       isFirst
     }) => {
       const reducer_component = metricSummary.reducer ? /* @__PURE__ */ u("div", {
-        className: clsx("text-style-label", "text-style-secondary", styles$6.verticalMetricReducer),
+        className: clsx("text-style-label", "text-style-secondary", styles$7.verticalMetricReducer),
         children: metricSummary.reducer
       }) : "";
       return /* @__PURE__ */ u("div", {
@@ -19662,10 +19662,10 @@ self.onmessage = function (e) {
           paddingLeft: isFirst ? "0" : "1em"
         },
         children: [/* @__PURE__ */ u("div", {
-          class: clsx("vertical-metric-label", "text-style-label", "text-style-secondary", styles$6.verticalMetricName),
+          class: clsx("vertical-metric-label", "text-style-label", "text-style-secondary", styles$7.verticalMetricName),
           children: metricSummary.metric.name
         }), reducer_component, /* @__PURE__ */ u("div", {
-          class: clsx("vertical-metric-value", styles$6.verticalMetricValue),
+          class: clsx("vertical-metric-value", styles$7.verticalMetricValue),
           children: formatPrettyDecimal(metricSummary.metric.value)
         })]
       });
@@ -19679,7 +19679,7 @@ self.onmessage = function (e) {
       const reducerFontClz = metricsLen ? "text-size-small" : "text-size-smaller";
       const valueFontClz = metricsLen ? "text-size-base" : "text-size-base";
       const reducer_component = scorer.reducer ? /* @__PURE__ */ u("div", {
-        className: clsx(reducerFontClz, "text-style-label", "text-style-secondary", styles$6.multiScorerReducer),
+        className: clsx(reducerFontClz, "text-style-label", "text-style-secondary", styles$7.multiScorerReducer),
         children: scorer.reducer
       }) : "";
       return /* @__PURE__ */ u("div", {
@@ -19687,17 +19687,17 @@ self.onmessage = function (e) {
           paddingLeft: isFirst ? "0" : "1.5em"
         },
         children: [/* @__PURE__ */ u("div", {
-          className: clsx(titleFontClz, "text-style-label", "text-style-secondary", "multi-score-label", styles$6.multiScorerLabel),
+          className: clsx(titleFontClz, "text-style-label", "text-style-secondary", "multi-score-label", styles$7.multiScorerLabel),
           children: scorer.name
         }), reducer_component, /* @__PURE__ */ u("div", {
-          className: clsx(valueFontClz, styles$6.multiScorerValue),
+          className: clsx(valueFontClz, styles$7.multiScorerValue),
           children: Object.keys(scorer.metrics).map((key2) => {
             const metric2 = scorer.metrics[key2];
             return /* @__PURE__ */ u("div", {
               children: [/* @__PURE__ */ u("div", {
                 children: metric2.name
               }), /* @__PURE__ */ u("div", {
-                className: styles$6.multiScorerValueContent,
+                className: styles$7.multiScorerValueContent,
                 children: formatPrettyDecimal(metric2.value)
               })]
             });
@@ -19707,7 +19707,7 @@ self.onmessage = function (e) {
     };
     const statusPanel = "_statusPanel_1fzh4_1";
     const statusIcon = "_statusIcon_1fzh4_10";
-    const styles$5 = {
+    const styles$6 = {
       statusPanel,
       statusIcon
     };
@@ -19744,9 +19744,9 @@ self.onmessage = function (e) {
       sampleCount
     }) => {
       return /* @__PURE__ */ u("div", {
-        className: styles$5.statusPanel,
+        className: styles$6.statusPanel,
         children: [/* @__PURE__ */ u("i", {
-          class: clsx(icon, styles$5.statusIcon),
+          class: clsx(icon, styles$6.statusIcon),
           style: {}
         }), /* @__PURE__ */ u("div", {
           children: [/* @__PURE__ */ u("div", {
@@ -19790,34 +19790,34 @@ self.onmessage = function (e) {
         setOffcanvas(!offcanvas);
       };
       return /* @__PURE__ */ u("div", {
-        className: clsx(styles$7.wrapper),
+        className: clsx(styles$8.wrapper),
         children: [/* @__PURE__ */ u("div", {
-          className: clsx("navbar-brand", "navbar-text", "mb-0", styles$7.container),
+          className: clsx("navbar-brand", "navbar-text", "mb-0", styles$8.container),
           children: [showToggle ? /* @__PURE__ */ u("button", {
             id: "sidebarToggle",
             onClick: handleToggle,
-            className: clsx("btn", offcanvas ? "d-md-none" : void 0, styles$7.toggle),
+            className: clsx("btn", offcanvas ? "d-md-none" : void 0, styles$8.toggle),
             type: "button",
             children: /* @__PURE__ */ u("i", {
               class: ApplicationIcons.menu
             })
           }) : "", /* @__PURE__ */ u("div", {
-            className: styles$7.body,
+            className: styles$8.body,
             children: [/* @__PURE__ */ u("div", {
-              className: styles$7.bodyContainer,
+              className: styles$8.bodyContainer,
               children: [/* @__PURE__ */ u("div", {
                 id: "task-title",
-                className: clsx("task-title", "text-truncate", styles$7.taskTitle),
+                className: clsx("task-title", "text-truncate", styles$8.taskTitle),
                 title: evalSpec == null ? void 0 : evalSpec.task,
                 children: evalSpec == null ? void 0 : evalSpec.task
               }), /* @__PURE__ */ u("div", {
                 id: "task-model",
-                className: clsx("task-model", "text-truncate", styles$7.taskModel, "text-size-base"),
+                className: clsx("task-model", "text-truncate", styles$8.taskModel, "text-size-base"),
                 title: evalSpec == null ? void 0 : evalSpec.model,
                 children: evalSpec == null ? void 0 : evalSpec.model
               })]
             }), /* @__PURE__ */ u("div", {
-              className: clsx("text-size-small", styles$7.secondaryContainer),
+              className: clsx("text-size-small", styles$8.secondaryContainer),
               children: [/* @__PURE__ */ u("div", {
                 className: clsx("navbar-secondary-text", "text-truncate"),
                 children: logFileName
@@ -19827,7 +19827,7 @@ self.onmessage = function (e) {
             })]
           })]
         }), /* @__PURE__ */ u("div", {
-          className: clsx(styles$7.taskStatus, "navbar-text"),
+          className: clsx(styles$8.taskStatus, "navbar-text"),
           children: statusPanel2
         })]
       });
@@ -19863,7 +19863,7 @@ self.onmessage = function (e) {
     const justifyRight = "_justifyRight_xzzhl_13";
     const valueGrid = "_valueGrid_xzzhl_17";
     const container = "_container_xzzhl_25";
-    const styles$4 = {
+    const styles$5 = {
       staticCol,
       justifyLeft,
       justifyCenter,
@@ -19894,7 +19894,7 @@ self.onmessage = function (e) {
         size: "minmax(12%, auto)",
         value: /* @__PURE__ */ u(LabeledValue, {
           label: "Dataset",
-          className: styles$4.staticCol,
+          className: styles$5.staticCol,
           children: /* @__PURE__ */ u(DatasetSummary, {
             dataset: evalSpec.dataset,
             samples,
@@ -19907,7 +19907,7 @@ self.onmessage = function (e) {
         size: "minmax(12%, auto)",
         value: /* @__PURE__ */ u(LabeledValue, {
           label,
-          className: clsx(styles$4.staticCol, hasConfig ? styles$4.justifyLeft : styles$4.justifyCenter),
+          className: clsx(styles$5.staticCol, hasConfig ? styles$5.justifyLeft : styles$5.justifyCenter),
           children: /* @__PURE__ */ u(ScorerSummary, {
             evalDescriptor
           })
@@ -19918,7 +19918,7 @@ self.onmessage = function (e) {
           size: "minmax(12%, auto)",
           value: /* @__PURE__ */ u(LabeledValue, {
             label: "Config",
-            className: styles$4.justifyRight,
+            className: styles$5.justifyRight,
             children: /* @__PURE__ */ u(ParamSummary, {
               params: hyperparameters
             })
@@ -19931,17 +19931,17 @@ self.onmessage = function (e) {
           size: "minmax(12%, auto)",
           value: /* @__PURE__ */ u(LabeledValue, {
             label: "Duration",
-            className: styles$4.justifyRight,
+            className: styles$5.justifyRight,
             children: totalDuration
           })
         });
       }
       return /* @__PURE__ */ u(ExpandablePanel, {
-        className: styles$4.container,
+        className: styles$5.container,
         collapse: true,
         lines: 4,
         children: /* @__PURE__ */ u("div", {
-          className: styles$4.valueGrid,
+          className: styles$5.valueGrid,
           style: {
             gridTemplateColumns: `${values.map((val) => {
               return val.size;
@@ -20024,7 +20024,7 @@ self.onmessage = function (e) {
       status
     }) => {
       return /* @__PURE__ */ u("nav", {
-        className: clsx("navbar", "sticky-top", styles$8.navbarWrapper),
+        className: clsx("navbar", "sticky-top", styles$9.navbarWrapper),
         children: [/* @__PURE__ */ u(PrimaryBar, {
           file,
           evalSpec,
@@ -20683,66 +20683,63 @@ self.onmessage = function (e) {
       }
       return "Error";
     };
-    const MetaDataGrid = ({ id, entries, classes, style: style2, plain }) => {
+    const grid = "_grid_12d2w_1";
+    const cell = "_cell_12d2w_7";
+    const value = "_value_12d2w_12";
+    const styles$4 = {
+      grid,
+      cell,
+      value
+    };
+    const MetaDataGrid = ({
+      id,
+      entries,
+      classes,
+      style: style2,
+      plain
+    }) => {
       const baseId = "metadata-grid";
-      const cellKeyStyle = {
-        fontWeight: "400",
-        whiteSpace: "nowrap",
-        ...TextStyle.label,
-        ...TextStyle.secondary
-      };
-      const cellValueStyle = {
-        whiteSpace: "pre-wrap",
-        wordWrap: "anywhere",
-        fontSize: FontSize.small
-      };
-      const cellKeyTextStyle = {
-        fontSize: FontSize.small
-      };
-      const entryRecords = (entries2) => {
-        if (!entries2) {
-          return [];
-        }
-        if (!Array.isArray(entries2)) {
-          return Object.entries(entries2 || {}).map(([key2, value]) => {
-            return { name: key2, value };
-          });
-        } else {
-          return entries2;
-        }
-      };
       const entryEls = entryRecords(entries).map((entry2, index) => {
         const id2 = `${baseId}-value-${index}`;
-        return m$1`
-      <div
-        style=${{
-          gridColumn: "1 / -1",
-          borderBottom: `${!plain ? "solid 1px var(--bs-light-border-subtle" : ""}`
-        }}
-      ></div>
-      <div
-        class="${baseId}-key"
-        style=${{ ...cellKeyStyle, ...cellKeyTextStyle }}
-      >
-        ${entry2.name}
-      </div>
-      <div class="${baseId}-value" style=${{ ...cellValueStyle }}>
-        <${RenderedContent} id=${id2} entry=${entry2} />
-      </div>
-    `;
+        return /* @__PURE__ */ u(xn.Fragment, {
+          children: [/* @__PURE__ */ u("div", {
+            style: {
+              gridColumn: "1 / -1",
+              borderBottom: `${!plain ? "solid 1px var(--bs-light-border-subtle" : ""}`
+            }
+          }), /* @__PURE__ */ u("div", {
+            className: clsx(`${baseId}-key`, styles$4.cell, "text-style-label", "text-style-secondary", "text-size-small"),
+            children: entry2.name
+          }), /* @__PURE__ */ u("div", {
+            className: clsx(styles$4.value, `${baseId}-value`, "text-size-small"),
+            children: /* @__PURE__ */ u(RenderedContent, {
+              id: id2,
+              entry: entry2
+            })
+          })]
+        });
       });
-      return m$1`<div
-    ...${{ id }}
-    class="${classes || ""}"
-    style=${{
-        display: "grid",
-        gridTemplateColumns: "max-content auto",
-        columnGap: "1em",
-        ...style2
-      }}
-  >
-    ${entryEls}
-  </div>`;
+      return /* @__PURE__ */ u("div", {
+        id,
+        className: clsx(classes, styles$4.grid),
+        style: style2,
+        children: entryEls
+      });
+    };
+    const entryRecords = (entries) => {
+      if (!entries) {
+        return [];
+      }
+      if (!Array.isArray(entries)) {
+        return Object.entries(entries || {}).map(([key2, value2]) => {
+          return {
+            name: key2,
+            value: value2
+          };
+        });
+      } else {
+        return entries;
+      }
     };
     const SampleScores = ({ sample, sampleDescriptor, scorer }) => {
       const scores2 = scorer ? sampleDescriptor.evalDescriptor.scorerDescriptor(sample, { scorer, name: scorer }).scores() : sampleDescriptor.selectedScorerDescriptor(sample).scores();
@@ -21718,13 +21715,13 @@ self.onmessage = function (e) {
           </div>` : void 0}
   </${EventPanel}>`;
     };
-    const renderScore = (value) => {
-      if (Array.isArray(value)) {
-        return m$1`<${MetaDataGrid} entries=${value} />`;
-      } else if (typeof value === "object") {
-        return m$1`<${MetaDataGrid} entries=${value} />`;
+    const renderScore = (value2) => {
+      if (Array.isArray(value2)) {
+        return m$1`<${MetaDataGrid} entries=${value2} />`;
+      } else if (typeof value2 === "object") {
+        return m$1`<${MetaDataGrid} entries=${value2} />`;
       } else {
-        return value;
+        return value2;
       }
     };
     class Processor {
@@ -22775,8 +22772,8 @@ self.onmessage = function (e) {
       unpatch(right, delta) {
         return this.patch(right, this.reverse(delta));
       }
-      clone(value) {
-        return clone(value);
+      clone(value2) {
+        return clone(value2);
       }
     }
     let defaultInstance$1;
@@ -22880,9 +22877,9 @@ self.onmessage = function (e) {
         }
         for (name2 in delta) {
           if (Object.prototype.hasOwnProperty.call(delta, name2)) {
-            const value = delta[name2];
-            if (Array.isArray(value) && value[2] === 3) {
-              const movedDelta = value;
+            const value2 = delta[name2];
+            if (Array.isArray(value2) && value2[2] === 3) {
+              const movedDelta = value2;
               moveDestinations[`${movedDelta[1]}`] = {
                 key: name2,
                 value: left && left[parseInt(name2.substring(1), 10)]
@@ -22938,9 +22935,9 @@ self.onmessage = function (e) {
         }
         return "unknown";
       }
-      parseTextDiff(value) {
+      parseTextDiff(value2) {
         const output = [];
-        const lines = value.split("\n@@ ");
+        const lines = value2.split("\n@@ ");
         for (let i2 = 0, l2 = lines.length; i2 < l2; i2++) {
           const line2 = lines[i2];
           const lineOutput = {
@@ -22977,11 +22974,11 @@ self.onmessage = function (e) {
       typeFormattterErrorFormatter(context, err2) {
         context.out(`<pre class="jsondiffpatch-error">${err2}</pre>`);
       }
-      formatValue(context, value) {
-        context.out(`<pre>${htmlEscape(JSON.stringify(value, null, 2))}</pre>`);
+      formatValue(context, value2) {
+        context.out(`<pre>${htmlEscape(JSON.stringify(value2, null, 2))}</pre>`);
       }
-      formatTextDiffString(context, value) {
-        const lines = this.parseTextDiff(value);
+      formatTextDiffString(context, value2) {
+        const lines = this.parseTextDiff(value2);
         context.out('<ul class="jsondiffpatch-textdiff">');
         for (let i2 = 0, l2 = lines.length; i2 < l2; i2++) {
           const line2 = lines[i2];
@@ -23165,9 +23162,9 @@ self.onmessage = function (e) {
         return obj.map(sanitizeKeys);
       }
       return Object.fromEntries(
-        Object.entries(obj).map(([key2, value]) => [
+        Object.entries(obj).map(([key2, value2]) => [
           key2.replace(/</g, "&lt;").replace(/>/g, "&gt;"),
-          sanitizeKeys(value)
+          sanitizeKeys(value2)
         ])
       );
     }
@@ -23212,35 +23209,35 @@ self.onmessage = function (e) {
         Owner = owner;
       }
     }
-    function createSignal(value, options) {
+    function createSignal(value2, options) {
       options = options ? Object.assign({}, signalOptions, options) : signalOptions;
       const s2 = {
-        value,
+        value: value2,
         observers: null,
         observerSlots: null,
         comparator: options.equals || void 0
       };
-      const setter = (value2) => {
-        if (typeof value2 === "function") {
-          value2 = value2(s2.value);
+      const setter = (value3) => {
+        if (typeof value3 === "function") {
+          value3 = value3(s2.value);
         }
-        return writeSignal(s2, value2);
+        return writeSignal(s2, value3);
       };
       return [readSignal.bind(s2), setter];
     }
-    function createRenderEffect(fn2, value, options) {
-      const c2 = createComputation(fn2, value, false, STALE);
+    function createRenderEffect(fn2, value2, options) {
+      const c2 = createComputation(fn2, value2, false, STALE);
       updateComputation(c2);
     }
-    function createEffect(fn2, value, options) {
+    function createEffect(fn2, value2, options) {
       runEffects = runUserEffects;
-      const c2 = createComputation(fn2, value, false, STALE);
+      const c2 = createComputation(fn2, value2, false, STALE);
       c2.user = true;
       Effects ? Effects.push(c2) : updateComputation(c2);
     }
-    function createMemo(fn2, value, options) {
+    function createMemo(fn2, value2, options) {
       options = options ? Object.assign({}, signalOptions, options) : signalOptions;
-      const c2 = createComputation(fn2, value, true, 0);
+      const c2 = createComputation(fn2, value2, true, 0);
       c2.observers = null;
       c2.observerSlots = null;
       c2.comparator = options.equals || void 0;
@@ -23311,10 +23308,10 @@ self.onmessage = function (e) {
       }
       return this.value;
     }
-    function writeSignal(node, value, isComp) {
+    function writeSignal(node, value2, isComp) {
       let current = node.value;
-      if (!node.comparator || !node.comparator(current, value)) {
-        node.value = value;
+      if (!node.comparator || !node.comparator(current, value2)) {
+        node.value = value2;
         if (node.observers && node.observers.length) {
           runUpdates(() => {
             for (let i2 = 0; i2 < node.observers.length; i2 += 1) {
@@ -23337,7 +23334,7 @@ self.onmessage = function (e) {
           }, false);
         }
       }
-      return value;
+      return value2;
     }
     function updateComputation(node) {
       if (!node.fn) return;
@@ -23348,10 +23345,10 @@ self.onmessage = function (e) {
       Listener = listener;
       Owner = owner;
     }
-    function runComputation(node, value, time) {
+    function runComputation(node, value2, time) {
       let nextValue;
       try {
-        nextValue = node.fn(value);
+        nextValue = node.fn(value2);
       } catch (err2) {
         if (node.pure) {
           {
@@ -23887,12 +23884,12 @@ self.onmessage = function (e) {
         }
       }
     }
-    function setAttribute(node, name2, value) {
+    function setAttribute(node, name2, value2) {
       node.removeAttribute(name2);
     }
-    function className(node, value) {
-      if (value == null) node.removeAttribute("class");
-      else node.className = value;
+    function className(node, value2) {
+      if (value2 == null) node.removeAttribute("class");
+      else node.className = value2;
     }
     function addEventListener(node, name2, handler, delegate) {
       {
@@ -23902,20 +23899,20 @@ self.onmessage = function (e) {
         } else node[`$$${name2}`] = handler;
       }
     }
-    function style(node, value, prev) {
-      if (!value) return prev ? setAttribute(node, "style") : value;
+    function style(node, value2, prev) {
+      if (!value2) return prev ? setAttribute(node, "style") : value2;
       const nodeStyle = node.style;
-      if (typeof value === "string") return nodeStyle.cssText = value;
+      if (typeof value2 === "string") return nodeStyle.cssText = value2;
       typeof prev === "string" && (nodeStyle.cssText = prev = void 0);
       prev || (prev = {});
-      value || (value = {});
+      value2 || (value2 = {});
       let v2, s2;
       for (s2 in prev) {
-        value[s2] == null && nodeStyle.removeProperty(s2);
+        value2[s2] == null && nodeStyle.removeProperty(s2);
         delete prev[s2];
       }
-      for (s2 in value) {
-        v2 = value[s2];
+      for (s2 in value2) {
+        v2 = value2[s2];
         if (v2 !== prev[s2]) {
           nodeStyle.setProperty(s2, v2);
           prev[s2] = v2;
@@ -23967,40 +23964,40 @@ self.onmessage = function (e) {
         node = node._$host || node.parentNode || node.host;
       }
     }
-    function insertExpression(parent, value, current, marker, unwrapArray) {
+    function insertExpression(parent, value2, current, marker, unwrapArray) {
       if (sharedConfig.context && !current) current = [...parent.childNodes];
       while (typeof current === "function") current = current();
-      if (value === current) return current;
-      const t2 = typeof value, multi = marker !== void 0;
+      if (value2 === current) return current;
+      const t2 = typeof value2, multi = marker !== void 0;
       parent = multi && current[0] && current[0].parentNode || parent;
       if (t2 === "string" || t2 === "number") {
         if (sharedConfig.context) return current;
-        if (t2 === "number") value = value.toString();
+        if (t2 === "number") value2 = value2.toString();
         if (multi) {
           let node = current[0];
           if (node && node.nodeType === 3) {
-            node.data = value;
-          } else node = document.createTextNode(value);
+            node.data = value2;
+          } else node = document.createTextNode(value2);
           current = cleanChildren(parent, current, marker, node);
         } else {
           if (current !== "" && typeof current === "string") {
-            current = parent.firstChild.data = value;
-          } else current = parent.textContent = value;
+            current = parent.firstChild.data = value2;
+          } else current = parent.textContent = value2;
         }
-      } else if (value == null || t2 === "boolean") {
+      } else if (value2 == null || t2 === "boolean") {
         if (sharedConfig.context) return current;
         current = cleanChildren(parent, current, marker);
       } else if (t2 === "function") {
         createRenderEffect(() => {
-          let v2 = value();
+          let v2 = value2();
           while (typeof v2 === "function") v2 = v2();
           current = insertExpression(parent, v2, current, marker);
         });
         return () => current;
-      } else if (Array.isArray(value)) {
+      } else if (Array.isArray(value2)) {
         const array = [];
         const currentArray = current && Array.isArray(current);
-        if (normalizeIncomingArray(array, value, current, unwrapArray)) {
+        if (normalizeIncomingArray(array, value2, current, unwrapArray)) {
           createRenderEffect(() => current = insertExpression(parent, array, current, marker, true));
           return () => current;
         }
@@ -24022,15 +24019,15 @@ self.onmessage = function (e) {
           appendNodes(parent, array);
         }
         current = array;
-      } else if (value instanceof Node) {
-        if (sharedConfig.context && value.parentNode) return current = multi ? [value] : value;
+      } else if (value2 instanceof Node) {
+        if (sharedConfig.context && value2.parentNode) return current = multi ? [value2] : value2;
         if (Array.isArray(current)) {
-          if (multi) return current = cleanChildren(parent, current, marker, value);
-          cleanChildren(parent, current, null, value);
+          if (multi) return current = cleanChildren(parent, current, marker, value2);
+          cleanChildren(parent, current, null, value2);
         } else if (current == null || current === "" || !parent.firstChild) {
-          parent.appendChild(value);
-        } else parent.replaceChild(value, parent.firstChild);
-        current = value;
+          parent.appendChild(value2);
+        } else parent.replaceChild(value2, parent.firstChild);
+        current = value2;
       } else ;
       return current;
     }
@@ -24052,10 +24049,10 @@ self.onmessage = function (e) {
             dynamic = true;
           }
         } else {
-          const value = String(item2);
-          if (prev && prev.nodeType === 3 && prev.data === value) {
+          const value2 = String(item2);
+          if (prev && prev.nodeType === 3 && prev.data === value2) {
             normalized.push(prev);
-          } else normalized.push(document.createTextNode(value));
+          } else normalized.push(document.createTextNode(value2));
         }
       }
       return dynamic;
@@ -25033,18 +25030,18 @@ ${val.stack}`;
       }
     }
     const $RAW = Symbol("store-raw"), $NODE = Symbol("store-node"), $NAME = Symbol("store-name");
-    function wrap$1(value, name2) {
-      let p2 = value[$PROXY];
+    function wrap$1(value2, name2) {
+      let p2 = value2[$PROXY];
       if (!p2) {
-        Object.defineProperty(value, $PROXY, {
-          value: p2 = new Proxy(value, proxyTraps$1)
+        Object.defineProperty(value2, $PROXY, {
+          value: p2 = new Proxy(value2, proxyTraps$1)
         });
-        if (!Array.isArray(value)) {
-          const keys = Object.keys(value), desc = Object.getOwnPropertyDescriptors(value);
+        if (!Array.isArray(value2)) {
+          const keys = Object.keys(value2), desc = Object.getOwnPropertyDescriptors(value2);
           for (let i2 = 0, l2 = keys.length; i2 < l2; i2++) {
             const prop = keys[i2];
             if (desc[prop].get) {
-              Object.defineProperty(value, prop, {
+              Object.defineProperty(value2, prop, {
                 enumerable: desc[prop].enumerable,
                 get: desc[prop].get.bind(p2)
               });
@@ -25089,8 +25086,8 @@ ${val.stack}`;
       });
       return nodes;
     }
-    function getDataNode(nodes, property, value) {
-      return nodes[property] || (nodes[property] = createDataNode(value));
+    function getDataNode(nodes, property, value2) {
+      return nodes[property] || (nodes[property] = createDataNode(value2));
     }
     function proxyDescriptor$1(target, property) {
       const desc = Reflect.getOwnPropertyDescriptor(target, property);
@@ -25110,8 +25107,8 @@ ${val.stack}`;
       trackSelf(target);
       return Reflect.ownKeys(target);
     }
-    function createDataNode(value) {
-      const [s2, set] = createSignal(value, {
+    function createDataNode(value2) {
+      const [s2, set] = createSignal(value2, {
         equals: false,
         internal: true
       });
@@ -25128,13 +25125,13 @@ ${val.stack}`;
         }
         const nodes = getDataNodes(target);
         const tracked = nodes.hasOwnProperty(property);
-        let value = tracked ? nodes[property]() : target[property];
-        if (property === $NODE || property === "__proto__") return value;
+        let value2 = tracked ? nodes[property]() : target[property];
+        if (property === $NODE || property === "__proto__") return value2;
         if (!tracked) {
           const desc = Object.getOwnPropertyDescriptor(target, property);
-          if (getListener() && (typeof value !== "function" || target.hasOwnProperty(property)) && !(desc && desc.get)) value = getDataNode(nodes, property, value)();
+          if (getListener() && (typeof value2 !== "function" || target.hasOwnProperty(property)) && !(desc && desc.get)) value2 = getDataNode(nodes, property, value2)();
         }
-        return isWrappable(value) ? wrap$1(value) : value;
+        return isWrappable(value2) ? wrap$1(value2) : value2;
       },
       has(target, property) {
         if (property === $RAW || property === $PROXY || property === $TRACK || property === $NODE || property === "__proto__") return true;
@@ -25150,21 +25147,21 @@ ${val.stack}`;
       ownKeys,
       getOwnPropertyDescriptor: proxyDescriptor$1
     };
-    function setProperty(state, property, value, deleting = false) {
-      if (!deleting && state[property] === value) return;
+    function setProperty(state, property, value2, deleting = false) {
+      if (!deleting && state[property] === value2) return;
       const prev = state[property], len = state.length;
-      if (value === void 0) delete state[property];
-      else state[property] = value;
+      if (value2 === void 0) delete state[property];
+      else state[property] = value2;
       let nodes = getDataNodes(state), node;
-      if (node = getDataNode(nodes, property, prev)) node.$(() => value);
+      if (node = getDataNode(nodes, property, prev)) node.$(() => value2);
       if (Array.isArray(state) && state.length !== len) (node = getDataNode(nodes, "length", len)) && node.$(state.length);
       (node = nodes._) && node.$();
     }
-    function mergeStoreNode(state, value) {
-      const keys = Object.keys(value);
+    function mergeStoreNode(state, value2) {
+      const keys = Object.keys(value2);
       for (let i2 = 0; i2 < keys.length; i2 += 1) {
         const key2 = keys[i2];
-        setProperty(state, key2, value[key2]);
+        setProperty(state, key2, value2[key2]);
       }
     }
     function updateArray(current, next) {
@@ -25174,8 +25171,8 @@ ${val.stack}`;
         if (current === next) return;
         let i2 = 0, len = next.length;
         for (; i2 < len; i2++) {
-          const value = next[i2];
-          if (current[i2] !== value) setProperty(current, i2, value);
+          const value2 = next[i2];
+          if (current[i2] !== value2) setProperty(current, i2, value2);
         }
         setProperty(current, "length", len);
       } else mergeStoreNode(current, next);
@@ -25212,16 +25209,16 @@ ${val.stack}`;
         prev = current[part];
         traversed = [part].concat(traversed);
       }
-      let value = path[0];
-      if (typeof value === "function") {
-        value = value(prev, traversed);
-        if (value === prev) return;
+      let value2 = path[0];
+      if (typeof value2 === "function") {
+        value2 = value2(prev, traversed);
+        if (value2 === prev) return;
       }
-      if (part === void 0 && value == void 0) return;
-      value = unwrap(value);
-      if (part === void 0 || isWrappable(prev) && isWrappable(value) && !Array.isArray(value)) {
-        mergeStoreNode(prev, value);
-      } else setProperty(current, part, value);
+      if (part === void 0 && value2 == void 0) return;
+      value2 = unwrap(value2);
+      if (part === void 0 || isWrappable(prev) && isWrappable(value2) && !Array.isArray(value2)) {
+        mergeStoreNode(prev, value2);
+      } else setProperty(current, part, value2);
     }
     function createStore(...[store, options]) {
       const unwrappedStore = unwrap(store || {});
@@ -25305,11 +25302,11 @@ ${val.stack}`;
         if (target[previousKeys[i2]] === void 0) setProperty(previous, previousKeys[i2], void 0);
       }
     }
-    function reconcile(value, options = {}) {
+    function reconcile(value2, options = {}) {
       const {
         merge,
         key: key2 = "id"
-      } = options, v2 = unwrap(value);
+      } = options, v2 = unwrap(value2);
       return (state) => {
         if (!isWrappable(state) || !isWrappable(v2)) return v2;
         const res = applyState(v2, {
@@ -26517,32 +26514,32 @@ ${val.stack}`;
                 done: true
               };
             } else if (leftItem === void 0) {
-              const value = rightItem;
+              const value2 = rightItem;
               rightItem = void 0;
               return {
                 done: false,
-                value
+                value: value2
               };
             } else if (rightItem === void 0) {
-              const value = leftItem;
+              const value2 = leftItem;
               leftItem = void 0;
               return {
                 done: false,
-                value
+                value: value2
               };
             } else if (this.comparator(leftItem, rightItem)) {
-              const value = leftItem;
+              const value2 = leftItem;
               leftItem = void 0;
               return {
                 done: false,
-                value
+                value: value2
               };
             } else {
-              const value = rightItem;
+              const value2 = rightItem;
               rightItem = void 0;
               return {
                 done: false,
-                value
+                value: value2
               };
             }
           }
@@ -26730,11 +26727,11 @@ ${events}
           if (!(data instanceof Promise)) {
             data = Promise.resolve(data);
           }
-          return data.then((value) => {
-            if (typeof value === "string" || value instanceof ArrayBuffer) {
-              return new Response(value);
+          return data.then((value2) => {
+            if (typeof value2 === "string" || value2 instanceof ArrayBuffer) {
+              return new Response(value2);
             } else {
-              return value;
+              return value2;
             }
           });
         } else {
@@ -27576,8 +27573,8 @@ ${events}
       function hexColor(r2, g2, b2) {
         return `#${byteToHex(r2)}${byteToHex(g2)}${byteToHex(b2)}`;
       }
-      function byteToHex(value) {
-        return value.toString(16).padStart(2, "0");
+      function byteToHex(value2) {
+        return value2.toString(16).padStart(2, "0");
       }
       function handleRawTextMessage(event) {
         buf.pushText(utfDecoder.decode(event.data));
@@ -28199,9 +28196,9 @@ ${events}
         })
       });
     };
-    const extractSize = (value, label, defaultValue) => {
+    const extractSize = (value2, label, defaultValue) => {
       const regex2 = new RegExp(`${label}="(\\d+)"`);
-      const match = value.match(regex2);
+      const match = value2.match(regex2);
       const size = match ? match[1] : void 0;
       if (size) {
         return parseInt(size);
@@ -28268,14 +28265,14 @@ ${events}
         const sessions = {};
         if (rawSessions) {
           for (const key2 of Object.keys(rawSessions)) {
-            const value = rawSessions[key2];
+            const value2 = rawSessions[key2];
             const match = key2.match(/(.*)_(\d+_\d+)\.(.*)/);
             if (match) {
               const user = match[1];
               const timestamp = match[2];
               const type = match[3];
               sessions[timestamp] = sessions[timestamp] || {};
-              sessions[timestamp][type] = value;
+              sessions[timestamp][type] = value2;
               sessions[timestamp]["user"] = user;
             }
           }
@@ -28507,7 +28504,7 @@ ${events}
       }
       return [before, after];
     };
-    function setPath(target, path, value) {
+    function setPath(target, path, value2) {
       const keys = parsePath(path);
       let current = target;
       for (let i2 = 0; i2 < keys.length - 1; i2++) {
@@ -28518,7 +28515,7 @@ ${events}
         current = current[key2];
       }
       const lastKey = keys[keys.length - 1];
-      current[lastKey] = value;
+      current[lastKey] = value2;
     }
     function initializeArrays(target, path) {
       const keys = parsePath(path);
@@ -30873,9 +30870,9 @@ ${events}
         if (skip > limit)
           skip = limit;
         limit -= skip;
-        let { value } = this.cursor.next(skip);
-        this.pos += (value.length + skip) * dir;
-        this.value = value.length <= limit ? value : dir < 0 ? value.slice(value.length - limit) : value.slice(0, limit);
+        let { value: value2 } = this.cursor.next(skip);
+        this.pos += (value2.length + skip) * dir;
+        this.value = value2.length <= limit ? value2 : dir < 0 ? value2.slice(value2.length - limit) : value2.slice(0, limit);
         this.done = !this.value;
         return this;
       }
@@ -30898,7 +30895,7 @@ ${events}
         this.done = false;
       }
       next(skip = 0) {
-        let { done, lineBreak, value } = this.inner.next(skip);
+        let { done, lineBreak, value: value2 } = this.inner.next(skip);
         if (done && this.afterBreak) {
           this.value = "";
           this.afterBreak = false;
@@ -30913,7 +30910,7 @@ ${events}
             this.next();
           }
         } else {
-          this.value = value;
+          this.value = value2;
           this.afterBreak = false;
         }
         return this;
@@ -31441,16 +31438,16 @@ ${events}
       } else
         sections.push(len, ins);
     }
-    function addInsert(values, sections, value) {
-      if (value.length == 0)
+    function addInsert(values, sections, value2) {
+      if (value2.length == 0)
         return;
       let index = sections.length - 2 >> 1;
       if (index < values.length) {
-        values[values.length - 1] = values[values.length - 1].append(value);
+        values[values.length - 1] = values[values.length - 1].append(value2);
       } else {
         while (values.length < index)
           values.push(Text.empty);
-        values.push(value);
+        values.push(value2);
       }
     }
     function iterChanges(desc, f2, individual) {
@@ -31668,8 +31665,8 @@ ${events}
       lines of different length.
       */
       get goalColumn() {
-        let value = this.flags >> 6;
-        return value == 16777215 ? void 0 : value;
+        let value2 = this.flags >> 6;
+        return value2 == 16777215 ? void 0 : value2;
       }
       /**
       Map this range through a change, producing a valid range in the
@@ -31881,8 +31878,8 @@ ${events}
       /**
       Returns an extension that adds the given value to this facet.
       */
-      of(value) {
-        return new FacetProvider([], this, 0, value);
+      of(value2) {
+        return new FacetProvider([], this, 0, value2);
       }
       /**
       Create an extension that computes a value for the facet from a
@@ -31917,11 +31914,11 @@ ${events}
       return a2 == b2 || a2.length == b2.length && a2.every((e2, i2) => e2 === b2[i2]);
     }
     class FacetProvider {
-      constructor(dependencies, facet, type, value) {
+      constructor(dependencies, facet, type, value2) {
         this.dependencies = dependencies;
         this.facet = facet;
         this.type = type;
-        this.value = value;
+        this.value = value2;
         this.id = nextID++;
       }
       dynamicSlot(addresses) {
@@ -31995,12 +31992,12 @@ ${events}
       function get2(state) {
         let values = [];
         for (let i2 = 0; i2 < providerAddrs.length; i2++) {
-          let value = getAddr(state, providerAddrs[i2]);
+          let value2 = getAddr(state, providerAddrs[i2]);
           if (providerTypes[i2] == 2)
-            for (let val of value)
+            for (let val of value2)
               values.push(val);
           else
-            values.push(value);
+            values.push(value2);
         }
         return facet.combine(values);
       }
@@ -32014,10 +32011,10 @@ ${events}
         update(state, tr) {
           if (!ensureAll(state, dynamic))
             return 0;
-          let value = get2(state);
-          if (facet.compare(value, state.values[idx]))
+          let value2 = get2(state);
+          if (facet.compare(value2, state.values[idx]))
             return 0;
-          state.values[idx] = value;
+          state.values[idx] = value2;
           return 1;
         },
         reconfigure(state, oldState) {
@@ -32027,12 +32024,12 @@ ${events}
             state.values[idx] = oldValue;
             return 0;
           }
-          let value = get2(state);
-          if (facet.compare(value, oldValue)) {
+          let value2 = get2(state);
+          if (facet.compare(value2, oldValue)) {
             state.values[idx] = oldValue;
             return 0;
           }
-          state.values[idx] = value;
+          state.values[idx] = value2;
           return 1;
         }
       };
@@ -32072,10 +32069,10 @@ ${events}
           },
           update: (state, tr) => {
             let oldVal = state.values[idx];
-            let value = this.updateF(oldVal, tr);
-            if (this.compareF(oldVal, value))
+            let value2 = this.updateF(oldVal, tr);
+            if (this.compareF(oldVal, value2))
               return 0;
-            state.values[idx] = value;
+            state.values[idx] = value2;
             return 1;
           },
           reconfigure: (state, oldState) => {
@@ -32106,8 +32103,8 @@ ${events}
       }
     }
     const Prec_ = { lowest: 4, low: 3, default: 2, high: 1, highest: 0 };
-    function prec(value) {
-      return (ext) => new PrecExtension(ext, value);
+    function prec(value2) {
+      return (ext) => new PrecExtension(ext, value2);
     }
     const Prec = {
       /**
@@ -32218,8 +32215,8 @@ ${events}
             if (sameArray$1(oldProviders, providers)) {
               staticValues.push(oldState.facet(facet));
             } else {
-              let value = facet.combine(providers.map((p2) => p2.value));
-              staticValues.push(oldState && facet.compare(value, oldState.facet(facet)) ? oldState.facet(facet) : value);
+              let value2 = facet.combine(providers.map((p2) => p2.value));
+              staticValues.push(oldState && facet.compare(value2, oldState.facet(facet)) ? oldState.facet(facet) : value2);
             }
           } else {
             for (let p2 of providers) {
@@ -32318,9 +32315,9 @@ ${events}
       /**
       @internal
       */
-      constructor(type, value) {
+      constructor(type, value2) {
         this.type = type;
-        this.value = value;
+        this.value = value2;
       }
       /**
       Define a new type of annotation.
@@ -32333,8 +32330,8 @@ ${events}
       /**
       Create an instance of this annotation.
       */
-      of(value) {
-        return new Annotation(this, value);
+      of(value2) {
+        return new Annotation(this, value2);
       }
     }
     class StateEffectType {
@@ -32348,17 +32345,17 @@ ${events}
       Create a [state effect](https://codemirror.net/6/docs/ref/#state.StateEffect) instance of this
       type.
       */
-      of(value) {
-        return new StateEffect(this, value);
+      of(value2) {
+        return new StateEffect(this, value2);
       }
     }
     class StateEffect {
       /**
       @internal
       */
-      constructor(type, value) {
+      constructor(type, value2) {
         this.type = type;
-        this.value = value;
+        this.value = value2;
       }
       /**
       Map this effect through a position mapping. Will return
@@ -32561,13 +32558,13 @@ ${events}
       let state = tr.startState;
       let result = true;
       for (let filter of state.facet(changeFilter)) {
-        let value = filter(tr);
-        if (value === false) {
+        let value2 = filter(tr);
+        if (value2 === false) {
           result = false;
           break;
         }
-        if (Array.isArray(value))
-          result = result === true ? value : joinRanges(result, value);
+        if (Array.isArray(value2))
+          result = result === true ? value2 : joinRanges(result, value2);
       }
       if (result !== true) {
         let changes, back;
@@ -32603,8 +32600,8 @@ ${events}
       return spec == tr ? tr : Transaction.create(state, tr.changes, tr.selection, spec.effects, spec.annotations, spec.scrollIntoView);
     }
     const none$2 = [];
-    function asArray(value) {
-      return value == null ? none$2 : Array.isArray(value) ? value : [value];
+    function asArray(value2) {
+      return value2 == null ? none$2 : Array.isArray(value2) ? value2 : [value2];
     }
     var CharCategory = /* @__PURE__ */ function(CharCategory2) {
       CharCategory2[CharCategory2["Word"] = 0] = "Word";
@@ -32805,9 +32802,9 @@ ${events}
         };
         if (fields)
           for (let prop in fields) {
-            let value = fields[prop];
-            if (value instanceof StateField && this.config.address[value.id] != null)
-              result[prop] = value.spec.toJSON(this.field(fields[prop]), this);
+            let value2 = fields[prop];
+            if (value2 instanceof StateField && this.config.address[value2.id] != null)
+              result[prop] = value2.spec.toJSON(this.field(fields[prop]), this);
           }
         return result;
       }
@@ -32824,8 +32821,8 @@ ${events}
         if (fields)
           for (let prop in fields) {
             if (Object.prototype.hasOwnProperty.call(json, prop)) {
-              let field = fields[prop], value = json[prop];
-              fieldInit.push(field.init((state) => field.spec.fromJSON(value, state)));
+              let field = fields[prop], value2 = json[prop];
+              fieldInit.push(field.init((state) => field.spec.fromJSON(value2, state)));
             }
           }
         return EditorState.create({
@@ -32980,12 +32977,12 @@ ${events}
       let result = {};
       for (let config2 of configs)
         for (let key2 of Object.keys(config2)) {
-          let value = config2[key2], current = result[key2];
+          let value2 = config2[key2], current = result[key2];
           if (current === void 0)
-            result[key2] = value;
-          else if (current === value || value === void 0) ;
+            result[key2] = value2;
+          else if (current === value2 || value2 === void 0) ;
           else if (Object.hasOwnProperty.call(combine, key2))
-            result[key2] = combine[key2](current, value);
+            result[key2] = combine[key2](current, value2);
           else
             throw new Error("Config merge conflict for field " + key2);
         }
@@ -33016,26 +33013,26 @@ ${events}
     RangeValue.prototype.point = false;
     RangeValue.prototype.mapMode = MapMode.TrackDel;
     let Range$1 = class Range2 {
-      constructor(from, to, value) {
+      constructor(from, to, value2) {
         this.from = from;
         this.to = to;
-        this.value = value;
+        this.value = value2;
       }
       /**
       @internal
       */
-      static create(from, to, value) {
-        return new Range2(from, to, value);
+      static create(from, to, value2) {
+        return new Range2(from, to, value2);
       }
     };
     function cmpRange(a2, b2) {
       return a2.from - b2.from || a2.value.startSide - b2.value.startSide;
     }
     class Chunk {
-      constructor(from, to, value, maxPoint) {
+      constructor(from, to, value2, maxPoint) {
         this.from = from;
         this.to = to;
-        this.value = value;
+        this.value = value2;
         this.maxPoint = maxPoint;
       }
       get length() {
@@ -33064,7 +33061,7 @@ ${events}
             return false;
       }
       map(offset, changes) {
-        let value = [], from = [], to = [], newPos = -1, maxPoint = -1;
+        let value2 = [], from = [], to = [], newPos = -1, maxPoint = -1;
         for (let i2 = 0; i2 < this.value.length; i2++) {
           let val = this.value[i2], curFrom = this.from[i2] + offset, curTo = this.to[i2] + offset, newFrom, newTo;
           if (curFrom == curTo) {
@@ -33089,11 +33086,11 @@ ${events}
             newPos = newFrom;
           if (val.point)
             maxPoint = Math.max(maxPoint, newTo - newFrom);
-          value.push(val);
+          value2.push(val);
           from.push(newFrom - newPos);
           to.push(newTo - newPos);
         }
-        return { mapped: value.length ? new Chunk(from, to, value, maxPoint) : null, pos: newPos };
+        return { mapped: value2.length ? new Chunk(from, to, value2, maxPoint) : null, pos: newPos };
       }
     }
     class RangeSet {
@@ -33370,16 +33367,16 @@ ${events}
       Add a range. Ranges should be added in sorted (by `from` and
       `value.startSide`) order.
       */
-      add(from, to, value) {
-        if (!this.addInner(from, to, value))
-          (this.nextLayer || (this.nextLayer = new RangeSetBuilder())).add(from, to, value);
+      add(from, to, value2) {
+        if (!this.addInner(from, to, value2))
+          (this.nextLayer || (this.nextLayer = new RangeSetBuilder())).add(from, to, value2);
       }
       /**
       @internal
       */
-      addInner(from, to, value) {
-        let diff2 = from - this.lastTo || value.startSide - this.last.endSide;
-        if (diff2 <= 0 && (from - this.lastFrom || value.startSide - this.last.startSide) < 0)
+      addInner(from, to, value2) {
+        let diff2 = from - this.lastTo || value2.startSide - this.last.endSide;
+        if (diff2 <= 0 && (from - this.lastFrom || value2.startSide - this.last.startSide) < 0)
           throw new Error("Ranges must be added sorted by `from` position and `startSide`");
         if (diff2 < 0)
           return false;
@@ -33389,11 +33386,11 @@ ${events}
           this.chunkStart = from;
         this.from.push(from - this.chunkStart);
         this.to.push(to - this.chunkStart);
-        this.last = value;
+        this.last = value2;
         this.lastFrom = from;
         this.lastTo = to;
-        this.value.push(value);
-        if (value.point)
+        this.value.push(value2);
+        if (value2.point)
           this.maxPoint = Math.max(this.maxPoint, to - from);
         return true;
       }
@@ -33629,10 +33626,10 @@ ${events}
         this.minActive = findMinIndex(this.active, this.activeTo);
       }
       addActive(trackOpen) {
-        let i2 = 0, { value, to, rank } = this.cursor;
+        let i2 = 0, { value: value2, to, rank } = this.cursor;
         while (i2 < this.activeRank.length && (rank - this.activeRank[i2] || to - this.activeTo[i2]) > 0)
           i2++;
-        insert(this.active, i2, value);
+        insert(this.active, i2, value2);
         insert(this.activeTo, i2, to);
         insert(this.activeRank, i2, rank);
         if (trackOpen)
@@ -33744,15 +33741,15 @@ ${events}
         array[i2] = array[i2 + 1];
       array.pop();
     }
-    function insert(array, index, value) {
+    function insert(array, index, value2) {
       for (let i2 = array.length - 1; i2 >= index; i2--)
         array[i2 + 1] = array[i2];
-      array[index] = value;
+      array[index] = value2;
     }
-    function findMinIndex(value, array) {
+    function findMinIndex(value2, array) {
       let found = -1, foundPos = 1e9;
       for (let i2 = 0; i2 < array.length; i2++)
-        if ((array[i2] - foundPos || value[i2].endSide - value[found].endSide) < 0) {
+        if ((array[i2] - foundPos || value2[i2].endSide - value2[found].endSide) < 0) {
           found = i2;
           foundPos = array[i2];
         }
@@ -33802,18 +33799,18 @@ ${events}
           let local = [], isAt = /^@(\w+)\b/.exec(selectors[0]), keyframes = isAt && isAt[1] == "keyframes";
           if (isAt && spec2 == null) return target.push(selectors[0] + ";");
           for (let prop in spec2) {
-            let value = spec2[prop];
+            let value2 = spec2[prop];
             if (/&/.test(prop)) {
               render2(
                 prop.split(/,\s*/).map((part) => selectors.map((sel) => part.replace(/&/, sel))).reduce((a2, b2) => a2.concat(b2)),
-                value,
+                value2,
                 target
               );
-            } else if (value && typeof value == "object") {
+            } else if (value2 && typeof value2 == "object") {
               if (!isAt) throw new RangeError("The value of a property (" + prop + ") should be a primitive value.");
-              render2(splitSelector(prop), value, local, keyframes);
-            } else if (value != null) {
-              local.push(prop.replace(/_.*/, "").replace(/[A-Z]/g, (l2) => "-" + l2.toLowerCase()) + ": " + value + ";");
+              render2(splitSelector(prop), value2, local, keyframes);
+            } else if (value2 != null) {
+              local.push(prop.replace(/_.*/, "").replace(/[A-Z]/g, (l2) => "-" + l2.toLowerCase()) + ": " + value2 + ";");
             }
           }
           if (local.length || keyframes) {
@@ -35711,7 +35708,7 @@ ${events}
       buildText(length, active2, openStart) {
         while (length > 0) {
           if (this.textOff == this.text.length) {
-            let { value, lineBreak, done } = this.cursor.next(this.skip);
+            let { value: value2, lineBreak, done } = this.cursor.next(this.skip);
             this.skip = 0;
             if (done)
               throw new Error("Ran out of text content when drawing inline views");
@@ -35728,7 +35725,7 @@ ${events}
               length--;
               continue;
             } else {
-              this.text = value;
+              this.text = value2;
               this.textOff = 0;
             }
           }
@@ -37412,7 +37409,7 @@ ${events}
       for (; ; ) {
         let moved = 0;
         for (let set of atoms) {
-          set.between(pos2 - 1, pos2 + 1, (from, to, value) => {
+          set.between(pos2 - 1, pos2 + 1, (from, to, value2) => {
             if (pos2 > from && pos2 < to) {
               let side = moved || bias || (pos2 - from < to - pos2 ? -1 : 1);
               pos2 = side < 0 ? from : to;
@@ -38664,8 +38661,8 @@ ${events}
       get outdated() {
         return (this.flags & 2) > 0;
       }
-      set outdated(value) {
-        this.flags = (value ? 2 : 0) | this.flags & ~2;
+      set outdated(value2) {
+        this.flags = (value2 ? 2 : 0) | this.flags & ~2;
       }
       setHeight(height) {
         if (this.height != height) {
@@ -38862,15 +38859,15 @@ ${events}
           return new BlockInfo(from, length, top2 + perLine * line2, perLine, 0);
         }
       }
-      lineAt(value, type, oracle, top2, offset) {
+      lineAt(value2, type, oracle, top2, offset) {
         if (type == QueryType.ByHeight)
-          return this.blockAt(value, oracle, top2, offset);
+          return this.blockAt(value2, oracle, top2, offset);
         if (type == QueryType.ByPosNoHeight) {
-          let { from, to } = oracle.doc.lineAt(value);
+          let { from, to } = oracle.doc.lineAt(value2);
           return new BlockInfo(from, to - from, 0, 0, 0);
         }
         let { firstLine, perLine, perChar } = this.heightMetrics(oracle, offset);
-        let line2 = oracle.doc.lineAt(value), lineHeight = perLine + line2.length * perChar;
+        let line2 = oracle.doc.lineAt(value2), lineHeight = perLine + line2.length * perChar;
         let linesAbove = line2.number - firstLine;
         let lineTop = top2 + perLine * linesAbove + perChar * (line2.from - offset - linesAbove);
         return new BlockInfo(line2.from, line2.length, Math.max(top2, Math.min(lineTop, top2 + this.height - lineHeight)), lineHeight, 0);
@@ -38965,10 +38962,10 @@ ${events}
         let mid = top2 + this.left.height;
         return height < mid ? this.left.blockAt(height, oracle, top2, offset) : this.right.blockAt(height, oracle, mid, offset + this.left.length + this.break);
       }
-      lineAt(value, type, oracle, top2, offset) {
+      lineAt(value2, type, oracle, top2, offset) {
         let rightTop = top2 + this.left.height, rightOffset = offset + this.left.length + this.break;
-        let left = type == QueryType.ByHeight ? value < rightTop : value < rightOffset;
-        let base2 = left ? this.left.lineAt(value, type, oracle, top2, offset) : this.right.lineAt(value, type, oracle, rightTop, rightOffset);
+        let left = type == QueryType.ByHeight ? value2 < rightTop : value2 < rightOffset;
+        let base2 = left ? this.left.lineAt(value2, type, oracle, top2, offset) : this.right.lineAt(value2, type, oracle, rightTop, rightOffset);
         if (this.break || (left ? base2.to < rightOffset : base2.from > rightOffset))
           return base2;
         let subQuery = type == QueryType.ByPosNoHeight ? QueryType.ByPosNoHeight : QueryType.ByPos;
@@ -41672,9 +41669,9 @@ ${events}
     }
     function attrsFromFacet(view, facet, base2) {
       for (let sources = view.state.facet(facet), i2 = sources.length - 1; i2 >= 0; i2--) {
-        let source2 = sources[i2], value = typeof source2 == "function" ? source2(view) : source2;
-        if (value)
-          combineAttrs(value, base2);
+        let source2 = sources[i2], value2 = typeof source2 == "function" ? source2(view) : source2;
+        if (value2)
+          combineAttrs(value2, base2);
       }
       return base2;
     }
@@ -42862,17 +42859,17 @@ ${events}
           (_a2 = t2.destroy) === null || _a2 === void 0 ? void 0 : _a2.call(t2);
       }
       passProp(name2) {
-        let value = void 0;
+        let value2 = void 0;
         for (let view of this.manager.tooltipViews) {
           let given = view[name2];
           if (given !== void 0) {
-            if (value === void 0)
-              value = given;
-            else if (value !== given)
+            if (value2 === void 0)
+              value2 = given;
+            else if (value2 !== given)
               return void 0;
           }
         }
-        return value;
+        return value2;
       }
       get offset() {
         return this.passProp("offset");
@@ -43041,15 +43038,15 @@ ${events}
         create() {
           return [];
         },
-        update(value, tr) {
-          if (value.length) {
+        update(value2, tr) {
+          if (value2.length) {
             if (options.hideOnChange && (tr.docChanged || tr.selection))
-              value = [];
+              value2 = [];
             else if (options.hideOn)
-              value = value.filter((v2) => !options.hideOn(tr, v2));
+              value2 = value2.filter((v2) => !options.hideOn(tr, v2));
             if (tr.docChanged) {
               let mapped = [];
-              for (let tooltip of value) {
+              for (let tooltip of value2) {
                 let newPos = tr.changes.mapPos(tooltip.pos, -1, MapMode.TrackDel);
                 if (newPos != null) {
                   let copy = Object.assign(/* @__PURE__ */ Object.create(null), tooltip);
@@ -43059,16 +43056,16 @@ ${events}
                   mapped.push(copy);
                 }
               }
-              value = mapped;
+              value2 = mapped;
             }
           }
           for (let effect of tr.effects) {
             if (effect.is(setHover))
-              value = effect.value;
+              value2 = effect.value;
             if (effect.is(closeHoverTooltipEffect))
-              value = [];
+              value2 = [];
           }
-          return value;
+          return value2;
         },
         provide: (f2) => showHoverTooltip.from(f2)
       });
@@ -43172,8 +43169,8 @@ ${events}
       }
     }, {
       provide: (plugin) => EditorView.scrollMargins.of((view) => {
-        let value = view.plugin(plugin);
-        return value && { top: value.top.scrollMargin(), bottom: value.bottom.scrollMargin() };
+        let value2 = view.plugin(plugin);
+        return value2 && { top: value2.top.scrollMargin(), bottom: value2.bottom.scrollMargin() };
       })
     });
     class PanelGroup {
@@ -43310,10 +43307,10 @@ ${events}
     NodeProp.closedBy = new NodeProp({ deserialize: (str2) => str2.split(" ") });
     NodeProp.openedBy = new NodeProp({ deserialize: (str2) => str2.split(" ") });
     NodeProp.group = new NodeProp({ deserialize: (str2) => str2.split(" ") });
-    NodeProp.isolate = new NodeProp({ deserialize: (value) => {
-      if (value && value != "rtl" && value != "ltr" && value != "auto")
-        throw new RangeError("Invalid value for isolate: " + value);
-      return value || "auto";
+    NodeProp.isolate = new NodeProp({ deserialize: (value2) => {
+      if (value2 && value2 != "rtl" && value2 != "ltr" && value2 != "auto")
+        throw new RangeError("Invalid value for isolate: " + value2);
+      return value2 || "auto";
     } });
     NodeProp.contextHash = new NodeProp({ perNode: true });
     NodeProp.lookAhead = new NodeProp({ perNode: true });
@@ -43488,8 +43485,8 @@ ${events}
         this.props = null;
         if (props && props.length) {
           this.props = /* @__PURE__ */ Object.create(null);
-          for (let [prop, value] of props)
-            this.props[typeof prop == "number" ? prop : prop.id] = value;
+          for (let [prop, value2] of props)
+            this.props[typeof prop == "number" ? prop : prop.id] = value2;
         }
       }
       /**
@@ -45062,9 +45059,9 @@ ${events}
     function highlightTags(highlighters, tags2) {
       let result = null;
       for (let highlighter of highlighters) {
-        let value = highlighter.style(tags2);
-        if (value)
-          result = result ? result + " " + value : value;
+        let value2 = highlighter.style(tags2);
+        if (value2)
+          result = result ? result + " " + value2 : value2;
       }
       return result;
     }
@@ -45940,13 +45937,13 @@ ${events}
     }
     Language.state = /* @__PURE__ */ StateField.define({
       create: LanguageState.init,
-      update(value, tr) {
+      update(value2, tr) {
         for (let e2 of tr.effects)
           if (e2.is(Language.setState))
             return e2.value;
         if (tr.startState.facet(language$1) != tr.state.facet(language$1))
           return LanguageState.init(tr.state);
-        return value.apply(tr);
+        return value2.apply(tr);
       }
     });
     let requestIdle = (callback) => {
@@ -47128,19 +47125,19 @@ ${events}
       for (let name3 of tagStr.split(" ")) {
         let found = [];
         for (let part of name3.split(".")) {
-          let value = extra[part] || tags[part];
-          if (!value) {
+          let value2 = extra[part] || tags[part];
+          if (!value2) {
             warnForPart(part, `Unknown highlighting tag ${part}`);
-          } else if (typeof value == "function") {
+          } else if (typeof value2 == "function") {
             if (!found.length)
               warnForPart(part, `Modifier ${part} used at start of tag`);
             else
-              found = found.map(value);
+              found = found.map(value2);
           } else {
             if (found.length)
               warnForPart(part, `Tag ${part} used as modifier`);
             else
-              found = Array.isArray(value) ? value : [value];
+              found = Array.isArray(value2) ? value2 : [value2];
           }
         }
         for (let tag of found)
@@ -47923,7 +47920,7 @@ ${events}
         let { state } = tr, conf = state.facet(completionConfig);
         let sources = conf.override || state.languageDataAt("autocomplete", cur(state)).map(asSource);
         let active2 = sources.map((source2) => {
-          let value = this.active.find((s2) => s2.source == source2) || new ActiveSource(
+          let value2 = this.active.find((s2) => s2.source == source2) || new ActiveSource(
             source2,
             this.active.some(
               (a2) => a2.state != 0
@@ -47931,7 +47928,7 @@ ${events}
             ) ? 1 : 0
             /* State.Inactive */
           );
-          return value.update(tr, conf);
+          return value2.update(tr, conf);
         });
         if (active2.length == this.active.length && active2.every((a2, i2) => a2 == this.active[i2]))
           active2 = this.active;
@@ -48012,36 +48009,36 @@ ${events}
         return this.state == 1;
       }
       update(tr, conf) {
-        let type = getUpdateType(tr, conf), value = this;
+        let type = getUpdateType(tr, conf), value2 = this;
         if (type & 8 || type & 16 && this.touches(tr))
-          value = new ActiveSource(
-            value.source,
+          value2 = new ActiveSource(
+            value2.source,
             0
             /* State.Inactive */
           );
-        if (type & 4 && value.state == 0)
-          value = new ActiveSource(
+        if (type & 4 && value2.state == 0)
+          value2 = new ActiveSource(
             this.source,
             1
             /* State.Pending */
           );
-        value = value.updateFor(tr, type);
+        value2 = value2.updateFor(tr, type);
         for (let effect of tr.effects) {
           if (effect.is(startCompletionEffect))
-            value = new ActiveSource(value.source, 1, effect.value);
+            value2 = new ActiveSource(value2.source, 1, effect.value);
           else if (effect.is(closeCompletionEffect))
-            value = new ActiveSource(
-              value.source,
+            value2 = new ActiveSource(
+              value2.source,
               0
               /* State.Inactive */
             );
           else if (effect.is(setActiveEffect)) {
             for (let active2 of effect.value)
-              if (active2.source == value.source)
-                value = active2;
+              if (active2.source == value2.source)
+                value2 = active2;
           }
         }
-        return value;
+        return value2;
       }
       updateFor(tr, type) {
         return this.map(tr.changes);
@@ -48118,8 +48115,8 @@ ${events}
       create() {
         return CompletionState.start();
       },
-      update(value, tr) {
-        return value.update(tr);
+      update(value2, tr) {
+        return value2.update(tr);
       },
       provide: (f2) => [
         showTooltip.from(f2, (val) => val.tooltip),
@@ -48507,9 +48504,9 @@ ${events}
       var i2 = 1, next = arguments[1];
       if (next && typeof next == "object" && next.nodeType == null && !Array.isArray(next)) {
         for (var name2 in next) if (Object.prototype.hasOwnProperty.call(next, name2)) {
-          var value = next[name2];
-          if (typeof value == "string") elt.setAttribute(name2, value);
-          else if (value != null) elt[name2] = value;
+          var value2 = next[name2];
+          if (typeof value2 == "string") elt.setAttribute(name2, value2);
+          else if (value2 != null) elt[name2] = value2;
         }
         i2++;
       }
@@ -48633,28 +48630,28 @@ ${events}
       create() {
         return new LintState(Decoration.none, null, null);
       },
-      update(value, tr) {
-        if (tr.docChanged && value.diagnostics.size) {
-          let mapped = value.diagnostics.map(tr.changes), selected = null, panel = value.panel;
-          if (value.selected) {
-            let selPos = tr.changes.mapPos(value.selected.from, 1);
-            selected = findDiagnostic(mapped, value.selected.diagnostic, selPos) || findDiagnostic(mapped, null, selPos);
+      update(value2, tr) {
+        if (tr.docChanged && value2.diagnostics.size) {
+          let mapped = value2.diagnostics.map(tr.changes), selected = null, panel = value2.panel;
+          if (value2.selected) {
+            let selPos = tr.changes.mapPos(value2.selected.from, 1);
+            selected = findDiagnostic(mapped, value2.selected.diagnostic, selPos) || findDiagnostic(mapped, null, selPos);
           }
           if (!mapped.size && panel && tr.state.facet(lintConfig).autoPanel)
             panel = null;
-          value = new LintState(mapped, panel, selected);
+          value2 = new LintState(mapped, panel, selected);
         }
         for (let effect of tr.effects) {
           if (effect.is(setDiagnosticsEffect)) {
-            let panel = !tr.state.facet(lintConfig).autoPanel ? value.panel : effect.value.length ? LintPanel.open : null;
-            value = LintState.init(effect.value, panel, tr.state);
+            let panel = !tr.state.facet(lintConfig).autoPanel ? value2.panel : effect.value.length ? LintPanel.open : null;
+            value2 = LintState.init(effect.value, panel, tr.state);
           } else if (effect.is(togglePanel)) {
-            value = new LintState(value.diagnostics, effect.value ? LintPanel.open : null, value.selected);
+            value2 = new LintState(value2.diagnostics, effect.value ? LintPanel.open : null, value2.selected);
           } else if (effect.is(movePanelSelection)) {
-            value = new LintState(value.diagnostics, value.panel, effect.value);
+            value2 = new LintState(value2.diagnostics, value2.panel, effect.value);
           }
         }
-        return value;
+        return value2;
       },
       provide: (f2) => [
         showPanel.from(f2, (val) => val.panel),
@@ -48747,8 +48744,8 @@ ${events}
     function batchResults(promises, sink, error2) {
       let collected = [], timeout = -1;
       for (let p2 of promises)
-        p2.then((value) => {
-          collected.push(value);
+        p2.then((value2) => {
+          collected.push(value2);
           clearTimeout(timeout);
           if (collected.length == promises.length)
             sink(collected);
@@ -49330,8 +49327,8 @@ ${events}
           state = state.isolate();
         return state;
       },
-      toJSON(value) {
-        return { done: value.done.map((e2) => e2.toJSON()), undone: value.undone.map((e2) => e2.toJSON()) };
+      toJSON(value2) {
+        return { done: value2.done.map((e2) => e2.toJSON()), undone: value2.undone.map((e2) => e2.toJSON()) };
       },
       fromJSON(json) {
         return new HistoryState(json.done.map(HistEvent.fromJSON), json.undone.map(HistEvent.fromJSON));

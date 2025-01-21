@@ -10,7 +10,7 @@ import { useEffect, useMemo, useRef } from "preact/hooks";
 import { FontSize, TextStyle } from "../../appearance/fonts";
 import { ApplicationIcons } from "../../appearance/icons";
 import { ChatView } from "../../components/ChatView.mjs";
-import { MetaDataGrid } from "../../components/MetaDataGrid.mjs";
+import { MetaDataGrid } from "../../components/MetaDataGrid";
 import { ModelUsagePanel } from "../../usage/ModelUsagePanel";
 import {
   formatDateTime,

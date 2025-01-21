@@ -2,7 +2,7 @@ import { html } from "htm/preact";
 import { FontSize, TextStyle } from "../appearance/fonts";
 import { Card, CardBody, CardHeader } from "../components/Card";
 import { MarkdownDiv } from "../components/MarkdownDiv";
-import { MetaDataGrid } from "../components/MetaDataGrid.mjs";
+import { MetaDataGrid } from "../components/MetaDataGrid";
 import { arrayToString, inputString } from "../utils/format";
 import { SampleScores } from "./SampleScores.mjs";
 
