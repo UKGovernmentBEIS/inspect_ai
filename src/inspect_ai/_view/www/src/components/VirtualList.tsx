@@ -18,7 +18,7 @@ interface VirtualListProps<T> {
   data: T[];
   renderRow: (item: T, index: number) => React.ReactNode;
   overscanCount?: number;
-  estimatedRowHeight?: number;
+  initialEstimatedRowHeight?: number;
   sync?: boolean;
   scrollRef?: React.RefObject<HTMLElement>;
   className?: string;
@@ -28,6 +28,7 @@ interface VirtualListProps<T> {
 interface ListMetrics {
   rowHeights: Map<number, number>;
   totalHeight: number;
+  estimatedRowHeight: number;
 }
 
 export const VirtualList = forwardRef(
@@ -36,7 +37,7 @@ export const VirtualList = forwardRef(
       data,
       renderRow,
       overscanCount = 15,
-      estimatedRowHeight = 50,
+      initialEstimatedRowHeight = 50,
       sync = false,
       scrollRef,
       ...props
@@ -47,7 +48,8 @@ export const VirtualList = forwardRef(
     const [offset, setOffset] = useState(0);
     const [listMetrics, setListMetrics] = useState<ListMetrics>({
       rowHeights: new Map(),
-      totalHeight: data.length * estimatedRowHeight,
+      totalHeight: data.length * initialEstimatedRowHeight,
+      estimatedRowHeight: initialEstimatedRowHeight,
     });
 
     const baseRef = useRef<HTMLDivElement>(null);
@@ -55,7 +57,27 @@ export const VirtualList = forwardRef(
     const rowRefs = useRef<Map<number, HTMLElement>>(new Map());
 
     const getRowHeight = (index: number): number => {
-      return listMetrics.rowHeights.get(index) || estimatedRowHeight;
+      return (
+        listMetrics.rowHeights.get(index) || listMetrics.estimatedRowHeight
+      );
+    };
+
+    // Calculate new estimated height based on measured rows
+    const calculateEstimatedHeight = (heights: Map<number, number>): number => {
+      if (heights.size === 0) return listMetrics.estimatedRowHeight;
+
+      // Calculate average of measured heights
+      let sum = 0;
+      heights.forEach((height) => {
+        sum += height;
+      });
+
+      // Use exponential moving average to smooth transitions
+      const alpha = 0.2; // Smoothing factor
+      const newEstimate = sum / heights.size;
+      return Math.round(
+        alpha * newEstimate + (1 - alpha) * listMetrics.estimatedRowHeight,
+      );
     };
 
     const rowPositions = useMemo(() => {
@@ -68,52 +90,7 @@ export const VirtualList = forwardRef(
       }
 
       return positions;
-    }, [listMetrics.rowHeights, data.length, getRowHeight]);
-
-    useImperativeHandle(
-      ref,
-      () => ({
-        focus: () => {
-          baseRef.current?.focus();
-        },
-        scrollToIndex: (index: number, direction?: "up" | "down") => {
-          const scrollElement = scrollRef?.current || baseRef.current;
-          if (!scrollElement || index < 0 || index >= data.length) return;
-
-          const currentScrollTop = scrollElement.scrollTop;
-          const viewportHeight = scrollElement.offsetHeight;
-
-          // Get position and height of target row
-          const rowTop = rowPositions.get(index) || 0;
-          const rowHeight = getRowHeight(index);
-          const rowBottom = rowTop + rowHeight;
-
-          // If this is already visible, don't scroll
-          const isVisible =
-            rowTop >= currentScrollTop &&
-            rowBottom <= currentScrollTop + viewportHeight;
-          if (isVisible) return;
-
-          // Calculate new scroll position based on direction
-          let newScrollTop: number;
-          if (direction === "up") {
-            // Align top of element with top of viewport
-            newScrollTop = rowTop;
-          } else {
-            // Align bottom of element with bottom of viewport
-            newScrollTop = rowBottom - viewportHeight;
-          }
-
-          // Clamp scroll position to valid range
-          newScrollTop = Math.max(
-            0,
-            Math.min(newScrollTop, listMetrics.totalHeight - viewportHeight),
-          );
-          scrollElement.scrollTop = newScrollTop;
-        },
-      }),
-      [rowPositions, data.length],
-    );
+    }, [listMetrics.rowHeights, listMetrics.estimatedRowHeight, data.length]);
 
     // Measure rendered rows and update heights if needed
     const measureRows = () => {
@@ -138,18 +115,60 @@ export const VirtualList = forwardRef(
         newHeights.set(index, height);
       });
 
+      // Calculate new estimated height
+      const newEstimatedHeight = calculateEstimatedHeight(newHeights);
+
       let newTotalHeight = 0;
       for (let i = 0; i < data.length; i++) {
-        newTotalHeight += newHeights.get(i) || estimatedRowHeight;
+        newTotalHeight += newHeights.get(i) || newEstimatedHeight;
       }
 
       setListMetrics({
         rowHeights: newHeights,
         totalHeight: newTotalHeight,
+        estimatedRowHeight: newEstimatedHeight,
       });
     };
 
-    // Handle container resize
+    useImperativeHandle(
+      ref,
+      () => ({
+        focus: () => {
+          baseRef.current?.focus();
+        },
+        scrollToIndex: (index: number, direction?: "up" | "down") => {
+          const scrollElement = scrollRef?.current || baseRef.current;
+          if (!scrollElement || index < 0 || index >= data.length) return;
+
+          const currentScrollTop = scrollElement.scrollTop;
+          const viewportHeight = scrollElement.offsetHeight;
+
+          const rowTop = rowPositions.get(index) || 0;
+          const rowHeight = getRowHeight(index);
+          const rowBottom = rowTop + rowHeight;
+
+          const isVisible =
+            rowTop >= currentScrollTop &&
+            rowBottom <= currentScrollTop + viewportHeight;
+          if (isVisible) return;
+
+          let newScrollTop: number;
+          if (direction === "up") {
+            newScrollTop = rowTop;
+          } else {
+            newScrollTop = rowBottom - viewportHeight;
+          }
+
+          newScrollTop = Math.max(
+            0,
+            Math.min(newScrollTop, listMetrics.totalHeight - viewportHeight),
+          );
+          scrollElement.scrollTop = newScrollTop;
+        },
+      }),
+      [rowPositions, data.length],
+    );
+
     const resize = () => {
       const scrollElement = scrollRef?.current || baseRef.current;
       if (scrollElement && height !== scrollElement.offsetHeight) {
@@ -157,7 +176,6 @@ export const VirtualList = forwardRef(
       }
     };
 
-    // Handle scroll with throttling
     const handleScroll = throttle(() => {
       const scrollElement = scrollRef?.current || baseRef.current;
       if (scrollElement) {
@@ -168,7 +186,6 @@ export const VirtualList = forwardRef(
       }
     }, 100);
 
-    // Setup scroll and resize listeners
     useEffect(() => {
       resize();
       const scrollElement = scrollRef?.current || baseRef.current;
@@ -184,7 +201,6 @@ export const VirtualList = forwardRef(
       }
     }, [scrollRef?.current]);
 
-    // Measure rows after render
     useEffect(() => {
       measureRows();
     });
@@ -214,7 +230,6 @@ export const VirtualList = forwardRef(
     const firstVisibleIdx = findRowAtOffset(offset);
     const lastVisibleIdx = findRowAtOffset(offset + height);
 
-    // Calculate range of rows to render including overscan
     const start = Math.max(0, firstVisibleIdx - overscanCount);
     const end = Math.min(data.length, lastVisibleIdx + overscanCount);
 
@@ -240,8 +255,6 @@ export const VirtualList = forwardRef(
     }, [data, start, end, renderRow]);
 
     const top = rowPositions.get(start) || 0;
-
-    // only attach scroll handler if there isn't a scroll ref
     const scrollProps = scrollRef ? {} : { onScroll: handleScroll };
 
     return (
@@ -266,7 +279,6 @@ export const VirtualList = forwardRef(
   },
 );
 
-// Throttle utility function
 const throttle = (func: (...args: any[]) => void, limit: number) => {
   let inThrottle: boolean;
   return function (this: any, ...args: any[]) {

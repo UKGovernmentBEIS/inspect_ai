@@ -11077,7 +11077,7 @@ var require_assets = __commonJS({
       data,
       renderRow,
       overscanCount = 15,
-      estimatedRowHeight = 50,
+      initialEstimatedRowHeight = 50,
       sync = false,
       scrollRef,
       ...props
@@ -11086,13 +11086,24 @@ var require_assets = __commonJS({
       const [offset, setOffset] = h(0);
       const [listMetrics, setListMetrics] = h({
         rowHeights: /* @__PURE__ */ new Map(),
-        totalHeight: data.length * estimatedRowHeight
+        totalHeight: data.length * initialEstimatedRowHeight,
+        estimatedRowHeight: initialEstimatedRowHeight
       });
       const baseRef = A$1(null);
       const containerRef = A$1(null);
       const rowRefs = A$1(/* @__PURE__ */ new Map());
       const getRowHeight = (index) => {
-        return listMetrics.rowHeights.get(index) || estimatedRowHeight;
+        return listMetrics.rowHeights.get(index) || listMetrics.estimatedRowHeight;
+      };
+      const calculateEstimatedHeight = (heights) => {
+        if (heights.size === 0) return listMetrics.estimatedRowHeight;
+        let sum = 0;
+        heights.forEach((height2) => {
+          sum += height2;
+        });
+        const alpha = 0.2;
+        const newEstimate = sum / heights.size;
+        return Math.round(alpha * newEstimate + (1 - alpha) * listMetrics.estimatedRowHeight);
       };
       const rowPositions = T$1(() => {
         let currentPosition = 0;
@@ -11102,7 +11113,33 @@ var require_assets = __commonJS({
           currentPosition += getRowHeight(i2);
         }
         return positions;
-      }, [listMetrics.rowHeights, data.length, getRowHeight]);
+      }, [listMetrics.rowHeights, listMetrics.estimatedRowHeight, data.length]);
+      const measureRows = () => {
+        let updates = [];
+        rowRefs.current.forEach((element, index) => {
+          if (element) {
+            const measuredHeight = element.offsetHeight;
+            if (measuredHeight && measuredHeight !== listMetrics.rowHeights.get(index)) {
+              updates.push([index, measuredHeight]);
+            }
+          }
+        });
+        if (updates.length === 0) return;
+        const newHeights = new Map(listMetrics.rowHeights);
+        updates.forEach(([index, height2]) => {
+          newHeights.set(index, height2);
+        });
+        const newEstimatedHeight = calculateEstimatedHeight(newHeights);
+        let newTotalHeight = 0;
+        for (let i2 = 0; i2 < data.length; i2++) {
+          newTotalHeight += newHeights.get(i2) || newEstimatedHeight;
+        }
+        setListMetrics({
+          rowHeights: newHeights,
+          totalHeight: newTotalHeight,
+          estimatedRowHeight: newEstimatedHeight
+        });
+      };
       F$1(ref, () => ({
         focus: () => {
           var _a2;
@@ -11128,30 +11165,6 @@ var require_assets = __commonJS({
           scrollElement.scrollTop = newScrollTop;
         }
       }), [rowPositions, data.length]);
-      const measureRows = () => {
-        let updates = [];
-        rowRefs.current.forEach((element, index) => {
-          if (element) {
-            const measuredHeight = element.offsetHeight;
-            if (measuredHeight && measuredHeight !== listMetrics.rowHeights.get(index)) {
-              updates.push([index, measuredHeight]);
-            }
-          }
-        });
-        if (updates.length === 0) return;
-        const newHeights = new Map(listMetrics.rowHeights);
-        updates.forEach(([index, height2]) => {
-          newHeights.set(index, height2);
-        });
-        let newTotalHeight = 0;
-        for (let i2 = 0; i2 < data.length; i2++) {
-          newTotalHeight += newHeights.get(i2) || estimatedRowHeight;
-        }
-        setListMetrics({
-          rowHeights: newHeights,
-          totalHeight: newTotalHeight
-        });
-      };
       const resize = () => {
         const scrollElement = (scrollRef == null ? void 0 : scrollRef.current) || baseRef.current;
         if (scrollElement && height !== scrollElement.offsetHeight) {
