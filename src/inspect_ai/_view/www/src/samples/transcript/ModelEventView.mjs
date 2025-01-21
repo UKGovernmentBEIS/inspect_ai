@@ -11,7 +11,7 @@ import { FontSize, TextStyle } from "../../appearance/fonts";
 import { ApplicationIcons } from "../../appearance/icons";
 import { ChatView } from "../../components/ChatView.mjs";
 import { MetaDataGrid } from "../../components/MetaDataGrid.mjs";
-import { ModelUsagePanel } from "../../usage/UsageCard.mjs";
+import { ModelUsagePanel } from "../../usage/ModelUsagePanel";
 import {
   formatDateTime,
   formatNumber,

@@ -34,7 +34,7 @@ import {
   kSampleScoringTabId,
   kSampleTranscriptTabId,
 } from "../constants";
-import { ModelTokenTable } from "../usage/ModelTokenTable.mjs";
+import { ModelTokenTable } from "../usage/ModelTokenTable";
 import { printHeadingHtml, printHtml } from "../utils/print";
 
 /**
