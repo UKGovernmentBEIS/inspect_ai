@@ -17,7 +17,7 @@ import { Navbar } from "../navbar/Navbar";
 import { PlanCard } from "../plan/PlanCard.mjs";
 import { SamplesTab } from "../samples/SamplesTab.mjs";
 import { SampleTools } from "../samples/SamplesTools.mjs";
-import { UsageCard } from "../usage/UsageCard.mjs";
+import { UsageCard } from "../usage/UsageCard";
 
 import { FontSize } from "../appearance/fonts";
 import { MessageBand } from "../components/MessageBand";

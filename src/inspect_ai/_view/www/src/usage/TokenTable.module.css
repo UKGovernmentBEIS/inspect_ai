@@ -1,0 +1,17 @@
+.table {
+  width: 100%;
+  margin-top: 0.7rem;
+}
+
+.tableTokens {
+  padding-bottom: 0.7rem;
+}
+
+.tableH {
+  padding: 0;
+  font-weight: 300;
+}
+
+.model {
+  padding-right: 1em;
+}
