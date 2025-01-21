@@ -108,3 +108,26 @@ def str_to_float(s: str) -> float:
         exponent = 1  # Default exponent is 1 if no superscript is present
 
     return base**exponent
+
+
+def truncate(text: str, length: int, overflow: str = "...", pad: bool = True) -> str:
+    """
+    Truncate text to specified length with optional padding and overflow indicator.
+
+    Args:
+        text (str): Text to truncate
+        length (int): Maximum length including overflow indicator
+        overflow (str): String to indicate truncation (defaults to '...')
+        pad (bool): Whether to pad the result to full length (defaults to padding)
+
+    Returns:
+        Truncated string, padded if requested
+
+    """
+    if len(text) <= length:
+        return text + (" " * (length - len(text))) if pad else text
+
+    overflow_length = len(overflow)
+    truncated = text[: length - overflow_length] + overflow
+
+    return truncated

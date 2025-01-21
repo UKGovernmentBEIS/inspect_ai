@@ -22,5 +22,5 @@ class SampleLimitExceededError(Exception):
         self.type = type
         self.value = value
         self.limit = limit
-        self.message = f"Exceeded {type} limit: {(limit,)}"
+        self.message = f"Exceeded {type} limit: {limit:,}"
         super().__init__(message)
