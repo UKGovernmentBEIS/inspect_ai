@@ -1,8 +1,8 @@
 // @ts-check
 import { html } from "htm/preact";
 import { ApplicationIcons } from "../../appearance/icons";
-import { resolveToolInput, ToolCallView } from "../../components/Tools.mjs";
 import { formatDateTime } from "../../utils/format";
+import { resolveToolInput, ToolCallView } from "../chat/Tools.mjs";
 import { ApprovalEventView } from "./ApprovalEventView.mjs";
 import { EventPanel } from "./EventPanel.mjs";
 import { TranscriptView } from "./TranscriptView.mjs";

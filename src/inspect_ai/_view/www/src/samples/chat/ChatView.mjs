@@ -1,21 +1,22 @@
 // @ts-check
 import { html } from "htm/preact";
 
-import { ApplicationIcons } from "../appearance/icons";
+import { ApplicationIcons } from "../../appearance/icons";
 
-import { FontSize, TextStyle } from "../appearance/fonts";
-import { ExpandablePanel } from "./ExpandablePanel";
-import { MarkdownDiv } from "./MarkdownDiv";
-import { MessageContent } from "./MessageContent.mjs";
+import { MarkdownDiv } from "../../components/MarkdownDiv";
+
+import { FontSize, TextStyle } from "../../appearance/fonts";
+import { ExpandablePanel } from "../../components/ExpandablePanel";
+import { VirtualList } from "../../components/VirtualList";
+import { MessageContent } from "./MessageContent";
 import { resolveToolInput, ToolCallView } from "./Tools.mjs";
-import { VirtualList } from "./VirtualList";
 
 /**
  * Renders the ChatViewVirtualList component.
  *
  * @param {Object} props - The properties passed to the component.
  * @param {string} props.id - The ID for the chat view.
- * @param {import("../types/log").Messages} props.messages - The array of chat messages.
+ * @param {import("../../types/log").Messages} props.messages - The array of chat messages.
  * @param {"compact" | "complete"} [props.toolCallStyle] - Whether to show tool calls
  * @param {Object} [props.style] - Inline styles for the chat view.
  * @param {boolean} props.indented - Whether the chatview has indented messages
@@ -62,7 +63,7 @@ export const ChatViewVirtualList = ({
  *
  * @param {Object} props - The properties passed to the component.
  * @param {string} props.id - The ID for the chat view.
- * @param {import("../types/log").Messages} props.messages - The array of chat messages.
+ * @param {import("../../types/log").Messages} props.messages - The array of chat messages.
  * @param {"compact" | "complete"} [props.toolCallStyle] - Whether to show tool calls
  * @param {Object} [props.style] - Inline styles for the chat view.
  * @param {boolean} props.indented - Whether the chatview has indented messages
@@ -150,14 +151,14 @@ export const ChatMessageRow = ({
 
 /**
  * @typedef {Object} ResolvedMessage
- * @property {import("../types/log").ChatMessageAssistant | import("../types/log").ChatMessageSystem | import("../types/log").ChatMessageUser} message - The main chat message.
- * @property {import("../types/log").ChatMessageTool[]} [toolMessages] - Optional array of tool-related messages.
+ * @property {import("../../types/log").ChatMessageAssistant | import("../../types/log").ChatMessageSystem | import("../../types/log").ChatMessageUser} message - The main chat message.
+ * @property {import("../../types/log").ChatMessageTool[]} [toolMessages] - Optional array of tool-related messages.
  */
 
 /**
  * Renders the ChatView component.
  *
- * @param {import("../types/log").Messages} messages - The array of chat messages.
+ * @param {import("../../types/log").Messages} messages - The array of chat messages.
  * @returns {ResolvedMessage[]} The component.
  */
 export const resolveMessages = (messages) => {
@@ -165,7 +166,7 @@ export const resolveMessages = (messages) => {
   // can use to lookup the tool responses
 
   /**
-   * @type {Array<{message: import("../types/log").ChatMessageAssistant | import("../types/log").ChatMessageSystem | import("../types/log").ChatMessageUser, toolMessages?: import("../types/log").ChatMessageTool[]}>}
+   * @type {Array<{message: import("../../types/log").ChatMessageAssistant | import("../../types/log").ChatMessageSystem | import("../../types/log").ChatMessageUser, toolMessages?: import("../../types/log").ChatMessageTool[]}>}
    */
   const resolvedMessages = [];
   for (const message of messages) {
@@ -182,7 +183,7 @@ export const resolveMessages = (messages) => {
 
   // Capture system messages (there could be multiple)
   /**
-   * @type {Array<import("../types/log").ChatMessageSystem>}
+   * @type {Array<import("../../types/log").ChatMessageSystem>}
    */
   const systemMessages = [];
   const collapsedMessages = resolvedMessages
@@ -198,7 +199,7 @@ export const resolveMessages = (messages) => {
 
   // Collapse system messages
   /**
-   * @type {Array<import("../types/log").ContentImage | import("../types/log").ContentText>}
+   * @type {Array<import("../../types/log").ContentImage | import("../../types/log").ContentText>}
    */
   const systemContent = [];
   for (const systemMessage of systemMessages) {
@@ -209,7 +210,7 @@ export const resolveMessages = (messages) => {
   }
 
   /**
-   * @type {import("../types/log").ChatMessageSystem}
+   * @type {import("../../types/log").ChatMessageSystem}
    */
   const systemMessage = {
     role: "system",
@@ -227,8 +228,8 @@ export const resolveMessages = (messages) => {
 /**
  * Ensure that content is a proper content type
  *
- * @param {import("../types/log").ContentText | import("../types/log").ContentImage | string} content - The properties passed to the component.
- * @returns {import("../types/log").ContentText | import("../types/log").ContentImage} The component.
+ * @param {import("../../types/log").ContentText | import("../../types/log").ContentImage | string} content - The properties passed to the component.
+ * @returns {import("../../types/log").ContentText | import("../../types/log").ContentImage} The component.
  */
 const normalizeContent = (content) => {
   if (typeof content === "string") {
@@ -245,8 +246,8 @@ const normalizeContent = (content) => {
  *
  * @param {Object} props
  * @param {string} props.id - The ID for the chat view.
- * @param {import("../types/log").ChatMessageAssistant | import("../types/log").ChatMessageSystem | import("../types/log").ChatMessageUser} props.message - The primary message
- * @param {import("../types/log").ChatMessageTool[]} props.toolMessages - The tool output message
+ * @param {import("../../types/log").ChatMessageAssistant | import("../../types/log").ChatMessageSystem | import("../../types/log").ChatMessageUser} props.message - The primary message
+ * @param {import("../../types/log").ChatMessageTool[]} props.toolMessages - The tool output message
  * @param {boolean} props.indented - Whether the chatview has indented messages
  * @param {"compact" | "complete"} props.toolCallStyle - Whether to hide tool calls
  * @returns {import("preact").JSX.Element} The component.
@@ -322,8 +323,8 @@ const ChatMessage = ({
 /**
  *
  * @param {Object} props
- * @param {import("../types/log").ChatMessageAssistant | import("../types/log").ChatMessageSystem | import("../types/log").ChatMessageUser} props.message - The primary message
- * @param {import("../types/log").ChatMessageTool[]} props.toolMessages - The tool output message
+ * @param {import("../../types/log").ChatMessageAssistant | import("../../types/log").ChatMessageSystem | import("../../types/log").ChatMessageUser} props.message - The primary message
+ * @param {import("../../types/log").ChatMessageTool[]} props.toolMessages - The tool output message
  * @param {"compact" | "complete"} props.toolCallStyle - Whether to hide tool calls
  * @returns {import("preact").JSX.Element | import("preact").JSX.Element[]} The component.
  */
@@ -399,8 +400,8 @@ export const iconForMsg = (msg) => {
 
 /**
  *
- * @param {import("../types/log").ChatMessageTool} toolMessage - The tool output message
- * @returns {Array<{type: string, content: import("../types/log").Content4}>|undefined} An array of formatted tool message objects, or undefined if toolMessage is falsy.
+ * @param {import("../../types/log").ChatMessageTool} toolMessage - The tool output message
+ * @returns {Array<{type: string, content: import("../../types/log").Content4}>|undefined} An array of formatted tool message objects, or undefined if toolMessage is falsy.
  */
 const resolveToolMessage = (toolMessage) => {
   if (!toolMessage) {

@@ -1,8 +1,8 @@
 import { html } from "htm/preact";
 
-import { ChatViewVirtualList } from "../components/ChatView.mjs";
 import { MetaDataView } from "../components/MetaDataView";
 import { TabPanel, TabSet } from "../components/TabSet.mjs";
+import { ChatViewVirtualList } from "./chat/ChatView.mjs";
 
 import { inputString } from "../utils/format";
 import { escapeSelector } from "../utils/html";

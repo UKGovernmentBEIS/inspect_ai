@@ -9,7 +9,6 @@ import { html } from "htm/preact";
 import { useEffect, useMemo, useRef } from "preact/hooks";
 import { FontSize, TextStyle } from "../../appearance/fonts";
 import { ApplicationIcons } from "../../appearance/icons";
-import { ChatView } from "../../components/ChatView.mjs";
 import { MetaDataGrid } from "../../components/MetaDataGrid";
 import { ModelUsagePanel } from "../../usage/ModelUsagePanel";
 import {
@@ -17,6 +16,7 @@ import {
   formatNumber,
   formatPrettyDecimal,
 } from "../../utils/format";
+import { ChatView } from "../chat/ChatView.mjs";
 import { EventPanel } from "./EventPanel.mjs";
 import { EventSection } from "./EventSection.mjs";
 

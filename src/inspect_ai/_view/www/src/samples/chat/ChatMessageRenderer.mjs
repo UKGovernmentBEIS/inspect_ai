@@ -1,11 +1,11 @@
 import { html } from "htm/preact";
 
-import { ChatView } from "../ChatView.mjs";
-import { NavPills } from "../NavPills.tsx";
-import { Buckets } from "./Types.mjs";
+import { NavPills } from "../../components/NavPills.tsx";
+import { Buckets } from "../../components/RenderedContent/Types.mjs";
+import { ChatView } from "./ChatView.mjs";
 
 /**
- * @type {import("./Types.mjs").ContentRenderer}
+ * @type {import("../../components/RenderedContent/Types.mjs").ContentRenderer}
  *
  * Renders chat messages as a ChatView component.
  */

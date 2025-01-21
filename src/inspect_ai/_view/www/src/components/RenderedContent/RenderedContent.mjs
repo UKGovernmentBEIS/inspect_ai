@@ -3,10 +3,10 @@ import { html } from "htm/preact";
 import { FontSize } from "../../appearance/fonts";
 import { ApplicationIcons } from "../../appearance/icons";
 
+import { ChatMessageRenderer } from "../../samples/chat/ChatMessageRenderer.mjs";
 import { formatNumber } from "../../utils/format";
 import { ANSIDisplay } from "../AnsiDisplay";
 import { MetaDataView } from "../MetaDataView";
-import { ChatMessageRenderer } from "./ChatMessageRenderer.mjs";
 import { Buckets } from "./Types.mjs";
 
 /**

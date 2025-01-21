@@ -5,9 +5,9 @@ import "./MarkdownDiv.css";
 
 interface MarkdownDivProps {
   markdown: string;
-  style: React.CSSProperties;
-  contentRef: Ref<HTMLDivElement>;
-  className: string;
+  style?: React.CSSProperties;
+  contentRef?: Ref<HTMLDivElement>;
+  className: string | string[];
 }
 
 export const MarkdownDiv: React.FC<MarkdownDivProps> = ({

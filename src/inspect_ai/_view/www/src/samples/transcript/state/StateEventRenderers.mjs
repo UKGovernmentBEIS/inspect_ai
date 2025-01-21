@@ -1,8 +1,8 @@
 // @ts-check
 import { html } from "htm/preact";
 import { FontSize, TextStyle } from "../../../appearance/fonts";
-import { ChatView } from "../../../components/ChatView.mjs";
 import { HumanBaselineView } from "../../../components/HumanBaselineView";
+import { ChatView } from "../../chat/ChatView.mjs";
 
 /**
  * @typedef {Object} Signature

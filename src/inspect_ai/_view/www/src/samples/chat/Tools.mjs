@@ -10,10 +10,10 @@ import "prismjs/components/prism-python";
 import { html } from "htm/preact";
 import { useEffect, useRef } from "preact/hooks";
 
-import { FontSize } from "../appearance/fonts";
-import { ExpandablePanel } from "./ExpandablePanel";
-import { MarkdownDiv } from "./MarkdownDiv";
-import { MessageContent } from "./MessageContent.mjs";
+import { FontSize } from "../../appearance/fonts";
+import { ExpandablePanel } from "../../components/ExpandablePanel";
+import { MarkdownDiv } from "../../components/MarkdownDiv";
+import { MessageContent } from "./MessageContent";
 
 /**
  * @typedef {Object} ToolCallResult
@@ -25,7 +25,7 @@ import { MessageContent } from "./MessageContent.mjs";
 /**
  * Resolves the input and metadata for a given tool call.
  * @param { string } fn - The tool call function name
- * @param { import("../types/log").Arguments } toolArgs - The tool call arguments
+ * @param { import("../../types/log").Arguments } toolArgs - The tool call arguments
  *
  * @returns {ToolCallResult}  An object containing the following properties:
  */
@@ -50,8 +50,8 @@ export const resolveToolInput = (fn, toolArgs) => {
  * @param {string} props.functionCall - The function call
  * @param {string | undefined } props.input - The main input for this call
  * @param {string | undefined } props.inputType - The input type for this call
- * @param {import("../types/log").ToolCallContent} props.view - The tool call view
- * @param {string | number | boolean | import("../types/log").ContentText | import("../types/log").ContentImage | (import("../types/log").ContentText | import("../types/log").ContentImage)[]} props.output - The tool output
+ * @param {import("../../types/log").ToolCallContent} props.view - The tool call view
+ * @param {string | number | boolean | import("../../types/log").ContentText | import("../../types/log").ContentImage | (import("../../types/log").ContentText | import("../../types/log").ContentImage)[]} props.output - The tool output
  * @param { "compact" | undefined } props.mode - The display mode for this call
  * @returns {import("preact").JSX.Element} The SampleTranscript component.
  */
@@ -127,8 +127,8 @@ const ToolTitle = ({ title }) => {
 /**
  * Renders the ToolCallView component.
  *
- * @param {string | number | boolean | import("../types/log").ContentImage | import("../types/log").ContentText | (import("../types/log").ContentText | import("../types/log").ContentImage)[]} output - The tool output
- * @returns {(import("../Types.mjs").ContentTool | import("../types/log").ContentText | import("../types/log").ContentImage)[]} The SampleTranscript component.
+ * @param {string | number | boolean | import("../../types/log").ContentImage | import("../../types/log").ContentText | (import("../../types/log").ContentText | import("../../types/log").ContentImage)[]} output - The tool output
+ * @returns {(import("../../Types.mjs").ContentTool | import("../../types/log").ContentText | import("../../types/log").ContentImage)[]} The SampleTranscript component.
  */
 const normalizeContent = (output) => {
   if (Array.isArray(output)) {
@@ -155,7 +155,7 @@ const normalizeContent = (output) => {
  * @param {string} props.type - The function call
  * @param {string | undefined } props.contents - The main input for this call
  * @param {Record<string, string>} [props.style] - The style
- * @param {import("../types/log").ToolCallContent} [props.view] - The tool call view
+ * @param {import("../../types/log").ToolCallContent} [props.view] - The tool call view
  * @returns {import("preact").JSX.Element | string} The SampleTranscript component.
  */
 export const ToolInput = ({ type, contents, view, style }) => {
@@ -232,8 +232,8 @@ export const ToolInput = ({ type, contents, view, style }) => {
  * Renders the ToolOutput component.
  *
  * @param {Object} props - The parameters for the component.
- * @param {string | number | boolean | (import("../types/log").ContentText | import("../types/log").ContentImage)[]} props.output - The tool output
- * @param {Object} props.style - The style for the element
+ * @param {string | number | boolean | (import("../../types/log").ContentText | import("../../types/log").ContentImage)[]} props.output - The tool output
+ * @param {Object} [props.style] - The style for the element
  * @returns { import("preact").JSX.Element | import("preact").JSX.Element[] | string} The ToolOutput component.
  */
 export const ToolOutput = ({ output, style }) => {
