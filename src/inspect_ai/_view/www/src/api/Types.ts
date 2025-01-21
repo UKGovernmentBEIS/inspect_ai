@@ -1,17 +1,17 @@
 import {
-  Version,
-  Status,
-  EvalSpec,
+  EvalError,
+  EvalLog,
   EvalPlan,
   EvalResults,
-  EvalStats,
-  EvalError,
-  Input,
-  Target,
-  Scores1,
-  Type11,
-  EvalLog,
   EvalSample,
+  EvalSpec,
+  EvalStats,
+  Input,
+  Scores1,
+  Status,
+  Target,
+  Type11,
+  Version,
 } from "../types/log";
 
 export interface EvalSummary {

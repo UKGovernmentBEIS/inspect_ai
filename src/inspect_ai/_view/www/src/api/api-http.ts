@@ -1,4 +1,3 @@
-//@ts-check
 import { fetchRange, fetchSize } from "../remote/remoteZipFile";
 import { EvalLog } from "../types/log";
 import { asyncJsonParse } from "../utils/json-worker";
