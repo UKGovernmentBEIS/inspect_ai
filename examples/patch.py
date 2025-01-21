@@ -1,13 +1,10 @@
 import asyncio
-import os
 from typing import Any, Optional, Type
 
 from openai import AsyncOpenAI
 from openai._base_client import AsyncAPIClient, _AsyncStreamT
 from openai._models import FinalRequestOptions
 from openai._types import ResponseT
-
-from inspect_ai.model._model import get_model
 
 original_request = getattr(AsyncAPIClient, "request")
 
