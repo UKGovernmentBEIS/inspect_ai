@@ -173,7 +173,7 @@ class TaskState:
         self.metadata = metadata
         """Metadata from the `Sample` for this `TaskState`"""
 
-        self.messages: list[ChatMessage] = ChatMessageList(messages)
+        self._messages: list[ChatMessage] = ChatMessageList(messages)
         """
         Chat conversation history for sample.
 
@@ -263,6 +263,16 @@ class TaskState:
             return prompt
         else:
             raise ValueError("user_prompt requested from TaskState but none available")
+
+    @property
+    def messages(self) -> list[ChatMessage]:
+        """Messages in chat history"""
+        return self._messages
+
+    @messages.setter
+    def messages(self, messages: list[ChatMessage]) -> None:
+        """Set messages in chat history."""
+        self._messages = ChatMessageList(messages)
 
     @property
     def max_messages(self) -> int | None:
@@ -394,7 +404,9 @@ def sample_jsonable(sample: Sample) -> dict[str, Any]:
 
 class ChatMessageList(list[ChatMessage]):
     def __init__(self, iterable: Iterable[ChatMessage]):
-        super().__init__(iterable)
+        items, length = self._iterable_length(iterable)
+        self._check_size(length)
+        super().__init__(items)
 
     def _check_size(self, additional_items: int = 1) -> None:
         from inspect_ai.log._samples import active_sample_message_limit

@@ -49,6 +49,18 @@ def appending_solver():
     return solve
 
 
+@solver
+def overwriting_solver(messages: int):
+    async def solve(state: TaskState, generate: Generate):
+        state.messages = [
+            ChatMessageUser(content="message") for _ in range(0, messages)
+        ]
+
+        return state
+
+    return solve
+
+
 @scorer(metrics=[mean()])
 def slow_scorer(seconds: int | None = 10) -> Scorer:
     async def score(state: TaskState, target: Target) -> Score:
@@ -81,6 +93,10 @@ def test_message_limit_generate():
 
 def test_message_limit_append():
     check_message_limit(appending_solver())
+
+
+def test_message_limit_overwrite():
+    check_message_limit(overwriting_solver(10))
 
 
 @skip_if_no_openai
