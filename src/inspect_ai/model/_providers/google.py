@@ -11,7 +11,6 @@ import proto  # type: ignore
 from google.ai.generativelanguage import (
     Blob,
     Candidate,
-    File,
     FunctionCall,
     FunctionCallingConfig,
     FunctionDeclaration,
@@ -29,22 +28,22 @@ from google.api_core.exceptions import (
     TooManyRequests,
 )
 from google.api_core.retry.retry_base import if_transient_error
-from google.generativeai import (  # type: ignore
-    GenerationConfig,
-    GenerativeModel,
-    configure,
-    get_file,
-    upload_file,
-)
-from google.generativeai.types import (  # type: ignore
-    AsyncGenerateContentResponse,
+from google.generativeai.client import configure
+from google.generativeai.files import get_file, upload_file
+from google.generativeai.generative_models import GenerativeModel
+from google.generativeai.types import (
     ContentDict,
-    HarmBlockThreshold,
-    HarmCategory,
+    GenerationConfig,
     PartDict,
     PartType,
-    SafetySettingDict,
     Tool,
+)
+from google.generativeai.types.file_types import File
+from google.generativeai.types.generation_types import AsyncGenerateContentResponse
+from google.generativeai.types.safety_types import (
+    EasySafetySettingDict,
+    HarmBlockThreshold,
+    HarmCategory,
 )
 from google.protobuf.json_format import MessageToDict, ParseDict
 from google.protobuf.struct_pb2 import Struct
@@ -89,7 +88,7 @@ logger = getLogger(__name__)
 
 SAFETY_SETTINGS = "safety_settings"
 
-DEFAULT_SAFETY_SETTINGS: SafetySettingDict = {
+DEFAULT_SAFETY_SETTINGS: EasySafetySettingDict = {
     HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
     HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
     HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
@@ -149,11 +148,8 @@ class GoogleAPI(ModelAPI):
             max_output_tokens=config.max_tokens,
             stop_sequences=config.stop_seqs,
             candidate_count=config.num_choices,
-            seed=config.seed,
             presence_penalty=config.presence_penalty,
             frequency_penalty=config.frequency_penalty,
-            response_logprobs=config.logprobs,
-            logprobs=config.top_logprobs,
         )
 
         # google-native messages
@@ -176,18 +172,15 @@ class GoogleAPI(ModelAPI):
                 response=response,
             )
 
-        # cast to AsyncGenerateContentResponse since we passed stream=False
         try:
-            response = cast(
-                AsyncGenerateContentResponse,
-                await self.model.generate_content_async(
-                    contents=contents,
-                    safety_settings=self.safety_settings,
-                    generation_config=parameters,
-                    tools=gemini_tools,
-                    tool_config=gemini_tool_config,
-                ),
+            response = await self.model.generate_content_async(
+                contents=contents,
+                safety_settings=self.safety_settings,
+                generation_config=parameters,
+                tools=gemini_tools,
+                tool_config=gemini_tool_config,
             )
+
         except InvalidArgument as ex:
             return self.handle_invalid_argument(ex), model_call()
 
@@ -229,7 +222,7 @@ class GoogleAPI(ModelAPI):
 def build_model_call(
     contents: list[ContentDict],
     generation_config: GenerationConfig,
-    safety_settings: SafetySettingDict,
+    safety_settings: EasySafetySettingDict,
     tools: list[Tool] | None,
     tool_config: ToolConfig | None,
     response: AsyncGenerateContentResponse | None,
@@ -246,7 +239,7 @@ def build_model_call(
             if tool_config is not None
             else None,
         ),
-        response=response.to_dict() if response is not None else {},
+        response=response.to_dict() if response is not None else {},  # type: ignore[no-untyped-call]
         filter=model_call_filter,
     )
 
@@ -267,12 +260,12 @@ def model_call_content(content: ContentDict) -> ContentDict:
 
 def model_call_part(part: PartType) -> PartType:
     if isinstance(part, proto.Message):
-        return MessageToDict(part._pb)
+        return cast(PartDict, MessageToDict(part._pb))
     elif isinstance(part, dict):
         part = part.copy()
         keys = list(part.keys())
         for key in keys:
-            part[key] = model_call_part(part[key])
+            part[key] = model_call_part(part[key])  # type: ignore[literal-required]
         return part
     else:
         return part
@@ -321,13 +314,13 @@ async def content_dict(
         return ContentDict(
             role="user",
             parts=(
-                [PartDict(text=message.content or NO_CONTENT)]
+                [message.content or NO_CONTENT]
                 if isinstance(message.content, str)
                 else [await content_part(content) for content in message.content]
             ),
         )
     elif isinstance(message, ChatMessageAssistant):
-        content_parts: list[Part] = []
+        content_parts: list[PartType] = []
         # tool call parts
         if message.tool_calls is not None:
             content_parts.extend(
@@ -378,9 +371,9 @@ def dict_to_struct(x: dict[str, Any]) -> Struct:
 
 async def content_part(content: Content | str) -> PartType:
     if isinstance(content, str):
-        return PartDict(text=content or NO_CONTENT)
+        return content or NO_CONTENT
     elif isinstance(content, ContentText):
-        return PartDict(text=content.text or NO_CONTENT)
+        return content.text or NO_CONTENT
     else:
         return await chat_content_to_part(content)
 
@@ -399,7 +392,9 @@ def prepend_system_messages(
     messages: list[ContentDict], system_messages: list[ChatMessageSystem]
 ) -> None:
     # create system_parts
-    system_parts = [Part(text=message.content) for message in system_messages]
+    system_parts: list[PartType] = [
+        Part(text=message.content) for message in system_messages
+    ]
 
     # we want the system messages to be prepended to the first user message
     # (if there is no first user message then prepend one)
@@ -595,14 +590,14 @@ def gapi_should_retry(ex: BaseException) -> bool:
 
 def parse_safety_settings(
     safety_settings: Any,
-) -> dict[HarmCategory, HarmBlockThreshold]:
+) -> EasySafetySettingDict:
     # ensure we have a dict
     if isinstance(safety_settings, str):
         safety_settings = json.loads(safety_settings)
     if not isinstance(safety_settings, dict):
         raise ValueError(f"{SAFETY_SETTINGS} must be dictionary.")
 
-    parsed_settings: dict[HarmCategory, HarmBlockThreshold] = {}
+    parsed_settings: EasySafetySettingDict = {}
     for key, value in safety_settings.items():
         if isinstance(key, str):
             key = str_to_harm_category(key)
@@ -618,23 +613,23 @@ def parse_safety_settings(
     return parsed_settings
 
 
-def str_to_harm_category(category: str) -> HarmCategory:
+def str_to_harm_category(category: str) -> int:
     category = category.upper()
     if "HARASSMENT" in category:
-        return HarmCategory.HARM_CATEGORY_HARASSMENT
+        return cast(int, HarmCategory.HARM_CATEGORY_HARASSMENT)
     elif "HATE_SPEECH" in category:
-        return HarmCategory.HARM_CATEGORY_HATE_SPEECH
+        return cast(int, HarmCategory.HARM_CATEGORY_HATE_SPEECH)
     elif "SEXUALLY_EXPLICIT" in category:
-        return HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT
+        return cast(int, HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT)
     elif "DANGEROUS_CONTENT" in category:
-        return HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT
+        return cast(int, HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT)
     else:
         # NOTE: Although there is an "UNSPECIFIED" category, in the
         # documentation, the API does not accept it.
         raise ValueError(f"Unknown HarmCategory: {category}")
 
 
-def str_to_harm_block_threshold(threshold: str) -> HarmBlockThreshold:
+def str_to_harm_block_threshold(threshold: str) -> int:
     threshold = threshold.upper()
     if "LOW" in threshold:
         return HarmBlockThreshold.BLOCK_LOW_AND_ABOVE
@@ -668,7 +663,7 @@ async def file_for_content(content: ContentAudio | ContentVideo) -> File:
         uploaded_file = files_db.get(content_sha256)
         if uploaded_file:
             try:
-                upload = cast(File, get_file(uploaded_file))
+                upload = get_file(uploaded_file)
                 if upload.state.name == "ACTIVE":
                     trace(f"Using uploaded file: {uploaded_file}")
                     return upload
