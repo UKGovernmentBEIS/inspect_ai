@@ -1,52 +1,81 @@
 import asyncio
-from typing import Any, Optional, Type
+import contextlib
+from contextvars import ContextVar
+from functools import wraps
+from typing import Any, AsyncGenerator, Optional, Type
 
 from openai import AsyncOpenAI
 from openai._base_client import AsyncAPIClient, _AsyncStreamT
 from openai._models import FinalRequestOptions
 from openai._types import ResponseT
 
-original_request = getattr(AsyncAPIClient, "request")
+
+@contextlib.asynccontextmanager
+async def openai_request_patch() -> AsyncGenerator[None, None]:
+    # ensure one time init
+    init_openai_request_patch()
+
+    # set the patch enabled for this context and child coroutines
+    token = _patch_enabled.set(True)
+    try:
+        yield
+    finally:
+        _patch_enabled.reset(token)
 
 
-async def patched_request(
-    self,
-    cast_to: Type[ResponseT],
-    options: FinalRequestOptions,
-    *,
-    stream: bool = False,
-    stream_cls: type[_AsyncStreamT] | None = None,
-    remaining_retries: Optional[int] = None,
-) -> Any:
-    # TODO: consider co-routine based patching?
+_patch_initialised: bool = False
 
-    # we have patched the underlying request method so now need to figure out when to
-    # patch and when to stand down
-    if (
-        # completions request
-        options.url == "/chat/completions"
-        # call to openai not another service (e.g. TogetherAI)
-        and self.base_url == "https://api.openai.com/v1"
-    ):
-        # check that we use "/" in model name (i.e. not a request for a standard
-        # openai model)
-        model = getattr(options.json_data or {}, "model", "")
-        if "/" in model:
-            pass
-            # return await inspect_model_request(model, options)
-
-    # otherwise just delegate
-    return await original_request(
-        self,
-        cast_to,
-        options,
-        stream=stream,
-        stream_cls=stream_cls,
-        remaining_retries=remaining_retries,
-    )
+_patch_enabled: ContextVar[bool] = ContextVar(
+    "openai_request_patch_enabled", default=False
+)
 
 
-setattr(AsyncAPIClient, "request", patched_request)
+def init_openai_request_patch() -> None:
+    global _patch_initialised
+    if not _patch_initialised:
+        # get reference to original method
+        original_request = getattr(AsyncAPIClient, "request")
+        if original_request is None:
+            raise RuntimeError("Couldn't find 'request' method on AsyncAPIClient")
+
+        @wraps(original_request)
+        async def patched_request(
+            self,
+            cast_to: Type[ResponseT],
+            options: FinalRequestOptions,
+            *,
+            stream: bool = False,
+            stream_cls: type[_AsyncStreamT] | None = None,
+            remaining_retries: Optional[int] = None,
+        ) -> Any:
+            # we have patched the underlying request method so now need to figure out when to
+            # patch and when to stand down
+            if (
+                # enabled for this coroutine
+                _patch_enabled.get()
+                # completions request
+                and options.url == "/chat/completions"
+                # call to openai not another service (e.g. TogetherAI)
+                and self.base_url == "https://api.openai.com/v1/"
+            ):
+                # check that we use "/" in model name (i.e. not a request for a standard
+                # openai model)
+                model = getattr(options.json_data or {}, "model", "")
+                if isinstance(model, str) and "/" in model:
+                    # TODO: implement patched version
+                    pass
+
+            # otherwise just delegate
+            return await original_request(
+                self,
+                cast_to,
+                options,
+                stream=stream,
+                stream_cls=stream_cls,
+                remaining_retries=remaining_retries,
+            )
+
+        setattr(AsyncAPIClient, "request", patched_request)
 
 
 # async def inspect_model_request(
@@ -59,7 +88,24 @@ setattr(AsyncAPIClient, "request", patched_request)
 #     return ChatCompletion()
 
 
-async def main():
+async def task1():
+    async with openai_request_patch():
+        client = AsyncOpenAI()
+        completion = await client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "You are a helpful assistant."},
+                {
+                    "role": "user",
+                    "content": "Write a haiku about recursion in programming.",
+                },
+            ],
+        )
+
+    print(completion.choices[0].message)
+
+
+async def task2():
     client = AsyncOpenAI()
     completion = await client.chat.completions.create(
         model="gpt-4o-mini",
@@ -73,6 +119,10 @@ async def main():
     )
 
     print(completion.choices[0].message)
+
+
+async def main():
+    await asyncio.gather(task1(), task2())
 
 
 asyncio.run(main())
