@@ -15545,44 +15545,68 @@ categories: ${categories.join(" ")}`;
         })
       });
     };
-    const TabSet = ({ id, type, classes, tools, styles: styles2, children: children2 }) => {
-      if (!id) {
-        throw new Error("Tabsets require an id to function properly");
-      }
-      const tabs = children2;
+    const tabs = "_tabs_1qj7d_1";
+    const tabContents = "_tabContents_1qj7d_5";
+    const scrollable = "_scrollable_1qj7d_10";
+    const tab = "_tab_1qj7d_1";
+    const tabItem = "_tabItem_1qj7d_24";
+    const tabIcon = "_tabIcon_1qj7d_28";
+    const tabTools = "_tabTools_1qj7d_32";
+    const moduleStyles = {
+      tabs,
+      tabContents,
+      scrollable,
+      tab,
+      tabItem,
+      tabIcon,
+      tabTools
+    };
+    const TabSet = ({
+      id,
+      type,
+      classes,
+      tools,
+      styles: styles2,
+      children: children2
+    }) => {
+      const tabs2 = children2;
       const tabType = type || "tabs";
-      const tabSetStyle = {
-        alignItems: "space-between"
-      };
-      return m$1`<ul
-      ...${{ id }}
-      class="nav nav-${tabType} ${classes ? classes : ""}"
-      role="tablist"
-      aria-orientation="horizontal"
-      style=${{ ...tabSetStyle, ...styles2.tabSet }}
-    >
-      <${Tabs} tabs=${tabs} type=${tabType} style=${styles2.tabs} />
-      <${TabTools} tools=${tools} />
-    </ul>
-    <${TabPanels} id=${id} tabs=${tabs} style=${styles2.tabBody} />`;
+      return /* @__PURE__ */ u(xn.Fragment, {
+        children: [/* @__PURE__ */ u("ul", {
+          id,
+          class: clsx("nav", `nav-${tabType}`, classes, moduleStyles.tabs),
+          role: "tablist",
+          "aria-orientation": "horizontal",
+          style: {
+            ...styles2 == null ? void 0 : styles2.tabSet
+          },
+          children: [/* @__PURE__ */ u(Tabs, {
+            tabs: tabs2,
+            type: tabType,
+            style: styles2 == null ? void 0 : styles2.tabs
+          }), /* @__PURE__ */ u(TabTools, {
+            tools
+          })]
+        }), /* @__PURE__ */ u(TabPanels, {
+          id,
+          tabs: tabs2,
+          style: styles2 == null ? void 0 : styles2.tabBody
+        })]
+      });
     };
     const TabPanel = ({
       id,
-      index,
       selected,
       style: style2,
-      scrollable,
+      scrollable: scrollable2,
       scrollRef,
       classes,
       scrollPosition,
       setScrollPosition,
       children: children2
     }) => {
-      const tabContentsId = computeTabContentsId(id, index);
-      const tabContentsRef = scrollRef || A$1(
-        /** @type {HTMLElement|null} */
-        null
-      );
+      const tabContentsId = computeTabContentsId(id);
+      const tabContentsRef = scrollRef || A$1(null);
       y(() => {
         setTimeout(() => {
           if (scrollPosition !== void 0 && tabContentsRef.current && tabContentsRef.current.scrollTop !== scrollPosition) {
@@ -15590,112 +15614,93 @@ categories: ${categories.join(" ")}`;
           }
         }, 0);
       });
-      const onScroll = q$1(
-        (e2) => {
-          setScrollPosition(e2.srcElement.scrollTop);
-        },
-        [setScrollPosition]
-      );
-      return m$1`<div
-    id="${tabContentsId}"
-    ref=${tabContentsRef}
-    class="tab-pane show${selected ? " active" : ""}${classes ? ` ${classes}` : ""}"
-    style=${{
-        flex: "1",
-        overflowY: scrollable === void 0 || scrollable ? "auto" : "hidden",
-        ...style2
-      }}
-    onscroll=${onScroll}
-  >
-    ${children2}
-  </div>`;
-    };
-    const Tabs = ({ tabs, type, style: style2 }) => {
-      return tabs.map((tab, index) => {
-        return m$1` <${Tab}
-      type=${type || "tabs"}
-      tab=${tab}
-      index=${index}
-      style=${style2}
-    />`;
+      const onScroll = q$1((e2) => {
+        setScrollPosition(e2.srcElement.scrollTop);
+      }, [setScrollPosition]);
+      return /* @__PURE__ */ u("div", {
+        id: tabContentsId,
+        ref: tabContentsRef,
+        className: clsx("tab-pane", "show", selected ? "active" : void 0, classes, moduleStyles.tabContents, scrollable2 === void 0 || scrollable2 ? moduleStyles.scrollable : void 0),
+        style: style2,
+        onScroll,
+        children: children2
       });
     };
-    const Tab = ({ type, tab, index, style: style2 }) => {
-      const tabId = tab.props.id || computeTabId("tabset", index);
-      const tabContentsId = computeTabContentsId(tab.props.id, index);
-      const isActive = tab.props.selected;
-      const tabStyle = {
-        color: "var(--bs-body-color)",
-        ...style2,
-        padding: "0.25rem 0.5rem",
-        borderTopLeftRadius: "var(--bs-border-radius)",
-        borderTopRightRadius: "var(--bs-border-radius)",
-        ...TextStyle.label,
-        fontSize: FontSize.small,
-        fontWeight: 500,
-        marginTop: "2px",
-        marginBottom: "-1px"
-      };
-      const pillStyle = {
-        ...style2
-      };
-      return m$1`
-    <li class="nav-item" role="presentation" style=${{ alignSelf: "end" }}>
-      <button
-        id="${tabId}"
-        style=${type === "tabs" ? tabStyle : pillStyle}
-        class="nav-link ${isActive ? "active" : ""}"
-        data-bs-toggle="tab"
-        data-bs-target="#${tabContentsId}"
-        type="button"
-        role="tab"
-        aria-controls="${tabContentsId}"
-        aria-selected="${isActive ? true : false}"
-        ...${{
-        onclick: (e2) => {
-          tab.props.onSelected(e2);
-          return false;
-        }
-      }}
-      >
-        ${tab.props.icon ? m$1`<i
-              class="${tab.props.icon}"
-              style=${{ marginRight: "0.5em" }}
-            ></i>` : ""}
-        ${tab.props.title}
-      </button>
-    </li>
-  `;
+    const Tabs = ({
+      tabs: tabs2,
+      type,
+      style: style2
+    }) => {
+      return tabs2.map((tab2, index) => {
+        return /* @__PURE__ */ u(Tab, {
+          type: type || "tabs",
+          tab: tab2,
+          index,
+          style: style2
+        });
+      });
     };
-    const TabTools = ({ tools }) => {
-      return m$1`<div
-    class="tab-tools"
-    style=${{
-        flexBasis: "auto",
-        marginLeft: "auto",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "end",
-        flexWrap: "wrap",
-        rowGap: "0.3rem"
-      }}
-  >
-    ${tools}
-  </div>`;
+    const Tab = ({
+      type,
+      tab: tab2,
+      index,
+      style: style2
+    }) => {
+      const tabId = tab2.props.id || computeTabId("tabset", index);
+      const tabContentsId = computeTabContentsId(tab2.props.id);
+      const isActive = tab2.props.selected;
+      const tabClz = [moduleStyles.tab, "text-size-small", "text-style-label"];
+      const pillClz = [];
+      return /* @__PURE__ */ u("li", {
+        class: "nav-item",
+        role: "presentation",
+        className: moduleStyles.tabItem,
+        children: /* @__PURE__ */ u("button", {
+          id: tabId,
+          style: style2,
+          className: clsx("nav-link", isActive ? "active" : void 0, type === "pills" ? pillClz : tabClz),
+          type: "button",
+          role: "tab",
+          "aria-controls": tabContentsId,
+          "aria-selected": isActive ? true : false,
+          onClick: (e2) => {
+            tab2.props.onSelected(e2);
+            return false;
+          },
+          children: [tab2.props.icon ? /* @__PURE__ */ u("i", {
+            className: clsx(tab2.props.icon, moduleStyles.tabIcon)
+          }) : "", tab2.props.title]
+        })
+      });
     };
-    const TabPanels = ({ id, tabs, style: style2 }) => {
-      return m$1`<div class="tab-content" id="${id}-content" style=${{ ...style2 }}>
-    ${tabs.map((tab, index) => {
-        tab.props.index = index;
-        return tab;
-      })}
-  </div>`;
+    const TabTools = ({
+      tools
+    }) => {
+      return /* @__PURE__ */ u("div", {
+        className: clsx("tab-tools", moduleStyles.tabTools),
+        children: tools
+      });
+    };
+    const TabPanels = ({
+      id,
+      tabs: tabs2,
+      style: style2
+    }) => {
+      return /* @__PURE__ */ u("div", {
+        className: "tab-content",
+        id: `${id}-content`,
+        style: style2,
+        children: tabs2.map((tab2, index) => {
+          tab2.props.index = index;
+          return tab2;
+        })
+      });
     };
     const computeTabId = (id, index) => {
       return `${id}-${index}`;
     };
-    const computeTabContentsId = (id, index) => {
-      return `${id}-contents-${index}`;
+    const computeTabContentsId = (id) => {
+      return `${id}-contents`;
     };
     const ToolButton = xn.forwardRef(({
       name: name2,
@@ -28352,7 +28357,7 @@ ${events}
     }) => {
       const summary = summarizeChanges(event.changes);
       const [before, after] = synthesizeComparable(event.changes);
-      const tabs = [
+      const tabs2 = [
         m$1`<${StateDiffView}
       before=${before}
       after=${after}
@@ -28366,7 +28371,7 @@ ${events}
         isStore
       );
       if (changePreview) {
-        tabs.unshift(
+        tabs2.unshift(
           m$1`<div name="Summary" style=${{ margin: "1em 0em", width: "100%" }}>
         ${changePreview}
       </div>`
@@ -28378,7 +28383,7 @@ ${events}
     id=${id} 
     title="${title2}" 
     subTitle=${formatDateTime(new Date(event.timestamp))} 
-    text=${tabs.length === 1 ? summary : void 0} 
+    text=${tabs2.length === 1 ? summary : void 0} 
     collapse=${changePreview === void 0 ? true : void 0} 
     style=${style2}
     selectedNav=${eventState.selectedNav || ""}
@@ -28390,7 +28395,7 @@ ${events}
         setEventState({ ...eventState, collapsed });
       }}                  
   >
-    ${tabs}
+    ${tabs2}
   </${EventPanel}>`;
     };
     const generatePreview = (changes, resolvedState, isStore) => {
@@ -29318,7 +29323,7 @@ ${events}
         setSelectedTab(id2);
         return false;
       };
-      const tabs = [
+      const tabs2 = [
         m$1`
     <${TabPanel} id=${kSampleMessagesTabId} classes="sample-tab" title="Messages" onSelected=${onSelectedTab} selected=${selectedTab === kSampleMessagesTabId} scrollable=${false} style=${{ width: "100%" }}>
       <${ChatViewVirtualList} 
@@ -29332,14 +29337,14 @@ ${events}
     </${TabPanel}>`
       ];
       if (sample.events && sample.events.length > 0) {
-        tabs.unshift(m$1`
+        tabs2.unshift(m$1`
       <${TabPanel} id=${kSampleTranscriptTabId} classes="sample-tab" title="Transcript" onSelected=${onSelectedTab} selected=${selectedTab === kSampleTranscriptTabId || selectedTab === void 0} scrollable=${false}>
         <${SampleTranscript} key=${`${baseId}-transcript-display-${id}`} id=${`${baseId}-transcript-display-${id}`} evalEvents=${sample.events} scrollRef=${scrollRef}/>
       </${TabPanel}>`);
       }
       const scorerNames = Object.keys(sample.scores);
       if (scorerNames.length === 1) {
-        tabs.push(m$1`
+        tabs2.push(m$1`
       <${TabPanel} id=${kSampleScoringTabId} classes="sample-tab" title="Scoring" onSelected=${onSelectedTab} selected=${selectedTab === kSampleScoringTabId}>
         <${SampleScoreView}
           sample=${sample}
@@ -29350,7 +29355,7 @@ ${events}
       } else {
         for (const scorer of Object.keys(sample.scores)) {
           const tabId = `score-${scorer}`;
-          tabs.push(m$1`
+          tabs2.push(m$1`
         <${TabPanel} id="${tabId}" classes="sample-tab" title="${scorer}" onSelected=${onSelectedTab} selected=${selectedTab === tabId}>
           <${SampleScoreView}
             sample=${sample}
@@ -29362,7 +29367,7 @@ ${events}
       }
       const sampleMetadatas = metadataViewsForSample(`${baseId}-${id}`, sample);
       if (sampleMetadatas.length > 0) {
-        tabs.push(
+        tabs2.push(
           m$1`
       <${TabPanel} 
           id=${kSampleMetdataTabId} 
@@ -29377,7 +29382,7 @@ ${events}
         );
       }
       if (sample.error) {
-        tabs.push(
+        tabs2.push(
           m$1`
       <${TabPanel} 
           id=${kSampleErrorTabId} 
@@ -29392,7 +29397,7 @@ ${events}
         );
       }
       if (sample.messages.length < 100) {
-        tabs.push(m$1`<${TabPanel} 
+        tabs2.push(m$1`<${TabPanel} 
         id=${kSampleJsonTabId} 
         classes="sample-tab"
         title="JSON" 
@@ -29481,7 +29486,7 @@ ${events}
         tabBody: { paddingBottom: "1em" }
       }}
     tools=${tools}>
-    ${tabs}
+    ${tabs2}
   </${TabSet}>`;
     };
     const metadataViewsForSample = (id, sample) => {
@@ -51233,7 +51238,7 @@ Supported expressions:
       status,
       showToggle,
       selectedTab,
-      tabs,
+      tabs: tabs2,
       setSelectedTab,
       divRef,
       offcanvas,
@@ -51244,14 +51249,14 @@ Supported expressions:
       if (evalSpec === void 0) {
         return m$1`<${EmptyPanel} />`;
       } else {
-        const tabTools = Object.keys(tabs).map((key2) => {
-          const tab = tabs[key2];
-          return tab;
-        }).filter((tab) => {
-          return tab.id === selectedTab;
-        }).map((tab) => {
-          if (tab.tools) {
-            const tools = tab.tools();
+        const tabTools2 = Object.keys(tabs2).map((key2) => {
+          const tab2 = tabs2[key2];
+          return tab2;
+        }).filter((tab2) => {
+          return tab2.id === selectedTab;
+        }).map((tab2) => {
+          if (tab2.tools) {
+            const tools = tab2.tools();
             return tools;
           } else {
             return "";
@@ -51271,27 +51276,27 @@ Supported expressions:
           [setSelectedTab]
         );
         const tabPanels = T$1(() => {
-          return Object.keys(tabs).map((key2) => {
-            const tab = tabs[key2];
+          return Object.keys(tabs2).map((key2) => {
+            const tab2 = tabs2[key2];
             return m$1`<${TabPanel}
-        id=${tab.id}
-        title="${tab.label}"
+        id=${tab2.id}
+        title="${tab2.label}"
         onSelected=${onSelected}
-        selected=${selectedTab === tab.id}
-        scrollable=${!!tab.scrollable}
-        scrollRef=${tab.scrollRef}
-        scrollPosition=${workspaceTabScrollPositionRef.current[tab.id]}
+        selected=${selectedTab === tab2.id}
+        scrollable=${!!tab2.scrollable}
+        scrollRef=${tab2.scrollRef}
+        scrollPosition=${workspaceTabScrollPositionRef.current[tab2.id]}
         setScrollPosition=${q$1(
               (position) => {
-                onScroll(tab.id, position);
+                onScroll(tab2.id, position);
               },
               [onScroll]
             )}
         >
-          ${tab.content()}
+          ${tab2.content()}
         </${TabPanel}>`;
           });
-        }, [tabs]);
+        }, [tabs2]);
         return m$1`
     <${Navbar}
       evalSpec=${evalSpec}
@@ -51320,7 +51325,7 @@ Supported expressions:
           overflowY: "hidden"
         }}
             >
-            <${TabSet} id="log-details" tools="${tabTools}" type="pills" styles=${{
+            <${TabSet} id="log-details" tools="${tabTools2}" type="pills" styles=${{
           tabSet: {
             fontSize: FontSize.smaller,
             flexWrap: "nowrap",
@@ -51486,11 +51491,11 @@ Supported expressions:
         []
       );
       const setWorkspaceTabScrollPosition = q$1(
-        debounce$1((tab, position) => {
-          if (workspaceTabScrollPosition.current[tab] !== position) {
+        debounce$1((tab2, position) => {
+          if (workspaceTabScrollPosition.current[tab2] !== position) {
             workspaceTabScrollPosition.current = {
               ...workspaceTabScrollPosition.current,
-              [tab]: position
+              [tab2]: position
             };
             saveStateRef.current();
           }

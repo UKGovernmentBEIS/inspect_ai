@@ -10,7 +10,7 @@ import {
 
 import { ApplicationIcons } from "../appearance/icons";
 import { EmptyPanel } from "../components/EmptyPanel";
-import { TabPanel, TabSet } from "../components/TabSet.mjs";
+import { TabPanel, TabSet } from "../components/TabSet";
 import { ToolButton } from "../components/ToolButton";
 import { JsonTab } from "../json/JsonTab";
 import { Navbar } from "../navbar/Navbar";
