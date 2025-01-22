@@ -6,6 +6,7 @@ from openai.types.chat import (
     ChatCompletionContentPartImageParam,
     ChatCompletionContentPartInputAudioParam,
     ChatCompletionContentPartParam,
+    ChatCompletionContentPartRefusalParam,
     ChatCompletionContentPartTextParam,
     ChatCompletionDeveloperMessageParam,
     ChatCompletionMessage,
@@ -31,6 +32,7 @@ from ._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
     ChatMessageSystem,
+    ChatMessageTool,
     ChatMessageUser,
 )
 from ._model_output import as_stop_reason
@@ -185,28 +187,87 @@ def chat_tool_calls_from_openai(
         return None
 
 
-def chat_message_from_openai(message: ChatCompletionMessageParam) -> ChatMessage:
-    if message["role"] == "system" or message["role"] == "developer":
-        content = message["content"]
-        if isinstance(content, str):
-            return ChatMessageSystem(content=content)
+def chat_messages_from_openai(
+    messages: list[ChatCompletionMessageParam],
+) -> list[ChatMessage]:
+    # track tool names by id
+    tool_names: dict[str, str] = {}
+
+    chat_messages: list[ChatMessage] = []
+
+    for message in messages:
+        if message["role"] == "system" or message["role"] == "developer":
+            sys_content = message["content"]
+            if isinstance(sys_content, str):
+                chat_messages.append(ChatMessageSystem(content=sys_content))
+            else:
+                chat_messages.append(
+                    ChatMessageSystem(
+                        content=[content_from_openai(c) for c in sys_content]
+                    )
+                )
+        elif message["role"] == "user":
+            user_content = message["content"]
+            if isinstance(user_content, str):
+                chat_messages.append(ChatMessageUser(content=user_content))
+            else:
+                chat_messages.append(
+                    ChatMessageUser(
+                        content=[content_from_openai(c) for c in user_content]
+                    )
+                )
+        elif message["role"] == "assistant":
+            # resolve content
+            asst_content = message["content"]
+            if isinstance(asst_content, str):
+                content: str | list[Content] = asst_content
+            elif asst_content is None:
+                content = message["refusal"] or ""
+            else:
+                content = [content_from_openai(c) for c in asst_content]
+
+            # return message
+            if message["tool_calls"]:
+                tool_calls: list[ToolCall] = []
+                for tc in message["tool_calls"]:
+                    tool_calls.append(tool_call_from_openai(tc))
+                    tool_names[tc["id"]] = tc["function"]["name"]
+
+            else:
+                tool_calls = []
+            chat_messages.append(
+                ChatMessageAssistant(content=content, tool_calls=tool_calls or None)
+            )
+        elif message["role"] == "tool":
+            tool_content = message["content"]
+            if isinstance(tool_content, str):
+                content = tool_content
+            else:
+                content = [content_from_openai(c) for c in tool_content]
+            chat_messages.append(
+                ChatMessageTool(
+                    content=content,
+                    tool_call_id=message["tool_call_id"],
+                    function=tool_names.get(message["tool_call_id"], ""),
+                )
+            )
         else:
-            return ChatMessageSystem(content=[content_from_openai(c) for c in content])
-    elif message["role"] == "user":
-        return ChatMessageUser(
-            content=[content_from_openai(c) for c in message["content"]]
-        )
-    elif message["role"] == "assistant":
-        return ChatMessageAssistant(content="foo")
+            raise ValueError(f"Unexpected message param type: {type(message)}")
 
-    # ChatCompletionAssistantMessageParam,
-    # ChatCompletionToolMessageParam,
-
-    else:
-        raise ValueError(f"Unexpected message param type: {type(message)}")
+    return chat_messages
 
 
-def content_from_openai(content: ChatCompletionContentPartParam) -> Content:
+def tool_call_from_openai(tool_call: ChatCompletionMessageToolCallParam) -> ToolCall:
+    return parse_tool_call(
+        tool_call["id"],
+        tool_call["function"]["name"],
+        tool_call["function"]["arguments"],
+    )
+
+
+def content_from_openai(
+    content: ChatCompletionContentPartParam | ChatCompletionContentPartRefusalParam,
+) -> Content:
     if content["type"] == "text":
         return ContentText(text=content["text"])
     elif content["type"] == "image_url":
@@ -218,6 +279,8 @@ def content_from_openai(content: ChatCompletionContentPartParam) -> Content:
             audio=content["input_audio"]["data"],
             format=content["input_audio"]["format"],
         )
+    elif content["type"] == "refusal":
+        return ContentText(text=content["refusal"])
 
 
 def chat_message_assistant_from_openai(

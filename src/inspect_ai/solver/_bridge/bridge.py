@@ -3,8 +3,10 @@ from typing import Any, Awaitable, Callable, NotRequired, TypedDict
 from openai.types.chat import ChatCompletionMessageParam
 
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
-from inspect_ai.model._model import ModelName
-from inspect_ai.model._openai import chat_message_from_openai, openai_chat_messages
+from inspect_ai.model._openai import (
+    chat_messages_from_openai,
+    openai_chat_messages,
+)
 from inspect_ai.scorer._metric import Score
 
 from .._solver import Generate, Solver
@@ -68,9 +70,7 @@ def bridge(target: Callable[[SampleDict], Awaitable[ResultDict]]) -> Solver:
         # update and return state
         state.output.completion = result["output"]
         if result["messages"]:
-            state.messages = [
-                chat_message_from_openai(message) for message in result["messages"]
-            ]
+            state.messages = chat_messages_from_openai(result["messages"])
         if result["scores"]:
             state.scores = {
                 k: Score(

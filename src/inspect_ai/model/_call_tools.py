@@ -478,7 +478,7 @@ def tool_parse_error_message(arguments: str, ex: Exception) -> str:
 
 
 def parse_tool_call(
-    id: str, function: str, arguments: str, tools: list[ToolInfo]
+    id: str, function: str, arguments: str, tools: list[ToolInfo] | None = None
 ) -> ToolCall:
     error: str | None = None
     arguments_dict: dict[str, Any] = {}
@@ -498,7 +498,7 @@ def parse_tool_call(
 
     # otherwise parse it as yaml (which will pickup unquoted strings, numbers, and true/false)
     # and then create a dict that maps it to the first function argument
-    else:
+    elif function and tools:
         tool_info = next(
             (
                 tool
