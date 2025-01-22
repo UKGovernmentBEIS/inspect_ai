@@ -432,9 +432,9 @@ pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
 ```
 :::
 
-The `computer()` tool provides models with a computer desktop environment along with the ability to view the screen and perform mouse and keyboard gestures. The computer tool is based on the Anthropic [Computer Use Beta](https://docs.anthropic.com/en/docs/build-with-claude/computer-use) reference implementation and works with any model that supports image input. 
+The `computer()` tool provides models with a computer desktop environment along with the ability to view the screen and perform mouse and keyboard gestures. The computer tool is based on the Anthropic [Computer Use Beta](https://docs.anthropic.com/en/docs/build-with-claude/computer-use) reference implementation and works with any model that supports image input.
 
- The current release of the computer tool is a beta version (exported from the `inspect_ai.tool.beta` module). We expect to finalise the interface and move it into the main `inspect_ai.tool` module over the next several weeks.
+The current release of the computer tool is a beta version (exported from the `inspect_ai.tool.beta` module). We expect to finalise the interface and move it into the main `inspect_ai.tool` module over the next several weeks.
 
 ### Configuration
 
@@ -459,11 +459,11 @@ Note that if you'd like to be able to view the model's interactions with the com
 
 The `aisiuk/inspect-computer-tool:latest-beta` image is based on the [ubuntu:22.04](https://hub.docker.com/layers/library/ubuntu/22.04/images/sha256-965fbcae990b0467ed5657caceaec165018ef44a4d2d46c7cdea80a9dff0d1ea?context=explore) image and includes the following additional applications pre-installed:
 
-- Firefox
-- VS Code
-- Xpdf
-- Xpaint
-- galculator
+-   Firefox
+-   VS Code
+-   Xpdf
+-   Xpaint
+-   galculator
 
 ### Task Setup
 
@@ -487,6 +487,26 @@ def computer_task():
         sandbox=("docker", "compose.yaml"),
     )
 ```
+
+#### Options
+
+The computer tool supports the following options:
+
+| Option            | Description                                                                                                           |
+|-------------------|-----------------------------------------------------------------------------------------------------------------------|
+| `max_screenshots` | The maximum number of screenshots to play back to the model as input. Defaults to 1 (set to `None` to have no limit). |
+| `timeout`         | Timeout in seconds for computer tool actions. Defaults to 180 (set to `None` for no timeout).                         |
+
+For example:
+
+``` python
+solver=[
+    use_tools([computer(max_screenshots=2, timeout=300)]),
+    generate()
+]
+```
+
+#### Examples
 
 Two of the Inspect examples demonstrate basic computer use:
 
@@ -517,7 +537,7 @@ services:
 
 To connect to the container for a given sample, locate the sample in the **Running Samples** UI and expand the sample info panel at the top:
 
-![](images/vnc-port-info.png){width=958 .lightbox}
+![](images/vnc-port-info.png){.lightbox width="958"}
 
 Click on the link for the noVNC browser client, or use a native VNC client to connect to the VNC port. Note that the VNC server will take a few seconds to start up so you should give it some time and attempt to reconnect as required if the first connection fails.
 
@@ -529,22 +549,21 @@ The browser based client provides a view-only interface. If you use a native VNC
 
 If the container you are using is connected to the Internet, you may want to configure human approval for a subset of computer tool actions. Here are the possible actions (specified using the `action` parameter to the `computer` tool):
 
-- `key`: Press a key or key-combination on the keyboard.
-- `type`: Type a string of text on the keyboard.
-- `cursor_position`: Get the current (x, y) pixel coordinate of the cursor on the screen.
-- `mouse_move`: Move the cursor to a specified (x, y) pixel coordinate on the screen.
-- Example: execute(action="mouse_move", coordinate=(100, 200))
-- `left_click`: Click the left mouse button.
-- `left_click_drag`: Click and drag the cursor to a specified (x, y) pixel coordinate on the screen.
-- `right_click`: Click the right mouse button.
-- `middle_click`: Click the middle mouse button.
-- `double_click`: Double-click the left mouse button.
-- `screenshot`: Take a screenshot.
-
+-   `key`: Press a key or key-combination on the keyboard.
+-   `type`: Type a string of text on the keyboard.
+-   `cursor_position`: Get the current (x, y) pixel coordinate of the cursor on the screen.
+-   `mouse_move`: Move the cursor to a specified (x, y) pixel coordinate on the screen.
+-   Example: execute(action="mouse_move", coordinate=(100, 200))
+-   `left_click`: Click the left mouse button.
+-   `left_click_drag`: Click and drag the cursor to a specified (x, y) pixel coordinate on the screen.
+-   `right_click`: Click the right mouse button.
+-   `middle_click`: Click the middle mouse button.
+-   `double_click`: Double-click the left mouse button.
+-   `screenshot`: Take a screenshot.
 
 Here is an approval policy that requires approval for key combos (e.g. `Enter` or a shortcut) and mouse clicks:
 
-```{.yaml filename="approval.yaml"}
+``` {.yaml filename="approval.yaml"}
 approvers:
   - name: human
     tools:
@@ -561,7 +580,7 @@ Note that since this is a prefix match and there could be other arguments, we do
 
 You can apply this policy using the `--approval` commmand line option:
 
-```bash
+``` bash
 inspect eval computer.py --approval approval.yaml
 ```
 
@@ -571,10 +590,9 @@ The computer tool's schema is based on the standard Anthropoic [computer tool-ty
 
 If you want to experiement with bypassing the native Claude computer tool type and just register the computer tool as a normal function based tool then specify the `--no-internal-tools` generation option as follows:
 
-```bash
+``` bash
 inspect eval computer.py --no-internal-tools
 ```
-
 
 ## Web Search {#sec-web-search}
 
@@ -621,4 +639,3 @@ The `web_search()` tool uses [Google Programmable Search Engine](https://program
 -   `GOOGLE_CSE_ID` — Google Custom Search Engine ID
 
 -   `GOOGLE_CSE_API_KEY` — Google API key used to enable the Search API
-
