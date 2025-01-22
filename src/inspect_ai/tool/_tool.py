@@ -19,9 +19,7 @@ from inspect_ai._util.content import (
 )
 from inspect_ai._util.registry import (
     RegistryInfo,
-    is_registry_object,
     registry_add,
-    registry_info,
     registry_name,
     registry_tag,
 )
