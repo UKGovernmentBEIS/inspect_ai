@@ -1,7 +1,9 @@
+import asyncio
 import logging
 from typing import Any, Dict, List, Optional, TypedDict, Union, cast, Literal, get_args
-from typing_extensions import TypeAlias
+from typing_extensions import override
 import os
+from functools import partial
 
 import goodfire
 from goodfire.api.client import Client as GoodfireClient
@@ -15,18 +17,18 @@ from inspect_ai._util.version import verify_required_version
 from inspect_ai._util.content import Content, ContentText
 from inspect_ai.tool import ToolChoice, ToolInfo
 
-from .._model import ModelAPI
-from .._model_output import ModelOutput, ModelUsage, ChatCompletionChoice
-from .._chat_message import (
+from inspect_ai.model._model import ModelAPI
+from inspect_ai.model._model_output import ModelOutput, ModelUsage, ChatCompletionChoice
+from inspect_ai.model._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
     ChatMessageSystem,
     ChatMessageTool,
     ChatMessageUser,
 )
-from .._generate_config import GenerateConfig
-from .._call_tools import Tool
-from .util import environment_prerequisite_error, model_base_url
+from inspect_ai.model._generate_config import GenerateConfig
+from inspect_ai.model._call_tools import Tool
+from inspect_ai.model._providers.util import environment_prerequisite_error, model_base_url
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +43,7 @@ DEFAULT_MAX_CONNECTIONS = 10
 
 # Supported model mapping
 MODEL_MAP = {
-    "meta-llama/Meta-Llama-3-8B-Instruct": "meta-llama/Meta-Llama-3.1-8B-Instruct",
+    "meta-llama/Meta-Llama-3.1-8B-Instruct": "meta-llama/Meta-Llama-3.1-8B-Instruct",
     "meta-llama/Llama-3.3-70B-Instruct": "meta-llama/Llama-3.3-70B-Instruct",
 }
 
@@ -58,6 +60,11 @@ class GoodfireAPI(ModelAPI):
     - Feature analysis
     - Streaming responses
     """
+    
+    client: GoodfireClient
+    model_name: str
+    model_args: Dict[str, Any]
+    variant: Variant
 
     def __init__(
         self,
@@ -78,6 +85,10 @@ class GoodfireAPI(ModelAPI):
             config: Generation config options
             **model_args: Additional arguments passed to goodfire.Client
         """
+        # Initialize instance variables
+        self.model_name = model_name
+        self.model_args = model_args
+
         super().__init__(
             model_name=model_name,
             base_url=base_url,
@@ -97,27 +108,11 @@ class GoodfireAPI(ModelAPI):
 
         # Format and validate model name
         if not model_name.startswith("meta-llama/"):
-            model_name = f"meta-llama/{model_name}"
+            self.model_name = f"meta-llama/{model_name}"
 
         supported_models = list(get_args(SUPPORTED_MODELS))
-        if model_name not in supported_models:
-            raise ValueError(f"Model {model_name} not supported. Supported models: {supported_models}")
-
-        # Store model args for use in API calls
-        self.model_args = model_args
-
-        # Collect known model_args (then delete them so we can pass the rest on)
-        def collect_model_arg(name: str) -> Any | None:
-            nonlocal model_args
-            value = model_args.get(name, None)
-            if value is not None:
-                model_args.pop(name)
-            return value
-
-        # Collect specific args we might need
-        variant_name = collect_model_arg("variant_name")
-        feature_analysis = collect_model_arg("feature_analysis")
-        feature_threshold = collect_model_arg("feature_threshold")
+        if self.model_name not in supported_models:
+            raise ValueError(f"Model {self.model_name} not supported. Supported models: {supported_models}")
 
         # Initialize client with remaining model args
         base_url_val = model_base_url(base_url, "GOODFIRE_BASE_URL")
@@ -125,12 +120,11 @@ class GoodfireAPI(ModelAPI):
         self.client = GoodfireClient(
             api_key=self.api_key,
             base_url=base_url_val or DEFAULT_BASE_URL,
-            **model_args,
+            **self.model_args,
         )
-        self.model_name = model_name
 
         # Initialize variant with specified name if provided
-        variant_model = variant_name or MODEL_MAP.get(model_name, "meta-llama/Meta-Llama-3.1-8B-Instruct")
+        variant_model = MODEL_MAP.get(self.model_name, "meta-llama/Meta-Llama-3.1-8B-Instruct")
         if variant_model not in get_args(SUPPORTED_MODELS):
             raise ValueError(f"Variant {variant_model} not supported. Supported variants: {list(get_args(SUPPORTED_MODELS))}")
         # NOTE: There's a type mismatch between Goodfire's runtime behavior and type hints
@@ -138,6 +132,64 @@ class GoodfireAPI(ModelAPI):
         # But the type hints expect a Literal. We validate the model name above, so this is safe at runtime.
         # TODO: Consider creating an issue in Goodfire's repo about this type mismatch
         self.variant = Variant(variant_model)  # type: ignore
+
+    def _to_goodfire_message(self, message: ChatMessage) -> GoodfireChatMessage:
+        """Convert an Inspect message to a Goodfire message format.
+        
+        Args:
+            message: The message to convert
+            
+        Returns:
+            The converted message in Goodfire format
+            
+        Raises:
+            ValueError: If the message type is unknown
+        """
+        role: Literal["system", "user", "assistant"] = "user"
+        if isinstance(message, ChatMessageSystem):
+            role = "system"
+        elif isinstance(message, ChatMessageUser):
+            role = "user"
+        elif isinstance(message, ChatMessageAssistant):
+            role = "assistant"
+        elif isinstance(message, ChatMessageTool):
+            role = "user"  # Convert tool messages to user messages
+        else:
+            raise ValueError(f"Unknown message type: {type(message)}")
+
+        content = str(message.content)
+        if isinstance(message, ChatMessageTool):
+            content = f"Tool {message.function}: {content}"
+
+        return cast(GoodfireChatMessage, {
+            "role": role,
+            "content": content,
+        })
+
+    @override
+    def is_rate_limit(self, ex: BaseException) -> bool:
+        """Check if exception is due to rate limiting."""
+        return "rate_limit" in str(ex).lower()
+
+    @override
+    def connection_key(self) -> str:
+        """Return key for connection pooling."""
+        return f"goodfire:{self.api_key}"
+
+    @override
+    def max_tokens(self) -> int | None:
+        """Return maximum tokens supported by model."""
+        return DEFAULT_MAX_TOKENS
+
+    @override
+    def collapse_user_messages(self) -> bool:
+        """Whether to collapse consecutive user messages."""
+        return True
+
+    @override
+    def collapse_assistant_messages(self) -> bool:
+        """Whether to collapse consecutive assistant messages."""
+        return True
 
     async def generate(
         self,
@@ -172,7 +224,7 @@ class GoodfireAPI(ModelAPI):
         }
 
         # Make API request and convert response to dict
-        response = self.client.chat.completions.create(**params)  # type: ignore
+        response = self.client.chat.completions.create(**params)  # type: ignore[arg-type]
         response_dict = response.model_dump()
 
         # Create output with choices
@@ -198,57 +250,9 @@ class GoodfireAPI(ModelAPI):
 
         return output
 
-    def _to_goodfire_message(self, message: ChatMessage) -> GoodfireChatMessage:
-        """Convert an Inspect message to a Goodfire message format.
-        
-        Special handling:
-        - Tool messages are converted to user messages (not yet supported)
-        - Tool call info is preserved in the message content for future compatibility
-        """
-        role: Literal["system", "user", "assistant"] = "user"
-        if isinstance(message, ChatMessageSystem):
-            role = "system"
-        elif isinstance(message, ChatMessageUser):
-            role = "user"
-        elif isinstance(message, ChatMessageAssistant):
-            role = "assistant"
-        elif isinstance(message, ChatMessageTool):
-            role = "user"  # Convert tool messages to user messages
-        else:
-            raise ValueError(f"Unknown message type: {type(message)}")
-
-        content = str(message.content)
-        if isinstance(message, ChatMessageTool):
-            content = f"Tool {message.function}: {content}"
-
-        return cast(GoodfireChatMessage, {
-            "role": role,
-            "content": content,
-        })
-
     @property
     def name(self) -> str:
         """Get provider name."""
         return "goodfire"
-
-    def max_tokens(self) -> Optional[int]:
-        """Return maximum tokens supported by model."""
-        return DEFAULT_MAX_TOKENS
-
-    def connection_key(self) -> str:
-        """Return key for connection pooling."""
-        return f"goodfire:{self.api_key}"
-
-    def is_rate_limit(self, ex: BaseException) -> bool:
-        """Check if exception is due to rate limiting."""
-        return "rate_limit" in str(ex).lower()
-
-    def collapse_user_messages(self) -> bool:
-        """Whether to collapse consecutive user messages."""
-        return True
-
-    def collapse_assistant_messages(self) -> bool:
-        """Whether to collapse consecutive assistant messages."""
-        return True
 
 # Remove duplicate registration since it's handled in providers.py 
