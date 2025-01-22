@@ -140,42 +140,37 @@ class GoodfireAPI(ModelAPI):
         Returns:
             ModelOutput containing the generated response and usage statistics
         """
-        try:
-            # Convert messages and prepare request params
-            messages = [self._to_goodfire_message(msg) for msg in input]
-            params = {
-                "model": self.model_name,
-                "messages": messages,
-                "max_completion_tokens": int(config.max_tokens) if config.max_tokens is not None else DEFAULT_MAX_TOKENS,
-                "temperature": float(config.temperature) if config.temperature is not None else DEFAULT_TEMPERATURE,
-                "top_p": float(config.top_p) if config.top_p is not None else DEFAULT_TOP_P,
-                "stream": False,
-            }
+        # Convert messages and prepare request params
+        messages = [self._to_goodfire_message(msg) for msg in input]
+        params = {
+            "model": self.model_name,
+            "messages": messages,
+            "max_completion_tokens": int(config.max_tokens) if config.max_tokens is not None else DEFAULT_MAX_TOKENS,
+            "temperature": float(config.temperature) if config.temperature is not None else DEFAULT_TEMPERATURE,
+            "top_p": float(config.top_p) if config.top_p is not None else DEFAULT_TOP_P,
+            "stream": False,
+        }
 
-            # Make API request and convert response to dict
-            response = self.client.chat.completions.create(**params)  # type: ignore
-            response_dict = response.model_dump()
+        # Make API request and convert response to dict
+        response = self.client.chat.completions.create(**params)  # type: ignore
+        response_dict = response.model_dump()
 
-            # Create output with main content
-            output = ModelOutput.from_content(
-                model=self.model_name,
-                content=response_dict["choices"][0]["message"]["content"],
-                stop_reason="stop",  # Goodfire doesn't provide finish_reason
+        # Create output with main content
+        output = ModelOutput.from_content(
+            model=self.model_name,
+            content=response_dict["choices"][0]["message"]["content"],
+            stop_reason="stop",  # Goodfire doesn't provide finish_reason
+        )
+
+        # Add usage statistics if available
+        if "usage" in response_dict:
+            output.usage = ModelUsage(
+                input_tokens=response_dict["usage"]["prompt_tokens"],
+                output_tokens=response_dict["usage"]["completion_tokens"],
+                total_tokens=response_dict["usage"]["total_tokens"],
             )
 
-            # Add usage statistics if available
-            if "usage" in response_dict:
-                output.usage = ModelUsage(
-                    input_tokens=response_dict["usage"]["prompt_tokens"],
-                    output_tokens=response_dict["usage"]["completion_tokens"],
-                    total_tokens=response_dict["usage"]["total_tokens"],
-                )
-
-            return output
-
-        except Exception as e:
-            logger.error(f"Error in generate: {str(e)}", exc_info=True)
-            raise
+        return output
 
     def _to_goodfire_message(self, message: ChatMessage) -> GoodfireChatMessage:
         """Convert an Inspect message to a Goodfire message format.
@@ -214,10 +209,6 @@ class GoodfireAPI(ModelAPI):
         """Return maximum tokens supported by model."""
         return DEFAULT_MAX_TOKENS
 
-    def max_connections(self) -> int:
-        """Return maximum concurrent connections."""
-        return DEFAULT_MAX_CONNECTIONS
-
     def connection_key(self) -> str:
         """Return key for connection pooling."""
         return f"goodfire:{self.api_key}"
@@ -233,13 +224,5 @@ class GoodfireAPI(ModelAPI):
     def collapse_assistant_messages(self) -> bool:
         """Whether to collapse consecutive assistant messages."""
         return True
-
-    def tools_required(self) -> bool:
-        """Whether tools are required."""
-        return False
-
-    def tool_result_images(self) -> bool:
-        """Whether tool results can contain images."""
-        return False
 
 # Remove duplicate registration since it's handled in providers.py 
