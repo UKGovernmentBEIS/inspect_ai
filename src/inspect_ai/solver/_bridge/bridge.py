@@ -43,7 +43,28 @@ class ResultDict(TypedDict):
     scores: NotRequired[dict[str, ScoreDict]]
 
 
-def bridge(target: Callable[[SampleDict], Awaitable[ResultDict]]) -> Solver:
+def bridge(agent: Callable[[SampleDict], Awaitable[ResultDict]]) -> Solver:
+    """Bridge an external agent into an Inspect Solver.
+
+    Integrate an external agent with no Inspect dependencies by converting
+    it to a Solver. The only requirements of the agent are that it use
+    the standard OpenAI API and that it return a dict with output and
+    optionally messages and scores.
+
+    The following `dict` is passed to the agent:
+
+    ```python
+    class SampleDict(TypedDict):
+        model: str
+        sample_id: str
+        epoch: int
+        messages: list[ChatCompletionMessageParam]
+        metadata: dict[str, Any]
+        target: list[str]
+    ```
+
+    """
+
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         # convert messages to openai messages
         input: list[ChatMessage] = (
@@ -65,7 +86,7 @@ def bridge(target: Callable[[SampleDict], Awaitable[ResultDict]]) -> Solver:
 
         # run target function
         async with openai_request_to_inspect_model():
-            result = await target(sample)
+            result = await agent(sample)
 
         # update and return state
         state.output.completion = result["output"]
