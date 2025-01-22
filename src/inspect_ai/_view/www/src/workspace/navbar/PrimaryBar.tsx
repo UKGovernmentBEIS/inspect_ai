@@ -1,9 +1,9 @@
 import clsx from "clsx";
-import { SampleSummary } from "../api/Types";
-import { ApplicationIcons } from "../appearance/icons";
-import { CopyButton } from "../components/CopyButton";
-import { EvalResults, EvalSpec, Status } from "../types/log";
-import { filename } from "../utils/path";
+import { SampleSummary } from "../../api/Types";
+import { ApplicationIcons } from "../../appearance/icons";
+import { CopyButton } from "../../components/CopyButton";
+import { EvalResults, EvalSpec, Status } from "../../types/log";
+import { filename } from "../../utils/path";
 import styles from "./PrimaryBar.module.css";
 import { ResultsPanel } from "./ResultsPanel";
 import { CancelledPanel, ErroredPanel, RunningPanel } from "./StatusPanel";

@@ -1,6 +1,6 @@
 import clsx from "clsx";
-import { EvalMetric, EvalResults, EvalScore, Reducer } from "../types/log";
-import { formatPrettyDecimal } from "../utils/format";
+import { EvalMetric, EvalResults, EvalScore, Reducer } from "../../types/log";
+import { formatPrettyDecimal } from "../../utils/format";
 import styles from "./ResultsPanel.module.css";
 
 interface ResultsPanelProps {

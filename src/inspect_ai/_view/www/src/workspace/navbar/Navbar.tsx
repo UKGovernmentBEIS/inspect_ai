@@ -1,13 +1,13 @@
 import clsx from "clsx";
-import { SampleSummary } from "../api/Types";
-import { EvalDescriptor } from "../samples/SamplesDescriptor.mjs";
+import { SampleSummary } from "../../api/Types";
+import { EvalDescriptor } from "../../samples/SamplesDescriptor.mjs";
 import {
   EvalPlan,
   EvalResults,
   EvalSpec,
   EvalStats,
   Status,
-} from "../types/log";
+} from "../../types/log";
 import styles from "./Navbar.module.css";
 import { PrimaryBar } from "./PrimaryBar";
 import { SecondaryBar } from "./SecondaryBar";

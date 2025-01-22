@@ -2,23 +2,23 @@
 import { html } from "htm/preact";
 import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 
-import { EmptyPanel } from "../components/EmptyPanel";
-import { SampleDialog } from "./SampleDialog.mjs";
-import { InlineSampleDisplay } from "./SampleDisplay.mjs";
-import { SampleList } from "./SampleList.mjs";
+import { EmptyPanel } from "../../components/EmptyPanel.tsx";
+import { SampleDialog } from "../../samples/SampleDialog.mjs";
+import { InlineSampleDisplay } from "../../samples/SampleDisplay.mjs";
+import { SampleList } from "../../samples/SampleList.mjs";
 
 /**
  * Renders Samples Tab
  *
  * @param {Object} props - The parameters for the component.
- * @param {import("../types/log").Sample} [props.sample] - The sample
+ * @param {import("../../types/log").Sample} [props.sample] - The sample
  * @param {string} [props.task_id] - The task id
- * @param {import("../api/Types.ts").SampleSummary[]} [props.samples] - the samples
- * @param {import("../Types.mjs").SampleMode} props.sampleMode - the mode for displaying samples
+ * @param {import("../../api/Types.ts").SampleSummary[]} [props.samples] - the samples
+ * @param {import("../../Types.mjs").SampleMode} props.sampleMode - the mode for displaying samples
  * @param {"epoch" | "sample" | "none" } props.groupBy - how to group items
  * @param {"asc" | "desc" } props.groupByOrder - whether grouping is ascending or descending
- * @param {import("../samples/SamplesDescriptor.mjs").SamplesDescriptor} [props.sampleDescriptor] - the sample descriptor
- * @param {import("../Types.mjs").ScoreLabel} [props.selectedScore] - the selected score
+ * @param {import("../../samples/SamplesDescriptor.mjs").SamplesDescriptor} [props.sampleDescriptor] - the sample descriptor
+ * @param {import("../../Types.mjs").ScoreLabel} [props.selectedScore] - the selected score
  * @param {string} props.sampleStatus - whether the sample is loading
  * @param {Error} [props.sampleError] - sample error
  * @param {number} props.selectedSampleIndex - the selected sample index
@@ -28,7 +28,7 @@ import { SampleList } from "./SampleList.mjs";
  * @param {string} props.selectedSampleTab - the selected tab
  * @param {(tab: string) => void} props.setSelectedSampleTab - function to select a tab
  * @param {string} props.epoch - the selected epoch
- * @param {import("../Types.mjs").ScoreFilter} props.filter - the selected filter
+ * @param {import("../../Types.mjs").ScoreFilter} props.filter - the selected filter
  * @param {import("htm/preact").MutableRef<number>} props.sampleScrollPositionRef - the sample scroll position
  * @param {(position: number) => void} props.setSampleScrollPosition - sets the sample scroll position
  * @param {import("htm/preact").MutableRef<HTMLElement>} props.sampleTabScrollRef - the sample scroll element
@@ -213,19 +213,19 @@ export const SamplesTab = ({
  * @property {string} label - The label for the sample, formatted as "Sample {group} (Epoch {item})".
  * @property {number} number - The current counter item value.
  * @property {number} index - The index of the sample.
- * @property {import("../api/Types.ts").SampleSummary | string} data - The items data payload.
+ * @property {import("../../api/Types.ts").SampleSummary | string} data - The items data payload.
  * @property {string} type - The type of the result, in this case, "sample". (or "separator")
  */
 
 /**
  * Perform any grouping of the samples
  *
- * @param {import("../api/Types.ts").SampleSummary[]} samples - the list of sample summaries
+ * @param {import("../../api/Types.ts").SampleSummary[]} samples - the list of sample summaries
  * @param {"sample" | "epoch" | "none"} groupBy - how to group samples
  * @param {"asc" | "desc"} groupByOrder - how to order grouped samples
- * @param {import("../samples/SamplesDescriptor.mjs").SamplesDescriptor} sampleDescriptor - the sample descriptor
+ * @param {import("../../samples/SamplesDescriptor.mjs").SamplesDescriptor} sampleDescriptor - the sample descriptor
  
- * @returns {(sample: import("../api/Types.ts").SampleSummary, index: number, previousSample: import("../api/Types.ts").SampleSummary) => ListItem[]} The list items
+ * @returns {(sample: import("../../api/Types.ts").SampleSummary, index: number, previousSample: import("../../api/Types.ts").SampleSummary) => ListItem[]} The list items
  */
 const getSampleProcessor = (
   samples,
@@ -246,9 +246,9 @@ const getSampleProcessor = (
 /**
  * Performs no grouping
  *
- * @param {import("../api/Types.ts").SampleSummary[]} samples - the list of sample summaries
+ * @param {import("../../api/Types.ts").SampleSummary[]} samples - the list of sample summaries
  * @param {string} order - the selected order
- * @returns {(sample: import("../api/Types.ts").SampleSummary, index: number, previousSample: import("../api/Types.ts").SampleSummary) => ListItem[]} The list
+ * @returns {(sample: import("../../api/Types.ts").SampleSummary, index: number, previousSample: import("../../api/Types.ts").SampleSummary) => ListItem[]} The list
  */
 const noGrouping = (samples, order) => {
   const counter = getCounter(samples.length, 1, order);
@@ -270,10 +270,10 @@ const noGrouping = (samples, order) => {
 /**
  * Groups by sample (showing separators for Epochs)
  *
- * @param {import("../api/Types.ts").SampleSummary[]} samples - the list of sample summaries
+ * @param {import("../../api/Types.ts").SampleSummary[]} samples - the list of sample summaries
  * @param {string} order - the selected order
- * @param {import("../samples/SamplesDescriptor.mjs").SamplesDescriptor} sampleDescriptor - the sample descriptor
- * @returns {(sample: import("../api/Types.ts").SampleSummary, index: number, previousSample: import("../api/Types.ts").SampleSummary) => ListItem[]} The list
+ * @param {import("../../samples/SamplesDescriptor.mjs").SamplesDescriptor} sampleDescriptor - the sample descriptor
+ * @returns {(sample: import("../../api/Types.ts").SampleSummary, index: number, previousSample: import("../../api/Types.ts").SampleSummary) => ListItem[]} The list
  */
 const groupBySample = (samples, sampleDescriptor, order) => {
   // ensure that we are sorted by id
@@ -327,10 +327,10 @@ const groupBySample = (samples, sampleDescriptor, order) => {
 /**
  * Groups by epoch (showing a separator for each sample)
  *
- * @param {import("../api/Types.ts").SampleSummary[]} samples - the list of sample summaries
+ * @param {import("../../api/Types.ts").SampleSummary[]} samples - the list of sample summaries
  * @param {string} order - the selected order
- * @param {import("../samples/SamplesDescriptor.mjs").SamplesDescriptor} sampleDescriptor - the sample descriptor
- * @returns {(sample: import("../api/Types.ts").SampleSummary, index: number, previousSample: import("../api/Types.ts").SampleSummary) => ListItem[]} The list
+ * @param {import("../../samples/SamplesDescriptor.mjs").SamplesDescriptor} sampleDescriptor - the sample descriptor
+ * @returns {(sample: import("../../api/Types.ts").SampleSummary, index: number, previousSample: import("../../api/Types.ts").SampleSummary) => ListItem[]} The list
  */
 const groupByEpoch = (samples, sampleDescriptor, order) => {
   const groupCount = sampleDescriptor.evalDescriptor.epochs;

@@ -1,7 +1,7 @@
 import clsx from "clsx";
-import { EvalLogHeader, LogFiles } from "../api/Types";
-import { ProgressBar } from "../components/ProgressBar";
-import { ApplicationIcons } from "./../appearance/icons";
+import { EvalLogHeader, LogFiles } from "../../api/Types";
+import { ApplicationIcons } from "../../appearance/icons";
+import { ProgressBar } from "../../components/ProgressBar";
 import { LogDirectoryTitleView } from "./LogDirectoryTitleView";
 import styles from "./Sidebar.module.css";
 import { SidebarLogEntry } from "./SidebarLogEntry";

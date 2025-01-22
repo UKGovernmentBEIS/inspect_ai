@@ -1,7 +1,7 @@
 import clsx from "clsx";
 import React from "preact/compat";
-import { Scores } from "../types/log";
-import { formatPrettyDecimal } from "../utils/format";
+import { Scores } from "../../types/log";
+import { formatPrettyDecimal } from "../../utils/format";
 import styles from "./SidebarScoresView.module.css";
 
 interface SidebarScoresProps {
@@ -19,7 +19,7 @@ export const SidebarScoresView: React.FC<SidebarScoresProps> = ({ scores }) => {
             <div
               className={clsx(
                 "text-style-secondary",
-                "text-style-label",
+                "text-label",
                 "text-size-small",
                 styles.metricName,
               )}

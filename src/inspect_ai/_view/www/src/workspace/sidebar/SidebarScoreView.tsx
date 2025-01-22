@@ -1,6 +1,6 @@
 import clsx from "clsx";
-import { EvalScore } from "../types/log";
-import { formatPrettyDecimal } from "../utils/format";
+import { EvalScore } from "../../types/log";
+import { formatPrettyDecimal } from "../../utils/format";
 
 import styles from "./SidebarScoreView.module.css";
 interface SidebarScoreProps {

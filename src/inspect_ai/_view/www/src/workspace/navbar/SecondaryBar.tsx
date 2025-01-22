@@ -1,17 +1,17 @@
 import clsx from "clsx";
-import { SampleSummary } from "../api/Types";
-import { ExpandablePanel } from "../components/ExpandablePanel";
-import { LabeledValue } from "../components/LabeledValue";
-import { EvalDescriptor } from "../samples/SamplesDescriptor.mjs";
-import { scoreFilterItems } from "../samples/tools/filters";
+import { SampleSummary } from "../../api/Types";
+import { ExpandablePanel } from "../../components/ExpandablePanel";
+import { LabeledValue } from "../../components/LabeledValue";
+import { EvalDescriptor } from "../../samples/SamplesDescriptor.mjs";
+import { scoreFilterItems } from "../../samples/tools/filters";
 import {
   EvalDataset,
   EvalPlan,
   EvalResults,
   EvalSpec,
   EvalStats,
-} from "../types/log";
-import { formatDataset, formatDuration } from "../utils/format";
+} from "../../types/log";
+import { formatDataset, formatDuration } from "../../utils/format";
 import styles from "./SecondaryBar.module.css";
 
 interface SecondaryBarProps {

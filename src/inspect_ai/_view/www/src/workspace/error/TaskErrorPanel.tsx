@@ -1,7 +1,7 @@
-import { ApplicationIcons } from "../appearance/icons";
+import { ApplicationIcons } from "../../appearance/icons";
 
-import { ANSIDisplay } from "../components/AnsiDisplay";
-import { Card, CardBody, CardHeader } from "../components/Card";
+import { ANSIDisplay } from "../../components/AnsiDisplay";
+import { Card, CardBody, CardHeader } from "../../components/Card";
 
 import styles from "./TaskErrorPanel.module.css";
 

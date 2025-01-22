@@ -1,8 +1,8 @@
-import { filename } from "../utils/path";
+import { filename } from "../../utils/path";
 
-import { Capabilities } from "../api/Types";
-import { DownloadPanel } from "../components/DownloadPanel";
-import { JSONPanel } from "../components/JsonPanel";
+import { Capabilities } from "../../api/Types";
+import { DownloadPanel } from "../../components/DownloadPanel";
+import { JSONPanel } from "../../components/JsonPanel";
 import styles from "./JsonTab.module.css";
 
 const kJsonMaxSize = 10000000;

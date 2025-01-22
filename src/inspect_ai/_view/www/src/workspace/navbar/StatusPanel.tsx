@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { ApplicationIcons } from "../appearance/icons";
+import { ApplicationIcons } from "../../appearance/icons";
 import styles from "./StatusPanel.module.css";
 
 interface StatusProps {

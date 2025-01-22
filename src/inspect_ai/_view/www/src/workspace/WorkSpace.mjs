@@ -12,12 +12,12 @@ import { ApplicationIcons } from "../appearance/icons";
 import { EmptyPanel } from "../components/EmptyPanel";
 import { TabPanel, TabSet } from "../components/TabSet";
 import { ToolButton } from "../components/ToolButton";
-import { JsonTab } from "../json/JsonTab";
-import { Navbar } from "../navbar/Navbar";
 import { PlanCard } from "../plan/PlanCard.mjs";
-import { SamplesTab } from "../samples/SamplesTab.mjs";
 import { SampleTools } from "../samples/SamplesTools.mjs";
 import { UsageCard } from "../usage/UsageCard";
+import { Navbar } from "./navbar/Navbar.tsx";
+import { JsonTab } from "./tabs/JsonTab";
+import { SamplesTab } from "./tabs/SamplesTab.mjs";
 
 import { FontSize } from "../appearance/fonts";
 import { MessageBand } from "../components/MessageBand";
@@ -27,7 +27,7 @@ import {
   kJsonWorkspaceTabId,
 } from "../constants";
 import { debounce } from "../utils/sync";
-import { TaskErrorCard } from "./TaskErrorPanel";
+import { TaskErrorCard } from "./error/TaskErrorPanel";
 
 /**
  * Renders the Main Application

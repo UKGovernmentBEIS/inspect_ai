@@ -25,7 +25,7 @@ const kSeparatorHeight = 24;
  *
  * @param {Object} props - The parameters for the component.
  * @param {Object} props.listRef - The ref for the list.
- * @param {import("./SamplesTab.mjs").ListItem[]} props.items - The samples.
+ * @param {import("../workspace/tabs/SamplesTab.mjs").ListItem[]} props.items - The samples.
  * @param {import("../samples/SamplesDescriptor.mjs").SamplesDescriptor} props.sampleDescriptor - The sample descriptor.
  * @param {Object} props.style - The style for the element
  * @param {number} props.selectedIndex - The index of the selected sample.
@@ -82,7 +82,7 @@ export const SampleList = (props) => {
     }
   }, [selectedIndex, listRef, itemRowMapping]);
 
-  /** @param {import("./SamplesTab.mjs").ListItem} item */
+  /** @param {import("../workspace/tabs/SamplesTab.mjs").ListItem} item */
   const renderRow = (item) => {
     if (item.type === "sample") {
       return html`

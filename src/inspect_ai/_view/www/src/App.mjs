@@ -29,9 +29,9 @@ import {
 } from "./samples/SamplesDescriptor.mjs";
 import { filterSamples } from "./samples/tools/filters";
 import { byEpoch, bySample, sortSamples } from "./samples/tools/SortFilter.mjs";
-import { Sidebar } from "./sidebar/Sidebar";
 import { resolveAttachments } from "./utils/attachments";
 import { getVscodeApi, isVscode } from "./utils/vscode";
+import { Sidebar } from "./workspace/sidebar/Sidebar.tsx";
 import { WorkSpace } from "./workspace/WorkSpace.mjs";
 
 import {
