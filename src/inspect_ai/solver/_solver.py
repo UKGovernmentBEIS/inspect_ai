@@ -227,7 +227,8 @@ def solver(
 
             return registered_solver
 
-        # Explicitly set the return type
+        # functools.wraps overrides the return type of the inner function, so
+        # we explicitly set it again
         solver_wrapper.__annotations__["return"] = Solver
 
         return solver_register(cast(Callable[P, Solver], solver_wrapper), solver_name)

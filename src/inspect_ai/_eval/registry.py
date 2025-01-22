@@ -155,7 +155,9 @@ def task(*args: Any, name: str | None = None, **attribs: Any) -> Any:
 
             # Return the task instance
             return task_instance
-
+ 
+        # functools.wraps overrides the return type of the inner function, so
+        # we explicitly set it again
         wrapper.__annotations__["return"] = Task
 
         # Register the task and return the wrapper
