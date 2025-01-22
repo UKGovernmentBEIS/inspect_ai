@@ -16,7 +16,7 @@ from inspect_ai._util.content import Content, ContentText
 from inspect_ai.tool import ToolChoice, ToolInfo
 
 from .._model import ModelAPI
-from .._model_output import ModelOutput, ModelUsage
+from .._model_output import ModelOutput, ModelUsage, ChatCompletionChoice
 from .._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
@@ -175,11 +175,17 @@ class GoodfireAPI(ModelAPI):
         response = self.client.chat.completions.create(**params)  # type: ignore
         response_dict = response.model_dump()
 
-        # Create output with main content
-        output = ModelOutput.from_content(
+        # Create output with choices
+        output = ModelOutput(
             model=self.model_name,
-            content=response_dict["choices"][0]["message"]["content"],
-            stop_reason="stop",  # Goodfire doesn't provide finish_reason
+            choices=[
+                ChatCompletionChoice(
+                    message=ChatMessageAssistant(
+                        content=response_dict["choices"][0]["message"]["content"]
+                    ),
+                    stop_reason="stop",  # Goodfire doesn't provide finish_reason
+                )
+            ],
         )
 
         # Add usage statistics if available
