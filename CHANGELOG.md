@@ -9,6 +9,7 @@
 - Limits: Enforce [custom limits](https://inspect.ai-safety-institute.org.uk/errors-and-limits.html#custom-limit) for samples by raising `SampleLimitExceededError`.
 - Tasks: Optional ability for solvers to [yield scores](https://inspect.ai-safety-institute.org.uk/solvers.html#sec-scoring-in-solvers) for a task.
 - Model API: Log model calls that result in bad request errors.
+- Tools: `model_input` option that determines how tool call result content is played back to the model.
 - Tools: Don't attempt to marshall arguments of dynamic `ToolDef` with `**kwargs: Any` (just pass them through).
 - Log warning when a non-fatal sample error occurs (i.e. errors permitted by the `fail_on_error` option) 
 - Inspect View: allow filtering samples by compound expressions including multiple scorers. (thanks @andrei-apollo)

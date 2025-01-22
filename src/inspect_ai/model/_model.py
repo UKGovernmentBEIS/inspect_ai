@@ -303,6 +303,9 @@ class Model:
                 tools = []
             tool_choice = "none"
 
+        # apply any tool model_input handlers
+        input = resolve_tool_model_input(tdefs, input)
+
         # break tool image content out into user messages if the model doesn't
         # support tools returning images
         if not self.api.tool_result_images():
@@ -721,6 +724,40 @@ def simple_input_messages(
         first_user_message.text = f"{system_message}\n\n{first_user_message.text}"
 
     # all done!
+    return messages
+
+
+def resolve_tool_model_input(
+    tdefs: list[ToolDef], messages: list[ChatMessage]
+) -> list[ChatMessage]:
+    # filter on tooldefs that have a model input handler
+    tdefs = [tdef for tdef in tdefs if tdef.model_input is not None]
+
+    # bail if there are no handlers
+    if len(tdefs) == 0:
+        return messages
+
+    # don't mutate the original messages
+    messages = deepcopy(messages)
+
+    # extract tool messages
+    tool_messages = [
+        message for message in messages if isinstance(message, ChatMessageTool)
+    ]
+    # run model_input handlers over all tool_messages with the same function name
+    for tdef in tdefs:
+        assert tdef.model_input
+        # filter messages down to just this tool
+        tdef_tool_messages = [
+            message for message in tool_messages if message.function == tdef.name
+        ]
+        # call the function for each tool, passing the index, total, and content
+        for index, message in enumerate(tdef_tool_messages):
+            message.content = tdef.model_input(
+                index, len(tool_messages), message.content
+            )
+
+    # return modified messages
     return messages
 
 

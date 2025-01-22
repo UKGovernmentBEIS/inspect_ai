@@ -1,7 +1,12 @@
 from typing import Awaitable, Callable
 
+from inspect_ai._util.content import Content, ContentImage, ContentText
 from inspect_ai.tool import Tool, ToolResult, tool
-from inspect_ai.tool._tool import ToolParsingError
+from inspect_ai.tool._tool import (
+    TOOL_INIT_MODEL_INPUT,
+    ToolParsingError,
+)
+from inspect_ai.tool._tool_call import ToolCallModelInput
 
 from . import _common as common
 from ._common import Action
@@ -9,18 +14,8 @@ from ._common import Action
 ActionFunction = Callable[[str], ToolResult | Awaitable[ToolResult]]
 
 
-@tool()
-def computer(timeout: int | None = 180) -> Tool:
-    """
-    Computer interaction tool.
-
-    Args:
-      timeout (int | None): Timeout (in seconds) for command.
-
-    Returns:
-      Computer interaction tool.
-    """
-
+@tool
+def computer(max_screenshots: int | None = 1, timeout: int | None = 180) -> Tool:
     async def execute(
         action: Action,
         text: str | None = None,
@@ -124,4 +119,37 @@ def computer(timeout: int | None = 180) -> Tool:
 
         raise ToolParsingError(f"Invalid action: {action}")
 
+    # if max_screenshots is specified then polk model input into where @tool can find it
+    if max_screenshots is not None:
+        setattr(execute, TOOL_INIT_MODEL_INPUT, _computer_model_input(max_screenshots))
+
     return execute
+
+
+def _computer_model_input(max_screenshots: int) -> ToolCallModelInput:
+    def model_input(
+        message_index: int, message_total: int, content: str | list[Content]
+    ) -> str | list[Content]:
+        # nothing to do for scalars
+        if isinstance(content, str):
+            return content
+
+        # if we are inside max_screenshots then return as is
+        elif (message_total - message_index) <= max_screenshots:
+            return content
+
+        # otherwise convert images to text placeholdrs
+        else:
+            input_content: list[Content] = []
+            for c in content:
+                if isinstance(c, ContentImage):
+                    input_content.append(
+                        ContentText(
+                            text="Screenshot removed to reduce size of input. Please consult the latest screenshots for the most up to date state of the screen."
+                        )
+                    )
+                else:
+                    input_content.append(c)
+            return input_content
+
+    return model_input
