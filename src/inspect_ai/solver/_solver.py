@@ -227,7 +227,7 @@ def solver(
 
             return registered_solver
 
-        # functools.wraps overrides the return type of the inner function, so
+        # functools.wraps overrides the return type annotation of the inner function, so
         # we explicitly set it again
         solver_wrapper.__annotations__["return"] = Solver
 
