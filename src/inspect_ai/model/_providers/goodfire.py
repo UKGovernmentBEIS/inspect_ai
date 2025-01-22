@@ -14,7 +14,6 @@ from goodfire.api.chat.client import ChatAPI, ChatCompletion
 from goodfire.api.features.client import FeaturesAPI
 
 from inspect_ai._util.error import pip_dependency_error
-from inspect_ai._util.version import verify_required_version
 from inspect_ai._util.content import Content, ContentText
 from inspect_ai.tool import ToolChoice, ToolInfo
 
@@ -111,8 +110,6 @@ class GoodfireAPI(ModelAPI):
             config=config,
             **model_args,
         )
-
-        verify_required_version("Goodfire API", "goodfire", MIN_VERSION)
 
         # Get API key from environment if not provided
         if not self.api_key:
