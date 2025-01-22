@@ -158,7 +158,6 @@ def generate_config_from_openai(options: FinalRequestOptions) -> GenerateConfig:
     config.parallel_tool_calls = json_data.get("parallel_tool_calls", None)
     config.reasoning_effort = json_data.get("reasoning_effort", None)
 
-    print(config.model_dump_json(indent=2))
     return config
 
 
@@ -166,7 +165,7 @@ if __name__ == "__main__":
 
     async def task1() -> None:
         async with openai_request_to_inspect_model():
-            client = AsyncOpenAI(timeout=300, max_retries=10)
+            client = AsyncOpenAI()
             completion = await client.chat.completions.create(
                 model="openai/gpt-4o",
                 messages=[
