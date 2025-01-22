@@ -315,12 +315,6 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         envvar="INSPECT_EVAL_STOP_SEQS",
     )
     @click.option(
-        "--suffix",
-        type=str,
-        help="The suffix that comes after a completion of inserted text. OpenAI only.",
-        envvar="INSPECT_EVAL_SUFFIX",
-    )
-    @click.option(
         "--temperature",
         type=float,
         help="What sampling temperature to use, between 0 and 2. Higher values like 0.8 will make the output more random, while lower values like 0.2 will make it more focused and deterministic.",
@@ -439,7 +433,6 @@ def eval_command(
     logit_bias: str | None,
     seed: int | None,
     stop_seqs: str | None,
-    suffix: str | None,
     temperature: float | None,
     top_p: float | None,
     top_k: int | None,
