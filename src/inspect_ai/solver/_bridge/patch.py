@@ -2,12 +2,19 @@ import asyncio
 import contextlib
 from contextvars import ContextVar
 from functools import wraps
-from typing import Any, AsyncGenerator, Optional, Type
+from time import time
+from typing import Any, AsyncGenerator, Optional, Type, cast
 
 from openai import AsyncOpenAI
 from openai._base_client import AsyncAPIClient, _AsyncStreamT
 from openai._models import FinalRequestOptions
 from openai._types import ResponseT
+from openai.types.chat import ChatCompletion
+from pydantic_core import to_json
+from shortuuid import uuid
+
+from inspect_ai.model._model import get_model
+from inspect_ai.model._openai import chat_messages_from_openai, openai_chat_choices
 
 
 @contextlib.asynccontextmanager
@@ -60,10 +67,14 @@ def init_openai_request_patch() -> None:
             ):
                 # check that we use "/" in model name (i.e. not a request for a standard
                 # openai model)
-                model = getattr(options.json_data or {}, "model", "")
+
+                print(to_json(options, indent=2, fallback=lambda _: None).decode())
+                json_data = cast(dict[str, Any], options.json_data)
+                model = json_data["model"]
                 if isinstance(model, str) and "/" in model:
-                    # TODO: implement patched version
-                    pass
+                    # print(to_json(options, indent=2, fallback=lambda _: None).decode())
+                    # pass
+                    return await inspect_model_request(model, options)
 
             # otherwise just delegate
             return await original_request(
@@ -78,14 +89,29 @@ def init_openai_request_patch() -> None:
         setattr(AsyncAPIClient, "request", patched_request)
 
 
-# async def inspect_model_request(
-#     model: str, options: FinalRequestOptions
-# ) -> ChatCompletion:
-#     # TODO: openai messages to inspect messages
-#     messages: list[ChatCompletionMessageParam] = getattr(options.json_data, "messages")
+async def inspect_model_request(
+    model: str, options: FinalRequestOptions
+) -> ChatCompletion:
+    # convert openai messages to inspect messages
+    json_data = cast(dict[str, Any], options.json_data)
+    messages = json_data["messages"]
+    input = chat_messages_from_openai(messages)
+    output = await get_model(model).generate(
+        input=input,
+        # TODO: tool calls
+        # TODO: generation config
+    )
 
-#     # TODO: Inspect completion to openai completion
-#     return ChatCompletion()
+    # inspect completion to openai completion
+    return ChatCompletion(
+        id=uuid(),
+        created=int(time()),
+        object="chat.completion",
+        choices=openai_chat_choices(output.choices),
+        model=model,
+        # TODO: usage
+        # TODO: logprobs inside openai_chat_choices
+    )
 
 
 if __name__ == "__main__":
@@ -94,7 +120,7 @@ if __name__ == "__main__":
         async with openai_request_to_inspect_model():
             client = AsyncOpenAI()
             completion = await client.chat.completions.create(
-                model="gpt-4o-mini",
+                model="google/gemini-1.5-pro",
                 messages=[
                     {"role": "system", "content": "You are a helpful assistant."},
                     {
@@ -104,7 +130,7 @@ if __name__ == "__main__":
                 ],
             )
 
-        print(completion.choices[0].message)
+        print(completion.model_dump_json(indent=2))
 
     async def task2() -> None:
         client = AsyncOpenAI()
@@ -122,6 +148,6 @@ if __name__ == "__main__":
         print(completion.choices[0].message)
 
     async def main() -> None:
-        await asyncio.gather(task1(), task2())
+        await asyncio.gather(task1())
 
     asyncio.run(main())

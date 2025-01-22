@@ -1,4 +1,5 @@
 import json
+from typing import Literal
 
 from openai.types.chat import (
     ChatCompletion,
@@ -11,6 +12,7 @@ from openai.types.chat import (
     ChatCompletionDeveloperMessageParam,
     ChatCompletionMessage,
     ChatCompletionMessageParam,
+    ChatCompletionMessageToolCall,
     ChatCompletionMessageToolCallParam,
     ChatCompletionNamedToolChoiceParam,
     ChatCompletionSystemMessageParam,
@@ -19,6 +21,8 @@ from openai.types.chat import (
     ChatCompletionToolParam,
     ChatCompletionUserMessageParam,
 )
+from openai.types.chat.chat_completion import Choice
+from openai.types.chat.chat_completion_message_tool_call import Function
 from openai.types.shared_params.function_definition import FunctionDefinition
 
 from inspect_ai._util.content import Content, ContentAudio, ContentImage, ContentText
@@ -35,7 +39,7 @@ from ._chat_message import (
     ChatMessageTool,
     ChatMessageUser,
 )
-from ._model_output import as_stop_reason
+from ._model_output import StopReason, as_stop_reason
 
 
 def is_o1(name: str) -> bool:
@@ -54,7 +58,19 @@ def is_o1_preview(name: str) -> bool:
     return name.startswith("o1-preview")
 
 
-def openai_chat_tool_call(tool_call: ToolCall) -> ChatCompletionMessageToolCallParam:
+def openai_chat_tool_call(tool_call: ToolCall) -> ChatCompletionMessageToolCall:
+    return ChatCompletionMessageToolCall(
+        type="function",
+        id=tool_call.id,
+        function=Function(
+            name=tool_call.function, arguments=json.dumps(tool_call.arguments)
+        ),
+    )
+
+
+def openai_chat_tool_call_param(
+    tool_call: ToolCall,
+) -> ChatCompletionMessageToolCallParam:
     return ChatCompletionMessageToolCallParam(
         id=tool_call.id,
         function=dict(
@@ -124,7 +140,9 @@ async def openai_chat_message(
             return ChatCompletionAssistantMessageParam(
                 role=message.role,
                 content=message.text,
-                tool_calls=[openai_chat_tool_call(call) for call in message.tool_calls],
+                tool_calls=[
+                    openai_chat_tool_call_param(call) for call in message.tool_calls
+                ],
             )
         else:
             return ChatCompletionAssistantMessageParam(
@@ -146,6 +164,47 @@ async def openai_chat_messages(
     messages: list[ChatMessage], model: str
 ) -> list[ChatCompletionMessageParam]:
     return [await openai_chat_message(message, model) for message in messages]
+
+
+def openai_chat_choices(choices: list[ChatCompletionChoice]) -> list[Choice]:
+    oai_choices: list[Choice] = []
+
+    for index, choice in enumerate(choices):
+        if isinstance(choice.message.content, str):
+            content = choice.message.content
+        else:
+            content = "\n".join(
+                [c.text for c in choice.message.content if c.type == "text"]
+            )
+        if choice.message.tool_calls:
+            tool_calls = [openai_chat_tool_call(tc) for tc in choice.message.tool_calls]
+        else:
+            tool_calls = None
+        message = ChatCompletionMessage(
+            role="assistant", content=content, tool_calls=tool_calls
+        )
+        oai_choices.append(
+            Choice(
+                finish_reason=openai_finish_reason(choice.stop_reason),
+                index=index,
+                message=message,
+                # TODO: logprobs
+            )
+        )
+
+    return oai_choices
+
+
+def openai_finish_reason(
+    stop_reason: StopReason,
+) -> Literal["stop", "length", "tool_calls", "content_filter", "function_call"]:
+    match stop_reason:
+        case "stop" | "tool_calls" | "content_filter":
+            return stop_reason
+        case "model_length":
+            return "length"
+        case _:
+            return "stop"
 
 
 def openai_chat_tool_param(tool: ToolInfo) -> ChatCompletionToolParam:
