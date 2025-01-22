@@ -65,7 +65,7 @@ class GoodfireAPI(ModelAPI):
         api_key: str | None = None,
         api_key_vars: list[str] = [],
         config: GenerateConfig = GenerateConfig(),
-        **kwargs: Any,
+        **model_args: Any,
     ) -> None:
         """Initialize the Goodfire API provider.
         
@@ -75,6 +75,7 @@ class GoodfireAPI(ModelAPI):
             api_key: Optional API key (will check env vars if not provided)
             api_key_vars: Additional env vars to check for API key
             config: Generation config options
+            **model_args: Additional arguments passed to goodfire.Client
         """
         super().__init__(
             model_name=model_name,
@@ -82,7 +83,7 @@ class GoodfireAPI(ModelAPI):
             api_key=api_key,
             api_key_vars=[GOODFIRE_API_KEY],
             config=config,
-            **kwargs,
+            **model_args,
         )
 
         verify_required_version("Goodfire API", "goodfire", MIN_VERSION)
@@ -101,22 +102,22 @@ class GoodfireAPI(ModelAPI):
         if model_name not in supported_models:
             raise ValueError(f"Model {model_name} not supported. Supported models: {supported_models}")
 
-        # Initialize client
-        base_url_val = model_base_url(base_url, "GOODFIRE_BASE_URL") 
+        # Store model args for use in API calls
+        self.model_args = model_args
+
+        # Initialize client with model args
+        base_url_val = model_base_url(base_url, "GOODFIRE_BASE_URL")
         assert isinstance(base_url_val, str) or base_url_val is None
         self.client = goodfire.Client(
             api_key=self.api_key,
             base_url=base_url_val or DEFAULT_BASE_URL,
+            **model_args,
         )
         self.model_name = model_name
 
         # Initialize variant
         variant_model = MODEL_MAP.get(model_name, "meta-llama/Meta-Llama-3.1-8B-Instruct")
         self.variant = Variant(variant_model)
-
-        # Feature analysis not yet supported
-        self.feature_analysis = False
-        self.feature_threshold = 0.5
 
     async def generate(
         self,
