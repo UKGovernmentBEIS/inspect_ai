@@ -1,11 +1,9 @@
 from contextvars import ContextVar
 from copy import deepcopy
 from typing import Literal, Union
-from dataclasses import dataclass, field
 
 from pydantic import BaseModel, Field
 from typing_extensions import TypedDict
-from inspect_ai._util.content import Content
 
 
 class GenerateConfigArgs(TypedDict, total=False):
