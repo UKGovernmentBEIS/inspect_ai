@@ -1,11 +1,12 @@
 import asyncio
 import logging
+import os
 from typing import Any, Dict, List, Optional, TypedDict, Union, cast, Literal, get_args
 from typing_extensions import override
-import os
 from functools import partial
 
 import goodfire
+import httpx
 from goodfire.api.client import Client as GoodfireClient
 from goodfire.api.chat.interfaces import ChatMessage as GoodfireChatMessage
 from goodfire.variants.variants import SUPPORTED_MODELS, Variant
@@ -18,7 +19,12 @@ from inspect_ai._util.content import Content, ContentText
 from inspect_ai.tool import ToolChoice, ToolInfo
 
 from inspect_ai.model._model import ModelAPI
-from inspect_ai.model._model_output import ModelOutput, ModelUsage, ChatCompletionChoice
+from inspect_ai.model._model_output import (
+    ModelOutput,
+    ModelUsage,
+    ChatCompletionChoice,
+    StopReason,
+)
 from inspect_ai.model._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
@@ -40,6 +46,8 @@ DEFAULT_MAX_TOKENS = 4096
 DEFAULT_TEMPERATURE = 0.7
 DEFAULT_TOP_P = 0.95
 DEFAULT_MAX_CONNECTIONS = 10
+DEFAULT_MAX_RETRIES = 3
+DEFAULT_TIMEOUT = 60.0
 
 # Supported model mapping
 MODEL_MAP = {
@@ -59,6 +67,12 @@ class GoodfireAPI(ModelAPI):
     - Tool calls
     - Feature analysis
     - Streaming responses
+    
+    Known limitations:
+    - Synchronous API calls in async framework
+    - No finish_reason in responses
+    - Limited role support (system/user/assistant only)
+    - Tool messages converted to user messages
     """
     
     client: GoodfireClient
@@ -117,6 +131,7 @@ class GoodfireAPI(ModelAPI):
         # Initialize client with remaining model args
         base_url_val = model_base_url(base_url, "GOODFIRE_BASE_URL")
         assert isinstance(base_url_val, str) or base_url_val is None
+
         self.client = GoodfireClient(
             api_key=self.api_key,
             base_url=base_url_val or DEFAULT_BASE_URL,
@@ -166,10 +181,26 @@ class GoodfireAPI(ModelAPI):
             "content": content,
         })
 
+    def handle_error(self, ex: Exception) -> ModelOutput | Exception:
+        """Handle API errors and convert to appropriate outputs."""
+        error_msg = str(ex).lower()
+        
+        # Only handle rate limits and return other errors as-is
+        if self.is_rate_limit(ex):
+            return ModelOutput.from_content(
+                model=self.model_name,
+                content=str(ex),
+                stop_reason="unknown",
+                error=error_msg,
+            )
+        
+        return ex
+
     @override
     def is_rate_limit(self, ex: BaseException) -> bool:
         """Check if exception is due to rate limiting."""
-        return "rate_limit" in str(ex).lower()
+        error_msg = str(ex).lower()
+        return "429" in error_msg or "rate limit" in error_msg
 
     @override
     def connection_key(self) -> str:
@@ -179,6 +210,11 @@ class GoodfireAPI(ModelAPI):
     @override
     def max_tokens(self) -> int | None:
         """Return maximum tokens supported by model."""
+        # Model-specific limits
+        if "llama-3.3-70b" in self.model_name.lower():
+            return 4096
+        elif "llama-3.1-8b" in self.model_name.lower():
+            return 4096
         return DEFAULT_MAX_TOKENS
 
     @override
@@ -211,6 +247,10 @@ class GoodfireAPI(ModelAPI):
 
         Returns:
             ModelOutput containing the generated response and usage statistics
+            
+        Raises:
+            ValueError: If the input is invalid
+            RuntimeError: If the API call fails
         """
         # Convert messages and prepare request params
         messages = [self._to_goodfire_message(msg) for msg in input]
@@ -223,32 +263,39 @@ class GoodfireAPI(ModelAPI):
             "stream": False,
         }
 
-        # Make API request and convert response to dict
-        response = self.client.chat.completions.create(**params)  # type: ignore[arg-type]
-        response_dict = response.model_dump()
+        try:
+            # Make API request and convert response to dict
+            response = self.client.chat.completions.create(**params)  # type: ignore[arg-type]
+            response_dict = response.model_dump()
 
-        # Create output with choices
-        output = ModelOutput(
-            model=self.model_name,
-            choices=[
-                ChatCompletionChoice(
-                    message=ChatMessageAssistant(
-                        content=response_dict["choices"][0]["message"]["content"]
-                    ),
-                    stop_reason="stop",  # Goodfire doesn't provide finish_reason
-                )
-            ],
-        )
-
-        # Add usage statistics if available
-        if "usage" in response_dict:
-            output.usage = ModelUsage(
-                input_tokens=response_dict["usage"]["prompt_tokens"],
-                output_tokens=response_dict["usage"]["completion_tokens"],
-                total_tokens=response_dict["usage"]["total_tokens"],
+            # Create output with choices
+            output = ModelOutput(
+                model=self.model_name,
+                choices=[
+                    ChatCompletionChoice(
+                        message=ChatMessageAssistant(
+                            content=response_dict["choices"][0]["message"]["content"]
+                        ),
+                        stop_reason="stop",  # Goodfire doesn't provide finish_reason
+                    )
+                ],
             )
 
-        return output
+            # Add usage statistics if available
+            if "usage" in response_dict:
+                output.usage = ModelUsage(
+                    input_tokens=response_dict["usage"]["prompt_tokens"],
+                    output_tokens=response_dict["usage"]["completion_tokens"],
+                    total_tokens=response_dict["usage"]["total_tokens"],
+                )
+
+            return output
+            
+        except Exception as ex:
+            result = self.handle_error(ex)
+            if isinstance(result, ModelOutput):
+                return result
+            raise result
 
     @property
     def name(self) -> str:
