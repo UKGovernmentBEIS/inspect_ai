@@ -1,6 +1,6 @@
 import clsx from "clsx";
 import styles from "./MetaDataView.module.css";
-import { RenderedContent } from "./RenderedContent/RenderedContent";
+import { RenderedContent } from "./RenderedContent";
 
 interface MetadataViewProps {
   id?: string;

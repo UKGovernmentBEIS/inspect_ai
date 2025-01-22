@@ -1,7 +1,7 @@
 // @ts-check
 import { html } from "htm/preact";
 import { ApplicationIcons } from "../../appearance/icons";
-import { MetaDataGrid } from "../../components/MetaDataGrid";
+import { MetaDataGrid } from "../../metadata/MetaDataGrid";
 import { formatDateTime } from "../../utils/format";
 import { toArray } from "../../utils/type";
 import { ChatView } from "../chat/ChatView.mjs";

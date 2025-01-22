@@ -1,7 +1,7 @@
 import { html } from "htm/preact";
 
-import { MetaDataView } from "../components/MetaDataView";
 import { TabPanel, TabSet } from "../components/TabSet";
+import { MetaDataView } from "../metadata/MetaDataView";
 import { ChatViewVirtualList } from "./chat/ChatView.mjs";
 
 import { inputString } from "../utils/format";

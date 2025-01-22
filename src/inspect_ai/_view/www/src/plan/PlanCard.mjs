@@ -3,7 +3,7 @@ import { html } from "htm/preact";
 import { FontSize, TextStyle } from "../appearance/fonts";
 import { ApplicationIcons } from "../appearance/icons";
 import { Card, CardBody, CardHeader } from "../components/Card";
-import { MetaDataView } from "../components/MetaDataView";
+import { MetaDataView } from "../metadata/MetaDataView";
 import { toTitleCase } from "../utils/format";
 import { ghCommitUrl } from "../utils/git";
 

@@ -1,7 +1,7 @@
 import clsx from "clsx";
 import React from "preact/compat";
 import styles from "./MetadataGrid.module.css";
-import { RenderedContent } from "./RenderedContent/RenderedContent";
+import { RenderedContent } from "./RenderedContent";
 
 interface MetadataGridProps {
   id: string;

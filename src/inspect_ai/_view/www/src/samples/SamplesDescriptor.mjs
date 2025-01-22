@@ -1,7 +1,6 @@
 import { html } from "htm/preact";
 import { FontSize } from "../appearance/fonts";
 import { ApplicationStyles } from "../appearance/styles";
-import { RenderedContent } from "../components/RenderedContent/RenderedContent";
 import {
   kScoreTypeCategorical,
   kScoreTypeNumeric,
@@ -9,6 +8,7 @@ import {
   kScoreTypeOther,
   kScoreTypePassFail,
 } from "../constants";
+import { RenderedContent } from "../metadata/RenderedContent";
 import {
   arrayToString,
   formatDecimalNoTrailingZeroes,

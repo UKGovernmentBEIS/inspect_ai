@@ -3,7 +3,7 @@ import { html } from "htm/preact";
 import { TextStyle } from "../../appearance/fonts";
 import { ApplicationIcons } from "../../appearance/icons";
 import { MarkdownDiv } from "../../components/MarkdownDiv";
-import { MetaDataGrid } from "../../components/MetaDataGrid";
+import { MetaDataGrid } from "../../metadata/MetaDataGrid";
 import { formatDateTime } from "../../utils/format";
 import { EventPanel } from "./EventPanel.mjs";
 

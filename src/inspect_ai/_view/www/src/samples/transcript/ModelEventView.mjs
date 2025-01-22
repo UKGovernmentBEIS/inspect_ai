@@ -9,7 +9,7 @@ import { html } from "htm/preact";
 import { useEffect, useMemo, useRef } from "preact/hooks";
 import { FontSize, TextStyle } from "../../appearance/fonts";
 import { ApplicationIcons } from "../../appearance/icons";
-import { MetaDataGrid } from "../../components/MetaDataGrid";
+import { MetaDataGrid } from "../../metadata/MetaDataGrid";
 import { ModelUsagePanel } from "../../usage/ModelUsagePanel";
 import {
   formatDateTime,

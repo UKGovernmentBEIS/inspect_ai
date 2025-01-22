@@ -1,10 +1,10 @@
-import { ApplicationIcons } from "../../appearance/icons";
+import { ApplicationIcons } from "../appearance/icons";
 
 import React from "preact/compat";
-import { ChatMessageRenderer } from "../../samples/chat/ChatMessageRenderer";
-import { formatNumber } from "../../utils/format";
-import { ANSIDisplay } from "../AnsiDisplay";
-import { MetaDataView } from "../MetaDataView";
+import { ANSIDisplay } from "../components/AnsiDisplay";
+import { ChatMessageRenderer } from "../samples/chat/ChatMessageRenderer";
+import { formatNumber } from "../utils/format";
+import { MetaDataView } from "./MetaDataView";
 
 import clsx from "clsx";
 import styles from "./RenderedContent.module.css";

@@ -1,8 +1,5 @@
 import { NavPills } from "../../components/NavPills.tsx";
-import {
-  Buckets,
-  ContentRenderer,
-} from "../../components/RenderedContent/Types.ts";
+import { Buckets, ContentRenderer } from "../../metadata/Types.ts";
 import {
   ChatMessageAssistant,
   ChatMessageSystem,
