@@ -156,6 +156,8 @@ def task(*args: Any, name: str | None = None, **attribs: Any) -> Any:
             # Return the task instance
             return task_instance
 
+        wrapper.__annotations__["return"] = Task
+
         # Register the task and return the wrapper
         return task_register(
             task=cast(TaskType, wrapper), name=task_name, attribs=attribs, params=params
