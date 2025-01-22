@@ -15755,387 +15755,6 @@ categories: ${categories.join(" ")}`;
       });
     });
     ToolButton.displayName = "ToolButton";
-    const CardHeader = ({
-      id,
-      icon,
-      label,
-      className: className2,
-      children: children2
-    }) => {
-      return /* @__PURE__ */ u("div", {
-        className: clsx("card-header-container", "text-style-label", className2),
-        id: id || "",
-        children: [icon ? /* @__PURE__ */ u("i", {
-          className: clsx("card-header-icon", icon)
-        }) : /* @__PURE__ */ u("span", {
-          className: "card-header-icon"
-        }), label ? label : "", " ", children2]
-      });
-    };
-    const CardBody = ({
-      id,
-      children: children2
-    }) => {
-      return /* @__PURE__ */ u("div", {
-        className: "card-body",
-        id: id || "",
-        children: children2
-      });
-    };
-    const Card = ({
-      id,
-      children: children2
-    }) => {
-      return /* @__PURE__ */ u("div", {
-        className: "card",
-        id,
-        children: children2
-      });
-    };
-    const ghCommitUrl = (origin, commit) => {
-      const baseUrl = origin.replace(/\.git$/, "");
-      return `${baseUrl}/commit/${commit}`;
-    };
-    const item$1 = "_item_1uzhd_1";
-    const styles$e = {
-      item: item$1
-    };
-    const DatasetDetailView = ({
-      dataset,
-      style: style2
-    }) => {
-      const filtered = Object.fromEntries(Object.entries(dataset).filter(([key2]) => key2 !== "sample_ids"));
-      if (!dataset || Object.keys(filtered).length === 0) {
-        return /* @__PURE__ */ u("span", {
-          className: clsx("text-size-base", styles$e.item),
-          style: style2,
-          children: "No dataset information available"
-        });
-      }
-      return /* @__PURE__ */ u(MetaDataView, {
-        className: clsx("text-size-base", styles$e.item),
-        entries: filtered,
-        tableOptions: "borderless,sm",
-        style: style2
-      });
-    };
-    const DetailStep = ({
-      icon,
-      name: name2,
-      params: params2,
-      className: className2
-    }) => {
-      const iconHtml = icon ? /* @__PURE__ */ u("i", {
-        className: clsx(icon, styles$e.icon)
-      }) : "";
-      return /* @__PURE__ */ u("div", {
-        className: clsx(className2),
-        children: [iconHtml, " ", name2, /* @__PURE__ */ u("div", {
-          className: styles$e.container,
-          children: params2 ? /* @__PURE__ */ u(MetaDataView, {
-            entries: params2,
-            className: "text-size-small"
-          }) : ""
-        })]
-      });
-    };
-    const ScorerDetailView = ({
-      name: name2,
-      scores: scores2,
-      params: params2
-    }) => {
-      if (scores2.length > 1) {
-        params2["scores"] = scores2;
-      }
-      return /* @__PURE__ */ u(DetailStep, {
-        icon: ApplicationIcons.scorer,
-        name: name2,
-        params: params2,
-        className: clsx(styles$e.item, "text-size-base")
-      });
-    };
-    const container$3 = "_container_12g3a_1";
-    const item = "_item_12g3a_6";
-    const separator$1 = "_separator_12g3a_10";
-    const styles$d = {
-      container: container$3,
-      item,
-      separator: separator$1
-    };
-    const SolversDetailView = ({
-      steps
-    }) => {
-      const separator2 = /* @__PURE__ */ u("div", {
-        className: clsx(styles$d.items, "text-size-small", styles$d.separator),
-        children: /* @__PURE__ */ u("i", {
-          class: ApplicationIcons.arrows.right
-        })
-      });
-      const details = steps == null ? void 0 : steps.map((step, index) => {
-        return /* @__PURE__ */ u(xn.Fragment, {
-          children: [/* @__PURE__ */ u(DetailStep, {
-            name: step.solver,
-            className: clsx(styles$d.items, "text-size-small")
-          }), index < steps.length - 1 ? separator2 : ""]
-        });
-      });
-      return /* @__PURE__ */ u("div", {
-        className: styles$d.container,
-        children: details
-      });
-    };
-    const floatingCol = "_floatingCol_1q1sr_1";
-    const wideCol = "_wideCol_1q1sr_9";
-    const oneCol = "_oneCol_1q1sr_16";
-    const twoCol = "_twoCol_1q1sr_20";
-    const planCol = "_planCol_1q1sr_24";
-    const container$2 = "_container_1q1sr_28";
-    const grid$1 = "_grid_1q1sr_34";
-    const row = "_row_1q1sr_42";
-    const styles$c = {
-      floatingCol,
-      wideCol,
-      oneCol,
-      twoCol,
-      planCol,
-      container: container$2,
-      grid: grid$1,
-      row
-    };
-    const PlanDetailView = ({
-      evaluation,
-      plan,
-      scores: scores2
-    }) => {
-      if (!evaluation) {
-        return "";
-      }
-      const config2 = {};
-      Object.entries((evaluation == null ? void 0 : evaluation.config) || {}).forEach((entry2) => {
-        const key2 = entry2[0];
-        const value2 = entry2[1];
-        config2[key2] = value2;
-      });
-      const steps = plan == null ? void 0 : plan.steps;
-      const metadata = evaluation == null ? void 0 : evaluation.metadata;
-      const revision = evaluation == null ? void 0 : evaluation.revision;
-      const packages = evaluation == null ? void 0 : evaluation.packages;
-      const model_args = evaluation == null ? void 0 : evaluation.model_args;
-      const task_args = evaluation == null ? void 0 : evaluation.task_args;
-      const generate_config = plan == null ? void 0 : plan.config;
-      const taskInformation = {
-        ["Task ID"]: evaluation == null ? void 0 : evaluation.task_id,
-        ["Run ID"]: evaluation == null ? void 0 : evaluation.run_id
-      };
-      if (revision) {
-        taskInformation[`${revision.type ? `${toTitleCase(revision.type)} ` : ""}Revision`] = {
-          _html: /* @__PURE__ */ u("a", {
-            href: ghCommitUrl(revision.origin, revision.commit),
-            children: revision.commit
-          })
-        };
-      }
-      if (packages) {
-        taskInformation["Inspect"] = {
-          _html: Object.keys(packages).map((key2) => {
-            return `${key2} ${packages[key2]}`;
-          }).join("<br/>\n")
-        };
-      }
-      if (evaluation.tags) {
-        taskInformation["Tags"] = evaluation.tags.join(", ");
-      }
-      if (evaluation == null ? void 0 : evaluation.model) {
-        config2["model"] = evaluation.model;
-      }
-      if (evaluation == null ? void 0 : evaluation.model_base_url) {
-        config2["model_base_url"] = evaluation.model_base_url;
-      }
-      if (evaluation == null ? void 0 : evaluation.sandbox) {
-        config2["sandbox"] = evaluation.sandbox[0];
-        if (evaluation.sandbox[1]) {
-          config2["sandbox_config"] = evaluation.sandbox[1];
-        }
-      }
-      const taskColumns = [];
-      taskColumns.push({
-        title: "Dataset",
-        className: styles$c.floatingCol,
-        contents: /* @__PURE__ */ u(DatasetDetailView, {
-          dataset: evaluation.dataset
-        })
-      });
-      if (steps) {
-        taskColumns.push({
-          title: "Plan",
-          className: styles$c.wideCol,
-          contents: /* @__PURE__ */ u(SolversDetailView, {
-            steps
-          })
-        });
-      }
-      if (scores2) {
-        const scorers = scores2.reduce((accum, score2) => {
-          if (!accum[score2.scorer]) {
-            accum[score2.scorer] = {
-              scores: [score2.name],
-              params: score2.params
-            };
-          } else {
-            accum[score2.scorer].scores.push(score2.name);
-          }
-          return accum;
-        }, {});
-        if (Object.keys(scorers).length > 0) {
-          const label = Object.keys(scorers).length === 1 ? "Scorer" : "Scorers";
-          const scorerPanels = Object.keys(scorers).map((key2) => {
-            return /* @__PURE__ */ u(ScorerDetailView, {
-              name: key2,
-              scores: scorers[key2].scores,
-              params: scorers[key2].params
-            });
-          });
-          taskColumns.push({
-            title: label,
-            className: styles$c.floatingCol,
-            contents: scorerPanels
-          });
-        }
-      }
-      const metadataColumns = [];
-      const cols = colCount(metadataColumns, task_args, model_args, config2, metadata);
-      metadataColumns.push({
-        title: "Task Information",
-        className: cols === 1 ? styles$c.oneCol : styles$c.twoCol,
-        contents: /* @__PURE__ */ u(MetaDataView, {
-          className: "text-size-small",
-          entries: taskInformation,
-          tableOptions: "borderless,sm"
-        })
-      });
-      if (task_args && Object.keys(task_args).length > 0) {
-        metadataColumns.push({
-          title: "Task Args",
-          className: cols === 1 ? styles$c.oneCol : styles$c.twoCol,
-          contents: /* @__PURE__ */ u(MetaDataView, {
-            className: "text-size-small",
-            entries: task_args,
-            tableOptions: "sm"
-          })
-        });
-      }
-      if (model_args && Object.keys(model_args).length > 0) {
-        metadataColumns.push({
-          title: "Model Args",
-          className: cols === 1 ? styles$c.oneCol : styles$c.twoCol,
-          contents: /* @__PURE__ */ u(MetaDataView, {
-            className: "text-size-small",
-            entries: model_args,
-            tableOptions: "sm"
-          })
-        });
-      }
-      if (config2 && Object.keys(config2).length > 0) {
-        metadataColumns.push({
-          title: "Configuration",
-          className: cols === 1 ? styles$c.oneCol : styles$c.twoCol,
-          contents: /* @__PURE__ */ u(MetaDataView, {
-            className: "text-size-small",
-            entries: config2,
-            tableOptions: "sm"
-          })
-        });
-      }
-      if (generate_config && Object.keys(generate_config).length > 0) {
-        const generate_record = Object.fromEntries(Object.entries(generate_config));
-        metadataColumns.push({
-          title: "Generate Config",
-          className: cols === 1 ? styles$c.oneCol : styles$c.twoCol,
-          contents: /* @__PURE__ */ u(MetaDataView, {
-            className: "text-size-small",
-            entries: generate_record,
-            tableOptions: "sm"
-          })
-        });
-      }
-      if (metadata && Object.keys(metadata).length > 0) {
-        metadataColumns.push({
-          title: "Metadata",
-          className: cols === 1 ? styles$c.oneCol : styles$c.twoCol,
-          contents: /* @__PURE__ */ u(MetaDataView, {
-            className: "text-size-small",
-            entries: metadata,
-            tableOptions: "sm"
-          })
-        });
-      }
-      return /* @__PURE__ */ u("div", {
-        className: styles$c.container,
-        children: [/* @__PURE__ */ u("div", {
-          className: styles$c.grid,
-          style: {
-            gridTemplateColumns: `repeat(${taskColumns.length}, auto)`
-          },
-          children: taskColumns.map((col) => {
-            return /* @__PURE__ */ u(PlanColumn, {
-              title: col.title,
-              className: col.className,
-              children: col.contents
-            });
-          })
-        }), /* @__PURE__ */ u("div", {
-          className: clsx("row", styles$c.row),
-          children: metadataColumns.map((col) => {
-            return /* @__PURE__ */ u(PlanColumn, {
-              title: col.title,
-              className: col.className,
-              children: col.contents
-            });
-          })
-        })]
-      });
-    };
-    const colCount = (...other) => {
-      let count = 0;
-      for (const o2 in other) {
-        if (o2 && Object.keys(o2).length > 0) {
-          count++;
-        }
-      }
-      return count;
-    };
-    const PlanColumn = ({
-      title: title2,
-      className: className2,
-      children: children2
-    }) => {
-      return /* @__PURE__ */ u("div", {
-        className: clsx(className2),
-        children: [/* @__PURE__ */ u("div", {
-          className: clsx("card-subheading", "text-size-small", "text-style-label", "text-style-secondary", styles$c.planCol),
-          children: title2
-        }), children2]
-      });
-    };
-    const PlanCard = ({
-      evalSpec,
-      evalPlan,
-      scores: scores2
-    }) => {
-      return /* @__PURE__ */ u(Card, {
-        children: [/* @__PURE__ */ u(CardHeader, {
-          icon: ApplicationIcons.config,
-          label: "Config"
-        }), /* @__PURE__ */ u(CardBody, {
-          id: "task-plan-card-body",
-          children: /* @__PURE__ */ u(PlanDetailView, {
-            evaluation: evalSpec,
-            plan: evalPlan,
-            scores: scores2
-          })
-        })]
-      });
-    };
     const EpochFilter = ({ epochs, epoch, setEpoch }) => {
       const options = ["all"];
       for (let i2 = 1; i2 <= epochs; i2++) {
@@ -36640,206 +36259,6 @@ Supported expressions:
       );
       return tools;
     };
-    const wrapper$2 = "_wrapper_b0it4_1";
-    const col2$1 = "_col2_b0it4_8";
-    const col1_3 = "_col1_3_b0it4_12";
-    const col3 = "_col3_b0it4_16";
-    const separator = "_separator_b0it4_20";
-    const styles$b = {
-      wrapper: wrapper$2,
-      col2: col2$1,
-      col1_3,
-      col3,
-      separator
-    };
-    const ModelUsagePanel = ({
-      usage
-    }) => {
-      if (!usage) {
-        return "";
-      }
-      const rows = [{
-        label: "input",
-        value: usage.input_tokens,
-        secondary: false
-      }];
-      if (usage.input_tokens_cache_read) {
-        rows.push({
-          label: "cache_read",
-          value: usage.input_tokens_cache_read,
-          secondary: true
-        });
-      }
-      if (usage.input_tokens_cache_write) {
-        rows.push({
-          label: "cache_write",
-          value: usage.input_tokens_cache_write,
-          secondary: true
-        });
-      }
-      rows.push({
-        label: "Output",
-        value: usage.output_tokens,
-        secondary: false,
-        bordered: true
-      });
-      rows.push({
-        label: "---",
-        value: void 0,
-        secondary: false
-      });
-      rows.push({
-        label: "Total",
-        value: usage.total_tokens,
-        secondary: false
-      });
-      return /* @__PURE__ */ u("div", {
-        className: clsx("text-size-small", styles$b.wrapper),
-        children: rows.map((row2) => {
-          if (row2.label === "---") {
-            return /* @__PURE__ */ u("div", {
-              className: styles$b.separator
-            });
-          } else {
-            return /* @__PURE__ */ u(xn.Fragment, {
-              children: [/* @__PURE__ */ u("div", {
-                className: clsx("text-style-label", "text-style-secondary", row2.secondary ? styles$b.col2 : styles$b.col1_3),
-                children: row2.label
-              }), /* @__PURE__ */ u("div", {
-                className: styles$b.col3,
-                children: row2.value ? formatNumber(row2.value) : ""
-              })]
-            });
-          }
-        })
-      });
-    };
-    const table = "_table_dbhwb_1";
-    const tableTokens = "_tableTokens_dbhwb_6";
-    const tableH = "_tableH_dbhwb_10";
-    const model = "_model_dbhwb_15";
-    const styles$a = {
-      table,
-      tableTokens,
-      tableH,
-      model
-    };
-    const TokenTable = ({
-      style: style2,
-      children: children2
-    }) => {
-      return /* @__PURE__ */ u("table", {
-        className: clsx("table", "table-sm", "text-size-smaller", styles$a.table),
-        style: style2,
-        children: children2
-      });
-    };
-    const TokenHeader = () => {
-      return /* @__PURE__ */ u("thead", {
-        children: [/* @__PURE__ */ u("tr", {
-          children: [/* @__PURE__ */ u("td", {}), /* @__PURE__ */ u("td", {
-            colspan: 3,
-            className: clsx("card-subheading", styles$a.tableTokens, "text-size-small", "text-style-label", "text-style-secondary"),
-            align: "center",
-            children: "Tokens"
-          })]
-        }), /* @__PURE__ */ u("tr", {
-          children: [/* @__PURE__ */ u("th", {
-            className: clsx(styles$a.tableH, "text-sixe-small", "text-style-label", "text-style-secondary"),
-            children: "Model"
-          }), /* @__PURE__ */ u("th", {
-            className: clsx(styles$a.tableH, "text-sixe-small", "text-style-label", "text-style-secondary"),
-            children: "Usage"
-          })]
-        })]
-      });
-    };
-    const TokenRow = ({
-      model: model2,
-      usage
-    }) => {
-      return /* @__PURE__ */ u("tr", {
-        children: [/* @__PURE__ */ u("td", {
-          children: /* @__PURE__ */ u("div", {
-            className: styles$a.model,
-            children: model2
-          })
-        }), /* @__PURE__ */ u("td", {
-          children: /* @__PURE__ */ u(ModelUsagePanel, {
-            usage
-          })
-        })]
-      });
-    };
-    const ModelTokenTable = ({
-      model_usage,
-      style: style2
-    }) => {
-      return /* @__PURE__ */ u(TokenTable, {
-        style: style2,
-        children: [/* @__PURE__ */ u(TokenHeader, {}), /* @__PURE__ */ u("tbody", {
-          children: Object.keys(model_usage).map((key2) => {
-            return /* @__PURE__ */ u(TokenRow, {
-              model: key2,
-              usage: model_usage[key2]
-            });
-          })
-        })]
-      });
-    };
-    const wrapper$1 = "_wrapper_q7y7u_1";
-    const col1 = "_col1_q7y7u_8";
-    const col2 = "_col2_q7y7u_13";
-    const duration = "_duration_q7y7u_17";
-    const styles$9 = {
-      wrapper: wrapper$1,
-      col1,
-      col2,
-      duration
-    };
-    const kUsageCardBodyId = "usage-card-body";
-    const UsageCard = ({
-      stats
-    }) => {
-      if (!stats) {
-        return "";
-      }
-      const totalDuration = formatDuration(new Date(stats.started_at), new Date(stats.completed_at));
-      const usageMetadataStyle = {
-        fontSize: FontSize.smaller
-      };
-      return /* @__PURE__ */ u(Card, {
-        children: [/* @__PURE__ */ u(CardHeader, {
-          icon: ApplicationIcons.usage,
-          label: "Usage"
-        }), /* @__PURE__ */ u(CardBody, {
-          id: kUsageCardBodyId,
-          children: /* @__PURE__ */ u("div", {
-            className: styles$9.wrapper,
-            children: [/* @__PURE__ */ u("div", {
-              className: styles$9.col1,
-              children: [/* @__PURE__ */ u("div", {
-                className: clsx(styles$9.duration, "text-size-smaller", "text-style-label", "text-style-secondary"),
-                children: "Duration"
-              }), /* @__PURE__ */ u(MetaDataView, {
-                entries: {
-                  ["Start"]: new Date(stats.started_at).toLocaleString(),
-                  ["End"]: new Date(stats.completed_at).toLocaleString(),
-                  ["Duration"]: totalDuration
-                },
-                tableOptions: "borderless,sm",
-                style: usageMetadataStyle
-              })]
-            }), /* @__PURE__ */ u("div", {
-              className: styles$9.col2,
-              children: /* @__PURE__ */ u(ModelTokenTable, {
-                model_usage: stats.model_usage
-              })
-            })]
-          })
-        })]
-      });
-    };
     const navbarContainer = "_navbarContainer_838qu_1";
     const navbarToggle = "_navbarToggle_838qu_8";
     const navbarBody = "_navbarBody_838qu_13";
@@ -36850,7 +36269,7 @@ Supported expressions:
     const navbarStatus = "_navbarStatus_838qu_42";
     const navbarWrapper = "_navbarWrapper_838qu_48";
     const navbarInnerWrapper = "_navbarInnerWrapper_838qu_51";
-    const styles$8 = {
+    const styles$e = {
       navbarContainer,
       navbarToggle,
       navbarBody,
@@ -36911,8 +36330,8 @@ Supported expressions:
       }
       return pathparts.join("/");
     };
-    const container$1 = "_container_1w9cu_1";
-    const wrapper = "_wrapper_1w9cu_8";
+    const container$3 = "_container_1w9cu_1";
+    const wrapper$2 = "_wrapper_1w9cu_8";
     const toggle = "_toggle_1w9cu_14";
     const body = "_body_1w9cu_19";
     const bodyContainer = "_bodyContainer_1w9cu_25";
@@ -36920,9 +36339,9 @@ Supported expressions:
     const taskModel = "_taskModel_1w9cu_36";
     const taskStatus = "_taskStatus_1w9cu_40";
     const secondaryContainer = "_secondaryContainer_1w9cu_46";
-    const styles$7 = {
-      container: container$1,
-      wrapper,
+    const styles$d = {
+      container: container$3,
+      wrapper: wrapper$2,
       toggle,
       body,
       bodyContainer,
@@ -36940,7 +36359,7 @@ Supported expressions:
     const multiScorerLabel = "_multiScorerLabel_13pa9_52";
     const multiScorerValue = "_multiScorerValue_13pa9_58";
     const multiScorerValueContent = "_multiScorerValueContent_13pa9_65";
-    const styles$6 = {
+    const styles$c = {
       simpleMetricsRows,
       multiMetricsRows,
       verticalMetricReducer,
@@ -36972,7 +36391,7 @@ Supported expressions:
         });
         const metrics = Object.values(scorers)[0];
         return /* @__PURE__ */ u("div", {
-          className: styles$6.simpleMetricsRows,
+          className: styles$c.simpleMetricsRows,
           children: metrics.map((metric2, i2) => {
             return /* @__PURE__ */ u(VerticalMetric, {
               metricSummary: metric2,
@@ -36982,7 +36401,7 @@ Supported expressions:
         });
       } else {
         return /* @__PURE__ */ u("div", {
-          className: styles$6.multiMetricsRows,
+          className: styles$c.multiMetricsRows,
           children: (_b2 = results == null ? void 0 : results.scores) == null ? void 0 : _b2.map((score2, index) => {
             return /* @__PURE__ */ u(MultiScorerMetric, {
               scorer: score2,
@@ -36997,7 +36416,7 @@ Supported expressions:
       isFirst
     }) => {
       const reducer_component = metricSummary.reducer ? /* @__PURE__ */ u("div", {
-        className: clsx("text-style-label", "text-style-secondary", styles$6.verticalMetricReducer),
+        className: clsx("text-style-label", "text-style-secondary", styles$c.verticalMetricReducer),
         children: metricSummary.reducer
       }) : "";
       return /* @__PURE__ */ u("div", {
@@ -37005,10 +36424,10 @@ Supported expressions:
           paddingLeft: isFirst ? "0" : "1em"
         },
         children: [/* @__PURE__ */ u("div", {
-          class: clsx("vertical-metric-label", "text-style-label", "text-style-secondary", styles$6.verticalMetricName),
+          class: clsx("vertical-metric-label", "text-style-label", "text-style-secondary", styles$c.verticalMetricName),
           children: metricSummary.metric.name
         }), reducer_component, /* @__PURE__ */ u("div", {
-          class: clsx("vertical-metric-value", styles$6.verticalMetricValue),
+          class: clsx("vertical-metric-value", styles$c.verticalMetricValue),
           children: formatPrettyDecimal(metricSummary.metric.value)
         })]
       });
@@ -37022,7 +36441,7 @@ Supported expressions:
       const reducerFontClz = metricsLen ? "text-size-small" : "text-size-smaller";
       const valueFontClz = metricsLen ? "text-size-base" : "text-size-base";
       const reducer_component = scorer.reducer ? /* @__PURE__ */ u("div", {
-        className: clsx(reducerFontClz, "text-style-label", "text-style-secondary", styles$6.multiScorerReducer),
+        className: clsx(reducerFontClz, "text-style-label", "text-style-secondary", styles$c.multiScorerReducer),
         children: scorer.reducer
       }) : "";
       return /* @__PURE__ */ u("div", {
@@ -37030,17 +36449,17 @@ Supported expressions:
           paddingLeft: isFirst ? "0" : "1.5em"
         },
         children: [/* @__PURE__ */ u("div", {
-          className: clsx(titleFontClz, "text-style-label", "text-style-secondary", "multi-score-label", styles$6.multiScorerLabel),
+          className: clsx(titleFontClz, "text-style-label", "text-style-secondary", "multi-score-label", styles$c.multiScorerLabel),
           children: scorer.name
         }), reducer_component, /* @__PURE__ */ u("div", {
-          className: clsx(valueFontClz, styles$6.multiScorerValue),
+          className: clsx(valueFontClz, styles$c.multiScorerValue),
           children: Object.keys(scorer.metrics).map((key2) => {
             const metric2 = scorer.metrics[key2];
             return /* @__PURE__ */ u("div", {
               children: [/* @__PURE__ */ u("div", {
                 children: metric2.name
               }), /* @__PURE__ */ u("div", {
-                className: styles$6.multiScorerValueContent,
+                className: styles$c.multiScorerValueContent,
                 children: formatPrettyDecimal(metric2.value)
               })]
             });
@@ -37050,7 +36469,7 @@ Supported expressions:
     };
     const statusPanel = "_statusPanel_1fzh4_1";
     const statusIcon = "_statusIcon_1fzh4_10";
-    const styles$5 = {
+    const styles$b = {
       statusPanel,
       statusIcon
     };
@@ -37087,9 +36506,9 @@ Supported expressions:
       sampleCount
     }) => {
       return /* @__PURE__ */ u("div", {
-        className: styles$5.statusPanel,
+        className: styles$b.statusPanel,
         children: [/* @__PURE__ */ u("i", {
-          class: clsx(icon, styles$5.statusIcon),
+          class: clsx(icon, styles$b.statusIcon),
           style: {}
         }), /* @__PURE__ */ u("div", {
           children: [/* @__PURE__ */ u("div", {
@@ -37133,34 +36552,34 @@ Supported expressions:
         setOffcanvas(!offcanvas);
       };
       return /* @__PURE__ */ u("div", {
-        className: clsx(styles$7.wrapper),
+        className: clsx(styles$d.wrapper),
         children: [/* @__PURE__ */ u("div", {
-          className: clsx("navbar-brand", "navbar-text", "mb-0", styles$7.container),
+          className: clsx("navbar-brand", "navbar-text", "mb-0", styles$d.container),
           children: [showToggle ? /* @__PURE__ */ u("button", {
             id: "sidebarToggle",
             onClick: handleToggle,
-            className: clsx("btn", offcanvas ? "d-md-none" : void 0, styles$7.toggle),
+            className: clsx("btn", offcanvas ? "d-md-none" : void 0, styles$d.toggle),
             type: "button",
             children: /* @__PURE__ */ u("i", {
               class: ApplicationIcons.menu
             })
           }) : "", /* @__PURE__ */ u("div", {
-            className: styles$7.body,
+            className: styles$d.body,
             children: [/* @__PURE__ */ u("div", {
-              className: styles$7.bodyContainer,
+              className: styles$d.bodyContainer,
               children: [/* @__PURE__ */ u("div", {
                 id: "task-title",
-                className: clsx("task-title", "text-truncate", styles$7.taskTitle),
+                className: clsx("task-title", "text-truncate", styles$d.taskTitle),
                 title: evalSpec == null ? void 0 : evalSpec.task,
                 children: evalSpec == null ? void 0 : evalSpec.task
               }), /* @__PURE__ */ u("div", {
                 id: "task-model",
-                className: clsx("task-model", "text-truncate", styles$7.taskModel, "text-size-base"),
+                className: clsx("task-model", "text-truncate", styles$d.taskModel, "text-size-base"),
                 title: evalSpec == null ? void 0 : evalSpec.model,
                 children: evalSpec == null ? void 0 : evalSpec.model
               })]
             }), /* @__PURE__ */ u("div", {
-              className: clsx("text-size-small", styles$7.secondaryContainer),
+              className: clsx("text-size-small", styles$d.secondaryContainer),
               children: [/* @__PURE__ */ u("div", {
                 className: clsx("navbar-secondary-text", "text-truncate"),
                 children: logFileName
@@ -37170,7 +36589,7 @@ Supported expressions:
             })]
           })]
         }), /* @__PURE__ */ u("div", {
-          className: clsx(styles$7.taskStatus, "navbar-text"),
+          className: clsx(styles$d.taskStatus, "navbar-text"),
           children: statusPanel2
         })]
       });
@@ -37205,14 +36624,14 @@ Supported expressions:
     const justifyCenter = "_justifyCenter_xzzhl_9";
     const justifyRight = "_justifyRight_xzzhl_13";
     const valueGrid = "_valueGrid_xzzhl_17";
-    const container = "_container_xzzhl_25";
-    const styles$4 = {
+    const container$2 = "_container_xzzhl_25";
+    const styles$a = {
       staticCol,
       justifyLeft,
       justifyCenter,
       justifyRight,
       valueGrid,
-      container
+      container: container$2
     };
     const SecondaryBar = ({
       evalSpec,
@@ -37237,7 +36656,7 @@ Supported expressions:
         size: "minmax(12%, auto)",
         value: /* @__PURE__ */ u(LabeledValue, {
           label: "Dataset",
-          className: styles$4.staticCol,
+          className: styles$a.staticCol,
           children: /* @__PURE__ */ u(DatasetSummary, {
             dataset: evalSpec.dataset,
             samples,
@@ -37250,7 +36669,7 @@ Supported expressions:
         size: "minmax(12%, auto)",
         value: /* @__PURE__ */ u(LabeledValue, {
           label,
-          className: clsx(styles$4.staticCol, hasConfig ? styles$4.justifyLeft : styles$4.justifyCenter),
+          className: clsx(styles$a.staticCol, hasConfig ? styles$a.justifyLeft : styles$a.justifyCenter),
           children: /* @__PURE__ */ u(ScorerSummary, {
             evalDescriptor
           })
@@ -37261,7 +36680,7 @@ Supported expressions:
           size: "minmax(12%, auto)",
           value: /* @__PURE__ */ u(LabeledValue, {
             label: "Config",
-            className: styles$4.justifyRight,
+            className: styles$a.justifyRight,
             children: /* @__PURE__ */ u(ParamSummary, {
               params: hyperparameters
             })
@@ -37274,17 +36693,17 @@ Supported expressions:
           size: "minmax(12%, auto)",
           value: /* @__PURE__ */ u(LabeledValue, {
             label: "Duration",
-            className: styles$4.justifyRight,
+            className: styles$a.justifyRight,
             children: totalDuration
           })
         });
       }
       return /* @__PURE__ */ u(ExpandablePanel, {
-        className: styles$4.container,
+        className: styles$a.container,
         collapse: true,
         lines: 4,
         children: /* @__PURE__ */ u("div", {
-          className: styles$4.valueGrid,
+          className: styles$a.valueGrid,
           style: {
             gridTemplateColumns: `${values.map((val) => {
               return val.size;
@@ -37367,7 +36786,7 @@ Supported expressions:
       status
     }) => {
       return /* @__PURE__ */ u("nav", {
-        className: clsx("navbar", "sticky-top", styles$8.navbarWrapper),
+        className: clsx("navbar", "sticky-top", styles$e.navbarWrapper),
         children: [/* @__PURE__ */ u(PrimaryBar, {
           file,
           evalSpec,
@@ -41168,7 +40587,7 @@ self.onmessage = function (e) {
       }
       return value2;
     };
-    const styles$3 = {
+    const styles$9 = {
       "json-tab": "_json-tab_w7sx0_1"
     };
     const kJsonMaxSize = 1e7;
@@ -41180,7 +40599,7 @@ self.onmessage = function (e) {
       if (json.length > kJsonMaxSize && capabilities.downloadFiles) {
         const file = `${filename(logFile)}.json`;
         return /* @__PURE__ */ u("div", {
-          className: styles$3["json-tab"],
+          className: styles$9["json-tab"],
           children: /* @__PURE__ */ u(DownloadPanel, {
             message: "The JSON for this log file is too large to render.",
             buttonLabel: "Download JSON File",
@@ -41209,7 +40628,7 @@ self.onmessage = function (e) {
     const content = "_content_yj2nt_41";
     const header = "_header_yj2nt_45";
     const titleTool = "_titleTool_yj2nt_50";
-    const styles$2 = {
+    const styles$8 = {
       title,
       detail,
       detailText,
@@ -41255,16 +40674,16 @@ self.onmessage = function (e) {
       }, [setInitialScrollPosition]);
       const headerEls = [];
       headerEls.push(/* @__PURE__ */ u("div", {
-        className: clsx("modal-title", "text-size-smaller", styles$2.title),
+        className: clsx("modal-title", "text-size-smaller", styles$8.title),
         children: title2 || ""
       }));
       if (detail2) {
         headerEls.push(/* @__PURE__ */ u("div", {
-          className: styles$2.detail,
+          className: styles$8.detail,
           children: [(detailTools == null ? void 0 : detailTools.left) ? detailTools.left.map((tool) => {
             return m$1`<${TitleTool} ...${tool} />`;
           }) : "", /* @__PURE__ */ u("div", {
-            className: clsx("text-size-smaller", styles$2.detailText),
+            className: clsx("text-size-smaller", styles$8.detailText),
             children: /* @__PURE__ */ u("div", {
               children: detail2
             })
@@ -41275,7 +40694,7 @@ self.onmessage = function (e) {
       }
       headerEls.push(/* @__PURE__ */ u("button", {
         type: "button",
-        className: clsx("btn", "btn-close-large-dialog", "text-size-larger", styles$2.close),
+        className: clsx("btn", "btn-close-large-dialog", "text-size-larger", styles$8.close),
         onClick: onHide,
         "aria-label": "Close",
         children: /* @__PURE__ */ u(HtmlEntity, {
@@ -41284,17 +40703,17 @@ self.onmessage = function (e) {
       }));
       return /* @__PURE__ */ u("div", {
         id,
-        className: clsx("modal", styles$2.modal, !visible2 ? styles$2.hidden : void 0),
+        className: clsx("modal", styles$8.modal, !visible2 ? styles$8.hidden : void 0),
         role: "dialog",
         onKeyUp: onkeyup,
         tabindex: visible2 ? 0 : void 0,
         children: /* @__PURE__ */ u("div", {
-          className: clsx("modal-dialog", "modal-dialog-scrollable", styles$2.modalBody),
+          className: clsx("modal-dialog", "modal-dialog-scrollable", styles$8.modalBody),
           role: "document",
           children: /* @__PURE__ */ u("div", {
-            className: clsx("modal-content", styles$2.content),
+            className: clsx("modal-content", styles$8.content),
             children: [/* @__PURE__ */ u("div", {
-              className: clsx("modal-header", styles$2.header),
+              className: clsx("modal-header", styles$8.header),
               children: headerEls
             }), /* @__PURE__ */ u(ProgressBar, {
               animating: showProgress
@@ -41323,7 +40742,7 @@ self.onmessage = function (e) {
     }) => {
       return /* @__PURE__ */ u("button", {
         type: "button",
-        className: clsx("btn", "btn-outline", "text-size-small", styles$2.titleTool),
+        className: clsx("btn", "btn-outline", "text-size-small", styles$8.titleTool),
         "aria-label": label,
         onClick,
         disabled: !enabled,
@@ -41398,11 +40817,48 @@ self.onmessage = function (e) {
       }
       return "Error";
     };
-    const grid = "_grid_12d2w_1";
+    const CardHeader = ({
+      id,
+      icon,
+      label,
+      className: className2,
+      children: children2
+    }) => {
+      return /* @__PURE__ */ u("div", {
+        className: clsx("card-header-container", "text-style-label", className2),
+        id: id || "",
+        children: [icon ? /* @__PURE__ */ u("i", {
+          className: clsx("card-header-icon", icon)
+        }) : /* @__PURE__ */ u("span", {
+          className: "card-header-icon"
+        }), label ? label : "", " ", children2]
+      });
+    };
+    const CardBody = ({
+      id,
+      children: children2
+    }) => {
+      return /* @__PURE__ */ u("div", {
+        className: "card-body",
+        id: id || "",
+        children: children2
+      });
+    };
+    const Card = ({
+      id,
+      children: children2
+    }) => {
+      return /* @__PURE__ */ u("div", {
+        className: "card",
+        id,
+        children: children2
+      });
+    };
+    const grid$1 = "_grid_12d2w_1";
     const cell = "_cell_12d2w_7";
     const value = "_value_12d2w_12";
-    const styles$1 = {
-      grid,
+    const styles$7 = {
+      grid: grid$1,
       cell,
       value
     };
@@ -41423,10 +40879,10 @@ self.onmessage = function (e) {
               borderBottom: `${!plain ? "solid 1px var(--bs-light-border-subtle" : ""}`
             }
           }), /* @__PURE__ */ u("div", {
-            className: clsx(`${baseId}-key`, styles$1.cell, "text-style-label", "text-style-secondary", "text-size-small"),
+            className: clsx(`${baseId}-key`, styles$7.cell, "text-style-label", "text-style-secondary", "text-size-small"),
             children: entry2.name
           }), /* @__PURE__ */ u("div", {
-            className: clsx(styles$1.value, `${baseId}-value`, "text-size-small"),
+            className: clsx(styles$7.value, `${baseId}-value`, "text-size-small"),
             children: /* @__PURE__ */ u(RenderedContent, {
               id: id2,
               entry: entry2
@@ -41436,7 +40892,7 @@ self.onmessage = function (e) {
       });
       return /* @__PURE__ */ u("div", {
         id,
-        className: clsx(classes, styles$1.grid),
+        className: clsx(classes, styles$7.grid),
         style: style2,
         children: entryEls
       });
@@ -41990,6 +41446,80 @@ self.onmessage = function (e) {
     <div style=${{ fontSize: FontSize.smaller, ...TextStyle.secondary }}>${event.message.filename}:${event.message.lineno}</div>
   </div>
   </${EventRow}>`;
+    };
+    const wrapper$1 = "_wrapper_b0it4_1";
+    const col2$1 = "_col2_b0it4_8";
+    const col1_3 = "_col1_3_b0it4_12";
+    const col3 = "_col3_b0it4_16";
+    const separator$1 = "_separator_b0it4_20";
+    const styles$6 = {
+      wrapper: wrapper$1,
+      col2: col2$1,
+      col1_3,
+      col3,
+      separator: separator$1
+    };
+    const ModelUsagePanel = ({
+      usage
+    }) => {
+      if (!usage) {
+        return "";
+      }
+      const rows = [{
+        label: "input",
+        value: usage.input_tokens,
+        secondary: false
+      }];
+      if (usage.input_tokens_cache_read) {
+        rows.push({
+          label: "cache_read",
+          value: usage.input_tokens_cache_read,
+          secondary: true
+        });
+      }
+      if (usage.input_tokens_cache_write) {
+        rows.push({
+          label: "cache_write",
+          value: usage.input_tokens_cache_write,
+          secondary: true
+        });
+      }
+      rows.push({
+        label: "Output",
+        value: usage.output_tokens,
+        secondary: false,
+        bordered: true
+      });
+      rows.push({
+        label: "---",
+        value: void 0,
+        secondary: false
+      });
+      rows.push({
+        label: "Total",
+        value: usage.total_tokens,
+        secondary: false
+      });
+      return /* @__PURE__ */ u("div", {
+        className: clsx("text-size-small", styles$6.wrapper),
+        children: rows.map((row2) => {
+          if (row2.label === "---") {
+            return /* @__PURE__ */ u("div", {
+              className: styles$6.separator
+            });
+          } else {
+            return /* @__PURE__ */ u(xn.Fragment, {
+              children: [/* @__PURE__ */ u("div", {
+                className: clsx("text-style-label", "text-style-secondary", row2.secondary ? styles$6.col2 : styles$6.col1_3),
+                children: row2.label
+              }), /* @__PURE__ */ u("div", {
+                className: styles$6.col3,
+                children: row2.value ? formatNumber(row2.value) : ""
+              })]
+            });
+          }
+        })
+      });
     };
     const EventSection = ({ title: title2, style: style2, children: children2 }) => {
       return m$1`<div
@@ -49819,6 +49349,79 @@ ${events}
     scrollRef=${scrollRef}
   />`;
     };
+    const table = "_table_dbhwb_1";
+    const tableTokens = "_tableTokens_dbhwb_6";
+    const tableH = "_tableH_dbhwb_10";
+    const model = "_model_dbhwb_15";
+    const styles$5 = {
+      table,
+      tableTokens,
+      tableH,
+      model
+    };
+    const TokenTable = ({
+      style: style2,
+      children: children2
+    }) => {
+      return /* @__PURE__ */ u("table", {
+        className: clsx("table", "table-sm", "text-size-smaller", styles$5.table),
+        style: style2,
+        children: children2
+      });
+    };
+    const TokenHeader = () => {
+      return /* @__PURE__ */ u("thead", {
+        children: [/* @__PURE__ */ u("tr", {
+          children: [/* @__PURE__ */ u("td", {}), /* @__PURE__ */ u("td", {
+            colspan: 3,
+            className: clsx("card-subheading", styles$5.tableTokens, "text-size-small", "text-style-label", "text-style-secondary"),
+            align: "center",
+            children: "Tokens"
+          })]
+        }), /* @__PURE__ */ u("tr", {
+          children: [/* @__PURE__ */ u("th", {
+            className: clsx(styles$5.tableH, "text-sixe-small", "text-style-label", "text-style-secondary"),
+            children: "Model"
+          }), /* @__PURE__ */ u("th", {
+            className: clsx(styles$5.tableH, "text-sixe-small", "text-style-label", "text-style-secondary"),
+            children: "Usage"
+          })]
+        })]
+      });
+    };
+    const TokenRow = ({
+      model: model2,
+      usage
+    }) => {
+      return /* @__PURE__ */ u("tr", {
+        children: [/* @__PURE__ */ u("td", {
+          children: /* @__PURE__ */ u("div", {
+            className: styles$5.model,
+            children: model2
+          })
+        }), /* @__PURE__ */ u("td", {
+          children: /* @__PURE__ */ u(ModelUsagePanel, {
+            usage
+          })
+        })]
+      });
+    };
+    const ModelTokenTable = ({
+      model_usage,
+      style: style2
+    }) => {
+      return /* @__PURE__ */ u(TokenTable, {
+        style: style2,
+        children: [/* @__PURE__ */ u(TokenHeader, {}), /* @__PURE__ */ u("tbody", {
+          children: Object.keys(model_usage).map((key2) => {
+            return /* @__PURE__ */ u(TokenRow, {
+              model: key2,
+              usage: model_usage[key2]
+            });
+          })
+        })]
+      });
+    };
     const printHtml = (html, css) => {
       const printWindow = window.open("", "", "height=600,width=800");
       if (printWindow !== null) {
@@ -50957,6 +50560,403 @@ ${events}
         }
       };
     };
+    const ghCommitUrl = (origin, commit) => {
+      const baseUrl = origin.replace(/\.git$/, "");
+      return `${baseUrl}/commit/${commit}`;
+    };
+    const item$1 = "_item_1uzhd_1";
+    const styles$4 = {
+      item: item$1
+    };
+    const DatasetDetailView = ({
+      dataset,
+      style: style2
+    }) => {
+      const filtered = Object.fromEntries(Object.entries(dataset).filter(([key2]) => key2 !== "sample_ids"));
+      if (!dataset || Object.keys(filtered).length === 0) {
+        return /* @__PURE__ */ u("span", {
+          className: clsx("text-size-base", styles$4.item),
+          style: style2,
+          children: "No dataset information available"
+        });
+      }
+      return /* @__PURE__ */ u(MetaDataView, {
+        className: clsx("text-size-base", styles$4.item),
+        entries: filtered,
+        tableOptions: "borderless,sm",
+        style: style2
+      });
+    };
+    const DetailStep = ({
+      icon,
+      name: name2,
+      params: params2,
+      className: className2
+    }) => {
+      const iconHtml = icon ? /* @__PURE__ */ u("i", {
+        className: clsx(icon, styles$4.icon)
+      }) : "";
+      return /* @__PURE__ */ u("div", {
+        className: clsx(className2),
+        children: [iconHtml, " ", name2, /* @__PURE__ */ u("div", {
+          className: styles$4.container,
+          children: params2 ? /* @__PURE__ */ u(MetaDataView, {
+            entries: params2,
+            className: "text-size-small"
+          }) : ""
+        })]
+      });
+    };
+    const ScorerDetailView = ({
+      name: name2,
+      scores: scores2,
+      params: params2
+    }) => {
+      if (scores2.length > 1) {
+        params2["scores"] = scores2;
+      }
+      return /* @__PURE__ */ u(DetailStep, {
+        icon: ApplicationIcons.scorer,
+        name: name2,
+        params: params2,
+        className: clsx(styles$4.item, "text-size-base")
+      });
+    };
+    const container$1 = "_container_12g3a_1";
+    const item = "_item_12g3a_6";
+    const separator = "_separator_12g3a_10";
+    const styles$3 = {
+      container: container$1,
+      item,
+      separator
+    };
+    const SolversDetailView = ({
+      steps
+    }) => {
+      const separator2 = /* @__PURE__ */ u("div", {
+        className: clsx(styles$3.items, "text-size-small", styles$3.separator),
+        children: /* @__PURE__ */ u("i", {
+          class: ApplicationIcons.arrows.right
+        })
+      });
+      const details = steps == null ? void 0 : steps.map((step, index) => {
+        return /* @__PURE__ */ u(xn.Fragment, {
+          children: [/* @__PURE__ */ u(DetailStep, {
+            name: step.solver,
+            className: clsx(styles$3.items, "text-size-small")
+          }), index < steps.length - 1 ? separator2 : ""]
+        });
+      });
+      return /* @__PURE__ */ u("div", {
+        className: styles$3.container,
+        children: details
+      });
+    };
+    const floatingCol = "_floatingCol_1q1sr_1";
+    const wideCol = "_wideCol_1q1sr_9";
+    const oneCol = "_oneCol_1q1sr_16";
+    const twoCol = "_twoCol_1q1sr_20";
+    const planCol = "_planCol_1q1sr_24";
+    const container = "_container_1q1sr_28";
+    const grid = "_grid_1q1sr_34";
+    const row = "_row_1q1sr_42";
+    const styles$2 = {
+      floatingCol,
+      wideCol,
+      oneCol,
+      twoCol,
+      planCol,
+      container,
+      grid,
+      row
+    };
+    const PlanDetailView = ({
+      evaluation,
+      plan,
+      scores: scores2
+    }) => {
+      if (!evaluation) {
+        return "";
+      }
+      const config2 = {};
+      Object.entries((evaluation == null ? void 0 : evaluation.config) || {}).forEach((entry2) => {
+        const key2 = entry2[0];
+        const value2 = entry2[1];
+        config2[key2] = value2;
+      });
+      const steps = plan == null ? void 0 : plan.steps;
+      const metadata = evaluation == null ? void 0 : evaluation.metadata;
+      const revision = evaluation == null ? void 0 : evaluation.revision;
+      const packages = evaluation == null ? void 0 : evaluation.packages;
+      const model_args = evaluation == null ? void 0 : evaluation.model_args;
+      const task_args = evaluation == null ? void 0 : evaluation.task_args;
+      const generate_config = plan == null ? void 0 : plan.config;
+      const taskInformation = {
+        ["Task ID"]: evaluation == null ? void 0 : evaluation.task_id,
+        ["Run ID"]: evaluation == null ? void 0 : evaluation.run_id
+      };
+      if (revision) {
+        taskInformation[`${revision.type ? `${toTitleCase(revision.type)} ` : ""}Revision`] = {
+          _html: /* @__PURE__ */ u("a", {
+            href: ghCommitUrl(revision.origin, revision.commit),
+            children: revision.commit
+          })
+        };
+      }
+      if (packages) {
+        taskInformation["Inspect"] = {
+          _html: Object.keys(packages).map((key2) => {
+            return `${key2} ${packages[key2]}`;
+          }).join("<br/>\n")
+        };
+      }
+      if (evaluation.tags) {
+        taskInformation["Tags"] = evaluation.tags.join(", ");
+      }
+      if (evaluation == null ? void 0 : evaluation.model) {
+        config2["model"] = evaluation.model;
+      }
+      if (evaluation == null ? void 0 : evaluation.model_base_url) {
+        config2["model_base_url"] = evaluation.model_base_url;
+      }
+      if (evaluation == null ? void 0 : evaluation.sandbox) {
+        config2["sandbox"] = evaluation.sandbox[0];
+        if (evaluation.sandbox[1]) {
+          config2["sandbox_config"] = evaluation.sandbox[1];
+        }
+      }
+      const taskColumns = [];
+      taskColumns.push({
+        title: "Dataset",
+        className: styles$2.floatingCol,
+        contents: /* @__PURE__ */ u(DatasetDetailView, {
+          dataset: evaluation.dataset
+        })
+      });
+      if (steps) {
+        taskColumns.push({
+          title: "Plan",
+          className: styles$2.wideCol,
+          contents: /* @__PURE__ */ u(SolversDetailView, {
+            steps
+          })
+        });
+      }
+      if (scores2) {
+        const scorers = scores2.reduce((accum, score2) => {
+          if (!accum[score2.scorer]) {
+            accum[score2.scorer] = {
+              scores: [score2.name],
+              params: score2.params
+            };
+          } else {
+            accum[score2.scorer].scores.push(score2.name);
+          }
+          return accum;
+        }, {});
+        if (Object.keys(scorers).length > 0) {
+          const label = Object.keys(scorers).length === 1 ? "Scorer" : "Scorers";
+          const scorerPanels = Object.keys(scorers).map((key2) => {
+            return /* @__PURE__ */ u(ScorerDetailView, {
+              name: key2,
+              scores: scorers[key2].scores,
+              params: scorers[key2].params
+            });
+          });
+          taskColumns.push({
+            title: label,
+            className: styles$2.floatingCol,
+            contents: scorerPanels
+          });
+        }
+      }
+      const metadataColumns = [];
+      const cols = colCount(metadataColumns, task_args, model_args, config2, metadata);
+      metadataColumns.push({
+        title: "Task Information",
+        className: cols === 1 ? styles$2.oneCol : styles$2.twoCol,
+        contents: /* @__PURE__ */ u(MetaDataView, {
+          className: "text-size-small",
+          entries: taskInformation,
+          tableOptions: "borderless,sm"
+        })
+      });
+      if (task_args && Object.keys(task_args).length > 0) {
+        metadataColumns.push({
+          title: "Task Args",
+          className: cols === 1 ? styles$2.oneCol : styles$2.twoCol,
+          contents: /* @__PURE__ */ u(MetaDataView, {
+            className: "text-size-small",
+            entries: task_args,
+            tableOptions: "sm"
+          })
+        });
+      }
+      if (model_args && Object.keys(model_args).length > 0) {
+        metadataColumns.push({
+          title: "Model Args",
+          className: cols === 1 ? styles$2.oneCol : styles$2.twoCol,
+          contents: /* @__PURE__ */ u(MetaDataView, {
+            className: "text-size-small",
+            entries: model_args,
+            tableOptions: "sm"
+          })
+        });
+      }
+      if (config2 && Object.keys(config2).length > 0) {
+        metadataColumns.push({
+          title: "Configuration",
+          className: cols === 1 ? styles$2.oneCol : styles$2.twoCol,
+          contents: /* @__PURE__ */ u(MetaDataView, {
+            className: "text-size-small",
+            entries: config2,
+            tableOptions: "sm"
+          })
+        });
+      }
+      if (generate_config && Object.keys(generate_config).length > 0) {
+        const generate_record = Object.fromEntries(Object.entries(generate_config));
+        metadataColumns.push({
+          title: "Generate Config",
+          className: cols === 1 ? styles$2.oneCol : styles$2.twoCol,
+          contents: /* @__PURE__ */ u(MetaDataView, {
+            className: "text-size-small",
+            entries: generate_record,
+            tableOptions: "sm"
+          })
+        });
+      }
+      if (metadata && Object.keys(metadata).length > 0) {
+        metadataColumns.push({
+          title: "Metadata",
+          className: cols === 1 ? styles$2.oneCol : styles$2.twoCol,
+          contents: /* @__PURE__ */ u(MetaDataView, {
+            className: "text-size-small",
+            entries: metadata,
+            tableOptions: "sm"
+          })
+        });
+      }
+      return /* @__PURE__ */ u("div", {
+        className: styles$2.container,
+        children: [/* @__PURE__ */ u("div", {
+          className: styles$2.grid,
+          style: {
+            gridTemplateColumns: `repeat(${taskColumns.length}, auto)`
+          },
+          children: taskColumns.map((col) => {
+            return /* @__PURE__ */ u(PlanColumn, {
+              title: col.title,
+              className: col.className,
+              children: col.contents
+            });
+          })
+        }), /* @__PURE__ */ u("div", {
+          className: clsx("row", styles$2.row),
+          children: metadataColumns.map((col) => {
+            return /* @__PURE__ */ u(PlanColumn, {
+              title: col.title,
+              className: col.className,
+              children: col.contents
+            });
+          })
+        })]
+      });
+    };
+    const colCount = (...other) => {
+      let count = 0;
+      for (const o2 in other) {
+        if (o2 && Object.keys(o2).length > 0) {
+          count++;
+        }
+      }
+      return count;
+    };
+    const PlanColumn = ({
+      title: title2,
+      className: className2,
+      children: children2
+    }) => {
+      return /* @__PURE__ */ u("div", {
+        className: clsx(className2),
+        children: [/* @__PURE__ */ u("div", {
+          className: clsx("card-subheading", "text-size-small", "text-style-label", "text-style-secondary", styles$2.planCol),
+          children: title2
+        }), children2]
+      });
+    };
+    const PlanCard = ({
+      evalSpec,
+      evalPlan,
+      scores: scores2
+    }) => {
+      return /* @__PURE__ */ u(Card, {
+        children: [/* @__PURE__ */ u(CardHeader, {
+          icon: ApplicationIcons.config,
+          label: "Config"
+        }), /* @__PURE__ */ u(CardBody, {
+          id: "task-plan-card-body",
+          children: /* @__PURE__ */ u(PlanDetailView, {
+            evaluation: evalSpec,
+            plan: evalPlan,
+            scores: scores2
+          })
+        })]
+      });
+    };
+    const wrapper = "_wrapper_q7y7u_1";
+    const col1 = "_col1_q7y7u_8";
+    const col2 = "_col2_q7y7u_13";
+    const duration = "_duration_q7y7u_17";
+    const styles$1 = {
+      wrapper,
+      col1,
+      col2,
+      duration
+    };
+    const kUsageCardBodyId = "usage-card-body";
+    const UsageCard = ({
+      stats
+    }) => {
+      if (!stats) {
+        return "";
+      }
+      const totalDuration = formatDuration(new Date(stats.started_at), new Date(stats.completed_at));
+      const usageMetadataStyle = {
+        fontSize: FontSize.smaller
+      };
+      return /* @__PURE__ */ u(Card, {
+        children: [/* @__PURE__ */ u(CardHeader, {
+          icon: ApplicationIcons.usage,
+          label: "Usage"
+        }), /* @__PURE__ */ u(CardBody, {
+          id: kUsageCardBodyId,
+          children: /* @__PURE__ */ u("div", {
+            className: styles$1.wrapper,
+            children: [/* @__PURE__ */ u("div", {
+              className: styles$1.col1,
+              children: [/* @__PURE__ */ u("div", {
+                className: clsx(styles$1.duration, "text-size-smaller", "text-style-label", "text-style-secondary"),
+                children: "Duration"
+              }), /* @__PURE__ */ u(MetaDataView, {
+                entries: {
+                  ["Start"]: new Date(stats.started_at).toLocaleString(),
+                  ["End"]: new Date(stats.completed_at).toLocaleString(),
+                  ["Duration"]: totalDuration
+                },
+                tableOptions: "borderless,sm",
+                style: usageMetadataStyle
+              })]
+            }), /* @__PURE__ */ u("div", {
+              className: styles$1.col2,
+              children: /* @__PURE__ */ u(ModelTokenTable, {
+                model_usage: stats.model_usage
+              })
+            })]
+          })
+        })]
+      });
+    };
     const styles = {
       "task-error-display": "_task-error-display_1624b_1"
     };
@@ -50972,6 +50972,54 @@ ${events}
             output: error2.traceback_ansi,
             className: styles["task-error-display"]
           })
+        })]
+      });
+    };
+    const InfoTab = ({
+      evalSpec,
+      evalPlan,
+      evalResults,
+      evalStats,
+      samples,
+      evalStatus,
+      evalError
+    }) => {
+      const [hidden2, setHidden] = h(false);
+      y(() => {
+        setHidden(false);
+      }, [evalSpec, evalPlan, evalResults, evalStats, samples]);
+      const infoCards = [];
+      infoCards.push([/* @__PURE__ */ u(PlanCard, {
+        evalSpec,
+        evalPlan,
+        scores: evalResults == null ? void 0 : evalResults.scores
+      })]);
+      if (evalStatus !== "started") {
+        infoCards.push(/* @__PURE__ */ u(UsageCard, {
+          stats: evalStats
+        }));
+      }
+      if (evalStatus === "error" && evalError) {
+        infoCards.unshift(/* @__PURE__ */ u(TaskErrorCard, {
+          error: evalError
+        }));
+      }
+      const showWarning = (!samples || samples.length === 0) && evalStatus === "success" && (evalSpec == null ? void 0 : evalSpec.dataset.samples) && evalSpec.dataset.samples > 0;
+      return /* @__PURE__ */ u("div", {
+        style: {
+          width: "100%"
+        },
+        children: [showWarning ? /* @__PURE__ */ u(MessageBand, {
+          message: "Unable to display samples (this evaluation log may be too large).",
+          hidden: hidden2,
+          setHidden,
+          type: "warning"
+        }) : "", /* @__PURE__ */ u("div", {
+          style: {
+            padding: "0.5em 1em 0 1em",
+            width: "100%"
+          },
+          children: infoCards
         })]
       });
     };
@@ -51028,10 +51076,6 @@ ${events}
       if (!evalSpec) {
         return "";
       }
-      const [hidden2, setHidden] = h(false);
-      y(() => {
-        setHidden(false);
-      }, [logFileName]);
       y(() => {
         if (divRef.current) {
           divRef.current.scrollTop = 0;
@@ -51112,38 +51156,15 @@ ${events}
           label: "Info",
           scrollable: true,
           content: () => {
-            var _a2;
-            const infoCards = [];
-            infoCards.push([
-              m$1`<${PlanCard}
-            evalSpec=${evalSpec}
-            evalPlan=${evalPlan}
-            scores=${evalResults == null ? void 0 : evalResults.scores}
-          />`
-            ]);
-            if (evalStatus !== "started") {
-              infoCards.push(m$1`<${UsageCard} stats=${evalStats} />`);
-            }
-            if (evalStatus === "error" && evalError) {
-              infoCards.unshift(m$1`<${TaskErrorCard} evalError=${evalError} />`);
-            }
-            const warnings = [];
-            if ((!samples || samples.length === 0) && ((_a2 = evalSpec == null ? void 0 : evalSpec.dataset) == null ? void 0 : _a2.samples) > 0 && evalStatus === "success") {
-              warnings.push(
-                m$1`<${MessageBand}
-              message="Unable to display samples (this evaluation log may be too large)."
-              hidden=${hidden2}
-              setHidden=${setHidden}
-              type="warning"
-            />`
-              );
-            }
-            return m$1` <div style=${{ width: "100%" }}>
-          ${warnings}
-          <div style=${{ padding: "0.5em 1em 0 1em", width: "100%" }}>
-            ${infoCards}
-          </div>
-        </div>`;
+            return m$1`<${InfoTab}
+          evalSpec=${evalSpec}
+          status=${evalStatus}
+          evalPlan=${evalPlan}
+          evalError=${evalError}
+          evalResults=${evalResults}
+          evalStats=${evalStats}
+          samples=${samples}
+        />`;
           }
         };
         resolvedTabs2.json = {
@@ -51234,9 +51255,7 @@ ${events}
         evalError,
         logFileName,
         capabilities,
-        selectedTab,
-        setHidden,
-        hidden2
+        selectedTab
       ]);
       return m$1`<${WorkspaceDisplay}
     logFileName=${logFileName}

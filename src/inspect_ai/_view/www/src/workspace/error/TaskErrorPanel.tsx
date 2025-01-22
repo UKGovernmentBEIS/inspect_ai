@@ -2,14 +2,12 @@ import { ApplicationIcons } from "../../appearance/icons";
 
 import { ANSIDisplay } from "../../components/AnsiDisplay";
 import { Card, CardBody, CardHeader } from "../../components/Card";
+import { EvalError } from "../../types/log";
 
 import styles from "./TaskErrorPanel.module.css";
 
 interface TaskErrorProps {
-  error: {
-    message: string;
-    traceback_ansi: string;
-  };
+  error: EvalError;
 }
 
 export const TaskErrorCard: React.FC<TaskErrorProps> = ({ error }) => {

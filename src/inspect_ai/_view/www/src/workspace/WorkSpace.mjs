@@ -1,33 +1,24 @@
 /// <reference path="../types/prism.d.ts" />
 import { html } from "htm/preact";
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "preact/hooks";
+import { useCallback, useEffect, useMemo, useRef } from "preact/hooks";
 
 import { ApplicationIcons } from "../appearance/icons";
 import { EmptyPanel } from "../components/EmptyPanel";
 import { TabPanel, TabSet } from "../components/TabSet";
 import { ToolButton } from "../components/ToolButton";
-import { PlanCard } from "../plan/PlanCard";
 import { SampleTools } from "../samples/SamplesTools.mjs";
-import { UsageCard } from "../usage/UsageCard";
 import { Navbar } from "./navbar/Navbar.tsx";
 import { JsonTab } from "./tabs/JsonTab";
 import { SamplesTab } from "./tabs/SamplesTab.mjs";
 
 import { FontSize } from "../appearance/fonts";
-import { MessageBand } from "../components/MessageBand";
 import {
   kEvalWorkspaceTabId,
   kInfoWorkspaceTabId,
   kJsonWorkspaceTabId,
 } from "../constants";
 import { debounce } from "../utils/sync";
-import { TaskErrorCard } from "./error/TaskErrorPanel";
+import { InfoTab } from "./tabs/InfoTab.tsx";
 
 /**
  * Renders the Main Application
@@ -132,11 +123,6 @@ export const WorkSpace = ({
     return "";
   }
 
-  const [hidden, setHidden] = useState(false);
-  useEffect(() => {
-    setHidden(false);
-  }, [logFileName]);
-
   // Display the log
   useEffect(() => {
     if (divRef.current) {
@@ -227,46 +213,15 @@ export const WorkSpace = ({
       label: "Info",
       scrollable: true,
       content: () => {
-        const infoCards = [];
-        infoCards.push([
-          html`<${PlanCard}
-            evalSpec=${evalSpec}
-            evalPlan=${evalPlan}
-            scores=${evalResults?.scores}
-          />`,
-        ]);
-
-        if (evalStatus !== "started") {
-          infoCards.push(html`<${UsageCard} stats=${evalStats} />`);
-        }
-
-        // If there is error or progress, includes those within info
-        if (evalStatus === "error" && evalError) {
-          infoCards.unshift(html`<${TaskErrorCard} evalError=${evalError} />`);
-        }
-
-        const warnings = [];
-        if (
-          (!samples || samples.length === 0) &&
-          evalSpec?.dataset?.samples > 0 &&
-          evalStatus === "success"
-        ) {
-          warnings.push(
-            html`<${MessageBand}
-              message="Unable to display samples (this evaluation log may be too large)."
-              hidden=${hidden}
-              setHidden=${setHidden}
-              type="warning"
-            />`,
-          );
-        }
-
-        return html` <div style=${{ width: "100%" }}>
-          ${warnings}
-          <div style=${{ padding: "0.5em 1em 0 1em", width: "100%" }}>
-            ${infoCards}
-          </div>
-        </div>`;
+        return html`<${InfoTab}
+          evalSpec=${evalSpec}
+          status=${evalStatus}
+          evalPlan=${evalPlan}
+          evalError=${evalError}
+          evalResults=${evalResults}
+          evalStats=${evalStats}
+          samples=${samples}
+        />`;
       },
     };
 
@@ -362,8 +317,6 @@ export const WorkSpace = ({
     logFileName,
     capabilities,
     selectedTab,
-    setHidden,
-    hidden,
   ]);
 
   return html`<${WorkspaceDisplay}
