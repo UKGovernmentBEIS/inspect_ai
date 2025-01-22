@@ -5,6 +5,7 @@ import rich
 
 from inspect_ai.util._display import display_type
 
+from ..plain.display import PlainDisplay
 from ..rich.display import RichDisplay
 from ..textual.display import TextualDisplay
 from .display import Display, TaskScreen
@@ -13,7 +14,9 @@ from .display import Display, TaskScreen
 def display() -> Display:
     global _active_display
     if _active_display is None:
-        if (
+        if display_type() == "plain":
+            _active_display = PlainDisplay()
+        elif (
             display_type() == "full"
             and sys.stdout.isatty()
             and not rich.get_console().is_jupyter

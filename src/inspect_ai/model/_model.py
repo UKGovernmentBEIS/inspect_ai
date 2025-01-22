@@ -851,7 +851,7 @@ def handle_sample_message_limit(input: str | list[ChatMessage]) -> None:
     total_messages = 1 if isinstance(input, str) else len(input)
     message_limit = active_sample_message_limit()
     if message_limit is not None:
-        if total_messages > message_limit:
+        if total_messages >= message_limit:
             raise SampleLimitExceededError(
                 "message", value=total_messages, limit=message_limit
             )
