@@ -1,11 +1,11 @@
 import clsx from "clsx";
 import styles from "./MetaDataView.module.css";
-import { RenderedContent } from "./RenderedContent/RenderedContent.mjs";
+import { RenderedContent } from "./RenderedContent/RenderedContent";
 
 interface MetadataViewProps {
   id?: string;
   style?: React.CSSProperties;
-  entries: Record<string, string>;
+  entries: Record<string, unknown>;
   tableOptions?: string;
   compact?: boolean;
   className?: string | string[];

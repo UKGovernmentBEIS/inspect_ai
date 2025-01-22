@@ -66,7 +66,8 @@ export const ChatViewVirtualList = ({
  * @param {import("../../types/log").Messages} props.messages - The array of chat messages.
  * @param {"compact" | "complete"} [props.toolCallStyle] - Whether to show tool calls
  * @param {Object} [props.style] - Inline styles for the chat view.
- * @param {boolean} props.indented - Whether the chatview has indented messages
+ * @param {string} [props.title] - The title
+ * @param {boolean} [props.indented] - Whether the chatview has indented messages
  * @param {boolean} [props.numbered] - Whether the chatview is numbered
  * @returns {import("preact").JSX.Element} The component.
  */

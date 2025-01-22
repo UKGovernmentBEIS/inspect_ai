@@ -3387,7 +3387,7 @@ var require_assets = __commonJS({
     const hidden$2 = "_hidden_tm52u_5";
     const pills = "_pills_tm52u_9";
     const pill = "_pill_tm52u_9";
-    const styles$l = {
+    const styles$m = {
       visible,
       hidden: hidden$2,
       pills,
@@ -3412,13 +3412,13 @@ var require_assets = __commonJS({
       const navBodies = children2.map((child) => {
         var _a2;
         return /* @__PURE__ */ u("div", {
-          className: ((_a2 = child["props"]) == null ? void 0 : _a2.title) === activeItem ? styles$l.visible : styles$l.hidden,
+          className: ((_a2 = child["props"]) == null ? void 0 : _a2.title) === activeItem ? styles$m.visible : styles$m.hidden,
           children: ["$", child]
         });
       });
       return /* @__PURE__ */ u("div", {
         children: [/* @__PURE__ */ u("ul", {
-          className: clsx("nav", "nav-pills", styles$l.pills),
+          className: clsx("nav", "nav-pills", styles$m.pills),
           role: "tablist",
           "aria-orientation": "horizontal",
           children: navPills
@@ -3438,7 +3438,7 @@ var require_assets = __commonJS({
           type: "button",
           role: "tab",
           "aria-selected": active2,
-          className: clsx("nav-link", "text-style-label", active2 ? "active " : "", styles$l.pill),
+          className: clsx("nav-link", "text-style-label", active2 ? "active " : "", styles$m.pill),
           onClick: () => {
             setActiveItem(title2);
           },
@@ -8784,7 +8784,7 @@ var require_assets = __commonJS({
     const container$4 = "_container_1vi7u_1";
     const hidden$1 = "_hidden_1vi7u_8";
     const content$2 = "_content_1vi7u_12";
-    const styles$k = {
+    const styles$l = {
       container: container$4,
       hidden: hidden$1,
       content: content$2
@@ -8958,12 +8958,12 @@ var require_assets = __commonJS({
         ...props,
         ...scrollProps,
         children: /* @__PURE__ */ u("div", {
-          className: clsx(styles$k.container, !(scrollRef == null ? void 0 : scrollRef.current) ? styles$k.hidden : void 0),
+          className: clsx(styles$l.container, !(scrollRef == null ? void 0 : scrollRef.current) ? styles$l.hidden : void 0),
           style: {
             height: `${listMetrics.totalHeight}px`
           },
           children: /* @__PURE__ */ u("div", {
-            className: styles$k.content,
+            className: styles$l.content,
             style: {
               transform: `translateY(${top2}px)`
             },
@@ -8984,7 +8984,7 @@ var require_assets = __commonJS({
       };
     };
     const contentImage = "_contentImage_121dp_1";
-    const styles$j = {
+    const styles$k = {
       contentImage
     };
     var murmurhash$1 = { exports: {} };
@@ -9679,7 +9679,7 @@ var require_assets = __commonJS({
           if (c2.image.startsWith("data:")) {
             return /* @__PURE__ */ u("img", {
               src: c2.image,
-              className: styles$j.contentImage
+              className: styles$k.contentImage
             });
           } else {
             return /* @__PURE__ */ u("code", {
@@ -10034,16 +10034,24 @@ var require_assets = __commonJS({
       },
       render: (id, entry2) => {
         return {
-          rendered: m$1`
-        <${NavPills}>
-        <${ChatSummary} title="Last Turn" id=${id} messages=${entry2.value} />
-        <${ChatView} title="All" id=${id} messages=${entry2.value} />
-        </${NavPills}>
-        `
+          rendered: /* @__PURE__ */ u(NavPills, {
+            children: [/* @__PURE__ */ u(ChatSummary, {
+              title: "Last Turn",
+              id,
+              messages: entry2.value
+            }), /* @__PURE__ */ u(ChatView, {
+              title: "All",
+              id,
+              messages: entry2.value
+            })]
+          })
         };
       }
     };
-    const ChatSummary = ({ id, messages }) => {
+    const ChatSummary = ({
+      id,
+      messages
+    }) => {
       const summaryMessages = [];
       for (const message of messages.slice().reverse()) {
         summaryMessages.unshift(message);
@@ -10051,7 +10059,10 @@ var require_assets = __commonJS({
           break;
         }
       }
-      return m$1`<${ChatView} id=${id} messages=${summaryMessages} />`;
+      return /* @__PURE__ */ u(ChatView, {
+        id,
+        messages: summaryMessages
+      });
     };
     const arrayToString = (val) => {
       val = Array.isArray(val) ? val : [val];
@@ -11602,7 +11613,7 @@ var require_assets = __commonJS({
     const compact = "_compact_1memb_15";
     const cellKey = "_cellKey_1memb_19";
     const cellValue = "_cellValue_1memb_31";
-    const styles$i = {
+    const styles$j = {
       table: table$1,
       th,
       cell: cell$1,
@@ -11628,10 +11639,10 @@ var require_assets = __commonJS({
         const id2 = `${baseId}-value-${index}`;
         return /* @__PURE__ */ u("tr", {
           children: [/* @__PURE__ */ u("td", {
-            className: clsx(styles$i.cell, styles$i.cellKey, "text-size-small"),
+            className: clsx(styles$j.cell, styles$j.cellKey, "text-size-small"),
             children: entry2.name
           }), /* @__PURE__ */ u("td", {
-            className: clsx(styles$i.cell, styles$i.cellValue, "text-size-small"),
+            className: clsx(styles$j.cell, styles$j.cellValue, "text-size-small"),
             children: /* @__PURE__ */ u(RenderedContent, {
               id: id2,
               entry: entry2
@@ -11641,7 +11652,7 @@ var require_assets = __commonJS({
       });
       return /* @__PURE__ */ u("table", {
         id,
-        className: clsx("table", tblClz, styles$i.table, compact2 ? styles$i.compact : void 0, className2),
+        className: clsx("table", tblClz, styles$j.table, compact2 ? styles$j.compact : void 0, className2),
         style: style2,
         children: [/* @__PURE__ */ u("thead", {
           children: /* @__PURE__ */ u("tr", {
@@ -11671,7 +11682,18 @@ var require_assets = __commonJS({
         return entries;
       }
     };
-    const RenderedContent = ({ id, entry: entry2 }) => {
+    const query = "_query_9u9bt_1";
+    const summary = "_summary_9u9bt_6";
+    const preWrap = "_preWrap_9u9bt_10";
+    const styles$i = {
+      query,
+      summary,
+      preWrap
+    };
+    const RenderedContent = ({
+      id,
+      entry: entry2
+    }) => {
       if (entry2.value === null) {
         return "[null]";
       }
@@ -11682,14 +11704,18 @@ var require_assets = __commonJS({
       }).find((renderer2) => {
         return renderer2.canRender(entry2);
       });
-      let value2 = entry2.value;
       if (renderer) {
-        const { rendered } = renderer.render(id, entry2);
+        const {
+          rendered
+        } = renderer.render(id, entry2);
         if (rendered !== void 0) {
-          value2 = rendered;
+          return rendered;
+        } else {
+          return entry2.value;
         }
+      } else {
+        return entry2.value;
       }
-      return m$1`${value2}`;
     };
     const contentRenderers = {
       AnsiString: {
@@ -11697,9 +11723,11 @@ var require_assets = __commonJS({
         canRender: (entry2) => {
           return typeof entry2.value === "string" && entry2.value.indexOf("\x1B") > -1;
         },
-        render: (id, entry2) => {
+        render: (_id, entry2) => {
           return {
-            rendered: m$1`<${ANSIDisplay} output=${entry2.value} />`
+            rendered: /* @__PURE__ */ u(ANSIDisplay, {
+              output: entry2.value
+            })
           };
         }
       },
@@ -11710,7 +11738,11 @@ var require_assets = __commonJS({
         },
         render: (_id, entry2) => {
           return {
-            rendered: m$1`<i class="${ApplicationIcons.model}"></i> ${entry2.value._model}`
+            rendered: /* @__PURE__ */ u(xn.Fragment, {
+              children: [/* @__PURE__ */ u("i", {
+                class: ApplicationIcons.model
+              }), " ", entry2.value._model]
+            })
           };
         }
       },
@@ -11739,8 +11771,8 @@ var require_assets = __commonJS({
         canRender: (entry2) => {
           return typeof entry2.value === "string";
         },
-        render: (_id, entry2, defaultRendering) => {
-          const rendered = defaultRendering ? defaultRendering(entry2.value.trim()) : entry2.value.trim();
+        render: (_id, entry2) => {
+          const rendered = entry2.value.trim();
           return {
             rendered
           };
@@ -11751,11 +11783,9 @@ var require_assets = __commonJS({
         canRender: (entry2) => {
           const isArray = Array.isArray(entry2.value);
           if (isArray) {
-            const types2 = new Set(
-              entry2.value.map((entry3) => {
-                return typeof entry3;
-              })
-            );
+            const types2 = new Set(entry2.value.map((e2) => {
+              return typeof e2;
+            }));
             return types2.size === 1;
           } else {
             return false;
@@ -11763,17 +11793,19 @@ var require_assets = __commonJS({
         },
         render: (id, entry2) => {
           const arrayMap = {};
-          entry2.value.forEach((entry3, index) => {
-            arrayMap[`[${index}]`] = entry3;
+          entry2.value.forEach((e2, index) => {
+            arrayMap[`[${index}]`] = e2;
           });
-          const arrayRendered = m$1`<${MetaDataView}
-        id=${id}
-        style=${{ fontSize: FontSize.small }}
-        entries="${arrayMap}"
-        tableOptions="borderless,sm"
-        compact
-      />`;
-          return { rendered: arrayRendered };
+          const arrayRendered = /* @__PURE__ */ u(MetaDataView, {
+            id,
+            className: "font-size-small",
+            entries: arrayMap,
+            tableOptions: "borderless,sm",
+            compact: true
+          });
+          return {
+            rendered: arrayRendered
+          };
         }
       },
       ChatMessage: ChatMessageRenderer,
@@ -11784,24 +11816,23 @@ var require_assets = __commonJS({
         },
         render: (_id, entry2) => {
           const results = [];
-          results.push(
-            m$1`<div style=${{ marginBottom: "0.5rem", fontWeight: "500" }}>
-          <i class=${ApplicationIcons.search}></i> ${entry2.value.query}
-        </div>`
-          );
+          results.push(/* @__PURE__ */ u("div", {
+            className: styles$i.query,
+            children: [/* @__PURE__ */ u("i", {
+              class: ApplicationIcons.search
+            }), " ", entry2.value.query]
+          }));
           entry2.value.results.forEach((result) => {
-            results.push(
-              m$1`<div>
-            <a href="${result.url}">${result.url}</a>
-          </div>`
-            );
-            results.push(
-              m$1`<div
-            style=${{ fontSize: FontSize.smaller, marginBottom: "0.5rem" }}
-          >
-            ${result.summary}
-          </div>`
-            );
+            results.push(/* @__PURE__ */ u("div", {
+              children: /* @__PURE__ */ u("a", {
+                href: result.url,
+                children: result.url
+              })
+            }));
+            results.push(/* @__PURE__ */ u("div", {
+              className: clsx("text-size-smaller", styles$i.summary),
+              children: result.summary
+            }));
           });
           return {
             rendered: results
@@ -11816,9 +11847,10 @@ var require_assets = __commonJS({
         },
         render: (_id, entry2) => {
           return {
-            rendered: m$1`<pre style=${{ whiteSpace: "pre-wrap" }}>
-${entry2.value}</pre
-        >`
+            rendered: /* @__PURE__ */ u("pre", {
+              className: styles$i.preWrap,
+              children: entry2.value
+            })
           };
         }
       },
@@ -11827,7 +11859,7 @@ ${entry2.value}</pre
         canRender: (entry2) => {
           return typeof entry2.value === "object" && entry2.value._html;
         },
-        render: (id, entry2) => {
+        render: (_id, entry2) => {
           return {
             rendered: entry2.value._html
           };
@@ -11838,9 +11870,11 @@ ${entry2.value}</pre
         canRender: (entry2) => {
           return typeof entry2.value === "string" && entry2.value.startsWith("data:image/");
         },
-        render: (id, entry2) => {
+        render: (_id, entry2) => {
           return {
-            rendered: m$1`<img src=${entry2.value} />`
+            rendered: /* @__PURE__ */ u("img", {
+              src: entry2.value
+            })
           };
         }
       },
@@ -11850,23 +11884,23 @@ ${entry2.value}</pre
           return typeof entry2.value === "object";
         },
         render: (id, entry2) => {
-          const summary = [];
+          const summary2 = [];
           const keys = Object.keys(entry2.value);
           if (keys.length > 4) {
-            summary.push(...keys.slice(0, 2));
-            summary.push("...");
-            summary.push(...keys.slice(keys.length - 2));
+            summary2.push(...keys.slice(0, 2));
+            summary2.push("...");
+            summary2.push(...keys.slice(keys.length - 2));
           } else {
-            summary.push(...keys);
+            summary2.push(...keys);
           }
           return {
-            rendered: m$1`<${MetaDataView}
-          id=${id}
-          style=${{ fontSize: FontSize.smaller }}
-          entries="${entry2.value}"
-          tableOptions="borderless,sm"
-          compact
-        />`
+            rendered: /* @__PURE__ */ u(MetaDataView, {
+              id,
+              className: "text-size-smaller",
+              entries: entry2.value,
+              tableOptions: "borderless,sm",
+              compact: true
+            })
           };
         }
       }
@@ -18236,13 +18270,13 @@ self.onmessage = function (e) {
         if (logFiles) {
           return logFiles;
         } else if (log_file) {
-          const summary = await get_log_summary(log_file);
-          if (summary) {
+          const summary2 = await get_log_summary(log_file);
+          if (summary2) {
             return {
               files: [{
                 name: log_file,
-                task: summary.eval.task,
-                task_id: summary.eval.task_id
+                task: summary2.eval.task,
+                task_id: summary2.eval.task_id
               }]
             };
           }
@@ -23071,8 +23105,8 @@ self.onmessage = function (e) {
     const adjustArrows = function jsondiffpatchHtmlFormatterAdjustArrows(nodeArg) {
       const node = nodeArg || document;
       const getElementText = ({ textContent, innerText }) => textContent || innerText;
-      const eachByQuery = (el, query, fn2) => {
-        const elems = el.querySelectorAll(query);
+      const eachByQuery = (el, query2, fn2) => {
+        const elems = el.querySelectorAll(query2);
         for (let i2 = 0, l2 = elems.length; i2 < l2; i2++) {
           fn2(elems[i2]);
         }
@@ -28355,7 +28389,7 @@ ${events}
       isStore,
       style: style2
     }) => {
-      const summary = summarizeChanges(event.changes);
+      const summary2 = summarizeChanges(event.changes);
       const [before, after] = synthesizeComparable(event.changes);
       const tabs2 = [
         m$1`<${StateDiffView}
@@ -28383,7 +28417,7 @@ ${events}
     id=${id} 
     title="${title2}" 
     subTitle=${formatDateTime(new Date(event.timestamp))} 
-    text=${tabs2.length === 1 ? summary : void 0} 
+    text=${tabs2.length === 1 ? summary2 : void 0} 
     collapse=${changePreview === void 0 ? true : void 0} 
     style=${style2}
     selectedNav=${eventState.selectedNav || ""}
@@ -48214,19 +48248,19 @@ ${events}
           return type & 8 || (tr.selection || tr.docChanged) && !(type & 3);
         });
         for (let i2 = 0; i2 < this.running.length; i2++) {
-          let query = this.running[i2];
-          if (doesReset || query.context.abortOnDocChange && update.docChanged || query.updates.length + update.transactions.length > MaxUpdateCount && Date.now() - query.time > MinAbortTime) {
-            for (let handler of query.context.abortListeners) {
+          let query2 = this.running[i2];
+          if (doesReset || query2.context.abortOnDocChange && update.docChanged || query2.updates.length + update.transactions.length > MaxUpdateCount && Date.now() - query2.time > MinAbortTime) {
+            for (let handler of query2.context.abortListeners) {
               try {
                 handler();
               } catch (e2) {
                 logException(this.view.state, e2);
               }
             }
-            query.context.abortListeners = null;
+            query2.context.abortListeners = null;
             this.running.splice(i2--, 1);
           } else {
-            query.updates.push(...update.transactions);
+            query2.updates.push(...update.transactions);
           }
         }
         if (this.debounceUpdate > -1)
@@ -48285,30 +48319,30 @@ ${events}
         let updated = [];
         let conf = this.view.state.facet(completionConfig), cState = this.view.state.field(completionState);
         for (let i2 = 0; i2 < this.running.length; i2++) {
-          let query = this.running[i2];
-          if (query.done === void 0)
+          let query2 = this.running[i2];
+          if (query2.done === void 0)
             continue;
           this.running.splice(i2--, 1);
-          if (query.done) {
-            let pos2 = cur(query.updates.length ? query.updates[0].startState : this.view.state);
-            let limit = Math.min(pos2, query.done.from + (query.active.explicit ? 0 : 1));
-            let active2 = new ActiveResult(query.active.source, query.active.explicit, limit, query.done, query.done.from, (_a2 = query.done.to) !== null && _a2 !== void 0 ? _a2 : pos2);
-            for (let tr of query.updates)
+          if (query2.done) {
+            let pos2 = cur(query2.updates.length ? query2.updates[0].startState : this.view.state);
+            let limit = Math.min(pos2, query2.done.from + (query2.active.explicit ? 0 : 1));
+            let active2 = new ActiveResult(query2.active.source, query2.active.explicit, limit, query2.done, query2.done.from, (_a2 = query2.done.to) !== null && _a2 !== void 0 ? _a2 : pos2);
+            for (let tr of query2.updates)
               active2 = active2.update(tr, conf);
             if (active2.hasResult()) {
               updated.push(active2);
               continue;
             }
           }
-          let current = cState.active.find((a2) => a2.source == query.active.source);
+          let current = cState.active.find((a2) => a2.source == query2.active.source);
           if (current && current.isPending) {
-            if (query.done == null) {
+            if (query2.done == null) {
               let active2 = new ActiveSource(
-                query.active.source,
+                query2.active.source,
                 0
                 /* State.Inactive */
               );
-              for (let tr of query.updates)
+              for (let tr of query2.updates)
                 active2 = active2.update(tr, conf);
               if (!active2.isPending)
                 updated.push(active2);
@@ -51607,14 +51641,14 @@ Supported expressions:
           return;
         }
         if (selectedSampleIndex < filteredSamples.length) {
-          const summary = filteredSamples[selectedSampleIndex];
-          if (selectedSample && selectedSample.id === summary.id && selectedSample.epoch === summary.epoch) {
+          const summary2 = filteredSamples[selectedSampleIndex];
+          if (selectedSample && selectedSample.id === summary2.id && selectedSample.epoch === summary2.epoch) {
             return;
           }
           loadingSampleIndexRef.current = selectedSampleIndex;
           setSampleStatus("loading");
           setSampleError(void 0);
-          api2.get_log_sample(selectedLog.name, summary.id, summary.epoch).then((sample) => {
+          api2.get_log_sample(selectedLog.name, summary2.id, summary2.epoch).then((sample) => {
             if (sample.transcript) {
               sample.events = sample.transcript.events;
               sample.attachments = sample.transcript.content;

@@ -1,7 +1,7 @@
 import { html } from "htm/preact";
 import { FontSize } from "../appearance/fonts";
 import { ApplicationStyles } from "../appearance/styles";
-import { RenderedContent } from "../components/RenderedContent/RenderedContent.mjs";
+import { RenderedContent } from "../components/RenderedContent/RenderedContent";
 import {
   kScoreTypeCategorical,
   kScoreTypeNumeric,

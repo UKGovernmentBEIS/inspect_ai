@@ -1,23 +1,27 @@
-import { html } from "htm/preact";
-
-import { FontSize } from "../../appearance/fonts";
 import { ApplicationIcons } from "../../appearance/icons";
 
-import { ChatMessageRenderer } from "../../samples/chat/ChatMessageRenderer.mjs";
+import React from "preact/compat";
+import { ChatMessageRenderer } from "../../samples/chat/ChatMessageRenderer";
 import { formatNumber } from "../../utils/format";
 import { ANSIDisplay } from "../AnsiDisplay";
 import { MetaDataView } from "../MetaDataView";
-import { Buckets } from "./Types.mjs";
+
+import clsx from "clsx";
+import styles from "./RenderedContent.module.css";
+import { Buckets, ContentRenderer } from "./Types";
+
+interface RenderedContentProps {
+  id: string;
+  entry: { name: string; value: unknown };
+}
 
 /**
  * Renders content based on its type using registered content renderers.
- *
- * @param {Object} props - Properties passed to the component.
- * @param {string} props.id - Unique identifier for the rendered content.
- * @param {Object} props.entry - Entry object containing `value` to be rendered.
- * @returns {import("preact").JSX.Element | string} Rendered content.
  */
-export const RenderedContent = ({ id, entry }) => {
+export const RenderedContent: React.FC<RenderedContentProps> = ({
+  id,
+  entry,
+}) => {
   if (entry.value === null) {
     return "[null]";
   }
@@ -33,23 +37,23 @@ export const RenderedContent = ({ id, entry }) => {
       return renderer.canRender(entry);
     });
 
-  let value = entry.value;
   if (renderer) {
     const { rendered } = renderer.render(id, entry);
     if (rendered !== undefined) {
-      value = rendered;
+      return rendered;
+    } else {
+      return entry.value;
     }
+  } else {
+    return entry.value;
   }
-  return html`${value}`;
 };
 
 /**
  * Object containing different content renderers.
  * Each renderer is responsible for rendering a specific type of content.
- *
- * @type {Record<string, import("./Types.mjs").ContentRenderer>}
  */
-const contentRenderers = {
+const contentRenderers: Record<string, ContentRenderer> = {
   AnsiString: {
     bucket: Buckets.first,
     canRender: (entry) => {
@@ -57,9 +61,9 @@ const contentRenderers = {
         typeof entry.value === "string" && entry.value.indexOf("\u001b") > -1
       );
     },
-    render: (id, entry) => {
+    render: (_id, entry) => {
       return {
-        rendered: html`<${ANSIDisplay} output=${entry.value} />`,
+        rendered: <ANSIDisplay output={entry.value} />,
       };
     },
   },
@@ -70,8 +74,11 @@ const contentRenderers = {
     },
     render: (_id, entry) => {
       return {
-        rendered: html`<i class="${ApplicationIcons.model}"></i> ${entry.value
-            ._model}`,
+        rendered: (
+          <React.Fragment>
+            <i class={ApplicationIcons.model} /> {entry.value._model}
+          </React.Fragment>
+        ),
       };
     },
   },
@@ -100,10 +107,8 @@ const contentRenderers = {
     canRender: (entry) => {
       return typeof entry.value === "string";
     },
-    render: (_id, entry, defaultRendering) => {
-      const rendered = defaultRendering
-        ? defaultRendering(entry.value.trim())
-        : entry.value.trim();
+    render: (_id, entry) => {
+      const rendered = entry.value.trim();
       return {
         rendered,
       };
@@ -115,8 +120,8 @@ const contentRenderers = {
       const isArray = Array.isArray(entry.value);
       if (isArray) {
         const types = new Set(
-          entry.value.map((entry) => {
-            return typeof entry;
+          entry.value.map((e: unknown) => {
+            return typeof e;
           }),
         );
         return types.size === 1;
@@ -125,18 +130,20 @@ const contentRenderers = {
       }
     },
     render: (id, entry) => {
-      const arrayMap = {};
-      entry.value.forEach((entry, index) => {
-        arrayMap[`[${index}]`] = entry;
+      const arrayMap: Record<string, unknown> = {};
+      entry.value.forEach((e: unknown, index: number) => {
+        arrayMap[`[${index}]`] = e;
       });
 
-      const arrayRendered = html`<${MetaDataView}
-        id=${id}
-        style=${{ fontSize: FontSize.small }}
-        entries="${arrayMap}"
-        tableOptions="borderless,sm"
-        compact
-      />`;
+      const arrayRendered = (
+        <MetaDataView
+          id={id}
+          className={"font-size-small"}
+          entries={arrayMap}
+          tableOptions="borderless,sm"
+          compact={true}
+        />
+      );
       return { rendered: arrayRendered };
     },
   },
@@ -147,26 +154,26 @@ const contentRenderers = {
       return typeof entry.value === "object" && entry.name === "web_search";
     },
     render: (_id, entry) => {
-      const results = [];
+      const results: React.ReactNode[] = [];
       results.push(
-        html`<div style=${{ marginBottom: "0.5rem", fontWeight: "500" }}>
-          <i class=${ApplicationIcons.search}></i> ${entry.value.query}
-        </div>`,
+        <div className={styles.query}>
+          <i class={ApplicationIcons.search}></i> {entry.value.query}
+        </div>,
       );
-      entry.value.results.forEach((result) => {
-        results.push(
-          html`<div>
-            <a href="${result.url}">${result.url}</a>
-          </div>`,
-        );
-        results.push(
-          html`<div
-            style=${{ fontSize: FontSize.smaller, marginBottom: "0.5rem" }}
-          >
-            ${result.summary}
-          </div>`,
-        );
-      });
+      entry.value.results.forEach(
+        (result: { url: string; summary: string }) => {
+          results.push(
+            <div>
+              <a href={result.url}>{result.url}</a>
+            </div>,
+          );
+          results.push(
+            <div className={clsx("text-size-smaller", styles.summary)}>
+              {result.summary}
+            </div>,
+          );
+        },
+      );
       return {
         rendered: results,
       };
@@ -181,9 +188,7 @@ const contentRenderers = {
     },
     render: (_id, entry) => {
       return {
-        rendered: html`<pre style=${{ whiteSpace: "pre-wrap" }}>
-${entry.value}</pre
-        >`,
+        rendered: <pre className={styles.preWrap}>{entry.value}</pre>,
       };
     },
   },
@@ -192,7 +197,7 @@ ${entry.value}</pre
     canRender: (entry) => {
       return typeof entry.value === "object" && entry.value._html;
     },
-    render: (id, entry) => {
+    render: (_id, entry) => {
       return {
         rendered: entry.value._html,
       };
@@ -205,9 +210,9 @@ ${entry.value}</pre
         typeof entry.value === "string" && entry.value.startsWith("data:image/")
       );
     },
-    render: (id, entry) => {
+    render: (_id, entry) => {
       return {
-        rendered: html`<img src=${entry.value} />`,
+        rendered: <img src={entry.value} />,
       };
     },
   },
@@ -229,13 +234,15 @@ ${entry.value}</pre
       }
 
       return {
-        rendered: html`<${MetaDataView}
-          id=${id}
-          style=${{ fontSize: FontSize.smaller }}
-          entries="${entry.value}"
-          tableOptions="borderless,sm"
-          compact
-        />`,
+        rendered: (
+          <MetaDataView
+            id={id}
+            className={"text-size-smaller"}
+            entries={entry.value}
+            tableOptions="borderless,sm"
+            compact
+          />
+        ),
       };
     },
   },
