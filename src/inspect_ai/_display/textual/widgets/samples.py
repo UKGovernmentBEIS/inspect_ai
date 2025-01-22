@@ -8,10 +8,19 @@ from textual.app import ComposeResult
 from textual.containers import Horizontal, HorizontalGroup, Vertical, VerticalGroup
 from textual.reactive import reactive
 from textual.widget import Widget
-from textual.widgets import Button, Collapsible, LoadingIndicator, OptionList, Static
+from textual.widgets import (
+    Button,
+    Collapsible,
+    Link,
+    LoadingIndicator,
+    OptionList,
+    Static,
+)
 from textual.widgets.option_list import Option, Separator
 
+from inspect_ai._display.textual.widgets.port_mappings import get_url
 from inspect_ai._util.format import format_progress_time
+from inspect_ai._util.port_names import get_service_by_port
 from inspect_ai._util.registry import registry_unqualified_name
 from inspect_ai.log._samples import ActiveSample
 from inspect_ai.log._transcript import ToolEvent
@@ -64,6 +73,7 @@ class SamplesView(Widget):
 
     async def set_highlighted_sample(self, highlighted: int | None) -> None:
         sample_info = self.query_one(SampleInfo)
+        sample_vnc = self.query_one(SampleVNC)
         transcript_view = self.query_one(TranscriptView)
         sample_toolbar = self.query_one(SampleToolbar)
         if highlighted is not None:
@@ -73,12 +83,14 @@ class SamplesView(Widget):
                 transcript_view.display = True
                 sample_toolbar.display = True
                 await sample_info.sync_sample(sample)
+                await sample_vnc.sync_sample(sample)
                 await transcript_view.sync_sample(sample)
                 await sample_toolbar.sync_sample(sample)
                 return
 
         # otherwise hide ui
         sample_info.display = False
+        sample_vnc.display = False
         transcript_view.display = False
         sample_toolbar.display = False
 
@@ -172,10 +184,59 @@ class SamplesList(OptionList):
             return None
 
 
-class SampleInfo(Horizontal):
+class SampleVNC(Horizontal):
+    DEFAULT_CSS = """
+    SampleVNC {
+        layout: grid;
+        grid-size: 2 1;
+        grid-columns: auto 1fr;
+    }
+    SampleVNC Static {
+        color: $secondary;
+    }
+    SampleVNC Link {
+        color: $accent;
+    }
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._sample: ActiveSample | None = None
+
+    def compose(self) -> ComposeResult:
+        yield Static("VNC: ")
+        yield Link("")
+
+    async def sync_sample(self, sample: ActiveSample) -> None:
+        if sample == self._sample:
+            return
+
+        # defult to hidden (show if we find a vnc connection)
+        self.display = False
+
+        # is there a vnc connection? if so populate
+        for connection in [c for c in sample.sandboxes.values() if c.ports]:
+            for port in connection.ports or []:
+                service = get_service_by_port(port.container_port, port.protocol)
+                if service == "noVNC" and port.mappings:
+                    host_mappings = port.mappings
+                    link = self.query_one(Link)
+                    vnc_url = get_url(host_mappings[0].host_port, service)
+                    if vnc_url:
+                        link.text = vnc_url
+                        link.url = link.text
+                        self.display = True
+                        break
+
+
+class SampleInfo(Vertical):
     DEFAULT_CSS = """
     SampleInfo {
         color: $text-muted;
+        layout: grid;
+        grid-size: 1 2;
+        grid-rows: auto 1;
+        grid-gutter: 1;
     }
     SampleInfo Collapsible {
         padding: 0;
@@ -214,6 +275,7 @@ class SampleInfo(Horizontal):
         with Collapsible(title=""):
             yield SampleLimits()
             yield SandboxesView()
+        yield SampleVNC()
 
     async def sync_sample(self, sample: ActiveSample | None) -> None:
         if sample is None:
@@ -239,6 +301,7 @@ class SampleInfo(Horizontal):
             self.query_one(Collapsible).title = title
             sandboxes = self.query_one(SandboxesView)
             await sandboxes.sync_sample(sample)
+            await self.query_one(SampleVNC).sync_sample(sample)
 
 
 class SampleLimits(Widget):
@@ -319,8 +382,10 @@ class SandboxesView(Vertical):
             await sandboxes_list.remove_children()
 
             await sandboxes_list.mount_all(
-                SandboxView(connection, name if multiple_sandboxes else None)
-                for name, connection in sample.sandboxes.items()
+                [
+                    SandboxView(connection, name if multiple_sandboxes else None)
+                    for name, connection in sample.sandboxes.items()
+                ]
             )
 
             await sandboxes_list.mount(
