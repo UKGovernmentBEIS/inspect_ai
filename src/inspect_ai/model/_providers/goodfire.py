@@ -39,11 +39,10 @@ logger = logging.getLogger(__name__)
 
 # Constants
 GOODFIRE_API_KEY = "GOODFIRE_API_KEY"
-MIN_VERSION = "0.2.5"
 DEFAULT_BASE_URL = "https://api.goodfire.ai"
 DEFAULT_MAX_TOKENS = 4096
-DEFAULT_TEMPERATURE = 0.7
-DEFAULT_TOP_P = 0.95
+DEFAULT_TEMPERATURE = 1.0  # Standard sampling temperature (baseline)
+DEFAULT_TOP_P = 1.0  # No nucleus sampling truncation (baseline)
 DEFAULT_MAX_CONNECTIONS = 10
 DEFAULT_MAX_RETRIES = 3
 DEFAULT_TIMEOUT = 60.0
@@ -117,10 +116,7 @@ class GoodfireAPI(ModelAPI):
         if not self.api_key:
             raise environment_prerequisite_error("Goodfire", GOODFIRE_API_KEY)
 
-        # Format and validate model name
-        if not model_name.startswith("meta-llama/"):
-            self.model_name = f"meta-llama/{model_name}"
-
+        # Validate model name against supported models
         supported_models = list(get_args(SUPPORTED_MODELS))
         if self.model_name not in supported_models:
             raise ValueError(f"Model {self.model_name} not supported. Supported models: {supported_models}")
@@ -214,16 +210,6 @@ class GoodfireAPI(ModelAPI):
             return 4096
         return DEFAULT_MAX_TOKENS
 
-    @override
-    def collapse_user_messages(self) -> bool:
-        """Whether to collapse consecutive user messages."""
-        return True
-
-    @override
-    def collapse_assistant_messages(self) -> bool:
-        """Whether to collapse consecutive assistant messages."""
-        return True
-
     async def generate(
         self,
         input: List[ChatMessage],
@@ -298,5 +284,3 @@ class GoodfireAPI(ModelAPI):
     def name(self) -> str:
         """Get provider name."""
         return "goodfire"
-
-# Remove duplicate registration since it's handled in providers.py 
