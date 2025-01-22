@@ -133,7 +133,11 @@ class GoodfireAPI(ModelAPI):
         variant_model = variant_name or MODEL_MAP.get(model_name, "meta-llama/Meta-Llama-3.1-8B-Instruct")
         if variant_model not in get_args(SUPPORTED_MODELS):
             raise ValueError(f"Variant {variant_model} not supported. Supported variants: {list(get_args(SUPPORTED_MODELS))}")
-        self.variant = Variant(cast(SUPPORTED_MODELS, variant_model))
+        # NOTE: There's a type mismatch between Goodfire's runtime behavior and type hints
+        # The docs show direct string usage: variant = goodfire.Variant("meta-llama/Meta-Llama-3-8B-Instruct")
+        # But the type hints expect a Literal. We validate the model name above, so this is safe at runtime.
+        # TODO: Consider creating an issue in Goodfire's repo about this type mismatch
+        self.variant = Variant(variant_model)  # type: ignore
 
     async def generate(
         self,
