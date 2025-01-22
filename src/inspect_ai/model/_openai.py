@@ -21,8 +21,9 @@ from openai.types.chat import (
     ChatCompletionToolParam,
     ChatCompletionUserMessageParam,
 )
-from openai.types.chat.chat_completion import Choice
+from openai.types.chat.chat_completion import Choice, ChoiceLogprobs
 from openai.types.chat.chat_completion_message_tool_call import Function
+from openai.types.completion_usage import CompletionUsage
 from openai.types.shared_params.function_definition import FunctionDefinition
 
 from inspect_ai._util.content import Content, ContentAudio, ContentImage, ContentText
@@ -39,7 +40,7 @@ from ._chat_message import (
     ChatMessageTool,
     ChatMessageUser,
 )
-from ._model_output import StopReason, as_stop_reason
+from ._model_output import ModelUsage, StopReason, as_stop_reason
 
 
 def is_o1(name: str) -> bool:
@@ -188,11 +189,21 @@ def openai_chat_choices(choices: list[ChatCompletionChoice]) -> list[Choice]:
                 finish_reason=openai_finish_reason(choice.stop_reason),
                 index=index,
                 message=message,
-                # TODO: logprobs
+                logprobs=ChoiceLogprobs(**choice.logprobs.model_dump())
+                if choice.logprobs is not None
+                else None,
             )
         )
 
     return oai_choices
+
+
+def openai_completion_usage(usage: ModelUsage) -> CompletionUsage:
+    return CompletionUsage(
+        completion_tokens=usage.output_tokens,
+        prompt_tokens=usage.input_tokens,
+        total_tokens=usage.total_tokens,
+    )
 
 
 def openai_finish_reason(
