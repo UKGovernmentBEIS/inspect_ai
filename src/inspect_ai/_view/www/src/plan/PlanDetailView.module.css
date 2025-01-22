@@ -1,0 +1,45 @@
+.floatingCol {
+  flex: 0 1 1;
+  width: unset;
+  text-align: left;
+  padding-left: 0.6rem;
+  padding-right: 0.6rem;
+}
+
+.wideCol {
+  flex: 1 1 1;
+  width: unset;
+  padding-left: 0.6rem;
+  padding-right: 0.6rem;
+}
+
+.oneCol {
+  flex: 0 0 100%;
+}
+
+.twoCol {
+  flex: 0 0 50%;
+}
+
+.planCol {
+  margin-top: em;
+}
+
+.container {
+  padding-top: 0;
+  padding-bottom: 1em;
+  margin-left: 0;
+}
+
+.grid {
+  display: grid;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  padding-bottom: 0.7rem;
+  border-bottom: solid 1px var(--bs-border-color);
+}
+
+.row {
+  justify-content: "flex-start";
+  flex-wrap: wrap;
+}

@@ -4822,7 +4822,7 @@ var require_assets = __commonJS({
     const hidden$2 = "_hidden_tm52u_5";
     const pills = "_pills_tm52u_9";
     const pill = "_pill_tm52u_9";
-    const styles$m = {
+    const styles$p = {
       visible,
       hidden: hidden$2,
       pills,
@@ -4847,13 +4847,13 @@ var require_assets = __commonJS({
       const navBodies = children2.map((child) => {
         var _a2;
         return /* @__PURE__ */ u("div", {
-          className: ((_a2 = child["props"]) == null ? void 0 : _a2.title) === activeItem ? styles$m.visible : styles$m.hidden,
+          className: ((_a2 = child["props"]) == null ? void 0 : _a2.title) === activeItem ? styles$p.visible : styles$p.hidden,
           children: ["$", child]
         });
       });
       return /* @__PURE__ */ u("div", {
         children: [/* @__PURE__ */ u("ul", {
-          className: clsx("nav", "nav-pills", styles$m.pills),
+          className: clsx("nav", "nav-pills", styles$p.pills),
           role: "tablist",
           "aria-orientation": "horizontal",
           children: navPills
@@ -4873,7 +4873,7 @@ var require_assets = __commonJS({
           type: "button",
           role: "tab",
           "aria-selected": active2,
-          className: clsx("nav-link", "text-style-label", active2 ? "active " : "", styles$m.pill),
+          className: clsx("nav-link", "text-style-label", active2 ? "active " : "", styles$p.pill),
           onClick: () => {
             setActiveItem(title2);
           },
@@ -10216,11 +10216,11 @@ var require_assets = __commonJS({
         })
       });
     };
-    const container$4 = "_container_1vi7u_1";
+    const container$6 = "_container_1vi7u_1";
     const hidden$1 = "_hidden_1vi7u_8";
     const content$2 = "_content_1vi7u_12";
-    const styles$l = {
-      container: container$4,
+    const styles$o = {
+      container: container$6,
       hidden: hidden$1,
       content: content$2
     };
@@ -10393,12 +10393,12 @@ var require_assets = __commonJS({
         ...props,
         ...scrollProps,
         children: /* @__PURE__ */ u("div", {
-          className: clsx(styles$l.container, !(scrollRef == null ? void 0 : scrollRef.current) ? styles$l.hidden : void 0),
+          className: clsx(styles$o.container, !(scrollRef == null ? void 0 : scrollRef.current) ? styles$o.hidden : void 0),
           style: {
             height: `${listMetrics.totalHeight}px`
           },
           children: /* @__PURE__ */ u("div", {
-            className: styles$l.content,
+            className: styles$o.content,
             style: {
               transform: `translateY(${top2}px)`
             },
@@ -10419,7 +10419,7 @@ var require_assets = __commonJS({
       };
     };
     const contentImage = "_contentImage_121dp_1";
-    const styles$k = {
+    const styles$n = {
       contentImage
     };
     var murmurhash$1 = { exports: {} };
@@ -11114,7 +11114,7 @@ var require_assets = __commonJS({
           if (c2.image.startsWith("data:")) {
             return /* @__PURE__ */ u("img", {
               src: c2.image,
-              className: styles$k.contentImage
+              className: styles$n.contentImage
             });
           } else {
             return /* @__PURE__ */ u("code", {
@@ -11613,7 +11613,7 @@ var require_assets = __commonJS({
     const compact = "_compact_1memb_15";
     const cellKey = "_cellKey_1memb_19";
     const cellValue = "_cellValue_1memb_31";
-    const styles$j = {
+    const styles$m = {
       table: table$1,
       th,
       cell: cell$1,
@@ -11639,10 +11639,10 @@ var require_assets = __commonJS({
         const id2 = `${baseId}-value-${index}`;
         return /* @__PURE__ */ u("tr", {
           children: [/* @__PURE__ */ u("td", {
-            className: clsx(styles$j.cell, styles$j.cellKey, "text-size-small"),
+            className: clsx(styles$m.cell, styles$m.cellKey, "text-size-small"),
             children: entry2.name
           }), /* @__PURE__ */ u("td", {
-            className: clsx(styles$j.cell, styles$j.cellValue, "text-size-small"),
+            className: clsx(styles$m.cell, styles$m.cellValue, "text-size-small"),
             children: /* @__PURE__ */ u(RenderedContent, {
               id: id2,
               entry: entry2
@@ -11652,7 +11652,7 @@ var require_assets = __commonJS({
       });
       return /* @__PURE__ */ u("table", {
         id,
-        className: clsx("table", tblClz, styles$j.table, compact2 ? styles$j.compact : void 0, className2),
+        className: clsx("table", tblClz, styles$m.table, compact2 ? styles$m.compact : void 0, className2),
         style: style2,
         children: [/* @__PURE__ */ u("thead", {
           children: /* @__PURE__ */ u("tr", {
@@ -11685,7 +11685,7 @@ var require_assets = __commonJS({
     const query = "_query_9u9bt_1";
     const summary = "_summary_9u9bt_6";
     const preWrap = "_preWrap_9u9bt_10";
-    const styles$i = {
+    const styles$l = {
       query,
       summary,
       preWrap
@@ -11817,7 +11817,7 @@ var require_assets = __commonJS({
         render: (_id, entry2) => {
           const results = [];
           results.push(/* @__PURE__ */ u("div", {
-            className: styles$i.query,
+            className: styles$l.query,
             children: [/* @__PURE__ */ u("i", {
               class: ApplicationIcons.search
             }), " ", entry2.value.query]
@@ -11830,7 +11830,7 @@ var require_assets = __commonJS({
               })
             }));
             results.push(/* @__PURE__ */ u("div", {
-              className: clsx("text-size-smaller", styles$i.summary),
+              className: clsx("text-size-smaller", styles$l.summary),
               children: result.summary
             }));
           });
@@ -11848,7 +11848,7 @@ var require_assets = __commonJS({
         render: (_id, entry2) => {
           return {
             rendered: /* @__PURE__ */ u("pre", {
-              className: styles$i.preWrap,
+              className: styles$l.preWrap,
               children: entry2.value
             })
           };
@@ -15220,7 +15220,7 @@ categories: ${categories.join(" ")}`;
       });
     };
     const dirname$1 = "_dirname_16ra5_1";
-    const styles$h = {
+    const styles$k = {
       dirname: dirname$1
     };
     const LogDirectoryTitleView = ({
@@ -15239,7 +15239,7 @@ categories: ${categories.join(" ")}`;
             children: "Log Directory"
           }), /* @__PURE__ */ u("span", {
             title: displayDir,
-            className: clsx("text-size-base", styles$h.dirname),
+            className: clsx("text-size-base", styles$k.dirname),
             children: offcanvas ? displayDir : ""
           })]
         });
@@ -15271,8 +15271,8 @@ categories: ${categories.join(" ")}`;
     const list = "_list_1u82r_50";
     const backdrop = "_backdrop_1u82r_55";
     const active = "_active_1u82r_62";
-    const item = "_item_1u82r_66";
-    const styles$g = {
+    const item$2 = "_item_1u82r_66";
+    const styles$j = {
       sidebar,
       sidebarClosed,
       sidebarOpen,
@@ -15282,22 +15282,22 @@ categories: ${categories.join(" ")}`;
       list,
       backdrop,
       active,
-      item
+      item: item$2
     };
     const error = "_error_srruf_1";
     const running = "_running_srruf_6";
     const cancelled = "_cancelled_srruf_13";
-    const styles$f = {
+    const styles$i = {
       error,
       running,
       cancelled
     };
-    const container$3 = "_container_1frsg_1";
+    const container$5 = "_container_1frsg_1";
     const metric = "_metric_1frsg_8";
     const metricName$1 = "_metricName_1frsg_17";
     const metricReducer$1 = "_metricReducer_1frsg_21";
-    const styles$e = {
-      container: container$3,
+    const styles$h = {
+      container: container$5,
       metric,
       metricName: metricName$1,
       metricReducer: metricReducer$1
@@ -15306,15 +15306,15 @@ categories: ${categories.join(" ")}`;
       scorer
     }) => {
       return /* @__PURE__ */ u("div", {
-        className: styles$e.container,
+        className: styles$h.container,
         children: Object.keys(scorer.metrics).map((metric2) => {
           return /* @__PURE__ */ u("div", {
-            className: styles$e.metric,
+            className: styles$h.metric,
             children: [/* @__PURE__ */ u("div", {
-              className: clsx("text-style-secondary", "text-style-label", "text-size-small", styles$e.metricName),
+              className: clsx("text-style-secondary", "text-style-label", "text-size-small", styles$h.metricName),
               children: scorer.metrics[metric2].name
             }), scorer.reducer ? /* @__PURE__ */ u("div", {
-              className: clsx("text-size-small", styles$e.metricReducer),
+              className: clsx("text-size-small", styles$h.metricReducer),
               children: ["$", scorer.reducer]
             }) : "", /* @__PURE__ */ u("div", {
               className: "text-size-title-secondary",
@@ -15324,14 +15324,14 @@ categories: ${categories.join(" ")}`;
         })
       });
     };
-    const container$2 = "_container_5kpg1_1";
+    const container$4 = "_container_5kpg1_1";
     const scoreWrapper = "_scoreWrapper_5kpg1_9";
     const metricName = "_metricName_5kpg1_16";
     const metricReducer = "_metricReducer_5kpg1_22";
     const metricValues = "_metricValues_5kpg1_27";
     const metricValue = "_metricValue_5kpg1_27";
-    const styles$d = {
-      container: container$2,
+    const styles$g = {
+      container: container$4,
       scoreWrapper,
       metricName,
       metricReducer,
@@ -15342,20 +15342,20 @@ categories: ${categories.join(" ")}`;
       scores: scores2
     }) => {
       return /* @__PURE__ */ u("div", {
-        className: styles$d.container,
+        className: styles$g.container,
         children: scores2.map((score2) => {
           const name2 = score2.name;
           const reducer = score2.reducer;
           return /* @__PURE__ */ u("div", {
-            className: styles$d.scoreWrapper,
+            className: styles$g.scoreWrapper,
             children: [/* @__PURE__ */ u("div", {
-              className: clsx("text-style-secondary", "text-label", "text-size-small", styles$d.metricName),
+              className: clsx("text-style-secondary", "text-label", "text-size-small", styles$g.metricName),
               children: name2
             }), reducer ? /* @__PURE__ */ u("div", {
-              className: clsx("text-size-small", styles$d.metricReducer),
+              className: clsx("text-size-small", styles$g.metricReducer),
               children: reducer
             }) : "", /* @__PURE__ */ u("div", {
-              className: clsx("text-size-small", styles$d.metricValues),
+              className: clsx("text-size-small", styles$g.metricValues),
               children: Object.keys(score2.metrics).map((key2) => {
                 const metric2 = score2.metrics[key2];
                 return /* @__PURE__ */ u(xn.Fragment, {
@@ -15363,7 +15363,7 @@ categories: ${categories.join(" ")}`;
                     className: clsx("text-style-secondary", "text-style-label"),
                     children: metric2.name
                   }), /* @__PURE__ */ u("div", {
-                    className: styles$d.metricValue,
+                    className: styles$g.metricValue,
                     children: formatPrettyDecimal(metric2.value)
                   })]
                 }, key2);
@@ -15410,7 +15410,7 @@ categories: ${categories.join(" ")}`;
       message
     }) => {
       return /* @__PURE__ */ u("div", {
-        className: clsx("text-style-secondary", "text-style-label", "text-size-small", styles$f.cancelled),
+        className: clsx("text-style-secondary", "text-style-label", "text-size-small", styles$i.cancelled),
         children: message
       });
     };
@@ -15418,7 +15418,7 @@ categories: ${categories.join(" ")}`;
       message
     }) => {
       return /* @__PURE__ */ u("div", {
-        className: clsx("text-style-secondary", "text-style-label", "text-size-small", styles$f.running),
+        className: clsx("text-style-secondary", "text-style-label", "text-size-small", styles$i.running),
         children: /* @__PURE__ */ u("div", {
           children: message
         })
@@ -15428,7 +15428,7 @@ categories: ${categories.join(" ")}`;
       message
     }) => {
       return /* @__PURE__ */ u("div", {
-        className: clsx(styles$f.error, "text-size-small"),
+        className: clsx(styles$i.error, "text-size-small"),
         children: message
       });
     };
@@ -15437,7 +15437,7 @@ categories: ${categories.join(" ")}`;
     const task = "_task_12m5n_12";
     const params = "_params_12m5n_18";
     const scores = "_scores_12m5n_22";
-    const styles$c = {
+    const styles$f = {
       entry,
       title: title$1,
       task,
@@ -15470,11 +15470,11 @@ categories: ${categories.join(" ")}`;
       })}` : "";
       return /* @__PURE__ */ u(xn.Fragment, {
         children: [/* @__PURE__ */ u("div", {
-          className: styles$c.entry,
+          className: styles$f.entry,
           children: [/* @__PURE__ */ u("div", {
-            className: styles$c.title,
+            className: styles$f.title,
             children: [/* @__PURE__ */ u("div", {
-              className: clsx(styles$c.task, "text-size-title-secondary"),
+              className: clsx(styles$f.task, "text-size-title-secondary"),
               children: ((_i = logHeader == null ? void 0 : logHeader.eval) == null ? void 0 : _i.task) || task2
             }), /* @__PURE__ */ u("small", {
               className: clsx("mb-1", "text-size-small"),
@@ -15489,7 +15489,7 @@ categories: ${categories.join(" ")}`;
             logHeader
           })]
         }), /* @__PURE__ */ u("div", {
-          className: clsx(styles$c.params, "three-line-clamp"),
+          className: clsx(styles$f.params, "three-line-clamp"),
           children: /* @__PURE__ */ u("small", {
             className: "mb-1",
             children: hyperparameters ? Object.keys(hyperparameters).map((key2) => {
@@ -15502,11 +15502,11 @@ categories: ${categories.join(" ")}`;
             }).join(", ") : ""
           })
         }), (((_j = logHeader == null ? void 0 : logHeader.eval) == null ? void 0 : _j.dataset) || ((_k = logHeader == null ? void 0 : logHeader.results) == null ? void 0 : _k.scores)) && (logHeader == null ? void 0 : logHeader.status) === "success" ? /* @__PURE__ */ u("div", {
-          className: clsx("text-truncate", "text-size-small", styles$c.scores),
+          className: clsx("text-truncate", "text-size-small", styles$f.scores),
           children: [/* @__PURE__ */ u("div", {
             children: ["dataset: ", datasetName || "(samples)"]
           }), /* @__PURE__ */ u("div", {
-            className: clsx("text-truncate", styles$c.scoreInfo),
+            className: clsx("text-truncate", styles$f.scoreInfo),
             children: [scorerLabel, ": ", scorerNames || "(none)"]
           })]
         }) : ""]
@@ -15526,18 +15526,18 @@ categories: ${categories.join(" ")}`;
       };
       return /* @__PURE__ */ u(k$2, {
         children: [offcanvas && /* @__PURE__ */ u("div", {
-          className: styles$g.backdrop,
+          className: styles$j.backdrop,
           onClick: handleToggle
         }), /* @__PURE__ */ u("div", {
-          className: clsx(styles$g.sidebar, offcanvas ? styles$g.sidebarOpen : styles$g.sidebarClosed),
+          className: clsx(styles$j.sidebar, offcanvas ? styles$j.sidebarOpen : styles$j.sidebarClosed),
           children: [/* @__PURE__ */ u("div", {
-            className: styles$g.header,
+            className: styles$j.header,
             children: [/* @__PURE__ */ u(LogDirectoryTitleView, {
               log_dir: logs.log_dir,
               offcanvas
             }), /* @__PURE__ */ u("button", {
               onClick: handleToggle,
-              className: clsx("btn", styles$g.toggle),
+              className: clsx("btn", styles$j.toggle),
               type: "button",
               "aria-label": "Close sidebar",
               children: /* @__PURE__ */ u("i", {
@@ -15545,16 +15545,16 @@ categories: ${categories.join(" ")}`;
               })
             })]
           }), /* @__PURE__ */ u("div", {
-            className: styles$g.progress,
+            className: styles$j.progress,
             children: /* @__PURE__ */ u(ProgressBar, {
               animating: loading
             })
           }), /* @__PURE__ */ u("ul", {
-            className: clsx("list-group", styles$g.list),
+            className: clsx("list-group", styles$j.list),
             children: logs.files.map((file, index) => {
               const logHeader = logHeaders[file.name];
               return /* @__PURE__ */ u("li", {
-                className: clsx("list-group-item", "list-group-item-action", styles$g.item, selectedIndex === index ? styles$g.active : void 0),
+                className: clsx("list-group-item", "list-group-item-action", styles$j.item, selectedIndex === index ? styles$j.active : void 0),
                 onClick: () => onSelectedIndexChanged(index),
                 children: /* @__PURE__ */ u(SidebarLogEntry, {
                   logHeader,
@@ -15796,102 +15796,126 @@ categories: ${categories.join(" ")}`;
       const baseUrl = origin.replace(/\.git$/, "");
       return `${baseUrl}/commit/${commit}`;
     };
-    const kPlanCardBodyId = "task-plan-card-body";
-    const PlanCard = ({ evalSpec, evalPlan, scores: scores2 }) => {
-      return m$1`
-    <${Card}>
-      <${CardHeader} icon=${ApplicationIcons.config} label="Config"/>
-      <${CardBody} id="${kPlanCardBodyId}">
-      
-        <${PlanDetailView}
-          evaluation=${evalSpec}
-          plan=${evalPlan}
-          scores=${scores2}
-        />
-      </${CardBody}>
-    </${Card}>
-  `;
+    const item$1 = "_item_1uzhd_1";
+    const styles$e = {
+      item: item$1
     };
-    const planItemStyle = {
-      fontSize: FontSize.base,
-      marginBottom: "0em"
+    const DatasetDetailView = ({
+      dataset,
+      style: style2
+    }) => {
+      const filtered = Object.fromEntries(Object.entries(dataset).filter(([key2]) => key2 !== "sample_ids"));
+      if (!dataset || Object.keys(filtered).length === 0) {
+        return /* @__PURE__ */ u("span", {
+          className: clsx("text-size-base", styles$e.item),
+          style: style2,
+          children: "No dataset information available"
+        });
+      }
+      return /* @__PURE__ */ u(MetaDataView, {
+        className: clsx("text-size-base", styles$e.item),
+        entries: filtered,
+        tableOptions: "borderless,sm",
+        style: style2
+      });
     };
-    const planSepStyle = {
-      marginLeft: ".3em",
-      marginRight: ".3em",
-      marginTop: "em",
-      marginBottom: "-0.1em"
+    const DetailStep = ({
+      icon,
+      name: name2,
+      params: params2,
+      className: className2
+    }) => {
+      const iconHtml = icon ? /* @__PURE__ */ u("i", {
+        className: clsx(icon, styles$e.icon)
+      }) : "";
+      return /* @__PURE__ */ u("div", {
+        className: clsx(className2),
+        children: [iconHtml, " ", name2, /* @__PURE__ */ u("div", {
+          className: styles$e.container,
+          children: params2 ? /* @__PURE__ */ u(MetaDataView, {
+            entries: params2,
+            className: "text-size-small"
+          }) : ""
+        })]
+      });
     };
-    const ScorerDetailView = ({ name: name2, scores: scores2, params: params2 }) => {
+    const ScorerDetailView = ({
+      name: name2,
+      scores: scores2,
+      params: params2
+    }) => {
       if (scores2.length > 1) {
         params2["scores"] = scores2;
       }
-      return m$1`<${DetailStep}
-    icon=${ApplicationIcons.scorer}
-    name=${name2}
-    params=${params2}
-    style=${planItemStyle}
-  />`;
-    };
-    const DatasetDetailView = ({ dataset, style: style2 }) => {
-      const filtered = Object.fromEntries(
-        Object.entries(dataset).filter(([key2]) => key2 !== "sample_ids")
-      );
-      if (!dataset || Object.keys(filtered).length === 0) {
-        return m$1`<span style=${{ ...planItemStyle, ...style2 }}
-      >No dataset information available</span
-    >`;
-      }
-      return m$1`<${MetaDataView}
-    entries="${filtered}"
-    tableOptions="borderless,sm"
-    style=${{ ...planItemStyle, ...style2 }}
-  />`;
-    };
-    const SolversDetailView = ({ steps }) => {
-      const separator2 = m$1` <div style=${{ ...planItemStyle, ...planSepStyle }}>
-    <i class="${ApplicationIcons.arrows.right}"></i>
-  </div>`;
-      const details = steps == null ? void 0 : steps.map((step, index) => {
-        return m$1`
-      <${DetailStep} name=${step.solver} style=${planItemStyle} />
-      ${index < steps.length - 1 ? separator2 : ""}
-    `;
+      return /* @__PURE__ */ u(DetailStep, {
+        icon: ApplicationIcons.scorer,
+        name: name2,
+        params: params2,
+        className: clsx(styles$e.item, "text-size-base")
       });
-      return m$1`<div
-    style=${{
-        display: "flex",
-        flexDirection: "columns"
-      }}
-  >
-    ${details}
-  </div>`;
     };
-    const DetailStep = ({ icon, name: name2, params: params2, style: style2 }) => {
-      const iconHtml = icon ? m$1`<i class="${icon}" style=${{ marginRight: ".3em" }}></i>` : "";
-      return m$1`
-    <div style=${style2}>
-      ${iconHtml} ${name2}
-      <div
-        style=${{
-        marginLeft: "1.3rem",
-        marginTop: "0.2rem",
-        marginBottom: "0.3rem"
-      }}
-      >
-        ${m$1`<${MetaDataView}
-          entries="${params2}"
-          style=${{ fontSize: FontSize.small }}
-        />`}
-      </div>
-    </div>
-  `;
+    const container$3 = "_container_12g3a_1";
+    const item = "_item_12g3a_6";
+    const separator$1 = "_separator_12g3a_10";
+    const styles$d = {
+      container: container$3,
+      item,
+      separator: separator$1
     };
-    const PlanDetailView = ({ evaluation, plan, scores: scores2 }) => {
+    const SolversDetailView = ({
+      steps
+    }) => {
+      const separator2 = /* @__PURE__ */ u("div", {
+        className: clsx(styles$d.items, "text-size-small", styles$d.separator),
+        children: /* @__PURE__ */ u("i", {
+          class: ApplicationIcons.arrows.right
+        })
+      });
+      const details = steps == null ? void 0 : steps.map((step, index) => {
+        return /* @__PURE__ */ u(xn.Fragment, {
+          children: [/* @__PURE__ */ u(DetailStep, {
+            name: step.solver,
+            className: clsx(styles$d.items, "text-size-small")
+          }), index < steps.length - 1 ? separator2 : ""]
+        });
+      });
+      return /* @__PURE__ */ u("div", {
+        className: styles$d.container,
+        children: details
+      });
+    };
+    const floatingCol = "_floatingCol_1q1sr_1";
+    const wideCol = "_wideCol_1q1sr_9";
+    const oneCol = "_oneCol_1q1sr_16";
+    const twoCol = "_twoCol_1q1sr_20";
+    const planCol = "_planCol_1q1sr_24";
+    const container$2 = "_container_1q1sr_28";
+    const grid$1 = "_grid_1q1sr_34";
+    const row = "_row_1q1sr_42";
+    const styles$c = {
+      floatingCol,
+      wideCol,
+      oneCol,
+      twoCol,
+      planCol,
+      container: container$2,
+      grid: grid$1,
+      row
+    };
+    const PlanDetailView = ({
+      evaluation,
+      plan,
+      scores: scores2
+    }) => {
       if (!evaluation) {
         return "";
       }
-      const config2 = (evaluation == null ? void 0 : evaluation.config) || {};
+      const config2 = {};
+      Object.entries((evaluation == null ? void 0 : evaluation.config) || {}).forEach((entry2) => {
+        const key2 = entry2[0];
+        const value2 = entry2[1];
+        config2[key2] = value2;
+      });
       const steps = plan == null ? void 0 : plan.steps;
       const metadata = evaluation == null ? void 0 : evaluation.metadata;
       const revision = evaluation == null ? void 0 : evaluation.revision;
@@ -15905,16 +15929,17 @@ categories: ${categories.join(" ")}`;
       };
       if (revision) {
         taskInformation[`${revision.type ? `${toTitleCase(revision.type)} ` : ""}Revision`] = {
-          _html: m$1`<a href="${ghCommitUrl(revision.origin, revision.commit)}"
-        >${revision.commit}</a
-      >`
+          _html: /* @__PURE__ */ u("a", {
+            href: ghCommitUrl(revision.origin, revision.commit),
+            children: revision.commit
+          })
         };
       }
       if (packages) {
         taskInformation["Inspect"] = {
-          _html: m$1`${Object.keys(packages).map((key2) => {
+          _html: Object.keys(packages).map((key2) => {
             return `${key2} ${packages[key2]}`;
-          }).join("<br/>\n")}`
+          }).join("<br/>\n")
         };
       }
       if (evaluation.tags) {
@@ -15932,39 +15957,23 @@ categories: ${categories.join(" ")}`;
           config2["sandbox_config"] = evaluation.sandbox[1];
         }
       }
-      const floatingColumnStyle = {
-        flex: "0 1 1",
-        width: "unset",
-        textAlign: "left",
-        paddingLeft: "0.6rem",
-        paddingRight: "0.6rem"
-      };
-      const wideColumnStyle = {
-        flex: "1 1 1",
-        width: "unset",
-        paddingLeft: "0.6rem",
-        paddingRight: "0.6rem"
-      };
-      const oneColumnStyle = {
-        flex: "0 0 100%"
-      };
-      const twoColumnStyle = {
-        flex: "0 0 50%"
-      };
-      const planMetadataStyle = {
-        fontSize: FontSize.base
-      };
       const taskColumns = [];
       taskColumns.push({
         title: "Dataset",
-        style: floatingColumnStyle,
-        contents: m$1`<${DatasetDetailView} dataset=${evaluation.dataset} />`
+        className: styles$c.floatingCol,
+        contents: /* @__PURE__ */ u(DatasetDetailView, {
+          dataset: evaluation.dataset
+        })
       });
-      taskColumns.push({
-        title: "Plan",
-        style: wideColumnStyle,
-        contents: m$1` <${SolversDetailView} steps=${steps} /> `
-      });
+      if (steps) {
+        taskColumns.push({
+          title: "Plan",
+          className: styles$c.wideCol,
+          contents: /* @__PURE__ */ u(SolversDetailView, {
+            steps
+          })
+        });
+      }
       if (scores2) {
         const scorers = scores2.reduce((accum, score2) => {
           if (!accum[score2.scorer]) {
@@ -15980,137 +15989,111 @@ categories: ${categories.join(" ")}`;
         if (Object.keys(scorers).length > 0) {
           const label = Object.keys(scorers).length === 1 ? "Scorer" : "Scorers";
           const scorerPanels = Object.keys(scorers).map((key2) => {
-            return m$1`<${ScorerDetailView}
-          name=${key2}
-          scores=${scorers[key2].scores}
-          params=${scorers[key2].params}
-        />`;
+            return /* @__PURE__ */ u(ScorerDetailView, {
+              name: key2,
+              scores: scorers[key2].scores,
+              params: scorers[key2].params
+            });
           });
           taskColumns.push({
             title: label,
-            style: floatingColumnStyle,
+            className: styles$c.floatingCol,
             contents: scorerPanels
           });
         }
       }
       const metadataColumns = [];
-      const cols = colCount(
-        metadataColumns,
-        task_args,
-        model_args,
-        config2,
-        metadata
-      );
-      const configColumnStyle = cols === 1 ? oneColumnStyle : twoColumnStyle;
+      const cols = colCount(metadataColumns, task_args, model_args, config2, metadata);
       metadataColumns.push({
         title: "Task Information",
-        style: configColumnStyle,
-        contents: m$1`
-      <${MetaDataView}
-        style=${planMetadataStyle}
-        entries="${taskInformation}"
-        tableOptions="borderless,sm"
-      />
-    `
+        className: cols === 1 ? styles$c.oneCol : styles$c.twoCol,
+        contents: /* @__PURE__ */ u(MetaDataView, {
+          className: "text-size-small",
+          entries: taskInformation,
+          tableOptions: "borderless,sm"
+        })
       });
       if (task_args && Object.keys(task_args).length > 0) {
         metadataColumns.push({
           title: "Task Args",
-          style: configColumnStyle,
-          contents: m$1`
-        <${MetaDataView}
-          style=${planMetadataStyle}
-          entries="${task_args}"
-          tableOptions="sm"
-        />
-      `
+          className: cols === 1 ? styles$c.oneCol : styles$c.twoCol,
+          contents: /* @__PURE__ */ u(MetaDataView, {
+            className: "text-size-small",
+            entries: task_args,
+            tableOptions: "sm"
+          })
         });
       }
       if (model_args && Object.keys(model_args).length > 0) {
         metadataColumns.push({
           title: "Model Args",
-          style: configColumnStyle,
-          contents: m$1`
-        <${MetaDataView}
-          style=${planMetadataStyle}
-          entries="${model_args}"
-          tableOptions="sm"
-        />
-      `
+          className: cols === 1 ? styles$c.oneCol : styles$c.twoCol,
+          contents: /* @__PURE__ */ u(MetaDataView, {
+            className: "text-size-small",
+            entries: model_args,
+            tableOptions: "sm"
+          })
         });
       }
       if (config2 && Object.keys(config2).length > 0) {
         metadataColumns.push({
           title: "Configuration",
-          style: configColumnStyle,
-          contents: m$1`
-        <${MetaDataView}
-          style=${planMetadataStyle}
-          entries="${config2}"
-          tableOptions="sm"
-        />
-      `
+          className: cols === 1 ? styles$c.oneCol : styles$c.twoCol,
+          contents: /* @__PURE__ */ u(MetaDataView, {
+            className: "text-size-small",
+            entries: config2,
+            tableOptions: "sm"
+          })
         });
       }
       if (generate_config && Object.keys(generate_config).length > 0) {
+        const generate_record = Object.fromEntries(Object.entries(generate_config));
         metadataColumns.push({
           title: "Generate Config",
-          style: configColumnStyle,
-          contents: m$1`
-        <${MetaDataView}
-          style=${planMetadataStyle}
-          entries="${generate_config}"
-          tableOptions="sm"
-        />
-      `
+          className: cols === 1 ? styles$c.oneCol : styles$c.twoCol,
+          contents: /* @__PURE__ */ u(MetaDataView, {
+            className: "text-size-small",
+            entries: generate_record,
+            tableOptions: "sm"
+          })
         });
       }
       if (metadata && Object.keys(metadata).length > 0) {
         metadataColumns.push({
           title: "Metadata",
-          style: configColumnStyle,
-          contents: m$1`
-        <${MetaDataView}
-          style=${planMetadataStyle}
-          entries="${metadata}"
-          tableOptions="sm"
-        />
-      `
+          className: cols === 1 ? styles$c.oneCol : styles$c.twoCol,
+          contents: /* @__PURE__ */ u(MetaDataView, {
+            className: "text-size-small",
+            entries: metadata,
+            tableOptions: "sm"
+          })
         });
       }
-      return m$1`
-    <div style=${{ paddingTop: "0", paddingBottom: "1em", marginLeft: "0" }}>
-      <div
-        style=${{
-        display: "grid",
-        gridTemplateColumns: `repeat(${taskColumns.length}, auto)`,
-        justifyContent: "space-between",
-        flexWrap: "wrap",
-        paddingBottom: "0.7rem",
-        borderBottom: "solid 1px var(--bs-border-color)"
-      }}
-      >
-        ${taskColumns.map((col) => {
-        return m$1`<${PlanColumn} title="${col.title}" style=${col.style}>
-        ${col.contents}
-      </${PlanColumn}>
-      `;
-      })}
-      </div>
-
-      <div
-        class="row"
-        style=${{ justifyContent: "flex-start", flexWrap: "wrap" }}
-      >
-        ${metadataColumns.map((col) => {
-        return m$1`<${PlanColumn} title="${col.title}" style=${col.style}>
-            ${col.contents}
-          </${PlanColumn}>
-          `;
-      })}
-      </div>
-    </div>
-  `;
+      return /* @__PURE__ */ u("div", {
+        className: styles$c.container,
+        children: [/* @__PURE__ */ u("div", {
+          className: styles$c.grid,
+          style: {
+            gridTemplateColumns: `repeat(${taskColumns.length}, auto)`
+          },
+          children: taskColumns.map((col) => {
+            return /* @__PURE__ */ u(PlanColumn, {
+              title: col.title,
+              className: col.className,
+              children: col.contents
+            });
+          })
+        }), /* @__PURE__ */ u("div", {
+          className: clsx("row", styles$c.row),
+          children: metadataColumns.map((col) => {
+            return /* @__PURE__ */ u(PlanColumn, {
+              title: col.title,
+              className: col.className,
+              children: col.contents
+            });
+          })
+        })]
+      });
     };
     const colCount = (...other) => {
       let count = 0;
@@ -16121,23 +16104,37 @@ categories: ${categories.join(" ")}`;
       }
       return count;
     };
-    const PlanColumn = ({ title: title2, classes, style: style2, children: children2 }) => {
-      return m$1`
-    <div class="${classes || ""}" ...${{ style: style2 }}>
-      <div
-        class="card-subheading"
-        style=${{
-        fontSize: FontSize.small,
-        ...TextStyle.label,
-        ...TextStyle.secondary,
-        marginTop: "1em"
-      }}
-      >
-        ${title2}
-      </div>
-      ${children2}
-    </div>
-  `;
+    const PlanColumn = ({
+      title: title2,
+      className: className2,
+      children: children2
+    }) => {
+      return /* @__PURE__ */ u("div", {
+        className: clsx(className2),
+        children: [/* @__PURE__ */ u("div", {
+          className: clsx("card-subheading", "text-size-small", "text-style-label", "text-style-secondary", styles$c.planCol),
+          children: title2
+        }), children2]
+      });
+    };
+    const PlanCard = ({
+      evalSpec,
+      evalPlan,
+      scores: scores2
+    }) => {
+      return /* @__PURE__ */ u(Card, {
+        children: [/* @__PURE__ */ u(CardHeader, {
+          icon: ApplicationIcons.config,
+          label: "Config"
+        }), /* @__PURE__ */ u(CardBody, {
+          id: "task-plan-card-body",
+          children: /* @__PURE__ */ u(PlanDetailView, {
+            evaluation: evalSpec,
+            plan: evalPlan,
+            scores: scores2
+          })
+        })]
+      });
     };
     const EpochFilter = ({ epochs, epoch, setEpoch }) => {
       const options = ["all"];
@@ -36698,19 +36695,19 @@ Supported expressions:
       });
       return /* @__PURE__ */ u("div", {
         className: clsx("text-size-small", styles$b.wrapper),
-        children: rows.map((row) => {
-          if (row.label === "---") {
+        children: rows.map((row2) => {
+          if (row2.label === "---") {
             return /* @__PURE__ */ u("div", {
               className: styles$b.separator
             });
           } else {
             return /* @__PURE__ */ u(xn.Fragment, {
               children: [/* @__PURE__ */ u("div", {
-                className: clsx("text-style-label", "text-style-secondary", row.secondary ? styles$b.col2 : styles$b.col1_3),
-                children: row.label
+                className: clsx("text-style-label", "text-style-secondary", row2.secondary ? styles$b.col2 : styles$b.col1_3),
+                children: row2.label
               }), /* @__PURE__ */ u("div", {
                 className: styles$b.col3,
-                children: row.value ? formatNumber(row.value) : ""
+                children: row2.value ? formatNumber(row2.value) : ""
               })]
             });
           }
@@ -49603,7 +49600,7 @@ ${events}
           },
           [setTranscriptState, transcriptState]
         );
-        const row = m$1`
+        const row2 = m$1`
       <div style=${{ paddingBottom }}>
         <${RenderedEventNode}
           id=${eventId}
@@ -49617,7 +49614,7 @@ ${events}
         />
       </div>
     `;
-        return row;
+        return row2;
       });
       return m$1`<div
     id=${id}

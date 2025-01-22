@@ -12,7 +12,7 @@ import { ApplicationIcons } from "../appearance/icons";
 import { EmptyPanel } from "../components/EmptyPanel";
 import { TabPanel, TabSet } from "../components/TabSet";
 import { ToolButton } from "../components/ToolButton";
-import { PlanCard } from "../plan/PlanCard.mjs";
+import { PlanCard } from "../plan/PlanCard";
 import { SampleTools } from "../samples/SamplesTools.mjs";
 import { UsageCard } from "../usage/UsageCard";
 import { Navbar } from "./navbar/Navbar.tsx";
