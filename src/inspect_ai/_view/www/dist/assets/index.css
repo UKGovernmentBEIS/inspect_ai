@@ -15419,31 +15419,36 @@ ul.jsondiffpatch-textdiff {
   margin-right: 0.5rem;
   color: var(--bs-red);
 }
-.progress-bar-wrapper {
+._wrapper_1phwy_1 {
   display: flex;
   align-items: center;
   justify-content: center;
   width: 100%;
   height: 0;
-  overflow: visible;
+  overflow-y: visible;
+  overflow-x: visible;
   z-index: 1001;
   text-align: center;
 }
 
-.progress-container {
+._container_1phwy_13 {
   width: 100%;
   height: 2px;
   background-color: transparent;
+  position: relative;
+  overflow: hidden;
 }
 
-.progress-bar-animated {
+._animate_1phwy_21 {
   width: 5%;
   height: 2px;
-  animation: leftToRight 2s linear infinite;
-  background-color: #3b82f6; /* Default blue color, can be overridden via style prop */
+  animation: _leftToRight_1phwy_1 2s linear infinite;
+  background-color: #3b82f6;
+  position: absolute;
+  left: 0;
 }
 
-@keyframes leftToRight {
+@keyframes _leftToRight_1phwy_1 {
   0% {
     transform: translateX(-100%);
   }

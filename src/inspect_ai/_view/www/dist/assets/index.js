@@ -3070,25 +3070,30 @@ var require_assets = __commonJS({
         return this.props.children;
       }
     }
+    const wrapper$3 = "_wrapper_1phwy_1";
+    const container$7 = "_container_1phwy_13";
+    const animate = "_animate_1phwy_21";
+    const leftToRight = "_leftToRight_1phwy_1";
+    const styles$r = {
+      wrapper: wrapper$3,
+      container: container$7,
+      animate,
+      leftToRight
+    };
     const ProgressBar = ({
-      style: style2,
-      containerStyle,
       animating
     }) => {
       return /* @__PURE__ */ u("div", {
-        className: "progress-bar-wrapper",
-        style: style2,
+        className: styles$r.wrapper,
         children: /* @__PURE__ */ u("div", {
-          className: "progress-container",
+          className: styles$r.container,
           role: "progressbar",
           "aria-label": "Basic example",
           "aria-valuenow": 25,
           "aria-valuemin": 0,
           "aria-valuemax": 100,
-          style: containerStyle,
           children: animating && /* @__PURE__ */ u("div", {
-            className: "progress-bar-animated",
-            style: style2
+            className: styles$r.animate
           })
         })
       });
@@ -49480,12 +49485,7 @@ ${events}
       scrollRef
     }) => {
       return m$1`<div style=${{ flexDirection: "row", width: "100%" }}>
-    <${ProgressBar}
-      animating=${sampleStatus === "loading"}
-      containerStyle=${{
-        background: "var(--bs-body-bg)"
-      }}
-    />
+    <${ProgressBar} animating=${sampleStatus === "loading"} />
     <div style=${{ margin: "1em 1em 1em 1em" }}>
       ${sampleError ? m$1`<${ErrorPanel}
             title="Unable to load sample"
@@ -52024,10 +52024,7 @@ ${events}
         }
       }}>
       ${showFind ? m$1`<${FindBand} hideBand=${hideFind} />` : ""}
-      <${ProgressBar} animating=${status.loading}  containerStyle=${{
-        background: "var(--bs-light)",
-        marginBottom: "-1px"
-      }}/>
+      <${ProgressBar} animating=${status.loading} />
       ${status.error ? m$1`<${ErrorPanel}
               title="An error occurred while loading this task."
               error=${status.error}

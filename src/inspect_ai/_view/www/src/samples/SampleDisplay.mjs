@@ -62,12 +62,7 @@ export const InlineSampleDisplay = ({
   scrollRef,
 }) => {
   return html`<div style=${{ flexDirection: "row", width: "100%" }}>
-    <${ProgressBar}
-      animating=${sampleStatus === "loading"}
-      containerStyle=${{
-        background: "var(--bs-body-bg)",
-      }}
-    />
+    <${ProgressBar} animating=${sampleStatus === "loading"} />
     <div style=${{ margin: "1em 1em 1em 1em" }}>
       ${sampleError
         ? html`<${ErrorPanel}

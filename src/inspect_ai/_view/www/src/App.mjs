@@ -880,10 +880,7 @@ export function App({
       }
     }}>
       ${showFind ? html`<${FindBand} hideBand=${hideFind} />` : ""}
-      <${ProgressBar} animating=${status.loading}  containerStyle=${{
-        background: "var(--bs-light)",
-        marginBottom: "-1px",
-      }}/>
+      <${ProgressBar} animating=${status.loading} />
       ${
         status.error
           ? html`<${ErrorPanel}
