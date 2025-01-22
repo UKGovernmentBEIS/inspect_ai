@@ -4,10 +4,10 @@ import styles from "./MetadataGrid.module.css";
 import { RenderedContent } from "./RenderedContent";
 
 interface MetadataGridProps {
-  id: string;
-  classes?: string;
+  id?: string;
+  className?: string | string[];
   style?: React.CSSProperties;
-  entries: Record<string, string>;
+  entries: Record<string, unknown>;
   plain?: boolean;
 }
 
@@ -17,7 +17,7 @@ interface MetadataGridProps {
 export const MetaDataGrid: React.FC<MetadataGridProps> = ({
   id,
   entries,
-  classes,
+  className,
   style,
   plain,
 }) => {
@@ -54,7 +54,7 @@ export const MetaDataGrid: React.FC<MetadataGridProps> = ({
   });
 
   return (
-    <div id={id} className={clsx(classes, styles.grid)} style={style}>
+    <div id={id} className={clsx(className, styles.grid)} style={style}>
       {entryEls}
     </div>
   );
@@ -67,7 +67,7 @@ export const MetaDataGrid: React.FC<MetadataGridProps> = ({
  * Ensure the proper type for entries
  */
 const entryRecords = (
-  entries: { name: string; value: unknown }[] | Record<string, string>,
+  entries: { name: string; value: unknown }[] | Record<string, unknown>,
 ): { name: string; value: unknown }[] => {
   if (!entries) {
     return [];

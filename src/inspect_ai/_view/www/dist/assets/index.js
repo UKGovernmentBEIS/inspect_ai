@@ -11639,7 +11639,7 @@ var require_assets = __commonJS({
         const id2 = `${baseId}-value-${index}`;
         return /* @__PURE__ */ u("tr", {
           children: [/* @__PURE__ */ u("td", {
-            className: clsx(styles$m.cell, styles$m.cellKey, "text-size-small"),
+            className: clsx(styles$m.cell, styles$m.cellKey, "text-size-small", "text-style-label"),
             children: entry2.name
           }), /* @__PURE__ */ u("td", {
             className: clsx(styles$m.cell, styles$m.cellValue, "text-size-small"),
@@ -40865,7 +40865,7 @@ self.onmessage = function (e) {
     const MetaDataGrid = ({
       id,
       entries,
-      classes,
+      className: className2,
       style: style2,
       plain
     }) => {
@@ -40892,7 +40892,7 @@ self.onmessage = function (e) {
       });
       return /* @__PURE__ */ u("div", {
         id,
-        className: clsx(classes, styles$7.grid),
+        className: clsx(className2, styles$7.grid),
         style: style2,
         children: entryEls
       });
@@ -41067,7 +41067,7 @@ self.onmessage = function (e) {
       <${CardBody}>
         <${MetaDataGrid}
           id="task-sample-score-metadata"
-          classes="tab-pane"
+          className="tab-pane"
           entries="${metadata}"
           style=${{ marginTop: "0" }}
         />
@@ -45929,7 +45929,7 @@ ${val.stack}`;
       }, {
         equals: (newVal, oldVal) => newVal.cols === oldVal.cols && newVal.rows === oldVal.rows
       });
-      const [duration2, setDuration] = createSignal(void 0);
+      const [duration, setDuration] = createSignal(void 0);
       const [markers, setMarkers] = createStore([]);
       const [userActive, setUserActive] = createSignal(false);
       const [isHelpVisible, setIsHelpVisible] = createSignal(false);
@@ -45977,7 +45977,7 @@ ${val.stack}`;
         let {
           cols,
           rows,
-          duration: duration3,
+          duration: duration2,
           theme: theme3,
           poster,
           markers: markers2
@@ -45987,7 +45987,7 @@ ${val.stack}`;
             cols,
             rows
           });
-          setDuration(duration3);
+          setDuration(duration2);
           setOriginalTheme(theme3);
           setMarkers(markers2);
           setPoster(poster);
@@ -46369,7 +46369,7 @@ ${val.stack}`;
           get children() {
             return createComponent(ControlBar, {
               get duration() {
-                return duration2();
+                return duration();
               },
               get currentTime() {
                 return state.currentTime;
@@ -46830,7 +46830,7 @@ ${events}
       let rows;
       let events;
       let markers;
-      let duration2;
+      let duration;
       let effectiveStartAt;
       let eventTimeoutId;
       let nextEventIndex = 0;
@@ -46859,7 +46859,7 @@ ${events}
           cols,
           rows,
           events,
-          duration: duration2,
+          duration,
           effectiveStartAt
         } = recording2);
         initialCols = initialCols ?? cols;
@@ -46875,7 +46875,7 @@ ${events}
         return {
           cols,
           rows,
-          duration: duration2,
+          duration,
           theme: recording2.theme,
           poster,
           markers
@@ -46982,7 +46982,7 @@ ${events}
           resizeTerminalToInitialSize();
           scheduleNextEvent();
         } else {
-          pauseElapsedTime = duration2 * 1e3;
+          pauseElapsedTime = duration * 1e3;
           setState("ended");
         }
       }
@@ -47016,11 +47016,11 @@ ${events}
           } else if (where === ">>") {
             where = currentTime + 5;
           } else if (where === "<<<") {
-            where = currentTime - 0.1 * duration2;
+            where = currentTime - 0.1 * duration;
           } else if (where === ">>>") {
-            where = currentTime + 0.1 * duration2;
+            where = currentTime + 0.1 * duration;
           } else if (where[where.length - 1] === "%") {
-            where = parseFloat(where.substring(0, where.length - 1)) / 100 * duration2;
+            where = parseFloat(where.substring(0, where.length - 1)) / 100 * duration;
           }
         } else if (typeof where === "object") {
           if (where.marker === "prev") {
@@ -47029,7 +47029,7 @@ ${events}
               where = findMarkerTimeBefore(where) ?? 0;
             }
           } else if (where.marker === "next") {
-            where = findMarkerTimeAfter(currentTime) ?? duration2;
+            where = findMarkerTimeAfter(currentTime) ?? duration;
           } else if (typeof where.marker === "number") {
             const marker = markers[where.marker];
             if (marker === void 0) {
@@ -47039,7 +47039,7 @@ ${events}
             }
           }
         }
-        const targetTime = Math.min(Math.max(where, 0), duration2);
+        const targetTime = Math.min(Math.max(where, 0), duration);
         if (targetTime < lastEventTime) {
           feed("\x1Bc");
           resizeTerminalToInitialSize();
@@ -47185,12 +47185,12 @@ ${events}
         events = events.map((e2) => e2[1] === "i" ? [e2[0] + inputOffset, e2[1], e2[2]] : e2);
         events.sort((a2, b2) => a2[0] - b2[0]);
       }
-      const duration2 = events[events.length - 1][0];
+      const duration = events[events.length - 1][0];
       const effectiveStartAt = startAt - limiterOutput.offset;
       return {
         ...recording2,
         events,
-        duration: duration2,
+        duration,
         effectiveStartAt
       };
     }
@@ -47284,12 +47284,12 @@ ${events}
       };
       return {
         init: () => {
-          const duration2 = 24 * 60;
+          const duration = 24 * 60;
           const poster = [setupCursor].concat(getCurrentTime());
           return {
             cols,
             rows,
-            duration: duration2,
+            duration,
             poster
           };
         },
@@ -47357,14 +47357,14 @@ ${events}
             let [time, _type, text2] = _ref4;
             return [time, text2];
           });
-          const duration2 = data[data.length - 1][0];
+          const duration = data[data.length - 1][0];
           for (const [_2, text2] of data) {
             byteCount += new Blob([text2]).size;
           }
           return {
             cols,
             rows,
-            duration: duration2
+            duration
           };
         },
         play() {
@@ -47376,13 +47376,13 @@ ${events}
             feed("\x1Bc");
           }
           const endTime = now();
-          const duration2 = (endTime - startTime) / 1e3;
-          const throughput = byteCount * iterations / duration2;
-          const throughputMbs = byteCount / (1024 * 1024) * iterations / duration2;
+          const duration = (endTime - startTime) / 1e3;
+          const throughput = byteCount * iterations / duration;
+          const throughputMbs = byteCount / (1024 * 1024) * iterations / duration;
           console.info("benchmark: result", {
             byteCount,
             iterations,
-            duration: duration2,
+            duration,
             throughput,
             throughputMbs
           });
@@ -50652,14 +50652,14 @@ ${events}
         children: details
       });
     };
-    const floatingCol = "_floatingCol_1q1sr_1";
-    const wideCol = "_wideCol_1q1sr_9";
-    const oneCol = "_oneCol_1q1sr_16";
-    const twoCol = "_twoCol_1q1sr_20";
-    const planCol = "_planCol_1q1sr_24";
-    const container = "_container_1q1sr_28";
-    const grid = "_grid_1q1sr_34";
-    const row = "_row_1q1sr_42";
+    const floatingCol = "_floatingCol_q6xma_1";
+    const wideCol = "_wideCol_q6xma_9";
+    const oneCol = "_oneCol_q6xma_16";
+    const twoCol = "_twoCol_q6xma_20";
+    const planCol = "_planCol_q6xma_24";
+    const container = "_container_q6xma_28";
+    const grid = "_grid_q6xma_34";
+    const row = "_row_q6xma_42";
     const styles$2 = {
       floatingCol,
       wideCol,
@@ -50778,7 +50778,7 @@ ${events}
         contents: /* @__PURE__ */ u(MetaDataView, {
           className: "text-size-small",
           entries: taskInformation,
-          tableOptions: "borderless,sm"
+          tableOptions: "sm"
         })
       });
       if (task_args && Object.keys(task_args).length > 0) {
@@ -50852,7 +50852,7 @@ ${events}
             });
           })
         }), /* @__PURE__ */ u("div", {
-          className: clsx("row", styles$2.row),
+          className: clsx(styles$2.row),
           children: metadataColumns.map((col) => {
             return /* @__PURE__ */ u(PlanColumn, {
               title: col.title,
@@ -50904,15 +50904,13 @@ ${events}
         })]
       });
     };
-    const wrapper = "_wrapper_q7y7u_1";
-    const col1 = "_col1_q7y7u_8";
-    const col2 = "_col2_q7y7u_13";
-    const duration = "_duration_q7y7u_17";
+    const wrapper = "_wrapper_11ije_1";
+    const col1 = "_col1_11ije_8";
+    const col2 = "_col2_11ije_13";
     const styles$1 = {
       wrapper,
       col1,
-      col2,
-      duration
+      col2
     };
     const kUsageCardBodyId = "usage-card-body";
     const UsageCard = ({
@@ -50936,7 +50934,7 @@ ${events}
             children: [/* @__PURE__ */ u("div", {
               className: styles$1.col1,
               children: [/* @__PURE__ */ u("div", {
-                className: clsx(styles$1.duration, "text-size-smaller", "text-style-label", "text-style-secondary"),
+                className: clsx("text-size-smaller", "text-style-label", "text-style-secondary"),
                 children: "Duration"
               }), /* @__PURE__ */ u(MetaDataView, {
                 entries: {

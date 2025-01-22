@@ -159,7 +159,7 @@ export const SampleScoreView = ({
       <${CardBody}>
         <${MetaDataGrid}
           id="task-sample-score-metadata"
-          classes="tab-pane"
+          className="tab-pane"
           entries="${metadata}"
           style=${{ marginTop: "0" }}
         />

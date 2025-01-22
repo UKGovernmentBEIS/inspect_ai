@@ -159,7 +159,7 @@ export const PlanDetailView: React.FC<PlanDetailViewProps> = ({
       <MetaDataView
         className={"text-size-small"}
         entries={taskInformation}
-        tableOptions="borderless,sm"
+        tableOptions="sm"
       />
     ),
   });
@@ -254,7 +254,7 @@ export const PlanDetailView: React.FC<PlanDetailViewProps> = ({
         })}
       </div>
 
-      <div className={clsx("row", styles.row)}>
+      <div className={clsx(styles.row)}>
         {metadataColumns.map((col) => {
           return (
             <PlanColumn title={col.title} className={col.className}>

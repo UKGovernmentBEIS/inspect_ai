@@ -39,7 +39,6 @@ export const UsageCard: React.FC<UsageCardProps> = ({ stats }) => {
           <div className={styles.col1}>
             <div
               className={clsx(
-                styles.duration,
                 "text-size-smaller",
                 "text-style-label",
                 "text-style-secondary",

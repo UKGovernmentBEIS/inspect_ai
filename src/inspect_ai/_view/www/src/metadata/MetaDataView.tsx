@@ -36,7 +36,14 @@ export const MetaDataView: React.FC<MetadataViewProps> = ({
     const id = `${baseId}-value-${index}`;
     return (
       <tr>
-        <td className={clsx(styles.cell, styles.cellKey, "text-size-small")}>
+        <td
+          className={clsx(
+            styles.cell,
+            styles.cellKey,
+            "text-size-small",
+            "text-style-label",
+          )}
+        >
           {entry.name}
         </td>
         <td className={clsx(styles.cell, styles.cellValue, "text-size-small")}>

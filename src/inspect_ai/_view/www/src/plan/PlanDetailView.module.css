@@ -35,11 +35,14 @@
   display: grid;
   justify-content: space-between;
   flex-wrap: wrap;
-  padding-bottom: 0.7rem;
-  border-bottom: solid 1px var(--bs-border-color);
+  padding-bottom: 1em;
+  margin-bottom: 0.5em;
 }
 
 .row {
-  justify-content: "flex-start";
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: auto;
+  margin-left: 0.5em;
+  gap: 1em;
 }
