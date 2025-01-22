@@ -4,6 +4,7 @@ from typing_extensions import TypeAlias
 import os
 
 import goodfire
+from goodfire.api.client import Client as GoodfireClient
 from goodfire.api.chat.interfaces import ChatMessage as GoodfireChatMessage
 from goodfire.variants.variants import SUPPORTED_MODELS, Variant
 from goodfire.api.chat.client import ChatAPI, ChatCompletion
@@ -105,19 +106,34 @@ class GoodfireAPI(ModelAPI):
         # Store model args for use in API calls
         self.model_args = model_args
 
-        # Initialize client with model args
+        # Collect known model_args (then delete them so we can pass the rest on)
+        def collect_model_arg(name: str) -> Any | None:
+            nonlocal model_args
+            value = model_args.get(name, None)
+            if value is not None:
+                model_args.pop(name)
+            return value
+
+        # Collect specific args we might need
+        variant_name = collect_model_arg("variant_name")
+        feature_analysis = collect_model_arg("feature_analysis")
+        feature_threshold = collect_model_arg("feature_threshold")
+
+        # Initialize client with remaining model args
         base_url_val = model_base_url(base_url, "GOODFIRE_BASE_URL")
         assert isinstance(base_url_val, str) or base_url_val is None
-        self.client = goodfire.Client(
+        self.client = GoodfireClient(
             api_key=self.api_key,
             base_url=base_url_val or DEFAULT_BASE_URL,
             **model_args,
         )
         self.model_name = model_name
 
-        # Initialize variant
-        variant_model = MODEL_MAP.get(model_name, "meta-llama/Meta-Llama-3.1-8B-Instruct")
-        self.variant = Variant(variant_model)
+        # Initialize variant with specified name if provided
+        variant_model = variant_name or MODEL_MAP.get(model_name, "meta-llama/Meta-Llama-3.1-8B-Instruct")
+        if variant_model not in get_args(SUPPORTED_MODELS):
+            raise ValueError(f"Variant {variant_model} not supported. Supported variants: {list(get_args(SUPPORTED_MODELS))}")
+        self.variant = Variant(cast(SUPPORTED_MODELS, variant_model))
 
     async def generate(
         self,
