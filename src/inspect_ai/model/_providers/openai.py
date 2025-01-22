@@ -35,6 +35,10 @@ from .._model_output import (
     StopReason,
 )
 from .._openai import (
+    is_o1,
+    is_o1_full,
+    is_o1_mini,
+    is_o1_preview,
     openai_chat_messages,
     openai_chat_tool_choice,
     openai_chat_tools,
@@ -132,16 +136,16 @@ class OpenAIAPI(ModelAPI):
             )
 
     def is_o1(self) -> bool:
-        return self.model_name.startswith("o1")
+        return is_o1(self.model_name)
 
     def is_o1_full(self) -> bool:
-        return self.is_o1() and not self.is_o1_mini() and not self.is_o1_preview()
+        return is_o1_full(self.model_name)
 
     def is_o1_mini(self) -> bool:
-        return self.model_name.startswith("o1-mini")
+        return is_o1_mini(self.model_name)
 
     def is_o1_preview(self) -> bool:
-        return self.model_name.startswith("o1-preview")
+        return is_o1_preview(self.model_name)
 
     async def generate(
         self,
@@ -181,7 +185,7 @@ class OpenAIAPI(ModelAPI):
 
         # prepare request (we do this so we can log the ModelCall)
         request = dict(
-            messages=await openai_chat_messages(input, self.is_o1_full()),
+            messages=await openai_chat_messages(input, self.model_name),
             tools=openai_chat_tools(tools) if len(tools) > 0 else NOT_GIVEN,
             tool_choice=openai_chat_tool_choice(tool_choice)
             if len(tools) > 0

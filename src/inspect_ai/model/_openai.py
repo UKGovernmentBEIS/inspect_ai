@@ -20,15 +20,36 @@ from openai.types.chat import (
 )
 from openai.types.shared_params.function_definition import FunctionDefinition
 
-from inspect_ai._util.content import Content
+from inspect_ai._util.content import Content, ContentAudio, ContentImage, ContentText
 from inspect_ai._util.images import file_as_data_uri
 from inspect_ai._util.url import is_http_url
 from inspect_ai.model._call_tools import parse_tool_call
 from inspect_ai.model._model_output import ChatCompletionChoice, Logprobs
 from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
 
-from ._chat_message import ChatMessage, ChatMessageAssistant
+from ._chat_message import (
+    ChatMessage,
+    ChatMessageAssistant,
+    ChatMessageSystem,
+    ChatMessageUser,
+)
 from ._model_output import as_stop_reason
+
+
+def is_o1(name: str) -> bool:
+    return name.startswith("o1")
+
+
+def is_o1_full(name: str) -> bool:
+    return is_o1(name) and not is_o1_mini(name) and not is_o1_preview(name)
+
+
+def is_o1_mini(name: str) -> bool:
+    return name.startswith("o1-mini")
+
+
+def is_o1_preview(name: str) -> bool:
+    return name.startswith("o1-preview")
 
 
 def openai_chat_tool_call(tool_call: ToolCall) -> ChatCompletionMessageToolCallParam:
@@ -73,10 +94,10 @@ async def openai_chat_completion_part(
 
 
 async def openai_chat_message(
-    message: ChatMessage, o1_full: bool
+    message: ChatMessage, model: str
 ) -> ChatCompletionMessageParam:
     if message.role == "system":
-        if o1_full:
+        if is_o1(model):
             return ChatCompletionDeveloperMessageParam(
                 role="developer", content=message.text
             )
@@ -120,9 +141,9 @@ async def openai_chat_message(
 
 
 async def openai_chat_messages(
-    messages: list[ChatMessage], o1_full: bool
+    messages: list[ChatMessage], model: str
 ) -> list[ChatCompletionMessageParam]:
-    return [await openai_chat_message(message, o1_full) for message in messages]
+    return [await openai_chat_message(message, model) for message in messages]
 
 
 def openai_chat_tool_param(tool: ToolInfo) -> ChatCompletionToolParam:
@@ -162,6 +183,41 @@ def chat_tool_calls_from_openai(
         ]
     else:
         return None
+
+
+def chat_message_from_openai(message: ChatCompletionMessageParam) -> ChatMessage:
+    if message["role"] == "system" or message["role"] == "developer":
+        content = message["content"]
+        if isinstance(content, str):
+            return ChatMessageSystem(content=content)
+        else:
+            return ChatMessageSystem(content=[content_from_openai(c) for c in content])
+    elif message["role"] == "user":
+        return ChatMessageUser(
+            content=[content_from_openai(c) for c in message["content"]]
+        )
+    elif message["role"] == "assistant":
+        return ChatMessageAssistant(content="foo")
+
+    # ChatCompletionAssistantMessageParam,
+    # ChatCompletionToolMessageParam,
+
+    else:
+        raise ValueError(f"Unexpected message param type: {type(message)}")
+
+
+def content_from_openai(content: ChatCompletionContentPartParam) -> Content:
+    if content["type"] == "text":
+        return ContentText(text=content["text"])
+    elif content["type"] == "image_url":
+        return ContentImage(
+            image=content["image_url"]["url"], detail=content["image_url"]["detail"]
+        )
+    elif content["type"] == "input_audio":
+        return ContentAudio(
+            audio=content["input_audio"]["data"],
+            format=content["input_audio"]["format"],
+        )
 
 
 def chat_message_assistant_from_openai(

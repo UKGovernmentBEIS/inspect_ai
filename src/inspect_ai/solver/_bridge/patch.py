@@ -11,7 +11,7 @@ from openai._types import ResponseT
 
 
 @contextlib.asynccontextmanager
-async def openai_request_patch() -> AsyncGenerator[None, None]:
+async def openai_request_to_inspect_model() -> AsyncGenerator[None, None]:
     # ensure one time init
     init_openai_request_patch()
 
@@ -40,7 +40,7 @@ def init_openai_request_patch() -> None:
 
         @wraps(original_request)
         async def patched_request(
-            self,
+            self: AsyncAPIClient,
             cast_to: Type[ResponseT],
             options: FinalRequestOptions,
             *,
@@ -88,8 +88,25 @@ def init_openai_request_patch() -> None:
 #     return ChatCompletion()
 
 
-async def task1():
-    async with openai_request_patch():
+if __name__ == "__main__":
+
+    async def task1() -> None:
+        async with openai_request_to_inspect_model():
+            client = AsyncOpenAI()
+            completion = await client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": "You are a helpful assistant."},
+                    {
+                        "role": "user",
+                        "content": "Write a haiku about recursion in programming.",
+                    },
+                ],
+            )
+
+        print(completion.choices[0].message)
+
+    async def task2() -> None:
         client = AsyncOpenAI()
         completion = await client.chat.completions.create(
             model="gpt-4o-mini",
@@ -102,27 +119,9 @@ async def task1():
             ],
         )
 
-    print(completion.choices[0].message)
+        print(completion.choices[0].message)
 
+    async def main() -> None:
+        await asyncio.gather(task1(), task2())
 
-async def task2():
-    client = AsyncOpenAI()
-    completion = await client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-            {"role": "system", "content": "You are a helpful assistant."},
-            {
-                "role": "user",
-                "content": "Write a haiku about recursion in programming.",
-            },
-        ],
-    )
-
-    print(completion.choices[0].message)
-
-
-async def main():
-    await asyncio.gather(task1(), task2())
-
-
-asyncio.run(main())
+    asyncio.run(main())
