@@ -227,6 +227,9 @@ def solver(
 
             return registered_solver
 
+        # Explicitly set the return type
+        solver_wrapper.__annotations__["return"] = Solver
+
         return solver_register(cast(Callable[P, Solver], solver_wrapper), solver_name)
 
     # for decorators with an explicit name, one more wrapper for the name
