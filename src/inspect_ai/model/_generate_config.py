@@ -81,20 +81,6 @@ class GenerateConfigArgs(TypedDict, total=False):
     """Constrains effort on reasoning for reasoning models. Open AI o1 models only."""
 
 
-@dataclass
-class GoodfireConfig:
-    """Goodfire-specific configuration."""
-    
-    variant_name: str | None = None
-    """Name of the Goodfire variant to use."""
-    
-    feature_analysis: bool = False
-    """Whether to enable Goodfire feature analysis."""
-    
-    feature_threshold: float = 0.5
-    """Threshold for feature importance in analysis."""
-
-
 class GenerateConfig(BaseModel):
     """Base class for model generation configs."""
 
@@ -166,9 +152,6 @@ class GenerateConfig(BaseModel):
 
     reasoning_effort: Literal["low", "medium", "high"] | None = Field(default=None)
     """Constrains effort on reasoning for reasoning models. Open AI o1 models only."""
-
-    goodfire: GoodfireConfig | None = Field(default=None)
-    """Goodfire-specific configuration. Only used when using Goodfire models."""
 
     def merge(
         self, other: Union["GenerateConfig", GenerateConfigArgs]

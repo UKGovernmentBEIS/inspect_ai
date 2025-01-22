@@ -246,15 +246,16 @@ def mockllm() -> type[ModelAPI]:
 @modelapi(name="goodfire")
 def goodfire() -> type[ModelAPI]:
     """Get Goodfire API provider."""
-    logger.debug("[PROVIDER] Registering goodfire provider")
+    FEATURE = "Goodfire API"
+    PACKAGE = "goodfire"
+    MIN_VERSION = "0.2.5"
+
     try:
-        import goodfire
-        verify_required_version("Goodfire API", "goodfire", "0.1.0")
-        logger.debug("[PROVIDER] Successfully imported goodfire and verified version")
+        import goodfire  # noqa: F401
+        verify_required_version(FEATURE, PACKAGE, MIN_VERSION)
         return GoodfireAPI
     except ImportError as e:
-        logger.error("[PROVIDER] Failed to import goodfire", exc_info=True)
-        raise pip_dependency_error("Goodfire API", ["goodfire"]) from e
+        raise pip_dependency_error(FEATURE, [PACKAGE]) from e
 
 
 def validate_openai_client(feature: str) -> None:
