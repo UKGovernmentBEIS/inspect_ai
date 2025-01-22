@@ -1,18 +1,13 @@
 import clsx from "clsx";
 import { JSX, useState } from "react";
 import { ApplicationIcons } from "../appearance/icons";
-import "./CopyButton.css";
+import styles from "./CopyButton.module.css";
 
 interface CopyButtonProps {
-  /** The text content to be copied to clipboard */
   value: string;
-  /** Optional callback for when copy succeeds */
   onCopySuccess?: () => void;
-  /** Optional callback for when copy fails */
   onCopyError?: (error: Error) => void;
-  /** Optional class name for custom styling */
   className?: string;
-  /** Optional aria-label for accessibility */
   ariaLabel?: string;
 }
 
@@ -45,7 +40,7 @@ export const CopyButton = ({
   return (
     <button
       type="button"
-      className={clsx("copy-button", className)}
+      className={clsx(styles.copyButton, className)}
       onClick={handleClick}
       aria-label={ariaLabel}
       disabled={isCopied}

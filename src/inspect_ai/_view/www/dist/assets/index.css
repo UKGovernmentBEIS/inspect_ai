@@ -14981,7 +14981,7 @@ table.table.table-sm td {
 
 .tab-tools .btn {
   font-size: 0.7rem;
-  padding: 0.4em 0.8em;
+  padding: 0.2em 0.8em;
 }
 
 .tab-tools {
@@ -15948,7 +15948,7 @@ ul.jsondiffpatch-textdiff {
   display: grid;
   grid-template-columns: 1fr auto;
 }
-.copy-button {
+._copyButton_1goi8_1 {
   border: none;
   background-color: inherit;
   opacity: 0.5;
@@ -15956,7 +15956,7 @@ ul.jsondiffpatch-textdiff {
   transition: opacity 0.2s;
 }
 
-.copy-button:hover {
+._copyButton_1goi8_1:hover {
   opacity: 0.75;
 }
 ._container_1w9cu_1 {

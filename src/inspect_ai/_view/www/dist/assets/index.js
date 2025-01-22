@@ -4822,7 +4822,7 @@ var require_assets = __commonJS({
     const hidden$2 = "_hidden_tm52u_5";
     const pills = "_pills_tm52u_9";
     const pill = "_pill_tm52u_9";
-    const styles$p = {
+    const styles$q = {
       visible,
       hidden: hidden$2,
       pills,
@@ -4847,13 +4847,13 @@ var require_assets = __commonJS({
       const navBodies = children2.map((child) => {
         var _a2;
         return /* @__PURE__ */ u("div", {
-          className: ((_a2 = child["props"]) == null ? void 0 : _a2.title) === activeItem ? styles$p.visible : styles$p.hidden,
+          className: ((_a2 = child["props"]) == null ? void 0 : _a2.title) === activeItem ? styles$q.visible : styles$q.hidden,
           children: ["$", child]
         });
       });
       return /* @__PURE__ */ u("div", {
         children: [/* @__PURE__ */ u("ul", {
-          className: clsx("nav", "nav-pills", styles$p.pills),
+          className: clsx("nav", "nav-pills", styles$q.pills),
           role: "tablist",
           "aria-orientation": "horizontal",
           children: navPills
@@ -4873,7 +4873,7 @@ var require_assets = __commonJS({
           type: "button",
           role: "tab",
           "aria-selected": active2,
-          className: clsx("nav-link", "text-style-label", active2 ? "active " : "", styles$p.pill),
+          className: clsx("nav-link", "text-style-label", active2 ? "active " : "", styles$q.pill),
           onClick: () => {
             setActiveItem(title2);
           },
@@ -10219,7 +10219,7 @@ var require_assets = __commonJS({
     const container$6 = "_container_1vi7u_1";
     const hidden$1 = "_hidden_1vi7u_8";
     const content$2 = "_content_1vi7u_12";
-    const styles$o = {
+    const styles$p = {
       container: container$6,
       hidden: hidden$1,
       content: content$2
@@ -10393,12 +10393,12 @@ var require_assets = __commonJS({
         ...props,
         ...scrollProps,
         children: /* @__PURE__ */ u("div", {
-          className: clsx(styles$o.container, !(scrollRef == null ? void 0 : scrollRef.current) ? styles$o.hidden : void 0),
+          className: clsx(styles$p.container, !(scrollRef == null ? void 0 : scrollRef.current) ? styles$p.hidden : void 0),
           style: {
             height: `${listMetrics.totalHeight}px`
           },
           children: /* @__PURE__ */ u("div", {
-            className: styles$o.content,
+            className: styles$p.content,
             style: {
               transform: `translateY(${top2}px)`
             },
@@ -10419,7 +10419,7 @@ var require_assets = __commonJS({
       };
     };
     const contentImage = "_contentImage_121dp_1";
-    const styles$n = {
+    const styles$o = {
       contentImage
     };
     var murmurhash$1 = { exports: {} };
@@ -11114,7 +11114,7 @@ var require_assets = __commonJS({
           if (c2.image.startsWith("data:")) {
             return /* @__PURE__ */ u("img", {
               src: c2.image,
-              className: styles$n.contentImage
+              className: styles$o.contentImage
             });
           } else {
             return /* @__PURE__ */ u("code", {
@@ -11613,7 +11613,7 @@ var require_assets = __commonJS({
     const compact = "_compact_1memb_15";
     const cellKey = "_cellKey_1memb_19";
     const cellValue = "_cellValue_1memb_31";
-    const styles$m = {
+    const styles$n = {
       table: table$1,
       th,
       cell: cell$1,
@@ -11639,10 +11639,10 @@ var require_assets = __commonJS({
         const id2 = `${baseId}-value-${index}`;
         return /* @__PURE__ */ u("tr", {
           children: [/* @__PURE__ */ u("td", {
-            className: clsx(styles$m.cell, styles$m.cellKey, "text-size-small", "text-style-label"),
+            className: clsx(styles$n.cell, styles$n.cellKey, "text-size-small", "text-style-label"),
             children: entry2.name
           }), /* @__PURE__ */ u("td", {
-            className: clsx(styles$m.cell, styles$m.cellValue, "text-size-small"),
+            className: clsx(styles$n.cell, styles$n.cellValue, "text-size-small"),
             children: /* @__PURE__ */ u(RenderedContent, {
               id: id2,
               entry: entry2
@@ -11652,7 +11652,7 @@ var require_assets = __commonJS({
       });
       return /* @__PURE__ */ u("table", {
         id,
-        className: clsx("table", tblClz, styles$m.table, compact2 ? styles$m.compact : void 0, className2),
+        className: clsx("table", tblClz, styles$n.table, compact2 ? styles$n.compact : void 0, className2),
         style: style2,
         children: [/* @__PURE__ */ u("thead", {
           children: /* @__PURE__ */ u("tr", {
@@ -11685,7 +11685,7 @@ var require_assets = __commonJS({
     const query = "_query_9u9bt_1";
     const summary = "_summary_9u9bt_6";
     const preWrap = "_preWrap_9u9bt_10";
-    const styles$l = {
+    const styles$m = {
       query,
       summary,
       preWrap
@@ -11817,7 +11817,7 @@ var require_assets = __commonJS({
         render: (_id, entry2) => {
           const results = [];
           results.push(/* @__PURE__ */ u("div", {
-            className: styles$l.query,
+            className: styles$m.query,
             children: [/* @__PURE__ */ u("i", {
               class: ApplicationIcons.search
             }), " ", entry2.value.query]
@@ -11830,7 +11830,7 @@ var require_assets = __commonJS({
               })
             }));
             results.push(/* @__PURE__ */ u("div", {
-              className: clsx("text-size-smaller", styles$l.summary),
+              className: clsx("text-size-smaller", styles$m.summary),
               children: result.summary
             }));
           });
@@ -11848,7 +11848,7 @@ var require_assets = __commonJS({
         render: (_id, entry2) => {
           return {
             rendered: /* @__PURE__ */ u("pre", {
-              className: styles$l.preWrap,
+              className: styles$m.preWrap,
               children: entry2.value
             })
           };
@@ -15220,7 +15220,7 @@ categories: ${categories.join(" ")}`;
       });
     };
     const dirname$1 = "_dirname_16ra5_1";
-    const styles$k = {
+    const styles$l = {
       dirname: dirname$1
     };
     const LogDirectoryTitleView = ({
@@ -15239,7 +15239,7 @@ categories: ${categories.join(" ")}`;
             children: "Log Directory"
           }), /* @__PURE__ */ u("span", {
             title: displayDir,
-            className: clsx("text-size-base", styles$k.dirname),
+            className: clsx("text-size-base", styles$l.dirname),
             children: offcanvas ? displayDir : ""
           })]
         });
@@ -15272,7 +15272,7 @@ categories: ${categories.join(" ")}`;
     const backdrop = "_backdrop_1u82r_55";
     const active = "_active_1u82r_62";
     const item$2 = "_item_1u82r_66";
-    const styles$j = {
+    const styles$k = {
       sidebar,
       sidebarClosed,
       sidebarOpen,
@@ -15287,7 +15287,7 @@ categories: ${categories.join(" ")}`;
     const error = "_error_srruf_1";
     const running = "_running_srruf_6";
     const cancelled = "_cancelled_srruf_13";
-    const styles$i = {
+    const styles$j = {
       error,
       running,
       cancelled
@@ -15296,7 +15296,7 @@ categories: ${categories.join(" ")}`;
     const metric = "_metric_1frsg_8";
     const metricName$1 = "_metricName_1frsg_17";
     const metricReducer$1 = "_metricReducer_1frsg_21";
-    const styles$h = {
+    const styles$i = {
       container: container$5,
       metric,
       metricName: metricName$1,
@@ -15306,15 +15306,15 @@ categories: ${categories.join(" ")}`;
       scorer
     }) => {
       return /* @__PURE__ */ u("div", {
-        className: styles$h.container,
+        className: styles$i.container,
         children: Object.keys(scorer.metrics).map((metric2) => {
           return /* @__PURE__ */ u("div", {
-            className: styles$h.metric,
+            className: styles$i.metric,
             children: [/* @__PURE__ */ u("div", {
-              className: clsx("text-style-secondary", "text-style-label", "text-size-small", styles$h.metricName),
+              className: clsx("text-style-secondary", "text-style-label", "text-size-small", styles$i.metricName),
               children: scorer.metrics[metric2].name
             }), scorer.reducer ? /* @__PURE__ */ u("div", {
-              className: clsx("text-size-small", styles$h.metricReducer),
+              className: clsx("text-size-small", styles$i.metricReducer),
               children: ["$", scorer.reducer]
             }) : "", /* @__PURE__ */ u("div", {
               className: "text-size-title-secondary",
@@ -15330,7 +15330,7 @@ categories: ${categories.join(" ")}`;
     const metricReducer = "_metricReducer_5kpg1_22";
     const metricValues = "_metricValues_5kpg1_27";
     const metricValue = "_metricValue_5kpg1_27";
-    const styles$g = {
+    const styles$h = {
       container: container$4,
       scoreWrapper,
       metricName,
@@ -15342,20 +15342,20 @@ categories: ${categories.join(" ")}`;
       scores: scores2
     }) => {
       return /* @__PURE__ */ u("div", {
-        className: styles$g.container,
+        className: styles$h.container,
         children: scores2.map((score2) => {
           const name2 = score2.name;
           const reducer = score2.reducer;
           return /* @__PURE__ */ u("div", {
-            className: styles$g.scoreWrapper,
+            className: styles$h.scoreWrapper,
             children: [/* @__PURE__ */ u("div", {
-              className: clsx("text-style-secondary", "text-label", "text-size-small", styles$g.metricName),
+              className: clsx("text-style-secondary", "text-label", "text-size-small", styles$h.metricName),
               children: name2
             }), reducer ? /* @__PURE__ */ u("div", {
-              className: clsx("text-size-small", styles$g.metricReducer),
+              className: clsx("text-size-small", styles$h.metricReducer),
               children: reducer
             }) : "", /* @__PURE__ */ u("div", {
-              className: clsx("text-size-small", styles$g.metricValues),
+              className: clsx("text-size-small", styles$h.metricValues),
               children: Object.keys(score2.metrics).map((key2) => {
                 const metric2 = score2.metrics[key2];
                 return /* @__PURE__ */ u(xn.Fragment, {
@@ -15363,7 +15363,7 @@ categories: ${categories.join(" ")}`;
                     className: clsx("text-style-secondary", "text-style-label"),
                     children: metric2.name
                   }), /* @__PURE__ */ u("div", {
-                    className: styles$g.metricValue,
+                    className: styles$h.metricValue,
                     children: formatPrettyDecimal(metric2.value)
                   })]
                 }, key2);
@@ -15410,7 +15410,7 @@ categories: ${categories.join(" ")}`;
       message
     }) => {
       return /* @__PURE__ */ u("div", {
-        className: clsx("text-style-secondary", "text-style-label", "text-size-small", styles$i.cancelled),
+        className: clsx("text-style-secondary", "text-style-label", "text-size-small", styles$j.cancelled),
         children: message
       });
     };
@@ -15418,7 +15418,7 @@ categories: ${categories.join(" ")}`;
       message
     }) => {
       return /* @__PURE__ */ u("div", {
-        className: clsx("text-style-secondary", "text-style-label", "text-size-small", styles$i.running),
+        className: clsx("text-style-secondary", "text-style-label", "text-size-small", styles$j.running),
         children: /* @__PURE__ */ u("div", {
           children: message
         })
@@ -15428,7 +15428,7 @@ categories: ${categories.join(" ")}`;
       message
     }) => {
       return /* @__PURE__ */ u("div", {
-        className: clsx(styles$i.error, "text-size-small"),
+        className: clsx(styles$j.error, "text-size-small"),
         children: message
       });
     };
@@ -15437,7 +15437,7 @@ categories: ${categories.join(" ")}`;
     const task = "_task_12m5n_12";
     const params = "_params_12m5n_18";
     const scores = "_scores_12m5n_22";
-    const styles$f = {
+    const styles$g = {
       entry,
       title: title$1,
       task,
@@ -15470,11 +15470,11 @@ categories: ${categories.join(" ")}`;
       })}` : "";
       return /* @__PURE__ */ u(xn.Fragment, {
         children: [/* @__PURE__ */ u("div", {
-          className: styles$f.entry,
+          className: styles$g.entry,
           children: [/* @__PURE__ */ u("div", {
-            className: styles$f.title,
+            className: styles$g.title,
             children: [/* @__PURE__ */ u("div", {
-              className: clsx(styles$f.task, "text-size-title-secondary"),
+              className: clsx(styles$g.task, "text-size-title-secondary"),
               children: ((_i = logHeader == null ? void 0 : logHeader.eval) == null ? void 0 : _i.task) || task2
             }), /* @__PURE__ */ u("small", {
               className: clsx("mb-1", "text-size-small"),
@@ -15489,7 +15489,7 @@ categories: ${categories.join(" ")}`;
             logHeader
           })]
         }), /* @__PURE__ */ u("div", {
-          className: clsx(styles$f.params, "three-line-clamp"),
+          className: clsx(styles$g.params, "three-line-clamp"),
           children: /* @__PURE__ */ u("small", {
             className: "mb-1",
             children: hyperparameters ? Object.keys(hyperparameters).map((key2) => {
@@ -15502,11 +15502,11 @@ categories: ${categories.join(" ")}`;
             }).join(", ") : ""
           })
         }), (((_j = logHeader == null ? void 0 : logHeader.eval) == null ? void 0 : _j.dataset) || ((_k = logHeader == null ? void 0 : logHeader.results) == null ? void 0 : _k.scores)) && (logHeader == null ? void 0 : logHeader.status) === "success" ? /* @__PURE__ */ u("div", {
-          className: clsx("text-truncate", "text-size-small", styles$f.scores),
+          className: clsx("text-truncate", "text-size-small", styles$g.scores),
           children: [/* @__PURE__ */ u("div", {
             children: ["dataset: ", datasetName || "(samples)"]
           }), /* @__PURE__ */ u("div", {
-            className: clsx("text-truncate", styles$f.scoreInfo),
+            className: clsx("text-truncate", styles$g.scoreInfo),
             children: [scorerLabel, ": ", scorerNames || "(none)"]
           })]
         }) : ""]
@@ -15526,18 +15526,18 @@ categories: ${categories.join(" ")}`;
       };
       return /* @__PURE__ */ u(k$2, {
         children: [offcanvas && /* @__PURE__ */ u("div", {
-          className: styles$j.backdrop,
+          className: styles$k.backdrop,
           onClick: handleToggle
         }), /* @__PURE__ */ u("div", {
-          className: clsx(styles$j.sidebar, offcanvas ? styles$j.sidebarOpen : styles$j.sidebarClosed),
+          className: clsx(styles$k.sidebar, offcanvas ? styles$k.sidebarOpen : styles$k.sidebarClosed),
           children: [/* @__PURE__ */ u("div", {
-            className: styles$j.header,
+            className: styles$k.header,
             children: [/* @__PURE__ */ u(LogDirectoryTitleView, {
               log_dir: logs.log_dir,
               offcanvas
             }), /* @__PURE__ */ u("button", {
               onClick: handleToggle,
-              className: clsx("btn", styles$j.toggle),
+              className: clsx("btn", styles$k.toggle),
               type: "button",
               "aria-label": "Close sidebar",
               children: /* @__PURE__ */ u("i", {
@@ -15545,16 +15545,16 @@ categories: ${categories.join(" ")}`;
               })
             })]
           }), /* @__PURE__ */ u("div", {
-            className: styles$j.progress,
+            className: styles$k.progress,
             children: /* @__PURE__ */ u(ProgressBar, {
               animating: loading
             })
           }), /* @__PURE__ */ u("ul", {
-            className: clsx("list-group", styles$j.list),
+            className: clsx("list-group", styles$k.list),
             children: logs.files.map((file, index) => {
               const logHeader = logHeaders[file.name];
               return /* @__PURE__ */ u("li", {
-                className: clsx("list-group-item", "list-group-item-action", styles$j.item, selectedIndex === index ? styles$j.active : void 0),
+                className: clsx("list-group-item", "list-group-item-action", styles$k.item, selectedIndex === index ? styles$k.active : void 0),
                 onClick: () => onSelectedIndexChanged(index),
                 children: /* @__PURE__ */ u(SidebarLogEntry, {
                   logHeader,
@@ -36269,7 +36269,7 @@ Supported expressions:
     const navbarStatus = "_navbarStatus_838qu_42";
     const navbarWrapper = "_navbarWrapper_838qu_48";
     const navbarInnerWrapper = "_navbarInnerWrapper_838qu_51";
-    const styles$e = {
+    const styles$f = {
       navbarContainer,
       navbarToggle,
       navbarBody,
@@ -36280,6 +36280,10 @@ Supported expressions:
       navbarStatus,
       navbarWrapper,
       navbarInnerWrapper
+    };
+    const copyButton = "_copyButton_1goi8_1";
+    const styles$e = {
+      copyButton
     };
     const CopyButton = ({
       value: value2,
@@ -36303,7 +36307,7 @@ Supported expressions:
       };
       return /* @__PURE__ */ u("button", {
         type: "button",
-        className: clsx("copy-button", className2),
+        className: clsx(styles$e.copyButton, className2),
         onClick: handleClick,
         "aria-label": ariaLabel,
         disabled: isCopied,
@@ -36786,7 +36790,7 @@ Supported expressions:
       status
     }) => {
       return /* @__PURE__ */ u("nav", {
-        className: clsx("navbar", "sticky-top", styles$e.navbarWrapper),
+        className: clsx("navbar", "sticky-top", styles$f.navbarWrapper),
         children: [/* @__PURE__ */ u(PrimaryBar, {
           file,
           evalSpec,

@@ -1,4 +1,4 @@
-.copy-button {
+.copyButton {
   border: none;
   background-color: inherit;
   opacity: 0.5;
@@ -6,6 +6,6 @@
   transition: opacity 0.2s;
 }
 
-.copy-button:hover {
+.copyButton:hover {
   opacity: 0.75;
 }
