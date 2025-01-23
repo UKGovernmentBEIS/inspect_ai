@@ -13,7 +13,7 @@ jsonschema>3.1.1
 mmh3>3.1.0
 nest_asyncio
 numpy
-opeanai
+openai>=1.58.1
 platformdirs>=2.3.0
 psutil
 pydantic>=2
