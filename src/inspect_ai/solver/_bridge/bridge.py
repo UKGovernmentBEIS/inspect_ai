@@ -54,7 +54,7 @@ def bridge(agent: Callable[[dict[str, Any]], Awaitable[dict[str, Any]]]) -> Solv
     OpenAI API, these calls are intercepted by Inspect and sent to the
     requisite Inspect model provider.
 
-    Here is the type contraxt for bridged solvers (you don't need to use
+    Here is the type contract for bridged solvers (you don't need to use
     or import these types in your agent, your `dict` usage should
     just conform to the protocol):
 
@@ -87,12 +87,12 @@ def bridge(agent: Callable[[dict[str, Any]], Awaitable[dict[str, Any]]]) -> Solv
         messages: NotRequired[list[ChatCompletionMessageParam]]
         scores: NotRequired[dict[str, ScoreDict]]
 
-    async def my_agent(sample: SampleDict) -> ResultDict: ...
+    async def agent(sample: SampleDict) -> ResultDict: ...
     ```
 
     The agent function must be async, and should accept and return
     `dict` values as-per the type declarations (you aren't required
-    to use these types excactly (they merely document the requirements)
+    to use these types exactly (they merely document the requirements)
     so long as you consume and produce `dict` values that match
     their declarations.
 
@@ -105,12 +105,12 @@ def bridge(agent: Callable[[dict[str, Any]], Awaitable[dict[str, Any]]]) -> Solv
     escape hatch for agents that want to do their own scoring).
 
 
-    Here is the simplest possble agent definition:
+    Here is the simplest possible agent definition:
 
     ```python
     from openai import AsyncOpenAI
 
-    async def agent(sample: dict[str, Any]) -> dict[str, Any]:
+    async def my_agent(sample: dict[str, Any]) -> dict[str, Any]:
         client = AsyncOpenAI()
         completion = await client.chat.completions.create(
             messages=sample["messages"],
@@ -134,6 +134,8 @@ def bridge(agent: Callable[[dict[str, Any]], Awaitable[dict[str, Any]]]) -> Solv
     from inspect_ai.dataset import Sample
     from inspect_ai.scorer import includes
     from inspect_ai.solver import bridge
+
+    from agents import my_agent
 
     @task
     def hello():
