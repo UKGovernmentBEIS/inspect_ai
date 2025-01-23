@@ -12,6 +12,7 @@ from ._tool_call import (
     ToolCall,
     ToolCallContent,
     ToolCallError,
+    ToolCallModelInput,
     ToolCallView,
     ToolCallViewer,
 )
@@ -42,6 +43,7 @@ __all__ = [
     "ContentVideo",
     "ToolCall",
     "ToolCallContent",
+    "ToolCallModelInput",
     "ToolCallView",
     "ToolCallViewer",
     "ToolChoice",
