@@ -35534,6 +35534,42 @@ categories: ${categories.join(" ")}`;
       ["input_contains", "Checks if input contains a regular expression"],
       ["target_contains", "Checks if target contains a regular expression"]
     ];
+    const TOKEN_PATTERNS = {
+      STRING: /^"[^"]*"/,
+      UNTERMINATED_STRING: /^"[^"]*/,
+      NUMBER: /^(-|\+)?\d+(\.\d+)?/,
+      RELATION: /^(==|!=|<=|>=|<|>|~=)/,
+      MISC_OPERATOR: /^(=|!|~)/,
+      OPERATOR: /^(\+|-|\*|\/|\^|\(|\)|,|\.)/,
+      VARIABLE: /^[a-zA-Z_][a-zA-Z0-9_]*/
+    };
+    const createWordRegex = (words) => new RegExp(`^(${words.join("|")})\\b`);
+    const countSpaces = (word) => word.split(" ").length - 1;
+    const mathFunctionsRegex = createWordRegex(
+      MATH_FUNCTIONS.map(([label2]) => label2)
+    );
+    const sampleFunctionsRegex = createWordRegex(
+      SAMPLE_FUNCTIONS.map(([label2]) => label2)
+    );
+    const keywordsRegex = createWordRegex(
+      // Ensure 'not in' matches first
+      KEYWORDS.sort((a2, b2) => countSpaces(b2) - countSpaces(a2))
+    );
+    function nextToken(stream) {
+      if (stream.match(TOKEN_PATTERNS.STRING)) return "string";
+      if (stream.match(TOKEN_PATTERNS.UNTERMINATED_STRING))
+        return "unterminatedString";
+      if (stream.match(TOKEN_PATTERNS.NUMBER)) return "number";
+      if (stream.match(keywordsRegex)) return "keyword";
+      if (stream.match(mathFunctionsRegex)) return "mathFunction";
+      if (stream.match(sampleFunctionsRegex)) return "sampleFunction";
+      if (stream.match(TOKEN_PATTERNS.VARIABLE)) return "variable";
+      if (stream.match(TOKEN_PATTERNS.RELATION)) return "relation";
+      if (stream.match(TOKEN_PATTERNS.MISC_OPERATOR)) return "miscOperator";
+      if (stream.match(TOKEN_PATTERNS.OPERATOR)) return "miscOperator";
+      stream.next();
+      return null;
+    }
     function tokenize(input2) {
       const tokens = [];
       const stream = new StringStream(input2, 0, 0);
@@ -35565,82 +35601,60 @@ categories: ${categories.join(" ")}`;
         miscOperator: tags.operator
       }
     });
-    const mathFunctionsRe = wordRegex(MATH_FUNCTIONS.map(([label2]) => label2));
-    const sampleFunctionsRe = wordRegex(SAMPLE_FUNCTIONS.map(([label2]) => label2));
-    const keywordsRe = wordRegex(
-      // Sort to make sure "not in" is matched before "not".
-      KEYWORDS.sort((a2, b2) => countSpaces(b2) - countSpaces(a2))
-    );
-    function wordRegex(words) {
-      return new RegExp(`^(${words.join("|")})\\b`);
-    }
-    function countSpaces(word) {
-      return word.split(" ").length - 1;
-    }
-    function nextToken(stream) {
-      if (stream.match(/"[^"]*"/)) return "string";
-      if (stream.match(/"[^"]*/)) return "unterminatedString";
-      if (stream.match(/^(-|\+)?\d+(\.\d+)?/)) return "number";
-      if (stream.match(keywordsRe)) return "keyword";
-      if (stream.match(mathFunctionsRe)) return "mathFunction";
-      if (stream.match(sampleFunctionsRe)) return "sampleFunction";
-      if (stream.match(/^[a-zA-Z_][a-zA-Z0-9_]*/)) return "variable";
-      if (stream.match(/^(==|!=|<=|>=|<|>|~=)/)) return "relation";
-      if (stream.match(/^(=|!|~)/)) return "miscOperator";
-      if (stream.match(/^(\+|-|\*|\/|\^|\(|\)|,|\.)/)) return "miscOperator";
-      stream.next();
-      return null;
-    }
-    function getCompletions(context, filterItems) {
-      var _a2, _b2, _c, _d, _e, _f, _g, _h, _i, _j, _k;
-      const isLiteral = (token2) => ["string", "unterminatedString", "number"].includes(token2 == null ? void 0 : token2.type);
-      const isLogicalOp = (token2) => ["and", "or", "not"].includes(token2 == null ? void 0 : token2.text);
-      const autocompleteImmediatelyAfter = (token2) => ["(", "."].includes(token2 == null ? void 0 : token2.text);
-      function applyWithCall(view, completion, from, to) {
-        view.dispatch({
-          changes: { from, to, insert: `${completion.label}()` },
-          selection: { anchor: from + completion.label.length + 1 }
-        });
-      }
-      const makeKeywordCompletion = (k2) => ({
-        label: k2,
-        type: "keyword",
-        boost: -20
+    const isLiteral = (token2) => ["string", "unterminatedString", "number"].includes(token2 == null ? void 0 : token2.type);
+    const isLogicalOp = (token2) => ["and", "or", "not"].includes(token2 == null ? void 0 : token2.text);
+    const autocompleteImmediatelyAfter = (token2) => ["(", "."].includes(token2 == null ? void 0 : token2.text);
+    const applyWithCall = (view, completion, from, to) => {
+      view.dispatch({
+        changes: { from, to, insert: `${completion.label}()` },
+        selection: { anchor: from + completion.label.length + 1 }
       });
-      const makeMathFunctionCompletion = ([label2, info]) => ({
-        label: label2,
-        type: "function",
-        info,
-        apply: applyWithCall,
-        boost: -10
-      });
-      const makeSampleFunctionCompletion = ([label2, info]) => ({
-        label: label2,
-        type: "function",
-        info,
-        apply: applyWithCall,
-        boost: 0
-      });
-      const makeLiteralCompletion = (k2) => ({
-        label: k2,
-        type: "text",
-        boost: 10
-      });
-      const makeCanonicalNameCompletion = (item2, { autoSpaceIf = () => false } = {}) => ({
-        label: item2.canonicalName + (autoSpaceIf(item2) ? " " : ""),
+    };
+    const makeKeywordCompletion = (k2) => ({
+      label: k2,
+      type: "keyword",
+      boost: -20
+    });
+    const makeMathFunctionCompletion = ([label2, info]) => ({
+      label: label2,
+      type: "function",
+      info,
+      apply: applyWithCall,
+      boost: -10
+    });
+    const makeSampleFunctionCompletion = ([label2, info]) => ({
+      label: label2,
+      type: "function",
+      info,
+      apply: applyWithCall,
+      boost: 0
+    });
+    const makeLiteralCompletion = (k2) => ({
+      label: k2,
+      type: "text",
+      boost: 10
+    });
+    const makeCanonicalNameCompletion = (item2, { autoSpaceIf = () => false } = {}) => ({
+      label: item2.canonicalName + (autoSpaceIf(item2) ? " " : ""),
+      type: "variable",
+      info: item2.tooltip,
+      boost: 20
+    });
+    const makeMemberAccessCompletion = (item2) => {
+      var _a2;
+      return {
+        label: ((_a2 = item2.qualifiedName) == null ? void 0 : _a2.split(".")[1]) || "",
         type: "variable",
         info: item2.tooltip,
         boost: 20
-      });
-      const makeMemberAccessCompletion = (item2) => {
-        var _a3;
-        return {
-          label: ((_a3 = item2.qualifiedName) == null ? void 0 : _a3.split(".")[1]) || "",
-          type: "variable",
-          info: item2.tooltip,
-          boost: 20
-        };
       };
+    };
+    const getMemberScoreItems = (filterItems, scorer) => filterItems.filter((item2) => {
+      var _a2;
+      return (_a2 = item2 == null ? void 0 : item2.qualifiedName) == null ? void 0 : _a2.startsWith(`${scorer}.`);
+    });
+    function getCompletions(context, filterItems) {
+      var _a2, _b2, _c, _d, _e, _f, _g, _h, _i, _j, _k;
       const keywordCompletionItems = KEYWORDS.map(makeKeywordCompletion);
       const mathFunctionCompletionItems = MATH_FUNCTIONS.map(
         makeMathFunctionCompletion
@@ -35661,28 +35675,26 @@ categories: ${categories.join(" ")}`;
       const input2 = doc2.toString().slice(0, context.pos);
       const tokens = tokenize(input2);
       const lastToken = tokens[tokens.length - 1];
-      const isCompletionInsideToken = lastToken && context.pos == lastToken.to && !autocompleteImmediatelyAfter(lastToken);
+      const isCompletionInsideToken = lastToken && context.pos === lastToken.to && !autocompleteImmediatelyAfter(lastToken);
       const currentTokenIndex = isCompletionInsideToken ? tokens.length - 1 : tokens.length;
       const prevToken = (index) => tokens[currentTokenIndex - index];
       const currentToken = prevToken(0);
       const completionStart = currentToken ? currentToken.from : context.pos;
-      const completingAtEnd = context.pos == doc2.length;
+      const completingAtEnd = context.pos === doc2.length;
       const findFilterItem = (endIndex) => {
         var _a3, _b3, _c2;
-        if (((_a3 = prevToken(endIndex)) == null ? void 0 : _a3.type) == "variable") {
-          let name2 = prevToken(endIndex).text;
-          let i2 = endIndex;
-          while (((_b3 = prevToken(i2 + 1)) == null ? void 0 : _b3.text) == ".") {
-            if (((_c2 = prevToken(i2 + 2)) == null ? void 0 : _c2.type) == "variable") {
-              name2 = prevToken(i2 + 2).text + "." + name2;
-              i2 += 2;
-            } else {
-              break;
-            }
+        if (((_a3 = prevToken(endIndex)) == null ? void 0 : _a3.type) !== "variable") return void 0;
+        let name2 = prevToken(endIndex).text;
+        let i2 = endIndex;
+        while (((_b3 = prevToken(i2 + 1)) == null ? void 0 : _b3.text) === ".") {
+          if (((_c2 = prevToken(i2 + 2)) == null ? void 0 : _c2.type) === "variable") {
+            name2 = `${prevToken(i2 + 2).text}.${name2}`;
+            i2 += 2;
+          } else {
+            break;
           }
-          return filterItems.find((item2) => item2.canonicalName == name2);
         }
-        return void 0;
+        return filterItems.find((item2) => item2.canonicalName === name2);
       };
       const makeCompletions = (priorityCompletions, {
         autocompleteInTheMiddle = false,
@@ -35693,42 +35705,38 @@ categories: ${categories.join(" ")}`;
         if (!autocompleteInTheMiddle && !completingAtEnd && !context.explicit) {
           return null;
         }
-        const priorityCompletionsOrdered = enforceOrder ? priorityCompletions.map((c2, idx) => ({
-          ...c2,
-          boost: -idx
-        })) : priorityCompletions;
+        const priorityCompletionsOrdered = enforceOrder ? priorityCompletions.map((c2, idx) => ({ ...c2, boost: -idx })) : priorityCompletions;
         const priorityCompletionsAdjusted = autoSpaceAfter ? priorityCompletionsOrdered.map(
-          (c2) => !c2.apply && !c2.label.endsWith(" ") ? { ...c2, label: c2.label + " " } : c2
+          (c2) => !c2.apply && !c2.label.endsWith(" ") ? { ...c2, label: `${c2.label} ` } : c2
         ) : priorityCompletionsOrdered;
-        if (includeDefault) {
-          const miscSection = {
-            name: "misc",
-            header: () => {
-              const element = document.createElement("hr");
-              element.style.display = "list-item";
-              element.style.margin = "2px 0";
-              return element;
-            }
-          };
-          const priorityLabels = new Set(priorityCompletions.map((c2) => c2.label));
-          const defaultCompletionAdjusted = priorityCompletions ? defaultCompletionItems.filter((c2) => !priorityLabels.has(c2.label)).map((c2) => ({ ...c2, section: miscSection })) : defaultCompletionItems;
-          return {
-            from: completionStart,
-            options: [...priorityCompletionsAdjusted, ...defaultCompletionAdjusted]
-          };
-        } else {
+        if (!includeDefault) {
           return {
             from: completionStart,
             options: priorityCompletionsAdjusted
           };
         }
+        const miscSection = {
+          name: "misc",
+          header: () => {
+            const element = document.createElement("hr");
+            element.style.display = "list-item";
+            element.style.margin = "2px 0";
+            return element;
+          }
+        };
+        const priorityLabels = new Set(priorityCompletions.map((c2) => c2.label));
+        const defaultCompletionsAdjusted = defaultCompletionItems.filter((c2) => !priorityLabels.has(c2.label)).map((c2) => ({ ...c2, section: miscSection }));
+        return {
+          from: completionStart,
+          options: [...priorityCompletionsAdjusted, ...defaultCompletionsAdjusted]
+        };
       };
       const defaultCompletions = () => makeCompletions([]);
       const noCompletions = () => context.explicit ? defaultCompletions() : null;
       const newExpressionCompletions = () => makeCompletions([
         ...filterItems.map(
           (item2) => makeCanonicalNameCompletion(item2, {
-            autoSpaceIf: (item22) => completingAtEnd && item22.scoreType != kScoreTypeBoolean
+            autoSpaceIf: (item22) => completingAtEnd && item22.scoreType !== kScoreTypeBoolean
           })
         ),
         ...sampleFunctionCompletionItems
@@ -35756,55 +35764,46 @@ categories: ${categories.join(" ")}`;
       );
       const rhsCompletions = (options) => makeCompletions(options.map(makeLiteralCompletion));
       if (!prevToken(1)) return newExpressionCompletions();
-      if (((_a2 = prevToken(1)) == null ? void 0 : _a2.text) == ".") {
+      if (((_a2 = prevToken(1)) == null ? void 0 : _a2.text) === ".") {
         const scorer = (_b2 = prevToken(2)) == null ? void 0 : _b2.text;
         if (scorer) {
           return memberAccessCompletions(getMemberScoreItems(filterItems, scorer));
         }
       }
-      if (((_c = prevToken(1)) == null ? void 0 : _c.text) == "(") {
-        if (((_d = prevToken(2)) == null ? void 0 : _d.type) == "mathFunction") return variableCompletions();
-        if (((_e = prevToken(2)) == null ? void 0 : _e.type) == "sampleFunction") {
-          return noCompletions();
-        }
+      if (((_c = prevToken(1)) == null ? void 0 : _c.text) === "(") {
+        if (((_d = prevToken(2)) == null ? void 0 : _d.type) === "mathFunction") return variableCompletions();
+        if (((_e = prevToken(2)) == null ? void 0 : _e.type) === "sampleFunction") return noCompletions();
         return newExpressionCompletions();
       }
-      if (((_f = prevToken(1)) == null ? void 0 : _f.text) == ")") {
-        return noCompletions();
-      }
-      if (((_g = prevToken(1)) == null ? void 0 : _g.type) == "variable") {
+      if (((_f = prevToken(1)) == null ? void 0 : _f.text) === ")") return noCompletions();
+      if (((_g = prevToken(1)) == null ? void 0 : _g.type) === "variable") {
         const scoreType = ((_h = findFilterItem(1)) == null ? void 0 : _h.scoreType) || "";
-        if ([kScoreTypePassFail, kScoreTypeCategorical].includes(scoreType))
-          return descreteRelationCompletions();
-        if (scoreType == kScoreTypeNumeric) return continuousRelationCompletions();
-        if (scoreType == kScoreTypeOther) return customRelationCompletions();
-        if (scoreType == kScoreTypeBoolean) return logicalOpCompletions();
-      }
-      if (((_i = prevToken(1)) == null ? void 0 : _i.type) == "relation") {
-        const item2 = findFilterItem(2);
-        if (item2) {
-          if ((_j = item2 == null ? void 0 : item2.categories) == null ? void 0 : _j.length) {
-            return rhsCompletions(item2.categories);
-          } else {
+        switch (scoreType) {
+          case kScoreTypePassFail:
+          case kScoreTypeCategorical:
+            return descreteRelationCompletions();
+          case kScoreTypeNumeric:
+            return continuousRelationCompletions();
+          case kScoreTypeOther:
+            return customRelationCompletions();
+          case kScoreTypeBoolean:
+            return logicalOpCompletions();
+          default:
             return noCompletions();
-          }
-        } else {
-          return variableCompletions();
         }
       }
-      if (isLiteral(prevToken(1)) && ((_k = prevToken(2)) == null ? void 0 : _k.type) == "relation") {
+      if (((_i = prevToken(1)) == null ? void 0 : _i.type) === "relation") {
+        const item2 = findFilterItem(2);
+        if ((_j = item2 == null ? void 0 : item2.categories) == null ? void 0 : _j.length) {
+          return rhsCompletions(item2.categories);
+        }
+        return variableCompletions();
+      }
+      if (isLiteral(prevToken(1)) && ((_k = prevToken(2)) == null ? void 0 : _k.type) === "relation") {
         return logicalOpCompletions();
       }
       if (isLogicalOp(prevToken(1))) return newExpressionCompletions();
       return noCompletions();
-    }
-    function getMemberScoreItems(filterItems, scorer) {
-      return filterItems.filter(
-        (item2) => {
-          var _a2;
-          return (_a2 = item2 == null ? void 0 : item2.qualifiedName) == null ? void 0 : _a2.startsWith(`${scorer}.`);
-        }
-      );
     }
     const label = "_label_jbrqc_1";
     const input = "_input_jbrqc_7";
