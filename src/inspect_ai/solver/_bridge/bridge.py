@@ -1,6 +1,8 @@
 from typing import Any, Awaitable, Callable
 
-from pydantic import BaseModel, Field
+from jsonschema import Draft7Validator
+from pydantic import BaseModel, Field, ValidationError
+from pydantic_core import to_json
 
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
 from inspect_ai.model._providers.providers import validate_openai_client
@@ -137,6 +139,9 @@ def bridge(agent: Callable[[dict[str, Any]], Awaitable[dict[str, Any]]]) -> Solv
         messages: list[ChatCompletionMessageParam] | None = Field(default=None)
         scores: dict[str, Score] | None = Field(default=None)
 
+    result_schema = BridgeResult.model_json_schema()
+    result_validator = Draft7Validator(result_schema)
+
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         # convert messages to openai messages
         input: list[ChatMessage] = (
@@ -158,8 +163,19 @@ def bridge(agent: Callable[[dict[str, Any]], Awaitable[dict[str, Any]]]) -> Solv
 
         # run target function
         async with openai_request_to_inspect_model():
+            # call the function
             result_dict = await agent(sample.model_dump())
-            result = BridgeResult.model_validate(result_dict)
+            try:
+                result = BridgeResult.model_validate(result_dict)
+            except ValidationError:
+                # if we fail to validate provide a better human readable error
+                errors = list(result_validator.iter_errors(result_dict))
+                message = "\n".join(
+                    ["Result returned from bridged solver is not valid:"]
+                    + [f" - {error.message}" for error in errors]
+                    + ["", to_json(result_dict, indent=2).decode()]
+                )
+                raise ValueError(message)
 
         # update and return state
         state.output.completion = result.output
