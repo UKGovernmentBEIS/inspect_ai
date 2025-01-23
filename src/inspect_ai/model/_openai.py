@@ -292,12 +292,12 @@ def chat_messages_from_openai(
             if isinstance(asst_content, str):
                 content: str | list[Content] = asst_content
             elif asst_content is None:
-                content = message["refusal"] or ""
+                content = message.get("refusal", None) or ""
             else:
                 content = [content_from_openai(c) for c in asst_content]
 
             # return message
-            if message["tool_calls"]:
+            if "tool_calls" in message:
                 tool_calls: list[ToolCall] = []
                 for tc in message["tool_calls"]:
                     tool_calls.append(tool_call_from_openai(tc))
@@ -309,7 +309,7 @@ def chat_messages_from_openai(
                 ChatMessageAssistant(content=content, tool_calls=tool_calls or None)
             )
         elif message["role"] == "tool":
-            tool_content = message["content"]
+            tool_content = message.get("content", None) or ""
             if isinstance(tool_content, str):
                 content = tool_content
             else:
