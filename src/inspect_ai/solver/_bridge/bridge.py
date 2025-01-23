@@ -159,7 +159,7 @@ def bridge(agent: Callable[[dict[str, Any]], Awaitable[dict[str, Any]]]) -> Solv
         # run target function
         async with openai_request_to_inspect_model():
             result_dict = await agent(sample.model_dump())
-            result = BridgeResult(**result_dict)
+            result = BridgeResult.model_validate(result_dict)
 
         # update and return state
         state.output.completion = result.output
