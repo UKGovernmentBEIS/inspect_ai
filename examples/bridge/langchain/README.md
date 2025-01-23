@@ -10,7 +10,7 @@ The example includes the following source files:
 | [task.py](task.py)       | Evaluation task which uses `bridge()` to use the LangChain agent as a solver.          |
 | [dataset.jsonl](dataset.jsonl) | Dataset with questions and ideal answers.                                              |
 
-To run the example, first, be sure you have a [Tavili](https://tavily.com/) account and set the `TAVILY_API_KEY` ([Tavily](https://tavily.com/) environment variable.
+To run the example, first, be sure you have a [Tavili](https://tavily.com/) account and set the `TAVILY_API_KEY` environment variable.
 
 Then, install the following LangChain packages:
 
