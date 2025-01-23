@@ -35813,40 +35813,24 @@ categories: ${categories.join(" ")}`;
       input,
       help
     };
-    function ensureOneLine(tr) {
-      const newDoc = tr.newDoc.toString();
-      if (newDoc.includes("\n")) {
-        if (tr.isUserEvent("input.paste")) {
-          const newDocAdjusted = newDoc.replace(/\n/g, " ").trim();
-          return {
-            changes: {
-              from: 0,
-              to: tr.startState.doc.length,
-              insert: newDocAdjusted
-            }
-          };
-        } else {
-          return {};
-        }
-      }
-      return tr;
-    }
+    const FILTER_TOOLTIP = `
+Filter samples by:
+  • Scores
+  • Input and target regex search: input_contains, target_contains
+
+Supported expressions:
+  • Arithmetic: +, -, *, /, mod, ^
+  • Comparison: <, <=, >, >=, ==, !=, including chain comparisons, e.g. "10 <= x < 20"
+  • Boolean: and, or, not
+  • Regex matching: ~= (case-sensitive)
+  • Set operations: in, not in; e.g. "x in (2, 3, 5)"
+  • Functions: min, max, abs, round, floor, ceil, sqrt, log, log2, log10
+`.trim();
     const highlightStyle = HighlightStyle.define([
       { tag: tags.string, class: "token string" },
       { tag: tags.number, class: "token number" },
       { tag: tags.keyword, class: "token keyword" }
     ]);
-    function getLints(view, filterError) {
-      if (!filterError) return [];
-      return [
-        {
-          from: filterError.from || 0,
-          to: filterError.to || view.state.doc.length,
-          severity: filterError.severity,
-          message: filterError.message
-        }
-      ];
-    }
     const editorTheme = EditorView.theme({
       "&": {
         fontSize: "inherit",
@@ -35897,6 +35881,31 @@ categories: ${categories.join(" ")}`;
       );
       return { numSamples: result.length, error: error2 };
     };
+    const ensureOneLine = (tr) => {
+      const newDoc = tr.newDoc.toString();
+      if (!newDoc.includes("\n")) return tr;
+      if (tr.isUserEvent("input.paste")) {
+        return {
+          changes: {
+            from: 0,
+            to: tr.startState.doc.length,
+            insert: newDoc.replace(/\n/g, " ").trim()
+          }
+        };
+      }
+      return {};
+    };
+    const getLints = (view, filterError) => {
+      if (!filterError) return [];
+      return [
+        {
+          from: filterError.from || 0,
+          to: filterError.to || view.state.doc.length,
+          severity: filterError.severity,
+          message: filterError.message
+        }
+      ];
+    };
     const SampleFilter = ({
       evalDescriptor,
       filter,
@@ -35920,12 +35929,8 @@ categories: ${categories.join(" ")}`;
       const makeAutocompletion = () => autocompletion({
         override: [(context) => getCompletions(context, filterItems)],
         activateOnCompletion: (c2) => c2.label.endsWith(" ")
-        // see autoSpaceAfter
       });
-      const makeLinter = () => (
-        // CodeMirror debounces the linter, so even instant error updates are not annoying
-        linter((view) => getLints(view, filteringResultInstant == null ? void 0 : filteringResultInstant.error))
-      );
+      const makeLinter = () => linter((view) => getLints(view, filteringResultInstant == null ? void 0 : filteringResultInstant.error));
       const makeUpdateListener = () => EditorView.updateListener.of((update) => {
         if (update.docChanged) {
           const newValue = update.state.doc.toString();
@@ -35940,7 +35945,7 @@ categories: ${categories.join(" ")}`;
         var _a2;
         (_a2 = editorViewRef.current) == null ? void 0 : _a2.destroy();
         editorViewRef.current = new EditorView({
-          parent: editorRef.current !== null ? editorRef.current : void 0,
+          parent: editorRef.current ?? void 0,
           state: EditorState.create({
             doc: filter.value || "",
             extensions: [
@@ -35949,9 +35954,7 @@ categories: ${categories.join(" ")}`;
               editorTheme,
               EditorState.transactionFilter.of(ensureOneLine),
               updateListenerCompartment.current.of(makeUpdateListener()),
-              EditorView.domEventHandlers({
-                focus: handleFocus
-              }),
+              EditorView.domEventHandlers({ focus: handleFocus }),
               language,
               syntaxHighlighting(highlightStyle),
               autocompletionCompartment.current.of(makeAutocompletion()),
@@ -35961,43 +35964,41 @@ categories: ${categories.join(" ")}`;
         });
         return () => {
           var _a3;
-          (_a3 = editorViewRef.current) == null ? void 0 : _a3.destroy();
+          return (_a3 = editorViewRef.current) == null ? void 0 : _a3.destroy();
         };
       }, []);
       y(() => {
-        if (editorViewRef.current && filter.value !== editorViewRef.current.state.doc.toString()) {
-          setFilteringResultInstant(
-            getFilteringResult(evalDescriptor, filter.value || "")
-          );
-          editorViewRef.current.dispatch({
-            changes: {
-              from: 0,
-              to: editorViewRef.current.state.doc.length,
-              insert: filter.value || ""
-            }
-          });
-        }
+        if (!editorViewRef.current) return;
+        const currentValue = editorViewRef.current.state.doc.toString();
+        if (filter.value === currentValue) return;
+        setFilteringResultInstant(
+          getFilteringResult(evalDescriptor, filter.value || "")
+        );
+        editorViewRef.current.dispatch({
+          changes: {
+            from: 0,
+            to: currentValue.length,
+            insert: filter.value || ""
+          }
+        });
       }, [evalDescriptor, filter.value]);
       y(() => {
-        if (editorViewRef.current) {
-          editorViewRef.current.dispatch({
-            effects: updateListenerCompartment.current.reconfigure(makeUpdateListener())
-          });
-        }
+        var _a2;
+        (_a2 = editorViewRef.current) == null ? void 0 : _a2.dispatch({
+          effects: updateListenerCompartment.current.reconfigure(makeUpdateListener())
+        });
       }, [evalDescriptor]);
       y(() => {
-        if (editorViewRef.current) {
-          editorViewRef.current.dispatch({
-            effects: autocompletionCompartment.current.reconfigure(makeAutocompletion())
-          });
-        }
+        var _a2;
+        (_a2 = editorViewRef.current) == null ? void 0 : _a2.dispatch({
+          effects: autocompletionCompartment.current.reconfigure(makeAutocompletion())
+        });
       }, [filterItems]);
       y(() => {
-        if (editorViewRef.current) {
-          editorViewRef.current.dispatch({
-            effects: linterCompartment.current.reconfigure(makeLinter())
-          });
-        }
+        var _a2;
+        (_a2 = editorViewRef.current) == null ? void 0 : _a2.dispatch({
+          effects: linterCompartment.current.reconfigure(makeLinter())
+        });
       }, [filteringResultInstant == null ? void 0 : filteringResultInstant.error]);
       return /* @__PURE__ */ u("div", { style: { display: "flex" }, children: [
         /* @__PURE__ */ u(
@@ -36018,7 +36019,7 @@ categories: ${categories.join(" ")}`;
           {
             ref: editorRef,
             className: clsx(
-              (filteringResultInstant == null ? void 0 : filteringResultInstant.error) ? ["filter-pending"] : [],
+              (filteringResultInstant == null ? void 0 : filteringResultInstant.error) && "filter-pending",
               styles$i.input
             )
           }
@@ -36027,25 +36028,12 @@ categories: ${categories.join(" ")}`;
           "span",
           {
             className: clsx("bi", "bi-question-circle", styles$i.help),
-            "data-tooltip": filterTooltip,
+            "data-tooltip": FILTER_TOOLTIP,
             "data-tooltip-position": "bottom-left"
           }
         )
       ] });
     };
-    const filterTooltip = `
-Filter samples by:
-  • Scores
-  • Input and target regex search: input_contains, target_contains
-
-Supported expressions:
-  • Arithmetic: +, -, *, /, mod, ^
-  • Comparison: <, <=, >, >=, ==, !=, including chain comparisons, e.g. “10 <= x < 20”
-  • Boolean: and, or, not
-  • Regex matching: ~= (case-sensitive)
-  • Set operations: in, not in; e.g. “x in (2, 3, 5)”
-  • Functions: min, max, abs, round, floor, ceil, sqrt, log, log2, log10
-`.trim();
     const SelectScorer = ({ scores: scores2, score: score2, setScore }) => {
       const scorers = scores2.reduce((accum, scorer) => {
         if (!accum.find((sc) => {
