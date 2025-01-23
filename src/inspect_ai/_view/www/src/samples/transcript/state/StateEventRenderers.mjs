@@ -2,7 +2,7 @@
 import { html } from "htm/preact";
 import { FontSize, TextStyle } from "../../../appearance/fonts";
 import { HumanBaselineView } from "../../../components/HumanBaselineView";
-import { ChatView } from "../../chat/ChatView.mjs";
+import { ChatView } from "../../chat/ChatView";
 
 /**
  * @typedef {Object} Signature

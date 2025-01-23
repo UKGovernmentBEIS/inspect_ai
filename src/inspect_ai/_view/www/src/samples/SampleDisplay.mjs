@@ -2,7 +2,7 @@ import { html } from "htm/preact";
 
 import { TabPanel, TabSet } from "../components/TabSet";
 import { MetaDataView } from "../metadata/MetaDataView";
-import { ChatViewVirtualList } from "./chat/ChatView.mjs";
+import { ChatViewVirtualList } from "./chat/ChatViewVirtualList";
 
 import { inputString } from "../utils/format";
 import { escapeSelector } from "../utils/html";

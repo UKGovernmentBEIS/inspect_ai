@@ -6,7 +6,7 @@ import {
   ChatMessageTool,
   ChatMessageUser,
 } from "../../types/log";
-import { ChatView } from "./ChatView.mjs";
+import { ChatView } from "./ChatView";
 
 /**
  * Renders chat messages as a ChatView component.

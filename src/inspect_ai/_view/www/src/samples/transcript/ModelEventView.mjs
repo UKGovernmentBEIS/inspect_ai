@@ -14,7 +14,7 @@ import {
   formatNumber,
   formatPrettyDecimal,
 } from "../../utils/format";
-import { ChatView } from "../chat/ChatView.mjs";
+import { ChatView } from "../chat/ChatView";
 import { EventPanel } from "./EventPanel.mjs";
 import { EventSection } from "./EventSection.mjs";
 

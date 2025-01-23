@@ -15611,24 +15611,34 @@ ul.jsondiffpatch-textdiff {
   border: none;
   padding: 0.1rem 0.5rem;
 }
-._container_1vi7u_1 {
-  position: relative;
-  width: 100%;
-  min-height: 100%;
-  overflow: visible;
+._message_xh8qq_1 {
+  font-weight: 300;
+  padding-bottom: 0.5em;
+  margin-left: 0;
+  margin-right: 0;
+  white-space: normal;
 }
 
-._container_1vi7u_1._hidden_1vi7u_8 {
-  overflow: hidden;
+._systemRole_xh8qq_9 {
+  opacity: 0.7;
 }
 
-._content_1vi7u_12 {
-  position: absolute;
-  top: 0;
-  left: 0;
-  height: 100%;
-  width: 100%;
-  overflow: visible;
+._messageGrid_xh8qq_13 {
+  display: grid;
+  grid-template-columns: max-content auto;
+  column-gap: 0.3em;
+  font-weight: 500;
+  margin-bottom: 0.5em;
+}
+
+._messageContents_xh8qq_21 {
+  margin-left: 0;
+  padding-bottom: 0;
+}
+
+._messageContents_xh8qq_21._indented_xh8qq_26 {
+  margin-left: 1.1rem;
+  padding-bottom: 0.8rem;
 }
 ._contentImage_121dp_1 {
   max-width: 800px;
@@ -15670,6 +15680,15 @@ ul.jsondiffpatch-textdiff {
 ._image_10saa_1 {
   margin-right: 0.2rem;
   opacity: 0.4;
+}
+._grid_140x5_1 {
+  display: grid;
+  grid-template-columns: max-content auto;
+  column-gap: 0.4em;
+}
+
+._number_140x5_7 {
+  margin-top: 0.1em;
 }
 ._table_1memb_1 {
   padding-left: 0;
@@ -16254,6 +16273,29 @@ ul.jsondiffpatch-textdiff {
   padding-top: 0;
   padding-bottom: 0;
   border: none;
+}
+._container_1vi7u_1 {
+  position: relative;
+  width: 100%;
+  min-height: 100%;
+  overflow: visible;
+}
+
+._container_1vi7u_1._hidden_1vi7u_8 {
+  overflow: hidden;
+}
+
+._content_1vi7u_12 {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 100%;
+  overflow: visible;
+}
+._list_1emnm_1 {
+  width: 100%;
+  margin-top: 1em;
 }
 .card-header-container {
   display: grid;

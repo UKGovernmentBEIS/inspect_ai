@@ -15,7 +15,7 @@ interface ToolCallViewProps {
   functionCall: string;
   input?: string;
   inputType?: string;
-  view: ToolCallContent;
+  view?: ToolCallContent;
   output:
     | string
     | (
