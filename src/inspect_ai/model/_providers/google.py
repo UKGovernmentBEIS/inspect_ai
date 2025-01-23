@@ -466,6 +466,8 @@ def schema_from_param(param: ToolParam | ToolParams, nullable: bool = False) -> 
             return schema_from_param(param.anyOf[0], nullable=True)
         else:
             return Schema(type=Type.TYPE_UNSPECIFIED)
+    elif param.enum:
+        return Schema(type=Type.STRING, format="enum", enum=param.enum)
     else:
         return Schema(type=Type.TYPE_UNSPECIFIED)
 
