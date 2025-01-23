@@ -1,11 +1,9 @@
-import asyncio
 import contextlib
 from contextvars import ContextVar
 from functools import wraps
 from time import time
 from typing import Any, AsyncGenerator, Optional, Type, cast
 
-from openai import AsyncOpenAI
 from openai._base_client import AsyncAPIClient, _AsyncStreamT
 from openai._models import FinalRequestOptions
 from openai._types import ResponseT
@@ -14,7 +12,6 @@ from openai.types.chat import (
     ChatCompletionMessageParam,
     ChatCompletionToolParam,
 )
-from pydantic_core import to_json
 from shortuuid import uuid
 
 from inspect_ai.model._generate_config import GenerateConfig

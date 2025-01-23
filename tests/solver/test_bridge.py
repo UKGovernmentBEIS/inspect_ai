@@ -8,7 +8,6 @@ from inspect_ai import Task, eval, task
 from inspect_ai.dataset import Sample
 from inspect_ai.scorer import includes
 from inspect_ai.solver import bridge, solver
-from inspect_ai.solver._task_state import TaskState
 
 
 async def agent(sample: dict[str, Any]) -> dict[str, Any]:
