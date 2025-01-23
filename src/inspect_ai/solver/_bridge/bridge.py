@@ -1,5 +1,7 @@
 from typing import Any, Awaitable, Callable
 
+from pydantic import BaseModel, Field
+
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
 from inspect_ai.model._providers.providers import validate_openai_client
 from inspect_ai.scorer._metric import Score
@@ -113,12 +115,27 @@ def bridge(agent: Callable[[dict[str, Any]], Awaitable[dict[str, Any]]]) -> Solv
     """
     validate_openai_client("Solver bridge()")
 
+    from openai.types.chat import ChatCompletionMessageParam
+
     from inspect_ai.model._openai import (
         chat_messages_from_openai,
         openai_chat_messages,
     )
 
     from .patch import openai_request_to_inspect_model
+
+    class BridgeSample(BaseModel):
+        model: str
+        sample_id: str
+        epoch: int
+        messages: list[ChatCompletionMessageParam]
+        metadata: dict[str, Any]
+        target: list[str]
+
+    class BridgeResult(BaseModel):
+        output: str
+        messages: list[ChatCompletionMessageParam] | None = Field(default=None)
+        scores: dict[str, Score] | None = Field(default=None)
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         # convert messages to openai messages
@@ -130,7 +147,7 @@ def bridge(agent: Callable[[dict[str, Any]], Awaitable[dict[str, Any]]]) -> Solv
         messages = await openai_chat_messages(input, state.model.name)
 
         # create sample
-        sample = dict(
+        sample = BridgeSample(
             model=str(state.model),
             sample_id=str(state.sample_id),
             epoch=state.epoch,
@@ -141,22 +158,15 @@ def bridge(agent: Callable[[dict[str, Any]], Awaitable[dict[str, Any]]]) -> Solv
 
         # run target function
         async with openai_request_to_inspect_model():
-            result = await agent(sample)
+            result_dict = await agent(sample.model_dump())
+            result = BridgeResult(**result_dict)
 
         # update and return state
-        state.output.completion = result["output"]
-        if "messages" in result:
-            state.messages = chat_messages_from_openai(result["messages"])
-        if "scores" in result:
-            state.scores = {
-                k: Score(
-                    value=v["value"],
-                    answer=v["answer"],
-                    explanation=v["explanation"],
-                    metadata=v["metadata"],
-                )
-                for k, v in result["scores"].items()
-            }
+        state.output.completion = result.output
+        if result.messages is not None:
+            state.messages = chat_messages_from_openai(result.messages)
+        if result.scores:
+            state.scores = result.scores
 
         return state
 
