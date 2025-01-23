@@ -39,7 +39,7 @@ async def _send_cmd(cmdTail: list[str], timeout: int | None = None) -> ToolResul
     sample_id = sample.sample.id
     assert sample_id
 
-    cmd = ["python3", "-m", "computer_tool.computer_tool", "--action"] + cmdTail
+    cmd = ["python3", "/opt/inspect/tool/computer_tool.py", "--action"] + cmdTail
 
     raw_exec_result = await (await computer_sandbox()).exec(cmd, timeout=timeout)
 
@@ -117,7 +117,7 @@ async def type(text: str, timeout: int | None = None) -> ToolResult:
 
 
 async def computer_sandbox() -> SandboxEnvironment:
-    sb = await sandbox_with("/opt/computer_tool/computer_tool.py")
+    sb = await sandbox_with("/opt/inspect/tool/computer_tool.py")
     if sb:
         return sb
     else:
