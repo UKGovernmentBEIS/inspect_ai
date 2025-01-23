@@ -15955,6 +15955,15 @@ ul.jsondiffpatch-textdiff {
 .tool-button i {
   margin-right: 0.5em;
 }
+._container_15b4r_1 {
+  display: flex;
+}
+
+._label_15b4r_5 {
+  align-self: center;
+  margin-right: 0.3em;
+  margin-left: 0.2em;
+}
 ._navbarContainer_838qu_1 {
   display: flex;
   padding-top: 0;

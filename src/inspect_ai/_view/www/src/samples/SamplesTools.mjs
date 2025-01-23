@@ -1,9 +1,9 @@
 import { html } from "htm/preact";
 
-import { EpochFilter } from "./tools/EpochFilter.mjs";
-import { SortFilter } from "./tools/SortFilter.mjs";
-import { SampleFilter } from "./tools/SampleFilter.mjs";
-import { SelectScorer } from "./tools/SelectScorer.mjs";
+import { EpochFilter } from "./sample-tools/EpochFilter";
+import { SampleFilter } from "./sample-tools/SampleFilter.mjs";
+import { SelectScorer } from "./sample-tools/SelectScorer.mjs";
+import { SortFilter } from "./sample-tools/SortFilter.mjs";
 
 export const SampleTools = (props) => {
   const {

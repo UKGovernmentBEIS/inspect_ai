@@ -3,7 +3,7 @@ import { SampleSummary } from "../../api/Types";
 import { ExpandablePanel } from "../../components/ExpandablePanel";
 import { LabeledValue } from "../../components/LabeledValue";
 import { EvalDescriptor } from "../../samples/SamplesDescriptor.mjs";
-import { scoreFilterItems } from "../../samples/tools/filters";
+import { scoreFilterItems } from "../../samples/sample-tools/filters";
 import {
   EvalDataset,
   EvalPlan,

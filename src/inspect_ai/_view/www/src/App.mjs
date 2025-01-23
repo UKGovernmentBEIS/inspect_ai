@@ -32,12 +32,16 @@ import { debounce, sleep } from "./utils/sync";
 
 import { FindBand } from "./components/FindBand";
 import { kDefaultSort } from "./constants";
+import { filterSamples } from "./samples/sample-tools/filters";
+import {
+  byEpoch,
+  bySample,
+  sortSamples,
+} from "./samples/sample-tools/SortFilter.mjs";
 import {
   createEvalDescriptor,
   createSamplesDescriptor,
 } from "./samples/SamplesDescriptor.mjs";
-import { filterSamples } from "./samples/tools/filters";
-import { byEpoch, bySample, sortSamples } from "./samples/tools/SortFilter.mjs";
 import { resolveAttachments } from "./utils/attachments";
 import { getVscodeApi, isVscode } from "./utils/vscode";
 import { Sidebar } from "./workspace/sidebar/Sidebar.tsx";
