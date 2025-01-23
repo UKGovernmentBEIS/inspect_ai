@@ -9,12 +9,14 @@
 - Limits: Enforce [custom limits](https://inspect.ai-safety-institute.org.uk/errors-and-limits.html#custom-limit) for samples by raising `SampleLimitExceededError`.
 - Tasks: Optional ability for solvers to [yield scores](https://inspect.ai-safety-institute.org.uk/solvers.html#sec-scoring-in-solvers) for a task.
 - Model API: Log model calls that result in bad request errors.
+- Tools: `model_input` option that determines how tool call result content is played back to the model.
 - Tools: Don't attempt to marshall arguments of dynamic `ToolDef` with `**kwargs: Any` (just pass them through).
 - Log warning when a non-fatal sample error occurs (i.e. errors permitted by the `fail_on_error` option) 
 - Inspect View: allow filtering samples by compound expressions including multiple scorers. (thanks @andrei-apollo)
 - Inspect View: improve rendering performance and stability for the viewer when viewing very large eval logs or samples with a large number of steps.
 - Task display: Improved `plain` mode with periodic updates on progress, metrics, etc.
 - Google: Update to v0.8.4 of google-generativeai (py.typed support and removal of logprobs generation options)
+- Google: Support for string enums (e.g. `Literal["a", "b", "c"])`) in tool function declarations.
 
 ## v0.3.58 (16 January 2025)
 

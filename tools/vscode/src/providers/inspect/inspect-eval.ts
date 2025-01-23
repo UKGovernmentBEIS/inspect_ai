@@ -191,7 +191,7 @@ const runDebugger = async (
     request: "launch",
     program,
     args,
-    console: "internalConsole",
+    console: "integratedTerminal",
     cwd,
     port,
     env,
