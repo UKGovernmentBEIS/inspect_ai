@@ -13,6 +13,15 @@ export interface FilterError {
   severity: "warning" | "error";
 }
 
+export interface ScoreFilterItem {
+  shortName?: string;
+  qualifiedName?: string;
+  canonicalName: string;
+  tooltip?: string;
+  categories: string[];
+  scoreType: string;
+}
+
 /**
  * Coerces a value to the type expected by the score.
  */
@@ -91,15 +100,6 @@ const scoreVariables = (
   }
   return variables;
 };
-
-interface ScoreFilterItem {
-  shortName?: string;
-  qualifiedName?: string;
-  canonicalName: string;
-  tooltip?: string;
-  categories: string[];
-  scoreType: string;
-}
 
 /**
  * Generates a dictionary of variables that can be used in the filter expression.

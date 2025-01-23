@@ -15681,6 +15681,9 @@ ul.jsondiffpatch-textdiff {
   margin-right: 0.2rem;
   opacity: 0.4;
 }
+._content_p4lvn_1 {
+  margin-bottom: 1em;
+}
 ._grid_140x5_1 {
   display: grid;
   grid-template-columns: max-content auto;
@@ -15963,6 +15966,22 @@ ul.jsondiffpatch-textdiff {
   align-self: center;
   margin-right: 0.3em;
   margin-left: 0.2em;
+}
+._label_jbrqc_1 {
+  align-self: center;
+  margin-right: 0.3em;
+  margin-left: 0.2em;
+}
+
+._input_jbrqc_7 {
+  width: 300px;
+}
+
+._help_jbrqc_11 {
+  position: relative;
+  margin-left: 0.5em;
+  cursor: help;
+  align-self: center;
 }
 ._navbarContainer_838qu_1 {
   display: flex;
