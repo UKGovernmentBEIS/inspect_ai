@@ -1,5 +1,3 @@
-import Prism from "prismjs";
-import "prismjs/components/prism-json";
 import React, { useEffect, useMemo, useRef } from "react";
 import "./JSONPanel.css";
 

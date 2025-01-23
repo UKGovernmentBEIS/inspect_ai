@@ -41,7 +41,7 @@ export const NavPills: React.FC<NavPillsProps> = ({ children }) => {
           child["props"]?.title === activeItem ? styles.visible : styles.hidden
         }
       >
-        ${child}
+        {child}
       </div>
     );
   });
@@ -93,7 +93,7 @@ const NavPill: React.FC<NavPillProps> = ({
       >
         {title}
       </button>
-      ${children}
+      {children}
     </li>
   );
 };

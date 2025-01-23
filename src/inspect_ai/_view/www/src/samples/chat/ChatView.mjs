@@ -9,7 +9,8 @@ import { FontSize, TextStyle } from "../../appearance/fonts";
 import { ExpandablePanel } from "../../components/ExpandablePanel";
 import { VirtualList } from "../../components/VirtualList";
 import { MessageContent } from "./MessageContent";
-import { resolveToolInput, ToolCallView } from "./Tools.mjs";
+import { ToolCallView } from "./tools/ToolCallView";
+import { resolveToolInput } from "./tools/tool";
 
 /**
  * Renders the ChatViewVirtualList component.

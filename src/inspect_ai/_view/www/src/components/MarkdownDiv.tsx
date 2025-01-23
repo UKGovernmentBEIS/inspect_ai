@@ -1,58 +1,55 @@
 import clsx from "clsx";
 import markdownit from "markdown-it";
-import { Ref } from "react";
+import React, { Ref } from "react";
 import "./MarkdownDiv.css";
 
 interface MarkdownDivProps {
   markdown: string;
   style?: React.CSSProperties;
-  contentRef?: Ref<HTMLDivElement>;
-  className: string | string[];
+  ref?: Ref<HTMLDivElement>;
+  className?: string | string[];
 }
 
-export const MarkdownDiv: React.FC<MarkdownDivProps> = ({
-  markdown,
-  style,
-  contentRef,
-  className,
-}) => {
-  // Escape all tags
-  const escaped = markdown ? escape(markdown) : "";
+export const MarkdownDiv = React.forwardRef<HTMLDivElement, MarkdownDivProps>(
+  ({ markdown, style, className }, ref) => {
+    // Escape all tags
+    const escaped = markdown ? escape(markdown) : "";
 
-  // Pre-render any text that isn't handled by markdown
-  const preRendered = preRenderText(escaped);
+    // Pre-render any text that isn't handled by markdown
+    const preRendered = preRenderText(escaped);
 
-  const protectedText = protectMarkdown(preRendered);
+    const protectedText = protectMarkdown(preRendered);
 
-  let renderedHtml = protectedText;
-  try {
-    const md = markdownit({
-      breaks: true,
-      html: true,
-    });
-    renderedHtml = md.render(protectedText);
-  } catch (ex) {
-    console.log("Unable to markdown render content");
-    console.error(ex);
-  }
+    let renderedHtml = protectedText;
+    try {
+      const md = markdownit({
+        breaks: true,
+        html: true,
+      });
+      renderedHtml = md.render(protectedText);
+    } catch (ex) {
+      console.log("Unable to markdown render content");
+      console.error(ex);
+    }
 
-  const unescaped = unprotectMarkdown(renderedHtml);
+    const unescaped = unprotectMarkdown(renderedHtml);
 
-  // For `code` tags, reverse the escaping if we can
-  const withCode = unescapeCodeHtmlEntities(unescaped);
+    // For `code` tags, reverse the escaping if we can
+    const withCode = unescapeCodeHtmlEntities(unescaped);
 
-  // Return the rendered markdown
-  const markup = { __html: withCode };
+    // Return the rendered markdown
+    const markup = { __html: withCode };
 
-  return (
-    <div
-      ref={contentRef}
-      dangerouslySetInnerHTML={markup}
-      style={style}
-      className={clsx(className, "markdown-content")}
-    />
-  );
-};
+    return (
+      <div
+        ref={ref}
+        dangerouslySetInnerHTML={markup}
+        style={style}
+        className={clsx(className, "markdown-content")}
+      />
+    );
+  },
+);
 
 const kLetterListPattern = /^([a-zA-Z][).]\s.*?)$/gm;
 const kCommonmarkReferenceLinkPattern = /\[([^\]]*)\]: (?!http)(.*)/g;

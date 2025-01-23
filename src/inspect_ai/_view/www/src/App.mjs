@@ -1,7 +1,16 @@
 import "bootstrap-icons/font/bootstrap-icons.css";
 import "bootstrap/dist/css/bootstrap.css";
-import "prismjs";
+
+import Prism from "prismjs";
+import "prismjs/components/prism-bash";
+import "prismjs/components/prism-clike";
+import "prismjs/components/prism-javascript";
+import "prismjs/components/prism-json";
+import "prismjs/components/prism-python";
 import "prismjs/themes/prism.css";
+
+console.log("Available Prism languages:", Object.keys(Prism.languages));
+
 import "../App.css";
 
 import { default as ClipboardJS } from "clipboard";

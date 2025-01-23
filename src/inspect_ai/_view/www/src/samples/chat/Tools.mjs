@@ -1,7 +1,4 @@
-// @ts-check
-/// <reference path="../types/prism.d.ts" />
 import murmurhash from "murmurhash";
-import Prism from "prismjs";
 
 import "prismjs/components/prism-bash";
 import "prismjs/components/prism-json";

@@ -9,7 +9,7 @@ import {
   Format1,
 } from "../../types/log";
 import styles from "./MessageContent.module.css";
-import { ToolOutput } from "./Tools.mjs";
+import { ToolOutput } from "./tools/ToolOutput";
 
 type ContentType =
   | string
@@ -91,7 +91,7 @@ const messageRenderers: Record<string, MessageRenderer> = {
       if (c.image.startsWith("data:")) {
         return <img src={c.image} className={styles.contentImage} />;
       } else {
-        return <code>${c.image}</code>;
+        return <code>{c.image}</code>;
       }
     },
   },

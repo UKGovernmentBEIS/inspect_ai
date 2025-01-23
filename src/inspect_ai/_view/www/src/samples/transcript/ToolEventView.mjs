@@ -2,7 +2,8 @@
 import { html } from "htm/preact";
 import { ApplicationIcons } from "../../appearance/icons";
 import { formatDateTime } from "../../utils/format";
-import { resolveToolInput, ToolCallView } from "../chat/Tools.mjs";
+import { resolveToolInput } from "../chat/tools/tool";
+import { ToolCallView } from "../chat/tools/ToolCallView";
 import { ApprovalEventView } from "./ApprovalEventView.mjs";
 import { EventPanel } from "./EventPanel.mjs";
 import { TranscriptView } from "./TranscriptView.mjs";

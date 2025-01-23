@@ -15634,6 +15634,43 @@ ul.jsondiffpatch-textdiff {
   max-width: 800px;
   border: solid var(--bs-border-color) 1px;
 }
+._toolImage_hw4du_1 {
+  max-width: 800px;
+  border: solid var(--bs-border-color) 1px;
+}
+
+._output_hw4du_6 {
+  display: grid;
+}
+
+._textOutput_hw4du_10 {
+  margin-left: 2px;
+  padding: 0.5em 0.5em 0.5em 0.5em;
+  white-space: pre-wrap;
+  margin-bottom: 0;
+}
+
+._textCode_hw4du_17 {
+  word-wrap: anywhere;
+}
+._outputPre_18agr_1 {
+  padding: 0.5em;
+  margin-top: 0.25em;
+  margin-bottom: 1rem;
+}
+
+._outputCode_18agr_7 {
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+._bottomMargin_18agr_12 {
+  margin-bottom: 1em;
+}
+._image_10saa_1 {
+  margin-right: 0.2rem;
+  opacity: 0.4;
+}
 ._table_1memb_1 {
   padding-left: 0;
   margin-left: 0;

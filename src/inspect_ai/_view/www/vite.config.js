@@ -1,6 +1,5 @@
 import preact from "@preact/preset-vite";
 import { defineConfig } from "vite";
-import prism from "vite-plugin-prismjs";
 
 export default defineConfig({
   base: "", // Set base to an empty string for relative paths
@@ -25,10 +24,6 @@ export default defineConfig({
     preact({
       // Include all files
       include: /\.[jt]sx?$/,
-    }),
-    prism({
-      languages: ["javascript", "css", "clike", "bash", "python", "python"],
-      css: true,
     }),
   ],
   resolve: {
