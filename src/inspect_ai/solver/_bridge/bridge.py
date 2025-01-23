@@ -9,7 +9,7 @@ from inspect_ai.model._openai import (
 )
 from inspect_ai.scorer._metric import Score
 
-from .._solver import Generate, Solver
+from .._solver import Generate, Solver, solver
 from .._task_state import TaskState
 from .patch import openai_request_to_inspect_model
 
@@ -43,7 +43,8 @@ class ResultDict(TypedDict):
     scores: NotRequired[dict[str, ScoreDict]]
 
 
-def bridge(agent: Callable[[SampleDict], Awaitable[ResultDict]]) -> Solver:
+@solver
+def bridge(agent: Callable[[dict[str, Any]], Awaitable[dict[str, Any]]]) -> Solver:
     """Bridge an external agent into an Inspect Solver.
 
     Integrate an external agent with no Inspect dependencies by converting
@@ -75,7 +76,7 @@ def bridge(agent: Callable[[SampleDict], Awaitable[ResultDict]]) -> Solver:
         messages = await openai_chat_messages(input, state.model.name)
 
         # create sample
-        sample = SampleDict(
+        sample = dict(
             model=str(state.model),
             sample_id=str(state.sample_id),
             epoch=state.epoch,
@@ -90,9 +91,9 @@ def bridge(agent: Callable[[SampleDict], Awaitable[ResultDict]]) -> Solver:
 
         # update and return state
         state.output.completion = result["output"]
-        if result["messages"]:
+        if "messages" in result:
             state.messages = chat_messages_from_openai(result["messages"])
-        if result["scores"]:
+        if "scores" in result:
             state.scores = {
                 k: Score(
                     value=v["value"],

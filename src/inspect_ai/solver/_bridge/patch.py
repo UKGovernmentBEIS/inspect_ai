@@ -78,8 +78,6 @@ def init_openai_request_patch() -> None:
             ):
                 # check that we use "/" in model name (i.e. not a request for a standard
                 # openai model)
-
-                print(to_json(options, indent=2, fallback=lambda _: None).decode())
                 json_data = cast(dict[str, Any], options.json_data)
                 model = json_data["model"]
                 if isinstance(model, str) and "/" in model:
@@ -159,76 +157,3 @@ def generate_config_from_openai(options: FinalRequestOptions) -> GenerateConfig:
     config.reasoning_effort = json_data.get("reasoning_effort", None)
 
     return config
-
-
-if __name__ == "__main__":
-
-    async def task1() -> None:
-        async with openai_request_to_inspect_model():
-            client = AsyncOpenAI()
-            completion = await client.chat.completions.create(
-                model="openai/gpt-4o",
-                messages=[
-                    {"role": "system", "content": "You are a helpful assistant."},
-                    {
-                        "role": "user",
-                        "content": "Write a haiku about recursion in programming.",
-                    },
-                ],
-                tools=[
-                    {
-                        "type": "function",
-                        "function": {
-                            "name": "get_weather",
-                            "description": "Get current temperature for a given location.",
-                            "parameters": {
-                                "type": "object",
-                                "properties": {
-                                    "location": {
-                                        "type": "string",
-                                        "description": "City and country e.g. Bogotá, Colombia",
-                                    }
-                                },
-                                "required": ["location"],
-                                "additionalProperties": False,
-                            },
-                            "strict": True,
-                        },
-                    }
-                ],
-                temperature=0.8,
-                top_p=0.5,
-                stop=["foo"],
-                frequency_penalty=1,
-                presence_penalty=1.5,
-                seed=42,
-                n=3,
-                logprobs=True,
-                top_logprobs=3,
-                parallel_tool_calls=True,
-                reasoning_effort="low",
-                timeout=200,
-            )
-
-        print(completion.choices[0].logprobs)
-        # print(completion.choices[0].message.content)
-
-    async def task2() -> None:
-        client = AsyncOpenAI()
-        completion = await client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": "You are a helpful assistant."},
-                {
-                    "role": "user",
-                    "content": "Write a haiku about recursion in programming.",
-                },
-            ],
-        )
-
-        print(completion.choices[0].logprobs)
-
-    async def main() -> None:
-        await asyncio.gather(task1())
-
-    asyncio.run(main())
