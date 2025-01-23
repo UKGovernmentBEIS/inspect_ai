@@ -1,14 +1,16 @@
 ## LangChain Agent
 
-This example demonstrates using a native LangChain agent with Insepct to perform Q and A using the [Tavili](https://tavily.com/) Search API. The example includes the following source files:
+This example demonstrates using a native LangChain agent with Insepct to perform Q and A using the [Tavili](https://tavily.com/) Search API. The example uses the new [`bridge()`](https://github.com/UKGovernmentBEIS/inspect_ai/pull/1181) solver which enables integrating arbitrary 3rd party agent frameworks into Inspect.
+
+The example includes the following source files:
 
 | File            | Description                                                                            |
 |------------------|------------------------------------------------------|
-| [agent.py](agent.py)      | LangChain agent (note this file has no dependencies on Insepct, it is pure LangChain). |
+| [agent.py](agent.py)      | LangChain agent (this file has no dependencies on Insepct, it is pure LangChain). |
 | [task.py](task.py)       | Evaluation task which uses `bridge()` to use the LangChain agent as a solver.          |
 | [dataset.jsonl](dataset.jsonl) | Dataset with questions and ideal answers.                                              |
 
-To run this example, first, be sure you have a [Tavili](https://tavily.com/) account and set the `TAVILY_API_KEY` ([Tavily](https://tavily.com/) environment variable.
+To run the example, first, be sure you have a [Tavili](https://tavily.com/) account and set the `TAVILY_API_KEY` ([Tavily](https://tavily.com/) environment variable.
 
 Then, install the following LangChain packages:
 
