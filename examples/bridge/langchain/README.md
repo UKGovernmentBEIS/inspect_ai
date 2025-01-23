@@ -4,9 +4,9 @@ This example demonstrates using a native LangChain agent with Insepct to perform
 
 | File            | Description                                                                            |
 |------------------|------------------------------------------------------|
-| `agent.py`      | LangChain agent (note this file has no dependencies on Insepct, it is pure LangChain). |
-| `task.py`       | Evaluation task which uses `bridge()` to use the LangChain agent as a solver.          |
-| `dataset.jsonl` | Dataset with questions and ideal answers.                                              |
+| [agent.py](agent.py)      | LangChain agent (note this file has no dependencies on Insepct, it is pure LangChain). |
+| [task.py](task.py)       | Evaluation task which uses `bridge()` to use the LangChain agent as a solver.          |
+| [dataset.jsonl](dataset.jsonl) | Dataset with questions and ideal answers.                                              |
 
 To run this example, first, be sure you have a [Tavili](https://tavily.com/) account and set the `TAVILY_API_KEY` ([Tavily](https://tavily.com/) environment variable.
 
