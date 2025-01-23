@@ -1,7 +1,6 @@
 from textwrap import dedent
 from typing import Any
 
-from openai import AsyncOpenAI
 from test_helpers.utils import skip_if_no_anthropic, skip_if_no_openai
 
 from inspect_ai import Task, eval, task
@@ -11,6 +10,8 @@ from inspect_ai.solver import bridge, solver
 
 
 async def agent(sample: dict[str, Any]) -> dict[str, Any]:
+    from openai import AsyncOpenAI
+
     client = AsyncOpenAI()
     completion = await client.chat.completions.create(
         messages=sample["messages"],
@@ -46,6 +47,8 @@ def openai_api_task():
     # solver the calls the openai api directly (so should proceed unpatched)
     @solver
     def openai_api_solver():
+        from openai import AsyncOpenAI
+
         async def solve(state, generate):
             client = AsyncOpenAI()
             await client.chat.completions.create(
@@ -110,6 +113,7 @@ def check_anthropic_log_json(log_json: str):
 
 
 @skip_if_no_anthropic
+@skip_if_no_openai
 def test_anthropic_bridged_agent():
     log_json = eval_bridged_task("anthropic/claude-3-haiku-20240307")
     check_anthropic_log_json(log_json)

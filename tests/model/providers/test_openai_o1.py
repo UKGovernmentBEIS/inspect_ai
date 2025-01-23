@@ -1,8 +1,9 @@
 from inspect_ai.model import ChatMessageAssistant
-from inspect_ai.model._providers.openai_o1 import O1PreviewChatAPIHandler
 
 
 def test_openai_o1_tool_call_parsing() -> None:
+    from inspect_ai.model._providers.openai_o1 import O1PreviewChatAPIHandler
+
     handler = O1PreviewChatAPIHandler()
 
     resp: ChatMessageAssistant = handler.parse_assistant_response(
@@ -22,6 +23,8 @@ def test_openai_o1_tool_call_parsing() -> None:
 
 
 def test_openai_o1_tool_call_parsing_empty_arguments() -> None:
+    from inspect_ai.model._providers.openai_o1 import O1PreviewChatAPIHandler
+
     handler = O1PreviewChatAPIHandler()
 
     resp: ChatMessageAssistant = handler.parse_assistant_response(
@@ -40,6 +43,8 @@ def test_openai_o1_tool_call_parsing_empty_arguments() -> None:
 
 
 def test_openai_o1_tool_call_parsing_no_arguments() -> None:
+    from inspect_ai.model._providers.openai_o1 import O1PreviewChatAPIHandler
+
     handler = O1PreviewChatAPIHandler()
 
     resp: ChatMessageAssistant = handler.parse_assistant_response(

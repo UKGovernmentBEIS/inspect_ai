@@ -57,7 +57,13 @@ def skip_if_no_accelerate(func):
 
 
 def skip_if_no_openai(func):
-    return pytest.mark.api(skip_if_env_var("OPENAI_API_KEY", exists=False)(func))
+    return pytest.mark.api(
+        pytest.mark.skipif(
+            importlib.util.find_spec("openai") is None
+            or os.environ.get("OPENAI_API_KEY") is None,
+            reason="Test requires both OpenAI package and OPENAI_API_KEY environment variable",
+        )(func)
+    )
 
 
 def skip_if_no_anthropic(func):

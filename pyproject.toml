@@ -122,6 +122,7 @@ dev = [
     "moto[server]",
     "mypy",
     "nbformat",
+    "openai",
     "pre-commit",
     "pytest",
     "pytest-asyncio",

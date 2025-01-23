@@ -1,46 +1,11 @@
-from typing import Any, Awaitable, Callable, NotRequired, TypedDict
-
-from openai.types.chat import ChatCompletionMessageParam
+from typing import Any, Awaitable, Callable
 
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
-from inspect_ai.model._openai import (
-    chat_messages_from_openai,
-    openai_chat_messages,
-)
+from inspect_ai.model._providers.providers import validate_openai_client
 from inspect_ai.scorer._metric import Score
 
 from .._solver import Generate, Solver, solver
 from .._task_state import TaskState
-from .patch import openai_request_to_inspect_model
-
-
-class SampleDict(TypedDict):
-    model: str
-    sample_id: str
-    epoch: int
-    messages: list[ChatCompletionMessageParam]
-    metadata: dict[str, Any]
-    target: list[str]
-
-
-class ScoreDict(TypedDict):
-    value: (
-        str
-        | int
-        | float
-        | bool
-        | list[str | int | float | bool]
-        | dict[str, str | int | float | bool | None]
-    )
-    answer: NotRequired[str]
-    explanation: NotRequired[str]
-    metadata: NotRequired[dict[str, Any]]
-
-
-class ResultDict(TypedDict):
-    output: str
-    messages: NotRequired[list[ChatCompletionMessageParam]]
-    scores: NotRequired[dict[str, ScoreDict]]
 
 
 @solver
@@ -146,6 +111,14 @@ def bridge(agent: Callable[[dict[str, Any]], Awaitable[dict[str, Any]]]) -> Solv
         )
     ```
     """
+    validate_openai_client("Solver bridge()")
+
+    from inspect_ai.model._openai import (
+        chat_messages_from_openai,
+        openai_chat_messages,
+    )
+
+    from .patch import openai_request_to_inspect_model
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         # convert messages to openai messages
