@@ -6,9 +6,9 @@ import os
 import sys
 import time
 
-from ._logger import setup_logger
-from ._tool_result import ToolResult
-from ._x11_client import X11Client
+from _logger import setup_logger
+from _tool_result import ToolResult
+from _x11_client import X11Client
 
 # This is a bit sketchy. We really want to use relative imports here. Using absolute imports
 # works at runtime, but it prevents intellisense from working. However, when this folder is
@@ -59,7 +59,7 @@ def parse_arguments():
 
 async def execute_action(args) -> ToolResult:
     # we can't do anything until X11 is ready to go.
-    await wait_for_file("/tmp/mutter_started")
+    await wait_for_file("/tmp/xfce_started")
 
     computer = X11Client()
     return await computer(
