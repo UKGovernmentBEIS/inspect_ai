@@ -779,6 +779,26 @@ def computer_task():
     )
 ```
 
+#### Options
+
+The computer tool supports the following options:
+
+| Option            | Description                                                                                                           |
+|-------------------|-----------------------------------------------------------------------------------------------------------------------|
+| `max_screenshots` | The maximum number of screenshots to play back to the model as input. Defaults to 1 (set to `None` to have no limit). |
+| `timeout`         | Timeout in seconds for computer tool actions. Defaults to 180 (set to `None` for no timeout).                         |
+
+For example:
+
+``` python
+solver=[
+    use_tools([computer(max_screenshots=2, timeout=300)]),
+    generate()
+]
+```
+
+#### Examples
+
 Two of the Inspect examples demonstrate basic computer use:
 
 - [computer](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/computer/computer.py)

@@ -2242,8 +2242,8 @@ have multiple model interactions.
 
 Here are what some of the built-in solvers do with the `TaskState`:
 
-1.  The `system_message()` solver inserts a system message into the chat
-    history.
+1.  The `system_message()` and `user_message()` solvers insert messages
+    into the chat history.
 
 2.  The `chain_of_thought()` solver takes the original user prompt and
     re-writes it to ask the model to use chain of thought reasoning to
@@ -2274,21 +2274,24 @@ customised in some fashion. Built in solvers can be imported from the
 `inspect_ai.solver` module. Below is a summary of these solvers. There
 is not (yet) reference documentation on these functions so the best way
 to learn about how they can be customised, etc. is to use the **Go to
-Definition** command in your source editor.
+Definition** command in your source editor. - `prompt_template()`
+
+    Modify the user prompt by substituting the current prompt into the `{prompt}` placeholder within the specified template. Also automatically substitutes any variables defined in sample `metadata` as well as any other custom named paramters passed in `params`.
 
 - `system_message()`
 
   Prepend role=“system” `message` to the list of messages (will follow
   any other system messages it finds in the message stream). Also
   automatically substitutes any variables defined in sample `metadata`
-  as well as any other custom named paramters passed in `params`.
+  and `store`, as well as any other custom named paramters passed in
+  `params`.
 
-- `prompt_template()`
+- `user_message()`
 
-  Modify the user prompt by substituting the current prompt into the
-  `{prompt}` placeholder within the specified template. Also
+  Append role=“user” `message` to the list of messages. Also
   automatically substitutes any variables defined in sample `metadata`
-  as well as any other custom named paramters passed in `params`.
+  and `store`, as well as any other custom named paramters passed in
+  `params`.
 
 - `chain_of_thought()`
 
@@ -3518,6 +3521,26 @@ def computer_task():
         sandbox=("docker", "compose.yaml"),
     )
 ```
+
+#### Options
+
+The computer tool supports the following options:
+
+| Option            | Description                                                                                                           |
+|-------------------|-----------------------------------------------------------------------------------------------------------------------|
+| `max_screenshots` | The maximum number of screenshots to play back to the model as input. Defaults to 1 (set to `None` to have no limit). |
+| `timeout`         | Timeout in seconds for computer tool actions. Defaults to 180 (set to `None` for no timeout).                         |
+
+For example:
+
+``` python
+solver=[
+    use_tools([computer(max_screenshots=2, timeout=300)]),
+    generate()
+]
+```
+
+#### Examples
 
 Two of the Inspect examples demonstrate basic computer use:
 
@@ -4927,7 +4950,7 @@ directly to your `Task`.
 ## Overview
 
 Inspect has built in support for a variety of language model API
-providers and can be extended to support arbitrary additions ones.
+providers and can be extended to support arbitrary additional ones.
 Built-in model API providers, their dependencies, and environment
 variables required to use them are as follows:
 
@@ -5748,6 +5771,22 @@ reason that generation stopped in the `stop_reason` field of
 output = await model.generate(state.messages, state.tools)
 if output.stop_reason == "model_length":
     # do something to recover from context window overflow
+```
+
+If you have written a scaffold loop that continues calling the model
+even after it stops calling tools, there may be values of `stop_reason`
+that indicate that the the loop should terminate anyway (because the
+error will just keep repeating on subsequent calls to the model). For
+example, the [basic agent](agents.qmd#sec-basic-agent) checks for
+`stop_reason` and exits under the following conditions:
+
+``` python
+# check for stop reasons that indicate we should terminate
+if state.output.stop_reason == "model_length":
+    transcript().info(
+        f"Agent terminated (reason: {state.output.stop_reason})"
+    )
+    break
 ```
 
 Here are the possible values for `StopReason` :
@@ -6860,6 +6899,22 @@ reason that generation stopped in the `stop_reason` field of
 output = await model.generate(state.messages, state.tools)
 if output.stop_reason == "model_length":
     # do something to recover from context window overflow
+```
+
+If you have written a scaffold loop that continues calling the model
+even after it stops calling tools, there may be values of `stop_reason`
+that indicate that the the loop should terminate anyway (because the
+error will just keep repeating on subsequent calls to the model). For
+example, the [basic agent](agents.qmd#sec-basic-agent) checks for
+`stop_reason` and exits under the following conditions:
+
+``` python
+# check for stop reasons that indicate we should terminate
+if state.output.stop_reason == "model_length":
+    transcript().info(
+        f"Agent terminated (reason: {state.output.stop_reason})"
+    )
+    break
 ```
 
 Here are the possible values for `StopReason` :

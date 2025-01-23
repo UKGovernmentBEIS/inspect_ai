@@ -4,7 +4,7 @@
 ## Overview
 
 Inspect has built in support for a variety of language model API
-providers and can be extended to support arbitrary additions ones.
+providers and can be extended to support arbitrary additional ones.
 Built-in model API providers, their dependencies, and environment
 variables required to use them are as follows:
 
