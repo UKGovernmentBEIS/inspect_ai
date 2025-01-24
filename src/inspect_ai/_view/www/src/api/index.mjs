@@ -2,8 +2,7 @@
 
 import browserApi from "./api-browser.mjs";
 import vscodeApi from "./api-vscode.mjs";
-import simpleHttpApi from "./api-http.mjs";
-import { dirname } from "../utils/Path.mjs";
+import simpleHttpApi, { simpleHttpSingleFileApi } from "./api-http.mjs";
 import { getVscodeApi } from "../utils/vscode.mjs";
 import { clientApi } from "./client-api.mjs";
 
@@ -17,33 +16,34 @@ const resolveApi = () => {
   // @ts-ignore
   if (getVscodeApi()) {
     return clientApi(vscodeApi);
-  } else {
-    // See if there is an log_file, log_dir embedded in the
-    // document or passed via URL
-    const scriptEl = document.getElementById("log_dir_context");
-    if (scriptEl) {
-      // Read the contents
-      const data = JSON.parse(scriptEl.textContent);
-      if (data.log_dir || data.log_file) {
-        const log_dir = data.log_dir || dirname(data.log_file);
-        const api = simpleHttpApi(log_dir, data.log_file);
-        return clientApi(api);
-      }
-    }
-
-    // See if there is url params passing info
-    const urlParams = new URLSearchParams(window.location.search);
-    const log_file = urlParams.get("log_file");
-    const log_dir = urlParams.get("log_dir");
-    if (log_file || log_dir) {
-      const api = simpleHttpApi(log_dir, log_file);
-      return clientApi(api);
-    }
-
-    // No signal information so use the standard
-    // browser API
-    return clientApi(browserApi);
   }
+
+  // Check embedded script tag first
+  const scriptEl = document.getElementById("log_dir_context");
+  if (scriptEl) {
+    const data = JSON.parse(scriptEl.textContent);
+    if (data.log_file && !data.log_dir) {
+      return clientApi(simpleHttpSingleFileApi(data.log_file));
+    }
+    if (data.log_dir) {
+      return clientApi(simpleHttpApi(data.log_dir, data.log_file));
+    }
+  }
+
+  // Check URL parameters
+  const urlParams = new URLSearchParams(window.location.search);
+  const logFile = urlParams.get("log_file");
+  const logDir = urlParams.get("log_dir");
+
+  if (logFile && !logDir) {
+    return clientApi(simpleHttpSingleFileApi(logFile));
+  }
+  if (logDir) {
+    return clientApi(simpleHttpApi(logDir, logFile));
+  }
+
+  // Default to browser API if no parameters found
+  return clientApi(browserApi);
 };
 
 export default resolveApi();

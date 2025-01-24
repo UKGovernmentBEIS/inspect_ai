@@ -2,6 +2,7 @@
 import { asyncJsonParse } from "../utils/Json.mjs";
 import { download_file } from "./api-shared.mjs";
 import { fetchRange, fetchSize } from "../utils/remoteZipFile.mjs";
+import { dirname } from "../utils/Path.mjs";
 
 /**
  * This provides an API implementation that will serve a single
@@ -129,6 +130,89 @@ function simpleHttpAPI(logInfo) {
     },
     download_file,
     open_log_file,
+  };
+}
+
+/**
+ * Creates an API implementation for handling a single log file directly,
+ * without any directory-related operations.
+ *
+ * @param { string } log_file - The log file to handle.
+ * @returns { import("./Types.mjs").LogViewAPI } A Log Viewer API
+ */
+export function simpleHttpSingleFileApi(log_file) {
+  if (!log_file) {
+    throw new Error("log_file is required for single file API");
+  }
+
+  const resolved_log_path = log_file.replace(" ", "+");
+  let cachedLog;
+
+  return {
+    client_events: async () => {
+      return Promise.resolve([]);
+    },
+    eval_logs: async () => {
+      // For single file mode, we need to fetch the file to get task info
+      const response = await fetchLogFile(resolved_log_path);
+      cachedLog = response.parsed;
+
+      return {
+        files: [
+          {
+            name: resolved_log_path,
+            task: cachedLog.eval.task,
+            task_id: cachedLog.eval.task_id,
+          },
+        ],
+        log_dir: dirname(resolved_log_path),
+      };
+    },
+    eval_log: async (file) => {
+      if (file !== resolved_log_path) {
+        throw new Error(
+          "Can only access the specified log file in single file mode",
+        );
+      }
+      if (cachedLog) {
+        return { parsed: cachedLog, raw: JSON.stringify(cachedLog) };
+      }
+      const response = await fetchLogFile(file);
+      cachedLog = response.parsed;
+      return response;
+    },
+    eval_log_size: async (file) => {
+      if (file !== resolved_log_path) {
+        throw new Error(
+          "Can only access the specified log file in single file mode",
+        );
+      }
+      return await fetchSize(file);
+    },
+    eval_log_bytes: async (file, start, end) => {
+      if (file !== resolved_log_path) {
+        throw new Error(
+          "Can only access the specified log file in single file mode",
+        );
+      }
+      return await fetchRange(file, start, end);
+    },
+    eval_log_headers: async (files) => {
+      if (files.some((f) => f !== resolved_log_path)) {
+        throw new Error(
+          "Can only access the specified log file in single file mode",
+        );
+      }
+      if (!cachedLog) {
+        const response = await fetchLogFile(resolved_log_path);
+        cachedLog = response.parsed;
+      }
+      return [cachedLog];
+    },
+    download_file,
+    open_log_file: async () => {
+      // No op
+    },
   };
 }
 
