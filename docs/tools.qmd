@@ -424,13 +424,6 @@ Note that all of the Python files in the [\_resources](https://github.com/UKGove
 
 ## Computer (Beta) {#sec-computer}
 
-::: {.callout-note appearance="simple"}
-The beta version of the computer tool described below is currently available only in the development version of Inspect. To install the development version:
-
-``` bash
-pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-```
-:::
 
 The `computer()` tool provides models with a computer desktop environment along with the ability to view the screen and perform mouse and keyboard gestures. The computer tool is based on the Anthropic [Computer Use Beta](https://docs.anthropic.com/en/docs/build-with-claude/computer-use) reference implementation and works with any model that supports image input.
 
