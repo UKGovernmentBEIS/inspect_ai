@@ -3,7 +3,7 @@ import { html } from "htm/preact";
 import { EpochFilter } from "./sample-tools/EpochFilter";
 import { SampleFilter } from "./sample-tools/sample-filter/SampleFilter";
 import { SelectScorer } from "./sample-tools/SelectScorer";
-import { SortFilter } from "./sample-tools/SortFilter.mjs";
+import { SortFilter } from "./sample-tools/SortFilter";
 
 export const SampleTools = (props) => {
   const {
@@ -52,12 +52,7 @@ export const SampleTools = (props) => {
   }
 
   tools.push(
-    html`<${SortFilter}
-      sampleDescriptor=${sampleDescriptor}
-      sort=${sort}
-      setSort=${setSort}
-      epochs=${hasEpochs}
-    />`,
+    html`<${SortFilter} sort=${sort} setSort=${setSort} epochs=${hasEpochs} />`,
   );
 
   return tools;

@@ -1,5 +1,5 @@
-import { html } from "htm/preact";
-import { FontSize, TextStyle } from "../../appearance/fonts";
+import clsx from "clsx";
+import { SampleSummary } from "../../api/Types";
 import {
   kEpochAscVal,
   kEpochDescVal,
@@ -9,8 +9,21 @@ import {
   kScoreDescVal,
 } from "../../constants";
 import { isNumeric } from "../../utils/type";
+import { SamplesDescriptor } from "../SamplesDescriptor.mjs";
+import styles from "./SortFilter.module.css";
 
-export const SortFilter = ({ sampleDescriptor, sort, setSort, epochs }) => {
+interface SortFilterProps {
+  sampleDescriptor: SamplesDescriptor;
+  sort: string;
+  setSort: (sort: string) => void;
+  epochs: number;
+}
+
+export const SortFilter: React.FC<SortFilterProps> = ({
+  sort,
+  setSort,
+  epochs,
+}) => {
   const options = [
     { label: "sample asc", val: kSampleAscVal },
     { label: "sample desc", val: kSampleDescVal },
@@ -25,56 +38,53 @@ export const SortFilter = ({ sampleDescriptor, sort, setSort, epochs }) => {
       val: kEpochDescVal,
     });
   }
-  if (sampleDescriptor?.selectedScoreDescriptor?.compare) {
-    options.push({
-      label: "score asc",
-      val: kScoreAscVal,
-    });
-    options.push({
-      label: "score desc",
-      val: kScoreDescVal,
-    });
-  }
-  return html`
-    <div style=${{ display: "flex" }}>
+  options.push({
+    label: "score asc",
+    val: kScoreAscVal,
+  });
+  options.push({
+    label: "score desc",
+    val: kScoreDescVal,
+  });
+  return (
+    <div className={styles.flex}>
       <span
-        class="sort-filter-label"
-        style=${{
-          alignSelf: "center",
-          fontSize: FontSize.smaller,
-          ...TextStyle.label,
-          ...TextStyle.secondary,
-          marginRight: "0.3em",
-          marginLeft: "0.2em",
-        }}
-        >Sort:</span
+        className={clsx(
+          "sort-filter-label",
+          "text-size-smaller",
+          "text-style-label",
+          "text-style-secondary",
+          styles.label,
+        )}
       >
+        Sort:
+      </span>
       <select
-        class="form-select form-select-sm"
+        className={clsx("form-select", "form-select-sm", "text-size-smaller")}
         aria-label=".sort-filter-label"
-        style=${{ fontSize: FontSize.smaller }}
-        value=${sort}
-        onChange=${(e) => {
-          setSort(e.target.value);
+        value={sort}
+        onChange={(e) => {
+          const sel = e.target as HTMLSelectElement;
+          setSort(sel.value);
         }}
       >
-        ${options.map((option) => {
-          return html`<option value="${option.val}">${option.label}</option>`;
+        {options.map((option) => {
+          return <option value={option.val}>{option.label}</option>;
         })}
       </select>
     </div>
-  `;
+  );
 };
 
-export const byEpoch = (sort) => {
+export const byEpoch = (sort: string) => {
   return sort === kEpochAscVal || sort === kEpochDescVal;
 };
 
-export const bySample = (sort) => {
+export const bySample = (sort: string) => {
   return sort === kSampleAscVal || sort === kSampleDescVal;
 };
 
-const sortId = (a, b) => {
+const sortId = (a: SampleSummary, b: SampleSummary) => {
   if (isNumeric(a.id) && isNumeric(b.id)) {
     return Number(a.id) - Number(b.id);
   } else {
@@ -87,14 +97,13 @@ const sortId = (a, b) => {
 
 /**
  * Sorts a list of samples
- *
- * @param {string} sort - The sort direction
- * @param {import("../../api/Types.ts").SampleSummary[]} samples - The samples
- * @param {import("../SamplesDescriptor.mjs").SamplesDescriptor} samplesDescriptor - The samples descriptor
- * @returns {{ sorted: import("../../api/Types.ts").SampleSummary[], order: 'asc' | 'desc' }} An object with sorted samples and the sort order.
  */
-export const sortSamples = (sort, samples, samplesDescriptor) => {
-  const sortedSamples = samples.sort((a, b) => {
+export const sortSamples = (
+  sort: string,
+  samples: SampleSummary[],
+  samplesDescriptor: SamplesDescriptor,
+) => {
+  const sortedSamples = samples.sort((a: SampleSummary, b: SampleSummary) => {
     switch (sort) {
       case kSampleAscVal: {
         const result = sortId(a, b);
@@ -139,6 +148,9 @@ export const sortSamples = (sort, samples, samplesDescriptor) => {
           samplesDescriptor.selectedScore(b).value,
           samplesDescriptor.selectedScore(a).value,
         );
+
+      default:
+        return 0;
     }
   });
   return {

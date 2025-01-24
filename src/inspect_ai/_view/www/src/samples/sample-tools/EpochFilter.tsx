@@ -31,6 +31,7 @@ export const EpochFilter: React.FC<EpochFilterProps> = ({
           "text-size-smaller",
           "text-style-label",
           "text-style-secondary",
+          styles.label,
         )}
       >
         Epochs:

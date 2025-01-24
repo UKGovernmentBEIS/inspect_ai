@@ -37,7 +37,7 @@ import {
   byEpoch,
   bySample,
   sortSamples,
-} from "./samples/sample-tools/SortFilter.mjs";
+} from "./samples/sample-tools/SortFilter";
 import {
   createEvalDescriptor,
   createSamplesDescriptor,

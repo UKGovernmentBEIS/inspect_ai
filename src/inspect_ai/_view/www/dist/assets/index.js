@@ -3537,23 +3537,23 @@ var require_assets = __commonJS({
     const container$8 = "_container_1phwy_13";
     const animate = "_animate_1phwy_21";
     const leftToRight = "_leftToRight_1phwy_1";
-    const styles$B = {
+    const styles$C = {
       wrapper: wrapper$3,
       container: container$8,
       animate,
       leftToRight
     };
     const ProgressBar = ({ animating }) => {
-      return /* @__PURE__ */ u("div", { className: styles$B.wrapper, children: /* @__PURE__ */ u(
+      return /* @__PURE__ */ u("div", { className: styles$C.wrapper, children: /* @__PURE__ */ u(
         "div",
         {
-          className: styles$B.container,
+          className: styles$C.container,
           role: "progressbar",
           "aria-label": "Basic example",
           "aria-valuenow": 25,
           "aria-valuemin": 0,
           "aria-valuemax": 100,
-          children: animating && /* @__PURE__ */ u("div", { className: styles$B.animate })
+          children: animating && /* @__PURE__ */ u("div", { className: styles$C.animate })
         }
       ) });
     };
@@ -6494,30 +6494,19 @@ categories: ${categories.join(" ")}`;
       });
       return { result, error: error2 };
     };
-    const kBaseFontSize = 0.9;
-    const ScaleBaseFont = (scale) => {
-      return `${kBaseFontSize + scale}rem`;
-    };
-    const FontSize = {
-      title: ScaleBaseFont(0.6),
-      "title-secondary": ScaleBaseFont(0.4),
-      larger: ScaleBaseFont(0.2),
-      large: ScaleBaseFont(0.1),
-      base: ScaleBaseFont(0),
-      small: ScaleBaseFont(-0.1),
-      smaller: ScaleBaseFont(-0.1)
-    };
-    const TextStyle = {
-      label: {
-        textTransform: "uppercase"
-      },
-      secondary: {
-        color: "var(--bs-secondary)"
-      },
-      tertiary: {
-        color: "var(--bs-tertiary-color)"
-      }
-    };
+    function r(e2) {
+      var t2, f2, n2 = "";
+      if ("string" == typeof e2 || "number" == typeof e2) n2 += e2;
+      else if ("object" == typeof e2) if (Array.isArray(e2)) {
+        var o2 = e2.length;
+        for (t2 = 0; t2 < o2; t2++) e2[t2] && (f2 = r(e2[t2])) && (n2 && (n2 += " "), n2 += f2);
+      } else for (f2 in e2) e2[f2] && (n2 && (n2 += " "), n2 += f2);
+      return n2;
+    }
+    function clsx() {
+      for (var e2, t2, f2 = 0, n2 = "", o2 = arguments.length; f2 < o2; f2++) (e2 = arguments[f2]) && (t2 = r(e2)) && (n2 && (n2 += " "), n2 += t2);
+      return n2;
+    }
     const isNumeric = (n2) => {
       return !isNaN(parseFloat(n2)) && isFinite(n2);
     };
@@ -6528,8 +6517,17 @@ categories: ${categories.join(" ")}`;
         return [val];
       }
     };
-    const SortFilter = ({ sampleDescriptor, sort, setSort, epochs }) => {
-      var _a2;
+    const flex$1 = "_flex_1kye9_1";
+    const label$3 = "_label_1kye9_5";
+    const styles$B = {
+      flex: flex$1,
+      label: label$3
+    };
+    const SortFilter = ({
+      sort,
+      setSort,
+      epochs
+    }) => {
       const options = [
         { label: "sample asc", val: kSampleAscVal },
         { label: "sample desc", val: kSampleDescVal }
@@ -6544,45 +6542,44 @@ categories: ${categories.join(" ")}`;
           val: kEpochDescVal
         });
       }
-      if ((_a2 = sampleDescriptor == null ? void 0 : sampleDescriptor.selectedScoreDescriptor) == null ? void 0 : _a2.compare) {
-        options.push({
-          label: "score asc",
-          val: kScoreAscVal
-        });
-        options.push({
-          label: "score desc",
-          val: kScoreDescVal
-        });
-      }
-      return m$1`
-    <div style=${{ display: "flex" }}>
-      <span
-        class="sort-filter-label"
-        style=${{
-        alignSelf: "center",
-        fontSize: FontSize.smaller,
-        ...TextStyle.label,
-        ...TextStyle.secondary,
-        marginRight: "0.3em",
-        marginLeft: "0.2em"
-      }}
-        >Sort:</span
-      >
-      <select
-        class="form-select form-select-sm"
-        aria-label=".sort-filter-label"
-        style=${{ fontSize: FontSize.smaller }}
-        value=${sort}
-        onChange=${(e2) => {
-        setSort(e2.target.value);
-      }}
-      >
-        ${options.map((option) => {
-        return m$1`<option value="${option.val}">${option.label}</option>`;
-      })}
-      </select>
-    </div>
-  `;
+      options.push({
+        label: "score asc",
+        val: kScoreAscVal
+      });
+      options.push({
+        label: "score desc",
+        val: kScoreDescVal
+      });
+      return /* @__PURE__ */ u("div", { className: styles$B.flex, children: [
+        /* @__PURE__ */ u(
+          "span",
+          {
+            className: clsx(
+              "sort-filter-label",
+              "text-size-smaller",
+              "text-style-label",
+              "text-style-secondary",
+              styles$B.label
+            ),
+            children: "Sort:"
+          }
+        ),
+        /* @__PURE__ */ u(
+          "select",
+          {
+            className: clsx("form-select", "form-select-sm", "text-size-smaller"),
+            "aria-label": ".sort-filter-label",
+            value: sort,
+            onChange: (e2) => {
+              const sel = e2.target;
+              setSort(sel.value);
+            },
+            children: options.map((option) => {
+              return /* @__PURE__ */ u("option", { value: option.val, children: option.label });
+            })
+          }
+        )
+      ] });
     };
     const byEpoch = (sort) => {
       return sort === kEpochAscVal || sort === kEpochDescVal;
@@ -6642,12 +6639,38 @@ categories: ${categories.join(" ")}`;
               samplesDescriptor.selectedScore(b2).value,
               samplesDescriptor.selectedScore(a2).value
             );
+          default:
+            return 0;
         }
       });
       return {
         sorted: sortedSamples,
         order: sort === kSampleAscVal || sort === kEpochAscVal || sort === kScoreAscVal ? "asc" : "desc"
       };
+    };
+    const kBaseFontSize = 0.9;
+    const ScaleBaseFont = (scale) => {
+      return `${kBaseFontSize + scale}rem`;
+    };
+    const FontSize = {
+      title: ScaleBaseFont(0.6),
+      "title-secondary": ScaleBaseFont(0.4),
+      larger: ScaleBaseFont(0.2),
+      large: ScaleBaseFont(0.1),
+      base: ScaleBaseFont(0),
+      small: ScaleBaseFont(-0.1),
+      smaller: ScaleBaseFont(-0.1)
+    };
+    const TextStyle = {
+      label: {
+        textTransform: "uppercase"
+      },
+      secondary: {
+        color: "var(--bs-secondary)"
+      },
+      tertiary: {
+        color: "var(--bs-tertiary-color)"
+      }
     };
     const ApplicationStyles = {
       moreButton: {
@@ -7963,19 +7986,6 @@ categories: ${categories.join(" ")}`;
       });
     })(ansiOutput, ansiOutput.exports);
     var ansiOutputExports = ansiOutput.exports;
-    function r(e2) {
-      var t2, f2, n2 = "";
-      if ("string" == typeof e2 || "number" == typeof e2) n2 += e2;
-      else if ("object" == typeof e2) if (Array.isArray(e2)) {
-        var o2 = e2.length;
-        for (t2 = 0; t2 < o2; t2++) e2[t2] && (f2 = r(e2[t2])) && (n2 && (n2 += " "), n2 += f2);
-      } else for (f2 in e2) e2[f2] && (n2 && (n2 += " "), n2 += f2);
-      return n2;
-    }
-    function clsx() {
-      for (var e2, t2, f2 = 0, n2 = "", o2 = arguments.length; f2 < o2; f2++) (e2 = arguments[f2]) && (t2 = r(e2)) && (n2 && (n2 += " "), n2 += t2);
-      return n2;
-    }
     const ANSIDisplay = ({
       output: output2,
       style: style2,
@@ -15504,7 +15514,7 @@ categories: ${categories.join(" ")}`;
     }) => {
       const tabs2 = children2;
       const tabType = type || "tabs";
-      return /* @__PURE__ */ u(Rn.Fragment, { children: [
+      return /* @__PURE__ */ u(k$2, { children: [
         /* @__PURE__ */ u(
           "ul",
           {
@@ -15535,13 +15545,11 @@ categories: ${categories.join(" ")}`;
     }) => {
       const tabContentsId = computeTabContentsId(id);
       const tabContentsRef = scrollRef || A$1(null);
-      y(() => {
-        setTimeout(() => {
-          if (scrollPosition !== void 0 && tabContentsRef.current && tabContentsRef.current.scrollTop !== scrollPosition) {
-            tabContentsRef.current.scrollTop = scrollPosition;
-          }
-        }, 0);
-      });
+      setTimeout(() => {
+        if (scrollPosition !== void 0 && tabContentsRef.current && tabContentsRef.current.scrollTop !== scrollPosition) {
+          tabContentsRef.current.scrollTop = scrollPosition;
+        }
+      }, 0);
       const onScroll = q$1(
         (e2) => {
           setScrollPosition(e2.srcElement.scrollTop);
@@ -15655,7 +15663,8 @@ categories: ${categories.join(" ")}`;
               "epoch-filter-label",
               "text-size-smaller",
               "text-style-label",
-              "text-style-secondary"
+              "text-style-secondary",
+              styles$k.label
             ),
             children: "Epochs:"
           }
@@ -36229,12 +36238,7 @@ Supported expressions:
         );
       }
       tools.push(
-        m$1`<${SortFilter}
-      sampleDescriptor=${sampleDescriptor}
-      sort=${sort}
-      setSort=${setSort}
-      epochs=${hasEpochs}
-    />`
+        m$1`<${SortFilter} sort=${sort} setSort=${setSort} epochs=${hasEpochs} />`
       );
       return tools;
     };
