@@ -75,7 +75,7 @@ def bridge(agent: Callable[[dict[str, Any]], Awaitable[dict[str, Any]]]) -> Solv
     Here is the simplest possible agent definition. Note that similar to
     defining a `Solver` we create a function that returns another `run()`
     function which is passed the sample (this enables us to give our
-    function options much as we do with solvers).
+    agent options much as we do with solvers).
 
     ```python
     from openai import AsyncOpenAI
