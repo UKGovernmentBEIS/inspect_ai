@@ -6532,7 +6532,7 @@ categories: ${categories.join(" ")}`;
         { label: "sample asc", val: kSampleAscVal },
         { label: "sample desc", val: kSampleDescVal }
       ];
-      if (epochs) {
+      if (epochs > 1) {
         options.push({
           label: "epoch asc",
           val: kEpochAscVal
@@ -35918,7 +35918,7 @@ Supported expressions:
     const SampleFilter = ({
       evalDescriptor,
       filter,
-      filterChanged
+      setScoreFilter
     }) => {
       const editorRef = A$1(null);
       const editorViewRef = A$1(null);
@@ -35945,7 +35945,7 @@ Supported expressions:
           const newValue = update.state.doc.toString();
           const filteringResult = getFilteringResult(evalDescriptor, newValue);
           if (!filteringResult.error) {
-            filterChanged({ value: newValue });
+            setScoreFilter({ value: newValue });
           }
           setFilteringResultInstant(filteringResult);
         }
@@ -36196,50 +36196,41 @@ Supported expressions:
     const scorerIndex = (score2, scores2) => scores2.findIndex((sc) => {
       return sc.scorer === score2.scorer;
     });
-    const SampleTools = (props) => {
-      const {
-        epoch,
-        setEpoch,
-        filter,
-        filterChanged,
-        sort,
-        setSort,
-        epochs,
-        sampleDescriptor,
-        score: score2,
-        setScore,
-        scores: scores2
-      } = props;
-      const hasEpochs = epochs > 1;
+    const SampleTools = ({
+      epoch,
+      setEpoch,
+      epochs,
+      filter,
+      setScoreFilter,
+      sort,
+      setSort,
+      score: score2,
+      setScore,
+      scores: scores2,
+      sampleDescriptor
+    }) => {
       const tools = [];
       tools.push(
-        m$1`<${SampleFilter}
-      evalDescriptor=${sampleDescriptor.evalDescriptor}
-      filter=${filter}
-      filterChanged=${filterChanged}
-    />`
+        /* @__PURE__ */ u(
+          SampleFilter,
+          {
+            evalDescriptor: sampleDescriptor.evalDescriptor,
+            filter,
+            setScoreFilter
+          }
+        )
       );
       if (scores2.length > 1) {
         tools.push(
-          m$1`<${SelectScorer}
-        scores=${scores2}
-        score=${score2}
-        setScore=${setScore}
-      />`
+          /* @__PURE__ */ u(SelectScorer, { scores: scores2, score: score2, setScore })
         );
       }
-      if (hasEpochs) {
+      if (epochs > 1) {
         tools.push(
-          m$1`<${EpochFilter}
-        epoch=${epoch}
-        setEpoch="${setEpoch}"
-        epochs=${epochs}
-      />`
+          /* @__PURE__ */ u(EpochFilter, { epoch, setEpoch, epochs })
         );
       }
-      tools.push(
-        m$1`<${SortFilter} sort=${sort} setSort=${setSort} epochs=${hasEpochs} />`
-      );
+      tools.push(/* @__PURE__ */ u(SortFilter, { sort, setSort, epochs }));
       return tools;
     };
     const navbarContainer = "_navbarContainer_838qu_1";

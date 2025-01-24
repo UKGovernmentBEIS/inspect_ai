@@ -32,7 +32,7 @@ interface FilteringResult {
 interface SampleFilterProps {
   evalDescriptor: EvalDescriptor;
   filter: ScoreFilter;
-  filterChanged: (filter: ScoreFilter) => void;
+  setScoreFilter: (filter: ScoreFilter) => void;
 }
 
 // Constants
@@ -149,7 +149,7 @@ const getLints = (
 export const SampleFilter: React.FC<SampleFilterProps> = ({
   evalDescriptor,
   filter,
-  filterChanged,
+  setScoreFilter,
 }) => {
   const editorRef = useRef<HTMLDivElement>(null);
   const editorViewRef = useRef<EditorView>(null);
@@ -186,7 +186,7 @@ export const SampleFilter: React.FC<SampleFilterProps> = ({
         const newValue = update.state.doc.toString();
         const filteringResult = getFilteringResult(evalDescriptor, newValue);
         if (!filteringResult.error) {
-          filterChanged({ value: newValue });
+          setScoreFilter({ value: newValue });
         }
         setFilteringResultInstant(filteringResult);
       }

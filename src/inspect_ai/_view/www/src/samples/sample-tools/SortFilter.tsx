@@ -13,7 +13,6 @@ import { SamplesDescriptor } from "../SamplesDescriptor.mjs";
 import styles from "./SortFilter.module.css";
 
 interface SortFilterProps {
-  sampleDescriptor: SamplesDescriptor;
   sort: string;
   setSort: (sort: string) => void;
   epochs: number;
@@ -28,7 +27,7 @@ export const SortFilter: React.FC<SortFilterProps> = ({
     { label: "sample asc", val: kSampleAscVal },
     { label: "sample desc", val: kSampleDescVal },
   ];
-  if (epochs) {
+  if (epochs > 1) {
     options.push({
       label: "epoch asc",
       val: kEpochAscVal,

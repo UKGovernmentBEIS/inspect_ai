@@ -6,7 +6,7 @@ import { ApplicationIcons } from "../appearance/icons";
 import { EmptyPanel } from "../components/EmptyPanel";
 import { TabPanel, TabSet } from "../components/TabSet";
 import { ToolButton } from "../components/ToolButton";
-import { SampleTools } from "../samples/SamplesTools.mjs";
+import { SampleTools } from "../samples/SamplesTools";
 import { Navbar } from "./navbar/Navbar.tsx";
 import { JsonTab } from "./tabs/JsonTab";
 import { SamplesTab } from "./tabs/SamplesTab.mjs";
