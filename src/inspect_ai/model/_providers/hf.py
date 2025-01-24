@@ -151,7 +151,7 @@ class HuggingFaceAPI(ModelAPI):
         if "return_dict_in_generate" in kwargs:
             assert kwargs["return_dict_in_generate"]
         if config.stop_seqs is not None:
-            from transformers.generation.stopping_criteria import StopStringCriteria
+            from transformers.generation import StopStringCriteria  # type: ignore
 
             stopping_criteria = [StopStringCriteria(self.tokenizer, config.stop_seqs)]
             kwargs["stopping_criteria"] = stopping_criteria
