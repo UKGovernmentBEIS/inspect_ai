@@ -10,7 +10,6 @@ The example includes the following source files:
 | [task.py](task.py)       | Evaluation task which uses `bridge()` to use the AutoGen agent as a solver.          |
 | [dataset.json](dataset.json) | Dataset with questions and ideal answers.                                              |
 
-To run the example, first, be sure you have a [Tavili](https://tavily.com/) account and set the `TAVILY_API_KEY` environment variable.
 
 To run the example, install the following Python packages then install Playwright:
 

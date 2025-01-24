@@ -13,7 +13,7 @@ from langgraph.prebuilt import create_react_agent
 
 
 def web_research_agent(*, model: BaseChatModel | None = None, max_results: int = 5):
-    """LangChain web research agent.
+    """LangChain Tavili search agent.
 
     Can be used outside of Inspect (see __main__ handler below) or within Inspect
     using the bridge() function (see task.py)
