@@ -17,23 +17,24 @@ from inspect_ai._util.error import pip_dependency_error
 from inspect_ai._util.content import Content, ContentText
 from inspect_ai.tool import ToolChoice, ToolInfo
 
-from inspect_ai.model._model import ModelAPI
-from inspect_ai.model._model_output import (
+from .._model_call import ModelCall
+from .._model import ModelAPI
+from .._model_output import (
     ModelOutput,
     ModelUsage,
     ChatCompletionChoice,
     StopReason,
 )
-from inspect_ai.model._chat_message import (
+from .._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
     ChatMessageSystem,
     ChatMessageTool,
     ChatMessageUser,
 )
-from inspect_ai.model._generate_config import GenerateConfig
-from inspect_ai.model._call_tools import Tool
-from inspect_ai.model._providers.util import environment_prerequisite_error, model_base_url
+from .._generate_config import GenerateConfig
+from .._call_tools import Tool
+from .util import environment_prerequisite_error, model_base_url
 
 logger = logging.getLogger(__name__)
 
@@ -178,15 +179,22 @@ class GoodfireAPI(ModelAPI):
         """Handle API errors and convert to appropriate outputs."""
         error_msg = str(ex).lower()
         
-        # Only handle rate limits and return other errors as-is
-        if self.is_rate_limit(ex):
+        # Handle context window overflows
+        if "context length" in error_msg or "max tokens" in error_msg:
             return ModelOutput.from_content(
                 model=self.model_name,
                 content=str(ex),
-                stop_reason="unknown",
+                stop_reason="model_length",
                 error=error_msg,
             )
-        
+        # Handle content policy refusals
+        elif "content policy" in error_msg or "refused" in error_msg:
+            return ModelOutput.from_content(
+                model=self.model_name,
+                content=str(ex),
+                stop_reason="content_filter", 
+                error=error_msg,
+            )
         return ex
 
     @override
@@ -218,67 +226,48 @@ class GoodfireAPI(ModelAPI):
         config: GenerateConfig,
         *,
         cache: bool = True,
-    ) -> ModelOutput:
-        """Generate output from the model.
-
-        Args:
-            input: List of chat messages for the conversation
-            tools: Available tools (not currently supported)
-            tool_choice: Tool selection directive (not currently supported) 
-            config: Generation parameters
-            cache: Whether to use response caching
-
-        Returns:
-            ModelOutput containing the generated response and usage statistics
-            
-        Raises:
-            ValueError: If the input is invalid
-            RuntimeError: If the API call fails
-        """
+    ) -> tuple[ModelOutput | Exception, ModelCall]:
+        """Generate output from the model."""
         # Convert messages and prepare request params
         messages = [self._to_goodfire_message(msg) for msg in input]
         params = {
             "model": self.model_name,
             "messages": messages,
-            "max_completion_tokens": int(config.max_tokens) if config.max_tokens is not None else DEFAULT_MAX_TOKENS,
-            "temperature": float(config.temperature) if config.temperature is not None else DEFAULT_TEMPERATURE,
-            "top_p": float(config.top_p) if config.top_p is not None else DEFAULT_TOP_P,
+            "max_completion_tokens": int(config.max_tokens) if config.max_tokens else DEFAULT_MAX_TOKENS,
+            "temperature": float(config.temperature) if config.temperature else DEFAULT_TEMPERATURE,
+            "top_p": float(config.top_p) if config.top_p else DEFAULT_TOP_P,
             "stream": False,
         }
 
         try:
-            # Make API request and convert response to dict
-            response = self.client.chat.completions.create(**params)  # type: ignore[arg-type]
+            response = self.client.chat.completions.create(**params)
             response_dict = response.model_dump()
 
-            # Create output with choices
             output = ModelOutput(
                 model=self.model_name,
-                choices=[
-                    ChatCompletionChoice(
-                        message=ChatMessageAssistant(
-                            content=response_dict["choices"][0]["message"]["content"]
-                        ),
-                        stop_reason="stop",  # Goodfire doesn't provide finish_reason
-                    )
-                ],
+                choices=[ChatCompletionChoice(
+                    message=ChatMessageAssistant(
+                        content=response_dict["choices"][0]["message"]["content"]
+                    ),
+                    stop_reason="stop"
+                )],
+                usage=ModelUsage(**response_dict["usage"]) if "usage" in response_dict else None
             )
-
-            # Add usage statistics if available
-            if "usage" in response_dict:
-                output.usage = ModelUsage(
-                    input_tokens=response_dict["usage"]["prompt_tokens"],
-                    output_tokens=response_dict["usage"]["completion_tokens"],
-                    total_tokens=response_dict["usage"]["total_tokens"],
-                )
-
-            return output
+            
+            model_call = ModelCall.create(
+                request=params,
+                response=response_dict
+            )
+            
+            return (output, model_call)
             
         except Exception as ex:
             result = self.handle_error(ex)
-            if isinstance(result, ModelOutput):
-                return result
-            raise result
+            model_call = ModelCall.create(
+                request=params,
+                response={}  # Empty response for error case
+            )
+            return (result, model_call) if isinstance(result, ModelOutput) else (ex, model_call)
 
     @property
     def name(self) -> str:
