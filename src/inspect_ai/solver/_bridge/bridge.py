@@ -34,9 +34,9 @@ def bridge(agent: Callable[[dict[str, Any]], Awaitable[dict[str, Any]]]) -> Solv
         model: str
         sample_id: str
         epoch: int
-        messages: list[ChatCompletionMessageParam]
+        input: list[ChatCompletionMessageParam]
         metadata: dict[str, Any]
-        target: list[str]
+        target: str | list[str]
 
     class ScoreDict(TypedDict):
         value: (
@@ -82,7 +82,7 @@ def bridge(agent: Callable[[dict[str, Any]], Awaitable[dict[str, Any]]]) -> Solv
     async def my_agent(sample: dict[str, Any]) -> dict[str, Any]:
         client = AsyncOpenAI()
         completion = await client.chat.completions.create(
-            messages=sample["messages"],
+            messages=sample["input"],
             model=sample["model"]
         )
         return {
@@ -130,7 +130,7 @@ def bridge(agent: Callable[[dict[str, Any]], Awaitable[dict[str, Any]]]) -> Solv
         model: str
         sample_id: str
         epoch: int
-        messages: list[ChatCompletionMessageParam]
+        input: list[ChatCompletionMessageParam]
         metadata: dict[str, Any]
         target: list[str]
 
@@ -143,20 +143,19 @@ def bridge(agent: Callable[[dict[str, Any]], Awaitable[dict[str, Any]]]) -> Solv
     result_validator = Draft7Validator(result_schema)
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
-        # convert messages to openai messages
+        # resolve input to array
         input: list[ChatMessage] = (
             [ChatMessageUser(content=state.input)]
             if isinstance(state.input, str)
             else state.input
         )
-        messages = await openai_chat_messages(input, state.model.name)
 
         # create sample
         sample = BridgeSample(
             model=str(state.model),
             sample_id=str(state.sample_id),
             epoch=state.epoch,
-            messages=messages,
+            input=await openai_chat_messages(input, state.model.name),
             metadata=state.metadata,
             target=list(state.target),
         )

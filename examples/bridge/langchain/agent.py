@@ -22,8 +22,8 @@ async def research_agent(sample: dict[str, Any]) -> dict[str, Any]:
     model_name = sample["model"]
     model = ChatOpenAI(model_name=model_name)
 
-    # Read messages (these are in standard OpenAI format, convert to LangChain)
-    messages = convert_to_messages(sample["messages"])
+    # Read input messages (these are in standard OpenAI format, convert to LangChain)
+    input = convert_to_messages(sample["input"])
 
     # Configure web research tools/agent
     tools = [TavilySearchResults()]
@@ -31,14 +31,14 @@ async def research_agent(sample: dict[str, Any]) -> dict[str, Any]:
 
     # Execute the agent
     result = await agent_executor.ainvoke(
-        input={"messages": messages},
+        input={"messages": input},
         config={"configurable": {"thread_id": uuid4()}},
     )
 
     # Read and return messages and output (convert messages to OpenAI format)
-    agent_messages = convert_to_openai_messages(result["messages"])
-    agent_output = agent_messages[-1]["content"]
-    return dict(output=agent_output, messages=agent_messages)
+    messages = convert_to_openai_messages(result["messages"])
+    output = messages[-1]["content"]
+    return dict(output=output, messages=messages)
 
 
 # Develop and test the agent in isolation from Inspect
@@ -50,8 +50,7 @@ if __name__ == "__main__":
         with open(dataset_path, "r") as f:
             dataset = list(jsonlines.Reader(f).iter(type=dict))
             samples = [
-                dict(model="gpt-4o-mini", messages=record["input"])
-                for record in dataset
+                dict(model="gpt-4o-mini", input=record["input"]) for record in dataset
             ]
 
         # Run samples in parallel
