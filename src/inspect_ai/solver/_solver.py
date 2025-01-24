@@ -180,6 +180,7 @@ def solver(
             solver_type, name if name else getattr(solver_type, "__name__")
         )
 
+        @wraps(solver_type)
         def solver_wrapper(*args: P.args, **kwargs: P.kwargs) -> Solver:
             solver = solver_type(*args, **kwargs)
 
@@ -193,6 +194,7 @@ def solver(
             if inspect.isclass(type(solver)):
                 original_call = solver.__call__
 
+                @wraps(original_call)
                 async def call_with_state(
                     state: TaskState, generate: Generate
                 ) -> TaskState:
@@ -224,6 +226,10 @@ def solver(
             )
 
             return registered_solver
+
+        # functools.wraps overrides the return type annotation of the inner function, so
+        # we explicitly set it again
+        solver_wrapper.__annotations__["return"] = Solver
 
         return solver_register(cast(Callable[P, Solver], solver_wrapper), solver_name)
 
