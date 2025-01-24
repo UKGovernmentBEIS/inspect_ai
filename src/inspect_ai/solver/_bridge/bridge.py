@@ -72,23 +72,30 @@ def bridge(agent: Callable[[dict[str, Any]], Awaitable[dict[str, Any]]]) -> Solv
     agents will rely on Inspect native scorers, this is here as an
     escape hatch for agents that want to do their own scoring).
 
-    Here is the simplest possible agent definition:
+    Here is the simplest possible agent definition. Note that similar to
+    defining a `Solver` we create a function that returns another `run()`
+    function which is passed the sample (this enables us to give our
+    function options much as we do with solvers).
 
     ```python
     from openai import AsyncOpenAI
 
-    async def my_agent(sample: dict[str, Any]) -> dict[str, Any]:
-        client = AsyncOpenAI()
-        completion = await client.chat.completions.create(
-            model="inspect",
-            messages=sample["input"],
-        )
-        return {
-            "output": completion.choices[0].message.content
-        }
+    def my_agent():
+
+        async def run(sample: dict[str, Any]) -> dict[str, Any]:
+            client = AsyncOpenAI()
+            completion = await client.chat.completions.create(
+                model="inspect",
+                messages=sample["input"],
+            )
+            return {
+                "output": completion.choices[0].message.content
+            }
+
+        return run
     ```
 
-    Note that we pass `model="inspect"` -- this is a signal that
+    We pass `model="inspect"` to OpenAI -- this is a signal that
     Inspect should intercept this call and send it to the Inspect
     model being evaluated in this task.
 
@@ -107,7 +114,7 @@ def bridge(agent: Callable[[dict[str, Any]], Awaitable[dict[str, Any]]]) -> Solv
     def hello():
         return Task(
             dataset=[Sample(input="Please print the word 'hello'?", target="hello")],
-            solver=bridge(my_agent),
+            solver=bridge(my_agent()),
             scorer=includes(),
         )
     ```
