@@ -1,6 +1,13 @@
+# LangChain web research agent -- can be used outside of Inspect (see __main__
+# handler below) or within Inspect using the bridge() function (see task.py)
+
+
+import asyncio
+from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
+import jsonlines
 from langchain_community.tools.tavily_search import TavilySearchResults
 from langchain_core.messages import convert_to_messages, convert_to_openai_messages
 from langchain_openai import ChatOpenAI
@@ -32,3 +39,25 @@ async def research_agent(sample: dict[str, Any]) -> dict[str, Any]:
     agent_messages = convert_to_openai_messages(result["messages"])
     agent_output = agent_messages[-1]["content"]
     return dict(output=agent_output, messages=agent_messages)
+
+
+# Develop and test the agent in isolation from Inspect
+if __name__ == "__main__":
+
+    async def main():
+        # Read json lines dataset and build samples
+        dataset_path = Path(__file__).parent / "dataset.jsonl"
+        with open(dataset_path, "r") as f:
+            dataset = list(jsonlines.Reader(f).iter(type=dict))
+            samples = [
+                dict(model="gpt-4o-mini", messages=record["input"])
+                for record in dataset
+            ]
+
+        # Run samples in parallel
+        results = await asyncio.gather(*[research_agent(sample) for sample in samples])
+
+        # Print outputs
+        print([result["output"] for result in results])
+
+    asyncio.run(main())
