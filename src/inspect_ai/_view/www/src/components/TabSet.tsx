@@ -1,6 +1,5 @@
 import clsx from "clsx";
-import React from "preact/compat";
-import { useCallback, useEffect, useRef } from "preact/hooks";
+import { Fragment, useCallback, useRef } from "react";
 import moduleStyles from "./TabSet.module.css";
 
 interface TabSetProps {
@@ -48,7 +47,7 @@ export const TabSet: React.FC<TabSetProps> = ({
 
   // Render the tabs
   return (
-    <React.Fragment>
+    <Fragment>
       <ul
         id={id}
         class={clsx("nav", `nav-${tabType}`, classes, moduleStyles.tabs)}
@@ -60,7 +59,7 @@ export const TabSet: React.FC<TabSetProps> = ({
         <TabTools tools={tools} />
       </ul>
       <TabPanels id={id} tabs={tabs} style={styles?.tabBody} />
-    </React.Fragment>
+    </Fragment>
   );
 };
 
@@ -78,17 +77,16 @@ export const TabPanel: React.FC<TabPanelProps> = ({
 }) => {
   const tabContentsId = computeTabContentsId(id);
   const tabContentsRef = scrollRef || useRef(null);
-  useEffect(() => {
-    setTimeout(() => {
-      if (
-        scrollPosition !== undefined &&
-        tabContentsRef.current &&
-        tabContentsRef.current.scrollTop !== scrollPosition
-      ) {
-        tabContentsRef.current.scrollTop = scrollPosition;
-      }
-    }, 0);
-  });
+
+  setTimeout(() => {
+    if (
+      scrollPosition !== undefined &&
+      tabContentsRef.current &&
+      tabContentsRef.current.scrollTop !== scrollPosition
+    ) {
+      tabContentsRef.current.scrollTop = scrollPosition;
+    }
+  }, 0);
 
   const onScroll = useCallback(
     (e: any) => {
