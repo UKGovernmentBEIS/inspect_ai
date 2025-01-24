@@ -22,6 +22,7 @@ from inspect_ai.model._openai import (
     openai_chat_choices,
     openai_completion_usage,
 )
+from inspect_ai.solver._task_state import sample_state
 from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.tool._tool_params import ToolParams
 
@@ -125,6 +126,12 @@ async def inspect_model_request(
         tools=inspect_tools,
         config=generate_config_from_openai(options),
     )
+
+    # if we are using the "default" inspect model for the task, update state.messages
+    if model_name == "inspect":
+        state = sample_state()
+        if state:
+            state.messages = input + [output.choices[0].message]
 
     # inspect completion to openai completion
     return ChatCompletion(

@@ -64,14 +64,13 @@ def bridge(agent: Callable[[dict[str, Any]], Awaitable[dict[str, Any]]]) -> Solv
     so long as you consume and produce `dict` values that match
     their declarations.
 
-    Returning `messages` is not required but is highly recommended
-    so that people running the agent can see the full message history
-    in the Inspect log viewer.
+    Returning `messages` is not required -- messages are automatically
+    synced to the task state during generate, return `messages` if
+    you want to customise the default behavior.
 
-    Returning `scores` is entirely optional (most agents
-    will in fact rely on Inspect native scorers, this is here as an
+    Returning `scores` is also optional and not common (nearly all
+    agent will rely on Inspect native scorers, this is here as an
     escape hatch for agents that want to do their own scoring).
-
 
     Here is the simplest possible agent definition:
 

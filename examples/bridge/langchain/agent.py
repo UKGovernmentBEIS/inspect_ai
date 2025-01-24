@@ -6,7 +6,7 @@ from uuid import uuid4
 
 from langchain_community.tools.tavily_search import TavilySearchResults
 from langchain_core.language_models import BaseChatModel
-from langchain_core.messages import convert_to_messages, convert_to_openai_messages
+from langchain_core.messages import AIMessage, convert_to_messages
 from langchain_openai import ChatOpenAI
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.prebuilt import create_react_agent
@@ -37,7 +37,7 @@ def research_agent(*, model: str | BaseChatModel = "inspect", max_results: int =
 
     # Sample handler
     async def run(sample: dict[str, Any]) -> dict[str, Any]:
-        # Read input messages (these are in standard OpenAI format, convert to LangChain)
+        # Read input (these are standard OpenAI message dicts, convert to LangChain)
         input = convert_to_messages(sample["input"])
 
         # Execute the agent
@@ -46,10 +46,9 @@ def research_agent(*, model: str | BaseChatModel = "inspect", max_results: int =
             config={"configurable": {"thread_id": uuid4()}},
         )
 
-        # Read and return messages and output (convert messages to OpenAI format)
-        messages = convert_to_openai_messages(result["messages"])
-        output = messages[-1]["content"]
-        return dict(output=output, messages=messages)
+        # Return output (content of last message)
+        ai_message: AIMessage = result["messages"][-1]
+        return dict(output=str(ai_message.content))
 
     return run
 
