@@ -685,16 +685,6 @@ when building the container.
 
 ## Computer (Beta)
 
-> [!NOTE]
->
-> The beta version of the computer tool described below is currently
-> available only in the development version of Inspect. To install the
-> development version:
->
-> ``` bash
-> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-> ```
-
 The `computer()` tool provides models with a computer desktop
 environment along with the ability to view the screen and perform mouse
 and keyboard gestures. The computer tool is based on the Anthropic
@@ -711,8 +701,9 @@ next several weeks.
 ### Configuration
 
 The `computer()` tool runs within a Docker container. To use it with a
-task you need to reference the `aisiuk/inspect-computer-tool` image in
-your Docker compose file. For example:
+task you need to reference the
+`aisiuk/inspect-computer-tool:latest-beta` image in your Docker compose
+file. For example:
 
 <div class="code-with-filename">
 

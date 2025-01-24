@@ -255,16 +255,6 @@ def agent_loop(token_limit: int = (1024 * 500)) -> Solver:
 
 ### Custom Limit
 
-> [!NOTE]
->
-> The ability to enforce custom limits described below is currently
-> available only in the development version of Inspect. To install the
-> development version from GitHub:
->
-> ``` bash
-> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-> ```
-
 When limits are exceeded, a `SampleLimitExceededError` is raised and
 caught by the main Inspect sample execution logic. If you want to create
 custom limit types, you can enforce them by raising a

@@ -529,16 +529,6 @@ generation work.
 
 ### Scoring in Solvers
 
-> [!NOTE]
->
-> The solver-based scoring feature described below is currently
-> available only in the development version of Inspect. To install the
-> development version from GitHub:
->
-> ``` bash
-> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-> ```
-
 Typically, solvers don’t score samples but rather leave that to
 externally specified [scorers](scorers.qmd). However, in some cases it
 is more convenient to have solvers also do scoring (e.g. when there is
