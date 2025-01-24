@@ -420,14 +420,6 @@ Note that calls to `generate()` (for both the critique model and the model being
 
 ### Scoring in Solvers {#sec-scoring-in-solvers}
 
-::: {.callout-note appearance="simple"}
-The solver-based scoring feature described below is currently available only in the development version of Inspect. To install the development version from GitHub:
-
-``` bash
-pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-```
-:::
-
 Typically, solvers don't score samples but rather leave that to externally specified [scorers](scorers.qmd). However, in some cases it is more convenient to have solvers also do scoring (e.g. when there is high coupling between the solver and scoring). The following two task state fields can be used for scoring:
 
 | Member   | Type               | Description                  |
@@ -435,7 +427,8 @@ Typically, solvers don't score samples but rather leave that to externally speci
 | `target` | Target             | Scoring target from `Sample` |
 | `scores` | dict\[str, Score\] | Optional scores.             |
 
-: Here is a trivial example of the code that might be used to yield scores from a solver:
+
+Here is a trivial example of the code that might be used to yield scores from a solver:
 
 ``` python
 async def solve(state: TaskState, generate: Generate):

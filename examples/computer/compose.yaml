@@ -1,24 +1,16 @@
 services:
   default:
-    # Use internal until update is published.Temporary internal image until the official one is available
-    # image: aisiuk/inspect-computer-tool:latest-beta
-    image: inspect-computer-tool
+    image: aisiuk/inspect-computer-tool:latest-beta
     init: true
 
-    # If you only launch a single container, you can vnc into that container by using
-    # the following port mapping
-    # ports:
-    #   - "5900:5900"
-    #   - "6080:6080"
-
-    # If you launch multiple containers, you can vnc into each container by using the
-    # following port mapping which will dynamically bind to host ports. The specific
-    # bindings can be found by using `docker inspect <container_id_or_name>`. This
-    # info is included in Running Samples tab. The output will look something like:
+    # You can vnc into each container by using the following port mapping which will 
+    # dynamically bind to host ports. The specific bindings can be found by using 
+    # `docker inspect <container_id_or_name>`. This info is included in Running Samples
+    # tab. The output will look something like:
     #
-    #  service                  container port            host port                 url
-    #  VNC                      5900                      61029                     vnc://localhost:61029
-    #  noVNC                    6080                      61030                     http://localhost:61030?view_only=true&autoconnect=true
+    #  service   container   host     url
+    #  VNC       5900        61029    vnc://localhost:61029
+    #  noVNC     6080        61030    http://localhost:61030?view_only=true&autoconnect=true
 
     ports:
       - "5900"
