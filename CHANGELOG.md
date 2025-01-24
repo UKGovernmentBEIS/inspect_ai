@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Add `@wraps` to functions wrapped by Inspect decorators to preserve type information.
+- Hugging Face: Add support for stop sequences for HF models.
 
 ## v0.3.59 (24 January 2025)
 
