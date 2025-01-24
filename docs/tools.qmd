@@ -438,7 +438,7 @@ The current release of the computer tool is a beta version (exported from the `i
 
 ### Configuration
 
-The `computer()` tool runs within a Docker container. To use it with a task you need to reference the `aisiuk/inspect-computer-tool` image in your Docker compose file. For example:
+The `computer()` tool runs within a Docker container. To use it with a task you need to reference the `aisiuk/inspect-computer-tool:latest-beta` image in your Docker compose file. For example:
 
 ``` {.yaml filename="compose.yaml"}
 services:
