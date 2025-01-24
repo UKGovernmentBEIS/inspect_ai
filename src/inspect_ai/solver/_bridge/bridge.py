@@ -69,7 +69,7 @@ def bridge(agent: Callable[[dict[str, Any]], Awaitable[dict[str, Any]]]) -> Solv
     you want to customise the default behavior.
 
     Returning `scores` is also optional and not common (nearly all
-    agent will rely on Inspect native scorers, this is here as an
+    agents will rely on Inspect native scorers, this is here as an
     escape hatch for agents that want to do their own scoring).
 
     Here is the simplest possible agent definition:
