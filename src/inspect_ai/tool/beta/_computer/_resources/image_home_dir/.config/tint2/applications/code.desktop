@@ -1,8 +1,0 @@
-[Desktop Entry]
-Name=VS Code
-Comment=Open VS Code
-Exec=code
-Icon=/usr/share/code/resources/app/resources/linux/code.png
-Terminal=false
-Type=Application
-Categories=TextEditor;

@@ -9,8 +9,8 @@ from pathlib import Path
 from typing import Literal, TypedDict
 from uuid import uuid4
 
-from ._run import run
-from ._tool_result import ToolResult
+from _run import run
+from _tool_result import ToolResult
 
 OUTPUT_DIR = "/tmp/outputs"
 
@@ -189,7 +189,7 @@ class X11Client:
                     "left_click": "1",
                     "right_click": "3",
                     "middle_click": "2",
-                    "double_click": "--repeat 2 --delay 500 1",
+                    "double_click": "--repeat 2 --delay 300 1",
                 }[action]
                 return await self.shell(f"{self.xdotool} click {click_arg}")
 
