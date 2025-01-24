@@ -2,7 +2,7 @@ import { html } from "htm/preact";
 
 import { EpochFilter } from "./sample-tools/EpochFilter";
 import { SampleFilter } from "./sample-tools/sample-filter/SampleFilter";
-import { SelectScorer } from "./sample-tools/SelectScorer.mjs";
+import { SelectScorer } from "./sample-tools/SelectScorer";
 import { SortFilter } from "./sample-tools/SortFilter.mjs";
 
 export const SampleTools = (props) => {
