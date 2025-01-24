@@ -139,7 +139,7 @@ async def inspect_model_request(
         created=int(time()),
         object="chat.completion",
         choices=openai_chat_choices(output.choices),
-        model=str(model),
+        model=model_name,
         usage=openai_completion_usage(output.usage) if output.usage else None,
     )
 
