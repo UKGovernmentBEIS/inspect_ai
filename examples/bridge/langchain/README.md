@@ -1,6 +1,6 @@
 ## LangChain Agent
 
-This example demonstrates using a native LangChain agent with Insepct to perform Q/A using the [Tavili](https://tavily.com/) Search API. The example uses the new [`bridge()`](https://github.com/UKGovernmentBEIS/inspect_ai/pull/1181) solver which enables integrating arbitrary 3rd party agent frameworks into Inspect.
+This example demonstrates using a native [LangChain](https://www.langchain.com/) agent with Inspect to perform Q/A using the [Tavili Search API](https://tavily.com/). The example uses the new [`bridge()`](https://github.com/UKGovernmentBEIS/inspect_ai/pull/1181) solver which enables integrating arbitrary 3rd party agent frameworks into Inspect.
 
 The example includes the following source files:
 

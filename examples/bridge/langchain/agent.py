@@ -12,14 +12,14 @@ from langgraph.checkpoint.memory import MemorySaver
 from langgraph.prebuilt import create_react_agent
 
 
-def research_agent(*, model: str | BaseChatModel = "inspect", max_results: int = 5):
+def web_research_agent(*, model: BaseChatModel | None = None, max_results: int = 5):
     """LangChain web research agent.
 
     Can be used outside of Inspect (see __main__ handler below) or within Inspect
     using the bridge() function (see task.py)
 
     Args:
-       model: "inspect" for use with the Inspect bridge or a LangChain model.
+       model: LangChain model. Specify `None` (the default) when using with Inspect.
        max_results: Max search results to return (for use of Tavily search tool)
 
     Returns:
@@ -27,7 +27,7 @@ def research_agent(*, model: str | BaseChatModel = "inspect", max_results: int =
        to create a standard Inspect solver.
     """
     # Configure web research tools/agent
-    agent_model = ChatOpenAI(model="inspect") if model == "inspect" else model
+    agent_model = ChatOpenAI(model="inspect") if model is None else model
     agent_tools = [TavilySearchResults(max_results=max_results)]
     agent_executor = create_react_agent(
         model=agent_model,
@@ -63,7 +63,7 @@ if __name__ == "__main__":
             dataset = json.load(f)
 
         # Create agent and run samples in parallel
-        agent = research_agent(model=ChatOpenAI(model="gpt-4o"))
+        agent = web_research_agent(model=ChatOpenAI(model="gpt-4o"))
         results = await asyncio.gather(*[agent(sample) for sample in dataset])
 
         # Print outputs
