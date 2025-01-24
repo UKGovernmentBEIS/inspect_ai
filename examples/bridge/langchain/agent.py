@@ -1,9 +1,9 @@
 import asyncio
+import json
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-import jsonlines
 from langchain_community.tools.tavily_search import TavilySearchResults
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import convert_to_messages, convert_to_openai_messages
@@ -54,21 +54,20 @@ def research_agent(*, model: str | BaseChatModel = "inspect", max_results: int =
     return run
 
 
-# Develop and test the agent in isolation from Inspect
+# Use the agent outside of Inspect
 if __name__ == "__main__":
 
     async def main():
-        # Read json lines dataset and build samples
-        dataset_path = Path(__file__).parent / "dataset.jsonl"
+        # Read json dataset
+        dataset_path = Path(__file__).parent / "dataset.json"
         with open(dataset_path, "r") as f:
-            dataset = list(jsonlines.Reader(f).iter(type=dict))
-            samples = [dict(input=record["input"]) for record in dataset]
+            dataset = json.load(f)
 
-        # Run samples in parallel
+        # Create agent and run samples in parallel
         agent = research_agent(model=ChatOpenAI(model="gpt-4o"))
-        results = await asyncio.gather(*[agent(sample) for sample in samples])
+        results = await asyncio.gather(*[agent(sample) for sample in dataset])
 
         # Print outputs
-        print([result["output"] for result in results])
+        print("\n\n===\n\n".join([result["output"] for result in results]))
 
     asyncio.run(main())

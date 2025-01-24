@@ -9,7 +9,7 @@ from inspect_ai.solver import bridge
 @task
 def research() -> Task:
     return Task(
-        dataset=json_dataset("dataset.jsonl"),
+        dataset=json_dataset("dataset.json"),
         solver=bridge(research_agent()),
         scorer=model_graded_fact(),
     )
