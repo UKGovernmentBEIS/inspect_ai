@@ -1,8 +1,6 @@
 services:
   default:
-    # Use internal until update is published.Temporary internal image until the official one is available
-    # image: aisiuk/inspect-computer-tool:latest-beta
-    image: inspect-computer-tool
+    image: aisiuk/inspect-computer-tool:latest-beta
     init: true
     # Dynamically assign ports for vnc and novnc
     ports:
