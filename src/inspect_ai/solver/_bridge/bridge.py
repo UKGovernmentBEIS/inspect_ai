@@ -31,7 +31,6 @@ def bridge(agent: Callable[[dict[str, Any]], Awaitable[dict[str, Any]]]) -> Solv
     from openai.types.chat import ChatCompletionMessageParam
 
     class SampleDict(TypedDict):
-        model: str
         sample_id: str
         epoch: int
         input: list[ChatCompletionMessageParam]
@@ -82,18 +81,17 @@ def bridge(agent: Callable[[dict[str, Any]], Awaitable[dict[str, Any]]]) -> Solv
     async def my_agent(sample: dict[str, Any]) -> dict[str, Any]:
         client = AsyncOpenAI()
         completion = await client.chat.completions.create(
+            model="inspect",
             messages=sample["input"],
-            model=sample["model"]
         )
         return {
             "output": completion.choices[0].message.content
         }
     ```
 
-    Note that you should always pass the "model" along to OpenAI exactly
-    as passed in the sample. While you are calling the standard
-    OpenAI API, these calls are intercepted by Inspect and sent to the
-    requisite Inspect model provider.
+    Note that we pass `model="inspect"` -- this is a signal that
+    Inspect should intercept this call and send it to the Inspect
+    model being evaluated in this task.
 
     Here is how you can use the `bridge()` function to use this agent
     as a solver:
@@ -127,7 +125,6 @@ def bridge(agent: Callable[[dict[str, Any]], Awaitable[dict[str, Any]]]) -> Solv
     from .patch import openai_request_to_inspect_model
 
     class BridgeSample(BaseModel):
-        model: str
         sample_id: str
         epoch: int
         input: list[ChatCompletionMessageParam]
@@ -152,7 +149,6 @@ def bridge(agent: Callable[[dict[str, Any]], Awaitable[dict[str, Any]]]) -> Solv
 
         # create sample
         sample = BridgeSample(
-            model=str(state.model),
             sample_id=str(state.sample_id),
             epoch=state.epoch,
             input=await openai_chat_messages(input, state.model.name),

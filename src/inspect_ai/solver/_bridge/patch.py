@@ -1,4 +1,5 @@
 import contextlib
+import re
 from contextvars import ContextVar
 from functools import wraps
 from time import time
@@ -73,12 +74,11 @@ def init_openai_request_patch() -> None:
                 # call to openai not another service (e.g. TogetherAI)
                 and self.base_url == "https://api.openai.com/v1/"
             ):
-                # check that we use "/" in model name (i.e. not a request for a standard
-                # openai model)
+                # must also be an explicit request for an inspect model
                 json_data = cast(dict[str, Any], options.json_data)
-                model = json_data["model"]
-                if isinstance(model, str) and "/" in model:
-                    return await inspect_model_request(model, options)
+                model_name = str(json_data["model"])
+                if re.match(r"^inspect/?", model_name):
+                    return await inspect_model_request(model_name, options)
 
             # otherwise just delegate
             return await original_request(
@@ -94,7 +94,7 @@ def init_openai_request_patch() -> None:
 
 
 async def inspect_model_request(
-    model: str, options: FinalRequestOptions
+    model_name: str, options: FinalRequestOptions
 ) -> ChatCompletion:
     # convert openai messages to inspect messages
     json_data = cast(dict[str, Any], options.json_data)
@@ -114,7 +114,13 @@ async def inspect_model_request(
             )
         )
 
-    output = await get_model(model).generate(
+    # resolve model
+    if model_name == "inspect":
+        model = get_model()
+    else:
+        model = get_model(model_name.removeprefix("inspect/"))
+
+    output = await model.generate(
         input=input,
         tools=inspect_tools,
         config=generate_config_from_openai(options),
@@ -126,7 +132,7 @@ async def inspect_model_request(
         created=int(time()),
         object="chat.completion",
         choices=openai_chat_choices(output.choices),
-        model=model,
+        model=str(model),
         usage=openai_completion_usage(output.usage) if output.usage else None,
     )
 

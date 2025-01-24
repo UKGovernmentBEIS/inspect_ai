@@ -14,8 +14,8 @@ async def agent(sample: dict[str, Any]) -> dict[str, Any]:
 
     client = AsyncOpenAI()
     completion = await client.chat.completions.create(
-        messages=sample["messages"],
-        model=sample["model"],
+        model="inspect",
+        messages=sample["input"],
         temperature=0.8,
         top_p=0.5,
         stop=["foo"],
@@ -52,7 +52,7 @@ def openai_api_task():
         async def solve(state, generate):
             client = AsyncOpenAI()
             await client.chat.completions.create(
-                model="gpt-4o-mini",
+                model="gpt-4o",
                 messages=[
                     {"role": "system", "content": "You are a helpful assistant."},
                     {
@@ -75,7 +75,7 @@ def eval_bridged_task(model: str) -> str:
 
 
 def check_openai_log_json(log_json: str):
-    assert r'"model": "gpt-4o-mini"' in log_json
+    assert r'"model": "gpt-4o"' in log_json
     assert r'"frequency_penalty": 1' in log_json
     assert dedent("""
     "stop": [
@@ -97,7 +97,7 @@ def check_openai_log_json(log_json: str):
 
 @skip_if_no_openai
 def test_bridged_agent():
-    log_json = eval_bridged_task("openai/gpt-4o-mini")
+    log_json = eval_bridged_task("openai/gpt-4o")
     check_openai_log_json(log_json)
 
 
