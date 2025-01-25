@@ -4,6 +4,7 @@ from jsonschema import Draft7Validator
 from pydantic import BaseModel, Field, ValidationError
 from pydantic_core import to_json
 
+from inspect_ai._util._async import is_callable_coroutine
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
 from inspect_ai.model._providers.providers import validate_openai_client
 from inspect_ai.scorer._metric import Score
@@ -144,6 +145,10 @@ def bridge(agent: Callable[[dict[str, Any]], Awaitable[dict[str, Any]]]) -> Solv
 
     result_schema = BridgeResult.model_json_schema()
     result_validator = Draft7Validator(result_schema)
+
+    # validate that the agent is an async function
+    if not is_callable_coroutine(agent):
+        raise TypeError(f"'{agent.__name__}' is not declared as an async callable.")
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         # resolve input to array
