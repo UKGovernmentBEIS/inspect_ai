@@ -37,6 +37,7 @@ from inspect_ai.tool import ToolChoice, ToolInfo
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_choice import ToolFunction
 
+from .._call_tools import parse_tool_call
 from .._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
@@ -60,7 +61,6 @@ from .util import (
 )
 from .util.chatapi import ChatAPIHandler
 from .util.llama31 import Llama31Handler
-from .util.util import parse_tool_call
 
 AZUREAI_API_KEY = "AZUREAI_API_KEY"
 AZUREAI_ENDPOINT_KEY = "AZUREAI_ENDPOINT_KEY"

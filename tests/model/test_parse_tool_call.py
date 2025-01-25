@@ -1,4 +1,4 @@
-from inspect_ai.model._providers.util import parse_tool_call
+from inspect_ai.model._call_tools import parse_tool_call
 from inspect_ai.tool import ToolInfo, ToolParam, ToolParams
 
 testing_tool = ToolInfo(
