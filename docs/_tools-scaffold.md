@@ -2,7 +2,11 @@
 2.  Exercise more fine grained control over which, when, and how many tool calls are made, and how tool calling errors are handled.
 3.  Have multiple `generate()` passes each with a distinct set of tools.
 
-To do this, create a solver that emulates the default tool use loop and provides additional customisation as required. For example, here is a complete solver agent that has essentially the same implementation as the default `generate()` function:
+To do this, create a solver that emulates the default tool use loop and provides additional customisation as required. 
+
+### Example
+
+For example, here is a complete solver agent that has essentially the same implementation as the default `generate()` function:
 
 ``` python
 @solver
@@ -32,7 +36,7 @@ def agent_loop(message_limit: int = 50):
     return solve
 ```
 
-The `state.completed` flag is automatically set to `False` if `message_limit` or `token_limit` for the task is exceeded, so we check it at the top of the loop.
+Solvers can set the `state.completed` flag to indicate that the sample is complete, so we check it at the top of the loop.
 
 You can imagine several ways you might want to customise this loop:
 
@@ -44,15 +48,9 @@ You can imagine several ways you might want to customise this loop:
 
 ### Stop Reasons {#sec-stop-reasons}
 
-One thing that a custom scaffold may do is try to recover from various conditions that cause the model to stop generating. You can find the reason that generation stopped in the `stop_reason` field of `ModelOutput`. For example:
+One thing that a custom scaffold may do is try to recover from various conditions that cause the model to stop generating. You can find the reason that generation stopped in the `stop_reason` field of `ModelOutput`. 
 
-``` python
-output = await model.generate(state.messages, state.tools)
-if output.stop_reason == "model_length":
-    # do something to recover from context window overflow
-```
-
-If you have written a scaffold loop that continues calling the model even after it stops calling tools, there may be values of `stop_reason` that indicate that the the loop should terminate anyway (because the error will just keep repeating on subsequent calls to the model). For example, the [basic agent](agents.qmd#sec-basic-agent) checks for `stop_reason` and exits under the following conditions:
+For example:, if you have written a scaffold loop that continues calling the model even after it stops calling tools, there may be values of `stop_reason` that indicate that the loop should terminate anyway (because the error will just keep repeating on subsequent calls to the model). For example, the [basic agent](agents.qmd#sec-basic-agent) checks for `stop_reason` and exits if there is a context window overflow:
 
 ```python
 # check for stop reasons that indicate we should terminate

@@ -24,13 +24,13 @@ from .._model_output import (
     ModelOutput,
     ModelUsage,
     StopReason,
+    as_stop_reason,
 )
+from .._openai import chat_message_assistant_from_openai
 from .openai import (
     OpenAIAPI,
-    chat_message_assistant,
 )
 from .util import (
-    as_stop_reason,
     chat_api_input,
     chat_api_request,
     environment_prerequisite_error,
@@ -68,7 +68,7 @@ def chat_choices_from_response_together(
         logprobs_models.append(Logprobs(content=logprobs_sequence))
     return [
         ChatCompletionChoice(
-            message=chat_message_assistant(choice.message, tools),
+            message=chat_message_assistant_from_openai(choice.message, tools),
             stop_reason=as_stop_reason(choice.finish_reason),
             logprobs=logprobs,
         )

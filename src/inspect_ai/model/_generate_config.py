@@ -34,7 +34,7 @@ class GenerateConfigArgs(TypedDict, total=False):
     """Sequences where the API will stop generating further tokens. The returned text will not contain the stop sequence."""
 
     best_of: int | None
-    """Generates best_of completions server-side and returns the 'best' (the one with the highest log probability per token). OpenAI only."""
+    """Generates best_of completions server-side and returns the 'best' (the one with the highest log probability per token). vLLM only."""
 
     frequency_penalty: float | None
     """Number between -2.0 and 2.0. Positive values penalize new tokens based on their existing frequency in the text so far, decreasing the model's likelihood to repeat the same line verbatim. OpenAI, Google, Grok, Groq, and vLLM only."""
@@ -47,9 +47,6 @@ class GenerateConfigArgs(TypedDict, total=False):
 
     seed: int | None
     """Random seed. OpenAI, Google, Mistral, Groq, HuggingFace, and vLLM only."""
-
-    suffix: str | None
-    """The suffix that comes after a completion of inserted text. OpenAI only."""
 
     top_k: int | None
     """Randomly sample the next word from the top_k most likely next words. Anthropic, Google, and HuggingFace only."""
@@ -107,7 +104,7 @@ class GenerateConfig(BaseModel):
     """Sequences where the API will stop generating further tokens. The returned text will not contain the stop sequence."""
 
     best_of: int | None = Field(default=None)
-    """Generates best_of completions server-side and returns the 'best' (the one with the highest log probability per token). OpenAI and vLLM only."""
+    """Generates best_of completions server-side and returns the 'best' (the one with the highest log probability per token). vLLM only."""
 
     frequency_penalty: float | None = Field(default=None)
     """Number between -2.0 and 2.0. Positive values penalize new tokens based on their existing frequency in the text so far, decreasing the model's likelihood to repeat the same line verbatim. OpenAI, Google, Grok, Groq, and vLLM only."""
@@ -120,9 +117,6 @@ class GenerateConfig(BaseModel):
 
     seed: int | None = Field(default=None)
     """Random seed. OpenAI, Google, Mistral, Groq, HuggingFace, and vLLM only."""
-
-    suffix: str | None = Field(default=None)
-    """The suffix that comes after a completion of inserted text. OpenAI only."""
 
     top_k: int | None = Field(default=None)
     """Randomly sample the next word from the top_k most likely next words. Anthropic, Google, HuggingFace, and vLLM only."""

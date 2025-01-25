@@ -1,6 +1,7 @@
 from inspect_ai._util.deprecation import relocated_module_attribute
 
 from ._basic_agent import basic_agent
+from ._bridge import bridge
 from ._chain import chain
 from ._critique import self_critique
 from ._fork import fork
@@ -14,6 +15,7 @@ from ._use_tools import use_tools
 
 __all__ = [
     "basic_agent",
+    "bridge",
     "human_agent",
     "chain",
     "fork",
