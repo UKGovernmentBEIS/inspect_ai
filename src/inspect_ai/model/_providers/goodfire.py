@@ -7,7 +7,7 @@ from functools import partial
 
 import goodfire
 import httpx
-from goodfire.api.client import Client as GoodfireClient
+from goodfire import AsyncClient
 from goodfire.api.chat.interfaces import ChatMessage as GoodfireChatMessage
 from goodfire.variants.variants import SUPPORTED_MODELS, Variant
 from goodfire.api.chat.client import ChatAPI, ChatCompletion
@@ -68,13 +68,12 @@ class GoodfireAPI(ModelAPI):
     - Streaming responses
     
     Known limitations:
-    - Synchronous API calls in async framework
     - No finish_reason in responses
     - Limited role support (system/user/assistant only)
     - Tool messages converted to user messages
     """
     
-    client: GoodfireClient
+    client: AsyncClient
     model_name: str
     model_args: Dict[str, Any]
     variant: Variant
@@ -96,7 +95,7 @@ class GoodfireAPI(ModelAPI):
             api_key: Optional API key (will check env vars if not provided)
             api_key_vars: Additional env vars to check for API key
             config: Generation config options
-            **model_args: Additional arguments passed to goodfire.Client
+            **model_args: Additional arguments passed to goodfire.AsyncClient
         """
         # Initialize instance variables
         self.model_name = model_name
@@ -126,7 +125,7 @@ class GoodfireAPI(ModelAPI):
         base_url_val = model_base_url(base_url, "GOODFIRE_BASE_URL")
         assert isinstance(base_url_val, str) or base_url_val is None
 
-        self.client = GoodfireClient(
+        self.client = AsyncClient(
             api_key=self.api_key,
             base_url=base_url_val or DEFAULT_BASE_URL,
             **self.model_args,
@@ -240,7 +239,8 @@ class GoodfireAPI(ModelAPI):
         }
 
         try:
-            response = self.client.chat.completions.create(**params)
+            # Use native async client
+            response = await self.client.chat.completions.create(**params)
             response_dict = response.model_dump()
 
             output = ModelOutput(
