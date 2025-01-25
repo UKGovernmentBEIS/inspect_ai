@@ -21,7 +21,66 @@ While Inspect provides facilities for native agent development, you can also ver
 
 3.  Use the agent function with Inspect by passing it to the `bridge()` function, which will turn it into a standard Inspect `Solver`.
 
-## Example
+## Agent Function
+
+An external agent function is simillar to an Inspect `Solver` but without Inspect `TaskState`. Rather, it takes a sample `dict` as input and returns a result `dict` as output. 
+
+Here is a very simple agent function definition (it just calls generate and returns the ouptut). It is structured similar to an Inspect `Solver` where an enclosing function returns the function that handles the sample (this enables you to share initialisation code and pass options to configure the behaviour of the agent):
+         
+```{.python filename="agent.py"}
+from openai import AsyncOpenAI
+
+def my_agent():
+
+    async def run(sample: dict[str, Any]) -> dict[str, Any]:
+        client = AsyncOpenAI()
+        completion = await client.chat.completions.create(
+            model="inspect",
+            messages=sample["input"],
+        )
+        return {
+            "output": completion.choices[0].message.content
+        }
+
+    return run
+```
+
+We use the OpenAI API with `model="inspect"`, which enables Inspect to intercept the request and send it to the Inspect
+model being evaluated for the task.
+
+We read the input from `sample["input"]` (a list of OpenAI compatible messages) and return `output` as a string in the result `dict`.
+
+Here is how you can use the `bridge()` function to use this agent as a solver:
+
+```{.python filename="task.py"}
+from inspect_ai import Task, task
+from inspect_ai.dataset import Sample
+from inspect_ai.scorer import includes
+from inspect_ai.solver import bridge
+
+from agents import my_agent # <1>
+
+@task
+def hello():
+    return Task(
+        dataset=[Sample(input="Please print the word 'hello'?", target="hello")],
+        solver=bridge(my_agent()), # <2>
+        scorer=includes(),
+    )
+```
+
+1.  Import custom agent from `agent.py` file (shown above)
+2.  Adapt custom agent into an Inspect solver with the `bridge()` function.
+
+For more in-depth examples that make use of popular agent framworks, see:
+
+-   [AutoGen Example](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/bridge/autogen)
+
+-   [LangChain Example](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/bridge/langchain)
+
+We'll walk through the AutoGen example in more depth below.
+
+### Example: AutoGen 
 
 Here is an agent written with the [AutoGen](https://microsoft.github.io/autogen/stable/) framework. You'll notice that it is structured similar to an Inspect `Solver` where an enclosing function returns the function which handles the sample (this enables you to share initialisation code and pass options to configure the behaviour of the agent):
 
@@ -83,12 +142,12 @@ def web_surfer_agent():
 To use this agent in an Inspect `Task`, import it and use the `bridge()` function:
 
 ``` {.python filename="task.py"}
-from agent import web_surfer_agent    # <1>
-
 from inspect_ai import Task, task
 from inspect_ai.dataset import json_dataset
 from inspect_ai.scorer import model_graded_fact
 from inspect_ai.solver import bridge
+
+from agent import web_surfer_agent    # <1>
 
 @task
 def research() -> Task:
@@ -104,15 +163,10 @@ def research() -> Task:
 
 The `bridge()` function takes the agent function and hooks it up to a standard Inspect `Solver`, updating the `TaskState` and providing the means of redirecting OpenAI calls to the current Inspect model.
 
-You can find a runable version of this example as well as one for LangChain here:
 
--   [AutoGen Example](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/bridge/autogen)
+## Bridge Types
 
--   [LangChain Example](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/bridge/langchain)
-
-## Types
-
-In the example above we reference two `dict` fields from the agent function interface:
+In the examples above we reference two `dict` fields from the agent function interface:
 
 |                    |                                    |
 |--------------------|------------------------------------|
@@ -143,11 +197,11 @@ class ResultDict(TypedDict):
 
 You aren't required to use these types exactly (they merely document the interface) so long as you consume and produce `dict` values that match their declarations (the result `dict` is type validated at runtime).
 
-Returning `messages` is not required—messages are automatically synced to the task state during generate, return `messages` if you want to customise the default behaviour.
+Returning `messages` is not required as messages are automatically synced to the task state during generate (return `messages` only if you want to customise the default behaviour).
 
 ### Scores
 
-Returning `scores` is also optional and not common (most agent will rely on native Inspect scorers, this is here as an escape hatch for agents that want to do their own scoring). If you do return scores use this format (which is based on Inspect `Score` objects):
+Returning `scores` is also optional as most agents will rely on native Inspect scoring (returning scores is an escape hatch for agents that want to do their own scoring). If you do return scores use this format (which is based on Inspect `Score` objects):
 
 ``` python
 class ScoreDict(TypedDict):
@@ -178,7 +232,7 @@ This also works with `--solver` arguments passed via `-S`. For example:
 inspect eval task.py --solver agent.py -S max_requests=5
 ```
 
-The `agent.py` source file will be searched for public top level functions that include `agent` in their name. If you want to explicitly reference an agent function you can do that as follows:
+The `agent.py` source file will be searched for public top level functions that include `agent` in their name. If you want to explicitly reference an agent function you can do this as follows:
 
 ``` bash
 inspect eval task.py --solver agent.py@web_surfer_agent
@@ -188,7 +242,7 @@ inspect eval task.py --solver agent.py@web_surfer_agent
 
 As demonstrated above, communication with Inspect models is done by using the OpenAI API with `model="inspect"`. You can use the same technique to interface with other Inspect models. To do this, preface the model name with "inspect" followed by the rest of the fully qualified model name.
 
-For example, in a LangChain agent, you would use this syntax:
+For example, in a LangChain agent, you would do this to utilise the Inspect interface to Gemini:
 
 ``` python
 model = ChatOpenAI(model="inspect/google/gemini-1.5-pro")
@@ -196,17 +250,17 @@ model = ChatOpenAI(model="inspect/google/gemini-1.5-pro")
 
 ## Sandboxes
 
-If you need to execute untrusted LLM generated code in your agent, you can still use the Inspect `sandbox()` facility within bridged agent functions. Typically agent tools that can run code can be customised with an executor, and this is where you would plug in the Inspect `sandbox()`.
+If you need to execute untrusted LLM generated code in your agent, you can still use the Inspect [`sandbox()`](sandboxing.qmd) within bridged agent functions. Typically agent tools that can run code are customisable with an executor, and this is where you would plug in the Inspect `sandbox()`.
 
 For example, the AutoGen [`PythonCodeExecutionTool`](https://microsoft.github.io/autogen/stable/reference/python/autogen_ext.tools.code_execution.html#autogen_ext.tools.code_execution.PythonCodeExecutionTool) takes a [`CodeExecutor`](https://microsoft.github.io/autogen/stable/reference/python/autogen_core.code_executor.html#autogen_core.code_executor.CodeExecutor) in its constructor. AutoGen provides several built in code executors (e.g. local, docker, azure, etc.) and you can create custom ones. For example, you could create an `InspectSandboxCodeExecutor` which in turn delegates to the `sandbox().exec()` function.
 
 ## Transcript
 
-Custom agents run through the `bridge()` function still get most of the benefit of the Inspect transcript and log viewer. All model calls are captured and produce the same transcript output as when using normal solver. The message history is also automatically captured and logged.
+Custom agents run through the `bridge()` function still get most of the benefit of the Inspect transcript and log viewer. All model calls are captured and produce the same transcript output as when using conventional solvers. The message history is also automatically captured and logged.
 
 Calls to the Python `logging` module for levels `info` and above are also handled as normal and show up within sample transcripts.
 
-If you want to use additional features of Inspect transcripts (e.g. steps, markdown logging, etc.) you can still import and use the `transcript` function as normal. For example:
+If you want to use additional features of Inspect transcripts (e.g. steps, markdown output, etc.) you can still import and use the `transcript` function as normal. For example:
 
 ``` python
 from inspect_ai.log import transcript
@@ -214,4 +268,4 @@ from inspect_ai.log import transcript
 transcript().info("custom *markdown* content")
 ```
 
-If your agent code that calls `transcript()` is not running within Inspect it will simply be ignored (no runtime error will occur).
+This code will no-op when running outside of Inspect to it is safe to include in agents that are also run in other environments.
