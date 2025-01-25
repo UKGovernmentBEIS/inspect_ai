@@ -114,10 +114,10 @@ You can find a runable version of this example as well as one for LangChain here
 
 In the example above we reference two `dict` fields from the agent function interface:
 
-|                    |                                          |
-|--------------------|------------------------------------------|
-| `sample["input"]`  | List of OpenAI compatible chat messages. |
-| `result["output"]` | Agent output as a string                 |
+|                    |                                    |
+|--------------------|------------------------------------|
+| `sample["input"]`  | `list[ChatCompletionMessageParam]` |
+| `result["output"]` | `str`                              |
 
 : {tbl-colwidths=\[35,65\]}
 
