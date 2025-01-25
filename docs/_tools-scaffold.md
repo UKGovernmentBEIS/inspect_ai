@@ -17,7 +17,7 @@ def agent_loop(message_limit: int = 50):
         state.message_limit = message_limit
 
         # call the model in a loop
-        while True:
+        while not state.completed:
             # call model
             output = await get_model().generate(state.messages, state.tools)
 
@@ -35,6 +35,8 @@ def agent_loop(message_limit: int = 50):
 
     return solve
 ```
+
+Solvers can set the `state.completed` flag to indicate that the sample is complete, so we check it at the top of the loop.
 
 You can imagine several ways you might want to customise this loop:
 
