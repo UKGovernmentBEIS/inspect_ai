@@ -225,13 +225,18 @@ class GoodfireAPI(ModelAPI):
             "stream": False,
         }
 
-        # Add generation parameters if specified
-        if config.temperature is not None:
+        # Add generation parameters from config if not in model_args
+        if "temperature" not in self.model_args and config.temperature is not None:
             params["temperature"] = float(config.temperature)
-        if config.top_p is not None:
-            params["top_p"] = float(config.top_p)
+        elif "temperature" not in self.model_args:
+            params["temperature"] = DEFAULT_TEMPERATURE
 
-        # Add any additional model args
+        if "top_p" not in self.model_args and config.top_p is not None:
+            params["top_p"] = float(config.top_p)
+        elif "top_p" not in self.model_args:
+            params["top_p"] = DEFAULT_TOP_P
+
+        # Add any additional model args (highest priority)
         params.update(self.model_args)
 
         try:
