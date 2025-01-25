@@ -57,6 +57,7 @@ class GoodfireAPI(ModelAPI):
     - Chat completions with standard message formats
     - Basic parameter controls (temperature, top_p, etc.)
     - Usage statistics tracking
+    - Stop reason handling
     
     Does not currently support:
     - Tool calls
@@ -64,7 +65,6 @@ class GoodfireAPI(ModelAPI):
     - Streaming responses
     
     Known limitations:
-    - No finish_reason in responses
     - Limited role support (system/user/assistant only)
     - Tool messages converted to user messages
     """
