@@ -10,7 +10,7 @@ import httpx
 from goodfire import AsyncClient
 from goodfire.api.chat.interfaces import ChatMessage as GoodfireChatMessage
 from goodfire.variants.variants import SUPPORTED_MODELS, Variant
-from goodfire.api.chat.client import ChatAPI, ChatCompletion
+from goodfire.api.chat.client import AsyncChatAPICompletions, ChatCompletion
 from goodfire.api.features.client import FeaturesAPI
 
 from inspect_ai._util.error import pip_dependency_error
@@ -73,13 +73,14 @@ class GoodfireAPI(ModelAPI):
     model_name: str
     model_args: Dict[str, Any]
     variant: Variant
+    temperature: float | None
+    top_p: float | None
 
     def __init__(
         self,
         model_name: str,
         base_url: str | None = None,
         api_key: str | None = None,
-        api_key_vars: list[str] = [],
         config: GenerateConfig = GenerateConfig(),
         **model_args: Any,
     ) -> None:
@@ -89,33 +90,39 @@ class GoodfireAPI(ModelAPI):
             model_name: Name of the model to use
             base_url: Optional custom API base URL
             api_key: Optional API key (will check env vars if not provided)
-            api_key_vars: Additional env vars to check for API key
             config: Generation config options
             **model_args: Additional arguments passed to goodfire.AsyncClient
         """
-        # Initialize instance variables
-        self.model_name = model_name
-        self.model_args = model_args
-
         super().__init__(
             model_name=model_name,
             base_url=base_url,
             api_key=api_key,
             api_key_vars=[GOODFIRE_API_KEY],
             config=config,
-            **model_args,
         )
 
-        # Get API key from environment if not provided
+        # resolve api_key
         if not self.api_key:
             self.api_key = os.environ.get(GOODFIRE_API_KEY)
-        if not self.api_key:
-            raise environment_prerequisite_error("Goodfire", GOODFIRE_API_KEY)
+            if not self.api_key:
+                raise environment_prerequisite_error("Goodfire", GOODFIRE_API_KEY)
 
         # Validate model name against supported models
         supported_models = list(get_args(SUPPORTED_MODELS))
         if self.model_name not in supported_models:
             raise ValueError(f"Model {self.model_name} not supported. Supported models: {supported_models}")
+
+        # collect known model_args (then delete them so we can pass the rest on)
+        def collect_model_arg(name: str) -> Any | None:
+            nonlocal model_args
+            value = model_args.get(name, None)
+            if value is not None:
+                model_args.pop(name)
+            return value
+
+        # Collect any args that affect our provider's behavior
+        self.temperature = collect_model_arg("temperature")
+        self.top_p = collect_model_arg("top_p")
 
         # Initialize client with remaining model args
         base_url_val = model_base_url(base_url, "GOODFIRE_BASE_URL")
@@ -124,7 +131,7 @@ class GoodfireAPI(ModelAPI):
         self.client = AsyncClient(
             api_key=self.api_key,
             base_url=base_url_val or DEFAULT_BASE_URL,
-            **self.model_args,
+            **model_args,  # Pass remaining args to client
         )
 
         # Initialize variant directly with model name
@@ -164,32 +171,40 @@ class GoodfireAPI(ModelAPI):
         })
 
     def handle_error(self, ex: Exception) -> ModelOutput | Exception:
-        """Handle API errors and convert to appropriate outputs."""
-        error_msg = str(ex).lower()
-        
-        # Handle context window overflows
-        if "context length" in error_msg or "max tokens" in error_msg:
+        """Handle only errors that need special treatment for retry logic or model limits."""
+        from goodfire.api.exceptions import (
+            RateLimitException,
+            InvalidRequestException,
+        )
+
+        # Handle rate limits for retry logic
+        if isinstance(ex, RateLimitException):
             return ModelOutput.from_content(
                 model=self.model_name,
                 content=str(ex),
-                stop_reason="model_length",
-                error=error_msg,
+                stop_reason="unknown",  # Using unknown since rate_limit isn't in StopReason
+                error=str(ex),
             )
-        # Handle content policy refusals
-        elif "content policy" in error_msg or "refused" in error_msg:
-            return ModelOutput.from_content(
-                model=self.model_name,
-                content=str(ex),
-                stop_reason="content_filter", 
-                error=error_msg,
-            )
+
+        # Handle token/context length errors
+        if isinstance(ex, InvalidRequestException):
+            error_msg = str(ex).lower()
+            if "context length" in error_msg or "max tokens" in error_msg:
+                return ModelOutput.from_content(
+                    model=self.model_name,
+                    content=str(ex),
+                    stop_reason="model_length",
+                    error=error_msg,
+                )
+
+        # Let all other errors propagate
         return ex
 
     @override
     def is_rate_limit(self, ex: BaseException) -> bool:
         """Check if exception is due to rate limiting."""
-        error_msg = str(ex).lower()
-        return "429" in error_msg or "rate limit" in error_msg
+        from goodfire.api.exceptions import RateLimitException
+        return isinstance(ex, RateLimitException)
 
     @override
     def connection_key(self) -> str:
@@ -216,20 +231,30 @@ class GoodfireAPI(ModelAPI):
         
         # Base parameters
         params = {
-            "model": self.model_name,
+            "model": self.variant,
             "messages": messages,
             "max_completion_tokens": int(config.max_tokens) if config.max_tokens else DEFAULT_MAX_TOKENS,
-            "temperature": float(config.temperature) if config.temperature else DEFAULT_TEMPERATURE,
-            "top_p": float(config.top_p) if config.top_p else DEFAULT_TOP_P,
             "stream": False,
         }
-        
-        # Add any additional model_args
-        params.update(self.model_args)
+
+        # Add temperature and top_p from config or collected model_args
+        if config.temperature is not None:
+            params["temperature"] = float(config.temperature)
+        elif self.temperature is not None:
+            params["temperature"] = float(self.temperature)
+        else:
+            params["temperature"] = DEFAULT_TEMPERATURE
+
+        if config.top_p is not None:
+            params["top_p"] = float(config.top_p)
+        elif self.top_p is not None:
+            params["top_p"] = float(self.top_p)
+        else:
+            params["top_p"] = DEFAULT_TOP_P
 
         try:
             # Use native async client
-            response = await self.client.chat.completions.create(**params)
+            response = await cast(AsyncChatAPICompletions, self.client.chat.completions).create(**params)
             response_dict = response.model_dump()
 
             output = ModelOutput(
@@ -248,7 +273,7 @@ class GoodfireAPI(ModelAPI):
                 response=response_dict
             )
             
-            return (output, model_call)
+            return cast(tuple[ModelOutput | Exception, ModelCall], (output, model_call))
             
         except Exception as ex:
             result = self.handle_error(ex)
@@ -256,7 +281,7 @@ class GoodfireAPI(ModelAPI):
                 request=params,
                 response={}  # Empty response for error case
             )
-            return (result, model_call) if isinstance(result, ModelOutput) else (ex, model_call)
+            return cast(tuple[ModelOutput | Exception, ModelCall], (result, model_call))
 
     @property
     def name(self) -> str:
