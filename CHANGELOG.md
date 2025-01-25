@@ -4,6 +4,7 @@
 
 - [Agent Bridge](https://inspect.ai-safety-institute.org.uk/agent-bridge.html) for integrating external agent frameworks with Inspect.
 - Add `@wraps` to functions wrapped by Inspect decorators to preserve type information.
+- Hugging Face: Add support for stop sequences for HF models.
 - Docker: More robust parsing of version strings (handle development versions).
 
 ## v0.3.59 (24 January 2025)
