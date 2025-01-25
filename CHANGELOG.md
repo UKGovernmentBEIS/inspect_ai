@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- [Agent Bridge](https://inspect.ai-safety-institute.org.uk/agent-bridge.html) for integrating external agent frameworks with Inspect.
 - Add `@wraps` to functions wrapped by Inspect decorators to preserve type information.
 - Docker: More robust parsing of version strings (handle development versions).
 
