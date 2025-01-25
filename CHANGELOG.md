@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Add `@wraps` to functions wrapped by Inspect decorators to preserve type information.
+- Docker: More robust parsing of version strings (handle development versions).
+
 ## v0.3.59 (24 January 2025)
 
 - Beta version of [computer()](https://inspect.ai-safety-institute.org.uk/tools.html#sec-computer) tool which models with a computer desktop environment.
