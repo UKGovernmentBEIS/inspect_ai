@@ -1,4 +1,3 @@
-//@ts-check
 import { openRemoteLogFile, RemoteLogFile } from "../log/remoteLogFile";
 import { EvalLog, EvalSample } from "../types/log";
 import { FileSizeLimitError } from "../utils/remoteZipFile.mjs";
@@ -42,7 +41,7 @@ interface LoadedLogFile {
  * to a webserver without inspect or the ability to enumerate log
  * files
  */
-export const clientApi = (api: LogViewAPI): ClientAPI => {
+export const clientApi = (api: LogViewAPI, log_file?: string): ClientAPI => {
   let current_log: LogContents | undefined = undefined;
   let current_path: string | undefined = undefined;
 
@@ -227,12 +226,34 @@ export const clientApi = (api: LogViewAPI): ClientAPI => {
     return orderedHeaders.map(({ header }) => header);
   };
 
+  const get_log_paths = async (): Promise<LogFiles> => {
+    const logFiles = await api.eval_logs();
+    if (logFiles) {
+      return logFiles!;
+    } else if (log_file) {
+      // Is there an explicitly passed log file?
+      const summary = await get_log_summary(log_file);
+      if (summary) {
+        return {
+          files: [
+            {
+              name: log_file,
+              task: summary.eval.task,
+              task_id: summary.eval.task_id,
+            },
+          ],
+        };
+      }
+    }
+    throw new Error("Unable to determine log paths.");
+  };
+
   return {
     client_events: () => {
       return api.client_events();
     },
     get_log_paths: () => {
-      return api.eval_logs();
+      return get_log_paths();
     },
     get_log_headers: (log_files) => {
       return get_log_headers(log_files);

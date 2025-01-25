@@ -59,7 +59,7 @@ export interface Capabilities {
 
 export interface LogViewAPI {
   client_events: () => Promise<any[]>;
-  eval_logs: () => Promise<LogFiles>;
+  eval_logs: () => Promise<LogFiles | undefined>;
   eval_log: (
     log_file: string,
     headerOnly?: number,

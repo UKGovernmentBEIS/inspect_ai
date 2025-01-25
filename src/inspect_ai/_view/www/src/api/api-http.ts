@@ -41,10 +41,6 @@ function simpleHttpAPI(logInfo: LogInfo): LogViewAPI {
   const log_file = logInfo.log_file;
   const log_dir = logInfo.log_dir;
 
-  // Use a cache for the single file case
-  // since we just use the log file that we already read
-  const cache = log_file_cache(log_file);
-
   async function open_log_file() {
     // No op
   }
@@ -54,7 +50,7 @@ function simpleHttpAPI(logInfo: LogInfo): LogViewAPI {
       // http
       return Promise.resolve([]);
     },
-    eval_logs: async (): Promise<LogFiles> => {
+    eval_logs: async (): Promise<LogFiles | undefined> => {
       // First check based upon the log dir
       if (log_dir) {
         const headers = await fetchLogHeaders(log_dir);
@@ -74,40 +70,7 @@ function simpleHttpAPI(logInfo: LogInfo): LogViewAPI {
         }
       }
 
-      // Now try using the log_file
-      if (log_file) {
-        // Check the cache
-        let evalLog = cache.get();
-        if (!evalLog) {
-          const response = await fetchLogFile(log_file);
-          if (response) {
-            cache.set(response.parsed);
-            evalLog = response.parsed;
-          }
-        }
-
-        if (!evalLog) {
-          throw new Error(`Unable to load log ${log_file} - unknown error.`);
-        }
-
-        // Since no log directory manifest was found, just use
-        // the log file to generate a single file manifest
-        const result = {
-          name: log_file,
-          task: evalLog.eval.task,
-          task_id: evalLog.eval.task_id,
-        };
-
-        return {
-          files: [result],
-          log_dir,
-        };
-      }
-
-      // No log.json could be found, and there isn't a log file,
-      throw new Error(
-        `Failed to load a manifest files using the directory: ${log_dir}. Please be sure you have deployed a manifest file (logs.json).`,
-      );
+      return undefined;
     },
     eval_log: async (
       log_file: string,
@@ -116,7 +79,6 @@ function simpleHttpAPI(logInfo: LogInfo): LogViewAPI {
     ) => {
       const response = await fetchLogFile(log_file);
       if (response) {
-        cache.set(response.parsed);
         return response;
       } else {
         throw new Error(`"Unable to load eval log ${log_file}`);
@@ -148,14 +110,10 @@ function simpleHttpAPI(logInfo: LogInfo): LogViewAPI {
 
       if (log_file) {
         // Check the cache
-        let evalLog = cache.get();
-        if (!evalLog) {
-          const response = await fetchLogFile(log_file);
-          if (response) {
-            cache.set(response.parsed);
-            evalLog = response.parsed;
-            return [evalLog];
-          }
+        const response = await fetchLogFile(log_file);
+        if (response) {
+          const evalLog = response.parsed;
+          return [evalLog];
         }
       }
       // No log.json could be found, and there isn't a log file,
@@ -263,34 +221,6 @@ function joinURI(...segments: string[]): string {
     .map((segment) => segment.replace(/(^\/+|\/+$)/g, "")) // Remove leading/trailing slashes from each segment
     .join("/");
 }
-
-/**
- * Creates a cache mechanism for a log file. If no log file is provided,
- * a no-op cache is returned. Otherwise, it allows caching of a single log file.
- */
-const log_file_cache = (log_file?: string) => {
-  // Use a no-op cache for non-single file
-  // cases
-  if (!log_file) {
-    return {
-      set: () => {},
-      get: () => {
-        return undefined;
-      },
-    };
-  }
-
-  // For a single file request, cache the log file request
-  let cache_file: EvalLog | undefined;
-  return {
-    set: (eval_log: EvalLog) => {
-      cache_file = eval_log;
-    },
-    get: () => {
-      return cache_file;
-    },
-  };
-};
 
 /**
  * Encodes the path segments of a URL or relative path to ensure special characters
