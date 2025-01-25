@@ -117,7 +117,7 @@ To learn more about integrating custom agents into Inspect:
 
 - See the documentation on the Inspect [Agent Bridge](agent-bridge.qmd)
 
-- See the [AutoGen](https://github.com/UKGovernmentBEIS/inspect_ai/tree/feature/solver-bridge/examples/bridge/autogen) and [LangChain](https://github.com/UKGovernmentBEIS/inspect_ai/tree/feature/solver-bridge/examples/bridge/langchain) examples which demonstrate the basic mechanics of agent integration.
+- See the [AutoGen](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/bridge/autogen) and [LangChain](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/bridge/langchain) examples which demonstrate the basic mechanics of agent integration.
 
 
 ## Learning More
