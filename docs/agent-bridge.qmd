@@ -106,9 +106,9 @@ The `bridge()` function takes the agent function and hooks it up to a standard I
 
 You can find a runable version of this example as well as one for LangChain here:
 
--   [AutoGen Example](https://github.com/UKGovernmentBEIS/inspect_ai/tree/feature/solver-bridge/examples/bridge/autogen)
+-   [AutoGen Example](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/bridge/autogen)
 
--   [LangChain Example](https://github.com/UKGovernmentBEIS/inspect_ai/tree/feature/solver-bridge/examples/bridge/langchain)
+-   [LangChain Example](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/bridge/langchain)
 
 ## Types
 
