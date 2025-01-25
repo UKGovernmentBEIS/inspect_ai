@@ -17,108 +17,13 @@ from .._task_state import TaskState
 def bridge(agent: Callable[[dict[str, Any]], Awaitable[dict[str, Any]]]) -> Solver:
     """Bridge an external agent into an Inspect Solver.
 
-    Integrate an external agent with no Inspect dependencies by converting
-    it to a Solver. The only requirements of the agent are that it use
-    the standard OpenAI API and that it consume and produce `dict` values
-    as described below. While the agent function calls the standard
-    OpenAI API, these calls are intercepted by Inspect and sent to the
-    requisite Inspect model provider.
+    See documentation at https://inspect.ai-safety-institute.org.uk/agent-bridge.html
 
-    Here is the type contract for bridged solvers (you don't need to use
-    or import these types in your agent, your `dict` usage should
-    just conform to the protocol):
+    Args:
+      agent: Callable which takes a sample `dict` and returns a result `dict`.
 
-    ```python
-    from openai.types.chat import ChatCompletionMessageParam
-
-    class SampleDict(TypedDict):
-        sample_id: str
-        epoch: int
-        input: list[ChatCompletionMessageParam]
-        metadata: dict[str, Any]
-        target: str | list[str]
-
-    class ScoreDict(TypedDict):
-        value: (
-            str
-            | int
-            | float
-            | bool
-            | list[str | int | float | bool]
-            | dict[str, str | int | float | bool | None]
-        )
-        answer: NotRequired[str]
-        explanation: NotRequired[str]
-        metadata: NotRequired[dict[str, Any]]
-
-    class ResultDict(TypedDict):
-        output: str
-        messages: NotRequired[list[ChatCompletionMessageParam]]
-        scores: NotRequired[dict[str, ScoreDict]]
-
-    async def agent(sample: SampleDict) -> ResultDict: ...
-    ```
-
-    The agent function must be async, and should accept and return
-    `dict` values as-per the type declarations (you aren't required
-    to use these types exactly (they merely document the requirements)
-    so long as you consume and produce `dict` values that match
-    their declarations.
-
-    Returning `messages` is not required -- messages are automatically
-    synced to the task state during generate, return `messages` if
-    you want to customise the default behavior.
-
-    Returning `scores` is also optional and not common (nearly all
-    agents will rely on Inspect native scorers, this is here as an
-    escape hatch for agents that want to do their own scoring).
-
-    Here is the simplest possible agent definition. Note that similar to
-    defining a `Solver` we create a function that returns another `run()`
-    function which is passed the sample (this enables us to give our
-    agent options much as we do with solvers).
-
-    ```python
-    from openai import AsyncOpenAI
-
-    def my_agent():
-
-        async def run(sample: dict[str, Any]) -> dict[str, Any]:
-            client = AsyncOpenAI()
-            completion = await client.chat.completions.create(
-                model="inspect",
-                messages=sample["input"],
-            )
-            return {
-                "output": completion.choices[0].message.content
-            }
-
-        return run
-    ```
-
-    We pass `model="inspect"` to OpenAI -- this is a signal that
-    Inspect should intercept this call and send it to the Inspect
-    model being evaluated in this task.
-
-    Here is how you can use the `bridge()` function to use this agent
-    as a solver:
-
-    ```python
-    from inspect_ai import Task, task
-    from inspect_ai.dataset import Sample
-    from inspect_ai.scorer import includes
-    from inspect_ai.solver import bridge
-
-    from agents import my_agent
-
-    @task
-    def hello():
-        return Task(
-            dataset=[Sample(input="Please print the word 'hello'?", target="hello")],
-            solver=bridge(my_agent()),
-            scorer=includes(),
-        )
-    ```
+    Returns:
+      Standard Inspect solver.
     """
     validate_openai_client("Solver bridge()")
 
@@ -187,7 +92,7 @@ def bridge(agent: Callable[[dict[str, Any]], Awaitable[dict[str, Any]]]) -> Solv
         state.output.completion = result.output
         if result.messages is not None:
             state.messages = chat_messages_from_openai(result.messages)
-        if result.scores:
+        if result.scores is not None:
             state.scores = result.scores
 
         return state
