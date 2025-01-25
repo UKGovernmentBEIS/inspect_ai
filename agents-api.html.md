@@ -1,4 +1,4 @@
-# Agents API
+# Agent API
 
 
 ## Overview
@@ -151,9 +151,7 @@ store = Store()
 activity = Activity(store=store)
 ```
 
-## Tool Use
-
-### Custom Loop
+## Tool Loop
 
 The higher level `generate()` function passed to solvers includes a
 built-in tool use loop—when the model calls a tool, Inspect calls the
@@ -169,9 +167,12 @@ variety of ways:
 3.  Have multiple `generate()` passes each with a distinct set of tools.
 
 To do this, create a solver that emulates the default tool use loop and
-provides additional customisation as required. For example, here is a
-complete solver agent that has essentially the same implementation as
-the default `generate()` function:
+provides additional customisation as required.
+
+### Example
+
+For example, here is a complete solver agent that has essentially the
+same implementation as the default `generate()` function:
 
 ``` python
 @solver
@@ -201,9 +202,8 @@ def agent_loop(message_limit: int = 50):
     return solve
 ```
 
-The `state.completed` flag is automatically set to `False` if
-`message_limit` or `token_limit` for the task is exceeded, so we check
-it at the top of the loop.
+Solvers can set the `state.completed` flag to indicate that the sample
+is complete, so we check it at the top of the loop.
 
 You can imagine several ways you might want to customise this loop:
 
@@ -223,20 +223,15 @@ You can imagine several ways you might want to customise this loop:
 One thing that a custom scaffold may do is try to recover from various
 conditions that cause the model to stop generating. You can find the
 reason that generation stopped in the `stop_reason` field of
-`ModelOutput`. For example:
+`ModelOutput`.
 
-``` python
-output = await model.generate(state.messages, state.tools)
-if output.stop_reason == "model_length":
-    # do something to recover from context window overflow
-```
-
-If you have written a scaffold loop that continues calling the model
-even after it stops calling tools, there may be values of `stop_reason`
-that indicate that the the loop should terminate anyway (because the
-error will just keep repeating on subsequent calls to the model). For
-example, the [basic agent](agents.qmd#sec-basic-agent) checks for
-`stop_reason` and exits under the following conditions:
+For example:, if you have written a scaffold loop that continues calling
+the model even after it stops calling tools, there may be values of
+`stop_reason` that indicate that the loop should terminate anyway
+(because the error will just keep repeating on subsequent calls to the
+model). For example, the [basic agent](agents.qmd#sec-basic-agent)
+checks for `stop_reason` and exits if there is a context window
+overflow:
 
 ``` python
 # check for stop reasons that indicate we should terminate
@@ -267,64 +262,6 @@ default error handling then rather than immediately appending the list
 of assistant messages returned from `call_tools()` to `state.messages`
 (as shown above), check the error property of these messages (which will
 be `None` in the case of no error) and proceed accordingly.
-
-### Tool Filtering
-
-Note that you don’t necessarily even need to structure the agent using a
-loop. For example, you might have an inner function implementing the
-loop, while an outer function dynamically swaps out what tools are
-available. For example, imagine the above was implemented in a function
-named `tool_use_loop()`, you might have outer function like this:
-
-``` python
-# first pass w/ core tools
-state.tools = [decompile(), dissasemble(), bash()]
-state = await tool_use_loop(state)
-
-# second pass w/ prompt and python tool only
-state.tools = [python()]
-state = await tool_use_loop(state)
-```
-
-Taken together these APIs enable you to build a custom version of
-`generate()` with whatever structure and logic you need.
-
-### Tool Descriptions
-
-In some cases you may want to change the default descriptions created by
-a tool author—for example you might want to provide better
-disambiguation between multiple similar tools that are used together.
-You also might have need to do this during development of tools (to
-explore what descriptions are most useful to models).
-
-The `tool_with()` function enables you to take any tool and adapt its
-name and/or descriptions. For example:
-
-``` python
-from inspect_ai.tool import tool_with
-
-my_add = tool_with(
-  tool=add(), 
-  name="my_add",
-  description="a tool to add numbers", 
-  parameters={
-    "x": "the x argument",
-    "y": "the y argument"
-  })
-```
-
-You need not provide all of the parameters shown above, for example here
-are some examples where we modify just the main tool description or only
-a single parameter:
-
-``` python
-my_add = tool_with(add(), description="a tool to add numbers")
-my_add = tool_with(add(), parameters={"x": "the x argument"})
-```
-
-Note that the `tool_with()` function returns a copy of the passed tool
-with modified descriptions (the passed tool retains its original
-descriptions)..
 
 ## Transcripts
 

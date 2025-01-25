@@ -375,8 +375,11 @@ These sections describe how to create agent evaluations with Inspect:
   models as well as set up more complex computing environments for
   tasks.
 
-- [Agents API](agents-api.qmd) describes advanced Inspect APIs available
+- [Agent API](agents-api.qmd) describes advanced Inspect APIs available
   for creating evaluations with agents.
+
+- [Agent Bridge](agent-bridge.qmd) enables the use of agents from 3rd
+  party frameworks like AutoGen or LangChain with Inspect.
 
 - [Human Agent](human-agent.qmd) is a solver that enables human
   baselining on computing tasks.
@@ -5547,13 +5550,13 @@ including:
 1.  Using Inspect’s built-in `basic_agent()`.
 
 2.  Implementing a fully custom agent scaffold (i.e. taking full control
-    of generation, tool calling, reasoning steps, etc.) using the
-    [Agents API](agents-api.qmd).
+    of generation, tool calling, reasoning steps, etc.) using the [Agent
+    API](agents-api.qmd).
 
-3.  Adapting an agent provided by a research paper or open source
-    library (for example, using a 3rd party agent library like
-    [LangChain](https://python.langchain.com/docs/modules/agents/) or
-    [Langroid](https://langroid.github.io/langroid/)).
+3.  Integrating external agent frameworks like
+    [AutoGen](https://microsoft.github.io/autogen/stable/) or
+    [LangChain](https://python.langchain.com/docs/introduction/) via the
+    Inspect [Agent Bridge](agent-bridge.qmd).
 
 4.  A [Human Agent](human-agent.qmd) for creating human baselines on
     computing tasks.
@@ -5679,7 +5682,7 @@ converted to float (e.g. “C” becomes 1.0) using the standard
 `value_to_float()` function. Provide an alternate conversion scheme as
 required via `score_value`.
 
-## Custom Scaffold
+## Custom Agent
 
 The basic agent demonstrated above will work well for some tasks, but in
 other cases you may want to provide more custom logic. For example, you
@@ -5692,9 +5695,12 @@ might want to:
 3.  Have multiple `generate()` passes each with a distinct set of tools.
 
 To do this, create a solver that emulates the default tool use loop and
-provides additional customisation as required. For example, here is a
-complete solver agent that has essentially the same implementation as
-the default `generate()` function:
+provides additional customisation as required.
+
+### Example
+
+For example, here is a complete solver agent that has essentially the
+same implementation as the default `generate()` function:
 
 ``` python
 @solver
@@ -5724,9 +5730,8 @@ def agent_loop(message_limit: int = 50):
     return solve
 ```
 
-The `state.completed` flag is automatically set to `False` if
-`message_limit` or `token_limit` for the task is exceeded, so we check
-it at the top of the loop.
+Solvers can set the `state.completed` flag to indicate that the sample
+is complete, so we check it at the top of the loop.
 
 You can imagine several ways you might want to customise this loop:
 
@@ -5746,20 +5751,15 @@ You can imagine several ways you might want to customise this loop:
 One thing that a custom scaffold may do is try to recover from various
 conditions that cause the model to stop generating. You can find the
 reason that generation stopped in the `stop_reason` field of
-`ModelOutput`. For example:
+`ModelOutput`.
 
-``` python
-output = await model.generate(state.messages, state.tools)
-if output.stop_reason == "model_length":
-    # do something to recover from context window overflow
-```
-
-If you have written a scaffold loop that continues calling the model
-even after it stops calling tools, there may be values of `stop_reason`
-that indicate that the the loop should terminate anyway (because the
-error will just keep repeating on subsequent calls to the model). For
-example, the [basic agent](agents.qmd#sec-basic-agent) checks for
-`stop_reason` and exits under the following conditions:
+For example:, if you have written a scaffold loop that continues calling
+the model even after it stops calling tools, there may be values of
+`stop_reason` that indicate that the loop should terminate anyway
+(because the error will just keep repeating on subsequent calls to the
+model). For example, the [basic agent](agents.qmd#sec-basic-agent)
+checks for `stop_reason` and exits if there is a context window
+overflow:
 
 ``` python
 # check for stop reasons that indicate we should terminate
@@ -5791,223 +5791,30 @@ of assistant messages returned from `call_tools()` to `state.messages`
 (as shown above), check the error property of these messages (which will
 be `None` in the case of no error) and proceed accordingly.
 
-### Tool Filtering
-
-While its possible to make tools globally available to the model via
-`use_tools()`, you may also want to filter the available tools either
-based on task stages or dynamically based on some other criteria.
-
-Here’s an example of a solver agent that filters the available tools
-between calls to `generate()`:
-
-``` python
-@solver
-def ctf_agent():
-    async def solve(state: TaskState, generate: Generate):
-        
-        # first pass w/ core tools
-        state.tools = [decompile(), dissasemble(), bash()]
-        state = await generate(state)
-
-        # second pass w/ prompt and python tool only
-        state.tools = [python()]
-        state.messages.append(ChatMessageUser( 
-            content = "Use Python to extract the flag." 
-        ))  
-        state = await generate(state)
-
-        # clear tools and return
-        state.tools = []
-        return state
-    
-    return solve
-```
-
-### Agents API
+### Agent API
 
 For more sophisticated agents, Inspect offers several additional
 advanced APIs for state management, sub-agents, and fine grained
-logging. See the [Agents API](agents-api.qmd) article for additional
+logging. See the [Agent API](agents-api.qmd) article for additional
 details.
 
-## Agent Libraries
+## Agent Frameworks
 
-You can also adapt code from a research paper or 3rd party agent library
-to run within an Inspect solver. Below we’ll provide an example of doing
-this for a [LangChain
-Agent](https://python.langchain.com/v0.2/docs/tutorials/agents/).
+While Inspect provides facilities for native agent development, you can
+also very easily integrate agents created with 3rd party frameworks like
+[AutoGen](https://microsoft.github.io/autogen/stable/) or
+[LangChain](https://python.langchain.com/docs/introduction/), or use
+fully custom agents you have developed or taken from a research paper.
 
-When adapting 3rd party agent code, it’s important that the agent
-scaffolding use Inspect’s model API rather than whatever interface is
-built in to the existing code or library (otherwise you might be
-evaluating the wrong model!). If the agent is executing arbitrary code,
-it’s also beneficial to use Inspect [Sandbox
-Environments](sandboxing.qmd) for sandboxing.
+To learn more about integrating custom agents into Inspect:
 
-### Example: LangChain
+- See the documentation on the Inspect [Agent Bridge](agent-bridge.qmd)
 
-This example demonstrates how to integrate a LangChain Agent with
-Inspect. The agent uses Wikipedia via the [Tavili Search
-API](https://tavily.com/) to perform question answering tasks. If you
-want to start by getting some grounding in the code *without* the
-Inspect integration, see [this
-article](https://brightinventions.pl/blog/introducing-langchain-agents-tutorial-with-example/)
-upon which the example is based.
-
-The main thing that an integration with an agent framework needs to
-account for is:
-
-1.  Bridging Inspect’s model API into the API of the agent framework. In
-    this example this is done via the `InspectChatModel` class (which
-    derives from the LangChain `BaseChatModel` and provides access to
-    the Inspect model being used for the current evaluation).
-
-2.  Bridging from the Inspect solver interface to the standard input and
-    output types of the agent library. In this example this is provided
-    by the `langchain_solver()` function, which takes a LangChain agent
-    function and converts it to an Inspect solver.
-
-Here’s the implementation of `langchain_solver()` (imports excluded for
-brevity):
-
-``` python
-# Interface for LangChain agent function
-class LangChainAgent(Protocol):
-    async def __call__(self, llm: BaseChatModel, input: dict[str, Any]): ...
-
-# Convert a LangChain agent function into a Solver
-def langchain_solver(agent: LangChainAgent) -> Solver:
-
-    async def solve(state: TaskState, generate: Generate) -> TaskState:
-
-        # create the inspect model api bridge
-        llm = InspectChatModel()
-
-        # call the agent
-        await agent(
-            llm = llm,
-            input = dict(
-                input=state.user_prompt.text,
-                chat_history=as_langchain_chat_history(
-                    state.messages[1:]
-                ),
-            )
-        )
-
-        # collect output from llm interface
-        state.messages = llm.messages
-        state.output = llm.output
-        state.output.completion = output
-        
-        # return state
-        return state
-
-    return solve
-
-# LangChain BaseChatModel for Inspect Model API
-class InspectChatModel(BaseChatModel):
-     async def _agenerate(
-        self,
-        messages: list[BaseMessage],
-        stop: list[str] | None = None,
-        run_manager: AsyncCallbackManagerForLLMRun | None = None,
-        **kwargs: dict[str, Any],
-    ) -> ChatResult:
-        ...
-```
-
-> [!NOTE]
->
-> Note that the the `inspect_langchain` module imported here is not a
-> built in feature of Inspect. Rather, you can find its [source
-> code](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/examples/langchain/inspect_langchain.py)
-> as part of the example. You can use this to create your own LangChain
-> agents or as the basis for creating similar integrations with other
-> agent frameworks.
-
-Now here’s the `wikipedia_search()` solver (imports again excluded for
-brevity):
-
-``` python
-@solver
-def wikipedia_search(
-    max_iterations: int | None = 15,
-    max_execution_time: float | None = None
-) -> Solver:
-    # standard prompt for tools agent
-    prompt = hub.pull("hwchase17/openai-tools-agent")
-
-    # tavily and wikipedia tools
-    tavily_api = TavilySearchAPIWrapper()  # type: ignore
-    tools = (
-        [TavilySearchResults(api_wrapper=tavily_api)] + 
-        load_tools(["wikipedia"])
-    )
-
-    # agent function
-    async def agent(
-        llm: BaseChatModel, 
-        input: dict[str, Any]
-    ) -> str | list[str | dict[str,Any]]:  
-        # create agent
-        tools_agent = create_openai_tools_agent(
-          llm, tools, prompt
-        )
-        executor = AgentExecutor.from_agent_and_tools(
-            agent=cast(BaseMultiActionAgent, tools_agent),
-            tools=tools,
-            name="wikipedia_search",
-            max_iterations=max_iterations,  
-            max_execution_time=max_execution_time
-        )
-
-        # execute the agent and return output
-        result = await executor.ainvoke(input)  
-        return result["output"]
-
-    # return agent function as inspect solver
-    return langchain_solver(agent)
-```
-
-Line 9  
-Note that we register native LangChain tools. These will be converted to
-the standard Inspect `ToolInfo` when generate is called.
-
-Line 16  
-This is the standard interface to LangChain agents. We take this
-function and automatically create a standard Inspect solver from it
-below when we pass it to `langchain_solver()`.
-
-Line 33  
-Invoke the agent using the chat history passed in `input`. We call the
-async executor API to play well with Inspect’s concurrency.
-
-Line 37  
-The `langchain_solver()` function maps the simpler agent function
-semantics into the standard Inspect solver API.
-
-If you reviewed the [original
-article](https://brightinventions.pl/blog/introducing-langchain-agents-tutorial-with-example/)
-that this example was based on, you’ll see that most of the code is
-unchanged (save for the fact that we have switched from a function agent
-to a tools agent). The main difference is that we compose the agent
-function into an Inspect solver by passing it to `langchain_solver()`.
-
-Finally, here’s a task that uses the `wikipedia_search()` solver:
-
-``` python
-@task
-def wikipedia() -> Task:
-    return Task(
-        dataset=json_dataset("wikipedia.jsonl"),
-        solver=wikipedia_search(),
-        scorer=model_graded_fact(),
-    )
-```
-
-The full source code for this example can be found in the Inspect GitHub
-repo at
-[examples/langchain](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/langchain).
+- See the
+  [AutoGen](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/bridge/autogen)
+  and
+  [LangChain](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/bridge/langchain)
+  examples which demonstrate the basic mechanics of agent integration.
 
 ## Learning More
 
@@ -6018,8 +5825,11 @@ evaluations with Inspect:
   models as well as set up more complex computing environments for
   tasks.
 
-- [Agents API](agents-api.qmd) describes advanced Inspect APIs available
+- [Agent API](agents-api.qmd) describes advanced Inspect APIs available
   for creating evaluations with agents.
+
+- [Agent Bridge](agent-bridge.qmd) enables the use of agents from 3rd
+  party frameworks like AutoGen or LangChain with Inspect.
 
 - [Human Agent](human-agent.qmd) is a solver that enables human
   baselining on computing tasks.
@@ -6649,7 +6459,7 @@ subcommand then enables you to query for commands that don’t terminate,
 timeout, or have errors. See the article on [Tracing](tracing.qmd) for
 additional details.
 
-# Agents API
+# Agent API
 
 
 ## Overview
@@ -6802,9 +6612,7 @@ store = Store()
 activity = Activity(store=store)
 ```
 
-## Tool Use
-
-### Custom Loop
+## Tool Loop
 
 The higher level `generate()` function passed to solvers includes a
 built-in tool use loop—when the model calls a tool, Inspect calls the
@@ -6820,9 +6628,12 @@ variety of ways:
 3.  Have multiple `generate()` passes each with a distinct set of tools.
 
 To do this, create a solver that emulates the default tool use loop and
-provides additional customisation as required. For example, here is a
-complete solver agent that has essentially the same implementation as
-the default `generate()` function:
+provides additional customisation as required.
+
+### Example
+
+For example, here is a complete solver agent that has essentially the
+same implementation as the default `generate()` function:
 
 ``` python
 @solver
@@ -6852,9 +6663,8 @@ def agent_loop(message_limit: int = 50):
     return solve
 ```
 
-The `state.completed` flag is automatically set to `False` if
-`message_limit` or `token_limit` for the task is exceeded, so we check
-it at the top of the loop.
+Solvers can set the `state.completed` flag to indicate that the sample
+is complete, so we check it at the top of the loop.
 
 You can imagine several ways you might want to customise this loop:
 
@@ -6874,20 +6684,15 @@ You can imagine several ways you might want to customise this loop:
 One thing that a custom scaffold may do is try to recover from various
 conditions that cause the model to stop generating. You can find the
 reason that generation stopped in the `stop_reason` field of
-`ModelOutput`. For example:
+`ModelOutput`.
 
-``` python
-output = await model.generate(state.messages, state.tools)
-if output.stop_reason == "model_length":
-    # do something to recover from context window overflow
-```
-
-If you have written a scaffold loop that continues calling the model
-even after it stops calling tools, there may be values of `stop_reason`
-that indicate that the the loop should terminate anyway (because the
-error will just keep repeating on subsequent calls to the model). For
-example, the [basic agent](agents.qmd#sec-basic-agent) checks for
-`stop_reason` and exits under the following conditions:
+For example:, if you have written a scaffold loop that continues calling
+the model even after it stops calling tools, there may be values of
+`stop_reason` that indicate that the loop should terminate anyway
+(because the error will just keep repeating on subsequent calls to the
+model). For example, the [basic agent](agents.qmd#sec-basic-agent)
+checks for `stop_reason` and exits if there is a context window
+overflow:
 
 ``` python
 # check for stop reasons that indicate we should terminate
@@ -6918,64 +6723,6 @@ default error handling then rather than immediately appending the list
 of assistant messages returned from `call_tools()` to `state.messages`
 (as shown above), check the error property of these messages (which will
 be `None` in the case of no error) and proceed accordingly.
-
-### Tool Filtering
-
-Note that you don’t necessarily even need to structure the agent using a
-loop. For example, you might have an inner function implementing the
-loop, while an outer function dynamically swaps out what tools are
-available. For example, imagine the above was implemented in a function
-named `tool_use_loop()`, you might have outer function like this:
-
-``` python
-# first pass w/ core tools
-state.tools = [decompile(), dissasemble(), bash()]
-state = await tool_use_loop(state)
-
-# second pass w/ prompt and python tool only
-state.tools = [python()]
-state = await tool_use_loop(state)
-```
-
-Taken together these APIs enable you to build a custom version of
-`generate()` with whatever structure and logic you need.
-
-### Tool Descriptions
-
-In some cases you may want to change the default descriptions created by
-a tool author—for example you might want to provide better
-disambiguation between multiple similar tools that are used together.
-You also might have need to do this during development of tools (to
-explore what descriptions are most useful to models).
-
-The `tool_with()` function enables you to take any tool and adapt its
-name and/or descriptions. For example:
-
-``` python
-from inspect_ai.tool import tool_with
-
-my_add = tool_with(
-  tool=add(), 
-  name="my_add",
-  description="a tool to add numbers", 
-  parameters={
-    "x": "the x argument",
-    "y": "the y argument"
-  })
-```
-
-You need not provide all of the parameters shown above, for example here
-are some examples where we modify just the main tool description or only
-a single parameter:
-
-``` python
-my_add = tool_with(add(), description="a tool to add numbers")
-my_add = tool_with(add(), parameters={"x": "the x argument"})
-```
-
-Note that the `tool_with()` function returns a copy of the passed tool
-with modified descriptions (the passed tool retains its original
-descriptions)..
 
 ## Transcripts
 
@@ -7184,6 +6931,388 @@ def list_files():
 
 See the section on [Sandboxing](sandboxing.qmd) for further details on
 using sandboxes with Inspect.
+
+# Agent Bridge
+
+
+> [!NOTE]
+>
+> The agent bridge feature described below is currently available only
+> in the development version of Inspect. To install the development
+> version from GitHub:
+>
+> ``` bash
+> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+> ```
+
+## Overview
+
+While Inspect provides facilities for native agent development, you can
+also very easily integrate agents created with 3rd party frameworks like
+[AutoGen](https://microsoft.github.io/autogen/stable/) or
+[LangChain](https://python.langchain.com/docs/introduction/), or use
+fully custom agents you have developed or ported from a research paper.
+The basic mechanism for integrating external agents works like this:
+
+1.  Write an agent function that takes a sample `dict` as input and a
+    returns a results `dict` with output. This function won’t have any
+    dependencies on Inspect, rather it will depend on whatever agent
+    framework or custom code you are using.
+
+2.  This function should use the OpenAI API for model access, however
+    calls to the OpenAI API will be *redirected* to Inspect (using
+    whatever model is configured for the current task).
+
+3.  Use the agent function with Inspect by passing it to the `bridge()`
+    function, which will turn it into a standard Inspect `Solver`.
+
+## Agent Function
+
+An external agent function is simillar to an Inspect `Solver` but
+without Inspect `TaskState`. Rather, it takes a sample `dict` as input
+and returns a result `dict` as output.
+
+Here is a very simple agent function definition (it just calls generate
+and returns the ouptut). It is structured similar to an Inspect `Solver`
+where an enclosing function returns the function that handles the sample
+(this enables you to share initialisation code and pass options to
+configure the behaviour of the agent):
+
+<div class="code-with-filename">
+
+**agent.py**
+
+``` python
+from openai import AsyncOpenAI
+
+def my_agent():
+
+    async def run(sample: dict[str, Any]) -> dict[str, Any]:
+        client = AsyncOpenAI()
+        completion = await client.chat.completions.create(
+            model="inspect",
+            messages=sample["input"],
+        )
+        return {
+            "output": completion.choices[0].message.content
+        }
+
+    return run
+```
+
+</div>
+
+We use the OpenAI API with `model="inspect"`, which enables Inspect to
+intercept the request and send it to the Inspect model being evaluated
+for the task.
+
+We read the input from `sample["input"]` (a list of OpenAI compatible
+messages) and return `output` as a string in the result `dict`.
+
+Here is how you can use the `bridge()` function to use this agent as a
+solver:
+
+<div class="code-with-filename">
+
+**task.py**
+
+``` python
+from inspect_ai import Task, task
+from inspect_ai.dataset import Sample
+from inspect_ai.scorer import includes
+from inspect_ai.solver import bridge
+
+from agents import my_agent
+
+@task
+def hello():
+    return Task(
+        dataset=[Sample(input="Please print the word 'hello'?", target="hello")],
+        solver=bridge(my_agent()),
+        scorer=includes(),
+    )
+```
+
+</div>
+
+Line 6  
+Import custom agent from `agent.py` file (shown above)
+
+Line 12  
+Adapt custom agent into an Inspect solver with the `bridge()` function.
+
+For more in-depth examples that make use of popular agent framworks,
+see:
+
+- [AutoGen
+  Example](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/bridge/autogen)
+
+- [LangChain
+  Example](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/bridge/langchain)
+
+We’ll walk through the AutoGen example in more depth below.
+
+### Example: AutoGen
+
+Here is an agent written with the
+[AutoGen](https://microsoft.github.io/autogen/stable/) framework. You’ll
+notice that it is structured similar to an Inspect `Solver` where an
+enclosing function returns the function which handles the sample (this
+enables you to share initialisation code and pass options to configure
+the behaviour of the agent):
+
+<div class="code-with-filename">
+
+**agent.py**
+
+``` python
+from typing import Any, cast
+
+from autogen_agentchat.agents import AssistantAgent
+from autogen_agentchat.conditions import SourceMatchTermination
+from autogen_agentchat.messages import TextMessage
+from autogen_agentchat.teams import RoundRobinGroupChat
+from autogen_core.models import ModelInfo
+from autogen_ext.agents.web_surfer import MultimodalWebSurfer
+from autogen_ext.models.openai import OpenAIChatCompletionClient
+
+def web_surfer_agent():
+   
+    # Use OpenAI interface (redirected to Inspect model)
+    model = OpenAIChatCompletionClient(
+        model="inspect",
+        model_info=ModelInfo(
+            vision=True, function_calling=True,
+            json_output=False, family="unknown"
+        ),
+    )
+
+    # Sample handler
+    async def run(sample: dict[str, Any]) -> dict[str, Any]:
+        # Read input (convert from OpenAI format)                         
+        input = [
+            TextMessage(source=msg["role"], content=str(msg["content"]))
+            for msg in sample["input"]
+        ]
+
+        # Create agents and team
+        web_surfer = MultimodalWebSurfer("web_surfer", model)
+        assistant = AssistantAgent("assistant", model)
+        termination = SourceMatchTermination("assistant")
+        team = RoundRobinGroupChat(
+            [web_surfer, assistant],
+            termination_condition=termination
+        )
+
+        # Run team
+        result = await team.run(task=input)
+
+        # Extract output from last message and return
+        message = cast(TextMessage, result.messages[-1])
+        return dict(output=message.content)
+
+    return run
+```
+
+</div>
+
+Lines 14-18  
+Use the OpenAI API with `model="inspect"` to interface with the model
+for the running Inspect task.
+
+Line 23  
+The `sample` includes `input` (chat messages) and several other fields
+(id, epoch, metadata, etc.). The `result` includes model `output` as a
+string.
+
+Lines 25-28  
+Input is based using OpenAI API compatible messages—here we convert them
+to native AutoGen `TextMessage` objects.
+
+Lines 31-36  
+Configure and create AutoGen multi-agent team. This can use any
+combination of agents and any team structure including custom ones.
+
+Lines 43-44  
+Extract content from final assistant message and return it as `output`.
+
+To use this agent in an Inspect `Task`, import it and use the `bridge()`
+function:
+
+<div class="code-with-filename">
+
+**task.py**
+
+``` python
+from inspect_ai import Task, task
+from inspect_ai.dataset import json_dataset
+from inspect_ai.scorer import model_graded_fact
+from inspect_ai.solver import bridge
+
+from agent import web_surfer_agent
+
+@task
+def research() -> Task:
+    return Task(
+        dataset=json_dataset("dataset.json"),
+        solver=bridge(web_surfer_agent()),
+        scorer=model_graded_fact(),
+    )
+```
+
+</div>
+
+Line 6  
+Import custom agent from `agent.py` file (shown above)
+
+Line 12  
+Adapt custom agent into an Inspect solver with the `bridge()` function.
+
+The `bridge()` function takes the agent function and hooks it up to a
+standard Inspect `Solver`, updating the `TaskState` and providing the
+means of redirecting OpenAI calls to the current Inspect model.
+
+## Bridge Types
+
+In the examples above we reference two `dict` fields from the agent
+function interface:
+
+|                    |                                    |
+|--------------------|------------------------------------|
+| `sample["input"]`  | `list[ChatCompletionMessageParam]` |
+| `result["output"]` | `str`                              |
+
+For many agents these fields will be all you need. In some circumstances
+other available fields will be useful. Here are the full type
+declarations for the `sample` and `result`:
+
+``` python
+from typing import NotRequired, TypedDict
+
+from openai.types.chat import ChatCompletionMessageParam
+
+class SampleDict(TypedDict):
+    sample_id: str
+    epoch: int
+    input: list[ChatCompletionMessageParam]
+    metadata: dict[str, Any]
+    target: str | list[str]
+
+class ResultDict(TypedDict):
+    output: str
+    messages: NotRequired[list[ChatCompletionMessageParam]]
+    scores: NotRequired[dict[str, ScoreDict]]
+```
+
+You aren’t required to use these types exactly (they merely document the
+interface) so long as you consume and produce `dict` values that match
+their declarations (the result `dict` is type validated at runtime).
+
+Returning `messages` is not required as messages are automatically
+synced to the task state during generate (return `messages` only if you
+want to customise the default behaviour).
+
+### Scores
+
+Returning `scores` is also optional as most agents will rely on native
+Inspect scoring (returning scores is an escape hatch for agents that
+want to do their own scoring). If you do return scores use this format
+(which is based on Inspect `Score` objects):
+
+``` python
+class ScoreDict(TypedDict):
+    value: (
+        str
+        | int
+        | float
+        | bool
+        | list[str | int | float | bool]
+        | dict[str, str | int | float | bool | None]
+    )
+    answer: NotRequired[str]
+    explanation: NotRequired[str]
+    metadata: NotRequired[dict[str, Any]]
+```
+
+## CLI Usage
+
+Above we import the `web_surfer_agent()` directly as a Python function.
+It’s also possible to reference external agents at the command line
+using the `--solver` parameter. For example:
+
+``` bash
+inspect eval task.py --solver agent.py
+```
+
+This also works with `--solver` arguments passed via `-S`. For example:
+
+``` bash
+inspect eval task.py --solver agent.py -S max_requests=5
+```
+
+The `agent.py` source file will be searched for public top level
+functions that include `agent` in their name. If you want to explicitly
+reference an agent function you can do this as follows:
+
+``` bash
+inspect eval task.py --solver agent.py@web_surfer_agent
+```
+
+## Models
+
+As demonstrated above, communication with Inspect models is done by
+using the OpenAI API with `model="inspect"`. You can use the same
+technique to interface with other Inspect models. To do this, preface
+the model name with “inspect” followed by the rest of the fully
+qualified model name.
+
+For example, in a LangChain agent, you would do this to utilise the
+Inspect interface to Gemini:
+
+``` python
+model = ChatOpenAI(model="inspect/google/gemini-1.5-pro")
+```
+
+## Sandboxes
+
+If you need to execute untrusted LLM generated code in your agent, you
+can still use the Inspect [`sandbox()`](sandboxing.qmd) within bridged
+agent functions. Typically agent tools that can run code are
+customisable with an executor, and this is where you would plug in the
+Inspect `sandbox()`.
+
+For example, the AutoGen
+[`PythonCodeExecutionTool`](https://microsoft.github.io/autogen/stable/reference/python/autogen_ext.tools.code_execution.html#autogen_ext.tools.code_execution.PythonCodeExecutionTool)
+takes a
+[`CodeExecutor`](https://microsoft.github.io/autogen/stable/reference/python/autogen_core.code_executor.html#autogen_core.code_executor.CodeExecutor)
+in its constructor. AutoGen provides several built in code executors
+(e.g. local, docker, azure, etc.) and you can create custom ones. For
+example, you could create an `InspectSandboxCodeExecutor` which in turn
+delegates to the `sandbox().exec()` function.
+
+## Transcript
+
+Custom agents run through the `bridge()` function still get most of the
+benefit of the Inspect transcript and log viewer. All model calls are
+captured and produce the same transcript output as when using
+conventional solvers. The message history is also automatically captured
+and logged.
+
+Calls to the Python `logging` module for levels `info` and above are
+also handled as normal and show up within sample transcripts.
+
+If you want to use additional features of Inspect transcripts
+(e.g. steps, markdown output, etc.) you can still import and use the
+`transcript` function as normal. For example:
+
+``` python
+from inspect_ai.log import transcript
+
+transcript().info("custom *markdown* content")
+```
+
+This code will no-op when running outside of Inspect to it is safe to
+include in agents that are also run in other environments.
 
 # Human Agent
 

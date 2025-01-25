@@ -375,8 +375,11 @@ These sections describe how to create agent evaluations with Inspect:
   models as well as set up more complex computing environments for
   tasks.
 
-- [Agents API](agents-api.qmd) describes advanced Inspect APIs available
+- [Agent API](agents-api.qmd) describes advanced Inspect APIs available
   for creating evaluations with agents.
+
+- [Agent Bridge](agent-bridge.qmd) enables the use of agents from 3rd
+  party frameworks like AutoGen or LangChain with Inspect.
 
 - [Human Agent](human-agent.qmd) is a solver that enables human
   baselining on computing tasks.
