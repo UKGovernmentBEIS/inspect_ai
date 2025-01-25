@@ -72,7 +72,7 @@ class GoodfireAPI(ModelAPI):
     client: AsyncClient
     model_name: str
     variant: Variant
-    model_args: Dict[str, Any]
+    model_args: dict[str, Any]
 
     def __init__(
         self,
@@ -89,7 +89,7 @@ class GoodfireAPI(ModelAPI):
             base_url: Optional custom API base URL
             api_key: Optional API key (will check env vars if not provided)
             config: Generation config options
-            **model_args: Additional arguments passed to goodfire.AsyncClient
+            **model_args: Additional arguments passed to the API
         """
         super().__init__(
             model_name=model_name,
@@ -110,12 +110,12 @@ class GoodfireAPI(ModelAPI):
         if self.model_name not in supported_models:
             raise ValueError(f"Model {self.model_name} not supported. Supported models: {supported_models}")
 
-        # Store model args for use in generate method
-        self.model_args = model_args
-
-        # Initialize client with only client-specific args
+        # Initialize client with minimal configuration
         base_url_val = model_base_url(base_url, "GOODFIRE_BASE_URL")
         assert isinstance(base_url_val, str) or base_url_val is None
+
+        # Store model args for use in generate
+        self.model_args = model_args
 
         self.client = AsyncClient(
             api_key=self.api_key,
@@ -217,24 +217,19 @@ class GoodfireAPI(ModelAPI):
         # Convert messages and prepare request params
         messages = [self._to_goodfire_message(msg) for msg in input]
         
-        # Base parameters
-        params = {
-            "model": self.variant,
+        # Build request parameters with type hints
+        params: Dict[str, Any] = {
+            "model": self.variant.base_model,  # Use base_model instead of stringifying the Variant
             "messages": messages,
             "max_completion_tokens": int(config.max_tokens) if config.max_tokens else DEFAULT_MAX_TOKENS,
             "stream": False,
         }
 
-        # Add generation parameters from config
+        # Add generation parameters if specified
         if config.temperature is not None:
             params["temperature"] = float(config.temperature)
-        else:
-            params["temperature"] = DEFAULT_TEMPERATURE
-
         if config.top_p is not None:
             params["top_p"] = float(config.top_p)
-        else:
-            params["top_p"] = DEFAULT_TOP_P
 
         # Add any additional model args
         params.update(self.model_args)
