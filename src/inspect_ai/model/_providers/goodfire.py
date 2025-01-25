@@ -48,11 +48,7 @@ DEFAULT_MAX_CONNECTIONS = 10
 DEFAULT_MAX_RETRIES = 3
 DEFAULT_TIMEOUT = 60.0
 
-# Supported model mapping
-MODEL_MAP = {
-    "meta-llama/Meta-Llama-3.1-8B-Instruct": "meta-llama/Meta-Llama-3.1-8B-Instruct",
-    "meta-llama/Llama-3.3-70B-Instruct": "meta-llama/Llama-3.3-70B-Instruct",
-}
+# Note: We don't need MODEL_MAP since Goodfire maintains SUPPORTED_MODELS
 
 class GoodfireAPI(ModelAPI):
     """Goodfire API provider.
@@ -131,15 +127,8 @@ class GoodfireAPI(ModelAPI):
             **self.model_args,
         )
 
-        # Initialize variant with specified name if provided
-        variant_model = MODEL_MAP.get(self.model_name, "meta-llama/Meta-Llama-3.1-8B-Instruct")
-        if variant_model not in get_args(SUPPORTED_MODELS):
-            raise ValueError(f"Variant {variant_model} not supported. Supported variants: {list(get_args(SUPPORTED_MODELS))}")
-        # NOTE: There's a type mismatch between Goodfire's runtime behavior and type hints
-        # The docs show direct string usage: variant = goodfire.Variant("meta-llama/Meta-Llama-3-8B-Instruct")
-        # But the type hints expect a Literal. We validate the model name above, so this is safe at runtime.
-        # TODO: Consider creating an issue in Goodfire's repo about this type mismatch
-        self.variant = Variant(variant_model)  # type: ignore
+        # Initialize variant directly with model name
+        self.variant = Variant(self.model_name)  # type: ignore
 
     def _to_goodfire_message(self, message: ChatMessage) -> GoodfireChatMessage:
         """Convert an Inspect message to a Goodfire message format.
@@ -210,12 +199,7 @@ class GoodfireAPI(ModelAPI):
     @override
     def max_tokens(self) -> int | None:
         """Return maximum tokens supported by model."""
-        # Model-specific limits
-        if "llama-3.3-70b" in self.model_name.lower():
-            return 4096
-        elif "llama-3.1-8b" in self.model_name.lower():
-            return 4096
-        return DEFAULT_MAX_TOKENS
+        return DEFAULT_MAX_TOKENS  # Let Goodfire's Variant handle model-specific limits
 
     async def generate(
         self,
@@ -229,6 +213,8 @@ class GoodfireAPI(ModelAPI):
         """Generate output from the model."""
         # Convert messages and prepare request params
         messages = [self._to_goodfire_message(msg) for msg in input]
+        
+        # Base parameters
         params = {
             "model": self.model_name,
             "messages": messages,
@@ -237,6 +223,9 @@ class GoodfireAPI(ModelAPI):
             "top_p": float(config.top_p) if config.top_p else DEFAULT_TOP_P,
             "stream": False,
         }
+        
+        # Add any additional model_args
+        params.update(self.model_args)
 
         try:
             # Use native async client
