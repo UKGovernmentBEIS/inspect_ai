@@ -71,10 +71,8 @@ class GoodfireAPI(ModelAPI):
     
     client: AsyncClient
     model_name: str
-    model_args: Dict[str, Any]
     variant: Variant
-    temperature: float | None
-    top_p: float | None
+    model_args: Dict[str, Any]
 
     def __init__(
         self,
@@ -112,26 +110,16 @@ class GoodfireAPI(ModelAPI):
         if self.model_name not in supported_models:
             raise ValueError(f"Model {self.model_name} not supported. Supported models: {supported_models}")
 
-        # collect known model_args (then delete them so we can pass the rest on)
-        def collect_model_arg(name: str) -> Any | None:
-            nonlocal model_args
-            value = model_args.get(name, None)
-            if value is not None:
-                model_args.pop(name)
-            return value
+        # Store model args for use in generate method
+        self.model_args = model_args
 
-        # Collect any args that affect our provider's behavior
-        self.temperature = collect_model_arg("temperature")
-        self.top_p = collect_model_arg("top_p")
-
-        # Initialize client with remaining model args
+        # Initialize client with only client-specific args
         base_url_val = model_base_url(base_url, "GOODFIRE_BASE_URL")
         assert isinstance(base_url_val, str) or base_url_val is None
 
         self.client = AsyncClient(
             api_key=self.api_key,
             base_url=base_url_val or DEFAULT_BASE_URL,
-            **model_args,  # Pass remaining args to client
         )
 
         # Initialize variant directly with model name
@@ -237,20 +225,19 @@ class GoodfireAPI(ModelAPI):
             "stream": False,
         }
 
-        # Add temperature and top_p from config or collected model_args
+        # Add generation parameters from config
         if config.temperature is not None:
             params["temperature"] = float(config.temperature)
-        elif self.temperature is not None:
-            params["temperature"] = float(self.temperature)
         else:
             params["temperature"] = DEFAULT_TEMPERATURE
 
         if config.top_p is not None:
             params["top_p"] = float(config.top_p)
-        elif self.top_p is not None:
-            params["top_p"] = float(self.top_p)
         else:
             params["top_p"] = DEFAULT_TOP_P
+
+        # Add any additional model args
+        params.update(self.model_args)
 
         try:
             # Use native async client
