@@ -1,6 +1,7 @@
 import inspect
 import logging
 from copy import deepcopy
+from functools import wraps
 from pathlib import Path
 from typing import Any, Callable, TypeVar, cast, overload
 
@@ -125,6 +126,7 @@ def task(*args: Any, name: str | None = None, **attribs: Any) -> Any:
         params = list(inspect.signature(task_type).parameters.keys())
 
         # Create and return the wrapper function
+        @wraps(task_type)
         def wrapper(*w_args: Any, **w_kwargs: Any) -> Task:
             # Create the task
             task_instance = task_type(*w_args, **w_kwargs)
@@ -153,6 +155,10 @@ def task(*args: Any, name: str | None = None, **attribs: Any) -> Any:
 
             # Return the task instance
             return task_instance
+
+        # functools.wraps overrides the return type annotation of the inner function, so
+        # we explicitly set it again
+        wrapper.__annotations__["return"] = Task
 
         # Register the task and return the wrapper
         return task_register(

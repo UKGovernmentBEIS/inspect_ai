@@ -4,11 +4,13 @@ import contextlib
 from random import random
 from typing import AsyncGenerator, Callable, NamedTuple, cast
 
+import httpx
+
 from inspect_ai._eval.task.task import Task
 from inspect_ai._eval.task.util import task_run_dir
 from inspect_ai._util.file import file, filesystem
 from inspect_ai._util.registry import registry_unqualified_name
-from inspect_ai._util.url import data_uri_to_base64, is_data_uri
+from inspect_ai._util.url import data_uri_to_base64, is_data_uri, is_http_url
 from inspect_ai.dataset import Sample
 from inspect_ai.util._concurrency import concurrency
 from inspect_ai.util._sandbox.context import (
@@ -65,12 +67,12 @@ async def sandboxenv_context(
         files: dict[str, bytes] = {}
         if sample.files:
             for path, contents in sample.files.items():
-                files[path] = read_sandboxenv_file(contents)
+                files[path] = await read_sandboxenv_file(contents)
 
         # read setup script from sample (add bash shebang if necessary)
         setup: bytes | None = None
         if sample.setup:
-            setup = read_sandboxenv_file(sample.setup)
+            setup = await read_sandboxenv_file(sample.setup)
             setup_str = setup.decode(encoding="utf-8")
             if not setup_str.strip().startswith("#!"):
                 setup_str = f"#!/usr/bin/env bash\n\n{setup_str}"
@@ -108,13 +110,16 @@ async def sandboxenv_context(
                 )
 
 
-def read_sandboxenv_file(contents: str) -> bytes:
+async def read_sandboxenv_file(contents: str) -> bytes:
     if is_data_uri(contents):
         contents_base64 = data_uri_to_base64(contents)
         file_bytes = base64.b64decode(contents_base64)
+    elif is_http_url(contents):
+        client = httpx.AsyncClient()
+        file_bytes = (await client.get(contents, follow_redirects=True)).content
     else:
         # try to read as a file (if it doesn't exist or has a path not cool w/
-        # the fileystem then we fall back to contents)
+        # the filesystem then we fall back to contents)
         try:
             fs = filesystem(contents)
             if fs.exists(contents):

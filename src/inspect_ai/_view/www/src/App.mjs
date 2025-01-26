@@ -30,7 +30,7 @@ import { Sidebar } from "./sidebar/Sidebar.mjs";
 import { WorkSpace } from "./workspace/WorkSpace.mjs";
 import { FindBand } from "./components/FindBand.mjs";
 import { isVscode } from "./utils/Html.mjs";
-import { getVscodeApi } from "./utils/vscode.mjs";
+import { getVscodeApi } from "./utils/vscode";
 import { kDefaultSort } from "./constants.mjs";
 import {
   createEvalDescriptor,
@@ -38,7 +38,7 @@ import {
 } from "./samples/SamplesDescriptor.mjs";
 import { byEpoch, bySample, sortSamples } from "./samples/tools/SortFilter.mjs";
 import { resolveAttachments } from "./utils/attachments.mjs";
-import { filterFnForType } from "./samples/tools/filters.mjs";
+import { filterSamples } from "./samples/tools/filters.mjs";
 
 import {
   kEvalWorkspaceTabId,
@@ -51,7 +51,7 @@ import {
  * Renders the Main Application
  *
  * @param {Object} props - The parameters for the component.
- * @param {import("./api/Types.mjs").ClientAPI} props.api - The api that this view should use
+ * @param {import("./api/Types.ts").ClientAPI} props.api - The api that this view should use
  * @param {Object} [props.initialState] - Initial state for app (optional, used by VS Code extension)
  * @param {(state: Object) => void} [props.saveInitialState] - Save initial state for app (optional, used by VS Code extension)
  * @param {boolean} props.pollForLogs - Whether the application should poll for log changes
@@ -308,21 +308,19 @@ export function App({
 
   useEffect(() => {
     const samples = selectedLog?.contents?.sampleSummaries || [];
-    const filtered = samples.filter((sample) => {
+    const { result: prefiltered } = filterSamples(
+      evalDescriptor,
+      samples,
+      filter?.value,
+    );
+    const filtered = prefiltered.filter((sample) => {
       // Filter by epoch if specified
       if (epoch && epoch !== "all") {
         if (epoch !== sample.epoch + "") {
           return false;
         }
       }
-
-      // Apply the filter
-      const filterFn = filterFnForType(filter);
-      if (filterFn && filter.value) {
-        return filterFn(samplesDescriptor, sample, filter.value);
-      } else {
-        return true;
-      }
+      return true;
     });
 
     // Sort the samples
@@ -509,12 +507,12 @@ export function App({
    * Determines whether the workspace tab should display samples or info,
    * depending on the presence of samples and the log status.
    *
-   * @param {import("./api/Types.mjs").EvalSummary} log - The log object containing sample summaries and status.
+   * @param {import("./api/Types.ts").EvalSummary} log - The log object containing sample summaries and status.
    * @returns {void}
    */
   const resetWorkspace = useCallback(
     /**
-     * @param {import("./api/Types.mjs").EvalSummary} log
+     * @param {import("./api/Types.ts").EvalSummary} log
      */
     (log) => {
       // Reset the workspace tab
@@ -961,7 +959,7 @@ export function App({
 /**
  * Determines the default scorer for a log
  *
- * @param {import("./api/Types.mjs").EvalSummary} log - The log object containing sample summaries and status.
+ * @param {import("./api/Types.ts").EvalSummary} log - The log object containing sample summaries and status.
  * @returns {{name: string, scorer: string} | undefined} A scorer object with name and scorer properties, or undefined
  */
 const defaultScorer = (log) => {
@@ -983,7 +981,7 @@ const defaultScorer = (log) => {
 /**
  * Determines the default scorers for a log
  *
- * @param {import("./api/Types.mjs").EvalSummary} log - The log object containing sample summaries and status.
+ * @param {import("./api/Types.ts").EvalSummary} log - The log object containing sample summaries and status.
  * @returns {Array<{name: string, scorer: string}>} An array of scorer objects with name and scorer properties, or an empty array if no scorers are found.
  */
 const defaultScorers = (log) => {

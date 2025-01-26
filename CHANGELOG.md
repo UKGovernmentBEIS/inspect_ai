@@ -2,18 +2,48 @@
 
 ## Unreleased
 
-- Support for [audio and video](https://github.com/UKGovernmentBEIS/inspect_ai/pull/1102) inputs for Open AI and Google Gemini models.
+- [Agent Bridge](https://inspect.ai-safety-institute.org.uk/agent-bridge.html) for integrating external agent frameworks with Inspect.
+- Add `@wraps` to functions wrapped by Inspect decorators to preserve type information.
+- Hugging Face: Add support for stop sequences for HF models.
+- Docker: More robust parsing of version strings (handle development versions).
+- Bugfix: Fix issue w/ approvals for samples with id==0.
+- Bugfix: Use "plain" display when running eval_async() outside of eval().
+
+## v0.3.59 (24 January 2025)
+
+- Beta version of [computer()](https://inspect.ai-safety-institute.org.uk/tools.html#sec-computer) tool which models with a computer desktop environment.
+- `user_message()` solver for appending parameterised user messages.
+- `prompt_template()`, `system_message()` and `user_message()` solver now also include the sample `store` in substitution parameters.
+- Limits: Enforce token and message limit at lower level (not longer required to check `state.completed` for limit enforcement).
+- Limits: Enforce [custom limits](https://inspect.ai-safety-institute.org.uk/errors-and-limits.html#custom-limit) for samples by raising `SampleLimitExceededError`.
+- Tasks: Optional ability for solvers to [yield scores](https://inspect.ai-safety-institute.org.uk/solvers.html#sec-scoring-in-solvers) for a task.
+- Model API: Log model calls that result in bad request errors.
+- Tools: `model_input` option that determines how tool call result content is played back to the model.
+- Tools: Don't attempt to marshall arguments of dynamic `ToolDef` with `**kwargs: Any` (just pass them through).
+- Log warning when a non-fatal sample error occurs (i.e. errors permitted by the `fail_on_error` option) 
+- Inspect View: allow filtering samples by compound expressions including multiple scorers. (thanks @andrei-apollo)
+- Inspect View: improve rendering performance and stability for the viewer when viewing very large eval logs or samples with a large number of steps.
+- Task display: Improved `plain` mode with periodic updates on progress, metrics, etc.
+- Google: Update to v0.8.4 of google-generativeai (py.typed support and removal of logprobs generation options)
+- Google: Support for string enums (e.g. `Literal["a", "b", "c"])`) in tool function declarations.
+
+## v0.3.58 (16 January 2025)
+
+- Support for [audio and video](https://inspect.ai-safety-institute.org.uk/multimodal.html) inputs for Open AI and Google Gemini models.
 - Task display: Added Timeout Tool button for manually timing out a tool call.
 - Task display: Automatically switch to "plain" mode when running in a background thread
 - Sandboxes: Setup and initialisation errors are now handled at the sample level.
 - Sandboxes: Increase setup script timeout to 5 minutes (from 30 seconds) and do not retry setup scripts (in case they aren't idempotent).
 - Sandboxes: Add `timeout_retry` option (defaulting to `True`) to `exec()` function.
+- Sandboxes: Add `type` and  optional `container` properties to `SandboxConnection`.
 - Docker: Services which exit with status 0 during setup no longer cause an error.
 - `task_with()` function for creating task variants.
 - Added `--filter` argument to trace CLI commands for filtering on trace log message content.
 - Print model conversations to terminal with `--display=conversation` (was formerly `--trace`, which is now deprecated).
 - HuggingFace: Support models that don't provide a chat template (e.g. gpt2)
 - Eval Set: Ensure that logs with status 'started' are retried.
+- Rename the built in `bootstrap_std` metric to `bootstrap_stderr` (deprecate `bootstrap_std`)
+- Bugfix: Fix duplication of summaries when eval log file is rewritten.
 
 ## v0.3.57 (09 January 2025)
 

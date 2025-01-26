@@ -49,3 +49,8 @@ def display_type() -> DisplayType:
         return _display_type
     else:
         return init_display_type()
+
+
+def display_type_initialized() -> bool:
+    global _display_type
+    return _display_type is not None

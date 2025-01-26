@@ -1,6 +1,5 @@
 // @ts-check
 import { html } from "htm/preact";
-import { useEffect, useMemo, useState } from "preact/hooks";
 import { ApplicationIcons } from "../../appearance/Icons.mjs";
 import { FontSize, TextStyle } from "../../appearance/Fonts.mjs";
 
@@ -16,8 +15,12 @@ import { FontSize, TextStyle } from "../../appearance/Fonts.mjs";
  * @param {string | undefined} props.icon - The icon of the event
  * @param {number | undefined} props.titleColor - The title color of this item
  * @param {boolean | undefined} props.collapse - Default collapse behavior for card. If omitted, not collapsible.
+ * @param {(collapse: boolean) => void} props.onCollapsed - handler for when collapsing
+ * @param {boolean} props.collapsed - handler for when collapsing
  * @param {Object} props.style - The style properties passed to the component.
  * @param {Object} props.titleStyle - The style properties passed to the title component.
+ * @param {(nav: string) => void} props.onSelectedNav - Handler for selected nav changed
+ * @param {string} props.selectedNav - The selected nav for this panel
  * @param {import("preact").ComponentChildren} props.children - The rendered event.
  * @returns {import("preact").JSX.Element} The component.
  */
@@ -30,22 +33,16 @@ export const EventPanel = ({
   icon,
   titleColor,
   collapse,
+  collapsed,
+  onCollapsed,
   style,
   titleStyle,
   children,
+  onSelectedNav,
+  selectedNav,
 }) => {
   const hasCollapse = collapse !== undefined;
-  const [collapsed, setCollapsed] = useState(!!collapse);
-  const [selectedNav, setSelectedNav] = useState("");
-
-  const filteredArrChildren = useMemo(() => {
-    const arrChildren = Array.isArray(children) ? children : [children];
-    return arrChildren.filter((child) => !!child);
-  }, [children]);
-
-  useEffect(() => {
-    setSelectedNav(pillId(0));
-  }, [filteredArrChildren]);
+  const isCollapsed = collapsed === undefined ? collapse : collapsed;
 
   /**
    * Generates the id for the navigation pill.
@@ -56,6 +53,11 @@ export const EventPanel = ({
   const pillId = (index) => {
     return `${id}-nav-pill-${index}`;
   };
+
+  const filteredArrChildren = (
+    Array.isArray(children) ? children : [children]
+  ).filter((child) => !!child);
+  const defaultPillId = pillId(0);
 
   const gridColumns = [];
   if (hasCollapse) {
@@ -87,9 +89,9 @@ export const EventPanel = ({
           ${hasCollapse
             ? html`<i
                 onclick=${() => {
-                  setCollapsed(!collapsed);
+                  onCollapsed(!isCollapsed);
                 }}
-                class=${collapsed
+                class=${isCollapsed
                   ? ApplicationIcons.chevron.right
                   : ApplicationIcons.chevron.down}
               />`
@@ -103,7 +105,7 @@ export const EventPanel = ({
                   ...titleStyle,
                 }}
                 onclick=${() => {
-                  setCollapsed(!collapsed);
+                  onCollapsed(!isCollapsed);
                 }}
               />`
             : ""}
@@ -115,14 +117,14 @@ export const EventPanel = ({
               ...titleStyle,
             }}
             onclick=${() => {
-              setCollapsed(!collapsed);
+              onCollapsed(!isCollapsed);
             }}
           >
             ${title}
           </div>
           <div
             onclick=${() => {
-              setCollapsed(!collapsed);
+              onCollapsed(!isCollapsed);
             }}
           ></div>
           <div
@@ -132,7 +134,7 @@ export const EventPanel = ({
               marginRight: "0.2em",
             }}
             onclick=${() => {
-              setCollapsed(!collapsed);
+              onCollapsed(!isCollapsed);
             }}
           >
             ${collapsed ? text : ""}
@@ -144,7 +146,7 @@ export const EventPanel = ({
               flexDirection: "columns",
             }}
           >
-            ${(!hasCollapse || !collapsed) &&
+            ${(!hasCollapse || !isCollapsed) &&
             filteredArrChildren &&
             filteredArrChildren.length > 1
               ? html` <${EventNavs}
@@ -160,8 +162,8 @@ export const EventPanel = ({
                       target: pillId(index),
                     };
                   })}
-                  selectedNav=${selectedNav}
-                  setSelectedNav=${setSelectedNav}
+                  selectedNav=${selectedNav || defaultPillId}
+                  setSelectedNav=${onSelectedNav}
                 />`
               : ""}
           </div>
@@ -172,7 +174,6 @@ export const EventPanel = ({
     id=${id}
     style=${{
       padding: "0.625rem",
-      marginBottom: "0.625rem",
       border: "solid 1px var(--bs-light-border-subtle)",
       borderRadius: "var(--bs-border-radius)",
       ...style,
@@ -184,14 +185,18 @@ export const EventPanel = ({
       class="tab-content"
       style=${{
         padding: "0",
-        display: !hasCollapse || !collapsed ? "inherit" : "none",
+        display: !hasCollapse || !isCollapsed ? "inherit" : "none",
       }}
     >
       ${filteredArrChildren?.map((child, index) => {
         const id = pillId(index);
+        const isSelected = selectedNav
+          ? id === selectedNav
+          : id === defaultPillId;
+
         return html`<div
           id=${id}
-          class="tab-pane show ${id === selectedNav ? "active" : ""}"
+          class="tab-pane show ${isSelected ? "active" : ""}"
         >
           ${child}
         </div>`;

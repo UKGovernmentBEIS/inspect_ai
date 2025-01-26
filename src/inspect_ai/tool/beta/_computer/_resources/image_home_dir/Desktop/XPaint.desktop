@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=XPaint
+Comment=Xpaint painting application
+Exec=xpaint
+Icon=xpaint
+Path=
+Terminal=false
+StartupNotify=false

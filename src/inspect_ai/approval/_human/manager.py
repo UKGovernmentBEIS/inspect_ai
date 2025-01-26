@@ -40,7 +40,7 @@ class HumanApprovalManager:
         future = cast(Future[Approval], asyncio.get_event_loop().create_future())
         sample = sample_active()
         assert sample
-        assert sample.sample.id
+        assert sample.sample.id is not None
         pending = PendingApprovalRequest(
             request=request,
             task=sample.task,

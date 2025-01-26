@@ -13,8 +13,8 @@ from inspect_ai._util.registry import (
     set_registry_params,
 )
 
-from ._tool import TOOL_PARALLEL, TOOL_PROMPT, TOOL_VIEWER, Tool
-from ._tool_call import ToolCallViewer
+from ._tool import TOOL_MODEL_INPUT, TOOL_PARALLEL, TOOL_PROMPT, TOOL_VIEWER, Tool
+from ._tool_call import ToolCallModelInput, ToolCallViewer
 from ._tool_description import (
     ToolDescription,
     set_tool_description,
@@ -33,6 +33,7 @@ class ToolDef:
         parameters: dict[str, str] | ToolParams | None = None,
         parallel: bool | None = None,
         viewer: ToolCallViewer | None = None,
+        model_input: ToolCallModelInput | None = None,
     ) -> None:
         """Tool definition.
 
@@ -46,6 +47,8 @@ class ToolDef:
           parallel (bool | None): Does the tool support parallel execution
              (defaults to True if not specified)
           viewer (ToolCallViewer | None): Optional tool call viewer implementation.
+          model_input (ToolCallModelInput | None): Optional function that determines how
+              tool call results are played back as model input.
 
         Returns:
           Tool definition.
@@ -68,6 +71,7 @@ class ToolDef:
             parameters = parameters if parameters is not None else tdef.parameters
             self.parallel = parallel if parallel is not None else tdef.parallel
             self.viewer = viewer or tdef.viewer
+            self.model_input = model_input or tdef.model_input
 
         # if its not a tool then extract tool_info if all fields have not
         # been provided explicitly
@@ -97,6 +101,7 @@ class ToolDef:
             # behavioral attributes
             self.parallel = parallel is not False
             self.viewer = viewer
+            self.model_input = model_input
 
     tool: Callable[..., Any]
     """Callable to execute tool."""
@@ -115,6 +120,9 @@ class ToolDef:
 
     viewer: ToolCallViewer | None
     """Custom viewer for tool call"""
+
+    model_input: ToolCallModelInput | None
+    """Custom model input presenter for tool calls."""
 
     def as_tool(self) -> Tool:
         """Convert a ToolDef to a Tool."""
@@ -159,11 +167,12 @@ class ToolDefFields(NamedTuple):
     parameters: ToolParams
     parallel: bool
     viewer: ToolCallViewer | None
+    model_input: ToolCallModelInput | None
 
 
 def tool_def_fields(tool: Tool) -> ToolDefFields:
     # get tool_info
-    name, prompt, parallel, viewer = tool_registry_info(tool)
+    name, prompt, parallel, viewer, model_input = tool_registry_info(tool)
     tool_info = parse_tool_info(tool)
 
     # if there is a description then append any prompt to the
@@ -213,15 +222,17 @@ def tool_def_fields(tool: Tool) -> ToolDefFields:
         parameters=tool_info.parameters,
         parallel=parallel,
         viewer=viewer,
+        model_input=model_input,
     )
 
 
 def tool_registry_info(
     tool: Tool,
-) -> tuple[str, str | None, bool, ToolCallViewer | None]:
+) -> tuple[str, str | None, bool, ToolCallViewer | None, ToolCallModelInput | None]:
     info = registry_info(tool)
     name = info.name.split("/")[-1]
     prompt = info.metadata.get(TOOL_PROMPT, None)
     parallel = info.metadata.get(TOOL_PARALLEL, True)
     viewer = info.metadata.get(TOOL_VIEWER, None)
-    return name, prompt, parallel, viewer
+    model_input = info.metadata.get(TOOL_MODEL_INPUT, None)
+    return name, prompt, parallel, viewer, model_input
