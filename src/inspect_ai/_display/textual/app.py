@@ -284,7 +284,10 @@ class TaskScreenApp(App[TR]):
 
     def update_samples(self) -> None:
         samples_view = self.query_one(SamplesView)
-        samples_view.set_samples(active_samples())
+        active_and_started_samples = [
+            sample for sample in active_samples() if sample.started is not None
+        ]
+        samples_view.set_samples(active_and_started_samples)
 
     def update_footer(self) -> None:
         left, right = task_footer()

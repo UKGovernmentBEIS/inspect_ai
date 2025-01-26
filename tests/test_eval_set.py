@@ -277,6 +277,36 @@ def test_eval_set_previous_task_args():
         run_eval_set()
 
 
+def test_eval_set_retry_started():
+    with tempfile.TemporaryDirectory() as log_dir:
+
+        def run_eval_set():
+            eval_set(
+                tasks=[sleep_for_1_task("bar")],
+                log_dir=log_dir,
+                model="mockllm/model",
+            )
+
+        def eval_log_status():
+            log_file = list_eval_logs(log_dir)[0].name
+            log = read_eval_log(log_file)
+            return log.status
+
+        # run a first pass
+        run_eval_set()
+
+        # modify the log to be 'started' and save it
+        log_file = list_eval_logs(log_dir)[0].name
+        log = read_eval_log(log_file)
+        log.status = "started"
+        write_eval_log(log)
+        assert eval_log_status() == "started"
+
+        # re-run the eval set and confirm status 'succes'
+        run_eval_set()
+        assert eval_log_status() == "success"
+
+
 @task
 def sleep_for_1_task(task_arg: str):
     return Task(

@@ -6,13 +6,15 @@ from inspect_ai.util._subprocess import subprocess
 INSPECT_WEB_BROWSER_IMAGE_DOCKERHUB = "aisiuk/inspect-web-browser-tool"
 
 INSPECT_WEB_BROWSER_IMAGE = "inspect_web_browser"
+INSPECT_COMPUTER_IMAGE = "inspect-computer-tool"
 
 INTERNAL_IMAGES = {
     INSPECT_WEB_BROWSER_IMAGE: PKG_PATH
     / "tool"
     / "_tools"
     / "_web_browser"
-    / "_resources"
+    / "_resources",
+    INSPECT_COMPUTER_IMAGE: PKG_PATH / "tool" / "beta" / "_computer" / "_resources",
 }
 
 

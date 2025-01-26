@@ -26,9 +26,14 @@ class ModelUsage(BaseModel):
 
 
 StopReason = Literal[
-    "stop", "max_tokens", "model_length", "tool_calls", "content_filter", "unknown"
+    "stop",
+    "max_tokens",
+    "model_length",
+    "tool_calls",
+    "content_filter",
+    "unknown",
 ]
-"""Reason that the model stopped generating."""
+"""Reason that the model stopped or failed to generate."""
 
 
 class TopLogprob(BaseModel):
@@ -209,3 +214,18 @@ class ModelOutput(BaseModel):
                 )
             ],
         )
+
+
+def as_stop_reason(reason: str | None) -> StopReason:
+    """Encode common reason strings into standard StopReason."""
+    match reason:
+        case "stop" | "eos":
+            return "stop"
+        case "length":
+            return "max_tokens"
+        case "tool_calls" | "function_call":
+            return "tool_calls"
+        case "content_filter" | "model_length" | "max_tokens":
+            return reason
+        case _:
+            return "unknown"

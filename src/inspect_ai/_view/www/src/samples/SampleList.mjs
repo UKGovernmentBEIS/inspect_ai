@@ -1,6 +1,6 @@
 import { html } from "htm/preact";
-import { useCallback, useState } from "preact/hooks";
-import { useEffect, useMemo } from "preact/hooks";
+import { useCallback, useMemo, useState } from "preact/hooks";
+import { useEffect, useRef } from "preact/hooks";
 
 import { ApplicationStyles } from "../appearance/Styles.mjs";
 import { FontSize } from "../appearance/Fonts.mjs";
@@ -56,57 +56,28 @@ export const SampleList = (props) => {
     setHidden(false);
   }, [items]);
 
-  const heightForType = (type) => {
-    return type === "sample" ? kSampleHeight : kSeparatorHeight;
-  };
-
-  // Compute the row arrangement
-  const rowMap = useMemo(() => {
-    return items.reduce((values, current, index) => {
-      const height = heightForType(current.type);
-      const previous =
-        values.length > 0 ? values[values.length - 1] : undefined;
-      const start =
-        previous === undefined ? 0 : previous.start + previous.height;
-      values.push({
-        index,
-        height,
-        start,
-      });
-      return values;
-    }, []);
+  // Keep a mapping of the indexes to items (skipping separators)
+  const itemRowMapping = useMemo(() => {
+    const rowIndexes = [];
+    items.forEach((item, index) => {
+      if (item.type === "sample") {
+        rowIndexes.push(index);
+      }
+    });
+    return rowIndexes;
   }, [items]);
 
+  const prevSelectedIndexRef = useRef(null);
   useEffect(() => {
     const listEl = listRef.current;
     if (listEl) {
-      // Decide if we need to scroll the element into position
-      const selected = rowMap[selectedIndex];
-      if (selected) {
-        const itemTop = selected.start;
-        const itemBottom = selected.start + selected.height;
-
-        const scrollTop = listEl.base.scrollTop;
-        const scrollBottom = scrollTop + listEl.base.offsetHeight;
-
-        // It is visible
-        if (itemTop >= scrollTop && itemBottom <= scrollBottom) {
-          return;
-        }
-
-        if (itemTop < scrollTop) {
-          // Top is scrolled off
-          listEl.base.scrollTo({ top: itemTop });
-          return;
-        }
-
-        if (itemBottom > scrollBottom) {
-          listEl.base.scrollTo({ top: itemBottom - listEl.base.offsetHeight });
-          return;
-        }
-      }
+      const actualRowIndex = itemRowMapping[selectedIndex];
+      const direction =
+        actualRowIndex > prevSelectedIndexRef.current ? "down" : "up";
+      listRef.current?.scrollToIndex(actualRowIndex, direction);
+      prevSelectedIndexRef.current = actualRowIndex;
     }
-  }, [selectedIndex, rowMap, listRef]);
+  }, [selectedIndex, listRef, itemRowMapping]);
 
   /** @param {import("./SamplesTab.mjs").ListItem} item */
   const renderRow = (item) => {
@@ -254,7 +225,6 @@ export const SampleList = (props) => {
       tabIndex="0"
       renderRow=${renderRow}
       onkeydown=${onkeydown}
-      rowMap=${rowMap}
       style=${listStyle}
     />
     ${footerRow}

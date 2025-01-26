@@ -2,6 +2,7 @@ import functools
 from typing import Any, Callable, Literal, cast
 
 import click
+import rich
 from typing_extensions import TypedDict
 
 from inspect_ai._util.constants import (
@@ -105,7 +106,8 @@ def common_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
 def process_common_options(options: CommonOptions) -> None:
     # propagate display
     if options["no_ansi"]:
-        display = "plain"
+        display = "rich"
+        rich.reconfigure(no_color=True)
     else:
         display = options["display"].lower().strip()
     init_display_type(display)

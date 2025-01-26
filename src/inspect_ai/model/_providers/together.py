@@ -24,13 +24,13 @@ from .._model_output import (
     ModelOutput,
     ModelUsage,
     StopReason,
+    as_stop_reason,
 )
+from .._openai import chat_message_assistant_from_openai
 from .openai import (
     OpenAIAPI,
-    chat_message_assistant,
 )
 from .util import (
-    as_stop_reason,
     chat_api_input,
     chat_api_request,
     environment_prerequisite_error,
@@ -68,7 +68,7 @@ def chat_choices_from_response_together(
         logprobs_models.append(Logprobs(content=logprobs_sequence))
     return [
         ChatCompletionChoice(
-            message=chat_message_assistant(choice.message, tools),
+            message=chat_message_assistant_from_openai(choice.message, tools),
             stop_reason=as_stop_reason(choice.finish_reason),
             logprobs=logprobs,
         )
@@ -103,18 +103,18 @@ class TogetherAIAPI(OpenAIAPI):
         return DEFAULT_MAX_TOKENS
 
     @override
-    def handle_bad_request(self, ex: BadRequestError) -> ModelOutput:
-        if ex.status_code == 400 and "max_new_tokens" in ex.message:
-            response = ex.response.json()
-            if "error" in response and "message" in response.get("error"):
-                content = response.get("error").get("message")
-            else:
-                content = str(response)
+    def handle_bad_request(self, ex: BadRequestError) -> ModelOutput | Exception:
+        response = ex.response.json()
+        if "error" in response and "message" in response.get("error"):
+            content = response.get("error").get("message")
+        else:
+            content = str(response)
+        if "max_new_tokens" in ex.message:
             return ModelOutput.from_content(
                 model=self.model_name, content=content, stop_reason="model_length"
             )
         else:
-            raise ex
+            return ex
 
     # Together has a slightly different logprobs structure to OpenAI, so we need to remap it.
     def _chat_choices_from_response(

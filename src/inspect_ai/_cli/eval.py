@@ -315,12 +315,6 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         envvar="INSPECT_EVAL_STOP_SEQS",
     )
     @click.option(
-        "--suffix",
-        type=str,
-        help="The suffix that comes after a completion of inserted text. OpenAI only.",
-        envvar="INSPECT_EVAL_SUFFIX",
-    )
-    @click.option(
         "--temperature",
         type=float,
         help="What sampling temperature to use, between 0 and 2. Higher values like 0.8 will make the output more random, while lower values like 0.2 will make it more focused and deterministic.",
@@ -348,13 +342,13 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         "--logprobs",
         type=bool,
         is_flag=True,
-        help="Return log probabilities of the output tokens. OpenAI, Google, Grok, TogetherAI, Huggingface, llama-cpp-python, and vLLM only.",
+        help="Return log probabilities of the output tokens. OpenAI, Grok, TogetherAI, Huggingface, llama-cpp-python, and vLLM only.",
         envvar="INSPECT_EVAL_LOGPROBS",
     )
     @click.option(
         "--top-logprobs",
         type=int,
-        help="Number of most likely tokens (0-20) to return at each token position, each with an associated log probability. OpenAI, Google, Grok, TogetherAI, Huggingface, and vLLM only.",
+        help="Number of most likely tokens (0-20) to return at each token position, each with an associated log probability. OpenAI, Grok, TogetherAI, Huggingface, and vLLM only.",
         envvar="INSPECT_EVAL_TOP_LOGPROBS",
     )
     @click.option(
@@ -364,6 +358,14 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         default=True,
         help="Whether to enable parallel function calling during tool use (defaults to True) OpenAI and Groq only.",
         envvar="INSPECT_EVAL_PARALLEL_TOOL_CALLS",
+    )
+    @click.option(
+        "--internal-tools/--no-internal-tools",
+        type=bool,
+        is_flag=True,
+        default=True,
+        help="Whether to automatically map tools to model internal implementations (e.g. 'computer' for anthropic).",
+        envvar="INSPECT_EVAL_INTERNAL_TOOLS",
     )
     @click.option(
         "--max-tool-output",
@@ -431,7 +433,6 @@ def eval_command(
     logit_bias: str | None,
     seed: int | None,
     stop_seqs: str | None,
-    suffix: str | None,
     temperature: float | None,
     top_p: float | None,
     top_k: int | None,
@@ -439,6 +440,7 @@ def eval_command(
     logprobs: bool | None,
     top_logprobs: int | None,
     parallel_tool_calls: bool | None,
+    internal_tools: bool | None,
     max_tool_output: int | None,
     cache_prompt: str | None,
     reasoning_effort: str | None,
@@ -598,6 +600,7 @@ def eval_set_command(
     logprobs: bool | None,
     top_logprobs: int | None,
     parallel_tool_calls: bool | None,
+    internal_tools: bool | None,
     max_tool_output: int | None,
     cache_prompt: str | None,
     reasoning_effort: str | None,
@@ -834,6 +837,9 @@ def config_from_locals(locals: dict[str, Any]) -> GenerateConfigArgs:
                 elif value.lower() == "false":
                     value = False
             if key == "parallel_tool_calls":
+                if value is not False:
+                    value = None
+            if key == "internal_tools":
                 if value is not False:
                     value = None
             config[key] = value  # type: ignore

@@ -24,15 +24,13 @@ from inspect_ai.model import (
 )
 from inspect_ai.tool import ToolCall, ToolInfo
 
+from .._call_tools import parse_tool_call, tool_parse_error_message
 from .._model_call import ModelCall
-from .._model_output import ModelUsage, StopReason
+from .._model_output import ModelUsage, StopReason, as_stop_reason
 from .._providers.util import (
     ChatAPIHandler,
     ChatAPIMessage,
-    as_stop_reason,
     chat_api_input,
-    parse_tool_call,
-    tool_parse_error_message,
 )
 
 logger = getLogger(__name__)
@@ -44,7 +42,7 @@ async def generate_o1(
     input: list[ChatMessage],
     tools: list[ToolInfo],
     **params: Any,
-) -> ModelOutput | tuple[ModelOutput, ModelCall]:
+) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
     # create chatapi handler
     handler = O1PreviewChatAPIHandler()
 
@@ -82,17 +80,18 @@ async def generate_o1(
     ), model_call()
 
 
-def handle_bad_request(model: str, ex: BadRequestError) -> ModelOutput:
+def handle_bad_request(model: str, ex: BadRequestError) -> ModelOutput | Exception:
     if ex.code == "context_length_exceeded":
-        stop_reason: StopReason = "model_length"
+        stop_reason: StopReason | None = "model_length"
     elif ex.code == "invalid_prompt":
         stop_reason = "content_filter"
-    else:
-        stop_reason = "unknown"
 
-    return ModelOutput.from_content(
-        model=model, content=str(ex), stop_reason=stop_reason
-    )
+    if stop_reason:
+        return ModelOutput.from_content(
+            model=model, content=str(ex), stop_reason=stop_reason
+        )
+    else:
+        return ex
 
 
 def chat_messages(

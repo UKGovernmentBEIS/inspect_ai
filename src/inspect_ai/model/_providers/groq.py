@@ -27,6 +27,7 @@ from inspect_ai._util.images import file_as_data_uri
 from inspect_ai._util.url import is_http_url
 from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
 
+from .._call_tools import parse_tool_call
 from .._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
@@ -37,12 +38,15 @@ from .._chat_message import (
 from .._generate_config import GenerateConfig
 from .._model import ModelAPI
 from .._model_call import ModelCall
-from .._model_output import ChatCompletionChoice, ModelOutput, ModelUsage
-from .util import (
+from .._model_output import (
+    ChatCompletionChoice,
+    ModelOutput,
+    ModelUsage,
     as_stop_reason,
+)
+from .util import (
     environment_prerequisite_error,
     model_base_url,
-    parse_tool_call,
 )
 
 GROQ_API_KEY = "GROQ_API_KEY"

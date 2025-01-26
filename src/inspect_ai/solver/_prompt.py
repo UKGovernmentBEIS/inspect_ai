@@ -2,6 +2,7 @@ from typing import Any
 
 from inspect_ai._util.dict import omit
 from inspect_ai.model import ChatMessageSystem
+from inspect_ai.model._chat_message import ChatMessageUser
 from inspect_ai.util import resource
 
 from ._solver import Generate, Solver, solver
@@ -15,7 +16,8 @@ def prompt_template(template: str, **params: Any) -> Solver:
 
     Prompt template containing a `{prompt}` placeholder and any
     number of additional `params`. All values contained in sample
-    `metadata` are also automatically included in the `params`.
+    `metadata` and `store` are also automatically included in the
+    `params`.
 
     Args:
       template: (str): Template for prompt.
@@ -29,7 +31,7 @@ def prompt_template(template: str, **params: Any) -> Solver:
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         prompt = state.user_prompt
-        kwargs = omit(state.metadata, ["prompt"]) | params
+        kwargs = omit(state.metadata | state.store._data, ["prompt"]) | params
         prompt.text = prompt_template.format(prompt=prompt.text, **kwargs)
         return state
 
@@ -41,8 +43,9 @@ def system_message(template: str, **params: Any) -> Solver:
     """Solver which inserts a system message into the conversation.
 
     System message template containing any number of optional `params`.
-    for substitution. All values contained in sample `metadata` are also
-    automatically included in the `params`.
+    for substitution using the `str.format()` method. All values
+    contained in sample `metadata` and `store` are also automatically
+    included in the `params`.
 
     The new message will go after other system messages (if there
     are none it will be inserted at the beginning of the conversation).
@@ -58,10 +61,37 @@ def system_message(template: str, **params: Any) -> Solver:
     content = resource(template)
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
-        kwargs = state.metadata | params
+        kwargs = state.metadata | state.store._data | params
         append_system_message(
             state.messages, ChatMessageSystem(content=content.format(**kwargs))
         )
+        return state
+
+    return solve
+
+
+@solver
+def user_message(template: str, **params: Any) -> Solver:
+    """Solver which inserts a user message into the conversation.
+
+    User message template containing any number of optional `params`.
+    for substitution using the `str.format()` method. All values
+    contained in sample `metadata` and `store` are also automatically
+    included in the `params`.
+
+    Args:
+      template (str): Template for user message.
+      **params (dict[str,Any]): Parameters to fill into the template.
+
+    Returns:
+      A solver that inserts the parameterised user message.
+    """
+    # read template
+    content = resource(template)
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        kwargs = state.metadata | state.store._data | params
+        state.messages.append(ChatMessageUser(content=content.format(**kwargs)))
         return state
 
     return solve

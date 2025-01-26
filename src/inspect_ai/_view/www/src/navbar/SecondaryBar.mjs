@@ -3,6 +3,7 @@ import { html } from "htm/preact";
 import { LabeledValue } from "../components/LabeledValue.mjs";
 import { formatDataset, formatDuration } from "../utils/Format.mjs";
 import { ExpandablePanel } from "../components/ExpandablePanel.mjs";
+import { scoreFilterItems } from "../samples/tools/filters.mjs";
 
 /**
  * Renders the Navbar
@@ -13,6 +14,7 @@ import { ExpandablePanel } from "../components/ExpandablePanel.mjs";
  * @param {import("../types/log").EvalResults} [props.evalResults] - The EvalResults
  * @param {import("../types/log").EvalStats} [props.evalStats] - The EvalStats
  * @param {import("../api/Types.mjs").SampleSummary[]} [props.samples] - the samples
+ * @param {import("../samples/SamplesDescriptor.mjs").EvalDescriptor} [props.evalDescriptor] - The EvalDescriptor
  * @param {string} [props.status] - the status
  * @param {Map<string, string>} [props.style] - is this off canvas
  *
@@ -24,6 +26,7 @@ export const SecondaryBar = ({
   evalResults,
   evalStats,
   samples,
+  evalDescriptor,
   status,
   style,
 }) => {
@@ -60,8 +63,8 @@ export const SecondaryBar = ({
   values.push({
     size: "minmax(12%, auto)",
     value: html`<${LabeledValue} label="${label}" style=${staticColStyle} style=${{ justifySelf: hasConfig ? "left" : "center" }}>
-    <${ScorerSummary} 
-      scorers=${evalResults?.scores} />
+    <${ScorerSummary}
+      evalDescriptor=${evalDescriptor} />
   </${LabeledValue}>`,
   });
 
@@ -124,17 +127,23 @@ const DatasetSummary = ({ dataset, samples, epochs, style }) => {
   `;
 };
 
-const ScorerSummary = ({ scorers }) => {
-  if (!scorers) {
+const ScorerSummary = ({ evalDescriptor }) => {
+  if (!evalDescriptor) {
     return "";
   }
 
-  const uniqScorers = new Set();
-  scorers.forEach((scorer) => {
-    uniqScorers.add(scorer.name);
-  });
+  const items = scoreFilterItems(evalDescriptor);
 
-  return Array.from(uniqScorers).join(", ");
+  return html`
+    <span style=${{ position: "relative" }}>
+      ${Array.from(items).map(
+        (item, index) => html`
+          ${index > 0 ? ", " : ""}
+          <span title=${item.tooltip}>${item.canonicalName}</span>
+        `,
+      )}
+    </span>
+  `;
 };
 
 /**

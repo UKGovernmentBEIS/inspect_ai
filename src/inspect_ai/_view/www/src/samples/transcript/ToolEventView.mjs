@@ -13,11 +13,20 @@ import { formatDateTime } from "../../utils/Format.mjs";
  * @param {Object} props - The properties passed to the component.
  * @param { string  } props.id - The id of this event.
  * @param {import("../../types/log").ToolEvent} props.event - The event object to display.
+ * @param {import("./Types.mjs").TranscriptEventState} props.eventState - The state for this event
+ * @param {(state: import("./Types.mjs").TranscriptEventState) => void} props.setEventState - Update the state for this event
  * @param { Object } props.style - The style of this event.
  * @param { number } props.depth - The depth of this event.
  * @returns {import("preact").JSX.Element} The component.
  */
-export const ToolEventView = ({ id, event, style, depth }) => {
+export const ToolEventView = ({
+  id,
+  event,
+  eventState,
+  setEventState,
+  style,
+  depth,
+}) => {
   // Extract tool input
   const { input, functionCall, inputType } = resolveToolInput(
     event.function,
@@ -31,7 +40,21 @@ export const ToolEventView = ({ id, event, style, depth }) => {
 
   const title = `Tool: ${event.view?.title || event.function}`;
   return html`
-  <${EventPanel} id=${id} title="${title}" subTitle=${formatDateTime(new Date(event.timestamp))} icon=${ApplicationIcons.solvers.use_tools} style=${style}>  
+  <${EventPanel} 
+    id=${id} 
+    title="${title}" 
+    subTitle=${formatDateTime(new Date(event.timestamp))} 
+    icon=${ApplicationIcons.solvers.use_tools} 
+    style=${style}
+    selectedNav=${eventState.selectedNav || ""}
+    onSelectedNav=${(selectedNav) => {
+      setEventState({ ...eventState, selectedNav });
+    }}
+    collapsed=${eventState.collapsed}
+    onCollapsed=${(collapsed) => {
+      setEventState({ ...eventState, collapsed });
+    }}              
+  >  
   <div name="Summary" style=${{ margin: "0.5em 0", width: "100%" }}>
     <${ToolCallView}
       functionCall=${functionCall}

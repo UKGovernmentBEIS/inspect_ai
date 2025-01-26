@@ -33,6 +33,7 @@ from inspect_ai._util.trace import trace_action
 from inspect_ai.tool import Tool, ToolChoice, ToolFunction, ToolInfo
 from inspect_ai.tool._tool_def import ToolDef, tool_defs
 from inspect_ai.util import concurrency
+from inspect_ai.util._limit import SampleLimitExceededError
 
 from ._cache import CacheEntry, CachePolicy, cache_fetch, cache_store
 from ._call_tools import disable_parallel_tools, tool_call_view, tools_info
@@ -43,7 +44,7 @@ from ._chat_message import (
     ChatMessageTool,
     ChatMessageUser,
 )
-from ._conversation import conversation_assistant_message
+from ._conversation import conversation_assistant_error, conversation_assistant_message
 from ._generate_config import (
     GenerateConfig,
     active_generate_config,
@@ -116,7 +117,7 @@ class ModelAPI(abc.ABC):
         tools: list[ToolInfo],
         tool_choice: ToolChoice,
         config: GenerateConfig,
-    ) -> ModelOutput | tuple[ModelOutput, ModelCall]:
+    ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
         """Generate output from the model.
 
         Args:
@@ -165,7 +166,7 @@ class ModelAPI(abc.ABC):
         return False
 
     def tool_result_images(self) -> bool:
-        """Tool results can containe images"""
+        """Tool results can contain images"""
         return False
 
 
@@ -222,11 +223,17 @@ class Model:
         Returns:
            ModelOutput
         """
+        # if we are the default model then enforce message limit if it
+        # exists (raise an exception if it is exceeded)
+        is_active_model = self == active_model()
+        if is_active_model:
+            handle_sample_message_limit(input)
+
         # base config for this model
         base_config = self.config
 
         # if we are the active_model then merge active generate config
-        if self == active_model():
+        if is_active_model:
             base_config = base_config.merge(active_generate_config())
 
         # merge passed config
@@ -295,6 +302,9 @@ class Model:
             if not self.api.tools_required():
                 tools = []
             tool_choice = "none"
+
+        # apply any tool model_input handlers
+        input = resolve_tool_model_input(tdefs, input)
 
         # break tool image content out into user messages if the model doesn't
         # support tools returning images
@@ -389,6 +399,17 @@ class Model:
                 output = result
                 call = None
 
+            # raise error
+            if isinstance(output, Exception):
+                complete(output, call)
+
+                # Wrap the error in a runtime error which will show the
+                # request which caused the error
+                error = repr(output)
+                request = json.dumps(call.request, indent=2) if call is not None else ""
+                error_message = f"{error}\n\nRequest:\n{request}"
+                raise RuntimeError(error_message)
+
             # update output with time elapsed
             output.time = time_elapsed
 
@@ -464,7 +485,7 @@ class Model:
         cache: Literal["read", "write"] | None,
         output: ModelOutput | None = None,
         call: ModelCall | None = None,
-    ) -> Callable[[ModelOutput, ModelCall | None], None]:
+    ) -> Callable[[ModelOutput | Exception, ModelCall | None], None]:
         from inspect_ai.log._transcript import ModelEvent, transcript
 
         # create event and add it to the transcript
@@ -484,13 +505,16 @@ class Model:
 
         # callable that can be used to update the interaction w/ output
         def complete(
-            updated_output: ModelOutput, updated_call: ModelCall | None
+            result: ModelOutput | Exception, updated_call: ModelCall | None
         ) -> None:
             # trace
-            conversation_assistant_message(input, updated_output.choices[0].message)
+            if isinstance(result, ModelOutput):
+                conversation_assistant_message(input, result.choices[0].message)
+                event.output = result
+            else:
+                conversation_assistant_error(result)
+                event.error = repr(result)
 
-            # update event
-            event.output = updated_output
             event.call = updated_call
             event.pending = None
 
@@ -703,6 +727,40 @@ def simple_input_messages(
     return messages
 
 
+def resolve_tool_model_input(
+    tdefs: list[ToolDef], messages: list[ChatMessage]
+) -> list[ChatMessage]:
+    # filter on tooldefs that have a model input handler
+    tdefs = [tdef for tdef in tdefs if tdef.model_input is not None]
+
+    # bail if there are no handlers
+    if len(tdefs) == 0:
+        return messages
+
+    # don't mutate the original messages
+    messages = deepcopy(messages)
+
+    # extract tool messages
+    tool_messages = [
+        message for message in messages if isinstance(message, ChatMessageTool)
+    ]
+    # run model_input handlers over all tool_messages with the same function name
+    for tdef in tdefs:
+        assert tdef.model_input
+        # filter messages down to just this tool
+        tdef_tool_messages = [
+            message for message in tool_messages if message.function == tdef.name
+        ]
+        # call the function for each tool, passing the index, total, and content
+        for index, message in enumerate(tdef_tool_messages):
+            message.content = tdef.model_input(
+                index, len(tool_messages), message.content
+            )
+
+    # return modified messages
+    return messages
+
+
 def tool_result_images_as_user_message(
     messages: list[ChatMessage],
 ) -> list[ChatMessage]:
@@ -713,22 +771,30 @@ def tool_result_images_reducer(
     messages: list[ChatMessage],
     message: ChatMessage,
 ) -> list[ChatMessage]:
-    # append the message
-    messages.append(message)
-
     # if there are tool result images, pull them out into a ChatUserMessage
     if isinstance(message, ChatMessageTool) and isinstance(message.content, list):
+        tool_message = ChatMessageTool(
+            content=message.content.copy(),
+            tool_call_id=message.tool_call_id,
+            function=message.function,
+        )
+        assert isinstance(tool_message.content, list)
+        messages.append(tool_message)
+
         user_content: list[Content] = []
-        for i in range(0, len(message.content)):
-            if isinstance(message.content[i], ContentImage):
+        for i in range(0, len(tool_message.content)):
+            if isinstance(tool_message.content[i], ContentImage):
                 user_content.append(message.content[i])
-                message.content[i] = ContentText(
+                tool_message.content[i] = ContentText(
                     text="Image content is in the message below."
                 )
         if len(user_content) > 0:
             messages.append(
                 ChatMessageUser(content=user_content, tool_call_id=message.tool_call_id)
             )
+
+    else:
+        messages.append(message)
 
     # return messages
     return messages
@@ -813,6 +879,24 @@ def active_model() -> Model | None:
 active_model_context_var: ContextVar[Model] = ContextVar("active_model")
 
 
+def handle_sample_message_limit(input: str | list[ChatMessage]) -> None:
+    from inspect_ai.log._samples import (
+        active_sample_message_limit,
+        set_active_sample_total_messages,
+    )
+
+    total_messages = 1 if isinstance(input, str) else len(input)
+    message_limit = active_sample_message_limit()
+    if message_limit is not None:
+        if total_messages >= message_limit:
+            raise SampleLimitExceededError(
+                "message", value=total_messages, limit=message_limit
+            )
+
+    # set total messages
+    set_active_sample_total_messages(total_messages)
+
+
 def init_model_usage() -> None:
     model_usage_context_var.set({})
 
@@ -822,13 +906,28 @@ def init_sample_model_usage() -> None:
 
 
 def record_model_usage(model: str, usage: ModelUsage) -> None:
+    from inspect_ai.log._samples import (
+        active_sample_token_limit,
+        set_active_sample_total_tokens,
+    )
+
+    # record usage
     set_model_usage(model, usage, sample_model_usage_context_var.get(None))
     set_model_usage(model, usage, model_usage_context_var.get(None))
 
-    # update active sample
-    from inspect_ai.log._samples import set_active_sample_total_tokens
+    # compute total tokens
+    total_tokens = sample_total_tokens()
 
-    set_active_sample_total_tokens(sample_total_tokens())
+    # update active sample
+    set_active_sample_total_tokens(total_tokens)
+
+    # check for token limit overflow and raise
+    token_limit = active_sample_token_limit()
+    if token_limit is not None:
+        if total_tokens > token_limit:
+            raise SampleLimitExceededError(
+                "token", value=total_tokens, limit=token_limit
+            )
 
 
 def set_model_usage(

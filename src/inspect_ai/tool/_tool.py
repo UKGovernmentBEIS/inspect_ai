@@ -24,7 +24,7 @@ from inspect_ai._util.registry import (
     registry_tag,
 )
 
-from ._tool_call import ToolCallViewer
+from ._tool_call import ToolCallModelInput, ToolCallViewer
 
 logger = getLogger(__name__)
 
@@ -112,6 +112,7 @@ def tool(
     *,
     name: str | None = None,
     viewer: ToolCallViewer | None = None,
+    model_input: ToolCallModelInput | None = None,
     parallel: bool = True,
     prompt: str | None = None,
 ) -> Callable[[Callable[P, Tool]], Callable[P, Tool]]: ...
@@ -122,6 +123,7 @@ def tool(
     *,
     name: str | None = None,
     viewer: ToolCallViewer | None = None,
+    model_input: ToolCallModelInput | None = None,
     parallel: bool = True,
     prompt: str | None = None,
 ) -> Callable[P, Tool] | Callable[[Callable[P, Tool]], Callable[P, Tool]]:
@@ -135,6 +137,8 @@ def tool(
             will be used as the name of the tool.
         viewer (ToolCallViewer | None): Provide a custom view
             of tool call and context.
+        model_input (ToolCallModelInput | None): Provide a custom
+            function for playing back tool results as model input.
         parallel (bool):
             Does this tool support parallel execution?
             (defaults to True).
@@ -176,6 +180,9 @@ def tool(
                         TOOL_PROMPT: prompt,
                         TOOL_PARALLEL: parallel,
                         TOOL_VIEWER: viewer,
+                        TOOL_MODEL_INPUT: (
+                            model_input or getattr(tool, TOOL_INIT_MODEL_INPUT, None)
+                        ),
                     },
                 ),
                 *args,
@@ -195,3 +202,7 @@ def tool(
 TOOL_PROMPT = "prompt"
 TOOL_PARALLEL = "parallel"
 TOOL_VIEWER = "viewer"
+TOOL_MODEL_INPUT = "model_input"
+
+
+TOOL_INIT_MODEL_INPUT = "__TOOL_INIT_MODEL_INPUT__"
