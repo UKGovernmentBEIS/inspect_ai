@@ -243,7 +243,7 @@ def goodfire() -> type[ModelAPI]:
     """Get the Goodfire API provider."""
     FEATURE = "Goodfire API"
     PACKAGE = "goodfire"
-    MIN_VERSION = "0.3.4"
+    MIN_VERSION = "0.3.4"  # Support for newer Llama models and OpenAI compatibility
 
     # verify we have the package
     try:
