@@ -11,6 +11,7 @@ from .._registry import modelapi
 # Note that some api providers (e.g. Cloudflare, AzureAI) don't
 # strictly require this treatment but we do it anyway for uniformity,
 
+
 @modelapi(name="groq")
 def groq() -> type[ModelAPI]:
     FEATURE = "Groq API"
