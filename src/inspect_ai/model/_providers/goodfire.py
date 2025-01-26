@@ -12,6 +12,7 @@ from goodfire.api.chat.interfaces import ChatMessage as GoodfireChatMessage
 from goodfire.variants.variants import SUPPORTED_MODELS, Variant
 from goodfire.api.chat.client import AsyncChatAPICompletions, ChatCompletion
 from goodfire.api.features.client import FeaturesAPI
+from goodfire.api.exceptions import RateLimitException, InvalidRequestException
 
 from inspect_ai._util.error import pip_dependency_error
 from inspect_ai._util.content import Content, ContentText
@@ -70,7 +71,6 @@ class GoodfireAPI(ModelAPI):
     """
     
     client: AsyncClient
-    model_name: str
     variant: Variant
     model_args: dict[str, Any]
 
@@ -160,20 +160,6 @@ class GoodfireAPI(ModelAPI):
 
     def handle_error(self, ex: Exception) -> ModelOutput | Exception:
         """Handle only errors that need special treatment for retry logic or model limits."""
-        from goodfire.api.exceptions import (
-            RateLimitException,
-            InvalidRequestException,
-        )
-
-        # Handle rate limits for retry logic
-        if isinstance(ex, RateLimitException):
-            return ModelOutput.from_content(
-                model=self.model_name,
-                content=str(ex),
-                stop_reason="unknown",  # Using unknown since rate_limit isn't in StopReason
-                error=str(ex),
-            )
-
         # Handle token/context length errors
         if isinstance(ex, InvalidRequestException):
             error_msg = str(ex).lower()
