@@ -239,9 +239,22 @@ def mockllm() -> type[ModelAPI]:
 
 
 @modelapi("goodfire")
-def get_goodfire() -> type[ModelAPI]:
+def goodfire() -> type[ModelAPI]:
     """Get the Goodfire API provider."""
-    # Import deferred to runtime to avoid unnecessary imports
+    FEATURE = "Goodfire API"
+    PACKAGE = "goodfire"
+    MIN_VERSION = "0.3.4"
+
+    # verify we have the package
+    try:
+        import goodfire  # noqa: F401
+    except ImportError:
+        raise pip_dependency_error(FEATURE, [PACKAGE])
+
+    # verify version
+    verify_required_version(FEATURE, PACKAGE, MIN_VERSION)
+
+    # in the clear
     from .goodfire import GoodfireAPI
     return GoodfireAPI
 
