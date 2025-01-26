@@ -5,7 +5,6 @@ from inspect_ai._util.version import verify_required_version
 
 from .._model import ModelAPI
 from .._registry import modelapi
-from .goodfire import GoodfireAPI
 
 # Defer importing model api classes until they are actually used
 # (this allows the package to load without the optional deps)
@@ -239,25 +238,11 @@ def mockllm() -> type[ModelAPI]:
     return MockLLM
 
 
-@modelapi(name="goodfire")
-def goodfire() -> type[ModelAPI]:
-    """Get Goodfire API provider."""
-    FEATURE = "Goodfire API"
-    PACKAGE = "goodfire"
-    MIN_VERSION = "0.2.5"
-
-    # verify we have the package
-    try:
-        import goodfire  # noqa: F401
-    except ImportError:
-        raise pip_dependency_error(FEATURE, [PACKAGE])
-
-    # verify version
-    verify_required_version(FEATURE, PACKAGE, MIN_VERSION)
-
-    # in the clear
+@modelapi("goodfire")
+def get_goodfire() -> type[ModelAPI]:
+    """Get the Goodfire API provider."""
+    # Import deferred to runtime to avoid unnecessary imports
     from .goodfire import GoodfireAPI
-
     return GoodfireAPI
 
 

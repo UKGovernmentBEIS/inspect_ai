@@ -1,24 +1,16 @@
 import logging
 import os
-from typing import Any, List, cast, Literal, get_args
-
-from typing_extensions import override
+from typing import Any, List, Literal, cast, get_args
 
 from goodfire import AsyncClient
-from goodfire.api.chat.interfaces import ChatMessage as GoodfireChatMessage
-from goodfire.variants.variants import SUPPORTED_MODELS, Variant
 from goodfire.api.chat.client import AsyncChatAPICompletions
+from goodfire.api.chat.interfaces import ChatMessage as GoodfireChatMessage
 from goodfire.api.exceptions import InvalidRequestException, RateLimitException
+from goodfire.variants.variants import SUPPORTED_MODELS, Variant
+from typing_extensions import override
 
 from inspect_ai.tool import ToolChoice, ToolInfo
 
-from .._model_call import ModelCall
-from .._model import ModelAPI
-from .._model_output import (
-    ModelOutput,
-    ModelUsage,
-    ChatCompletionChoice,
-)
 from .._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
@@ -27,6 +19,13 @@ from .._chat_message import (
     ChatMessageUser,
 )
 from .._generate_config import GenerateConfig
+from .._model import ModelAPI
+from .._model_call import ModelCall
+from .._model_output import (
+    ChatCompletionChoice,
+    ModelOutput,
+    ModelUsage,
+)
 from .util import environment_prerequisite_error, model_base_url
 
 logger = logging.getLogger(__name__)
@@ -41,19 +40,20 @@ DEFAULT_MAX_CONNECTIONS = 10
 DEFAULT_MAX_RETRIES = 3
 DEFAULT_TIMEOUT = 60.0
 
-# Note: We don't need MODEL_MAP since Goodfire maintains SUPPORTED_MODELS
-
 class GoodfireAPI(ModelAPI):
     """Goodfire API provider.
+
     This provider implements the Goodfire API for LLM inference. It supports:
     - Chat completions with standard message formats
     - Basic parameter controls (temperature, top_p, etc.)
     - Usage statistics tracking
     - Stop reason handling
+
     Does not currently support:
     - Tool calls
     - Feature analysis
     - Streaming responses
+
     Known limitations:
     - Limited role support (system/user/assistant only)
     - Tool messages converted to user messages
@@ -71,6 +71,7 @@ class GoodfireAPI(ModelAPI):
         **model_args: Any,
     ) -> None:
         """Initialize the Goodfire API provider.
+
         Args:
             model_name: Name of the model to use
             base_url: Optional custom API base URL
@@ -114,10 +115,13 @@ class GoodfireAPI(ModelAPI):
 
     def _to_goodfire_message(self, message: ChatMessage) -> GoodfireChatMessage:
         """Convert an Inspect message to a Goodfire message format.
+
         Args:
             message: The message to convert
+
         Returns:
             The converted message in Goodfire format
+
         Raises:
             ValueError: If the message type is unknown
         """
