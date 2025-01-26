@@ -61,7 +61,7 @@ class SandboxEnvironment:
         """
 ```
 
-The `read_file()` method should should preserve newline constructs (e.g. crlf should be preserved not converted to lf). This is equivalent to specifying `newline=""` in a call to the Python `open()` function. Note that `write_file()` automatically creates parent directories as required if they don't exist.
+The `read_file()` method should preserve newline constructs (e.g. crlf should be preserved not converted to lf). This is equivalent to specifying `newline=""` in a call to the Python `open()` function. Note that `write_file()` automatically creates parent directories as required if they don't exist.
 
 The `connection()` method is optional, and provides commands that can be used to login to the sandbox container from a terminal or IDE.
 
