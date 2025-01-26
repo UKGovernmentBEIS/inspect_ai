@@ -7,6 +7,7 @@
 - Hugging Face: Add support for stop sequences for HF models.
 - Docker: More robust parsing of version strings (handle development versions).
 - Bugfix: Fix issue w/ approvals for samples with id==0.
+- Bugfix: Use "plain" display when running eval_async() outside of eval().
 
 ## v0.3.59 (24 January 2025)
 

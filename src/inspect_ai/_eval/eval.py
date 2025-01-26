@@ -35,7 +35,12 @@ from inspect_ai.scorer._reducer import reducer_log_names
 from inspect_ai.solver._chain import chain
 from inspect_ai.solver._solver import Solver, SolverSpec
 from inspect_ai.util import SandboxEnvironmentType
-from inspect_ai.util._display import DisplayType, display_type, init_display_type
+from inspect_ai.util._display import (
+    DisplayType,
+    display_type,
+    display_type_initialized,
+    init_display_type,
+)
 
 from .context import init_eval_context
 from .loader import ResolvedTask, resolve_tasks
@@ -305,6 +310,10 @@ async def eval_async(
         raise RuntimeError("Multiple concurrent calls to eval_async are not allowed.")
 
     _eval_async_running = True
+
+    # if we are called outside of eval() then set display type to "plain"
+    if not display_type_initialized():
+        init_display_type("plain")
 
     # resolve model and task args
     model_args = resolve_args(model_args)
