@@ -29636,12 +29636,10 @@ self.onmessage = function (e) {
         }) => header);
       };
       const get_log_paths = async () => {
-        console.log("get_log_paths");
         const logFiles = await api2.eval_logs();
         if (logFiles) {
           return logFiles;
         } else if (log_file) {
-          console.log(log_file);
           const summary = await get_log_summary(log_file);
           if (summary) {
             return {

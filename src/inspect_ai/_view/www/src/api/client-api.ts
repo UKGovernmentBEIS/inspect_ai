@@ -242,13 +242,10 @@ export const clientApi = (api: LogViewAPI, log_file?: string): ClientAPI => {
   };
 
   const get_log_paths = async (): Promise<LogFiles> => {
-    console.log("get_log_paths");
     const logFiles = await api.eval_logs();
     if (logFiles) {
       return logFiles!;
     } else if (log_file) {
-      console.log(log_file);
-
       // Is there an explicitly passed log file?
       const summary = await get_log_summary(log_file);
       if (summary) {
