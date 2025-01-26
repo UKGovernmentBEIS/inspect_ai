@@ -8,7 +8,7 @@ from goodfire import AsyncClient
 from goodfire.api.chat.interfaces import ChatMessage as GoodfireChatMessage
 from goodfire.variants.variants import SUPPORTED_MODELS, Variant
 from goodfire.api.chat.client import AsyncChatAPICompletions
-from goodfire.api.exceptions import InvalidRequestException
+from goodfire.api.exceptions import InvalidRequestException, RateLimitException
 
 from inspect_ai.tool import ToolChoice, ToolInfo
 
@@ -205,7 +205,8 @@ class GoodfireAPI(ModelAPI):
             params["top_p"] = DEFAULT_TOP_P
 
         # Add any additional model args (highest priority)
-        params.update(self.model_args)
+        api_params = {k: v for k, v in self.model_args.items() if k not in ["api_key", "base_url", "model_args"]}
+        params.update(api_params)
 
         try:
             # Use native async client

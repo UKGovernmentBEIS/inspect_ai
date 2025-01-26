@@ -12,18 +12,14 @@ from inspect_ai.model import (
 @skip_if_no_goodfire
 async def test_goodfire_api() -> None:
     model = get_model(
-        "goodfire/claude-3-sonnet",  # Using a sample model name
+        "meta-llama/Meta-Llama-3.1-8B-Instruct",  # Using exact model name from SUPPORTED_MODELS
         config=GenerateConfig(
-            frequency_penalty=0.0,
-            stop_seqs=None,
             max_tokens=50,
-            presence_penalty=0.0,
-            seed=None,
             temperature=0.0,
             top_p=1.0,
         ),
     )
 
-    message = ChatMessageUser(content="This is a test string. What are you?")
-    response = await model.generate(input=[message])
+    message = ChatMessageUser(content="What is 2+2?")
+    response = await model.generate(input=[message], tools=[], tool_choice="none")
     assert len(response.completion) >= 1 
