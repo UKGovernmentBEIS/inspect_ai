@@ -4,7 +4,7 @@ from inspect_ai._util.error import pip_dependency_error
 from inspect_ai._util.version import verify_required_version
 
 from .._model import ModelAPI
-from .._registry import modelapi, modelapi_register
+from .._registry import modelapi
 from .goodfire import GoodfireAPI
 
 # Defer importing model api classes until they are actually used

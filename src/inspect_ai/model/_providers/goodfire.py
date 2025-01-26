@@ -1,21 +1,15 @@
-import asyncio
 import logging
 import os
-from typing import Any, List, Optional, TypedDict, Union, cast, Literal, get_args
-from typing_extensions import override
-from functools import partial
+from typing import Any, List, cast, Literal, get_args
 
-import goodfire
-import httpx
+from typing_extensions import override
+
 from goodfire import AsyncClient
 from goodfire.api.chat.interfaces import ChatMessage as GoodfireChatMessage
 from goodfire.variants.variants import SUPPORTED_MODELS, Variant
-from goodfire.api.chat.client import AsyncChatAPICompletions, ChatCompletion
-from goodfire.api.features.client import FeaturesAPI
-from goodfire.api.exceptions import RateLimitException, InvalidRequestException
+from goodfire.api.chat.client import AsyncChatAPICompletions
+from goodfire.api.exceptions import InvalidRequestException
 
-from inspect_ai._util.error import pip_dependency_error
-from inspect_ai._util.content import Content, ContentText
 from inspect_ai.tool import ToolChoice, ToolInfo
 
 from .._model_call import ModelCall
@@ -24,7 +18,6 @@ from .._model_output import (
     ModelOutput,
     ModelUsage,
     ChatCompletionChoice,
-    StopReason,
 )
 from .._chat_message import (
     ChatMessage,
@@ -34,7 +27,6 @@ from .._chat_message import (
     ChatMessageUser,
 )
 from .._generate_config import GenerateConfig
-from .._call_tools import Tool
 from .util import environment_prerequisite_error, model_base_url
 
 logger = logging.getLogger(__name__)
@@ -53,23 +45,19 @@ DEFAULT_TIMEOUT = 60.0
 
 class GoodfireAPI(ModelAPI):
     """Goodfire API provider.
-    
     This provider implements the Goodfire API for LLM inference. It supports:
     - Chat completions with standard message formats
     - Basic parameter controls (temperature, top_p, etc.)
     - Usage statistics tracking
     - Stop reason handling
-    
     Does not currently support:
     - Tool calls
     - Feature analysis
     - Streaming responses
-    
     Known limitations:
     - Limited role support (system/user/assistant only)
     - Tool messages converted to user messages
     """
-    
     client: AsyncClient
     variant: Variant
     model_args: dict[str, Any]
@@ -83,7 +71,6 @@ class GoodfireAPI(ModelAPI):
         **model_args: Any,
     ) -> None:
         """Initialize the Goodfire API provider.
-        
         Args:
             model_name: Name of the model to use
             base_url: Optional custom API base URL
@@ -127,13 +114,10 @@ class GoodfireAPI(ModelAPI):
 
     def _to_goodfire_message(self, message: ChatMessage) -> GoodfireChatMessage:
         """Convert an Inspect message to a Goodfire message format.
-        
         Args:
             message: The message to convert
-            
         Returns:
             The converted message in Goodfire format
-            
         Raises:
             ValueError: If the message type is unknown
         """
@@ -177,7 +161,6 @@ class GoodfireAPI(ModelAPI):
     @override
     def is_rate_limit(self, ex: BaseException) -> bool:
         """Check if exception is due to rate limiting."""
-        from goodfire.api.exceptions import RateLimitException
         return isinstance(ex, RateLimitException)
 
     @override
@@ -202,7 +185,6 @@ class GoodfireAPI(ModelAPI):
         """Generate output from the model."""
         # Convert messages and prepare request params
         messages = [self._to_goodfire_message(msg) for msg in input]
-        
         # Build request parameters with type hints
         params: dict[str, Any] = {
             "model": self.variant.base_model,  # Use base_model instead of stringifying the Variant
@@ -240,14 +222,11 @@ class GoodfireAPI(ModelAPI):
                 )],
                 usage=ModelUsage(**response_dict["usage"]) if "usage" in response_dict else None
             )
-            
             model_call = ModelCall.create(
                 request=params,
                 response=response_dict
             )
-            
             return (output, model_call)
-            
         except Exception as ex:
             result = self.handle_error(ex)
             model_call = ModelCall.create(
