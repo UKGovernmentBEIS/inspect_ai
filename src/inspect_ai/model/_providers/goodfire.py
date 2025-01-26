@@ -1,4 +1,3 @@
-import logging
 import os
 from typing import Any, List, Literal, cast, get_args
 
@@ -8,8 +7,6 @@ from goodfire.api.chat.interfaces import ChatMessage as GoodfireChatMessage
 from goodfire.api.exceptions import InvalidRequestException, RateLimitException
 from goodfire.variants.variants import SUPPORTED_MODELS, Variant
 from typing_extensions import override
-
-from inspect_ai.tool import ToolChoice, ToolInfo
 
 from .._chat_message import (
     ChatMessage,
@@ -28,17 +25,12 @@ from .._model_output import (
 )
 from .util import environment_prerequisite_error, model_base_url
 
-logger = logging.getLogger(__name__)
-
 # Constants
 GOODFIRE_API_KEY = "GOODFIRE_API_KEY"
 DEFAULT_BASE_URL = "https://api.goodfire.ai"
 DEFAULT_MAX_TOKENS = 4096
 DEFAULT_TEMPERATURE = 1.0  # Standard sampling temperature (baseline)
 DEFAULT_TOP_P = 1.0  # No nucleus sampling truncation (baseline)
-DEFAULT_MAX_CONNECTIONS = 10
-DEFAULT_MAX_RETRIES = 3
-DEFAULT_TIMEOUT = 60.0
 
 class GoodfireAPI(ModelAPI):
     """Goodfire API provider.
