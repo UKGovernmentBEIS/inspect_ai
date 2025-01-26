@@ -2,8 +2,8 @@ import { render } from "preact";
 import { html } from "htm/preact";
 
 import { App } from "./App.mjs";
-import api from "./api/index.mjs";
-import { getVscodeApi } from "./utils/vscode.mjs";
+import api from "./api/index";
+import { getVscodeApi } from "./utils/vscode";
 import { throttle } from "./utils/sync.mjs";
 
 // Read any state from the page itself

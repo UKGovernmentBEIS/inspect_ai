@@ -1,5 +1,12 @@
 //@ts-check
-import { asyncJsonParse } from "../utils/Json.mjs";
+import {
+  EvalHeader,
+  EvalSummary,
+  LogViewAPI,
+  SampleSummary,
+} from "../api/Types";
+import { EvalLog, EvalPlan, EvalSample, EvalSpec } from "../types/log";
+import { asyncJsonParse } from "../utils/json-worker";
 import { AsyncQueue } from "../utils/queue.mjs";
 import {
   FileSizeLimitError,
@@ -9,42 +16,46 @@ import {
 // don't try to load samples greater than 50mb
 const MAX_BYTES = 50 * 1024 * 1024;
 
-/**
- * @typedef {Object} SampleEntry
- * @property {string} sampleId
- * @property {number} epoch
- */
+interface SampleEntry {
+  sampleId: string;
+  epoch: number;
+}
 
-/**
- * @typedef {Object} RemoteLogFile
- * @property {() => Promise<Object>} readHeader - Reads the header of the log file.
- * @property {() => Promise<Object>} readLogSummary - Reads the log summary including header and sample summaries.
- * @property {(sampleId: string, epoch: number) => Promise<Object>} readSample - Reads a specific sample file.
- * @property {() => Promise<import("../types/log").EvalLog>} readCompleteLog - Reads the complete log file including all samples.
- */
+export interface RemoteLogFile {
+  readHeader: () => Promise<EvalHeader>;
+  readLogSummary: () => Promise<EvalSummary>;
+  readSample: (sampleId: string, epoch: number) => Promise<EvalSample>;
+  readCompleteLog: () => Promise<EvalLog>;
+}
+
+interface LogStart {
+  version: number;
+  eval: EvalSpec;
+  plan: EvalPlan;
+}
 
 /**
  * Opens a remote log file and provides methods to read its contents.
- * @param {import("../api/Types.mjs").LogViewAPI} api - The api
- * @param {string} url - The URL of the remote zip file.
- * @param {number} concurrency - The number of concurrent operations allowed.
- * @returns {Promise<RemoteLogFile>} An object with methods to read the log file.
  */
-export const openRemoteLogFile = async (api, url, concurrency) => {
+export const openRemoteLogFile = async (
+  api: LogViewAPI,
+  url: string,
+  concurrency: number,
+): Promise<RemoteLogFile> => {
   const queue = new AsyncQueue(concurrency);
   const remoteZipFile = await openRemoteZipFile(
-    `${encodeURIComponent(url)}`,
+    url,
     api.eval_log_size,
     api.eval_log_bytes,
   );
 
   /**
    * Reads and parses a JSON file from the zip.
-   * @param {string} file - The name of the file to read.
-   * @param {number} [maxBytes] - the max bytes
-   * @returns {Promise<Object>} The parsed JSON content.
    */
-  const readJSONFile = async (file, maxBytes) => {
+  const readJSONFile = async (
+    file: string,
+    maxBytes?: number,
+  ): Promise<Object> => {
     try {
       const data = await remoteZipFile.readFile(file, maxBytes);
       const textDecoder = new TextDecoder("utf-8");
@@ -53,9 +64,13 @@ export const openRemoteLogFile = async (api, url, concurrency) => {
     } catch (error) {
       if (error instanceof FileSizeLimitError) {
         throw error;
-      } else {
+      } else if (error instanceof Error) {
         throw new Error(
           `Failed to read or parse file ${file}: ${error.message}`,
+        );
+      } else {
+        throw new Error(
+          `Failed to read or parse file ${file} - an unknown error occurred`,
         );
       }
     }
@@ -63,9 +78,8 @@ export const openRemoteLogFile = async (api, url, concurrency) => {
 
   /**
    * Lists all samples in the zip file.
-   * @returns {Promise<SampleEntry[]>} An array of sample objects.
    */
-  const listSamples = async () => {
+  const listSamples = async (): Promise<SampleEntry[]> => {
     return Array.from(remoteZipFile.centralDirectory.keys())
       .filter(
         (filename) =>
@@ -82,14 +96,14 @@ export const openRemoteLogFile = async (api, url, concurrency) => {
 
   /**
    * Reads a specific sample file.
-   * @param {string} sampleId - The ID of the sample.
-   * @param {number} epoch - The epoch of the sample.
-   * @returns {Promise<Object>} The content of the sample file.
    */
-  const readSample = async (sampleId, epoch) => {
+  const readSample = async (
+    sampleId: string,
+    epoch: number,
+  ): Promise<EvalSample> => {
     const sampleFile = `samples/${sampleId}_epoch_${epoch}.json`;
     if (remoteZipFile.centralDirectory.has(sampleFile)) {
-      return readJSONFile(sampleFile, MAX_BYTES);
+      return (await readJSONFile(sampleFile, MAX_BYTES)) as EvalSample;
     } else {
       console.log({ dir: remoteZipFile.centralDirectory });
       throw new Error(
@@ -100,13 +114,12 @@ export const openRemoteLogFile = async (api, url, concurrency) => {
 
   /**
    * Reads the results.json file.
-   * @returns {Promise<Object>} The content of results.json.
    */
-  const readHeader = async () => {
+  const readHeader = async (): Promise<EvalHeader> => {
     if (remoteZipFile.centralDirectory.has("header.json")) {
-      return readJSONFile("header.json");
+      return (await readJSONFile("header.json")) as EvalHeader;
     } else {
-      const evalSpec = await readJSONFile("_journal/start.json");
+      const evalSpec = (await readJSONFile("_journal/start.json")) as LogStart;
       return {
         status: "started",
         eval: evalSpec.eval,
@@ -117,9 +130,8 @@ export const openRemoteLogFile = async (api, url, concurrency) => {
 
   /**
    * Reads individual summary files when summaries.json is not available.
-   * @returns {Promise<Object>} Combined summaries from individual files.
    */
-  const readFallbackSummaries = async () => {
+  const readFallbackSummaries = async (): Promise<SampleSummary[]> => {
     const summaryFiles = Array.from(
       remoteZipFile.centralDirectory.keys(),
     ).filter(
@@ -128,14 +140,16 @@ export const openRemoteLogFile = async (api, url, concurrency) => {
         filename.endsWith(".json"),
     );
 
-    const summaries = [];
-    const errors = [];
+    const summaries: SampleSummary[] = [];
+    const errors: unknown[] = [];
 
     await Promise.all(
       summaryFiles.map((filename) =>
         queue.enqueue(async () => {
           try {
-            const partialSummary = await readJSONFile(filename);
+            const partialSummary = (await readJSONFile(
+              filename,
+            )) as SampleSummary[];
             summaries.push(...partialSummary);
           } catch (error) {
             errors.push(error);
@@ -156,11 +170,10 @@ export const openRemoteLogFile = async (api, url, concurrency) => {
 
   /**
    * Reads all summaries, falling back to individual files if necessary.
-   * @returns {Promise<Object>} All summaries.
    */
-  const readSampleSummaries = async () => {
+  const readSampleSummaries = async (): Promise<SampleSummary[]> => {
     if (remoteZipFile.centralDirectory.has("summaries.json")) {
-      return await readJSONFile("summaries.json");
+      return (await readJSONFile("summaries.json")) as SampleSummary[];
     } else {
       return readFallbackSummaries();
     }
@@ -187,14 +200,17 @@ export const openRemoteLogFile = async (api, url, concurrency) => {
     readSample,
     /**
      * Reads the complete log file.
-     * @returns {Promise<import("../types/log").EvalLog>} The complete log data.
      */
-    readCompleteLog: async () => {
+    readCompleteLog: async (): Promise<EvalLog> => {
       const [evalLog, samples] = await Promise.all([
         readHeader(),
         listSamples().then((sampleIds) =>
           Promise.all(
-            sampleIds.map(({ sampleId, epoch }) => readSample(sampleId, epoch)),
+            sampleIds.map(({ sampleId, epoch }) =>
+              readSample(sampleId, epoch).then(
+                (sample) => sample as EvalSample,
+              ),
+            ),
           ),
         ),
       ]);

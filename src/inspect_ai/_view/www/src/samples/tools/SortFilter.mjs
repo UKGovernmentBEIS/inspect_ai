@@ -89,9 +89,9 @@ const sortId = (a, b) => {
  * Sorts a list of samples
  *
  * @param {string} sort - The sort direction
- * @param {import("../../api/Types.mjs").SampleSummary[]} samples - The samples
+ * @param {import("../../api/Types.ts").SampleSummary[]} samples - The samples
  * @param {import("../SamplesDescriptor.mjs").SamplesDescriptor} samplesDescriptor - The samples descriptor
- * @returns {{ sorted: import("../../api/Types.mjs").SampleSummary[], order: 'asc' | 'desc' }} An object with sorted samples and the sort order.
+ * @returns {{ sorted: import("../../api/Types.ts").SampleSummary[], order: 'asc' | 'desc' }} An object with sorted samples and the sort order.
  */
 export const sortSamples = (sort, samples, samplesDescriptor) => {
   const sortedSamples = samples.sort((a, b) => {
