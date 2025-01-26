@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import os
-from typing import Any, Dict, List, Optional, TypedDict, Union, cast, Literal, get_args
+from typing import Any, List, Optional, TypedDict, Union, cast, Literal, get_args
 from typing_extensions import override
 from functools import partial
 
@@ -204,7 +204,7 @@ class GoodfireAPI(ModelAPI):
         messages = [self._to_goodfire_message(msg) for msg in input]
         
         # Build request parameters with type hints
-        params: Dict[str, Any] = {
+        params: dict[str, Any] = {
             "model": self.variant.base_model,  # Use base_model instead of stringifying the Variant
             "messages": messages,
             "max_completion_tokens": int(config.max_tokens) if config.max_tokens else DEFAULT_MAX_TOKENS,
@@ -246,7 +246,7 @@ class GoodfireAPI(ModelAPI):
                 response=response_dict
             )
             
-            return cast(tuple[ModelOutput | Exception, ModelCall], (output, model_call))
+            return (output, model_call)
             
         except Exception as ex:
             result = self.handle_error(ex)
@@ -254,7 +254,7 @@ class GoodfireAPI(ModelAPI):
                 request=params,
                 response={}  # Empty response for error case
             )
-            return cast(tuple[ModelOutput | Exception, ModelCall], (result, model_call))
+            return (result, model_call)
 
     @property
     def name(self) -> str:
