@@ -1,35 +1,45 @@
-//@ts-check
-import { openRemoteLogFile } from "../log/remoteLogFile.mjs";
+import { openRemoteLogFile, RemoteLogFile } from "../log/remoteLogFile";
+import { EvalLog, EvalSample } from "../types/log";
 import { FileSizeLimitError } from "../utils/remoteZipFile.mjs";
+import { encodePathParts } from "./api-shared";
+import {
+  ClientAPI,
+  EvalSummary,
+  LogContents,
+  LogViewAPI,
+  LogFiles,
+} from "./Types";
 
-const isEvalFile = (file) => {
+const isEvalFile = (file: string) => {
   return file.endsWith(".eval");
 };
 
 /**
  * Represents an error thrown when a file exceeds the maximum allowed size.
- *
- * @class
- * @extends {Error}
  */
 export class SampleSizeLimitedExceededError extends Error {
-  /**
-   * Creates a new SizeLimitedExceededError.
-   *
-   * @param {string | number} id - The name of the file that caused the error.
-   * @param {number} epoch - The name of the file that caused the error.
-   * @param {number} maxBytes - The maximum allowed size for the file, in bytes.
-   */
-  constructor(id, epoch, maxBytes) {
+  readonly id: string | number;
+  readonly epoch: number;
+  readonly maxBytes: number;
+  readonly displayStack: boolean;
+
+  constructor(id: string | number, epoch: number, maxBytes: number) {
     super(
       `Sample ${id} in epoch ${epoch} exceeds the maximum supported size (${maxBytes / 1024 / 1024}MB) and cannot be loaded.`,
     );
+
     this.name = "SampleSizeLimitedExceededError";
     this.id = id;
     this.epoch = epoch;
     this.maxBytes = maxBytes;
     this.displayStack = false;
+
+    Object.setPrototypeOf(this, SampleSizeLimitedExceededError.prototype);
   }
+}
+interface LoadedLogFile {
+  file?: string;
+  remoteLog?: RemoteLogFile;
 }
 
 /**
@@ -37,35 +47,35 @@ export class SampleSizeLimitedExceededError extends Error {
  * file using an http parameter, designed to be deployed
  * to a webserver without inspect or the ability to enumerate log
  * files
- *
- * @param { import("./Types.mjs").LogViewAPI } api - The api to use when loading logs
- * @returns { import("./Types.mjs").ClientAPI } A Client API for the viewer
  */
-export const clientApi = (api) => {
-  let current_log = undefined;
-  let current_path = undefined;
+export const clientApi = (api: LogViewAPI, log_file?: string): ClientAPI => {
+  let current_log: LogContents | undefined = undefined;
+  let current_path: string | undefined = undefined;
 
-  const loadedEvalFile = {
+  const loadedEvalFile: LoadedLogFile = {
     file: undefined,
     remoteLog: undefined,
   };
 
-  const remoteEvalFile = async (log_file, cached = false) => {
+  const remoteEvalFile = async (log_file: string, cached: boolean = false) => {
     if (!cached || loadedEvalFile.file !== log_file) {
       loadedEvalFile.file = log_file;
-      loadedEvalFile.remoteLog = await openRemoteLogFile(api, log_file, 5);
+      loadedEvalFile.remoteLog = await openRemoteLogFile(
+        api,
+        encodePathParts(log_file),
+        5,
+      );
     }
     return loadedEvalFile.remoteLog;
   };
 
   /**
    * Gets a log
-   *
-   * @param { string } log_file - The api to use when loading logs
-   * @param { boolean } cached - allow this request to use a cached log file
-   * @returns { Promise<import("./Types.mjs").LogContents> } A Log Viewer API
    */
-  const get_log = async (log_file, cached = false) => {
+  const get_log = async (
+    log_file: string,
+    cached = false,
+  ): Promise<LogContents> => {
     // If the requested log is different or no cached log exists, start fetching
     if (!cached || log_file !== current_path || !current_log) {
       // If there's already a pending fetch, return the same promise
@@ -91,22 +101,23 @@ export const clientApi = (api) => {
     }
     return current_log;
   };
-  let pending_log_promise = null;
+  let pending_log_promise: Promise<LogContents> | null = null;
 
   /**
    * Gets a log summary
-   *
-   * @param { string } log_file - The api to use when loading logs
-   * @returns { Promise<import("./Types.mjs").EvalSummary> } A Log Viewer API
    */
-  const get_log_summary = async (log_file) => {
+  const get_log_summary = async (log_file: string): Promise<EvalSummary> => {
     if (isEvalFile(log_file)) {
       const remoteLogFile = await remoteEvalFile(log_file);
-      return await remoteLogFile.readLogSummary();
+      if (remoteLogFile) {
+        return await remoteLogFile.readLogSummary();
+      } else {
+        throw new Error("Unable to read remote eval file");
+      }
     } else {
       const logContents = await get_log(log_file);
       /**
-       * @type {import("./Types.mjs").SampleSummary[]}
+       * @type {import("./Types.js").SampleSummary[]}
        */
       const sampleSummaries = logContents.parsed.samples
         ? logContents.parsed.samples?.map((sample) => {
@@ -138,18 +149,21 @@ export const clientApi = (api) => {
 
   /**
    * Gets a sample
-   *
-   * @param { string } log_file - The api to use when loading logs
-   * @param { string | number } id - The api to use when loading logs
-   * @param { number } epoch - The api to use when loading logs
-   * @returns { Promise<import("../types/log").EvalSample | undefined> }  The sample
    */
-  const get_log_sample = async (log_file, id, epoch) => {
+  const get_log_sample = async (
+    log_file: string,
+    id: string | number,
+    epoch: number,
+  ): Promise<EvalSample | undefined> => {
     if (isEvalFile(log_file)) {
       const remoteLogFile = await remoteEvalFile(log_file, true);
       try {
-        const sample = await remoteLogFile.readSample(id, epoch);
-        return sample;
+        if (remoteLogFile) {
+          const sample = await remoteLogFile.readSample(String(id), epoch);
+          return sample;
+        } else {
+          throw new Error(`Unable to read remove eval file ${log_file}`);
+        }
       } catch (error) {
         if (error instanceof FileSizeLimitError) {
           throw new SampleSizeLimitedExceededError(id, epoch, error.maxBytes);
@@ -168,21 +182,22 @@ export const clientApi = (api) => {
     return undefined;
   };
 
-  const get_eval_log_header = async (log_file) => {
+  const get_eval_log_header = async (log_file: string) => {
     // Don't re-use the eval log file since we know these are all different log files
-    const remoteLogFile = await openRemoteLogFile(api, log_file, 5);
+    const remoteLogFile = await openRemoteLogFile(
+      api,
+      encodePathParts(log_file),
+      5,
+    );
     return remoteLogFile.readHeader();
   };
 
   /**
    * Gets log headers
-   *
-   * @param { string[] } log_files - The api to use when loading logs
-   * @returns { Promise<import("../types/log").EvalLog[]> }  The sample
    */
-  const get_log_headers = async (log_files) => {
-    const eval_files = {};
-    const json_files = {};
+  const get_log_headers = async (log_files: string[]): Promise<EvalLog[]> => {
+    const eval_files: Record<string, number> = {};
+    const json_files: Record<string, number> = {};
     let index = 0;
 
     // Separate files into eval_files and json_files
@@ -226,12 +241,34 @@ export const clientApi = (api) => {
     return orderedHeaders.map(({ header }) => header);
   };
 
+  const get_log_paths = async (): Promise<LogFiles> => {
+    const logFiles = await api.eval_logs();
+    if (logFiles) {
+      return logFiles!;
+    } else if (log_file) {
+      // Is there an explicitly passed log file?
+      const summary = await get_log_summary(log_file);
+      if (summary) {
+        return {
+          files: [
+            {
+              name: log_file,
+              task: summary.eval.task,
+              task_id: summary.eval.task_id,
+            },
+          ],
+        };
+      }
+    }
+    throw new Error("Unable to determine log paths.");
+  };
+
   return {
     client_events: () => {
       return api.client_events();
     },
     get_log_paths: () => {
-      return api.eval_logs();
+      return get_log_paths();
     },
     get_log_headers: (log_files) => {
       return get_log_headers(log_files);
@@ -241,7 +278,10 @@ export const clientApi = (api) => {
     open_log_file: (log_file, log_dir) => {
       return api.open_log_file(log_file, log_dir);
     },
-    download_file: (download_file, file_contents) => {
+    download_file: (
+      download_file: string,
+      file_contents: string | Blob | ArrayBuffer | ArrayBufferView,
+    ) => {
       return api.download_file(download_file, file_contents);
     },
   };
