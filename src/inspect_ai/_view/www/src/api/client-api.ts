@@ -1,7 +1,14 @@
 import { openRemoteLogFile, RemoteLogFile } from "../log/remoteLogFile";
 import { EvalLog, EvalSample } from "../types/log";
 import { FileSizeLimitError } from "../utils/remoteZipFile.mjs";
-import { ClientAPI, EvalSummary, LogContents, LogViewAPI } from "./Types";
+import { encodePathParts } from "./api-shared";
+import {
+  ClientAPI,
+  EvalSummary,
+  LogContents,
+  LogViewAPI,
+  LogFiles,
+} from "./Types";
 
 const isEvalFile = (file: string) => {
   return file.endsWith(".eval");
@@ -53,7 +60,11 @@ export const clientApi = (api: LogViewAPI, log_file?: string): ClientAPI => {
   const remoteEvalFile = async (log_file: string, cached: boolean = false) => {
     if (!cached || loadedEvalFile.file !== log_file) {
       loadedEvalFile.file = log_file;
-      loadedEvalFile.remoteLog = await openRemoteLogFile(api, log_file, 5);
+      loadedEvalFile.remoteLog = await openRemoteLogFile(
+        api,
+        encodePathParts(log_file),
+        5,
+      );
     }
     return loadedEvalFile.remoteLog;
   };
@@ -173,7 +184,11 @@ export const clientApi = (api: LogViewAPI, log_file?: string): ClientAPI => {
 
   const get_eval_log_header = async (log_file: string) => {
     // Don't re-use the eval log file since we know these are all different log files
-    const remoteLogFile = await openRemoteLogFile(api, log_file, 5);
+    const remoteLogFile = await openRemoteLogFile(
+      api,
+      encodePathParts(log_file),
+      5,
+    );
     return remoteLogFile.readHeader();
   };
 
@@ -227,10 +242,13 @@ export const clientApi = (api: LogViewAPI, log_file?: string): ClientAPI => {
   };
 
   const get_log_paths = async (): Promise<LogFiles> => {
+    console.log("get_log_paths");
     const logFiles = await api.eval_logs();
     if (logFiles) {
       return logFiles!;
     } else if (log_file) {
+      console.log(log_file);
+
       // Is there an explicitly passed log file?
       const summary = await get_log_summary(log_file);
       if (summary) {

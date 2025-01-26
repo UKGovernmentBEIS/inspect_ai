@@ -1,6 +1,6 @@
 //@ts-check
 import { asyncJsonParse } from "../utils/json-worker";
-import { download_file } from "./api-shared";
+import { download_file, encodePathParts } from "./api-shared";
 import { fetchRange, fetchSize } from "../utils/remoteZipFile.mjs";
 import {
   Capabilities,
@@ -220,36 +220,4 @@ function joinURI(...segments: string[]): string {
   return segments
     .map((segment) => segment.replace(/(^\/+|\/+$)/g, "")) // Remove leading/trailing slashes from each segment
     .join("/");
-}
-
-/**
- * Encodes the path segments of a URL or relative path to ensure special characters
- * (like `+`, spaces, etc.) are properly encoded without affecting legal characters like `/`.
- *
- * This function will encode file names and path portions of both absolute URLs and
- * relative paths. It ensures that components of a full URL, such as the protocol and
- * query parameters, remain intact, while only encoding the path.
- */
-function encodePathParts(url: string): string {
-  if (!url) return url; // Handle empty strings
-
-  try {
-    // Parse a full Uri
-    const fullUrl = new URL(url);
-    fullUrl.pathname = fullUrl.pathname
-      .split("/")
-      .map((segment) =>
-        segment ? encodeURIComponent(decodeURIComponent(segment)) : "",
-      )
-      .join("/");
-    return fullUrl.toString();
-  } catch {
-    // This is a relative path that isn't parseable as Uri
-    return url
-      .split("/")
-      .map((segment) =>
-        segment ? encodeURIComponent(decodeURIComponent(segment)) : "",
-      )
-      .join("/");
-  }
 }

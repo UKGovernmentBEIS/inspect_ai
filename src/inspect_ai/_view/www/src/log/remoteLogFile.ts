@@ -44,7 +44,7 @@ export const openRemoteLogFile = async (
 ): Promise<RemoteLogFile> => {
   const queue = new AsyncQueue(concurrency);
   const remoteZipFile = await openRemoteZipFile(
-    `${encodeURIComponent(url)}`,
+    url,
     api.eval_log_size,
     api.eval_log_bytes,
   );
