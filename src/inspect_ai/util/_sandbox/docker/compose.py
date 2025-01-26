@@ -30,11 +30,14 @@ async def compose_up(project: ComposeProject) -> None:
     # passing the --wait flag (see https://github.com/docker/compose/issues/10596).
     # In practice, we will catch any errors when calling compose_check_running()
     # immediately after we call compose_up().
+    seconds_to_wait_str: str = os.environ.get(
+        "INSPECT_EVAL_COMPOSE_UP_WAIT", COMPOSE_WAIT
+    )
     await compose_command(
-        ["up", "--detach", "--wait", "--wait-timeout", COMPOSE_WAIT],
+        ["up", "--detach", "--wait", "--wait-timeout", seconds_to_wait_str],
         project=project,
-        # wait up to 5 minutes for container to go up (compose wait + 3 minutes)
-        timeout=300,
+        # wait up to (compose wait + 3 minutes) for container to go up
+        timeout=int(seconds_to_wait_str) + 180,
     )
 
 
