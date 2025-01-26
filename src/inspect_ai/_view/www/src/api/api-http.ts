@@ -91,6 +91,10 @@ function simpleHttpAPI(logInfo: LogInfo): LogViewAPI {
       return await fetchRange(log_file, start, end);
     },
     eval_log_headers: async (files: string[]) => {
+      if (files.length === 0) {
+        return [];
+      }
+
       if (log_dir) {
         const headers = await fetchLogHeaders(log_dir);
         if (headers) {
@@ -108,14 +112,6 @@ function simpleHttpAPI(logInfo: LogInfo): LogViewAPI {
         }
       }
 
-      if (log_file) {
-        // Check the cache
-        const response = await fetchLogFile(log_file);
-        if (response) {
-          const evalLog = response.parsed;
-          return [evalLog];
-        }
-      }
       // No log.json could be found, and there isn't a log file,
       throw new Error(
         `Failed to load a manifest files using the directory: ${log_dir}. Please be sure you have deployed a manifest file (logs.json).`,

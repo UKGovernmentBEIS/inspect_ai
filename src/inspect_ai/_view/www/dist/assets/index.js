@@ -29195,7 +29195,6 @@ self.onmessage = function (e) {
       });
     }
     function simpleHttpAPI(logInfo) {
-      const log_file = logInfo.log_file;
       const log_dir = logInfo.log_dir;
       async function open_log_file2() {
       }
@@ -29238,6 +29237,9 @@ self.onmessage = function (e) {
           return await fetchRange(log_file2, start2, end2);
         },
         eval_log_headers: async (files) => {
+          if (files.length === 0) {
+            return [];
+          }
           if (log_dir) {
             const headers = await fetchLogHeaders(log_dir);
             if (headers) {
@@ -29252,13 +29254,6 @@ self.onmessage = function (e) {
                 }
               });
               return result;
-            }
-          }
-          if (log_file) {
-            const response = await fetchLogFile(log_file);
-            if (response) {
-              const evalLog = response.parsed;
-              return [evalLog];
             }
           }
           throw new Error(`Failed to load a manifest files using the directory: ${log_dir}. Please be sure you have deployed a manifest file (logs.json).`);
