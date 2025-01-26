@@ -1,5 +1,4 @@
 import os
-import logging
 
 from inspect_ai._util.error import pip_dependency_error
 from inspect_ai._util.version import verify_required_version
@@ -12,9 +11,6 @@ from .goodfire import GoodfireAPI
 # (this allows the package to load without the optional deps)
 # Note that some api providers (e.g. Cloudflare, AzureAI) don't
 # strictly require this treatment but we do it anyway for uniformity,
-
-logger = logging.getLogger(__name__)
-
 
 @modelapi(name="groq")
 def groq() -> type[ModelAPI]:
@@ -250,12 +246,19 @@ def goodfire() -> type[ModelAPI]:
     PACKAGE = "goodfire"
     MIN_VERSION = "0.2.5"
 
+    # verify we have the package
     try:
         import goodfire  # noqa: F401
-        verify_required_version(FEATURE, PACKAGE, MIN_VERSION)
-        return GoodfireAPI
-    except ImportError as e:
-        raise pip_dependency_error(FEATURE, [PACKAGE]) from e
+    except ImportError:
+        raise pip_dependency_error(FEATURE, [PACKAGE])
+
+    # verify version
+    verify_required_version(FEATURE, PACKAGE, MIN_VERSION)
+
+    # in the clear
+    from .goodfire import GoodfireAPI
+
+    return GoodfireAPI
 
 
 def validate_openai_client(feature: str) -> None:
