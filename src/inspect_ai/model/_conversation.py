@@ -1,7 +1,6 @@
 from rich.console import RenderableType
 from rich.text import Text
 
-from inspect_ai._util.constants import NO_CONTENT
 from inspect_ai._util.rich import lines_display
 from inspect_ai._util.transcript import transcript_markdown
 from inspect_ai.util._conversation import conversation_panel
@@ -41,9 +40,7 @@ def conversation_assistant_message(
 
         # start with assistant content
         content: list[RenderableType] = (
-            [transcript_markdown(message.text, escape=True)]
-            if message.text and message.text != NO_CONTENT
-            else []
+            [transcript_markdown(message.text, escape=True)] if message.text else []
         )
 
         # print tool calls
