@@ -66,8 +66,6 @@ class AnthropicAPI(ModelAPI):
         base_url: str | None = None,
         api_key: str | None = None,
         config: GenerateConfig = GenerateConfig(),
-        bedrock: bool = False,
-        vertex: bool = False,
         **model_args: Any,
     ):
         # extract any service prefix from model name
@@ -75,10 +73,6 @@ class AnthropicAPI(ModelAPI):
         if len(parts) > 1:
             self.service: str | None = parts[0]
             model_name = "/".join(parts[1:])
-        elif bedrock:
-            self.service = "bedrock"
-        elif vertex:
-            self.service = "vertex"
         else:
             self.service = None
 
