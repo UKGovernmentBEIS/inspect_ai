@@ -9,7 +9,6 @@ interface ExpandablePanelProps {
   border?: boolean;
   lines?: number;
   children?: React.ReactNode;
-  style?: React.CSSProperties;
   className?: string | string[];
 }
 
@@ -18,7 +17,6 @@ export const ExpandablePanel: React.FC<ExpandablePanelProps> = ({
   border,
   lines = 15,
   children,
-  style,
   className,
 }) => {
   const [isCollapsed, setIsCollapsed] = useState(collapse);
@@ -27,7 +25,7 @@ export const ExpandablePanel: React.FC<ExpandablePanelProps> = ({
 
   useEffect(() => {
     setIsCollapsed(collapse);
-  }, [collapse, children]);
+  }, [collapse]);
 
   const checkOverflow = useCallback(
     (entry: ResizeObserverEntry) => {
@@ -54,7 +52,6 @@ export const ExpandablePanel: React.FC<ExpandablePanelProps> = ({
     ...(isCollapsed && {
       maxHeight: `${lines}em`,
     }),
-    ...style,
   };
 
   return (
@@ -76,7 +73,6 @@ export const ExpandablePanel: React.FC<ExpandablePanelProps> = ({
           collapsed={isCollapsed}
           setCollapsed={setIsCollapsed}
           border={!border}
-          style={style}
         />
       )}
     </div>

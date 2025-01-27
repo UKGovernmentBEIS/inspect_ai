@@ -212,7 +212,6 @@ export const TranscriptComponent = ({
 
   return html`<div
     id=${id}
-    key=${id}
     style=${{
       fontSize: FontSize.small,
       display: "grid",
