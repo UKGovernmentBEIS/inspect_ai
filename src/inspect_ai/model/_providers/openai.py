@@ -74,20 +74,22 @@ class OpenAIAPI(ModelAPI):
             config=config,
         )
 
-        # pull out azure model_arg
-        AZURE_MODEL_ARG = "azure"
-        is_azure = False
-        if AZURE_MODEL_ARG in model_args:
-            is_azure = model_args.get(AZURE_MODEL_ARG, False)
-            del model_args[AZURE_MODEL_ARG]
+        # extract any service prefix from model name
+        parts = model_name.split("/")
+        if len(parts) > 1:
+            self.service: str | None = parts[0]
+            model_name = "/".join(parts[1:])
+        else:
+            self.service = None
 
         # resolve api_key
         if not self.api_key:
             self.api_key = os.environ.get(
                 AZUREAI_OPENAI_API_KEY, os.environ.get(AZURE_OPENAI_API_KEY, None)
             )
-            if self.api_key:
-                is_azure = True
+            # backward compatibility for when env vars determined service
+            if self.api_key and (os.environ.get(OPENAI_API_KEY, None) is None):
+                self.service = "azure"
             else:
                 self.api_key = os.environ.get(OPENAI_API_KEY, None)
                 if not self.api_key:
@@ -100,7 +102,7 @@ class OpenAIAPI(ModelAPI):
                     )
 
         # azure client
-        if is_azure:
+        if self.is_azure():
             # resolve base_url
             base_url = model_base_url(
                 base_url,
@@ -134,6 +136,9 @@ class OpenAIAPI(ModelAPI):
                 ),
                 **model_args,
             )
+
+    def is_azure(self) -> bool:
+        return self.service == "azure"
 
     def is_o1(self) -> bool:
         return is_o1(self.model_name)
