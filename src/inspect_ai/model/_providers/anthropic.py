@@ -497,6 +497,12 @@ def message_tool_choice(tool_choice: ToolChoice) -> message_create_params.ToolCh
 
 
 async def message_param(message: ChatMessage) -> MessageParam:
+    # if content is empty that is going to result in an error when we replay
+    # this message to claude, so in that case insert a NO_CONTENT message
+    if isinstance(message.content, list) and len(message.content) == 0:
+        message = message.model_copy()
+        message.content = [ContentText(text=NO_CONTENT)]
+
     # no system role for anthropic (this is more like an assertion,
     # as these should have already been filtered out)
     if message.role == "system":
@@ -538,7 +544,7 @@ async def message_param(message: ChatMessage) -> MessageParam:
     elif message.role == "assistant" and message.tool_calls:
         # first include content (claude <thinking>)
         tools_content: list[TextBlockParam | ImageBlockParam | ToolUseBlockParam] = (
-            [TextBlockParam(type="text", text=message.content)]
+            [TextBlockParam(type="text", text=message.content or NO_CONTENT)]
             if isinstance(message.content, str)
             else (
                 [(await message_param_content(content)) for content in message.content]
@@ -606,11 +612,6 @@ def model_output_from_message(message: Message, tools: list[ToolInfo]) -> ModelO
                     arguments=content_block.model_dump().get("input", {}),
                 )
             )
-
-    # if content is empty that is going to result in an error when we replay
-    # this message to claude, so in that case insert a NO_CONTENT message
-    if len(content) == 0:
-        content = [ContentText(text=NO_CONTENT)]
 
     # resolve choice
     choice = ChatCompletionChoice(
