@@ -28,7 +28,7 @@ from inspect_ai._util.datetime import iso_now
 from inspect_ai._util.error import exception_message
 from inspect_ai._util.hooks import send_telemetry
 from inspect_ai._util.registry import is_registry_object, registry_log_name
-from inspect_ai._util.timeouts import Timeout, timeout, timeout_at
+from inspect_ai._util.timeouts import Timeout, timeout
 from inspect_ai._view.notify import view_notify_eval
 from inspect_ai.dataset import Dataset, Sample
 from inspect_ai.log import (
@@ -652,20 +652,15 @@ async def task_run_sample(
                 except BaseException as ex:
                     error = handle_error(ex)
 
-                # set timeout for scoring. if the original timeout was never hit
-                # then just create a new timeout_cm targeting the original
-                # timeout time. if the original timeout was hit we still want
-                # to provide an opportunity for scoring, but we don't necessarily
+                # set timeout for scoring. if the original timeout was hit we still
+                # want to provide opportunity for scoring, but we don't necessarily
                 # want to wait the full timeout again (especially in the case where
                 # the cause of the timeout is a hung container and scoring requires
                 # interacting with the container). as a middle ground we use half
                 # of the original timeout value for scoring.
                 if isinstance(timeout_cm, Timeout):
-                    if not timeout_cm.expired():
-                        timeout_cm = timeout_at(timeout_cm.when())
-                    else:
-                        assert time_limit
-                        timeout_cm = timeout(time_limit / 2)
+                    assert time_limit
+                    timeout_cm = timeout(time_limit / 2)
 
                 # turn off sample limits
                 set_active_sample_token_limit(None)

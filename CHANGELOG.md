@@ -9,6 +9,7 @@
 - Docker: More robust parsing of version strings (handle development versions).
 - Vertex: Support for Anthropic models hosted on Vertex.
 - Anthropic: Don't insert '(no content)' into cannonical messages list (do only on replay)
+- Scoring: Always provide half-again the sample time limit for scoring.
 - Bugfix: Fix issue w/ approvals for samples with id==0.
 - Bugfix: Use "plain" display when running eval_async() outside of eval().
 
