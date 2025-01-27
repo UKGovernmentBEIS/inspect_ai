@@ -163,6 +163,7 @@ def generate_config_from_openai(options: FinalRequestOptions) -> GenerateConfig:
     config.num_choices = json_data.get("n", None)
     config.logprobs = json_data.get("logprobs", None)
     config.top_logprobs = json_data.get("top_logprobs", None)
+    config.logit_bias = json_data.get("logit_bias", None)
     config.parallel_tool_calls = json_data.get("parallel_tool_calls", None)
     config.reasoning_effort = json_data.get("reasoning_effort", None)
 

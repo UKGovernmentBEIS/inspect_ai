@@ -25,7 +25,8 @@ async def agent(sample: dict[str, Any]) -> dict[str, Any]:
         n=3,
         logprobs=True,
         top_logprobs=3,
-        parallel_tool_calls=True,
+        # logit bias types are out of sync w/ api docs
+        logit_bias=dict([(42, 10), (43, -10)]),  # type: ignore[call-overload]
         reasoning_effort="low",
         timeout=200,
     )
@@ -81,6 +82,12 @@ def check_openai_log_json(log_json: str):
     "stop": [
       "foo"
     ]
+    """)
+    assert dedent("""
+    "logit_bias": {
+      "42": 10,
+      "43": -10
+    },
     """)
     assert r'"presence_penalty": 1.5' in log_json
     assert r'"seed": 42' in log_json
