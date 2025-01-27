@@ -257,6 +257,7 @@ def goodfire() -> type[ModelAPI]:
 
     # in the clear
     from .goodfire import GoodfireAPI
+
     return GoodfireAPI
 
 
