@@ -1,4 +1,5 @@
 import pytest
+from test_helpers.utils import skip_if_no_goodfire
 
 from inspect_ai.model._chat_message import ChatMessageUser
 from inspect_ai.model._generate_config import GenerateConfig
@@ -6,6 +7,7 @@ from inspect_ai.model._model import get_model
 
 
 @pytest.mark.asyncio
+@skip_if_no_goodfire
 async def test_goodfire_api() -> None:
     """Test the Goodfire API provider."""
     model = get_model(
