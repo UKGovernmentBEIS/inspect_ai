@@ -258,13 +258,15 @@ Next, review these articles which cover basic workflow, more sophisticated examp
 
 These sections provide a more in depth treatment of the various components used in evals. Read them as required as you learn to build evaluations.
 
+-   [Tasks](tasks.qmd) bring together datasets, solvers, and scorers to define a evaluation. This section explores strategies for creating flexible and re-usable tasks.
+
+-   [Datasets](datasets.qmd) provide samples to evaluation tasks. This section illustrates how to adapt various data sources for use with Inspect, as well as how to include multi-modal data (images, etc.) in your datasets.
+
 -   [Solvers](solvers.qmd) are the heart of Inspect, and encompass prompt engineering and various other elicitation strategies (the `plan` in the example above). Here we cover using the built-in solvers and creating your own more sophisticated ones.
 
 -   [Tools](tools.qmd) provide a means of extending the capabilities of models by registering Python functions for them to call. This section describes how to create custom tools and use them in evaluations.
 
 -   [Scorers](scorers.qmd) evaluate the work of solvers and aggregate scores into metrics. Sophisticated evals often require custom scorers that use models to evaluate output. This section covers how to create them.
-
--   [Datasets](datasets.qmd) provide samples to evaluation tasks. This section illustrates how to adapt various data sources for use with Inspect, as well as how to include multi-modal data (images, etc.) in your datasets.
 
 -   [Models](models.qmd) provide a uniform API for both evaluating a variety of large language models and using models within evaluations (e.g. for critique or grading).
 

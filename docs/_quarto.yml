@@ -44,10 +44,11 @@ website:
 
         - section: "Components"
           contents: 
+            - tasks.qmd
+            - datasets.qmd
             - solvers.qmd
             - tools.qmd
             - scorers.qmd
-            - datasets.qmd
             - models.qmd
 
         - section: "Agents"
