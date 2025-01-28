@@ -527,6 +527,30 @@ model being evaluated) are called with `await`—this is critical to
 ensure that the solver participates correctly in the scheduling of
 generation work.
 
+### Models in Solvers
+
+As illustrated above, often you’ll want to use models in the
+implementation of solvers. Use the `get_model()` function to get either
+the currently evaluated model or another model interface. For example:
+
+``` python
+# use the model being evaluated for critique
+critique_model = get_model() 
+
+# use another model for critique
+critique_model = get_model("google/gemini-1.5-pro")
+```
+
+Use the `config` parameter of `get_model()` to override default
+generation options:
+
+``` python
+critique_model = get_model(
+    "google/gemini-1.5-pro", 
+    config = GenerateConfig(temperature = 0.9, max_connections = 10)
+)
+```
+
 ### Scoring in Solvers
 
 Typically, solvers don’t score samples but rather leave that to

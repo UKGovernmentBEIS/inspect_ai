@@ -166,11 +166,11 @@ class SandboxEnvironment:
         """
 ```
 
-The `read_file()` method should should preserve newline constructs
-(e.g. crlf should be preserved not converted to lf). This is equivalent
-to specifying `newline=""` in a call to the Python `open()` function.
-Note that `write_file()` automatically creates parent directories as
-required if they don’t exist.
+The `read_file()` method should preserve newline constructs (e.g. crlf
+should be preserved not converted to lf). This is equivalent to
+specifying `newline=""` in a call to the Python `open()` function. Note
+that `write_file()` automatically creates parent directories as required
+if they don’t exist.
 
 The `connection()` method is optional, and provides commands that can be
 used to login to the sandbox container from a terminal or IDE.
@@ -241,7 +241,7 @@ logic.
 ### Sandbox
 
 You can either define a default `sandbox` for an entire `Task` as
-illustrated abvove, or alternatively define a per-sample `sandbox`. For
+illustrated above, or alternatively define a per-sample `sandbox`. For
 example, you might want to do this if each sample has its own Dockerfile
 and/or custom compose configuration file. (Note, each sample gets its
 own sandbox *instance*, even if the sandbox is defined at Task level. So
