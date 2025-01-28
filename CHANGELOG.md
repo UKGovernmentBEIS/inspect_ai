@@ -15,6 +15,7 @@
 - Scoring: Always provide half-again the sample time limit for scoring.
 - Bugfix: Fix issue w/ approvals for samples with id==0.
 - Bugfix: Use "plain" display when running eval_async() outside of eval().
+- Bugfix: Fix issue with multiple scorers of the same type in a task.
 
 ## v0.3.59 (24 January 2025)
 
