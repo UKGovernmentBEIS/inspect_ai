@@ -187,6 +187,28 @@ The vast majority of scorers will use `str` (e.g. for correct/incorrect via "C" 
 
 Next, we'll take a look at the source code for a couple of the built in scorers as a jumping off point for implementing your own scorers. If you are working on custom scorers, you should also review the [Scorer Workflow](#sec-scorer-workflow) section below for tips on optimising your development process.
 
+### Models in Scorers
+
+You'll often want to use models in the implementation of scorers. Use the `get_model()` function to get either the currently evaluated model or another model interface. For example:
+
+```python
+# use the model being evaluated for grading
+grader_model = get_model() 
+
+# use another model for grading
+grader_model = get_model("google/gemini-1.5-pro")
+```
+
+Use the `config` parameter of `get_model()` to override default generation options:
+
+```python
+grader_model = get_model(
+    "google/gemini-1.5-pro", 
+    config = GenerateConfig(temperature = 0.9, max_connections = 10)
+)
+```
+
+
 ### Example: Includes
 
 Here is the source code for the built-in `includes()` scorer:

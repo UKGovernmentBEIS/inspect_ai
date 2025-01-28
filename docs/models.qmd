@@ -598,47 +598,6 @@ The following environment variables are supported by the llama-cpp-python provid
 | `LLAMA_CPP_PYTHON_BASE_URL`           | Base URL for requests (optional, defaults to `http://localhost:8000/v1`)          |
 
 
-## Helper Models
-
-Often you'll want to use language models in the implementation of [Solvers](#sec-solvers) and [Scorers](#sec-scorers). Inspect includes some critique solvers and model graded scorers that do this, and you'll often want to do the same in your own.
-
-Helper models will by default use the same model instance and configuration as the model being evaluated, however this can be overridden using the `model` argument.
-
-``` python
-self_critique(model = "google/gemini-1.0-pro")
-```
-
-You can also pass a fully instantiated `Model` object (for example, if you wanted to override its default configuration) by using the `get_model()` function. For example, here we'll provide custom models for both critique and scoring:
-
-``` python
-from inspect_ai import Task, task
-from inspect_ai.dataset import json_dataset
-from inspect_ai.model import GenerateConfig, get_model
-from inspect_ai.scorer import model_graded_fact
-from inspect_ai.solver import chain_of_thought, generate, self_critique
-
-@task
-def theory_of_mind():
-
-  critique_model = get_model("google/gemini-1.0-pro")
-
-  grader_model = get_model("anthropic/claude-2.1", config = GenerateConfig(
-    temperature = 0.9,
-    max_connections = 10
-  ))
-
-  return Task(
-     dataset=json_dataset("theory_of_mind.jsonl"),
-     solver=[
-         chain_of_thought(),
-         generate(),
-         self_critique(model = critique_model)
-     ],
-     scorer=model_graded_fact(model = grader_model),
-  )
-```
-
-
 ## Custom Models
 
 If you want to support another model hosting service or local model source, you can add a custom model API. See the documentation on [Model API Extensions](extensions.qmd#sec-model-api-extensions) for additional details.
