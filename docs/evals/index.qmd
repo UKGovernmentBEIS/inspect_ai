@@ -2,12 +2,12 @@
 title: "Inspect Evals"
 page-layout: article
 listing:
-  id: examples
-  template: examples.ejs
-  contents: examples.yml
+  id: evals
+  template: evals.ejs
+  contents: evals.yml
   page-size: 100
-bibliography: examples.bib
-css: examples.css
+bibliography: evals.bib
+css: evals.css
 aliases: 
   - /examples.html
   - /examples/index.html
