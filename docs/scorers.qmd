@@ -561,7 +561,7 @@ def var() -> Metric:
 
 Note that the `Score` class contains a `Value` that is a union over several scalar and collection types. As a convenience, `Score` includes a set of accessor methods to treat the value as a simpler form (e.g. above we use the `score.as_float()` accessor).
 
-## Reducing Epochs {#sec-reducing-epochs}
+## Reducing Epochs {#reducing-epochs}
 
 If a task is run over more than one `epoch`, multiple scores will be generated for each sample. These scores are then *reduced* to a single score representing the score for the sample across all the epochs. 
 
