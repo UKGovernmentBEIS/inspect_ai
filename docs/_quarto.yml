@@ -36,8 +36,9 @@ website:
         - section: "Basics"
           contents:
             - tutorial.qmd
-            - configuration.qmd
-            - examples/index.qmd
+            - options.qmd
+            - text: "Evals"
+              href: evals/index.qmd
             - log-viewer.qmd
             - text: "VS Code"
               href: vscode.qmd

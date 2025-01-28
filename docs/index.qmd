@@ -18,7 +18,7 @@ Inspect provides many built-in components, including facilities for prompt engin
 
 ![](images/inspect.png){.lightbox .border fig-alt="Inspect running inside Visual Studio Code. The editor shows the ARC evaluation and the log viewer at right shows results from the evaluation."}
 
-We'll walk through a fairly trivial "Hello, Inspect" example below. Read on to learn the basics, then read the documentation on [Congfiguration](configuration.qmd), [Solvers](solvers.qmd), [Tools](tools.qmd), [Scorers](scorers.qmd), [Datasets](datasets.qmd), and [Models](models.qmd) to learn how to create more advanced evaluations.
+We'll walk through a fairly trivial "Hello, Inspect" example below. Read on to learn the basics, then read the documentation on [Options](options.qmd), [Solvers](solvers.qmd), [Tools](tools.qmd), [Scorers](scorers.qmd), [Datasets](datasets.qmd), and [Models](models.qmd) to learn how to create more advanced evaluations.
 
 ## Getting Started
 
@@ -180,9 +180,9 @@ The best way to get familar with Inspect's core features is the [Tutorial](tutor
 
 Next, review these articles which cover basic workflow, more sophisticated examples, and additional useful tooling:
 
--   [Configuration](configuration.qmd) covers the various options available for evaluations as well as how to manage model credentials.
+-   [Options](options.qmd) covers the various options available for evaluations as well as how to manage model credentials.
 
--   [Examples](examples/index.qmd) demonstrates a variety of evaluation types and techniques by implementing some popular LLM benchmarks and papers.
+-   [Evals](evals/index.qmd) are a set of ready to run evaluations that implement popular LLM benchmarks and papers.
 
 -   [Log Viewer](log-viewer.qmd) goes into more depth on how to use Inspect View to develop and debug evaluations, including how to provide additional log metadata and how to integrate it with Python's standard logging module.
 
