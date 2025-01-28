@@ -5,7 +5,7 @@
 ## Docs
 
 - [Tutorial](https://inspect.ai-safety-institute.org.uk/tutorial.html.md): Step-by-step walkthroughs of several basic examples of Inspect evaluations.
-- [Workflow](https://inspect.ai-safety-institute.org.uk/workflow.html.md): Covers the mechanics of running evaluations, including how to create evals in both scripts and notebooks, specifying configuration and options, how to parameterise tasks for different scenarios, and how to work with eval log files.
+- [Configuration](https://inspect.ai-safety-institute.org.uk/configuration.html.md): Covers the various options available for evaluations as well as how to manage model credentials.
 - [Log Viewer](https://inspect.ai-safety-institute.org.uk/log-viewer.html.md): Goes into more depth on how to use Inspect View to develop and debug evaluations, including how to provide additional log metadata and how to integrate it with Python's standard logging module.
 - [VS Code](https://inspect.ai-safety-institute.org.uk/vscode.html.md) Provides documentation on using the Inspect VS Code Extension to run, tune, debug, and visualise evaluations.
 - [Tasks](https://inspect.ai-safety-institute.org.uk/tasks.html.md) bring together datasets, solvers, and scorers to define a evaluation. This section explores strategies for creating flexible and re-usable tasks.
