@@ -5,7 +5,7 @@ from typing import Callable, cast
 from inspect_ai._display import display
 from inspect_ai._util.path import chdir_python
 from inspect_ai._util.platform import platform_init
-from inspect_ai._util.registry import registry_create
+from inspect_ai._util.registry import registry_create, registry_unqualified_name
 from inspect_ai.log import (
     EvalLog,
     EvalMetric,
@@ -185,6 +185,7 @@ async def run_score_task(
         results[scorer_name] = SampleScore(
             score=result,
             sample_id=state.sample_id,
+            scorer=registry_unqualified_name(scorer),
         )
 
     progress()
