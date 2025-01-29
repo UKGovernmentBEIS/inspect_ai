@@ -1,3 +1,4 @@
+import { ReactNode } from "preact/compat";
 import { BasicSampleData, SampleSummary } from "../../api/Types";
 import { ScoreLabel } from "../../types";
 import { Value2 } from "../../types/log";
@@ -154,7 +155,7 @@ export const createEvalDescriptor = (
   const scoreRendered = (
     sample: BasicSampleData,
     scoreLabel: ScoreLabel,
-  ): unknown => {
+  ): ReactNode => {
     const descriptor = scoreDescriptor(scoreLabel);
     const score = scoreValue(sample, scoreLabel);
     if (score === null || score === "undefined") {
@@ -162,6 +163,7 @@ export const createEvalDescriptor = (
     } else if (score && descriptor && descriptor.render) {
       return descriptor.render(score);
     } else {
+      return score;
     }
   };
 

@@ -12145,7 +12145,9 @@ var require_assets = __commonJS({
           return "null";
         } else if (score22 && descriptor && descriptor.render) {
           return descriptor.render(score22);
-        } else ;
+        } else {
+          return score22;
+        }
       };
       const scorerDescriptor = (sample2, scoreLabel) => {
         return {

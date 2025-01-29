@@ -32,7 +32,7 @@ export interface ScoreDescriptor {
   min?: number;
   max?: number;
   compare: (a: SelectedScore, b: SelectedScore) => number;
-  render: (score: Value2) => unknown;
+  render: (score: Value2) => ReactNode;
 }
 
 export interface SelectedScore {
