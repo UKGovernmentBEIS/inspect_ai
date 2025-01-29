@@ -13,6 +13,7 @@
 - Anthropic: Don't insert '(no content)' into cannonical messages list (do only on replay)
 - Anthropic: Use qualifiers rather than model args for Anthropic on other providers (`anthropic/bedrock`, `anthropic/vertex`).
 - Anthropic: Suport for `extra_body` model arg (for adding additional JSON properties to the request)
+- Basic Agent: Append `tools` to `state` so that tools added in `init` are preserved.
 - Scoring: Always provide half-again the sample time limit for scoring.
 - Bugfix: Fix issue w/ approvals for samples with id==0.
 - Bugfix: Use "plain" display when running eval_async() outside of eval().
