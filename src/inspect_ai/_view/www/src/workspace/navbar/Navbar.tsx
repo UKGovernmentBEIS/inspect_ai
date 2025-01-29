@@ -1,6 +1,6 @@
 import clsx from "clsx";
 import { SampleSummary } from "../../api/Types";
-import { EvalDescriptor } from "../../samples/descriptor/SamplesDescriptor";
+import { EvalDescriptor } from "../../samples/descriptor/Types";
 import {
   EvalPlan,
   EvalResults,

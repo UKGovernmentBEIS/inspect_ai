@@ -1,14 +1,14 @@
 import clsx from "clsx";
 import { html } from "htm/preact";
-import { Card, CardBody, CardHeader } from "../components/Card";
-import { MarkdownDiv } from "../components/MarkdownDiv";
-import { MetaDataGrid } from "../metadata/MetaDataGrid";
-import { EvalSample } from "../types/log";
-import { arrayToString, inputString } from "../utils/format";
-import { SamplesDescriptor } from "./descriptor/SamplesDescriptor";
+import { Card, CardBody, CardHeader } from "../../components/Card";
+import { MarkdownDiv } from "../../components/MarkdownDiv";
+import { MetaDataGrid } from "../../metadata/MetaDataGrid";
+import { EvalSample } from "../../types/log";
+import { arrayToString, inputString } from "../../utils/format";
+import { SamplesDescriptor } from "../descriptor/SamplesDescriptor";
 import { SampleScores } from "./SampleScores";
 
-import { SampleSummary } from "../api/Types";
+import { SampleSummary } from "../../api/Types";
 import styles from "./SampleScoreView.module.css";
 
 interface SampleScoreViewProps {

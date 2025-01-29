@@ -3,7 +3,7 @@ import { SampleSummary } from "../../api/Types";
 import { MarkdownDiv } from "../../components/MarkdownDiv";
 import { arrayToString, inputString } from "../../utils/format";
 import { SamplesDescriptor } from "../descriptor/SamplesDescriptor";
-import { SampleError } from "../SampleErrorView";
+import { SampleErrorView } from "../error/SampleErrorView";
 import styles from "./SampleRow.module.css";
 
 interface SampleRowProps {
@@ -88,7 +88,7 @@ export const SampleRow: React.FC<SampleRowProps> = ({
 
       <div className={clsx("text-size-small", styles.cell, styles.score)}>
         {sample.error ? (
-          <SampleError message={sample.error} />
+          <SampleErrorView message={sample.error} />
         ) : (
           sampleDescriptor?.selectedScore(sample)?.render()
         )}

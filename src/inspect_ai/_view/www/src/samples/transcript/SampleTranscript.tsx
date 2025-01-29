@@ -1,6 +1,6 @@
 import { RefObject } from "react";
-import { Events } from "../types/log";
-import { TranscriptVirtualList } from "./transcript/TranscriptView";
+import { Events } from "../../types/log";
+import { TranscriptVirtualList } from "./TranscriptView";
 
 interface SampleTranscriptProps {
   id: string;

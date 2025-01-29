@@ -1,15 +1,3 @@
-.body {
-  color: var(--bs-danger);
-  display: grid;
-  grid-template-columns: 1fr;
-  align-content: align;
-  justify-items: center;
-}
-
-.message {
-  width: 300px;
-}
-
 .flatBody {
   color: var(--bs-danger);
   display: grid;

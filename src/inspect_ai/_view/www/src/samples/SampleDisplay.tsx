@@ -10,8 +10,8 @@ import { FontSize } from "../appearance/fonts";
 import { ApplicationIcons } from "../appearance/icons";
 import { ANSIDisplay } from "../components/AnsiDisplay";
 import { ToolButton } from "../components/ToolButton";
-import { SampleScoreView } from "./SampleScoreView";
-import { SampleTranscript } from "./SampleTranscript";
+import { SampleScoreView } from "./scores/SampleScoreView";
+import { SampleTranscript } from "./transcript/SampleTranscript";
 
 import { Fragment, JSX, RefObject } from "react";
 import { Card, CardBody, CardHeader } from "../components/Card";

@@ -48638,81 +48638,13 @@ ${events}
 </div>`;
       return headingHtml;
     };
-    const ApplicationStyles = {
-      moreButton: {
-        maxHeight: "1.8em",
-        fontSize: FontSize.smaller,
-        padding: "0 0.2em 0 0.2em",
-        ...TextStyle.secondary
-      },
-      threeLineClamp: {
-        display: "-webkit-box",
-        "-webkit-line-clamp": "3",
-        "-webkit-box-orient": "vertical",
-        overflow: "hidden"
-      },
-      lineClamp: (len) => {
-        return {
-          display: "-webkit-box",
-          "-webkit-line-clamp": `${len}`,
-          "-webkit-box-orient": "vertical",
-          overflow: "hidden"
-        };
-      },
-      wrapText: () => {
-        return {
-          whiteSpace: "nowrap",
-          textOverflow: "ellipsis",
-          overflow: "hidden"
-        };
-      },
-      scoreFills: {
-        green: {
-          backgroundColor: "var(--bs-success)",
-          borderColor: "var(--bs-success)",
-          color: "var(--bs-body-bg)"
-        },
-        red: {
-          backgroundColor: "var(--bs-danger)",
-          borderColor: "var(--bs-danger)",
-          color: "var(--bs-body-bg)"
-        },
-        orange: {
-          backgroundColor: "var(--bs-orange)",
-          borderColor: "var(--bs-orange)",
-          color: "var(--bs-body-bg)"
-        }
-      }
-    };
-    const body$1 = "_body_1aqs4_1";
-    const message = "_message_1aqs4_9";
-    const flatBody = "_flatBody_1aqs4_13";
-    const iconSmall = "_iconSmall_1aqs4_21";
-    const lineBase = "_lineBase_1aqs4_27";
+    const body$1 = "_body_5y0hl_1";
+    const iconSmall = "_iconSmall_5y0hl_9";
+    const message = "_message_5y0hl_15";
     const styles$d = {
       body: body$1,
-      message,
-      flatBody,
       iconSmall,
-      lineBase
-    };
-    const SampleError = ({
-      message: message2,
-      align
-    }) => {
-      align = align || "center";
-      return /* @__PURE__ */ u("div", { className: styles$d.body, children: [
-        /* @__PURE__ */ u("i", { className: clsx(ApplicationIcons.error, styles$d.iconSmall) }),
-        /* @__PURE__ */ u("div", { className: styles$d.message, style: ApplicationStyles.lineClamp(2), children: errorType(message2) })
-      ] });
-    };
-    const FlatSampleError = ({
-      message: message2
-    }) => {
-      return /* @__PURE__ */ u("div", { className: clsx(styles$d.flatBody), children: [
-        /* @__PURE__ */ u("i", { className: clsx(ApplicationIcons.error, styles$d.iconSmall) }),
-        /* @__PURE__ */ u("div", { className: clsx(styles$d.lineBase), children: errorType(message2) })
-      ] });
+      message
     };
     const errorType = (message2) => {
       if (!message2) {
@@ -48722,6 +48654,14 @@ ${events}
         return message2.split("(")[0];
       }
       return "Error";
+    };
+    const FlatSampleError = ({
+      message: message2
+    }) => {
+      return /* @__PURE__ */ u("div", { className: clsx(styles$d.flatBody), children: [
+        /* @__PURE__ */ u("i", { className: clsx(ApplicationIcons.error, styles$d.iconSmall) }),
+        /* @__PURE__ */ u("div", { className: clsx(styles$d.lineBase), children: errorType(message2) })
+      ] });
     };
     const target = "_target_yamz4_1";
     const answer = "_answer_yamz4_5";
@@ -49470,6 +49410,62 @@ ${events}
         )
       ] });
     };
+    const ApplicationStyles = {
+      moreButton: {
+        maxHeight: "1.8em",
+        fontSize: FontSize.smaller,
+        padding: "0 0.2em 0 0.2em",
+        ...TextStyle.secondary
+      },
+      threeLineClamp: {
+        display: "-webkit-box",
+        "-webkit-line-clamp": "3",
+        "-webkit-box-orient": "vertical",
+        overflow: "hidden"
+      },
+      lineClamp: (len) => {
+        return {
+          display: "-webkit-box",
+          "-webkit-line-clamp": `${len}`,
+          "-webkit-box-orient": "vertical",
+          overflow: "hidden"
+        };
+      },
+      wrapText: () => {
+        return {
+          whiteSpace: "nowrap",
+          textOverflow: "ellipsis",
+          overflow: "hidden"
+        };
+      },
+      scoreFills: {
+        green: {
+          backgroundColor: "var(--bs-success)",
+          borderColor: "var(--bs-success)",
+          color: "var(--bs-body-bg)"
+        },
+        red: {
+          backgroundColor: "var(--bs-danger)",
+          borderColor: "var(--bs-danger)",
+          color: "var(--bs-body-bg)"
+        },
+        orange: {
+          backgroundColor: "var(--bs-orange)",
+          borderColor: "var(--bs-orange)",
+          color: "var(--bs-body-bg)"
+        }
+      }
+    };
+    const SampleErrorView = ({
+      message: message2,
+      align
+    }) => {
+      align = align || "center";
+      return /* @__PURE__ */ u("div", { className: styles$d.body, children: [
+        /* @__PURE__ */ u("i", { className: clsx(ApplicationIcons.error, styles$d.iconSmall) }),
+        /* @__PURE__ */ u("div", { className: styles$d.message, style: ApplicationStyles.lineClamp(2), children: errorType(message2) })
+      ] });
+    };
     const grid$1 = "_grid_1kcta_1";
     const selected = "_selected_1kcta_13";
     const cell = "_cell_1kcta_17";
@@ -49552,7 +49548,7 @@ ${events}
                 children: sample2.limit
               }
             ),
-            /* @__PURE__ */ u("div", { className: clsx("text-size-small", styles$9.cell, styles$9.score), children: sample2.error ? /* @__PURE__ */ u(SampleError, { message: sample2.error }) : (_a2 = sampleDescriptor == null ? void 0 : sampleDescriptor.selectedScore(sample2)) == null ? void 0 : _a2.render() })
+            /* @__PURE__ */ u("div", { className: clsx("text-size-small", styles$9.cell, styles$9.score), children: sample2.error ? /* @__PURE__ */ u(SampleErrorView, { message: sample2.error }) : (_a2 = sampleDescriptor == null ? void 0 : sampleDescriptor.selectedScore(sample2)) == null ? void 0 : _a2.render() })
           ]
         }
       );

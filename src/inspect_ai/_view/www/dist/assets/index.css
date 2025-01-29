@@ -19268,7 +19268,7 @@ span.ap-marker-container:hover span.ap-marker {
 ._model_dbhwb_15 {
   padding-right: 1em;
 }
-._body_1aqs4_1 {
+._body_5y0hl_1 {
   color: var(--bs-danger);
   display: grid;
   grid-template-columns: 1fr;
@@ -19276,28 +19276,14 @@ span.ap-marker-container:hover span.ap-marker {
   justify-items: center;
 }
 
-._message_1aqs4_9 {
-  width: 300px;
-}
-
-._flatBody_1aqs4_13 {
-  color: var(--bs-danger);
-  display: grid;
-  grid-template-columns: max-content max-content;
-  column-gap: 0.2em;
-  margin-top: 0.4rem;
-}
-
-._iconSmall_1aqs4_21 {
+._iconSmall_5y0hl_9 {
   font-size: var(--inspect-font-size-small);
   line-height: var(--inspect-font-size-small);
   height: var(--inspect-font-size-small);
 }
 
-._lineBase_1aqs4_27 {
-  font-size: var(--inspect-font-size-base);
-  line-height: var(--inspect-font-size-base);
-  height: var(--inspect-font-size-base);
+._message_5y0hl_15 {
+  width: 300px;
 }
 ._target_yamz4_1 {
   padding-left: 0;

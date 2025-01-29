@@ -2,7 +2,7 @@ import clsx from "clsx";
 import { SampleSummary } from "../../api/Types";
 import { ExpandablePanel } from "../../components/ExpandablePanel";
 import { LabeledValue } from "../../components/LabeledValue";
-import { EvalDescriptor } from "../../samples/descriptor/SamplesDescriptor";
+import { EvalDescriptor } from "../../samples/descriptor/Types";
 import { scoreFilterItems } from "../../samples/sample-tools/filters";
 import {
   EvalDataset,
