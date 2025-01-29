@@ -124,7 +124,6 @@ inspect eval security.py --task-config=config.yaml
 
 ## Solvers {#solvers}
 
-
 While tasks always include a *default* solver, you can also vary the solver to explore other strategies and elicitation techniques.
 
 ### Solver Roles
@@ -190,7 +189,6 @@ $ inspect eval theory.py --solver=tree_of_thought --model=openai/gpt-4
 ```
 
 Composite solvers by no means need to be implemented using chains. While chains are frequently used in more straightforward knowledge and reasoning evaluations, fully custom solver functions are often used for multi-turn dialog and agent evaluations.
-
 
 ###  {#setup}
 
