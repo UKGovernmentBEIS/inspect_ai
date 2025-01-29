@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 
-<title>Inspect - Human Agent</title>
+<title>Inspect - Inspect Evals</title>
 <style>
 code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
@@ -20,64 +20,48 @@ ul.task-list li input[type="checkbox"] {
   margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
   vertical-align: middle;
 }
-/* CSS for syntax highlighting */
-pre > code.sourceCode { white-space: pre; position: relative; }
-pre > code.sourceCode > span { line-height: 1.25; }
-pre > code.sourceCode > span:empty { height: 1.2em; }
-.sourceCode { overflow: visible; }
-code.sourceCode > span { color: inherit; text-decoration: inherit; }
-div.sourceCode { margin: 1em 0; }
-pre.sourceCode { margin: 0; }
-@media screen {
-div.sourceCode { overflow: auto; }
+/* CSS for citations */
+div.csl-bib-body { }
+div.csl-entry {
+  clear: both;
 }
-@media print {
-pre > code.sourceCode { white-space: pre-wrap; }
-pre > code.sourceCode > span { display: inline-block; text-indent: -5em; padding-left: 5em; }
+.hanging-indent div.csl-entry {
+  margin-left:2em;
+  text-indent:-2em;
 }
-pre.numberSource code
-  { counter-reset: source-line 0; }
-pre.numberSource code > span
-  { position: relative; left: -4em; counter-increment: source-line; }
-pre.numberSource code > span > a:first-child::before
-  { content: counter(source-line);
-    position: relative; left: -1em; text-align: right; vertical-align: baseline;
-    border: none; display: inline-block;
-    -webkit-touch-callout: none; -webkit-user-select: none;
-    -khtml-user-select: none; -moz-user-select: none;
-    -ms-user-select: none; user-select: none;
-    padding: 0 4px; width: 4em;
-  }
-pre.numberSource { margin-left: 3em;  padding-left: 4px; }
-div.sourceCode
-  {   }
-@media screen {
-pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+div.csl-left-margin {
+  min-width:2em;
+  float:left;
 }
-</style>
+div.csl-right-inline {
+  margin-left:2em;
+  padding-left:1em;
+}
+div.csl-indent {
+  margin-left: 2em;
+}</style>
 
 
-<script src="site_libs/quarto-nav/quarto-nav.js"></script>
-<script src="site_libs/quarto-nav/headroom.min.js"></script>
-<script src="site_libs/clipboard/clipboard.min.js"></script>
-<script src="site_libs/quarto-search/autocomplete.umd.js"></script>
-<script src="site_libs/quarto-search/fuse.min.js"></script>
-<script src="site_libs/quarto-search/quarto-search.js"></script>
-<meta name="quarto:offset" content="./">
-<link href="./approval.html" rel="next">
-<link href="./agent-bridge.html" rel="prev">
-<script src="site_libs/quarto-html/quarto.js"></script>
-<script src="site_libs/quarto-html/popper.min.js"></script>
-<script src="site_libs/quarto-html/tippy.umd.min.js"></script>
-<script src="site_libs/quarto-html/anchor.min.js"></script>
-<link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
-<link href="site_libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" id="quarto-text-highlighting-styles">
-<script src="site_libs/bootstrap/bootstrap.min.js"></script>
-<link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="site_libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
-<script src="site_libs/quarto-contrib/glightbox/glightbox.min.js"></script>
-<link href="site_libs/quarto-contrib/glightbox/glightbox.min.css" rel="stylesheet">
-<link href="site_libs/quarto-contrib/glightbox/lightbox.css" rel="stylesheet">
+<script src="../site_libs/quarto-nav/quarto-nav.js"></script>
+<script src="../site_libs/quarto-nav/headroom.min.js"></script>
+<script src="../site_libs/clipboard/clipboard.min.js"></script>
+<script src="../site_libs/quarto-search/autocomplete.umd.js"></script>
+<script src="../site_libs/quarto-search/fuse.min.js"></script>
+<script src="../site_libs/quarto-search/quarto-search.js"></script>
+<meta name="quarto:offset" content="../">
+<link href="../log-viewer.html" rel="next">
+<link href="../options.html" rel="prev">
+<script src="../site_libs/quarto-listing/list.min.js"></script>
+<script src="../site_libs/quarto-listing/quarto-listing.js"></script>
+<script src="../site_libs/quarto-html/quarto.js"></script>
+<script src="../site_libs/quarto-html/popper.min.js"></script>
+<script src="../site_libs/quarto-html/tippy.umd.min.js"></script>
+<script src="../site_libs/quarto-html/anchor.min.js"></script>
+<link href="../site_libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="../site_libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="../site_libs/bootstrap/bootstrap.min.js"></script>
+<link href="../site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="../site_libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
 <script id="quarto-search-options" type="application/json">{
   "location": "sidebar",
   "copy-button": false,
@@ -105,8 +89,67 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
     "search-label": "Search"
   }
 }</script>
+<script>
 
+  window.document.addEventListener("DOMContentLoaded", function (_event) {
+    const listingTargetEl = window.document.querySelector('#listing-evals .list');
+    if (!listingTargetEl) {
+      // No listing discovered, do not attach.
+      return; 
+    }
 
+    const options = {
+      valueNames: ['listing-title','listing-description','listing-arxiv','listing-cite','listing-group','listing-demonstrates','listing-contributors',{ data: ['index'] },{ data: ['categories'] }],
+      
+      searchColumns: ["listing-title","listing-description","listing-arxiv","listing-cite","listing-group","listing-demonstrates","listing-contributors"],
+    };
+
+    window['quarto-listings'] = window['quarto-listings'] || {};
+    window['quarto-listings']['listing-evals'] = new List('listing-evals', options);
+
+    if (window['quarto-listing-loaded']) {
+      window['quarto-listing-loaded']();
+    }
+  });
+
+  window.addEventListener('hashchange',() => {
+    if (window['quarto-listing-loaded']) {
+      window['quarto-listing-loaded']();
+    }
+  })
+  </script>
+
+  <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN") {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
+
+<link rel="stylesheet" href="evals.css">
 <meta property="og:title" content="Inspect">
 <meta property="og:description" content="Open-source framework for large language model evaluations">
 <meta property="og:image" content="https://inspect.ai-safety-institute.org.uk//images/inspect.png">
@@ -130,7 +173,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
       <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
         <i class="bi bi-layout-text-sidebar-reverse"></i>
       </button>
-        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./agents.html">Agents</a></li><li class="breadcrumb-item"><a href="./human-agent.html">Human Agent</a></li></ol></nav>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="../tutorial.html">Basics</a></li><li class="breadcrumb-item"><a href="../evals/index.html">Evals</a></li></ol></nav>
         <a class="flex-grow-1" role="button" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
         </a>
       <button type="button" class="btn quarto-search-button" aria-label="" onclick="window.quartoOpenSearch();">
@@ -143,11 +186,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article">
 <!-- sidebar -->
   <nav id="quarto-sidebar" class="sidebar collapse collapse-horizontal quarto-sidebar-collapse-item sidebar-navigation floating overflow-auto"><div class="quarto-sidebar-header"><div class="sidebar-header-item">
-<p><a href="https://aisi.gov.uk/"><img src="./images/aisi-logo.png" class="img-fluid" alt="UK AI Safety Institute Website"></a></p>
+<p><a href="https://aisi.gov.uk/"><img src="../images/aisi-logo.png" class="img-fluid" alt="UK AI Safety Institute Website"></a></p>
 </div></div>
     <div class="pt-lg-2 mt-2 text-left sidebar-header">
     <div class="sidebar-title mb-0 py-0">
-      <a href="./">Inspect</a> 
+      <a href="../">Inspect</a> 
         <div class="sidebar-tools-main">
     <a href="https://github.com/UKGovernmentBEIS/inspect_ai" title="Source Code" class="quarto-navigation-tool px-1" aria-label="Source Code"><i class="bi bi-github"></i></a>
 </div>
@@ -162,7 +205,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
     <ul class="list-unstyled mt-1">
         <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./index.html" class="sidebar-item-text sidebar-link">
+  <a href="../index.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Welcome</span></a>
   </div>
 </li>
@@ -177,31 +220,31 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
       <ul id="quarto-sidebar-section-1" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./tutorial.html" class="sidebar-item-text sidebar-link">
+  <a href="../tutorial.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Tutorial</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./workflow.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Workflow</span></a>
+  <a href="../options.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Options</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./examples/index.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Examples</span></a>
+  <a href="../evals/index.html" class="sidebar-item-text sidebar-link active">
+ <span class="menu-text">Evals</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./log-viewer.html" class="sidebar-item-text sidebar-link">
+  <a href="../log-viewer.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Log Viewer</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./vscode.html" class="sidebar-item-text sidebar-link">
+  <a href="../vscode.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">VS Code</span></a>
   </div>
 </li>
@@ -218,31 +261,37 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
       <ul id="quarto-sidebar-section-2" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./solvers.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Solvers</span></a>
+  <a href="../tasks.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Tasks</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./tools.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Tools</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="./scorers.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Scorers</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="./datasets.html" class="sidebar-item-text sidebar-link">
+  <a href="../datasets.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Datasets</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./models.html" class="sidebar-item-text sidebar-link">
+  <a href="../solvers.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Solvers</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../tools.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Tools</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../scorers.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Scorers</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../models.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Models</span></a>
   </div>
 </li>
@@ -259,37 +308,37 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
       <ul id="quarto-sidebar-section-3" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./agents.html" class="sidebar-item-text sidebar-link">
+  <a href="../agents.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Agent Basics</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./sandboxing.html" class="sidebar-item-text sidebar-link">
+  <a href="../sandboxing.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Sandboxing</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./agents-api.html" class="sidebar-item-text sidebar-link">
+  <a href="../agents-api.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Agent API</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./agent-bridge.html" class="sidebar-item-text sidebar-link">
+  <a href="../agent-bridge.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Agent Bridge</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./human-agent.html" class="sidebar-item-text sidebar-link active">
+  <a href="../human-agent.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Human Agent</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./approval.html" class="sidebar-item-text sidebar-link">
+  <a href="../approval.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Approval</span></a>
   </div>
 </li>
@@ -306,61 +355,61 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
       <ul id="quarto-sidebar-section-4" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./eval-logs.html" class="sidebar-item-text sidebar-link">
+  <a href="../eval-logs.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Eval Logs</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./eval-sets.html" class="sidebar-item-text sidebar-link">
+  <a href="../eval-sets.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Eval Sets</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./errors-and-limits.html" class="sidebar-item-text sidebar-link">
+  <a href="../errors-and-limits.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Errors &amp; Limits</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./multimodal.html" class="sidebar-item-text sidebar-link">
+  <a href="../multimodal.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Multimodal</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./typing.html" class="sidebar-item-text sidebar-link">
+  <a href="../typing.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Typing</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./tracing.html" class="sidebar-item-text sidebar-link">
+  <a href="../tracing.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Tracing</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./caching.html" class="sidebar-item-text sidebar-link">
+  <a href="../caching.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Caching</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./parallelism.html" class="sidebar-item-text sidebar-link">
+  <a href="../parallelism.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Parallelism</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./interactivity.html" class="sidebar-item-text sidebar-link">
+  <a href="../interactivity.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Interactivity</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./extensions.html" class="sidebar-item-text sidebar-link">
+  <a href="../extensions.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Extensions</span></a>
   </div>
 </li>
@@ -373,29 +422,34 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <!-- margin-sidebar -->
     <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
         <nav id="TOC" role="doc-toc" class="toc-active">
-    <h2 id="toc-title">On this page</h2>
-   
-  <ul>
-  <li><a href="#overview" id="toc-overview" class="nav-link active" data-scroll-target="#overview">Overview</a></li>
-  <li><a href="#example" id="toc-example" class="nav-link" data-scroll-target="#example">Example</a></li>
-  <li><a href="#usage" id="toc-usage" class="nav-link" data-scroll-target="#usage">Usage</a>
-  <ul class="collapse">
-  <li><a href="#container-access" id="toc-container-access" class="nav-link" data-scroll-target="#container-access">Container Access</a></li>
-  <li><a href="#task-commands" id="toc-task-commands" class="nav-link" data-scroll-target="#task-commands">Task Commands</a></li>
-  <li><a href="#answer-submission" id="toc-answer-submission" class="nav-link" data-scroll-target="#answer-submission">Answer Submission</a></li>
-  <li><a href="#intermediate-scoring" id="toc-intermediate-scoring" class="nav-link" data-scroll-target="#intermediate-scoring">Intermediate Scoring</a></li>
-  </ul></li>
-  <li><a href="#recording" id="toc-recording" class="nav-link" data-scroll-target="#recording">Recording</a></li>
-  <li><a href="#headless" id="toc-headless" class="nav-link" data-scroll-target="#headless">Headless</a></li>
-  </ul>
+<ul>
+<li>
+<a href="#coding" id="toc-coding" class="nav-link active" data-scroll-target="#coding">Coding</a>
+</li>
+<li>
+<a href="#assistants" id="toc-coding" class="nav-link" data-scroll-target="#assistants">Assistants</a>
+</li>
+<li>
+<a href="#cybersecurity" id="toc-coding" class="nav-link" data-scroll-target="#cybersecurity">Cybersecurity</a>
+</li>
+<li>
+<a href="#mathematics" id="toc-mathematics" class="nav-link" data-scroll-target="#mathematics">Mathematics</a>
+</li>
+<li>
+<a href="#reasoning" id="toc-reasoning" class="nav-link" data-scroll-target="#reasoning">Reasoning</a>
+</li>
+<li>
+<a href="#knowledge" id="toc-knowledge" class="nav-link" data-scroll-target="#knowledge">Knowledge</a>
+</li>
+</ul>
 <div class="toc-actions"><ul><li><a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div></nav>
     </div>
 <!-- main -->
 <main class="content" id="quarto-document-content">
 
-<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./agents.html">Agents</a></li><li class="breadcrumb-item"><a href="./human-agent.html">Human Agent</a></li></ol></nav>
+<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="../tutorial.html">Basics</a></li><li class="breadcrumb-item"><a href="../evals/index.html">Evals</a></li></ol></nav>
 <div class="quarto-title">
-<h1 class="title">Human Agent</h1>
+<h1 class="title">Inspect Evals</h1>
 </div>
 
 
@@ -412,139 +466,615 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </header>
 
 
-<section id="overview" class="level2">
-<h2 class="anchored" data-anchor-id="overview">Overview</h2>
-<p>The Inspect human agent enables human baselining of agentic tasks that run in a Linux environment. Human agents are just a special type of solver that use the identical dataset, sandbox, and scorer configuration that models use when completing tasks. However, rather than entering an agent loop, the <code>human_agent</code> solver provides the human baseliner with:</p>
-<ol type="1">
-<li><p>A description of the task to be completed (input/prompt from the sample).</p></li>
-<li><p>Means to login to the container provisioned for the sample (including creating a remote VS Code session).</p></li>
-<li><p>CLI commands for use within the container to view instructions, submit answers, pause work, etc.</p></li>
-</ol>
-<p>Human baselining terminal sessions are <a href="#recording">recorded</a> by default so that you can later view which actions the user took to complete the task.</p>
-</section>
-<section id="example" class="level2">
-<h2 class="anchored" data-anchor-id="example">Example</h2>
-<p>Here, we run a human baseline on an <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/cybersecurity/intercode_ctf/">Intercode CTF</a> sample by using the <code>--solver</code> option to use <code>human_agent</code> rather than the task’s default solver:</p>
-<div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval inspect_evals/gdm_intercode_ctf <span class="dt">\</span></span>
-<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    <span class="at">--sample-id</span> 44 <span class="at">--solver</span> human_agent</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>The evaluation runs as normal, and a <strong>Human Agent</strong> panel appears in the task UI to orient the human baseliner to the task and provide instructions for accessing the container. The user clicks the <strong>VS Code Terminal</strong> link and a terminal interface to the container is provided within VS Code:</p>
-<p><a href="images/inspect-human-agent.png" class="lightbox" data-gallery="quarto-lightbox-gallery-1"><img src="images/inspect-human-agent.png" class="img-fluid"></a></p>
-<p>Note that while this example makes use of VS Code, it is in no way required. Baseliners can use their preferred editor and terminal environment using the <code>docker exec</code> command provided at the bottom. Human baselining can also be done in a “headless” fashion without the task display (see the <a href="#headless">Headless</a> section below for details).</p>
-<p>Once the user discovers the flag, they can submit it using the <code>task submit</code> command. For example:</p>
-<div class="sourceCode" id="cb2"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">task</span> submit picoCTF{73bfc85c1ba7}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</section>
-<section id="usage" class="level2">
-<h2 class="anchored" data-anchor-id="usage">Usage</h2>
-<p>Using the <code>human_agent</code> solver is as straightforward as specifying the <code>--solver</code> option for any existing task. Repeating the example above:</p>
-<div class="sourceCode" id="cb3"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval inspect_evals/gdm_intercode_ctf <span class="dt">\</span></span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    <span class="at">--sample-id</span> 44 <span class="at">--solver</span> human_agent</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Or alternatively from within Python:</p>
-<div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> <span class="bu">eval</span></span>
-<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.solver <span class="im">import</span> human_agent</span>
-<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_evals <span class="im">import</span> gdm_intercode_ctf</span>
-<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(gdm_intercode_ctf(), sample_id<span class="op">=</span><span class="dv">44</span>, solver<span class="op">=</span>human_agent())</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>There are however some requirements that should be met by your task before using it with the human agent:</p>
-<ol type="1">
-<li><p>It should be solvable by using the tools available in a Linux environment (plus potentially access to the web, which the baseliner can do using an external web browser).</p></li>
-<li><p>The dataset <code>input</code> must fully specify the instructions for the task. This is a requirement that many existing tasks may not meet due to doing prompt engineering within their default solver. For example, the Intercode CTF eval had to be <a href="https://github.com/UKGovernmentBEIS/inspect_evals/commit/89912a1a51ba5beb4a13e1e480823c8b4626b873">modified in this fashion</a> to make it compatible with human agent.</p></li>
-</ol>
-<section id="container-access" class="level3">
-<h3 class="anchored" data-anchor-id="container-access">Container Access</h3>
-<p>The human agent works on the task within the default sandbox container for the task. Access to the container can be initiated using the command printed at the bottom of the <strong>Human Agent</strong> panel. For example:</p>
-<div class="sourceCode" id="cb5"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="ex">docker</span> exec <span class="at">-it</span> inspect-gdm_intercod-itmzq4e-default-1 bash <span class="at">-l</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Alternatively, if the human agent is working within VS Code then two links are provided to access the container within VS Code:</p>
-<ul>
-<li><p><strong>VS Code Window</strong> opens a new VS Code window logged in to the container. The human agent can than create terminals, browse the file system, etc. using the VS Code interface.</p></li>
-<li><p><strong>VS Code Terminal</strong> opens a new terminal in the main editor area of VS Code (so that it is afforded more space than the default terminal in the panel.</p></li>
+
+<p><a href="https://ukgovernmentbeis.github.io/inspect_evals/">Inspect Evals</a> is a repository of community contributed evaluations featuring implementations of many popular benchmarks and papers.</p>
+<p>These evaluations demonstrate a wide variety of evaluation types and techniques. If you have just begun learning Inspect, you might benefit from reviewing the <a href="../tutorial.html">Tutorial</a> examples before exploring these.</p>
+<div id="examples">
+
+</div>
+<div id="refs" role="list">
+
+</div>
+
+
+
+
+<div class="quarto-listing quarto-listing-container-custom" id="listing-evals">
+
+<ul class="list no-bullets">
+
+ 
+
+  
+  
+    
+<li class="group"><h2 href="#coding" class="anchored">Coding</h2></li>
+    
+  
+<li class="example" data-index="0">
+    <div class="example-card">
+      <div class="example-icon fs-5">
+        <i class="bi bi-code"></i>
+      </div>
+      <div class="example-info">
+        <div class="listing-title">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/humaneval">
+            HumanEval: Evaluating Large Language Models Trained on Code
+          </a>
+        </div>
+        <div class="listing-description text-secondary">Evaluating correctness for synthesizing Python programs from docstrings. Demonstrates custom scorers and sandboxing untrusted model code.
+</div>
+      </div>
+    </div>
+  
+</li>
+
+  
+    
+  
+<li class="example" data-index="1">
+    <div class="example-card">
+      <div class="example-icon fs-5">
+        <i class="bi bi-code"></i>
+      </div>
+      <div class="example-info">
+        <div class="listing-title">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/mbpp">
+            MBPP: Mostly Basic Python Problems
+          </a>
+        </div>
+        <div class="listing-description text-secondary">Measuring the ability of these models to synthesize short Python programs from natural language descriptions. Demonstrates custom scorers and sandboxing untrusted model code.
+</div>
+      </div>
+    </div>
+  
+</li>
+
+  
+    
+  
+<li class="example" data-index="2">
+    <div class="example-card">
+      <div class="example-icon fs-5">
+        <i class="bi bi-code"></i>
+      </div>
+      <div class="example-info">
+        <div class="listing-title">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/swe_bench">
+            SWE-Bench: Resolving Real-World GitHub Issues
+          </a>
+        </div>
+        <div class="listing-description text-secondary">Software engineering problems drawn from real GitHub issues and corresponding pull requests across 12 popular Python repositories.
+Demonstrates sandboxing untrusted model code.
+</div>
+      </div>
+    </div>
+  
+</li>
+
+  
+  
+    
+<li class="group"><h2 href="#assistants" class="anchored">Assistants</h2></li>
+    
+  
+<li class="example" data-index="3">
+    <div class="example-card">
+      <div class="example-icon fs-5">
+        <i class="bi bi-info-circle"></i>
+      </div>
+      <div class="example-info">
+        <div class="listing-title">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/gaia">
+            GAIA: A Benchmark for General AI Assistants
+          </a>
+        </div>
+        <div class="listing-description text-secondary">GAIA proposes real-world questions that require a set of fundamental abilities such as reasoning, multi-modality handling, web browsing, and generally tool-use proficiency. GAIA questions are conceptually simple for humans yet challenging for most advanced AIs
+</div>
+      </div>
+    </div>
+  
+</li>
+
+  
+  
+    
+<li class="group"><h2 href="#cybersecurity" class="anchored">Cybersecurity</h2></li>
+    
+  
+<li class="example" data-index="4">
+    <div class="example-card">
+      <div class="example-icon fs-5">
+        <i class="bi bi-shield-lock"></i>
+      </div>
+      <div class="example-info">
+        <div class="listing-title">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/gdm_capabilities/intercode_ctf">
+            InterCode: Capture the Flag
+          </a>
+        </div>
+        <div class="listing-description text-secondary">Measure expertise in coding, cryptography (i.e. binary exploitation, forensics), reverse engineering, and recognizing security vulnerabilities. Demonstrates tool use and sandboxing untrusted model code.
+</div>
+      </div>
+    </div>
+  
+</li>
+
+  
+    
+  
+<li class="example" data-index="5">
+    <div class="example-card">
+      <div class="example-icon fs-5">
+        <i class="bi bi-shield-lock"></i>
+      </div>
+      <div class="example-info">
+        <div class="listing-title">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/gdm_capabilities/in_house_ctf">
+            GDM Dangerous Capabilities: Capture the Flag
+          </a>
+        </div>
+        <div class="listing-description text-secondary">CTF challenges covering web app vulnerabilities, off-the-shelf exploits, databases, Linux privilege escalation, password cracking and spraying. Demonstrates tool use and sandboxing untrusted model code.
+</div>
+      </div>
+    </div>
+  
+</li>
+
+  
+  
+    
+<li class="group"><h2 href="#mathematics" class="anchored">Mathematics</h2></li>
+    
+  
+<li class="example" data-index="6">
+    <div class="example-card">
+      <div class="example-icon fs-5">
+        <i class="bi bi-calculator"></i>
+      </div>
+      <div class="example-info">
+        <div class="listing-title">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/mathematics">
+            MATH: Measuring Mathematical Problem Solving
+          </a>
+        </div>
+        <div class="listing-description text-secondary">Dataset of 12,500 challenging competition mathematics problems. Demonstrates fewshot prompting and custom scorers.
+</div>
+      </div>
+    </div>
+  
+</li>
+
+  
+    
+  
+<li class="example" data-index="7">
+    <div class="example-card">
+      <div class="example-icon fs-5">
+        <i class="bi bi-calculator"></i>
+      </div>
+      <div class="example-info">
+        <div class="listing-title">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/gsm8k">
+            GSM8K: Training Verifiers to Solve Math Word Problems
+          </a>
+        </div>
+        <div class="listing-description text-secondary">Dataset of 8.5K high quality linguistically diverse grade school math word problems. Demostrates fewshot prompting.
+</div>
+      </div>
+    </div>
+  
+</li>
+
+  
+    
+  
+<li class="example" data-index="8">
+    <div class="example-card">
+      <div class="example-icon fs-5">
+        <i class="bi bi-calculator"></i>
+      </div>
+      <div class="example-info">
+        <div class="listing-title">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/mathvista">
+            MathVista: Evaluating Mathematical Reasoning in Visual Contexts
+          </a>
+        </div>
+        <div class="listing-description text-secondary">Diverse mathematical and visual tasks that require fine-grained, deep visual understanding and compositional reasoning. Demonstrates multimodal inputs and custom scorers.
+</div>
+      </div>
+    </div>
+  
+</li>
+
+  
+  
+    
+<li class="group"><h2 href="#reasoning" class="anchored">Reasoning</h2></li>
+    
+  
+<li class="example" data-index="9">
+    <div class="example-card">
+      <div class="example-icon fs-5">
+        <i class="bi bi-boxes"></i>
+      </div>
+      <div class="example-info">
+        <div class="listing-title">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/arc">
+            ARC: AI2 Reasoning Challenge
+          </a>
+        </div>
+        <div class="listing-description text-secondary">Dataset of natural, grade-school science multiple-choice questions (authored for human tests).</div>
+      </div>
+    </div>
+  
+</li>
+
+  
+    
+  
+<li class="example" data-index="10">
+    <div class="example-card">
+      <div class="example-icon fs-5">
+        <i class="bi bi-boxes"></i>
+      </div>
+      <div class="example-info">
+        <div class="listing-title">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/evals/hellaswag">
+            HellaSwag: Can a Machine Really Finish Your Sentence?
+          </a>
+        </div>
+        <div class="listing-description text-secondary">Evaluting commonsense natural language inference: given an event description such as "A woman sits at a piano," a machine must select the most likely followup.
+</div>
+      </div>
+    </div>
+  
+</li>
+
+  
+    
+  
+<li class="example" data-index="11">
+    <div class="example-card">
+      <div class="example-icon fs-5">
+        <i class="bi bi-boxes"></i>
+      </div>
+      <div class="example-info">
+        <div class="listing-title">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/piqa">
+            PIQA: Reasoning about Physical Commonsense in Natural Language
+          </a>
+        </div>
+        <div class="listing-description text-secondary">Measure physical commonsense reasoning (e.g. "To apply eyeshadow without a brush, should I use a cotton swab or a toothpick?")
+</div>
+      </div>
+    </div>
+  
+</li>
+
+  
+    
+  
+<li class="example" data-index="12">
+    <div class="example-card">
+      <div class="example-icon fs-5">
+        <i class="bi bi-boxes"></i>
+      </div>
+      <div class="example-info">
+        <div class="listing-title">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/boolq">
+            BoolQ: Exploring the Surprising Difficulty of Natural Yes/No Questions
+          </a>
+        </div>
+        <div class="listing-description text-secondary">Reading comprehension dataset that queries for complex, non-factoid information, and require difficult entailment-like inference to solve.
+</div>
+      </div>
+    </div>
+  
+</li>
+
+  
+    
+  
+<li class="example" data-index="13">
+    <div class="example-card">
+      <div class="example-icon fs-5">
+        <i class="bi bi-boxes"></i>
+      </div>
+      <div class="example-info">
+        <div class="listing-title">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/drop">
+            DROP: A Reading Comprehension Benchmark Requiring Discrete Reasoning Over Paragraphs
+          </a>
+        </div>
+        <div class="listing-description text-secondary">Evaluates reading comprehension where models must resolve references in a question, perhaps to multiple input positions, and perform discrete operations over them (such as addition, counting, or sorting).
+</div>
+      </div>
+    </div>
+  
+</li>
+
+  
+    
+  
+<li class="example" data-index="14">
+    <div class="example-card">
+      <div class="example-icon fs-5">
+        <i class="bi bi-boxes"></i>
+      </div>
+      <div class="example-info">
+        <div class="listing-title">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/winogrande">
+            WINOGRANDE: An Adversarial Winograd Schema Challenge at Scale
+          </a>
+        </div>
+        <div class="listing-description text-secondary">Set of 273 expert-crafted pronoun resolution problems originally designed to be unsolvable for statistical models that rely on selectional preferences or word associations.
+</div>
+      </div>
+    </div>
+  
+</li>
+
+  
+    
+  
+<li class="example" data-index="15">
+    <div class="example-card">
+      <div class="example-icon fs-5">
+        <i class="bi bi-boxes"></i>
+      </div>
+      <div class="example-info">
+        <div class="listing-title">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/race_h">
+            RACE-H: A benchmark for testing reading comprehension and reasoning abilities of neural models
+          </a>
+        </div>
+        <div class="listing-description text-secondary">Reading comprehension tasks collected from the English exams for middle and high school Chinese students in the age range between 12 to 18.
+</div>
+      </div>
+    </div>
+  
+</li>
+
+  
+    
+  
+<li class="example" data-index="16">
+    <div class="example-card">
+      <div class="example-icon fs-5">
+        <i class="bi bi-boxes"></i>
+      </div>
+      <div class="example-info">
+        <div class="listing-title">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/mmmu">
+            MMMU: A Massive Multi-discipline Multimodal Understanding and Reasoning Benchmark
+          </a>
+        </div>
+        <div class="listing-description text-secondary">Multimodal questions from college exams, quizzes, and textbooks, covering six core disciplinestasks, demanding college-level subject knowledge and deliberate reasoning. Demonstrates multimodel inputs.
+</div>
+      </div>
+    </div>
+  
+</li>
+
+  
+    
+  
+<li class="example" data-index="17">
+    <div class="example-card">
+      <div class="example-icon fs-5">
+        <i class="bi bi-boxes"></i>
+      </div>
+      <div class="example-info">
+        <div class="listing-title">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/squad">
+            SQuAD: A Reading Comprehension Benchmark requiring reasoning over Wikipedia articles
+          </a>
+        </div>
+        <div class="listing-description text-secondary">Set of 100,000+ questions posed by crowdworkers on a set of Wikipedia articles, where the answer to each question is a segment of text from the corresponding reading passage.
+</div>
+      </div>
+    </div>
+  
+</li>
+
+  
+    
+  
+<li class="example" data-index="18">
+    <div class="example-card">
+      <div class="example-icon fs-5">
+        <i class="bi bi-boxes"></i>
+      </div>
+      <div class="example-info">
+        <div class="listing-title">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/ifeval">
+            IFEval: Instruction-Following Evaluation for Large Language Models
+          </a>
+        </div>
+        <div class="listing-description text-secondary">Evaluates the ability to follow a set of "verifiable instructions" such as "write in more than 400 words" and "mention the keyword of AI at least 3 times. Demonstrates custom scoring.
+</div>
+      </div>
+    </div>
+  
+</li>
+
+  
+    
+  
+<li class="example" data-index="19">
+    <div class="example-card">
+      <div class="example-icon fs-5">
+        <i class="bi bi-boxes"></i>
+      </div>
+      <div class="example-info">
+        <div class="listing-title">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/evals/agieval">
+            AGIEval: A Human-Centric Benchmark for Evaluating Foundation Models
+          </a>
+        </div>
+        <div class="listing-description text-secondary">Questions from human-centric standardized exams, such as college entrance exams, law school admission tests, math competitions, and lawyer qualification tests. Demonstrates custom scoring.
+</div>
+      </div>
+    </div>
+  
+</li>
+
+  
+  
+    
+<li class="group"><h2 href="#knowledge" class="anchored">Knowledge</h2></li>
+    
+  
+<li class="example" data-index="20">
+    <div class="example-card">
+      <div class="example-icon fs-5">
+        <i class="bi bi-book"></i>
+      </div>
+      <div class="example-info">
+        <div class="listing-title">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/mmlu">
+            MMLU: Measuring Massive Multitask Language Understanding
+          </a>
+        </div>
+        <div class="listing-description text-secondary">Evaluate models on 57 tasks including elementary mathematics, US history, computer science, law, and more.
+</div>
+      </div>
+    </div>
+  
+</li>
+
+  
+    
+  
+<li class="example" data-index="21">
+    <div class="example-card">
+      <div class="example-icon fs-5">
+        <i class="bi bi-book"></i>
+      </div>
+      <div class="example-info">
+        <div class="listing-title">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/mmlu_pro">
+            MMLU-Pro: A More Robust and Challenging Multi-Task Language Understanding Benchmark
+          </a>
+        </div>
+        <div class="listing-description text-secondary">An enhanced dataset designed to extend the mostly knowledge-driven MMLU benchmark by integrating more challenging, reasoning-focused questions and expanding the choice set from four to ten options.
+</div>
+      </div>
+    </div>
+  
+</li>
+
+  
+    
+  
+<li class="example" data-index="22">
+    <div class="example-card">
+      <div class="example-icon fs-5">
+        <i class="bi bi-book"></i>
+      </div>
+      <div class="example-info">
+        <div class="listing-title">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/gpqa">
+            GPQA: A Graduate-Level Google-Proof Q&amp;A Benchmark
+          </a>
+        </div>
+        <div class="listing-description text-secondary">Challenging dataset of 448 multiple-choice questions written by domain experts in biology, physics, and chemistry (experts at PhD level in the corresponding domains reach 65% accuracy).
+</div>
+      </div>
+    </div>
+  
+</li>
+
+  
+    
+  
+<li class="example" data-index="23">
+    <div class="example-card">
+      <div class="example-icon fs-5">
+        <i class="bi bi-book"></i>
+      </div>
+      <div class="example-info">
+        <div class="listing-title">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/commonsense_qa">
+            CommonsenseQA: A Question Answering Challenge Targeting Commonsense Knowledge
+          </a>
+        </div>
+        <div class="listing-description text-secondary">Measure question answering with commonsense prior knowledge.
+</div>
+      </div>
+    </div>
+  
+</li>
+
+  
+    
+  
+<li class="example" data-index="24">
+    <div class="example-card">
+      <div class="example-icon fs-5">
+        <i class="bi bi-book"></i>
+      </div>
+      <div class="example-info">
+        <div class="listing-title">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/truthfulqa">
+            TruthfulQA: Measuring How Models Mimic Human Falsehoods
+          </a>
+        </div>
+        <div class="listing-description text-secondary">Measure whether a language model is truthful in generating answers to questions using questions that some humans would answer falsely due to a false belief or misconception.
+</div>
+      </div>
+    </div>
+  
+</li>
+
+  
+    
+  
+<li class="example" data-index="25">
+    <div class="example-card">
+      <div class="example-icon fs-5">
+        <i class="bi bi-book"></i>
+      </div>
+      <div class="example-info">
+        <div class="listing-title">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/xstest">
+            XSTest: A benchmark for identifying exaggerated safety behaviours in LLM's
+          </a>
+        </div>
+        <div class="listing-description text-secondary">Dataset with 250 safe prompts across ten prompt types that well-calibrated models should not refuse, and 200 unsafe prompts as contrasts that models, for most applications, should refuse.
+</div>
+      </div>
+    </div>
+  
+</li>
+
+  
+    
+  
+<li class="example" data-index="26">
+    <div class="example-card">
+      <div class="example-icon fs-5">
+        <i class="bi bi-book"></i>
+      </div>
+      <div class="example-info">
+        <div class="listing-title">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/pubmedqa">
+            PubMedQA: A Dataset for Biomedical Research Question Answering
+          </a>
+        </div>
+        <div class="listing-description text-secondary">Novel biomedical question answering (QA) dataset collected from PubMed abstracts.
+</div>
+      </div>
+    </div>
+  
+</li>
+  
 </ul>
-</section>
-<section id="task-commands" class="level3">
-<h3 class="anchored" data-anchor-id="task-commands">Task Commands</h3>
-<p>The Human agent solver installs agent task tools in the default sandbox and presents the user with both task instructions and documentation for the various tools (e.g.&nbsp;<code>task submit</code>, <code>task start</code>, <code>task stop</code>, <code>task instructions</code>, etc.). By default, the following command are available:</p>
-<table class="caption-top table">
-<colgroup>
-<col style="width: 40%">
-<col style="width: 60%">
-</colgroup>
-<thead>
-<tr class="header">
-<th>Command</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td><code>task submit</code></td>
-<td>Submit your final answer for the task.</td>
-</tr>
-<tr class="even">
-<td><code>task note</code></td>
-<td>Record a note in the task transcript.</td>
-</tr>
-<tr class="odd">
-<td><code>task status</code></td>
-<td>Print task status (clock, scoring , etc.)</td>
-</tr>
-<tr class="even">
-<td><code>task start</code></td>
-<td>Start the task clock (resume working)</td>
-</tr>
-<tr class="odd">
-<td><code>task stop</code></td>
-<td>Stop the task clock (pause working).</td>
-</tr>
-<tr class="even">
-<td><code>task instructions</code></td>
-<td>Display task command and instructions.</td>
-</tr>
-</tbody>
-</table>
-<p>Note that the instructions are also copied to an <code>instructions.txt</code> file in the container user’s working directory.</p>
-</section>
-<section id="answer-submission" class="level3">
-<h3 class="anchored" data-anchor-id="answer-submission">Answer Submission</h3>
-<p>When the human agent has completed the task, they submit their answer using the <code>task submit</code>command. By default, the <code>task submit</code> command requires that an explicit answer be given (e.g.&nbsp;<code>task submit picoCTF{73bfc85c1ba7}</code>).</p>
-<p>However, ff your task is scored by reading from the container filesystem then no explicit answer need be provided. Indicate this by passing <code>answer=False</code> to the <code>human_agent()</code>:</p>
-<div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>solver<span class="op">=</span>human_agent(answer<span class="op">=</span><span class="va">False</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Or from the CLI, use the <code>-S</code> option:</p>
-<div class="sourceCode" id="cb7"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="ex">--solver</span> human_agent <span class="at">-S</span> answer=false</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>You can also specify a regex to match the answer against for validation, for example:</p>
-<div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>solver<span class="op">=</span>human_agent(answer<span class="op">=</span><span class="vs">r"picoCTF{\w+}"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</section>
-<section id="intermediate-scoring" class="level3">
-<h3 class="anchored" data-anchor-id="intermediate-scoring">Intermediate Scoring</h3>
-<p>You can optionally make intermediate scoring available to human baseliners so that they can check potential answers as they work. Use the <code>intermediate_scoring</code> option (which defaults to <code>False</code>) to do this:</p>
-<div class="sourceCode" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>solver<span class="op">=</span>human_agent(intermediate_scoring<span class="op">=</span><span class="va">True</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Or from the CLI, use the <code>-S</code> option:</p>
-<div class="sourceCode" id="cb10"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="ex">--solver</span> human_agent <span class="at">-S</span> intermediate_scoring=true</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>With this option enabled, the human agent can check their potential score on the task for a given answer using the <code>task score</code> command. For example:</p>
-<div class="sourceCode" id="cb11"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="ex">task</span> score picoCTF{73bfc85c1ba7}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</section>
-</section>
-<section id="recording" class="level2">
-<h2 class="anchored" data-anchor-id="recording">Recording</h2>
-<p>By default, human agent terminal sessions are recorded using the LInux <a href="https://www.redhat.com/en/blog/linux-script-command">script command</a>. Recorded sessions are saved in the sample store and available for playback within the Inspect View:</p>
-<p><a href="images/inspect-terminal-transcript.png" class="lightbox" data-gallery="quarto-lightbox-gallery-2"><img src="images/inspect-terminal-transcript.png" class="img-fluid"></a></p>
-<p>You can disable session recording with the <code>record_session</code> option:</p>
-<div class="sourceCode" id="cb12"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="ex">--solver</span> human_agent <span class="at">-S</span> record_session=false</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</section>
-<section id="headless" class="level2">
-<h2 class="anchored" data-anchor-id="headless">Headless</h2>
-<p>The examples above demonstrate human baselining being initiated from the CLI and standard task display. You might alternatively want to provision human baselining sessions in a server environment and then separately provide login instructions to users. To suppress the standard task display in favour of just printing out the container login information, pass the <code>--display=plain</code> CLI option:</p>
-<div class="sourceCode" id="cb13"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval inspect_evals/gdm_intercode_ctf <span class="dt">\</span></span>
-<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>    <span class="at">--sample-id</span> 44 <span class="at">--solver</span> human_agent <span class="at">--display</span> plain</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Which will print the following to the terminal:</p>
-<div class="sourceCode" id="cb14"><pre class="sourceCode bash code-overflow-wrap code-with-copy"><code class="sourceCode bash"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="ex">Running</span> task gdm_intercode_ctf <span class="er">(</span><span class="ex">1</span> sample<span class="kw">)</span><span class="bu">:</span> anthropic/claude-3-5-sonnet-20240620 <span class="er">(</span><span class="ex">config:</span> sample_id: 44<span class="kw">)</span><span class="ex">...</span></span>
-<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a><span class="ex">You</span> are completing a task on a Linux system <span class="er">(</span><span class="ex">task</span> instructions will be presented when you login<span class="kw">)</span><span class="bu">.</span> Login to the system with the following command:</span>
-<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a><span class="ex">docker</span> exec <span class="at">-it</span> inspect-gdm_intercod-iebwzkg-default-1 bash <span class="at">-l</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-
-
-</section>
-
-</main> <!-- /main -->
+<div class="listing-no-matching d-none">
+No matching items
+</div>
+</div></main> <!-- /main -->
 <script id="quarto-html-after-body" type="application/javascript">
 window.document.addEventListener("DOMContentLoaded", function (event) {
   const toggleBodyColorMode = (bsSheetEl) => {
@@ -997,13 +1527,13 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
 </script>
 <nav class="page-navigation">
   <div class="nav-page nav-page-previous">
-      <a href="./agent-bridge.html" class="pagination-link" aria-label="Agent Bridge">
-        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">Agent Bridge</span>
+      <a href="../options.html" class="pagination-link" aria-label="Options">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">Options</span>
       </a>          
   </div>
   <div class="nav-page nav-page-next">
-      <a href="./approval.html" class="pagination-link" aria-label="Approval">
-        <span class="nav-page-text">Approval</span> <i class="bi bi-arrow-right-short"></i>
+      <a href="../log-viewer.html" class="pagination-link" aria-label="Log Viewer">
+        <span class="nav-page-text">Log Viewer</span> <i class="bi bi-arrow-right-short"></i>
       </a>
   </div>
 </nav>
@@ -1061,31 +1591,6 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
     </div>
   </div>
 </footer>
-<script>var lightboxQuarto = GLightbox({"closeEffect":"zoom","descPosition":"bottom","selector":".lightbox","openEffect":"zoom","loop":false});
-window.onload = () => {
-  lightboxQuarto.on('slide_before_load', (data) => {
-    const { slideIndex, slideNode, slideConfig, player, trigger } = data;
-    const href = trigger.getAttribute('href');
-    if (href !== null) {
-      const imgEl = window.document.querySelector(`a[href="${href}"] img`);
-      if (imgEl !== null) {
-        const srcAttr = imgEl.getAttribute("src");
-        if (srcAttr && srcAttr.startsWith("data:")) {
-          slideConfig.href = srcAttr;
-        }
-      }
-    } 
-  });
-
-  lightboxQuarto.on('slide_after_load', (data) => {
-    const { slideIndex, slideNode, slideConfig, player, trigger } = data;
-    if (window.Quarto?.typesetMath) {
-      window.Quarto.typesetMath(slideNode);
-    }
-  });
-
-};
-          </script>
 
 
 

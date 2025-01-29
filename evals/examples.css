@@ -1,0 +1,55 @@
+
+#refs {
+    display: none;
+}
+
+.listing-actions-group {
+    display: block;
+}
+
+.quarto-listing-filter {
+    margin-left: 0;
+    margin-bottom: 0;
+    width: 300px;
+}
+
+h2 {
+    margin-top: 0.7em;
+    margin-bottom: 0.6em;
+}
+
+h3 {
+   margin-top: 0;
+}
+
+ul.no-bullets {
+   list-style-type: none;
+   padding: 0;
+   margin: 0;
+}
+
+li.group {
+    padding-bottom: 10px;
+}
+
+li.example {
+    margin-bottom: 0.6em;
+}
+
+li.example a {
+    text-decoration: none;
+}
+
+div.example-card {
+    display: flex;
+}
+
+div.example-icon {
+    width: 30px;
+    flex-shrink: 0;
+}
+
+div.example-info {
+    flex-grow: 1;
+}
+

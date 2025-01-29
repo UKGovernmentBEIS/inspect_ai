@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 
-<title>Inspect - Human Agent</title>
+<title>Inspect - Tasks</title>
 <style>
 code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
@@ -64,8 +64,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="site_libs/quarto-search/fuse.min.js"></script>
 <script src="site_libs/quarto-search/quarto-search.js"></script>
 <meta name="quarto:offset" content="./">
-<link href="./approval.html" rel="next">
-<link href="./agent-bridge.html" rel="prev">
+<link href="./datasets.html" rel="next">
+<link href="./vscode.html" rel="prev">
 <script src="site_libs/quarto-html/quarto.js"></script>
 <script src="site_libs/quarto-html/popper.min.js"></script>
 <script src="site_libs/quarto-html/tippy.umd.min.js"></script>
@@ -75,9 +75,6 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
 <link href="site_libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
-<script src="site_libs/quarto-contrib/glightbox/glightbox.min.js"></script>
-<link href="site_libs/quarto-contrib/glightbox/glightbox.min.css" rel="stylesheet">
-<link href="site_libs/quarto-contrib/glightbox/lightbox.css" rel="stylesheet">
 <script id="quarto-search-options" type="application/json">{
   "location": "sidebar",
   "copy-button": false,
@@ -130,7 +127,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
       <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
         <i class="bi bi-layout-text-sidebar-reverse"></i>
       </button>
-        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./agents.html">Agents</a></li><li class="breadcrumb-item"><a href="./human-agent.html">Human Agent</a></li></ol></nav>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./tasks.html">Components</a></li><li class="breadcrumb-item"><a href="./tasks.html">Tasks</a></li></ol></nav>
         <a class="flex-grow-1" role="button" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
         </a>
       <button type="button" class="btn quarto-search-button" aria-label="" onclick="window.quartoOpenSearch();">
@@ -183,14 +180,14 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./workflow.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Workflow</span></a>
+  <a href="./configuration.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Configuration</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./examples/index.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Examples</span></a>
+  <a href="./evals/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Evals</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -218,6 +215,18 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
       <ul id="quarto-sidebar-section-2" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./tasks.html" class="sidebar-item-text sidebar-link active">
+ <span class="menu-text">Tasks</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./datasets.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Datasets</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./solvers.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Solvers</span></a>
   </div>
@@ -232,12 +241,6 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <div class="sidebar-item-container"> 
   <a href="./scorers.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Scorers</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="./datasets.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Datasets</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -283,7 +286,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./human-agent.html" class="sidebar-item-text sidebar-link active">
+  <a href="./human-agent.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Human Agent</span></a>
   </div>
 </li>
@@ -377,25 +380,28 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
    
   <ul>
   <li><a href="#overview" id="toc-overview" class="nav-link active" data-scroll-target="#overview">Overview</a></li>
-  <li><a href="#example" id="toc-example" class="nav-link" data-scroll-target="#example">Example</a></li>
-  <li><a href="#usage" id="toc-usage" class="nav-link" data-scroll-target="#usage">Usage</a>
+  <li><a href="#task-basics" id="toc-task-basics" class="nav-link" data-scroll-target="#task-basics">Task Basics</a>
   <ul class="collapse">
-  <li><a href="#container-access" id="toc-container-access" class="nav-link" data-scroll-target="#container-access">Container Access</a></li>
-  <li><a href="#task-commands" id="toc-task-commands" class="nav-link" data-scroll-target="#task-commands">Task Commands</a></li>
-  <li><a href="#answer-submission" id="toc-answer-submission" class="nav-link" data-scroll-target="#answer-submission">Answer Submission</a></li>
-  <li><a href="#intermediate-scoring" id="toc-intermediate-scoring" class="nav-link" data-scroll-target="#intermediate-scoring">Intermediate Scoring</a></li>
+  <li><a href="#task-options" id="toc-task-options" class="nav-link" data-scroll-target="#task-options">Task Options</a></li>
   </ul></li>
-  <li><a href="#recording" id="toc-recording" class="nav-link" data-scroll-target="#recording">Recording</a></li>
-  <li><a href="#headless" id="toc-headless" class="nav-link" data-scroll-target="#headless">Headless</a></li>
+  <li><a href="#parameters" id="toc-parameters" class="nav-link" data-scroll-target="#parameters">Parameters</a></li>
+  <li><a href="#solvers" id="toc-solvers" class="nav-link" data-scroll-target="#solvers">Solvers</a>
+  <ul class="collapse">
+  <li><a href="#solver-roles" id="toc-solver-roles" class="nav-link" data-scroll-target="#solver-roles">Solver Roles</a></li>
+  <li><a href="#solver-functions" id="toc-solver-functions" class="nav-link" data-scroll-target="#solver-functions">Solver Functions</a></li>
+  <li><a href="#setup" id="toc-setup" class="nav-link" data-scroll-target="#setup"></a></li>
+  </ul></li>
+  <li><a href="#task-reuse" id="toc-task-reuse" class="nav-link" data-scroll-target="#task-reuse">Task Reuse</a></li>
+  <li><a href="#exploratory" id="toc-exploratory" class="nav-link" data-scroll-target="#exploratory">Exploratory</a></li>
   </ul>
 <div class="toc-actions"><ul><li><a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div></nav>
     </div>
 <!-- main -->
 <main class="content" id="quarto-document-content">
 
-<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./agents.html">Agents</a></li><li class="breadcrumb-item"><a href="./human-agent.html">Human Agent</a></li></ol></nav>
+<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./tasks.html">Components</a></li><li class="breadcrumb-item"><a href="./tasks.html">Tasks</a></li></ol></nav>
 <div class="quarto-title">
-<h1 class="title">Human Agent</h1>
+<h1 class="title">Tasks</h1>
 </div>
 
 
@@ -414,132 +420,242 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
 <section id="overview" class="level2">
 <h2 class="anchored" data-anchor-id="overview">Overview</h2>
-<p>The Inspect human agent enables human baselining of agentic tasks that run in a Linux environment. Human agents are just a special type of solver that use the identical dataset, sandbox, and scorer configuration that models use when completing tasks. However, rather than entering an agent loop, the <code>human_agent</code> solver provides the human baseliner with:</p>
-<ol type="1">
-<li><p>A description of the task to be completed (input/prompt from the sample).</p></li>
-<li><p>Means to login to the container provisioned for the sample (including creating a remote VS Code session).</p></li>
-<li><p>CLI commands for use within the container to view instructions, submit answers, pause work, etc.</p></li>
-</ol>
-<p>Human baselining terminal sessions are <a href="#recording">recorded</a> by default so that you can later view which actions the user took to complete the task.</p>
-</section>
-<section id="example" class="level2">
-<h2 class="anchored" data-anchor-id="example">Example</h2>
-<p>Here, we run a human baseline on an <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/cybersecurity/intercode_ctf/">Intercode CTF</a> sample by using the <code>--solver</code> option to use <code>human_agent</code> rather than the task’s default solver:</p>
-<div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval inspect_evals/gdm_intercode_ctf <span class="dt">\</span></span>
-<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    <span class="at">--sample-id</span> 44 <span class="at">--solver</span> human_agent</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>The evaluation runs as normal, and a <strong>Human Agent</strong> panel appears in the task UI to orient the human baseliner to the task and provide instructions for accessing the container. The user clicks the <strong>VS Code Terminal</strong> link and a terminal interface to the container is provided within VS Code:</p>
-<p><a href="images/inspect-human-agent.png" class="lightbox" data-gallery="quarto-lightbox-gallery-1"><img src="images/inspect-human-agent.png" class="img-fluid"></a></p>
-<p>Note that while this example makes use of VS Code, it is in no way required. Baseliners can use their preferred editor and terminal environment using the <code>docker exec</code> command provided at the bottom. Human baselining can also be done in a “headless” fashion without the task display (see the <a href="#headless">Headless</a> section below for details).</p>
-<p>Once the user discovers the flag, they can submit it using the <code>task submit</code> command. For example:</p>
-<div class="sourceCode" id="cb2"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">task</span> submit picoCTF{73bfc85c1ba7}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</section>
-<section id="usage" class="level2">
-<h2 class="anchored" data-anchor-id="usage">Usage</h2>
-<p>Using the <code>human_agent</code> solver is as straightforward as specifying the <code>--solver</code> option for any existing task. Repeating the example above:</p>
-<div class="sourceCode" id="cb3"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval inspect_evals/gdm_intercode_ctf <span class="dt">\</span></span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    <span class="at">--sample-id</span> 44 <span class="at">--solver</span> human_agent</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Or alternatively from within Python:</p>
-<div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> <span class="bu">eval</span></span>
-<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.solver <span class="im">import</span> human_agent</span>
-<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_evals <span class="im">import</span> gdm_intercode_ctf</span>
-<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(gdm_intercode_ctf(), sample_id<span class="op">=</span><span class="dv">44</span>, solver<span class="op">=</span>human_agent())</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>There are however some requirements that should be met by your task before using it with the human agent:</p>
-<ol type="1">
-<li><p>It should be solvable by using the tools available in a Linux environment (plus potentially access to the web, which the baseliner can do using an external web browser).</p></li>
-<li><p>The dataset <code>input</code> must fully specify the instructions for the task. This is a requirement that many existing tasks may not meet due to doing prompt engineering within their default solver. For example, the Intercode CTF eval had to be <a href="https://github.com/UKGovernmentBEIS/inspect_evals/commit/89912a1a51ba5beb4a13e1e480823c8b4626b873">modified in this fashion</a> to make it compatible with human agent.</p></li>
-</ol>
-<section id="container-access" class="level3">
-<h3 class="anchored" data-anchor-id="container-access">Container Access</h3>
-<p>The human agent works on the task within the default sandbox container for the task. Access to the container can be initiated using the command printed at the bottom of the <strong>Human Agent</strong> panel. For example:</p>
-<div class="sourceCode" id="cb5"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="ex">docker</span> exec <span class="at">-it</span> inspect-gdm_intercod-itmzq4e-default-1 bash <span class="at">-l</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Alternatively, if the human agent is working within VS Code then two links are provided to access the container within VS Code:</p>
+<p>This article documents both basic and advanced use of Inspect tasks, which are the fundamental unit of integration for datasets, solvers, and scorers. Topics covered include:</p>
 <ul>
-<li><p><strong>VS Code Window</strong> opens a new VS Code window logged in to the container. The human agent can than create terminals, browse the file system, etc. using the VS Code interface.</p></li>
-<li><p><strong>VS Code Terminal</strong> opens a new terminal in the main editor area of VS Code (so that it is afforded more space than the default terminal in the panel.</p></li>
+<li><p><a href="#task-basics">Task Basics</a> covers core task components and how to compose them.</p></li>
+<li><p><a href="#parameters">Parameters</a> demonstrates adding parameters to tasks to make them externally flexible and adaptable.</p></li>
+<li><p><a href="#solvers">Solvers</a> describes how to create tasks that can be used with many different solvers.</p></li>
+<li><p><a href="#task-reuse">Task Reuse</a> documents how to flexibly derive new tasks from existing task definitions.</p></li>
+<li><p><a href="#exploratory">Exploratory</a> provides guidance on doing exploratory task and solver development.</p></li>
 </ul>
 </section>
-<section id="task-commands" class="level3">
-<h3 class="anchored" data-anchor-id="task-commands">Task Commands</h3>
-<p>The Human agent solver installs agent task tools in the default sandbox and presents the user with both task instructions and documentation for the various tools (e.g.&nbsp;<code>task submit</code>, <code>task start</code>, <code>task stop</code>, <code>task instructions</code>, etc.). By default, the following command are available:</p>
+<section id="task-basics" class="level2">
+<h2 class="anchored" data-anchor-id="task-basics">Task Basics</h2>
+<p>Tasks provide a recipe for an evaluation consisting minimally of a dataset, a solver, and a scorer (and possibly other options) and is returned from a function decorated with <code>@task</code>. For example:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> Task, task</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.dataset <span class="im">import</span> json_datasets</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.scorer <span class="im">import</span> model_graded_fact</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.solver <span class="im">import</span> chain_of_thought, generate</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="at">@task</span></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> security_guide():</span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> Task(</span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>        dataset<span class="op">=</span>json_dataset(<span class="st">"security_guide.json"</span>),</span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>        solver<span class="op">=</span>[chain_of_thought(), generate()],</span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>        scorer<span class="op">=</span>model_graded_fact()</span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>    )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>For convenience, tasks always define a default solver. That said, it is often desirable to design tasks that can work with <em>any</em> solver so that you can experiment with different strategies. The <a href="#solvers">Solvers</a> section below goes into depth on how to create tasks that can be flexibly used with any solver.</p>
+<section id="task-options" class="level3">
+<h3 class="anchored" data-anchor-id="task-options">Task Options</h3>
+<p>While many tasks can be defined with only a dataset, solver, and scorer, there are lots of other useful <code>Task</code> options. We won’t describe these options in depth here, but rather provide a list along with links to other sections of the documentation that cover their usage:</p>
 <table class="caption-top table">
 <colgroup>
-<col style="width: 40%">
-<col style="width: 60%">
+<col style="width: 25%">
+<col style="width: 50%">
+<col style="width: 25%">
 </colgroup>
 <thead>
 <tr class="header">
-<th>Command</th>
+<th>Option</th>
 <th>Description</th>
+<th>Docs</th>
 </tr>
 </thead>
 <tbody>
 <tr class="odd">
-<td><code>task submit</code></td>
-<td>Submit your final answer for the task.</td>
+<td><code>epochs</code></td>
+<td>Epochs to run for each dataset sample.</td>
+<td><a href="./scorers.html#epoch-reduction">Epochs</a></td>
 </tr>
 <tr class="even">
-<td><code>task note</code></td>
-<td>Record a note in the task transcript.</td>
+<td><code>config</code></td>
+<td>Config for model generation.</td>
+<td><a href="./models.html#generation-config">Generate Config</a></td>
 </tr>
 <tr class="odd">
-<td><code>task status</code></td>
-<td>Print task status (clock, scoring , etc.)</td>
+<td><code>setup</code></td>
+<td>Setup solver(s) to run prior to the main solver.</td>
+<td><a href="#setup">Sample Setup</a></td>
 </tr>
 <tr class="even">
-<td><code>task start</code></td>
-<td>Start the task clock (resume working)</td>
+<td><code>sandbox</code></td>
+<td>Sandbox configuration for un-trusted code execution.</td>
+<td><a href="./sandboxing.html">Sandboxing</a></td>
 </tr>
 <tr class="odd">
-<td><code>task stop</code></td>
-<td>Stop the task clock (pause working).</td>
+<td><code>approval</code></td>
+<td>Approval policy for tool calls.</td>
+<td><a href="./approval.html">Tool Approval</a></td>
 </tr>
 <tr class="even">
-<td><code>task instructions</code></td>
-<td>Display task command and instructions.</td>
+<td><code>metrics</code></td>
+<td>Metrics to use in place of scorer metrics.</td>
+<td><a href="./scorers.html#scoring-metrics">Scoring Metrics</a></td>
+</tr>
+<tr class="odd">
+<td><code>fail_on_error</code></td>
+<td>Failure tolerance for samples.</td>
+<td><a href="./errors-and-limits.html#failure-threshold">Sample Failure</a></td>
+</tr>
+<tr class="even">
+<td><code>message_limit</code><br>
+<code>token_limit</code><br>
+<code>time_limit</code></td>
+<td>Limits to apply to sample execution.</td>
+<td><a href="./errors-and-limits.html#sample-limits">Sample Limits</a></td>
+</tr>
+<tr class="odd">
+<td><code>name</code><br>
+<code>version</code><br>
+<code>metadata</code></td>
+<td>Eval log attributes for task.</td>
+<td><a href="./eval-logs.html">Eval Logs</a></td>
 </tr>
 </tbody>
 </table>
-<p>Note that the instructions are also copied to an <code>instructions.txt</code> file in the container user’s working directory.</p>
-</section>
-<section id="answer-submission" class="level3">
-<h3 class="anchored" data-anchor-id="answer-submission">Answer Submission</h3>
-<p>When the human agent has completed the task, they submit their answer using the <code>task submit</code>command. By default, the <code>task submit</code> command requires that an explicit answer be given (e.g.&nbsp;<code>task submit picoCTF{73bfc85c1ba7}</code>).</p>
-<p>However, ff your task is scored by reading from the container filesystem then no explicit answer need be provided. Indicate this by passing <code>answer=False</code> to the <code>human_agent()</code>:</p>
-<div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>solver<span class="op">=</span>human_agent(answer<span class="op">=</span><span class="va">False</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Or from the CLI, use the <code>-S</code> option:</p>
-<div class="sourceCode" id="cb7"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="ex">--solver</span> human_agent <span class="at">-S</span> answer=false</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>You can also specify a regex to match the answer against for validation, for example:</p>
-<div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>solver<span class="op">=</span>human_agent(answer<span class="op">=</span><span class="vs">r"picoCTF{\w+}"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</section>
-<section id="intermediate-scoring" class="level3">
-<h3 class="anchored" data-anchor-id="intermediate-scoring">Intermediate Scoring</h3>
-<p>You can optionally make intermediate scoring available to human baseliners so that they can check potential answers as they work. Use the <code>intermediate_scoring</code> option (which defaults to <code>False</code>) to do this:</p>
-<div class="sourceCode" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>solver<span class="op">=</span>human_agent(intermediate_scoring<span class="op">=</span><span class="va">True</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Or from the CLI, use the <code>-S</code> option:</p>
-<div class="sourceCode" id="cb10"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="ex">--solver</span> human_agent <span class="at">-S</span> intermediate_scoring=true</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>With this option enabled, the human agent can check their potential score on the task for a given answer using the <code>task score</code> command. For example:</p>
-<div class="sourceCode" id="cb11"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="ex">task</span> score picoCTF{73bfc85c1ba7}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>You by and large don’t need to worry about these options until you want to use the features they are linked to.</p>
 </section>
 </section>
-<section id="recording" class="level2">
-<h2 class="anchored" data-anchor-id="recording">Recording</h2>
-<p>By default, human agent terminal sessions are recorded using the LInux <a href="https://www.redhat.com/en/blog/linux-script-command">script command</a>. Recorded sessions are saved in the sample store and available for playback within the Inspect View:</p>
-<p><a href="images/inspect-terminal-transcript.png" class="lightbox" data-gallery="quarto-lightbox-gallery-2"><img src="images/inspect-terminal-transcript.png" class="img-fluid"></a></p>
-<p>You can disable session recording with the <code>record_session</code> option:</p>
-<div class="sourceCode" id="cb12"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="ex">--solver</span> human_agent <span class="at">-S</span> record_session=false</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<section id="parameters" class="level2">
+<h2 class="anchored" data-anchor-id="parameters">Parameters</h2>
+<p>Task parameters make it easy to run variants of your task without changing its source code. Task parameters are simply the arguments to your <code>@task</code> decorated function. For example, here we provide parameters (and default values) for system and grader prompts, as well as the grader model:</p>
+<div class="code-with-filename">
+<div class="code-with-filename-file">
+<pre><strong>security.py</strong></pre>
+</div>
+<div class="sourceCode" id="cb2" data-filename="security.py"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> Task, task</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.dataset <span class="im">import</span> example_dataset</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.scorer <span class="im">import</span> model_graded_fact</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.solver <span class="im">import</span> generate, system_message</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a><span class="at">@task</span></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> security_guide(</span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>    system<span class="op">=</span><span class="st">"devops.txt"</span>, </span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>    grader<span class="op">=</span><span class="st">"expert.txt"</span>,</span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>    grader_model<span class="op">=</span><span class="st">"openai/gpt-4o"</span></span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>):</span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>   <span class="cf">return</span> Task(</span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a>      dataset<span class="op">=</span>example_dataset(<span class="st">"security_guide"</span>),</span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a>      solver<span class="op">=</span>[system_message(system), generate()],</span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a>      scorer<span class="op">=</span>model_graded_fact(</span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a>          template<span class="op">=</span>grader, model<span class="op">=</span>grader_model</span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a>      )</span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a>   )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>Let’s say we had an alternate system prompt in a file named <code>"researcher.txt"</code>. We could run the task with this prompt as follows:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval security.py <span class="at">-T</span> system=<span class="st">"researcher.txt"</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>The <code>-T</code> CLI flag is used to specify parameter values. You can include multiple <code>-T</code> flags. For example:</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval security.py <span class="dt">\</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>   <span class="at">-T</span> system=<span class="st">"researcher.txt"</span> <span class="at">-T</span> grader=<span class="st">"hacker.txt"</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>If you have several task paramaters you want to specify together, you can put them in a YAML or JSON file and use the <code>--task-config</code> CLI option. For example:</p>
+<div class="code-with-filename">
+<div class="code-with-filename-file">
+<pre><strong>config.yaml</strong></pre>
+</div>
+<div class="sourceCode" id="cb5" data-filename="config.yaml"><pre class="sourceCode yaml code-with-copy"><code class="sourceCode yaml"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="fu">system</span><span class="kw">:</span><span class="at"> </span><span class="st">"researcher.txt"</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="fu">grader</span><span class="kw">:</span><span class="at"> </span><span class="st">"hacker.txt"</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>Reference this file from the CLI with:</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval security.py <span class="at">--task-config</span><span class="op">=</span>config.yaml</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
-<section id="headless" class="level2">
-<h2 class="anchored" data-anchor-id="headless">Headless</h2>
-<p>The examples above demonstrate human baselining being initiated from the CLI and standard task display. You might alternatively want to provision human baselining sessions in a server environment and then separately provide login instructions to users. To suppress the standard task display in favour of just printing out the container login information, pass the <code>--display=plain</code> CLI option:</p>
-<div class="sourceCode" id="cb13"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval inspect_evals/gdm_intercode_ctf <span class="dt">\</span></span>
-<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>    <span class="at">--sample-id</span> 44 <span class="at">--solver</span> human_agent <span class="at">--display</span> plain</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Which will print the following to the terminal:</p>
-<div class="sourceCode" id="cb14"><pre class="sourceCode bash code-overflow-wrap code-with-copy"><code class="sourceCode bash"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="ex">Running</span> task gdm_intercode_ctf <span class="er">(</span><span class="ex">1</span> sample<span class="kw">)</span><span class="bu">:</span> anthropic/claude-3-5-sonnet-20240620 <span class="er">(</span><span class="ex">config:</span> sample_id: 44<span class="kw">)</span><span class="ex">...</span></span>
-<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a><span class="ex">You</span> are completing a task on a Linux system <span class="er">(</span><span class="ex">task</span> instructions will be presented when you login<span class="kw">)</span><span class="bu">.</span> Login to the system with the following command:</span>
-<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a><span class="ex">docker</span> exec <span class="at">-it</span> inspect-gdm_intercod-iebwzkg-default-1 bash <span class="at">-l</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<section id="solvers" class="level2">
+<h2 class="anchored" data-anchor-id="solvers">Solvers</h2>
+<p>While tasks always include a <em>default</em> solver, you can also vary the solver to explore other strategies and elicitation techniques.</p>
+<section id="solver-roles" class="level3">
+<h3 class="anchored" data-anchor-id="solver-roles">Solver Roles</h3>
+<p>In the example above we combined together several solvers into a composite solver. This illustrates the fact that there are two distinct roles that solvers can play in the system:</p>
+<ol type="1">
+<li><p>As a <em>composite</em> end-to-end specification of how to solve a task.</p></li>
+<li><p>As a <em>component</em> that is chained together with other solvers to create a composite solver;</p></li>
+</ol>
+<p>Some solvers are capable of playing both roles. For example, <code>generate()</code> is a complete end-to-end solver (albeit a simple one) but is often also used as a <em>component</em> within other solvers.</p>
+</section>
+<section id="solver-functions" class="level3">
+<h3 class="anchored" data-anchor-id="solver-functions">Solver Functions</h3>
+<p>The most convenient way to create a composite solver is to define a <code>@solver</code> decorated function that returns a chain of other solvers. For example, imagine we have written a <code>tree_of_thought</code> module that we want to use to create an additional solver. We can re-write the task to have multiple solver functions (where <code>critique</code> is used as the default):</p>
+<div class="code-with-filename">
+<div class="code-with-filename-file">
+<pre><strong>theory.py</strong></pre>
+</div>
+<div class="sourceCode" id="cb7" data-filename="theory.py"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> Task, task</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.dataset <span class="im">import</span> example_dataset</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.scorer <span class="im">import</span> model_graded_fact</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.solver <span class="im">import</span> (               </span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>  solver, chain, prompt_template, generate, self_critique</span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>DEFAULT_PROMPT<span class="op">=</span><span class="st">"</span><span class="sc">{prompt}</span><span class="st">"</span></span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> tree_of_thought <span class="im">import</span> TREE_PROMPT, generate_tree</span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a><span class="at">@solver</span> </span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> critique():</span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> chain(</span>
+<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a>        prompt_template(DEFAULT_PROMPT), </span>
+<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a>        generate(), </span>
+<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a>        self_critique()</span>
+<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb7-19"><a href="#cb7-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-20"><a href="#cb7-20" aria-hidden="true" tabindex="-1"></a><span class="at">@solver</span></span>
+<span id="cb7-21"><a href="#cb7-21" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> tree_of_thought():</span>
+<span id="cb7-22"><a href="#cb7-22" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> chain(</span>
+<span id="cb7-23"><a href="#cb7-23" aria-hidden="true" tabindex="-1"></a>        prompt_template(TREE_PROMPT), </span>
+<span id="cb7-24"><a href="#cb7-24" aria-hidden="true" tabindex="-1"></a>        generate_tree()</span>
+<span id="cb7-25"><a href="#cb7-25" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb7-26"><a href="#cb7-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-27"><a href="#cb7-27" aria-hidden="true" tabindex="-1"></a><span class="at">@task</span></span>
+<span id="cb7-28"><a href="#cb7-28" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> theory_of_mind():</span>
+<span id="cb7-29"><a href="#cb7-29" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> Task(  </span>
+<span id="cb7-30"><a href="#cb7-30" aria-hidden="true" tabindex="-1"></a>        dataset<span class="op">=</span>example_dataset(<span class="st">"theory_of_mind"</span>),</span>
+<span id="cb7-31"><a href="#cb7-31" aria-hidden="true" tabindex="-1"></a>        solver<span class="op">=</span>critique(),</span>
+<span id="cb7-32"><a href="#cb7-32" aria-hidden="true" tabindex="-1"></a>        scorer<span class="op">=</span>model_graded_fact()</span>
+<span id="cb7-33"><a href="#cb7-33" aria-hidden="true" tabindex="-1"></a>    )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>Note that we use the <code>chain()</code> function to combine mutliple solvers into a composite one.</p>
+<p>You can switch between solvers when running the evaluation:</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="co"># run with the default solver (critique)</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval theory.py <span class="at">--model</span><span class="op">=</span>openai/gpt-4</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a><span class="co"># run with the tree of thought solver</span></span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval theory.py <span class="at">--solver</span><span class="op">=</span>tree_of_thought <span class="at">--model</span><span class="op">=</span>openai/gpt-4</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Composite solvers by no means need to be implemented using chains. While chains are frequently used in more straightforward knowledge and reasoning evaluations, fully custom solver functions are often used for multi-turn dialog and agent evaluations.</p>
+</section>
+<section id="setup" class="level3">
+<h3 class="anchored" data-anchor-id="setup"></h3>
+</section>
+</section>
+<section id="task-reuse" class="level2">
+<h2 class="anchored" data-anchor-id="task-reuse">Task Reuse</h2>
+<div class="sourceCode" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>task_with</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
+<section id="exploratory" class="level2">
+<h2 class="anchored" data-anchor-id="exploratory">Exploratory</h2>
+<p>When developing tasks and solvers, you often want to explore how changing prompts, generation options, solvers, and models affect performance on a task. You can do this by creating multiple tasks with varying parameters and passing them all to the <code>eval_set()</code> function.</p>
+<p>Returning to the example from above, the <code>system</code> and <code>grader</code> parameters point to files we are using as system message and grader model templates. At the outset we might want to explore every possible combination of these parameters, along with different models. We can use the <code>itertools.product</code> function to do this:</p>
+<div class="sourceCode" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> itertools <span class="im">import</span> product</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a><span class="co"># 'grid' will be a permutation of all parameters</span></span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>params <span class="op">=</span> {</span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>    <span class="st">"system"</span>: [<span class="st">"devops.txt"</span>, <span class="st">"researcher.txt"</span>],</span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>    <span class="st">"grader"</span>: [<span class="st">"hacker.txt"</span>, <span class="st">"expert.txt"</span>],</span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a>    <span class="st">"grader_model"</span>: [<span class="st">"openai/gpt-4o"</span>, <span class="st">"google/gemini-1.5-pro"</span>],</span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a>grid <span class="op">=</span> <span class="bu">list</span>(product(<span class="op">*</span>(params[name] <span class="cf">for</span> name <span class="kw">in</span> params)))</span>
+<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-11"><a href="#cb10-11" aria-hidden="true" tabindex="-1"></a><span class="co"># run the evals and capture the logs</span></span>
+<span id="cb10-12"><a href="#cb10-12" aria-hidden="true" tabindex="-1"></a>logs <span class="op">=</span> eval_set(</span>
+<span id="cb10-13"><a href="#cb10-13" aria-hidden="true" tabindex="-1"></a>    [</span>
+<span id="cb10-14"><a href="#cb10-14" aria-hidden="true" tabindex="-1"></a>        security_guide(system, grader, grader_model)</span>
+<span id="cb10-15"><a href="#cb10-15" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> system, grader, grader_model <span class="kw">in</span> grid</span>
+<span id="cb10-16"><a href="#cb10-16" aria-hidden="true" tabindex="-1"></a>    ],</span>
+<span id="cb10-17"><a href="#cb10-17" aria-hidden="true" tabindex="-1"></a>    model<span class="op">=</span>[<span class="st">"google/gemini-1.5-flash"</span>, <span class="st">"mistral/mistral-large-latest"</span>],</span>
+<span id="cb10-18"><a href="#cb10-18" aria-hidden="true" tabindex="-1"></a>    log_dir<span class="op">=</span><span class="st">"security-tasks"</span></span>
+<span id="cb10-19"><a href="#cb10-19" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb10-20"><a href="#cb10-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-21"><a href="#cb10-21" aria-hidden="true" tabindex="-1"></a><span class="co"># analyze the logs...</span></span>
+<span id="cb10-22"><a href="#cb10-22" aria-hidden="true" tabindex="-1"></a>plot_results(logs)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Note that we also pass a list of <code>model</code> to try out the task on multiple models. This eval set will produce in total 16 tasks accounting for the parameter and model variation.</p>
+<p>See the article on <a href="./eval-sets.html">Eval Sets</a> to learn more about using eval sets. See the article on <a href="./eval-logs.html">Eval Logs</a> for additional details on working with evaluation logs.</p>
 
 
 </section>
@@ -997,13 +1113,13 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
 </script>
 <nav class="page-navigation">
   <div class="nav-page nav-page-previous">
-      <a href="./agent-bridge.html" class="pagination-link" aria-label="Agent Bridge">
-        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">Agent Bridge</span>
+      <a href="./vscode.html" class="pagination-link" aria-label="VS Code">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">VS Code</span>
       </a>          
   </div>
   <div class="nav-page nav-page-next">
-      <a href="./approval.html" class="pagination-link" aria-label="Approval">
-        <span class="nav-page-text">Approval</span> <i class="bi bi-arrow-right-short"></i>
+      <a href="./datasets.html" class="pagination-link" aria-label="Datasets">
+        <span class="nav-page-text">Datasets</span> <i class="bi bi-arrow-right-short"></i>
       </a>
   </div>
 </nav>
@@ -1061,31 +1177,6 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
     </div>
   </div>
 </footer>
-<script>var lightboxQuarto = GLightbox({"closeEffect":"zoom","descPosition":"bottom","selector":".lightbox","openEffect":"zoom","loop":false});
-window.onload = () => {
-  lightboxQuarto.on('slide_before_load', (data) => {
-    const { slideIndex, slideNode, slideConfig, player, trigger } = data;
-    const href = trigger.getAttribute('href');
-    if (href !== null) {
-      const imgEl = window.document.querySelector(`a[href="${href}"] img`);
-      if (imgEl !== null) {
-        const srcAttr = imgEl.getAttribute("src");
-        if (srcAttr && srcAttr.startsWith("data:")) {
-          slideConfig.href = srcAttr;
-        }
-      }
-    } 
-  });
-
-  lightboxQuarto.on('slide_after_load', (data) => {
-    const { slideIndex, slideNode, slideConfig, player, trigger } = data;
-    if (window.Quarto?.typesetMath) {
-      window.Quarto.typesetMath(slideNode);
-    }
-  });
-
-};
-          </script>
 
 
 

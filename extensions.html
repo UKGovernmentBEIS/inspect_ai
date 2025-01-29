@@ -740,7 +740,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="environment-registration" class="level3">
 <h3 class="anchored" data-anchor-id="environment-registration">Environment Registration</h3>
 <p>You should build your custom sandbox environment within a Python package, and then register an <code>inspect_ai</code> <a href="https://setuptools.pypa.io/en/latest/userguide/entry_point.html">setuptools entry point</a>. This will ensure that inspect loads your extension before it attempts to resolve a sandbox environment that uses your provider.</p>
-<p>For example, if your package was named <code>inspect_package</code> and your sandbox environment provider was exported from a source file named <code>_registry.py</code> at the root of your package, you would register it like this in <code>pyproject.toml</code>:</p>
+<p>For example, if your package was named <code>evaltools</code> and your sandbox environment provider was exported from a source file named <code>_registry.py</code> at the root of your package, you would register it like this in <code>pyproject.toml</code>:</p>
 <div class="tabset-margin-container"></div><div class="panel-tabset" data-group="entry-points">
 <ul class="nav nav-tabs" role="tablist"><li class="nav-item" role="presentation"><a class="nav-link active" id="tabset-2-1-tab" data-bs-toggle="tab" data-bs-target="#tabset-2-1" role="tab" aria-controls="tabset-2-1" aria-selected="true">Setuptools</a></li><li class="nav-item" role="presentation"><a class="nav-link" id="tabset-2-2-tab" data-bs-toggle="tab" data-bs-target="#tabset-2-2" role="tab" aria-controls="tabset-2-2" aria-selected="false">Poetry</a></li></ul>
 <div class="tab-content" data-group="entry-points">

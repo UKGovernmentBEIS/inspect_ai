@@ -1,0 +1,69 @@
+# Configuration
+
+
+## Options
+
+There are several other command line options you can pass to eval. Here
+are some of the more useful ones:
+
+``` bash
+# limit to 10 samples
+$ inspect eval theory.py --limit 10
+
+# limit to specific sample id(s)
+$ inspect eval theory.py --sample-id 10
+$ insepct eval theory.py --sample_id 9,10
+
+# limit tokens
+$ inspect eval theory.py --max-tokens 128
+
+# set temperature and seed
+$ inspect eval theory.py --temperature 0.5 --seed 42
+```
+
+## Configuration
+
+As you can see, there is often a lot of configuration required for
+calling `inspect eval`. While we can include it all on the command line,
+it’s generally easier to use environment variables. To facilitate this,
+the `inspect` CLI will automatically read and process `.env` files
+located in the current working directory (also searching in parent
+directories if a `.env` file is not found in the working directory).
+This is done using the
+[python-dotenv](https://pypi.org/project/python-dotenv/) package).
+
+For example, here’s a `.env` file that makes available API keys for
+several providers and sets a bunch of defaults for a working session:
+
+``` makefile
+OPENAI_API_KEY=your-api-key
+ANTHROPIC_API_KEY=your-api-key
+GOOGLE_API_KEY=your-api-key
+
+INSPECT_LOG_DIR=./logs-04-07-2024
+INSPECT_LOG_LEVEL=info
+
+INSPECT_EVAL_MAX_RETRIES=10
+INSPECT_EVAL_MAX_CONNECTIONS=20
+INSPECT_EVAL_MODEL=anthropic/claude-3-opus-20240229
+```
+
+All command line options can also be set via environment variable by
+using the `INSPECT_EVAL_` prefix. See `inspect eval –-help` for
+documentation on all available options.
+
+Note that `.env` files are searched for in parent directories, so if you
+run an Inspect command from a subdirectory of a parent that has an
+`.env` file, it will still be read and resolved. If you define a
+relative path to `INSPECT_LOG_DIR` in a `.env` file, then its location
+will always be resolved as relative to that `.env` file (rather than
+relative to whatever your current working directory is when you run
+`inspect eval`).
+
+> [!IMPORTANT]
+>
+> `.env` files should *never* be checked into version control, as they
+> nearly always contain either secret API keys or machine specific
+> paths. A best practice is often to check in an `.env.example` file to
+> version control which provides an outline (e.g. keys only not values)
+> of variables that are required by the current project.
