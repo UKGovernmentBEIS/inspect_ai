@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.3.60 (29 January 2025)
 
 - [Agent Bridge](https://inspect.ai-safety-institute.org.uk/agent-bridge.html) for integrating external agent frameworks with Inspect.
 - [Goodfire](https://inspect.ai-safety-institute.org.uk/models.html#goodfire) model provider.
