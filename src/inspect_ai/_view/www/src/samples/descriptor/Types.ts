@@ -37,7 +37,7 @@ export interface ScoreDescriptor {
 
 export interface SelectedScore {
   value?: Value2;
-  render: () => unknown;
+  render: () => ReactNode;
 }
 
 export interface MessageShape {
@@ -51,4 +51,5 @@ export interface MessageShapeData {
   target: number;
   answer: number;
   limit: number;
+  score: number;
 }

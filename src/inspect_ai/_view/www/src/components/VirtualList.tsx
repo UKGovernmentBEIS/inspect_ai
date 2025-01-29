@@ -9,7 +9,7 @@ import React, {
 } from "react";
 import styles from "./VirtualList.module.css";
 
-interface VirtualListRef {
+export interface VirtualListRef {
   focus: () => void;
   scrollToIndex: (index: number, direction?: "up" | "down") => void;
 }
@@ -24,6 +24,7 @@ interface VirtualListProps<T> {
   className?: string;
   style?: React.CSSProperties;
   tabIndex?: number;
+  onKeyDown?: (event: React.KeyboardEvent<HTMLDivElement>) => void;
 }
 
 interface ListMetrics {
@@ -40,6 +41,7 @@ export const VirtualList = forwardRef(function VirtualList<T>(
     initialEstimatedRowHeight = 50,
     sync = false,
     scrollRef,
+    onKeyDown,
     ...props
   }: VirtualListProps<T>,
   ref: React.Ref<VirtualListRef>,
@@ -256,7 +258,7 @@ export const VirtualList = forwardRef(function VirtualList<T>(
   const scrollProps = scrollRef ? {} : { onScroll: handleScroll };
 
   return (
-    <div ref={baseRef} {...props} {...scrollProps}>
+    <div ref={baseRef} {...props} {...scrollProps} onKeyDown={onKeyDown}>
       <div
         className={clsx(
           styles.container,

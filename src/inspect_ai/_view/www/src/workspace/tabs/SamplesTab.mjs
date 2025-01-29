@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 import { EmptyPanel } from "../../components/EmptyPanel.tsx";
 import { InlineSampleDisplay } from "../../samples/InlineSampleDisplay";
 import { SampleDialog } from "../../samples/SampleDialog";
-import { SampleList } from "../../samples/SampleList.mjs";
+import { SampleList } from "../../samples/list/SampleList";
 
 /**
  * Renders Samples Tab
@@ -209,14 +209,26 @@ export const SamplesTab = ({
 };
 
 /**
- * @typedef {Object} ListItem
- * @property {string} label - The label for the sample, formatted as "Sample {group} (Epoch {item})".
- * @property {number} number - The current counter item value.
- * @property {number} index - The index of the sample.
- * @property {import("../../api/Types.ts").SampleSummary | string} data - The items data payload.
- * @property {string} type - The type of the result, in this case, "sample". (or "separator")
+ * @typedef {Object} SampleListItem
+ * @property {string} label - The label for the sample
+ * @property {number} index - The index of the sample
+ * @property {number} number - The counter number of the sample
+ * @property {import("../../api/Types.ts").SampleSummary} data - The sample data payload
+ * @property {"sample"} type - Indicates this is a sample item
  */
 
+/**
+ * @typedef {Object} SeparatorListItem
+ * @property {string} label - The label for the separator
+ * @property {number} index - The index of the separator
+ * @property {number} number - The counter number of the sample
+ * @property {string} data - The separator text
+ * @property {"separator"} type - Indicates this is a separator item
+ */
+
+/**
+ * @typedef {SampleListItem | SeparatorListItem} ListItem
+ */
 /**
  * Perform any grouping of the samples
  *
