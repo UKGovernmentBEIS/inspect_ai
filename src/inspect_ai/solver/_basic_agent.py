@@ -119,7 +119,7 @@ def basic_agent(
     # resolve tools
     if tools is None:
         tools = []
-    tools = tools if isinstance(tools, Solver) else use_tools(tools)
+    tools = tools if isinstance(tools, Solver) else use_tools(tools, append=True)
 
     # resolve score_value function
     score_value_fn = score_value or value_to_float()

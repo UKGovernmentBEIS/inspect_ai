@@ -3,14 +3,6 @@ title: Agent Bridge
 code-annotations: select
 ---
 
-::: {.callout-note appearance="simple"}
-The agent bridge feature described below is currently available only in the development version of Inspect. To install the development version from GitHub:
-
-``` bash
-pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-```
-:::
-
 ## Overview
 
 While Inspect provides facilities for native agent development, you can also very easily integrate agents created with 3rd party frameworks like [AutoGen](https://microsoft.github.io/autogen/stable/) or [LangChain](https://python.langchain.com/docs/introduction/), or use fully custom agents you have developed or ported from a research paper. The basic mechanism for integrating external agents works like this:
