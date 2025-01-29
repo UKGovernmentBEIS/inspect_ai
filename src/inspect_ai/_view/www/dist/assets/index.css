@@ -16439,6 +16439,64 @@ ul.jsondiffpatch-textdiff {
   white-space: pre-wrap;
   word-wrap: anywhere;
 }
+._grid_3umed_1 {
+  display: grid;
+  grid-template-columns: max-content max-content;
+  column-gap: 1em;
+}
+._container_43lfg_1 {
+  margin-top: 0.5em;
+  padding-left: 0;
+}
+
+._label_43lfg_6 {
+  padding-right: 2em;
+  padding-left: 0;
+  padding-bottom: 0;
+  font-weight: 400;
+  padding-bottom: 0;
+}
+
+._wordBreak_43lfg_14 {
+  word-break: break-all;
+}
+
+._scoreTable_43lfg_18 {
+  width: 100%;
+  margin-bottom: 1em;
+}
+
+._bottomBorder_43lfg_23 {
+  border-bottom-color: #00000000;
+}
+
+._headerScore_43lfg_27 {
+  padding-left: 2em;
+}
+
+._targetValue_43lfg_31 {
+  padding-right: 2em;
+  padding-left: 0;
+  padding-top: 0;
+}
+
+._answerValue_43lfg_37 {
+  padding-left: 0;
+  padding-top: 0;
+}
+
+._scoreValue_43lfg_42 {
+  padding-left: 2em;
+  padding-top: 0;
+}
+
+._noLeft_43lfg_47 {
+  padding-left: 0;
+}
+
+._noTop_43lfg_51 {
+  margin-top: 0;
+}
 ._title_19l1b_1 {
   margin-left: 0.5em;
   display: grid;

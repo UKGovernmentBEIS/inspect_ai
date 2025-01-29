@@ -1,3 +1,4 @@
+import { ReactNode } from "preact/compat";
 import { BasicSampleData, SampleSummary } from "../../api/Types";
 import { ScoreLabel } from "../../types";
 import { Value2 } from "../../types/log";
@@ -22,7 +23,7 @@ export interface ScorerDescriptor {
   metadata: () => Record<string, unknown>;
   explanation: () => string;
   answer: () => string;
-  scores: () => Array<{ name: string; rendered: () => unknown }>;
+  scores: () => Array<{ name: string; rendered: () => ReactNode }>;
 }
 
 export interface ScoreDescriptor {

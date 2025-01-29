@@ -10,7 +10,7 @@ import { FontSize } from "../appearance/fonts";
 import { ApplicationIcons } from "../appearance/icons";
 import { ANSIDisplay } from "../components/AnsiDisplay";
 import { ToolButton } from "../components/ToolButton";
-import { SampleScoreView } from "./SampleScoreView.mjs";
+import { SampleScoreView } from "./SampleScoreView";
 import { SampleTranscript } from "./SampleTranscript";
 
 import { Fragment, JSX, RefObject } from "react";
