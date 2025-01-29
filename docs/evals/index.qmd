@@ -18,7 +18,7 @@ aliases:
 
 [Inspect Evals](https://ukgovernmentbeis.github.io/inspect_evals/) is a repository of community contributed evaluations featuring implementations of many popular benchmarks and papers. 
 
-These evals can be `pip` installed and run with a single command against any model. They are also useful as a learning resource as they demonstrated a wide variety of techniques and evaluation types.
+These evals can be `pip` installed and run with a single command against any model. They are also useful as a learning resource as they demonstrate a wide variety of evaluation types and techniques.
 
 ::: {#evals}
 :::
