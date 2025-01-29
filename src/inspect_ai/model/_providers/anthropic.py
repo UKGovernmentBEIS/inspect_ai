@@ -20,6 +20,7 @@ from anthropic import (
     NotGiven,
     RateLimitError,
 )
+from anthropic._types import Body
 from anthropic.types import (
     ImageBlockParam,
     Message,
@@ -75,6 +76,16 @@ class AnthropicAPI(ModelAPI):
             model_name = "/".join(parts[1:])
         else:
             self.service = None
+
+        # collect gemerate model_args (then delete them so we can pass the rest on)
+        def collect_model_arg(name: str) -> Any | None:
+            nonlocal model_args
+            value = model_args.get(name, None)
+            if value is not None:
+                model_args.pop(name)
+            return value
+
+        self.extra_body: Body | None = collect_model_arg("extra_body")
 
         # call super
         super().__init__(
@@ -187,6 +198,10 @@ class AnthropicAPI(ModelAPI):
             # computer use beta
             if computer_use:
                 request["extra_headers"] = {"anthropic-beta": "computer-use-2024-10-22"}
+
+            # extra_body
+            if self.extra_body is not None:
+                request["extra_body"] = self.extra_body
 
             # make request
             message = await self.client.messages.create(**request, stream=False)
