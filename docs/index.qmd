@@ -22,13 +22,15 @@ We'll walk through a fairly trivial "Hello, Inspect" example below. Read on to l
 
 ## Getting Started
 
-First, install Inspect with:
+To get started using Inspect:
 
-``` bash
-$ pip install inspect-ai
-```
+1.  Install Inspect from PyPI with:
 
-If you are using VS Code, we also recommend installing the [Inspect VS Code Extension](vscode.qmd).
+    ``` bash
+    pip install inspect-ai
+    ```
+
+2.  If you are using VS Code, install the [Inspect VS Code Extension](vscode.qmd) (not required but highly recommended).
 
 To develop and run evaluations, you'll also need access to a model, which typically requires installation of a Python package as well as ensuring that the appropriate API key is available in the environment.
 
@@ -38,25 +40,25 @@ Assuming you had written an evaluation in a script named `arc.py`, here's how yo
 #### OpenAI
 
 ``` bash
-$ pip install openai
-$ export OPENAI_API_KEY=your-openai-api-key
-$ inspect eval arc.py --model openai/gpt-4o
+pip install openai
+export OPENAI_API_KEY=your-openai-api-key
+inspect eval arc.py --model openai/gpt-4o
 ```
 
 #### Anthropic
 
 ``` bash
-$ pip install anthropic
-$ export ANTHROPIC_API_KEY=your-anthropic-api-key
-$ inspect eval arc.py --model anthropic/claude-3-5-sonnet-latest
+pip install anthropic
+export ANTHROPIC_API_KEY=your-anthropic-api-key
+inspect eval arc.py --model anthropic/claude-3-5-sonnet-latest
 ```
 
 #### Google
 
 ``` bash
-$ pip install google-generativeai
-$ export GOOGLE_API_KEY=your-google-api-key
-$ inspect eval arc.py --model google/gemini-1.5-pro
+pip install google-generativeai
+export GOOGLE_API_KEY=your-google-api-key
+inspect eval arc.py --model google/gemini-1.5-pro
 ```
 
 #### Grok
@@ -70,17 +72,17 @@ inspect eval arc.py --model grok/grok-beta
 #### Mistral
 
 ``` bash
-$ pip install mistralai
-$ export MISTRAL_API_KEY=your-mistral-api-key
-$ inspect eval arc.py --model mistral/mistral-large-latest
+pip install mistralai
+export MISTRAL_API_KEY=your-mistral-api-key
+inspect eval arc.py --model mistral/mistral-large-latest
 ```
 
 #### HF
 
 ``` bash
-$ pip install torch transformers
-$ export HF_TOKEN=your-hf-token
-$ inspect eval arc.py --model hf/meta-llama/Llama-2-7b-chat-hf
+pip install torch transformers
+export HF_TOKEN=your-hf-token
+inspect eval arc.py --model hf/meta-llama/Llama-2-7b-chat-hf
 ```
 
 :::
@@ -140,7 +142,7 @@ Note that you can provide a *single* solver or multiple solvers chained together
 The `@task` decorator applied to the `theory_of_mind()` function is what enables `inspect eval` to find and run the eval in the source file passed to it. For example, here we run the eval against GPT-4:
 
 ``` bash
-$ inspect eval theory.py --model openai/gpt-4
+inspect eval theory.py --model openai/gpt-4
 ```
 
 ![](images/running-theory.png){fig-alt="The Inspect task results displayed in the terminal. A progress bar indicates that the evaluation is about 60% complete."}
@@ -155,7 +157,7 @@ If you are using VS Code, we recommend installing the [Inspect VS Code Extension
 For other editors, you can use the `inspect view` command to open a log viewer in the browser (you only need to do this once as the viewer will automatically updated when new evals are run):
 
 ``` bash
-$ inspect view
+inspect view
 ```
 
 ![](images/inspect-view-home.png){.border .lightbox fig-alt="The Inspect log viewer, displaying a summary of results for the task as well as 7 individual samples."}
