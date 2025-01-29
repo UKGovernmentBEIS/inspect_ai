@@ -6,13 +6,16 @@ listing:
   template: evals.ejs
   contents: evals.yml
   page-size: 100
-bibliography: evals.bib
+  categories: true
+  image-height: "0px"
+  filter-ui: false
 css: evals.css
 aliases: 
   - /examples.html
   - /examples/index.html
 ---
 
+<!-- 
 <nav id="TOC" role="doc-toc">
 <ul>
 <li><a href="#coding" id="toc-coding">Coding</a></li>
@@ -22,15 +25,12 @@ aliases:
 <li><a href="#reasoning" id="toc-reasoning">Reasoning</a></li>
 <li><a href="#knowledge" id="toc-knowledge">Knowledge</a></li>
 </ul>
-</nav>
+</nav> -->
 
 [Inspect Evals](https://ukgovernmentbeis.github.io/inspect_evals/) is a repository of community contributed evaluations featuring implementations of many popular benchmarks and papers. 
 
 These evaluations demonstrate a wide variety of evaluation types and techniques. If you have just begun learning Inspect, you might benefit from reviewing the [Tutorial](../tutorial.qmd) examples before exploring these.
 
-::: {#examples}
-:::
-
-::: {#refs}
+::: {#evals}
 :::
 
