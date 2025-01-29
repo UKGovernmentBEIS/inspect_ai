@@ -1,15 +1,15 @@
-import { ScoreFilter, ScoreLabel } from "../Types.mjs";
+import { ScoreFilter, ScoreLabel } from "../types";
+import { SamplesDescriptor } from "./descriptor/SamplesDescriptor";
 import { EpochFilter } from "./sample-tools/EpochFilter";
 import { SampleFilter } from "./sample-tools/sample-filter/SampleFilter";
 import { SelectScorer } from "./sample-tools/SelectScorer";
 import { SortFilter } from "./sample-tools/SortFilter";
-import { SamplesDescriptor } from "./SamplesDescriptor.mjs";
 
 interface SampleToolsProps {
   epoch: string;
   setEpoch: (epoch: string) => void;
   epochs: number;
-  filter: ScoreFilter;
+  scoreFilter: ScoreFilter;
   setScoreFilter: (filter: ScoreFilter) => void;
   sort: string;
   setSort: (sort: string) => void;
@@ -23,7 +23,7 @@ export const SampleTools: React.FC<SampleToolsProps> = ({
   epoch,
   setEpoch,
   epochs,
-  filter,
+  scoreFilter,
   setScoreFilter,
   sort,
   setSort,
@@ -37,7 +37,7 @@ export const SampleTools: React.FC<SampleToolsProps> = ({
   tools.push(
     <SampleFilter
       evalDescriptor={sampleDescriptor.evalDescriptor}
-      filter={filter}
+      scoreFilter={scoreFilter}
       setScoreFilter={setScoreFilter}
     />,
   );

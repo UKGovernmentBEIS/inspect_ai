@@ -1,10 +1,10 @@
 import { compileExpression } from "filtrex";
 import { SampleSummary } from "../../api/Types";
 import { kScoreTypeBoolean } from "../../constants";
-import { ScoreLabel } from "../../Types.mjs";
+import { ScoreLabel } from "../../types";
 import { Scores1 } from "../../types/log";
 import { inputString } from "../../utils/format";
-import { EvalDescriptor, ScoreDescriptor } from "../SamplesDescriptor.mjs";
+import { EvalDescriptor, ScoreDescriptor } from "../descriptor/Types";
 
 export interface FilterError {
   from: number;
@@ -62,7 +62,7 @@ const bannedShortScoreNames = (scores: ScoreLabel[]): Set<string> => {
  * Child metrics are accessed using dot notation (e.g. `scorer_name.score_name`) or
  * directly by name when it is unique.
  *
- * @param {import("../../samples/SamplesDescriptor.mjs").EvalDescriptor} evalDescriptor
+ * @param {import("../../samples/descriptor/SamplesDescriptor").EvalDescriptor} evalDescriptor
  * @param {import("../../types/log").Scores1} sampleScores
  * @returns {Object<string, any>}
  */
@@ -118,7 +118,7 @@ export const scoreFilterItems = (
   /**
    * @param {string | undefined} shortName
    * @param {string | undefined} qualifiedName
-   * @param {import("../../Types.mjs").ScoreLabel} scoreLabel
+   * @param {import("../../types").ScoreLabel} scoreLabel
    */
   const addScore = (
     scoreLabel: ScoreLabel,
@@ -264,8 +264,8 @@ export const filterExpression = (
 };
 
 /**
- * @param {import("../../samples/SamplesDescriptor.mjs").EvalDescriptor} evalDescriptor
- * @param {import("../../api/Types.mjs").SampleSummary[]} samples
+ * @param {import("../../samples/descriptor/SamplesDescriptor").EvalDescriptor} evalDescriptor
+ * @param {import("../../api/types").SampleSummary[]} samples
  * @param {string} filterValue
  * @returns {}
  */

@@ -33,9 +33,9 @@ import { InfoTab } from "./tabs/InfoTab.tsx";
  * @param {import("../types/log").EvalPlan} [props.evalPlan] - The EvalPlan for this eval
  * @param {import("../types/log").EvalStats} [props.evalStats] - The EvalStats for this eval
  * @param {import("../types/log").EvalResults} [props.evalResults] - The EvalResults for this eval
- * @param {import("../Types.mjs").CurrentLog} [props.log] - the current log
+ * @param {import("../types").CurrentLog} [props.log] - the current log
  * @param {import("../api/Types.ts").SampleSummary[]} [props.samples] - the samples
- * @param {import("../Types.mjs").SampleMode} props.sampleMode - the mode for displaying samples
+ * @param {import("../types").SampleMode} props.sampleMode - the mode for displaying samples
  * @param {string} props.groupBy - what to group by
  * @param {string} props.groupByOrder - the grouping order
  * @param {import("../types/log").Sample} [props.selectedSample] - the current sample (if any)
@@ -43,9 +43,9 @@ import { InfoTab } from "./tabs/InfoTab.tsx";
  * @param {Error} [props.sampleError] - sample error
  * @param {boolean} props.showToggle - whether to show the toggler
  * @param {() => Promise<void>} props.refreshLog - Whether the application should poll for log changes
- * @param {import("../Types.mjs").Capabilities} props.capabilities - Capabilities of the application host
+ * @param {import("../types").Capabilities} props.capabilities - Capabilities of the application host
  * @param {number} props.selectedSampleIndex - the selected sample index
- * @param {import("../samples/SamplesDescriptor.mjs").SamplesDescriptor | undefined} props.samplesDescriptor - the samples descriptor
+ * @param {import("../samples/descriptor/SamplesDescriptor").SamplesDescriptor | undefined} props.samplesDescriptor - the samples descriptor
  * @param {(index: number) => void} props.setSelectedSampleIndex - function to selected a sample
  * @param {string} props.selectedSampleTab - the selected sample tab
  * @param {(tab: string) => void} props.setSelectedSampleTab - the function to select a sample tab
@@ -56,11 +56,11 @@ import { InfoTab } from "./tabs/InfoTab.tsx";
  * @param {boolean} props.showingSampleDialog - Whether the sample dialog is showing
  * @param {(showing: boolean) => void} props.setShowingSampleDialog - Call to show the sample dialog
  * @param {(epoch: string) => void} props.setEpoch - set the current epoch
- * @param {import("../Types.mjs").ScoreFilter} props.filter - the current filter
- * @param {(epoch: import("../Types.mjs").ScoreFilter) => void } props.setFilter - set the current filter
- * @param {import("../Types.mjs").ScoreLabel} props.score - The current selected scorer
- * @param {(score: import("../Types.mjs").ScoreLabel) => void} props.setScore - Set the current selected scorer
- * @param {import("../Types.mjs").ScoreLabel[]} props.scores - The current selected scorer
+ * @param {import("../types").ScoreFilter} props.filter - the current filter
+ * @param {(epoch: import("../types").ScoreFilter) => void } props.setFilter - set the current filter
+ * @param {import("../types").ScoreLabel} props.score - The current selected scorer
+ * @param {(score: import("../types").ScoreLabel) => void} props.setScore - Set the current selected scorer
+ * @param {import("../types").ScoreLabel[]} props.scores - The current selected scorer
  * @param {boolean} props.offcanvas - is this off canvas
  * @param {(offcanvas: boolean) => void} props.setOffcanvas - set off canvas
  * @param {string} props.selectedTab - The selected tab id
@@ -182,8 +182,8 @@ export const WorkSpace = ({
               epoch=${epoch}
               epochs=${epochs}
               setEpoch=${setEpoch}
-              filter=${filter}
-              filterChanged=${setFilter}
+              scoreFilter=${filter}
+              setScoreFilter=${setFilter}
               sort=${sort}
               setSort=${setSort}
               score=${score}

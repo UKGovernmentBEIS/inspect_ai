@@ -1,15 +1,13 @@
 import "bootstrap-icons/font/bootstrap-icons.css";
 import "bootstrap/dist/css/bootstrap.css";
 
-import Prism from "prismjs";
+import "prismjs";
 import "prismjs/components/prism-bash";
 import "prismjs/components/prism-clike";
 import "prismjs/components/prism-javascript";
 import "prismjs/components/prism-json";
 import "prismjs/components/prism-python";
 import "prismjs/themes/prism.css";
-
-console.log("Available Prism languages:", Object.keys(Prism.languages));
 
 import "../App.css";
 
@@ -32,16 +30,16 @@ import { debounce, sleep } from "./utils/sync";
 
 import { FindBand } from "./components/FindBand";
 import { kDefaultSort } from "./constants";
+import {
+  createEvalDescriptor,
+  createSamplesDescriptor,
+} from "./samples/descriptor/SamplesDescriptor";
 import { filterSamples } from "./samples/sample-tools/filters";
 import {
   byEpoch,
   bySample,
   sortSamples,
 } from "./samples/sample-tools/SortFilter";
-import {
-  createEvalDescriptor,
-  createSamplesDescriptor,
-} from "./samples/SamplesDescriptor.mjs";
 import { resolveAttachments } from "./utils/attachments";
 import { getVscodeApi, isVscode } from "./utils/vscode";
 import { Sidebar } from "./workspace/sidebar/Sidebar.tsx";
@@ -86,7 +84,7 @@ export function App({
     initialState?.headersLoading || false,
   );
 
-  /** @type {[import("./Types.mjs").CurrentLog, function(import("./Types.mjs").CurrentLog): void]} */
+  /** @type {[import("./types").CurrentLog, function(import("./types").CurrentLog): void]} */
   const [selectedLog, setSelectedLog] = useState(
     initialState?.selectedLog || {
       contents: undefined,
@@ -146,7 +144,7 @@ export function App({
 
   // Filtering and sorting
   /**
-   * @type {[import("./Types.mjs").ScoreFilter, function(import("./Types.mjs").ScoreFilter): void]}
+   * @type {[import("./types").ScoreFilter, function(import("./types").ScoreFilter): void]}
    */
   const [filter, setFilter] = useState(initialState?.filter || {});
 
@@ -161,12 +159,12 @@ export function App({
   const [sort, setSort] = useState(initialState?.sort || kDefaultSort);
 
   /**
-   * @type {[import("./Types.mjs").ScoreLabel[], function(import("./Types.mjs").ScoreLabel[]): void]}
+   * @type {[import("./types").ScoreLabel[], function(import("./types").ScoreLabel[]): void]}
    */
   const [scores, setScores] = useState(initialState?.scores || []);
 
   /**
-   * @type {[import("./Types.mjs").ScoreLabel, function(import("./Types.mjs").ScoreLabel): void]}
+   * @type {[import("./types").ScoreLabel, function(import("./types").ScoreLabel): void]}
    */
   const [score, setScore] = useState(initialState?.score);
 
@@ -351,13 +349,15 @@ export function App({
   const evalDescriptor = useMemo(() => {
     return createEvalDescriptor(
       scores,
-      selectedLog.contents?.sampleSummaries,
       selectedLog.contents?.eval?.config?.epochs || 1,
+      selectedLog.contents?.sampleSummaries,
     );
   }, [selectedLog, scores]);
 
   const samplesDescriptor = useMemo(() => {
-    return createSamplesDescriptor(evalDescriptor, score);
+    return evalDescriptor
+      ? createSamplesDescriptor(evalDescriptor, score)
+      : undefined;
   }, [evalDescriptor, score]);
 
   const refreshSampleTab = useCallback(
@@ -866,7 +866,7 @@ export function App({
   /**
    * Determines the sample mode based on the selected log's contents.
    *
-   * @type {import("./Types.mjs").SampleMode}
+   * @type {import("./types").SampleMode}
    */
   const sampleMode =
     selectedLog?.contents?.sampleSummaries === undefined ||

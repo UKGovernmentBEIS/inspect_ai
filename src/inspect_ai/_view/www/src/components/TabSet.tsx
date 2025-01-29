@@ -23,8 +23,8 @@ interface TabPanelProps {
   scrollable?: boolean;
   scrollRef?: React.RefObject<HTMLDivElement>;
   classes?: string;
-  scrollPosition: number;
-  setScrollPosition: (position: number) => void;
+  scrollPosition?: number;
+  setScrollPosition?: (position: number) => void;
   children?: React.ReactNode;
   title: string;
   icon?: string;
@@ -90,7 +90,9 @@ export const TabPanel: React.FC<TabPanelProps> = ({
 
   const onScroll = useCallback(
     (e: any) => {
-      setScrollPosition(e.srcElement.scrollTop);
+      if (setScrollPosition) {
+        setScrollPosition(e.srcElement.scrollTop);
+      }
     },
     [setScrollPosition],
   );

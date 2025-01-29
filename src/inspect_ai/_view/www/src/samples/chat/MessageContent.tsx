@@ -1,5 +1,5 @@
 import { MarkdownDiv } from "../../components/MarkdownDiv";
-import { ContentTool } from "../../Types.mjs";
+import { ContentTool } from "../../types";
 import {
   ContentAudio,
   ContentImage,

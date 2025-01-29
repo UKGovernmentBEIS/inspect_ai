@@ -10,7 +10,7 @@ import {
 import { FontSize, TextStyle } from "../appearance/fonts";
 import { ApplicationStyles } from "../appearance/styles";
 import { MarkdownDiv } from "../components/MarkdownDiv";
-import { SampleError } from "./SampleError.mjs";
+import { SampleError } from "./SampleErrorView";
 
 import { EmptyPanel } from "../components/EmptyPanel";
 import { MessageBand } from "../components/MessageBand";
@@ -26,11 +26,11 @@ const kSeparatorHeight = 24;
  * @param {Object} props - The parameters for the component.
  * @param {Object} props.listRef - The ref for the list.
  * @param {import("../workspace/tabs/SamplesTab.mjs").ListItem[]} props.items - The samples.
- * @param {import("../samples/SamplesDescriptor.mjs").SamplesDescriptor} props.sampleDescriptor - The sample descriptor.
+ * @param {import("../samples/descriptor/SamplesDescriptor").SamplesDescriptor} props.sampleDescriptor - The sample descriptor.
  * @param {Object} props.style - The style for the element
  * @param {number} props.selectedIndex - The index of the selected sample.
  * @param {(index: number) => void} props.setSelectedIndex - The function to set the selected sample index.
- * @param {import("../Types.mjs").ScoreLabel} props.selectedScore - The function to get the selected score.
+ * @param {import("../types").ScoreLabel} props.selectedScore - The function to get the selected score.
  * @param {() => void} props.nextSample - The function to move to the next sample.
  * @param {() => void} props.prevSample - The function to move to the previous sample.
  * @param {(index: number) => void} props.showSample - The function to show the sample.
@@ -256,7 +256,7 @@ const SeparatorRow = ({ id, title, height }) => {
  * @param {string} props.id - The unique identifier for the sample.
  * @param {number} props.index - The index of the sample.
  * @param {import("../api/Types.ts").SampleSummary} props.sample - The sample.
- * @param {import("../samples/SamplesDescriptor.mjs").SamplesDescriptor} props.sampleDescriptor - The sample descriptor.
+ * @param {import("../samples/descriptor/SamplesDescriptor").SamplesDescriptor} props.sampleDescriptor - The sample descriptor.
  * @param {number} props.height - The height of the sample row.
  * @param {boolean} props.selected - Whether the sample is selected.
  * @param {(index: number) => void} props.showSample - The function to show the sample.

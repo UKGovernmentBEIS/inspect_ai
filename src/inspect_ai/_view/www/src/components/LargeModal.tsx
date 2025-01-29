@@ -6,14 +6,14 @@ import { ProgressBar } from "./ProgressBar";
 
 import styles from "./LargeModal.module.css";
 
-interface ModalTool {
+export interface ModalTool {
   label: string;
   icon: string;
   onClick: () => void;
   enabled: boolean;
 }
 
-interface ModalTools {
+export interface ModalTools {
   left: ModalTool[];
   right: ModalTool[];
 }

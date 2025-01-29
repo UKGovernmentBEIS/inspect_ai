@@ -56,7 +56,7 @@ export const ApplicationIcons = {
   json: "bi bi-filetype-json",
   limits: {
     messages: "bi bi-chat-right-text",
-    context: "bi bi-person-workspace",
+    custom: "bi bi-person-workspace",
     operator: "bi bi-person-workspace",
     tokens: "bi bi-list",
     time: "bi bi-stopwatch",

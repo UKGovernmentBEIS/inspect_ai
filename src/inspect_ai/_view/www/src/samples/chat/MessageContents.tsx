@@ -8,7 +8,7 @@ import { MessageContent } from "./MessageContent";
 import { resolveToolInput } from "./tools/tool";
 import { ToolCallView } from "./tools/ToolCallView";
 
-import { ContentTool } from "../../Types.mjs";
+import { ContentTool } from "../../types";
 import styles from "./MessageContents.module.css";
 
 interface MessageContentsProps {

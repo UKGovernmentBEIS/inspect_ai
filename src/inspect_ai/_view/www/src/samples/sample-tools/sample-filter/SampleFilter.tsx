@@ -16,8 +16,8 @@ import clsx from "clsx";
 import { EditorView, minimalSetup } from "codemirror";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { ScoreFilter } from "../../../Types.mjs";
-import { EvalDescriptor } from "../../SamplesDescriptor.mjs";
+import { ScoreFilter } from "../../../types";
+import { EvalDescriptor } from "../../descriptor/Types";
 import { FilterError, filterSamples, scoreFilterItems } from "../filters";
 import { getCompletions } from "./completions";
 import styles from "./SampleFilter.module.css";
@@ -31,7 +31,7 @@ interface FilteringResult {
 
 interface SampleFilterProps {
   evalDescriptor: EvalDescriptor;
-  filter: ScoreFilter;
+  scoreFilter: ScoreFilter;
   setScoreFilter: (filter: ScoreFilter) => void;
 }
 
@@ -148,7 +148,7 @@ const getLints = (
 // Main component
 export const SampleFilter: React.FC<SampleFilterProps> = ({
   evalDescriptor,
-  filter,
+  scoreFilter,
   setScoreFilter,
 }) => {
   const editorRef = useRef<HTMLDivElement>(null);
@@ -199,7 +199,7 @@ export const SampleFilter: React.FC<SampleFilterProps> = ({
     editorViewRef.current = new EditorView({
       parent: editorRef.current ?? undefined,
       state: EditorState.create({
-        doc: filter.value || "",
+        doc: scoreFilter.value || "",
         extensions: [
           minimalSetup,
           bracketMatching(),
@@ -223,19 +223,19 @@ export const SampleFilter: React.FC<SampleFilterProps> = ({
     if (!editorViewRef.current) return;
 
     const currentValue = editorViewRef.current.state.doc.toString();
-    if (filter.value === currentValue) return;
+    if (scoreFilter.value === currentValue) return;
 
     setFilteringResultInstant(
-      getFilteringResult(evalDescriptor, filter.value || ""),
+      getFilteringResult(evalDescriptor, scoreFilter.value || ""),
     );
     editorViewRef.current.dispatch({
       changes: {
         from: 0,
         to: currentValue.length,
-        insert: filter.value || "",
+        insert: scoreFilter.value || "",
       },
     });
-  }, [evalDescriptor, filter.value]);
+  }, [evalDescriptor, scoreFilter.value]);
 
   // Update compartments when dependencies change
   useEffect(() => {

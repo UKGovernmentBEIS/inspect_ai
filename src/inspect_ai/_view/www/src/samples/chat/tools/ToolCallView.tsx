@@ -1,5 +1,5 @@
 import ExpandablePanel from "../../../components/ExpandablePanel";
-import { ContentTool } from "../../../Types.mjs";
+import { ContentTool } from "../../../types";
 import {
   ContentAudio,
   ContentImage,
@@ -18,6 +18,13 @@ interface ToolCallViewProps {
   view?: ToolCallContent;
   output:
     | string
+    | number
+    | boolean
+    | ContentText
+    | ContentAudio
+    | ContentImage
+    | ContentVideo
+    | ContentTool
     | (
         | ContentText
         | ContentAudio
@@ -43,6 +50,8 @@ export const ToolCallView: React.FC<ToolCallViewProps> = ({
   function isContentImage(
     value:
       | string
+      | number
+      | boolean
       | ContentText
       | ContentAudio
       | ContentImage

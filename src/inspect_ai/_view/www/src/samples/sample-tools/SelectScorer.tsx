@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { ScoreLabel } from "../../Types.mjs";
+import { ScoreLabel } from "../../types";
 
 import styles from "./SelectScorer.module.css";
 

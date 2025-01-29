@@ -9,7 +9,7 @@ import {
   kScoreDescVal,
 } from "../../constants";
 import { isNumeric } from "../../utils/type";
-import { SamplesDescriptor } from "../SamplesDescriptor.mjs";
+import { SamplesDescriptor } from "../descriptor/SamplesDescriptor";
 import styles from "./SortFilter.module.css";
 
 interface SortFilterProps {
@@ -137,17 +137,37 @@ export const sortSamples = (
         }
       }
 
-      case kScoreAscVal:
+      case kScoreAscVal: {
+        const aScore = samplesDescriptor.selectedScore(a);
+        const bScore = samplesDescriptor.selectedScore(b);
+        if (
+          aScore === undefined ||
+          bScore === undefined ||
+          samplesDescriptor.selectedScoreDescriptor == undefined
+        ) {
+          return 0;
+        }
         return samplesDescriptor.selectedScoreDescriptor.compare(
-          samplesDescriptor.selectedScore(a).value,
-          samplesDescriptor.selectedScore(b).value,
+          aScore,
+          bScore,
         );
-      case kScoreDescVal:
-        return samplesDescriptor.selectedScoreDescriptor.compare(
-          samplesDescriptor.selectedScore(b).value,
-          samplesDescriptor.selectedScore(a).value,
-        );
+      }
+      case kScoreDescVal: {
+        const aScore = samplesDescriptor.selectedScore(a);
+        const bScore = samplesDescriptor.selectedScore(b);
+        if (
+          aScore === undefined ||
+          bScore === undefined ||
+          samplesDescriptor.selectedScoreDescriptor == undefined
+        ) {
+          return 0;
+        }
 
+        return samplesDescriptor.selectedScoreDescriptor.compare(
+          aScore,
+          bScore,
+        );
+      }
       default:
         return 0;
     }

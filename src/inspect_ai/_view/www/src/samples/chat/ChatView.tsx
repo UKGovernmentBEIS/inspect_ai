@@ -9,7 +9,7 @@ interface ChatViewProps {
   toolCallStyle?: "compact" | "complete";
   title?: string;
   indented?: boolean;
-  numbered?: number;
+  numbered?: boolean;
   className?: string | string[];
 }
 

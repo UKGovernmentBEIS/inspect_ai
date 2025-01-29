@@ -1,4 +1,4 @@
-import { Capabilities } from "../Types.mjs";
+import { Capabilities } from "../types";
 import { asyncJsonParse } from "../utils/json-worker";
 import { download_file } from "./api-shared";
 import { LogContents, LogViewAPI } from "./Types";

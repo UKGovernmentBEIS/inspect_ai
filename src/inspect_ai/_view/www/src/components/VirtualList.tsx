@@ -23,6 +23,7 @@ interface VirtualListProps<T> {
   scrollRef?: React.RefObject<HTMLElement>;
   className?: string;
   style?: React.CSSProperties;
+  tabIndex?: number;
 }
 
 interface ListMetrics {

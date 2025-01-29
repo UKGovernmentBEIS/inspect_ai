@@ -4,7 +4,7 @@ import { AsciinemaPlayer } from "./AsciinemaPlayer";
 import "./HumanBaselineView.css";
 import { LightboxCarousel } from "./LightboxCarousel";
 
-interface SessionLog {
+export interface SessionLog {
   name: string;
   user: string;
   input: string;
@@ -13,7 +13,7 @@ interface SessionLog {
 }
 
 interface HumanBaselineViewProps {
-  started: Date;
+  started?: Date;
   running: boolean;
   completed?: boolean;
   runtime?: number;

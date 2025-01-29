@@ -1,5 +1,6 @@
 import clsx from "clsx";
 import murmurhash from "murmurhash";
+import { highlightElement, languages } from "prismjs";
 import { useEffect, useRef } from "react";
 import { MarkdownDiv } from "../../../components/MarkdownDiv";
 import { ToolCallContent } from "../../../types/log";
@@ -26,8 +27,6 @@ export const ToolInput: React.FC<ToolInputProps> = ({
   if (view) {
     const toolViewRef = useRef<HTMLDivElement>(null);
     useEffect(() => {
-      console.log("Available Prism languages:", Object.keys(Prism.languages));
-
       // Sniff around for code in the view that could be text highlighted
       if (toolViewRef.current) {
         for (const child of toolViewRef.current.children) {
@@ -39,7 +38,7 @@ export const ToolInput: React.FC<ToolInputProps> = ({
               );
               if (hasLanguageClass) {
                 child.classList.add("tool-output");
-                Prism.highlightElement(childChild as HTMLElement);
+                highlightElement(childChild as HTMLElement);
               }
             }
           }
@@ -57,9 +56,9 @@ export const ToolInput: React.FC<ToolInputProps> = ({
     const toolInputRef = useRef(null);
     useEffect(() => {
       if (type) {
-        const tokens = Prism.languages[type];
+        const tokens = languages[type];
         if (toolInputRef.current && tokens) {
-          Prism.highlightElement(toolInputRef.current);
+          highlightElement(toolInputRef.current);
         }
       }
     }, [contents, type, view]);
