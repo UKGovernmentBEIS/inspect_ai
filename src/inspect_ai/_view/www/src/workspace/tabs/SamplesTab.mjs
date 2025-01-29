@@ -13,7 +13,7 @@ import { SampleList } from "../../samples/list/SampleList";
  * @param {Object} props - The parameters for the component.
  * @param {import("../../types/log").Sample} [props.sample] - The sample
  * @param {string} [props.task_id] - The task id
- * @param {import("../../api/Types.ts").SampleSummary[]} [props.samples] - the samples
+ * @param {import("../../api/types.ts").SampleSummary[]} [props.samples] - the samples
  * @param {import("../../types").SampleMode} props.sampleMode - the mode for displaying samples
  * @param {"epoch" | "sample" | "none" } props.groupBy - how to group items
  * @param {"asc" | "desc" } props.groupByOrder - whether grouping is ascending or descending
@@ -213,7 +213,7 @@ export const SamplesTab = ({
  * @property {string} label - The label for the sample
  * @property {number} index - The index of the sample
  * @property {number} number - The counter number of the sample
- * @property {import("../../api/Types.ts").SampleSummary} data - The sample data payload
+ * @property {import("../../api/types.ts").SampleSummary} data - The sample data payload
  * @property {"sample"} type - Indicates this is a sample item
  */
 
@@ -232,12 +232,12 @@ export const SamplesTab = ({
 /**
  * Perform any grouping of the samples
  *
- * @param {import("../../api/Types.ts").SampleSummary[]} samples - the list of sample summaries
+ * @param {import("../../api/types.ts").SampleSummary[]} samples - the list of sample summaries
  * @param {"sample" | "epoch" | "none"} groupBy - how to group samples
  * @param {"asc" | "desc"} groupByOrder - how to order grouped samples
  * @param {import("../../samples/descriptor/SamplesDescriptor").SamplesDescriptor} sampleDescriptor - the sample descriptor
  
- * @returns {(sample: import("../../api/Types.ts").SampleSummary, index: number, previousSample: import("../../api/Types.ts").SampleSummary) => ListItem[]} The list items
+ * @returns {(sample: import("../../api/types.ts").SampleSummary, index: number, previousSample: import("../../api/types.ts").SampleSummary) => ListItem[]} The list items
  */
 const getSampleProcessor = (
   samples,
@@ -258,9 +258,9 @@ const getSampleProcessor = (
 /**
  * Performs no grouping
  *
- * @param {import("../../api/Types.ts").SampleSummary[]} samples - the list of sample summaries
+ * @param {import("../../api/types.ts").SampleSummary[]} samples - the list of sample summaries
  * @param {string} order - the selected order
- * @returns {(sample: import("../../api/Types.ts").SampleSummary, index: number, previousSample: import("../../api/Types.ts").SampleSummary) => ListItem[]} The list
+ * @returns {(sample: import("../../api/types.ts").SampleSummary, index: number, previousSample: import("../../api/types.ts").SampleSummary) => ListItem[]} The list
  */
 const noGrouping = (samples, order) => {
   const counter = getCounter(samples.length, 1, order);
@@ -282,10 +282,10 @@ const noGrouping = (samples, order) => {
 /**
  * Groups by sample (showing separators for Epochs)
  *
- * @param {import("../../api/Types.ts").SampleSummary[]} samples - the list of sample summaries
+ * @param {import("../../api/types.ts").SampleSummary[]} samples - the list of sample summaries
  * @param {string} order - the selected order
  * @param {import("../../samples/descriptor/SamplesDescriptor").SamplesDescriptor} sampleDescriptor - the sample descriptor
- * @returns {(sample: import("../../api/Types.ts").SampleSummary, index: number, previousSample: import("../../api/Types.ts").SampleSummary) => ListItem[]} The list
+ * @returns {(sample: import("../../api/types.ts").SampleSummary, index: number, previousSample: import("../../api/types.ts").SampleSummary) => ListItem[]} The list
  */
 const groupBySample = (samples, sampleDescriptor, order) => {
   // ensure that we are sorted by id
@@ -339,10 +339,10 @@ const groupBySample = (samples, sampleDescriptor, order) => {
 /**
  * Groups by epoch (showing a separator for each sample)
  *
- * @param {import("../../api/Types.ts").SampleSummary[]} samples - the list of sample summaries
+ * @param {import("../../api/types.ts").SampleSummary[]} samples - the list of sample summaries
  * @param {string} order - the selected order
  * @param {import("../../samples/descriptor/SamplesDescriptor").SamplesDescriptor} sampleDescriptor - the sample descriptor
- * @returns {(sample: import("../../api/Types.ts").SampleSummary, index: number, previousSample: import("../../api/Types.ts").SampleSummary) => ListItem[]} The list
+ * @returns {(sample: import("../../api/types.ts").SampleSummary, index: number, previousSample: import("../../api/types.ts").SampleSummary) => ListItem[]} The list
  */
 const groupByEpoch = (samples, sampleDescriptor, order) => {
   const groupCount = sampleDescriptor.evalDescriptor.epochs;

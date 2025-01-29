@@ -17,7 +17,7 @@ import { EditorView, minimalSetup } from "codemirror";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { ScoreFilter } from "../../../types";
-import { EvalDescriptor } from "../../descriptor/Types";
+import { EvalDescriptor } from "../../descriptor/types";
 import { FilterError, filterSamples, scoreFilterItems } from "../filters";
 import { getCompletions } from "./completions";
 import styles from "./SampleFilter.module.css";

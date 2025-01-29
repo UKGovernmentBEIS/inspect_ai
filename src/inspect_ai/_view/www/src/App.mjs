@@ -56,7 +56,7 @@ import {
  * Renders the Main Application
  *
  * @param {Object} props - The parameters for the component.
- * @param {import("./api/Types.ts").ClientAPI} props.api - The api that this view should use
+ * @param {import("./api/types.ts").ClientAPI} props.api - The api that this view should use
  * @param {Object} [props.initialState] - Initial state for app (optional, used by VS Code extension)
  * @param {(state: Object) => void} [props.saveInitialState] - Save initial state for app (optional, used by VS Code extension)
  * @param {boolean} props.pollForLogs - Whether the application should poll for log changes
@@ -514,12 +514,12 @@ export function App({
    * Determines whether the workspace tab should display samples or info,
    * depending on the presence of samples and the log status.
    *
-   * @param {import("./api/Types.ts").EvalSummary} log - The log object containing sample summaries and status.
+   * @param {import("./api/types.ts").EvalSummary} log - The log object containing sample summaries and status.
    * @returns {void}
    */
   const resetWorkspace = useCallback(
     /**
-     * @param {import("./api/Types.ts").EvalSummary} log
+     * @param {import("./api/types.ts").EvalSummary} log
      */
     (log) => {
       // Reset the workspace tab
@@ -957,7 +957,7 @@ export function App({
 /**
  * Determines the default scorer for a log
  *
- * @param {import("./api/Types.ts").EvalSummary} log - The log object containing sample summaries and status.
+ * @param {import("./api/types.ts").EvalSummary} log - The log object containing sample summaries and status.
  * @returns {{name: string, scorer: string} | undefined} A scorer object with name and scorer properties, or undefined
  */
 const defaultScorer = (log) => {
@@ -979,7 +979,7 @@ const defaultScorer = (log) => {
 /**
  * Determines the default scorers for a log
  *
- * @param {import("./api/Types.ts").EvalSummary} log - The log object containing sample summaries and status.
+ * @param {import("./api/types.ts").EvalSummary} log - The log object containing sample summaries and status.
  * @returns {Array<{name: string, scorer: string}>} An array of scorer objects with name and scorer properties, or an empty array if no scorers are found.
  */
 const defaultScorers = (log) => {

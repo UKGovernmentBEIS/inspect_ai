@@ -5,7 +5,7 @@ import { InfoEvent } from "../../types/log";
 import { formatDateTime } from "../../utils/format";
 import { EventPanel } from "./event/EventPanel";
 import styles from "./InfoEventView.module.css";
-import { TranscriptEventState } from "./Types";
+import { TranscriptEventState } from "./types";
 
 interface InfoEventViewProps {
   id: string;

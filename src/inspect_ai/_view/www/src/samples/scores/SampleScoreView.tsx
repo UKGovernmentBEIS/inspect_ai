@@ -8,7 +8,7 @@ import { arrayToString, inputString } from "../../utils/format";
 import { SamplesDescriptor } from "../descriptor/SamplesDescriptor";
 import { SampleScores } from "./SampleScores";
 
-import { SampleSummary } from "../../api/Types";
+import { SampleSummary } from "../../api/types";
 import styles from "./SampleScoreView.module.css";
 
 interface SampleScoreViewProps {

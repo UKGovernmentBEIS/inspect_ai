@@ -22,7 +22,7 @@ import {
 import { ChatView } from "../chat/ChatView";
 import { EventPanel } from "./event/EventPanel";
 import { EventSection } from "./event/EventSection";
-import { TranscriptEventState } from "./Types";
+import { TranscriptEventState } from "./types";
 
 import { highlightElement } from "prismjs";
 import styles from "./ModelEventView.module.css";

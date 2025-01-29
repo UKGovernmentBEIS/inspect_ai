@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { SampleSummary } from "../../api/Types";
+import { SampleSummary } from "../../api/types";
 import { ApplicationIcons } from "../../appearance/icons";
 import { CopyButton } from "../../components/CopyButton";
 import { EvalResults, EvalSpec, Status } from "../../types/log";

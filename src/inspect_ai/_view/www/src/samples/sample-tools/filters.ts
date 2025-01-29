@@ -1,10 +1,10 @@
 import { compileExpression } from "filtrex";
-import { SampleSummary } from "../../api/Types";
+import { SampleSummary } from "../../api/types";
 import { kScoreTypeBoolean } from "../../constants";
 import { ScoreLabel } from "../../types";
 import { Scores1 } from "../../types/log";
 import { inputString } from "../../utils/format";
-import { EvalDescriptor, ScoreDescriptor } from "../descriptor/Types";
+import { EvalDescriptor, ScoreDescriptor } from "../descriptor/types";
 
 export interface FilterError {
   from: number;

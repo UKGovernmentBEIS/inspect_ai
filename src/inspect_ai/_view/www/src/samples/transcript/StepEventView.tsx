@@ -6,7 +6,7 @@ import { StepEvent } from "../../types/log";
 import { formatDateTime } from "../../utils/format";
 import { EventPanel } from "./event/EventPanel";
 import { TranscriptVirtualListComponent } from "./TranscriptView";
-import { EventNode, TranscriptEventState } from "./Types";
+import { EventNode, TranscriptEventState } from "./types";
 
 interface StepEventViewProps {
   event: StepEvent;

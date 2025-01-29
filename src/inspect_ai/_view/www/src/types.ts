@@ -1,4 +1,4 @@
-import { EvalSummary } from "./api/Types";
+import { EvalSummary } from "./api/types";
 import { ContentImage, ContentText } from "./types/log";
 
 export interface Capabilities {

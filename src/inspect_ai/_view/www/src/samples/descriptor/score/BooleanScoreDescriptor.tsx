@@ -1,6 +1,6 @@
 import clsx from "clsx";
 import { Value2 } from "../../../types/log";
-import { ScoreDescriptor, SelectedScore } from "../Types";
+import { ScoreDescriptor, SelectedScore } from "../types";
 import styles from "./BooleanScoreDescriptor.module.css";
 
 export const booleanScoreDescriptor = (): ScoreDescriptor => {

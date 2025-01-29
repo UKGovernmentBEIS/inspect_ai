@@ -5,7 +5,7 @@ import { MetaDataGrid } from "../../metadata/MetaDataGrid";
 import { ScoreEvent, Value1 } from "../../types/log";
 import { formatDateTime } from "../../utils/format";
 import { EventPanel } from "./event/EventPanel";
-import { TranscriptEventState } from "./Types";
+import { TranscriptEventState } from "./types";
 
 import clsx from "clsx";
 import styles from "./ScoreEventView.module.css";

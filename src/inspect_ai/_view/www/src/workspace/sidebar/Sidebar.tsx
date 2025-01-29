@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { EvalLogHeader, LogFiles } from "../../api/Types";
+import { EvalLogHeader, LogFiles } from "../../api/types";
 import { ApplicationIcons } from "../../appearance/icons";
 import { ProgressBar } from "../../components/ProgressBar";
 import { LogDirectoryTitleView } from "./LogDirectoryTitleView";

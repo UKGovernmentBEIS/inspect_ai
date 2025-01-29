@@ -34,7 +34,7 @@ import { InfoTab } from "./tabs/InfoTab.tsx";
  * @param {import("../types/log").EvalStats} [props.evalStats] - The EvalStats for this eval
  * @param {import("../types/log").EvalResults} [props.evalResults] - The EvalResults for this eval
  * @param {import("../types").CurrentLog} [props.log] - the current log
- * @param {import("../api/Types.ts").SampleSummary[]} [props.samples] - the samples
+ * @param {import("../api/types.ts").SampleSummary[]} [props.samples] - the samples
  * @param {import("../types").SampleMode} props.sampleMode - the mode for displaying samples
  * @param {string} props.groupBy - what to group by
  * @param {string} props.groupByOrder - the grouping order

@@ -1,6 +1,6 @@
 import { kScoreTypeCategorical } from "../../../constants";
 import { Value2 } from "../../../types/log";
-import { ScoreDescriptor } from "../Types";
+import { ScoreDescriptor } from "../types";
 
 export const categoricalScoreDescriptor = (
   values: Value2[],

@@ -8,7 +8,7 @@ import {
   LogFiles,
   LogFilesFetchResponse,
   LogViewAPI,
-} from "./Types";
+} from "./types";
 
 interface LogInfo {
   log_dir?: string;

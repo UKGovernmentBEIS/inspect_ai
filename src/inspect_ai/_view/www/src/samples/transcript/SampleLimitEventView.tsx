@@ -1,7 +1,7 @@
 import { ApplicationIcons } from "../../appearance/icons";
 import { SampleLimitEvent, Type7 } from "../../types/log";
 import { EventPanel } from "./event/EventPanel";
-import { TranscriptEventState } from "./Types";
+import { TranscriptEventState } from "./types";
 
 interface SampleLimitEventViewProps {
   id: string;

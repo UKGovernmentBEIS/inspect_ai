@@ -6,7 +6,7 @@ import { ToolCallView } from "../chat/tools/ToolCallView";
 import { ApprovalEventView } from "./ApprovalEventView";
 import { EventPanel } from "./event/EventPanel";
 import { TranscriptView } from "./TranscriptView";
-import { TranscriptEventState } from "./Types";
+import { TranscriptEventState } from "./types";
 
 import styles from "./ToolEventView.module.css";
 

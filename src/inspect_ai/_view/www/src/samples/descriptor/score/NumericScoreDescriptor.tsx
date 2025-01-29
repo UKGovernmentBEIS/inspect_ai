@@ -1,7 +1,7 @@
 import { kScoreTypeNumeric } from "../../../constants";
 import { Value2 } from "../../../types/log";
 import { formatDecimalNoTrailingZeroes } from "../../../utils/format";
-import { ScoreDescriptor } from "../Types";
+import { ScoreDescriptor } from "../types";
 
 export const numericScoreDescriptor = (values: Value2[]): ScoreDescriptor => {
   const onlyNumeric = values.filter((val) => {

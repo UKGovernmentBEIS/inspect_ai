@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { SampleSummary } from "../../api/Types";
+import { SampleSummary } from "../../api/types";
 import { MessageBand } from "../../components/MessageBand";
 import { PlanCard } from "../../plan/PlanCard";
 import {

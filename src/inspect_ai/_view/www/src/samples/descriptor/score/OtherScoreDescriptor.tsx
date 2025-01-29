@@ -1,6 +1,6 @@
 import { kScoreTypeOther } from "../../../constants";
 import { RenderedContent } from "../../../metadata/RenderedContent";
-import { ScoreDescriptor } from "../Types";
+import { ScoreDescriptor } from "../types";
 
 export const otherScoreDescriptor = (): ScoreDescriptor => {
   return {

@@ -1,6 +1,6 @@
 import { filename } from "../../utils/path";
 
-import { Capabilities } from "../../api/Types";
+import { Capabilities } from "../../api/types";
 import { DownloadPanel } from "../../components/DownloadPanel";
 import { JSONPanel } from "../../components/JsonPanel";
 import styles from "./JsonTab.module.css";

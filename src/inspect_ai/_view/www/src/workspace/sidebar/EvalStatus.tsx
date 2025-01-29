@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { EvalLogHeader } from "../../api/Types";
+import { EvalLogHeader } from "../../api/types";
 import styles from "./EvalStatus.module.css";
 import { SidebarScoreView } from "./SidebarScoreView";
 import { SidebarScoresView } from "./SidebarScoresView";

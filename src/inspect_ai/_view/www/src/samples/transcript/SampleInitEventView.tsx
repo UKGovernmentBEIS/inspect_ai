@@ -7,7 +7,7 @@ import { toArray } from "../../utils/type";
 import { ChatView } from "../chat/ChatView";
 import { EventPanel } from "./event/EventPanel";
 import { EventSection } from "./event/EventSection";
-import { TranscriptEventState } from "./Types";
+import { TranscriptEventState } from "./types";
 
 import styles from "./SampleInitEventView.module.css";
 

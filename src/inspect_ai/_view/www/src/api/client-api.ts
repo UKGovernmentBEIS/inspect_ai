@@ -8,7 +8,7 @@ import {
   LogContents,
   LogFiles,
   LogViewAPI,
-} from "./Types";
+} from "./types";
 
 const isEvalFile = (file: string) => {
   return file.endsWith(".eval");

@@ -17,7 +17,7 @@ import { StateEventView } from "./state/StateEventView";
 import { StepEventView } from "./StepEventView";
 import { SubtaskEventView } from "./SubtaskEventView";
 import { ToolEventView } from "./ToolEventView";
-import { EventNode, EventType, TranscriptEventState } from "./Types";
+import { EventNode, EventType, TranscriptEventState } from "./types";
 
 import clsx from "clsx";
 import styles from "./TranscriptView.module.css";

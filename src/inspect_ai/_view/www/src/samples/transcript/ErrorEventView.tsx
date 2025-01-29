@@ -3,7 +3,7 @@ import { ANSIDisplay } from "../../components/AnsiDisplay";
 import { ErrorEvent } from "../../types/log";
 import { formatDateTime } from "../../utils/format";
 import { EventPanel } from "./event/EventPanel";
-import { TranscriptEventState } from "./Types";
+import { TranscriptEventState } from "./types";
 
 interface ErrorEventViewProps {
   id: string;

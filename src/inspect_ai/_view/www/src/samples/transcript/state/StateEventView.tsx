@@ -10,7 +10,7 @@ import {
 } from "../../../types/log";
 import { formatDateTime } from "../../../utils/format";
 import { EventPanel } from "../event/EventPanel";
-import { TranscriptEventState } from "../Types";
+import { TranscriptEventState } from "../types";
 import { StateDiffView } from "./StateDiffView";
 import {
   RenderableChangeTypes,

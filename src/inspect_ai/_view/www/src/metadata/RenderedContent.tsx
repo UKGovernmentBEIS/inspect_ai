@@ -8,7 +8,7 @@ import { MetaDataView } from "./MetaDataView";
 
 import clsx from "clsx";
 import styles from "./RenderedContent.module.css";
-import { Buckets, ContentRenderer } from "./Types";
+import { Buckets, ContentRenderer } from "./types";
 
 interface RenderedContentProps {
   id: string;

@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { SampleSummary } from "../../api/Types";
+import { SampleSummary } from "../../api/types";
 import {
   kEpochAscVal,
   kEpochDescVal,

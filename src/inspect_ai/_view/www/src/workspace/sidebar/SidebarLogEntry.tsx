@@ -1,6 +1,6 @@
 import clsx from "clsx";
 import React from "preact/compat";
-import { EvalLogHeader } from "../../api/Types";
+import { EvalLogHeader } from "../../api/types";
 import { EvalStatus } from "./EvalStatus";
 import styles from "./SidebarLogEntry.module.css";
 

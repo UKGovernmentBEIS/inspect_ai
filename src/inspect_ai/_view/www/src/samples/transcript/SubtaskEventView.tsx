@@ -7,7 +7,7 @@ import { formatDateTime } from "../../utils/format";
 import { EventPanel } from "./event/EventPanel";
 import styles from "./SubtaskEventView.module.css";
 import { TranscriptView } from "./TranscriptView";
-import { TranscriptEventState } from "./Types";
+import { TranscriptEventState } from "./types";
 
 interface SubtaskEventViewProps {
   id: string;

@@ -4,7 +4,7 @@ import browserApi from "./api-browser";
 import simpleHttpApi from "./api-http";
 import vscodeApi from "./api-vscode";
 import { clientApi } from "./client-api";
-import { ClientAPI } from "./Types";
+import { ClientAPI } from "./types";
 
 //
 /**

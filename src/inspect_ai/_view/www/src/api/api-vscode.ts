@@ -10,7 +10,7 @@ import {
   kMethodEvalLogSize,
   webViewJsonRpcClient,
 } from "./jsonrpc";
-import { Capabilities, LogContents, LogViewAPI } from "./Types";
+import { Capabilities, LogContents, LogViewAPI } from "./types";
 
 const vscodeClient = webViewJsonRpcClient(getVscodeApi());
 

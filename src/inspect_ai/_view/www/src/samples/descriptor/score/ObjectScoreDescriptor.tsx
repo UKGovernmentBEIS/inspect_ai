@@ -4,7 +4,7 @@ import { kScoreTypeObject } from "../../../constants";
 import { Value2 } from "../../../types/log";
 import { formatPrettyDecimal } from "../../../utils/format";
 import { isNumeric } from "../../../utils/type";
-import { ScoreDescriptor } from "../Types";
+import { ScoreDescriptor } from "../types";
 import styles from "./ObjectScoreDescriptor.module.css";
 
 export const objectScoreDescriptor = (values: Value2[]): ScoreDescriptor => {
