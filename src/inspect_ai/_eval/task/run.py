@@ -740,7 +740,7 @@ async def task_run_sample(
                     error = handle_error(ex)
 
         # handle sandboxenv init errors
-        except BaseException as ex:
+        except Exception as ex:
             error = handle_error(ex)
 
         # complete the sample
