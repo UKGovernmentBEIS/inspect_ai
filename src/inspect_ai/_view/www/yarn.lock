@@ -716,6 +716,13 @@
   dependencies:
     "@popperjs/core" "^2.9.2"
 
+"@types/clipboard@^2.0.10":
+  version "2.0.10"
+  resolved "https://registry.yarnpkg.com/@types/clipboard/-/clipboard-2.0.10.tgz#f08bfa75f2352f629572ebbeccfff0e497c41141"
+  integrity sha512-6CIsNdBfOTN92GHhQ0BaGY9KoV4DPH7ynCk5eggSDy3HW7OHLKWJUskL72uoVxl2kZ/XCq28TEgI0HKxLbRxyQ==
+  dependencies:
+    clipboard "*"
+
 "@types/codemirror@^5.60.15":
   version "5.60.15"
   resolved "https://registry.yarnpkg.com/@types/codemirror/-/codemirror-5.60.15.tgz#0f82be6f4126d1e59cf4c4830e56dcd49d3c3e8a"
@@ -907,7 +914,7 @@ chalk@^5.3.0:
   resolved "https://registry.yarnpkg.com/chalk/-/chalk-5.4.1.tgz#1b48bf0963ec158dce2aacf69c093ae2dd2092d8"
   integrity sha512-zgVZuo2WcZgfUEmsn6eO3kINexW8RAE4maiQ8QNs8CtpPCSyMiYsULR3HQYkm3w8FIA3SberyMJMSldGsW+U3w==
 
-clipboard@^2.0.11:
+clipboard@*, clipboard@^2.0.11:
   version "2.0.11"
   resolved "https://registry.yarnpkg.com/clipboard/-/clipboard-2.0.11.tgz#62180360b97dd668b6b3a84ec226975762a70be5"
   integrity sha512-C+0bbOqkezLIsmWSvlsXS0Q0bmkugu7jcfMIACB+RDEntIzQIkdr148we28AfSloQLRdZlYL/QYyrq05j/3Faw==

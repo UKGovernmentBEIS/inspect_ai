@@ -13,7 +13,7 @@ interface InlineSampleDisplayProps {
   sampleError?: Error;
   sample?: EvalSample;
   sampleDescriptor: SamplesDescriptor;
-  selectedTab: string;
+  selectedTab?: string;
   setSelectedTab: (tab: string) => void;
   scrollRef: RefObject<HTMLDivElement>;
 }

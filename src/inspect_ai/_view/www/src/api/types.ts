@@ -118,8 +118,8 @@ export interface LogFiles {
 
 export interface LogFile {
   name: string;
-  task: string;
-  task_id: string;
+  task?: string;
+  task_id?: string;
 }
 
 export interface LogContents {
@@ -131,3 +131,19 @@ export interface LogFilesFetchResponse {
   raw: string;
   parsed: Record<string, EvalHeader>;
 }
+
+export interface UpdateStateMessage {
+  data: {
+    type: "updateState";
+    url: string;
+  };
+}
+
+export interface BackgroundUpdateMessage {
+  data: {
+    type: "backgroundUpdate";
+    url: string;
+    log_dir: string;
+  };
+}
+export type HostMessage = UpdateStateMessage | BackgroundUpdateMessage;

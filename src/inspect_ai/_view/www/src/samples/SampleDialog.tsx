@@ -14,7 +14,7 @@ interface SampleDialogProps {
   sampleError?: Error;
   sample?: EvalSample;
   sampleDescriptor: SamplesDescriptor;
-  selectedTab: string;
+  selectedTab?: string;
   setSelectedTab: (tab: string) => void;
   showingSampleDialog: boolean;
   setShowingSampleDialog: (showing: boolean) => void;

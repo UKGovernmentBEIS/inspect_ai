@@ -11,17 +11,6 @@ import "prismjs/themes/prism.css";
 
 import "../App.css";
 
-import { default as ClipboardJS } from "clipboard";
-// @ts-ignore
-import { html } from "htm/preact";
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "preact/hooks";
-
 import { AppErrorBoundary } from "./AppErrorBoundary";
 import { ErrorPanel } from "./components/ErrorPanel";
 import { ProgressBar } from "./components/ProgressBar";
@@ -45,93 +34,111 @@ import { getVscodeApi, isVscode } from "./utils/vscode";
 import { Sidebar } from "./workspace/sidebar/Sidebar.tsx";
 import { WorkSpace } from "./workspace/WorkSpace";
 
+import ClipboardJS from "clipboard";
+import clsx from "clsx";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  ClientAPI,
+  EvalLogHeader,
+  EvalSummary,
+  HostMessage,
+  LogFiles,
+  SampleSummary,
+} from "./api/types.ts";
 import {
   kEvalWorkspaceTabId,
   kInfoWorkspaceTabId,
   kSampleMessagesTabId,
   kSampleTranscriptTabId,
 } from "./constants";
+import {
+  AppStatus,
+  Capabilities,
+  CurrentLog,
+  InitialState,
+  ScoreFilter,
+  ScoreLabel,
+} from "./types.ts";
+import { EvalSample } from "./types/log";
+
+interface AppProps {
+  api: ClientAPI;
+  initialState?: InitialState;
+  saveInitialState?: (state: InitialState) => void;
+  pollForLogs: boolean;
+}
 
 /**
  * Renders the Main Application
- *
- * @param {Object} props - The parameters for the component.
- * @param {import("./api/types.ts").ClientAPI} props.api - The api that this view should use
- * @param {Object} [props.initialState] - Initial state for app (optional, used by VS Code extension)
- * @param {(state: Object) => void} [props.saveInitialState] - Save initial state for app (optional, used by VS Code extension)
- * @param {boolean} props.pollForLogs - Whether the application should poll for log changes
- * @returns {import("preact").JSX.Element} The App component.
  */
-export function App({
+export const App: React.FC<AppProps> = ({
   api,
-  initialState = undefined,
-  saveInitialState = undefined,
+  initialState,
+  saveInitialState,
   pollForLogs = true,
-}) {
+}) => {
   // List of Logs
-  const [logs, setLogs] = useState(
+  const [logs, setLogs] = useState<LogFiles>(
     initialState?.logs || { log_dir: "", files: [] },
   );
-  const [selectedLogIndex, setSelectedLogIndex] = useState(
+  const [selectedLogIndex, setSelectedLogIndex] = useState<number>(
     initialState?.selectedLogIndex !== undefined
       ? initialState.selectedLogIndex
       : -1,
   );
 
   // Log Headers
-  const [logHeaders, setLogHeaders] = useState(initialState?.logHeaders || {});
-  const [headersLoading, setHeadersLoading] = useState(
+  const [logHeaders, setLogHeaders] = useState<Record<string, EvalLogHeader>>(
+    initialState?.logHeaders || {},
+  );
+  const [headersLoading, setHeadersLoading] = useState<boolean>(
     initialState?.headersLoading || false,
   );
 
-  /** @type {[import("./types").CurrentLog, function(import("./types").CurrentLog): void]} */
-  const [selectedLog, setSelectedLog] = useState(
-    initialState?.selectedLog || {
-      contents: undefined,
-      name: undefined,
-    },
+  const [selectedLog, setSelectedLog] = useState<CurrentLog | undefined>(
+    initialState?.selectedLog,
   );
 
   // Workspace (the selected tab)
-  const [selectedWorkspaceTab, setSelectedWorkspaceTab] = useState(
+  const [selectedWorkspaceTab, setSelectedWorkspaceTab] = useState<string>(
     initialState?.selectedWorkspaceTab || kEvalWorkspaceTabId,
   );
-
-  // Samples
-  const [selectedSampleIndex, setSelectedSampleIndex] = useState(
+  const [selectedSampleIndex, setSelectedSampleIndex] = useState<number>(
     initialState?.selectedSampleIndex !== undefined
       ? initialState.selectedSampleIndex
       : -1,
   );
-  /** @type {[import("./types/log").EvalSample, function(import("./types/log").EvalSample): void]} */
-  const [selectedSample, setSelectedSample] = useState(
+  const [selectedSample, setSelectedSample] = useState<EvalSample | undefined>(
     initialState?.selectedSample,
   );
-  const [sampleStatus, setSampleStatus] = useState(initialState?.sampleStatus);
-  const [sampleError, setSampleError] = useState(initialState?.sampleError);
-  const [selectedSampleTab, setSelectedSampleTab] = useState(
-    initialState?.selectedSampleTab,
+  const [sampleStatus, setSampleStatus] = useState<"loading" | "ok" | "error">(
+    initialState?.sampleStatus || "loading",
   );
-  const sampleScrollPosition = useRef(initialState?.sampleScrollPosition || 0);
-  const loadingSampleIndexRef = useRef(null);
-  const workspaceTabScrollPosition = useRef(
+  const [sampleError, setSampleError] = useState<Error | undefined>(
+    initialState?.sampleError,
+  );
+  const [selectedSampleTab, setSelectedSampleTab] = useState<
+    string | undefined
+  >(initialState?.selectedSampleTab);
+  const sampleScrollPosition = useRef<number>(
+    initialState?.sampleScrollPosition || 0,
+  );
+  const loadingSampleIndexRef = useRef<number>(null);
+  const workspaceTabScrollPosition = useRef<Record<string, number>>(
     initialState?.workspaceTabScrollPosition || {},
   );
 
-  const [showingSampleDialog, setShowingSampleDialog] = useState(
-    initialState?.showingSampleDialog,
+  const [showingSampleDialog, setShowingSampleDialog] = useState<boolean>(
+    !!initialState?.showingSampleDialog,
   );
 
   // App loading status
-  const [status, setStatus] = useState(
-    initialState?.status || {
-      loading: true,
-      error: undefined,
-    },
+  const [status, setStatus] = useState<AppStatus>(
+    initialState?.status || { loading: false },
   );
 
   // App host capabilities
-  const [capabilities, setCapabilities] = useState(
+  const [capabilities, setCapabilities] = useState<Capabilities>(
     initialState?.capabilities || {
       downloadFiles: true,
       webWorkers: true,
@@ -139,45 +146,38 @@ export function App({
   );
 
   // Other application state
-  const [offcanvas, setOffcanvas] = useState(initialState?.offcanvas || false);
-  const [showFind, setShowFind] = useState(initialState?.showFind || false);
+  const [offcanvas, setOffcanvas] = useState<boolean>(
+    initialState?.offcanvas || false,
+  );
+  const [showFind, setShowFind] = useState<boolean>(
+    initialState?.showFind || false,
+  );
 
   // Filtering and sorting
-  /**
-   * @type {[import("./types").ScoreFilter, function(import("./types").ScoreFilter): void]}
-   */
-  const [filter, setFilter] = useState(initialState?.filter || {});
+  const [filter, setFilter] = useState<ScoreFilter>(initialState?.filter || {});
 
-  /**
-   * @type {[string, function(string): void]}
-   */
-  const [epoch, setEpoch] = useState(initialState?.epoch || "all");
+  const [epoch, setEpoch] = useState<string>(initialState?.epoch || "all");
+  const [sort, setSort] = useState<string>(initialState?.sort || kDefaultSort);
 
-  /**
-   * @type {[string, function(string): void]}
-   */
-  const [sort, setSort] = useState(initialState?.sort || kDefaultSort);
+  const [scores, setScores] = useState<ScoreLabel[]>(
+    initialState?.scores || [],
+  );
 
-  /**
-   * @type {[import("./types").ScoreLabel[], function(import("./types").ScoreLabel[]): void]}
-   */
-  const [scores, setScores] = useState(initialState?.scores || []);
-
-  /**
-   * @type {[import("./types").ScoreLabel, function(import("./types").ScoreLabel): void]}
-   */
-  const [score, setScore] = useState(initialState?.score);
+  const [score, setScore] = useState<ScoreLabel | undefined>(
+    initialState?.score,
+  );
 
   // Re-filter the samples
-  const [filteredSamples, setFilteredSamples] = useState(
+  const [filteredSamples, setFilteredSamples] = useState<SampleSummary[]>(
     initialState?.filteredSamples || [],
   );
-  const [groupBy, setGroupBy] = useState(initialState?.groupBy || "none");
-  const [groupByOrder, setGroupByOrder] = useState(
+  const [groupBy, setGroupBy] = useState<"none" | "epoch" | "sample">(
+    initialState?.groupBy || "none",
+  );
+  const [groupByOrder, setGroupByOrder] = useState<"asc" | "desc">(
     initialState?.groupByOrder || "asc",
   );
 
-  const afterBodyElements = [];
   const saveState = useCallback(() => {
     const state = {
       logs,
@@ -296,7 +296,7 @@ export function App({
   ]);
 
   const handleSampleShowingDialog = useCallback(
-    (show) => {
+    (show: boolean) => {
       setShowingSampleDialog(show);
       if (!show) {
         setSelectedSample(undefined);
@@ -313,15 +313,15 @@ export function App({
 
   useEffect(() => {
     const samples = selectedLog?.contents?.sampleSummaries || [];
-    const { result: prefiltered } = filterSamples(
-      evalDescriptor,
-      samples,
-      filter?.value,
-    );
+    const { result: prefiltered } =
+      evalDescriptor && filter?.value
+        ? filterSamples(evalDescriptor, samples, filter.value)
+        : { result: samples };
+
     const filtered = prefiltered.filter((sample) => {
       // Filter by epoch if specified
       if (epoch && epoch !== "all") {
-        if (epoch !== sample.epoch + "") {
+        if (epoch !== String(sample.epoch)) {
           return false;
         }
       }
@@ -329,39 +329,43 @@ export function App({
     });
 
     // Sort the samples
-    const { sorted, order } = sortSamples(sort, filtered, samplesDescriptor);
+    if (samplesDescriptor) {
+      const { sorted, order } = sortSamples(sort, filtered, samplesDescriptor);
+      setFilteredSamples(sorted);
+      setGroupByOrder(order);
+    }
 
     // Set the grouping
-    let grouping = "none";
-    if (samplesDescriptor?.evalDescriptor?.epochs > 1) {
+    let grouping: "none" | "epoch" | "sample" = "none";
+    if (
+      samplesDescriptor?.evalDescriptor?.epochs &&
+      samplesDescriptor.evalDescriptor.epochs > 1
+    ) {
       if (byEpoch(sort) || epoch !== "all") {
         grouping = "epoch";
       } else if (bySample(sort)) {
         grouping = "sample";
       }
     }
-
-    setFilteredSamples(sorted);
     setGroupBy(grouping);
-    setGroupByOrder(order);
   }, [selectedLog, filter, sort, epoch]);
 
   const evalDescriptor = useMemo(() => {
     return createEvalDescriptor(
       scores,
-      selectedLog.contents?.eval?.config?.epochs || 1,
-      selectedLog.contents?.sampleSummaries,
+      selectedLog?.contents?.eval?.config?.epochs || 1,
+      selectedLog?.contents?.sampleSummaries,
     );
   }, [selectedLog, scores]);
 
   const samplesDescriptor = useMemo(() => {
-    return evalDescriptor
+    return evalDescriptor && score
       ? createSamplesDescriptor(evalDescriptor, score)
       : undefined;
   }, [evalDescriptor, score]);
 
   const refreshSampleTab = useCallback(
-    (sample) => {
+    (sample: EvalSample) => {
       if (selectedSampleTab === undefined) {
         const defaultTab =
           sample.events && sample.events.length > 0
@@ -374,7 +378,7 @@ export function App({
   );
 
   // The main application reference
-  const mainAppRef = useRef();
+  const mainAppRef = useRef<HTMLDivElement>(null);
 
   // Loads a sample
   useEffect(() => {
@@ -415,30 +419,36 @@ export function App({
       api
         .get_log_sample(selectedLog.name, summary.id, summary.epoch)
         .then((sample) => {
-          // migrate transcript to new structure
-          // @ts-ignore
-          if (sample.transcript) {
-            // @ts-ignore
-            sample.events = sample.transcript.events;
-            // @ts-ignore
-            sample.attachments = sample.transcript.content;
+          if (sample) {
+            // This migrates old samples (with raw transcript element)
+            // to the new structure (hence the type bypass).
+            const anySample = sample as any;
+            if (anySample.transcript) {
+              sample.events = anySample.transcript.events;
+              sample.attachments = anySample.transcript.content;
+            }
+            sample.attachments = sample.attachments || {};
+            sample.input = resolveAttachments(sample.input, sample.attachments);
+            sample.messages = resolveAttachments(
+              sample.messages,
+              sample.attachments,
+            );
+            sample.events = resolveAttachments(
+              sample.events,
+              sample.attachments,
+            );
+            sample.attachments = {};
+
+            sampleScrollPosition.current = 0;
+            setSelectedSample(sample);
+
+            refreshSampleTab(sample);
+
+            setSampleStatus("ok");
+            loadingSampleIndexRef.current = null;
+          } else {
+            throw Error("Unable to load sample - an unknown error occurred.");
           }
-          sample.attachments = sample.attachments || {};
-          sample.input = resolveAttachments(sample.input, sample.attachments);
-          sample.messages = resolveAttachments(
-            sample.messages,
-            sample.attachments,
-          );
-          sample.events = resolveAttachments(sample.events, sample.attachments);
-          sample.attachments = {};
-
-          sampleScrollPosition.current = 0;
-          setSelectedSample(sample);
-
-          refreshSampleTab(sample);
-
-          setSampleStatus("ok");
-          loadingSampleIndexRef.current = null;
         })
         .catch((e) => {
           setSampleStatus("error");
@@ -480,10 +490,10 @@ export function App({
         for (const fileList of fileLists) {
           const headers = await api.get_log_headers(fileList);
           setLogHeaders((prev) => {
-            const updatedHeaders = {};
+            const updatedHeaders: Record<string, EvalLogHeader> = {};
             headers.forEach((header, index) => {
               const logFile = fileList[index];
-              updatedHeaders[logFile] = header;
+              updatedHeaders[logFile] = header as EvalLogHeader;
             });
             return { ...prev, ...updatedHeaders };
           });
@@ -492,16 +502,18 @@ export function App({
             await sleep(5000); // Pause between chunks
           }
         }
-      } catch (e) {
-        if (e.message === "Load failed" || e.message === "Failed to fetch") {
+      } catch (e: unknown) {
+        if (
+          e instanceof Error &&
+          (e.message === "Load failed" || e.message === "Failed to fetch")
+        ) {
           // This will happen if the server disappears (e.g. inspect view is terminated)
           setStatus({ loading: false });
         } else {
           console.log(e);
-          setStatus({ loading: false, error: e });
+          setStatus({ loading: false, error: e as Error });
         }
       }
-
       setHeadersLoading(false);
     };
 
@@ -513,15 +525,9 @@ export function App({
    *
    * Determines whether the workspace tab should display samples or info,
    * depending on the presence of samples and the log status.
-   *
-   * @param {import("./api/types.ts").EvalSummary} log - The log object containing sample summaries and status.
-   * @returns {void}
    */
   const resetWorkspace = useCallback(
-    /**
-     * @param {import("./api/types.ts").EvalSummary} log
-     */
-    (log) => {
+    (log: EvalSummary) => {
       // Reset the workspace tab
       const hasSamples =
         !!log.sampleSummaries && log.sampleSummaries.length > 0;
@@ -580,7 +586,7 @@ export function App({
           }
         } catch (e) {
           console.log(e);
-          setStatus({ loading: false, error: e });
+          setStatus({ loading: false, error: e as Error });
         }
       } else if (logs.log_dir && logs.files.length === 0) {
         setStatus({
@@ -603,26 +609,28 @@ export function App({
   ]);
 
   // Load the list of logs
-  const loadLogs = async () => {
+  const loadLogs = async (): Promise<LogFiles> => {
     try {
       const result = await api.get_log_paths();
+
       return result;
     } catch (e) {
       // Show an error
       console.log(e);
-      setStatus({ loading: false, error: e });
+      setStatus({ loading: false, error: e as Error });
+      return { log_dir: "", files: [] };
     }
   };
 
   // Load a specific log file
-  const loadLog = async (logFileName) => {
+  const loadLog = async (logFileName: string) => {
     try {
       const logContents = await api.get_log_summary(logFileName);
       return logContents;
     } catch (e) {
       // Show an error
       console.log(e);
-      setStatus({ loading: false, error: e });
+      setStatus({ loading: false, error: e as Error });
     }
   };
 
@@ -636,10 +644,10 @@ export function App({
         if (log.status !== "started") {
           setLogHeaders((prev) => {
             const updatedState = { ...prev };
-            const freshHeaders = {
+            const freshHeaders: EvalLogHeader = {
               eval: log.eval,
               plan: log.plan,
-              results: log.results,
+              results: log.results !== null ? log.results : undefined,
               stats: log.stats,
               status: log.status,
               version: log.version,
@@ -662,12 +670,12 @@ export function App({
     } catch (e) {
       // Show an error
       console.log(e);
-      setStatus({ loading: false, error: e });
+      setStatus({ loading: false, error: e as Error });
     }
   }, [logs, selectedLogIndex, setStatus, setSelectedLog, setLogHeaders]);
 
   const showLogFile = useCallback(
-    async (logUrl) => {
+    async (logUrl: string) => {
       const index = logs.files.findIndex((val) => {
         return logUrl.endsWith(val.name);
       });
@@ -675,11 +683,11 @@ export function App({
         setSelectedLogIndex(index);
       } else {
         const result = await loadLogs();
-        const idx = result.files.findIndex((file) => {
+        const idx = result?.files.findIndex((file) => {
           return logUrl.endsWith(file.name);
         });
-        setLogs(result);
-        setSelectedLogIndex(idx > -1 ? idx : 0);
+        setLogs(result || { log_dir: "", files: [] });
+        setSelectedLogIndex(idx && idx > -1 ? idx : 0);
       }
     },
     [logs, setSelectedLogIndex, setLogs],
@@ -687,19 +695,20 @@ export function App({
 
   const refreshLogList = useCallback(async () => {
     const currentLog = logs.files[selectedLogIndex > -1 ? selectedLogIndex : 0];
-
     const refreshedLogs = await loadLogs();
-    const newIndex = refreshedLogs.files.findIndex((file) => {
+    setLogs(refreshedLogs || { log_dir: "", files: [] });
+
+    const newIndex = refreshedLogs?.files.findIndex((file) => {
       return currentLog.name.endsWith(file.name);
     });
-    setLogs(refreshedLogs);
-    setSelectedLogIndex(newIndex);
+    if (newIndex !== undefined) {
+      setSelectedLogIndex(newIndex);
+    }
   }, [logs, selectedLogIndex, setSelectedLogIndex, setLogs]);
 
   const onMessage = useMemo(() => {
-    return async (e) => {
-      const type = e.data.type || e.data.message;
-      switch (type) {
+    return async (e: HostMessage) => {
+      switch (e.data.type) {
         case "updateState": {
           if (e.data.url) {
             const decodedUrl = decodeURIComponent(e.data.url);
@@ -759,7 +768,7 @@ export function App({
       // Replace spaces with a '+' sign:
       const resolvedLogPath = logPath ? logPath.replace(" ", "+") : logPath;
       const load = resolvedLogPath
-        ? async () => {
+        ? async (): Promise<LogFiles> => {
             return {
               log_dir: "",
               files: [{ name: resolvedLogPath }],
@@ -769,7 +778,7 @@ export function App({
 
       const embeddedState = document.getElementById("logview-state");
       if (embeddedState) {
-        const state = JSON.parse(embeddedState.textContent);
+        const state = JSON.parse(embeddedState.textContent || "");
         onMessage({ data: state });
       } else {
         const result = await load();
@@ -833,26 +842,6 @@ export function App({
   // Configure an app envelope specific to the current state
   // if there are no log files, then don't show sidebar
   const fullScreen = logs.files.length === 1 && !logs.log_dir;
-  const sidebar =
-    !fullScreen && selectedLog.contents
-      ? html`
-          <${Sidebar}
-            logs=${logs}
-            logHeaders=${logHeaders}
-            loading=${headersLoading}
-            offcanvas=${offcanvas}
-            setOffcanvas=${setOffcanvas}
-            selectedIndex=${selectedLogIndex}
-            onSelectedIndexChanged=${(index) => {
-              setSelectedLogIndex(index);
-              setOffcanvas(false);
-            }}
-          />
-        `
-      : "";
-
-  const fullScreenClz = fullScreen ? " full-screen" : "";
-  const offcanvasClz = offcanvas ? " off-canvas" : "";
 
   const hideFind = useCallback(() => {
     clearDocumentSelection();
@@ -861,12 +850,10 @@ export function App({
     }
   }, [showFind, setShowFind]);
 
-  const showToggle = logs.files.length > 1 || logs.log_dir;
+  const showToggle = logs.files.length > 1 || !!logs.log_dir || false;
 
   /**
    * Determines the sample mode based on the selected log's contents.
-   *
-   * @type {import("./types").SampleMode}
    */
   const sampleMode =
     selectedLog?.contents?.sampleSummaries === undefined ||
@@ -875,102 +862,131 @@ export function App({
       : selectedLog.contents.sampleSummaries.length === 1
         ? "single"
         : "many";
-  return html`
-    <${AppErrorBoundary}>
-    ${sidebar}
-    <div ref=${mainAppRef} class="app-main-grid${fullScreenClz}${offcanvasClz}" tabIndex="0" onKeyDown=${(
-      e,
-    ) => {
-      // regular browsers user their own find
-      if (!getVscodeApi()) {
-        return;
-      }
+  return (
+    <AppErrorBoundary>
+      {!fullScreen && selectedLog?.contents ? (
+        <Sidebar
+          logs={logs}
+          logHeaders={logHeaders}
+          loading={headersLoading}
+          offcanvas={offcanvas}
+          setOffcanvas={setOffcanvas}
+          selectedIndex={selectedLogIndex}
+          onSelectedIndexChanged={(index) => {
+            setSelectedLogIndex(index);
+            setOffcanvas(false);
+          }}
+        />
+      ) : undefined}
+      <div
+        ref={mainAppRef}
+        className={clsx(
+          "app-main-grid",
+          fullScreen ? "full-screen" : undefined,
+          offcanvas ? "off-canvas" : undefined,
+        )}
+        tabIndex={0}
+        onKeyDown={(e) => {
+          // regular browsers user their own find
+          if (!getVscodeApi()) {
+            return;
+          }
 
-      if ((e.ctrlKey || e.metaKey) && e.key === "f") {
-        setShowFind(true);
-      } else if (e.key === "Escape") {
-        hideFind();
-      }
-    }}>
-      ${showFind ? html`<${FindBand} hideBand=${hideFind} />` : ""}
-      <${ProgressBar} animating=${status.loading} />
-      ${
-        status.error
-          ? html`<${ErrorPanel}
-              title="An error occurred while loading this task."
-              error=${status.error}
-            />`
-          : html`<${WorkSpace}
-              task_id=${selectedLog?.contents?.eval?.task_id}
-              logFileName=${selectedLog?.name}
-              evalStatus=${selectedLog?.contents?.status}
-              evalError=${selectedLog?.contents?.error}
-              evalVersion=${selectedLog?.contents?.version}
-              evalSpec=${selectedLog?.contents?.eval}
-              evalPlan=${selectedLog?.contents?.plan}
-              evalStats=${selectedLog?.contents?.stats}
-              evalResults=${selectedLog?.contents?.results}
-              showToggle=${showToggle}
-              samples=${filteredSamples}
-              sampleMode=${sampleMode}
-              groupBy=${groupBy}
-              groupByOrder=${groupByOrder}
-              sampleStatus=${sampleStatus}
-              sampleError=${sampleError}
-              samplesDescriptor=${samplesDescriptor}
-              refreshLog=${refreshLog}
-              offcanvas=${offcanvas}
-              setOffcanvas=${setOffcanvas}
-              capabilities=${capabilities}
-              selected=${selectedLogIndex}
-              selectedSample=${selectedSample}
-              selectedSampleIndex=${selectedSampleIndex}
-              setSelectedSampleIndex=${setSelectedSampleIndex}
-              showingSampleDialog=${showingSampleDialog}
-              setShowingSampleDialog=${handleSampleShowingDialog}
-              selectedTab=${selectedWorkspaceTab}
-              setSelectedTab=${setSelectedWorkspaceTab}
-              selectedSampleTab=${selectedSampleTab}
-              setSelectedSampleTab=${setSelectedSampleTab}
-              sort=${sort}
-              setSort=${setSort}
-              epochs=${selectedLog?.contents?.eval?.config?.epochs}
-              epoch=${epoch}
-              setEpoch=${setEpoch}
-              filter=${filter}
-              setFilter=${setFilter}
-              score=${score}
-              setScore=${setScore}
-              scores=${scores}
-              sampleScrollPositionRef=${sampleScrollPosition}
-              setSampleScrollPosition=${setSampleScrollPosition}
-              workspaceTabScrollPositionRef=${workspaceTabScrollPosition}
-              setWorkspaceTabScrollPosition=${setWorkspaceTabScrollPosition}
-            />`
-      }
-    </div>
-    ${afterBodyElements}
-    </${AppErrorBoundary}>
-  `;
+          if ((e.ctrlKey || e.metaKey) && e.key === "f") {
+            setShowFind(true);
+          } else if (e.key === "Escape") {
+            hideFind();
+          }
+        }}
+      >
+        {showFind ? <FindBand hideBand={hideFind} /> : ""}
+        <ProgressBar animating={status?.loading} />
+        {status?.error ? (
+          <ErrorPanel
+            title="An error occurred while loading this task."
+            error={status.error}
+          />
+        ) : (
+          <WorkSpace
+            task_id={selectedLog?.contents?.eval?.task_id}
+            logFileName={selectedLog?.name}
+            evalStatus={selectedLog?.contents?.status}
+            evalError={filterNull(selectedLog?.contents?.error)}
+            evalVersion={selectedLog?.contents?.version}
+            evalSpec={selectedLog?.contents?.eval}
+            evalPlan={selectedLog?.contents?.plan}
+            evalStats={selectedLog?.contents?.stats}
+            evalResults={filterNull(selectedLog?.contents?.results)}
+            showToggle={showToggle}
+            samples={filteredSamples}
+            sampleMode={sampleMode}
+            groupBy={groupBy}
+            groupByOrder={groupByOrder}
+            sampleStatus={sampleStatus}
+            sampleError={sampleError}
+            samplesDescriptor={samplesDescriptor}
+            refreshLog={refreshLog}
+            offcanvas={offcanvas}
+            setOffcanvas={setOffcanvas}
+            capabilities={capabilities}
+            selectedSample={selectedSample}
+            selectedSampleIndex={selectedSampleIndex}
+            setSelectedSampleIndex={setSelectedSampleIndex}
+            showingSampleDialog={showingSampleDialog}
+            setShowingSampleDialog={handleSampleShowingDialog}
+            selectedTab={selectedWorkspaceTab}
+            setSelectedTab={setSelectedWorkspaceTab}
+            selectedSampleTab={selectedSampleTab}
+            setSelectedSampleTab={setSelectedSampleTab}
+            sort={sort}
+            setSort={setSort}
+            epochs={selectedLog?.contents?.eval?.config?.epochs}
+            epoch={epoch}
+            setEpoch={setEpoch}
+            filter={filter}
+            setFilter={setFilter}
+            score={score}
+            setScore={setScore}
+            scores={scores}
+            sampleScrollPositionRef={sampleScrollPosition}
+            setSampleScrollPosition={setSampleScrollPosition}
+            workspaceTabScrollPositionRef={workspaceTabScrollPosition}
+            setWorkspaceTabScrollPosition={setWorkspaceTabScrollPosition}
+          />
+        )}
+      </div>
+    </AppErrorBoundary>
+  );
+};
+
+const filterNull = <T,>(obj: T | null): T | undefined => {
+  if (obj === null) {
+    return undefined;
+  }
+  return obj;
+};
+
+interface ScorerInfo {
+  name: string;
+  scorer: string;
 }
 
 /**
  * Determines the default scorer for a log
- *
- * @param {import("./api/types.ts").EvalSummary} log - The log object containing sample summaries and status.
- * @returns {{name: string, scorer: string} | undefined} A scorer object with name and scorer properties, or undefined
  */
-const defaultScorer = (log) => {
+const defaultScorer = (log: EvalSummary): ScorerInfo | undefined => {
   // Select the default scorer to use
+  const scores = log.sampleSummaries[0].scores;
+
   const scorer = log.results?.scores[0]
     ? {
         name: log.results?.scores[0].name,
         scorer: log.results?.scores[0].scorer,
       }
-    : log.sampleSummaries.length > 0
+    : log.sampleSummaries.length > 0 && scores !== null
       ? {
-          name: Object.keys(log.sampleSummaries[0].scores)[0],
-          scorer: Object.keys(log.sampleSummaries[0].scores)[0],
+          name: Object.keys(scores)[0],
+          scorer: Object.keys(scores)[0],
         }
       : undefined;
   return scorer;
@@ -978,14 +994,11 @@ const defaultScorer = (log) => {
 
 /**
  * Determines the default scorers for a log
- *
- * @param {import("./api/types.ts").EvalSummary} log - The log object containing sample summaries and status.
- * @returns {Array<{name: string, scorer: string}>} An array of scorer objects with name and scorer properties, or an empty array if no scorers are found.
  */
-const defaultScorers = (log) => {
+const defaultScorers = (log: EvalSummary): Array<ScorerInfo> => {
   if (log.results?.scores) {
     return (log.results?.scores || [])
-      .map((score) => {
+      .map((score): ScorerInfo => {
         return {
           name: score.name,
           scorer: score.scorer,
@@ -1000,14 +1013,19 @@ const defaultScorers = (log) => {
           accum.push(scorer);
         }
         return accum;
-      }, []);
+      }, [] as Array<ScorerInfo>);
   } else if (log.sampleSummaries && log.sampleSummaries.length > 0) {
-    return Object.keys(log.sampleSummaries[0].scores).map((key) => {
-      return {
-        name: key,
-        scorer: key,
-      };
-    });
+    const scores = log.sampleSummaries[0].scores;
+    if (scores !== null) {
+      return Object.keys(scores).map((key) => {
+        return {
+          name: key,
+          scorer: key,
+        };
+      });
+    } else {
+      return [];
+    }
   } else {
     return [];
   }

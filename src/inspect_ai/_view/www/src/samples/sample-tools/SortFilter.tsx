@@ -101,7 +101,7 @@ export const sortSamples = (
   sort: string,
   samples: SampleSummary[],
   samplesDescriptor: SamplesDescriptor,
-) => {
+): { sorted: SampleSummary[]; order: "asc" | "desc" } => {
   const sortedSamples = samples.sort((a: SampleSummary, b: SampleSummary) => {
     switch (sort) {
       case kSampleAscVal: {

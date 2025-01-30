@@ -21,6 +21,7 @@ import {
   ScoreLabel,
 } from "../types.ts";
 import {
+  Epochs,
   EvalError,
   EvalPlan,
   EvalResults,
@@ -57,18 +58,18 @@ interface WorkSpaceProps {
   selectedSampleIndex: number;
   samplesDescriptor?: SamplesDescriptor;
   setSelectedSampleIndex: (index: number) => void;
-  selectedSampleTab: string;
+  selectedSampleTab?: string;
   setSelectedSampleTab: (tab: string) => void;
   sort: string;
   setSort: (sort: string) => void;
-  epochs?: number;
+  epochs?: Epochs;
   epoch: string;
   showingSampleDialog: boolean;
   setShowingSampleDialog: (showing: boolean) => void;
   setEpoch: (epoch: string) => void;
   filter: ScoreFilter;
   setFilter: (filter: ScoreFilter) => void;
-  score: ScoreLabel;
+  score?: ScoreLabel;
   setScore: (score: ScoreLabel) => void;
   scores: ScoreLabel[];
   offcanvas: boolean;

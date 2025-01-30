@@ -34,7 +34,7 @@ interface SamplesTabProps {
   setSelectedSampleIndex: (index: number) => void;
   showingSampleDialog: boolean;
   setShowingSampleDialog: (showing: boolean) => void;
-  selectedSampleTab: string;
+  selectedSampleTab?: string;
   setSelectedSampleTab: (tab: string) => void;
   epoch: string;
   filter: ScoreFilter;

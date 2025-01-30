@@ -37,7 +37,7 @@ interface SampleDisplayProps {
   id: string;
   sample?: EvalSample;
   sampleDescriptor: SamplesDescriptor;
-  selectedTab: string;
+  selectedTab?: string;
   setSelectedTab: (tab: string) => void;
   scrollRef: RefObject<HTMLDivElement>;
 }

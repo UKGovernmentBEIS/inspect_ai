@@ -5,7 +5,7 @@ import styles from "./SelectScorer.module.css";
 
 interface SelectScorerProps {
   scores: ScoreLabel[];
-  score: ScoreLabel;
+  score?: ScoreLabel;
   setScore: (score: ScoreLabel) => void;
 }
 
@@ -42,7 +42,7 @@ export const SelectScorer: React.FC<SelectScorerProps> = ({
         </span>
         <ScoreSelector
           scores={scores}
-          selectedIndex={scoreIndex(score, scores)}
+          selectedIndex={scoreIndex(scores, score)}
           setSelectedIndex={(index: number) => {
             setScore(scores[index]);
           }}
@@ -53,13 +53,13 @@ export const SelectScorer: React.FC<SelectScorerProps> = ({
     // selected scorer
 
     const scorerScores = scores.filter((sc) => {
-      return sc.scorer === score.scorer;
+      return score && sc.scorer === score.scorer;
     });
 
     const selectors = [
       <ScorerSelector
         scorers={scorers}
-        selectedIndex={scorerIndex(score, scorers)}
+        selectedIndex={scorerIndex(scorers, score)}
         setSelectedIndex={(index: number) => {
           setScore(scorers[index]);
         }}
@@ -70,7 +70,7 @@ export const SelectScorer: React.FC<SelectScorerProps> = ({
         <ScoreSelector
           className={clsx(styles.secondSel)}
           scores={scorerScores}
-          selectedIndex={scoreIndex(score, scorerScores)}
+          selectedIndex={scoreIndex(scorerScores, score)}
           setSelectedIndex={(index: number) => {
             setScore(scorerScores[index]);
           }}
@@ -162,12 +162,12 @@ const ScorerSelector: React.FC<ScorerSelectorProps> = ({
   );
 };
 
-const scoreIndex = (score: ScoreLabel, scores: ScoreLabel[]) =>
+const scoreIndex = (scores: ScoreLabel[], score?: ScoreLabel) =>
   scores.findIndex((sc) => {
-    return sc.name === score.name && sc.scorer === score.scorer;
+    return score && sc.name === score.name && sc.scorer === score.scorer;
   });
 
-const scorerIndex = (score: ScoreLabel, scores: ScoreLabel[]) =>
+const scorerIndex = (scores: ScoreLabel[], score?: ScoreLabel) =>
   scores.findIndex((sc) => {
-    return sc.scorer === score.scorer;
+    return score && sc.scorer === score.scorer;
   });

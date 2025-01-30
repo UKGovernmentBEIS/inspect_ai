@@ -1,5 +1,44 @@
-import { EvalSummary } from "./api/types";
-import { ContentImage, ContentText } from "./types/log";
+import {
+  EvalLogHeader,
+  EvalSummary,
+  LogFiles,
+  SampleSummary,
+} from "./api/types";
+import { ContentImage, ContentText, EvalSample } from "./types/log";
+
+export interface InitialState {
+  logs?: LogFiles;
+  selectedLogIndex?: number;
+  logHeaders?: Record<string, EvalLogHeader>;
+  headersLoading?: boolean;
+  selectedLog?: CurrentLog;
+  selectedWorkspaceTab?: string;
+  selectedSampleIndex?: number;
+  selectedSample?: EvalSample;
+  sampleStatus?: "loading" | "ok" | "error";
+  sampleError?: Error;
+  selectedSampleTab?: string;
+  sampleScrollPosition?: number;
+  showingSampleDialog?: boolean;
+  status?: AppStatus;
+  capabilities?: Capabilities;
+  offcanvas?: boolean;
+  showFind?: boolean;
+  filter?: ScoreFilter;
+  epoch?: string;
+  sort?: string;
+  scores?: ScoreLabel[];
+  score?: ScoreLabel;
+  filteredSamples?: SampleSummary[];
+  groupBy?: "none" | "epoch" | "sample";
+  groupByOrder?: "asc" | "desc";
+  workspaceTabScrollPosition?: Record<string, number>;
+}
+
+export interface AppStatus {
+  loading: boolean;
+  error?: Error;
+}
 
 export interface Capabilities {
   downloadFiles: boolean;

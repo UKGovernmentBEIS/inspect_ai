@@ -13,7 +13,7 @@ interface SampleToolsProps {
   setScoreFilter: (filter: ScoreFilter) => void;
   sort: string;
   setSort: (sort: string) => void;
-  score: ScoreLabel;
+  score?: ScoreLabel;
   setScore: (score: ScoreLabel) => void;
   scores: ScoreLabel[];
   sampleDescriptor: SamplesDescriptor;
