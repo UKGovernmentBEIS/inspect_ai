@@ -74,8 +74,11 @@ def python(timeout: int | None = None, user: str | None = None) -> Tool:
         """
         Use the python function to execute Python code.
 
-        The python function will only return you the stdout of the script,
-        so make sure to use print to see the output.
+        The Python tool will execute the given Python code. The script isn't saved and
+        you aren't able to interact with the script to provide interactive input. Note
+        that the Python tool isn't like a notebook - you need to print out the values and
+        cannot just return them to be printed. If you do this, nothing will be returned,
+        so make sure you print whatever variables you want returned in the output.
 
         Args:
           code (str): The python code to execute.

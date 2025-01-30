@@ -4,6 +4,7 @@
 
 - Computer: Enable viewing computer tool's remote mouse cursor via VNC.
 - Computer: Disable lock screen on from computer tool reference image.
+- Python: Enhance prompt to emphasise that it is a script rather than a notebook.
 - Bugfix: Remove `suffix` from `eval-set` CLI args.
 
 ## v0.3.60 (29 January 2025)
