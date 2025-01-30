@@ -1,9 +1,5 @@
 # Changelog
 
-## Unreleased
-
-- Telemetry: Add `eval_log_location` telemetry event type for `INSPECT_TELEMETRY` subscribers.
-
 ## v0.3.60 (29 January 2025)
 
 - [Agent Bridge](https://inspect.ai-safety-institute.org.uk/agent-bridge.html) for integrating external agent frameworks with Inspect.
