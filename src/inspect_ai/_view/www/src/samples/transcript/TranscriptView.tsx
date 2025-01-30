@@ -33,7 +33,7 @@ type TranscriptState = Record<string, TranscriptEventState>;
 export const TranscriptView: React.FC<TranscriptViewProps> = ({
   id,
   events,
-  depth = 0,
+  depth,
 }) => {
   const [transcriptState, setTranscriptState] = useState<TranscriptState>({});
   const onTranscriptState = useCallback(
@@ -45,7 +45,10 @@ export const TranscriptView: React.FC<TranscriptViewProps> = ({
 
   // Normalize Events themselves
   const resolvedEvents = fixupEventStream(events);
-  const eventNodes = treeifyEvents(resolvedEvents, depth);
+  const eventNodes = treeifyEvents(
+    resolvedEvents,
+    depth !== undefined ? depth : 0,
+  );
   return (
     <TranscriptComponent
       id={id}
@@ -73,7 +76,7 @@ export const TranscriptVirtualList: React.FC<TranscriptVirtualListProps> = (
 
   // Normalize Events themselves
   const resolvedEvents = fixupEventStream(events);
-  const eventNodes = treeifyEvents(resolvedEvents, depth || 1);
+  const eventNodes = treeifyEvents(resolvedEvents, depth || 0);
 
   const [transcriptState, setTranscriptState] = useState({});
   const onTranscriptState = useCallback(
@@ -293,6 +296,7 @@ export const RenderedEventNode: React.FC<RenderedEventNodeProps> = ({
           event={node.event}
           eventState={eventState}
           setEventState={setEventState}
+          className={className}
         />
       );
 

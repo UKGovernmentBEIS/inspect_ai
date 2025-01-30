@@ -58351,7 +58351,7 @@ ${events}
     const TranscriptView = ({
       id,
       events,
-      depth = 0
+      depth
     }) => {
       const [transcriptState, setTranscriptState] = reactExports.useState({});
       const onTranscriptState = reactExports.useCallback(
@@ -58361,7 +58361,10 @@ ${events}
         [setTranscriptState]
       );
       const resolvedEvents = fixupEventStream(events);
-      const eventNodes = treeifyEvents(resolvedEvents, depth);
+      const eventNodes = treeifyEvents(
+        resolvedEvents,
+        depth !== void 0 ? depth : 0
+      );
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
         TranscriptComponent,
         {
@@ -58375,7 +58378,7 @@ ${events}
     const TranscriptVirtualList = (props) => {
       let { id, scrollRef, events, depth } = props;
       const resolvedEvents = fixupEventStream(events);
-      const eventNodes = treeifyEvents(resolvedEvents, depth || 1);
+      const eventNodes = treeifyEvents(resolvedEvents, depth || 0);
       const [transcriptState, setTranscriptState] = reactExports.useState({});
       const onTranscriptState = reactExports.useCallback(
         (state) => {
@@ -58553,7 +58556,8 @@ ${events}
               id,
               event: node2.event,
               eventState,
-              setEventState
+              setEventState,
+              className: className2
             }
           );
         case "step":
@@ -59069,7 +59073,7 @@ ${events}
       }, []);
       const onScroll = reactExports.useCallback(
         (e) => {
-          setInitialScrollPosition(e.srcElement.scrollTop);
+          setInitialScrollPosition(e.currentTarget.scrollTop);
         },
         [setInitialScrollPosition]
       );
@@ -60755,7 +60759,8 @@ ${events}
             ]
           }
         ),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$4.taskStatus, "navbar-text"), children: statusPanel2 })
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$4.taskStatus, "navbar-text"), children: statusPanel2 }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { id: "task-created", style: { display: "none" }, children: evalSpec == null ? void 0 : evalSpec.created })
       ] });
     };
     const LabeledValue = ({
