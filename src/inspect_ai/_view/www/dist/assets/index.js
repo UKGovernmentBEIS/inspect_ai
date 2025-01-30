@@ -15896,7 +15896,7 @@ var require_assets = __commonJS({
     };
     const NavPills = ({ children: children2 }) => {
       if (!(children2 == null ? void 0 : children2.length)) {
-        return "";
+        return null;
       }
       const [activeItem, setActiveItem] = reactExports.useState(children2[0].props["title"]);
       const navPills = children2.map((nav2, idx) => {
@@ -21343,7 +21343,7 @@ var require_assets = __commonJS({
     };
     const ToolOutput = ({ output: output2 }) => {
       if (!output2) {
-        return "";
+        return null;
       }
       const outputs = [];
       if (Array.isArray(output2)) {
@@ -21624,7 +21624,7 @@ var require_assets = __commonJS({
       view
     }) => {
       if (!contents2 && !(view == null ? void 0 : view.content)) {
-        return "";
+        return null;
       }
       if (view) {
         const toolViewRef = reactExports.useRef(null);
@@ -25711,7 +25711,7 @@ categories: ${categories.join(" ")}`;
               return /* @__PURE__ */ jsxRuntimeExports.jsx(SidebarScoresView, { scores: logHeader.results.scores });
             }
           } else {
-            return "";
+            return null;
           }
       }
     };
@@ -49825,7 +49825,7 @@ self.onmessage = function (e) {
       scorer
     }) => {
       if (!sampleDescriptor) {
-        return "";
+        return null;
       }
       const scoreInput = inputString(sample2.input);
       if (sample2.choices && sample2.choices.length > 0) {
@@ -50396,7 +50396,7 @@ self.onmessage = function (e) {
     };
     const ModelUsagePanel = ({ usage }) => {
       if (!usage) {
-        return "";
+        return null;
       }
       const rows = [
         {
@@ -50590,7 +50590,7 @@ self.onmessage = function (e) {
     };
     const APIView = ({ call, className: className2 }) => {
       if (!call) {
-        return "";
+        return null;
       }
       return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(className2), children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx(EventSection, { title: "Request", children: /* @__PURE__ */ jsxRuntimeExports.jsx(APICodeCell, { contents: call.request }) }),
@@ -50599,7 +50599,7 @@ self.onmessage = function (e) {
     };
     const APICodeCell = ({ id, contents: contents2 }) => {
       if (!contents2) {
-        return "";
+        return null;
       }
       const codeRef = reactExports.useRef(null);
       const sourceCode = reactExports.useMemo(() => {
@@ -58360,7 +58360,7 @@ ${events}
         case "approval":
           return /* @__PURE__ */ jsxRuntimeExports.jsx(ApprovalEventView, { event: node2.event, className: className2 });
         default:
-          return "";
+          return null;
       }
     };
     const fixupEventStream = (events) => {
@@ -59601,7 +59601,7 @@ ${events}
             }
           );
         } else {
-          return "";
+          return null;
         }
       };
       const onkeydown = reactExports.useCallback(
@@ -60088,7 +60088,7 @@ ${events}
       scores: scores2
     }) => {
       if (!evaluation) {
-        return "";
+        return null;
       }
       const config2 = {};
       Object.entries((evaluation == null ? void 0 : evaluation.config) || {}).forEach((entry2) => {
@@ -60344,7 +60344,7 @@ ${events}
     const kUsageCardBodyId = "usage-card-body";
     const UsageCard = ({ stats }) => {
       if (!stats) {
-        return "";
+        return null;
       }
       const totalDuration = formatDuration(
         new Date(stats.started_at),
@@ -60744,9 +60744,9 @@ ${events}
         statusPanel2 = /* @__PURE__ */ jsxRuntimeExports.jsx(ErroredPanel, { sampleCount: (samples == null ? void 0 : samples.length) || 0 });
       }
       const logFileName = file ? filename(file) : "";
-      const handleToggle = () => {
+      const handleToggle = reactExports.useCallback(() => {
         setOffcanvas(!offcanvas);
-      };
+      }, [offcanvas]);
       return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$4.wrapper), children: [
         /* @__PURE__ */ jsxRuntimeExports.jsxs(
           "div",
@@ -60865,7 +60865,7 @@ ${events}
       status
     }) => {
       if (!evalSpec || status !== "success") {
-        return "";
+        return null;
       }
       const epochs = evalSpec.config.epochs || 1;
       const hyperparameters = {
@@ -60937,13 +60937,13 @@ ${events}
       epochs
     }) => {
       if (!dataset) {
-        return "";
+        return null;
       }
       return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: (samples == null ? void 0 : samples.length) ? formatDataset(samples.length, epochs, dataset.name) : "" });
     };
     const ScorerSummary = ({ evalDescriptor }) => {
       if (!evalDescriptor) {
-        return "";
+        return null;
       }
       const items = scoreFilterItems(evalDescriptor);
       return /* @__PURE__ */ jsxRuntimeExports.jsx("span", { style: { position: "relative" }, children: Array.from(items).map((item2, index2, array) => /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { children: [
@@ -60953,7 +60953,7 @@ ${events}
     };
     const ParamSummary = ({ params: params2 }) => {
       if (!params2) {
-        return "";
+        return null;
       }
       const paraValues = Object.keys(params2).map((key2) => {
         const val = params2[key2];
@@ -60966,7 +60966,7 @@ ${events}
       if (paraValues.length > 0) {
         return /* @__PURE__ */ jsxRuntimeExports.jsx("code", { style: { padding: 0, color: "var(--bs-body-color)" }, children: paraValues.join(", ") });
       } else {
-        return "";
+        return null;
       }
     };
     const Navbar = ({
@@ -61093,7 +61093,7 @@ ${events}
             const tools2 = tab2.tools();
             return tools2;
           } else {
-            return "";
+            return null;
           }
         });
         return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
@@ -61175,7 +61175,7 @@ ${events}
       setWorkspaceTabScrollPosition
     }) => {
       if (!evalSpec) {
-        return "";
+        return null;
       }
       const divRef = reactExports.useRef(null);
       const sampleTabScrollRef = reactExports.useRef(null);

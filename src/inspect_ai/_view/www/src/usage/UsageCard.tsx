@@ -20,7 +20,7 @@ interface UsageCardProps {
  */
 export const UsageCard: React.FC<UsageCardProps> = ({ stats }) => {
   if (!stats) {
-    return "";
+    return null;
   }
 
   const totalDuration = formatDuration(

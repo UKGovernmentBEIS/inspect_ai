@@ -1,12 +1,11 @@
 import clsx from "clsx";
 import markdownit from "markdown-it";
-import React, { Ref } from "react";
+import React from "react";
 import "./MarkdownDiv.css";
 
 interface MarkdownDivProps {
   markdown: string;
   style?: React.CSSProperties;
-  ref?: Ref<HTMLDivElement>;
   className?: string | string[];
 }
 

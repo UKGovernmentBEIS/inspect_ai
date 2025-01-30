@@ -27,7 +27,7 @@ export const EvalStatus: React.FC<EvalStatusProps> = ({ logHeader }) => {
           return <SidebarScoresView scores={logHeader.results.scores} />;
         }
       } else {
-        return "";
+        return null;
       }
   }
 };

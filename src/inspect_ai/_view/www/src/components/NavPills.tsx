@@ -13,7 +13,7 @@ interface NavPillsProps {
 
 export const NavPills: React.FC<NavPillsProps> = ({ children }) => {
   if (!children?.length) {
-    return "";
+    return null;
   }
 
   const [activeItem, setActiveItem] = useState(children[0].props["title"]);

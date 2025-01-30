@@ -21,7 +21,7 @@ export const PlanDetailView: React.FC<PlanDetailViewProps> = ({
   scores,
 }) => {
   if (!evaluation) {
-    return "";
+    return null;
   }
 
   // Add configuration

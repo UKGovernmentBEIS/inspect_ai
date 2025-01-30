@@ -21,7 +21,7 @@ export const ToolInput: React.FC<ToolInputProps> = ({
   view,
 }) => {
   if (!contents && !view?.content) {
-    return "";
+    return null;
   }
 
   if (view) {

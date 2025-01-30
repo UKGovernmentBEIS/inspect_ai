@@ -1,4 +1,5 @@
 import clsx from "clsx";
+import { useCallback } from "react";
 import { SampleSummary } from "../../api/types";
 import { ApplicationIcons } from "../../appearance/icons";
 import { CopyButton } from "../../components/CopyButton";
@@ -41,9 +42,9 @@ export const PrimaryBar: React.FC<PrimaryBarProps> = ({
   }
   const logFileName = file ? filename(file) : "";
 
-  const handleToggle = () => {
+  const handleToggle = useCallback(() => {
     setOffcanvas(!offcanvas);
-  };
+  }, [offcanvas]);
 
   return (
     <div className={clsx(styles.wrapper)}>

@@ -15,7 +15,12 @@ export default defineConfig({
     },
     sourcemap: true,
   },
-  plugins: [react()],
+  plugins: [
+    react({
+      jsxRuntime: "automatic",
+      fastRefresh: true,
+    }),
+  ],
   resolve: {
     dedupe: ["react", "react-dom"],
   },

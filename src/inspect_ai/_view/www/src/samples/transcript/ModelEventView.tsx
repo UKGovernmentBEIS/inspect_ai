@@ -152,7 +152,7 @@ interface APIViewProps {
 
 export const APIView: React.FC<APIViewProps> = ({ call, className }) => {
   if (!call) {
-    return "";
+    return null;
   }
 
   return (
@@ -174,7 +174,7 @@ interface APICodeCellProps {
 
 export const APICodeCell: React.FC<APICodeCellProps> = ({ id, contents }) => {
   if (!contents) {
-    return "";
+    return null;
   }
 
   const codeRef = useRef<HTMLElement>(null);

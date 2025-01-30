@@ -368,7 +368,7 @@ export const RenderedEventNode: React.FC<RenderedEventNodeProps> = ({
       return <ApprovalEventView event={node.event} className={className} />;
 
     default:
-      return "";
+      return null;
   }
 };
 

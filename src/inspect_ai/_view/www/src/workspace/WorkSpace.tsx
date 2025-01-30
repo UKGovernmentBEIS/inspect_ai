@@ -132,7 +132,7 @@ export const WorkSpace: React.FC<WorkSpaceProps> = ({
   setWorkspaceTabScrollPosition,
 }) => {
   if (!evalSpec) {
-    return "";
+    return null;
   }
 
   const divRef = useRef<HTMLDivElement>(null);

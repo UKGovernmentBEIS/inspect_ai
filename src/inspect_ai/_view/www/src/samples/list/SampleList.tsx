@@ -104,7 +104,7 @@ export const SampleList: React.FC<SampleListProps> = (props) => {
         />
       );
     } else {
-      return "";
+      return null;
     }
   };
 

@@ -12,7 +12,7 @@ interface ToolOutputProps {
 export const ToolOutput: React.FC<ToolOutputProps> = ({ output }) => {
   // If there is no output, don't show the tool
   if (!output) {
-    return "";
+    return null;
   }
 
   // First process an array or object into a string

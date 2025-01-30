@@ -37,7 +37,7 @@ export const SecondaryBar: React.FC<SecondaryBarProps> = ({
   status,
 }) => {
   if (!evalSpec || status !== "success") {
-    return "";
+    return null;
   }
 
   const epochs = evalSpec.config.epochs || 1;
@@ -140,7 +140,7 @@ const DatasetSummary: React.FC<DatasetSummaryProps> = ({
   epochs,
 }) => {
   if (!dataset) {
-    return "";
+    return null;
   }
 
   return (
@@ -161,7 +161,7 @@ interface ScoreSummaryProps {
  */
 const ScorerSummary: React.FC<ScoreSummaryProps> = ({ evalDescriptor }) => {
   if (!evalDescriptor) {
-    return "";
+    return null;
   }
 
   const items = scoreFilterItems(evalDescriptor);
@@ -186,7 +186,7 @@ interface ParamSummaryProps {
  */
 const ParamSummary: React.FC<ParamSummaryProps> = ({ params }) => {
   if (!params) {
-    return "";
+    return null;
   }
   const paraValues = Object.keys(params).map((key) => {
     const val = params[key];
@@ -203,6 +203,6 @@ const ParamSummary: React.FC<ParamSummaryProps> = ({ params }) => {
       </code>
     );
   } else {
-    return "";
+    return null;
   }
 };

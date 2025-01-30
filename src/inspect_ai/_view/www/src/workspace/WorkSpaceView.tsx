@@ -114,7 +114,7 @@ export const WorkSpaceView: React.FC<WorkSpaceViewProps> = ({
           const tools = tab.tools();
           return tools;
         } else {
-          return "";
+          return null;
         }
       });
 

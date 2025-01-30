@@ -20,7 +20,7 @@ interface ModelUsageRow {
  */
 export const ModelUsagePanel: React.FC<ModelUsageProps> = ({ usage }) => {
   if (!usage) {
-    return "";
+    return null;
   }
 
   const rows: ModelUsageRow[] = [

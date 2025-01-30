@@ -24,7 +24,7 @@ export const SampleScoreView: React.FC<SampleScoreViewProps> = ({
   scorer,
 }) => {
   if (!sampleDescriptor) {
-    return "";
+    return null;
   }
 
   const scoreInput = inputString(sample.input);
