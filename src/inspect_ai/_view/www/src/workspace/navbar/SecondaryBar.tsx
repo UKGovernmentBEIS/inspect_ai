@@ -52,7 +52,10 @@ export const SecondaryBar: React.FC<SecondaryBarProps> = ({
   values.push({
     size: "minmax(12%, auto)",
     value: (
-      <LabeledValue label="Dataset" className={styles.staticCol}>
+      <LabeledValue
+        label="Dataset"
+        className={(styles.staticCol, "text-size-small")}
+      >
         <DatasetSummary
           dataset={evalSpec.dataset}
           samples={samples}
@@ -72,6 +75,7 @@ export const SecondaryBar: React.FC<SecondaryBarProps> = ({
         className={clsx(
           styles.staticCol,
           hasConfig ? styles.justifyLeft : styles.justifyCenter,
+          "text-size-small",
         )}
       >
         <ScorerSummary evalDescriptor={evalDescriptor} />
@@ -83,7 +87,10 @@ export const SecondaryBar: React.FC<SecondaryBarProps> = ({
     values.push({
       size: "minmax(12%, auto)",
       value: (
-        <LabeledValue label="Config" className={styles.justifyRight}>
+        <LabeledValue
+          label="Config"
+          className={clsx(styles.justifyRight, "text-size-small")}
+        >
           <ParamSummary params={hyperparameters} />
         </LabeledValue>
       ),
@@ -98,7 +105,10 @@ export const SecondaryBar: React.FC<SecondaryBarProps> = ({
     values.push({
       size: "minmax(12%, auto)",
       value: (
-        <LabeledValue label="Duration" className={styles.justifyRight}>
+        <LabeledValue
+          label="Duration"
+          className={clsx(styles.justifyRight, "text-size-small")}
+        >
           {totalDuration}
         </LabeledValue>
       ),
@@ -106,7 +116,11 @@ export const SecondaryBar: React.FC<SecondaryBarProps> = ({
   }
 
   return (
-    <ExpandablePanel className={styles.container} collapse={true} lines={4}>
+    <ExpandablePanel
+      className={clsx(styles.container, "text-size-small")}
+      collapse={true}
+      lines={4}
+    >
       <div
         className={styles.valueGrid}
         style={{

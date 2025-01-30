@@ -60830,14 +60830,21 @@ ${events}
       const values = [];
       values.push({
         size: "minmax(12%, auto)",
-        value: /* @__PURE__ */ jsxRuntimeExports.jsx(LabeledValue, { label: "Dataset", className: styles$1.staticCol, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-          DatasetSummary,
+        value: /* @__PURE__ */ jsxRuntimeExports.jsx(
+          LabeledValue,
           {
-            dataset: evalSpec.dataset,
-            samples,
-            epochs
+            label: "Dataset",
+            className: "text-size-small",
+            children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+              DatasetSummary,
+              {
+                dataset: evalSpec.dataset,
+                samples,
+                epochs
+              }
+            )
           }
-        ) })
+        )
       });
       const label2 = (evalResults == null ? void 0 : evalResults.scores) && evalResults.scores.length > 1 ? "Scorers" : "Scorer";
       values.push({
@@ -60848,7 +60855,8 @@ ${events}
             label: label2,
             className: clsx(
               styles$1.staticCol,
-              hasConfig ? styles$1.justifyLeft : styles$1.justifyCenter
+              hasConfig ? styles$1.justifyLeft : styles$1.justifyCenter,
+              "text-size-small"
             ),
             children: /* @__PURE__ */ jsxRuntimeExports.jsx(ScorerSummary, { evalDescriptor })
           }
@@ -60857,7 +60865,14 @@ ${events}
       if (hasConfig) {
         values.push({
           size: "minmax(12%, auto)",
-          value: /* @__PURE__ */ jsxRuntimeExports.jsx(LabeledValue, { label: "Config", className: styles$1.justifyRight, children: /* @__PURE__ */ jsxRuntimeExports.jsx(ParamSummary, { params: hyperparameters }) })
+          value: /* @__PURE__ */ jsxRuntimeExports.jsx(
+            LabeledValue,
+            {
+              label: "Config",
+              className: clsx(styles$1.justifyRight, "text-size-small"),
+              children: /* @__PURE__ */ jsxRuntimeExports.jsx(ParamSummary, { params: hyperparameters })
+            }
+          )
         });
       }
       if (evalStats) {
@@ -60867,23 +60882,38 @@ ${events}
         );
         values.push({
           size: "minmax(12%, auto)",
-          value: /* @__PURE__ */ jsxRuntimeExports.jsx(LabeledValue, { label: "Duration", className: styles$1.justifyRight, children: totalDuration })
+          value: /* @__PURE__ */ jsxRuntimeExports.jsx(
+            LabeledValue,
+            {
+              label: "Duration",
+              className: clsx(styles$1.justifyRight, "text-size-small"),
+              children: totalDuration
+            }
+          )
         });
       }
-      return /* @__PURE__ */ jsxRuntimeExports.jsx(ExpandablePanel, { className: styles$1.container, collapse: true, lines: 4, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-        "div",
+      return /* @__PURE__ */ jsxRuntimeExports.jsx(
+        ExpandablePanel,
         {
-          className: styles$1.valueGrid,
-          style: {
-            gridTemplateColumns: `${values.map((val) => {
-              return val.size;
-            }).join(" ")}`
-          },
-          children: values.map((val) => {
-            return val.value;
-          })
+          className: clsx(styles$1.container, "text-size-small"),
+          collapse: true,
+          lines: 4,
+          children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+            "div",
+            {
+              className: styles$1.valueGrid,
+              style: {
+                gridTemplateColumns: `${values.map((val) => {
+                  return val.size;
+                }).join(" ")}`
+              },
+              children: values.map((val) => {
+                return val.value;
+              })
+            }
+          )
         }
-      ) });
+      );
     };
     const DatasetSummary = ({
       dataset,
