@@ -496,7 +496,7 @@ async def task_run_sample(
     logger: TaskLogger | None,
     log_images: bool,
     sample_source: EvalSampleSource | None,
-    sample_error: Callable[[BaseException], EvalError],
+    sample_error: SampleErrorHandler,
     sample_complete: Callable[[dict[str, SampleScore]], None],
     fails_on_error: bool,
     time_limit: int | None,
@@ -548,12 +548,12 @@ async def task_run_sample(
     )
 
     # helper to handle exceptions (will throw if we've exceeded the limit)
-    def handle_error(ex: BaseException) -> EvalError:
+    def handle_error(ex: BaseException) -> tuple[EvalError, BaseException | None]:
         err = sample_error(ex)
         py_logger.warning(
             f"Sample error (id: {sample.id}, epoch: {state.epoch}): {exception_message(ex)})"
         )
-        transcript()._event(ErrorEvent(error=err))
+        transcript()._event(ErrorEvent(error=err[0]))
         return err
 
     # solver loop
@@ -572,6 +572,7 @@ async def task_run_sample(
         ) as active,
     ):
         error: EvalError | None = None
+        raise_error: BaseException | None = None
         results: dict[str, SampleScore] = {}
         try:
             async with sandboxenv_cm:
@@ -640,7 +641,7 @@ async def task_run_sample(
                                 state = sample_state() or state
                             case "error":
                                 # default error handling
-                                error = handle_error(ex)
+                                error, raise_error = handle_error(ex)
 
                     else:
                         raise
@@ -660,7 +661,7 @@ async def task_run_sample(
                     state.completed = True
 
                 except BaseException as ex:
-                    error = handle_error(ex)
+                    error, raise_error = handle_error(ex)
 
                 # set timeout for scoring. if the original timeout was hit we still
                 # want to provide opportunity for scoring, but we don't necessarily
@@ -737,11 +738,10 @@ async def task_run_sample(
                         )
 
                     # handle error (this will throw if we've exceeded the limit)
-                    error = handle_error(ex)
+                    error, raise_error = handle_error(ex)
 
-        # handle sandboxenv init errors
         except Exception as ex:
-            error = handle_error(ex)
+            error, raise_error = handle_error(ex)
 
         # complete the sample
         progress(SAMPLE_TOTAL_PROGRESS_UNITS)
@@ -772,6 +772,8 @@ async def task_run_sample(
             if results is not None:
                 sample_complete(results)
             return results
+        elif raise_error:
+            raise raise_error
         else:
             return None
 
