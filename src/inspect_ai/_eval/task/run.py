@@ -402,7 +402,13 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
         view_notify_eval(logger.location)
 
         try:
-            await send_telemetry("eval_log", eval_log_json_str(eval_log))
+            if (
+                await send_telemetry("eval_log_location", eval_log.location)
+                == "not_handled"
+            ):
+                # Converting the eval log to JSON is expensive. Only do so if
+                # eval_log_location was not handled.
+                await send_telemetry("eval_log", eval_log_json_str(eval_log))
         except Exception as ex:
             py_logger.warning(
                 f"Error occurred sending telemetry: {exception_message(ex)}"
