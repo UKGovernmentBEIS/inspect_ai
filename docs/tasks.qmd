@@ -244,9 +244,52 @@ def ctf(solver: Solver | None = None):
 
 ## Task Reuse {#task-reuse}
 
+The basic mechanism for task re-use is to create flexible and adaptable base `@task` functions (which often have many parameters) and then derive new higher-level tasks from them by creating additional `@task` functions that call the base function.
+
+In some cases though you might not have full control over the base `@task` function (e.g. it's published in a Python package you aren't the maintainer of) but you nevertheless want to flexibly create derivative tasks from it. To do this, you can use the `task_with()` function, which clones an existing task and enables you to override any of the task fields that you need to.
+
+For example, imagine you are dealing with a `Task` that hard-codes its `sandbox` to a particular Dockerfile included with the task, and further does not make a `solver` parameter available to swap in other solvers:
+
 ``` python
-task_with
+from inspect_ai import Task, task
+from inspect_ai.solver import basic_agent
+from inspect_ai.tool import bash
+from inspect_ai.scorer import includes
+
+@task
+def hard_coded():
+    return Task(
+        dataset=read_dataset(),
+        solver=basic_agent(tools=[bash()]),
+        sandbox=("docker", "compose.yaml"),
+        scorer=includes()
+    )
 ```
+
+Using `task_with()`, you can adapt this task to use a different `solver` and `sandbox` entirely. For example, here we import the original `hard_coded()` task from a hypothetical `ctf_tasks` package and provide it with a different `solver` and `sandbox`, as well as give it a `message_limit` (which we in turn also expose as a parameter of the adapted task):
+
+``` python
+from inspect_ai import task, task_with
+from inspect_ai.solver import solver
+
+from ctf_tasks import hard_coded
+
+@solver
+def my_custom_agent():
+    ## custom agent implementation
+    ...
+
+@task
+def adapted(message_limit: int = 20):
+    return task_with(
+        hard_coded(),  # original task definition
+        solver=my_custom_agent(),
+        sandbox=("docker", "custom-compose.yaml"),
+        message_limit=message_limit
+    )
+```
+
+Tasks are recipes for an evaluation and represent the convergence of many considerations (datasets, solvers, sandbox environments, limits, and scoring). Task variations often lie at the intersection of these, and the `task_with()` function is intended to help you produce exactly the variation you need for a given evaluation.
 
 ## Exploratory {#exploratory}
 
