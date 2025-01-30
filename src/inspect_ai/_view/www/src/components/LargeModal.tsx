@@ -1,9 +1,7 @@
-import { html } from "htm/preact";
-import { useCallback, useEffect, useRef } from "preact/hooks";
-
 import clsx from "clsx";
 import { ProgressBar } from "./ProgressBar";
 
+import { useCallback, useEffect, useRef } from "react";
 import styles from "./LargeModal.module.css";
 
 export interface ModalTool {
@@ -94,7 +92,7 @@ export const LargeModal: React.FC<LargeModalProps> = ({
       <div className={styles.detail}>
         {detailTools?.left
           ? detailTools.left.map((tool) => {
-              return html`<${TitleTool} ...${tool} />`;
+              return <TitleTool {...tool} />;
             })
           : ""}
         <div className={clsx("text-size-smaller", styles.detailText)}>
@@ -103,7 +101,7 @@ export const LargeModal: React.FC<LargeModalProps> = ({
 
         {detailTools?.right
           ? detailTools.right.map((tool) => {
-              return html`<${TitleTool} ...${tool} />`;
+              return <TitleTool {...tool} />;
             })
           : ""}
       </div>,

@@ -1,4 +1,4 @@
-import { ReactNode } from "preact/compat";
+import { ReactNode } from "react";
 import { BasicSampleData, SampleSummary } from "../../api/types";
 import { ScoreLabel } from "../../types";
 import { Value2 } from "../../types/log";

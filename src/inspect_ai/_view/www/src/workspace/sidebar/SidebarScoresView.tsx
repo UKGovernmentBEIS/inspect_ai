@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import React from "preact/compat";
+import { Fragment } from "react";
 import { Scores } from "../../types/log";
 import { formatPrettyDecimal } from "../../utils/format";
 import styles from "./SidebarScoresView.module.css";
@@ -37,7 +37,7 @@ export const SidebarScoresView: React.FC<SidebarScoresProps> = ({ scores }) => {
               {Object.keys(score.metrics).map((key) => {
                 const metric = score.metrics[key];
                 return (
-                  <React.Fragment key={key}>
+                  <Fragment key={key}>
                     <div
                       className={clsx(
                         "text-style-secondary",
@@ -49,7 +49,7 @@ export const SidebarScoresView: React.FC<SidebarScoresProps> = ({ scores }) => {
                     <div className={styles.metricValue}>
                       {formatPrettyDecimal(metric.value)}
                     </div>
-                  </React.Fragment>
+                  </Fragment>
                 );
               })}
             </div>

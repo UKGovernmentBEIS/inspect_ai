@@ -1,12 +1,12 @@
 import { ApplicationIcons } from "../appearance/icons";
 
-import React from "preact/compat";
 import { ANSIDisplay } from "../components/AnsiDisplay";
 import { ChatMessageRenderer } from "../samples/chat/ChatMessageRenderer";
 import { formatNumber } from "../utils/format";
 import { MetaDataView } from "./MetaDataView";
 
 import clsx from "clsx";
+import { Fragment } from "react";
 import styles from "./RenderedContent.module.css";
 import { Buckets, ContentRenderer } from "./types";
 
@@ -75,9 +75,9 @@ const contentRenderers: Record<string, ContentRenderer> = {
     render: (_id, entry) => {
       return {
         rendered: (
-          <React.Fragment>
+          <Fragment>
             <i class={ApplicationIcons.model} /> {entry.value._model}
-          </React.Fragment>
+          </Fragment>
         ),
       };
     },

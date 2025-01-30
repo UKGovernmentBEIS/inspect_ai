@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { useCallback, useEffect, useState } from "preact/hooks";
+import { useCallback, useEffect, useState } from "react";
 import { ApplicationIcons } from "../appearance/icons";
 import "./LightboxCarousel.css";
 

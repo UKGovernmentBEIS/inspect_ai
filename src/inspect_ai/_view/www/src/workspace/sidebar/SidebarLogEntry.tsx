@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import React from "preact/compat";
+import { Fragment } from "react";
 import { EvalLogHeader } from "../../api/types";
 import { EvalStatus } from "./EvalStatus";
 import styles from "./SidebarLogEntry.module.css";
@@ -43,7 +43,7 @@ export const SidebarLogEntry: React.FC<SidebarLogEntryProps> = ({
     : "";
 
   return (
-    <React.Fragment>
+    <Fragment>
       <div className={styles.entry}>
         <div className={styles.title}>
           <div className={clsx(styles.task, "text-size-title-secondary")}>
@@ -90,6 +90,6 @@ export const SidebarLogEntry: React.FC<SidebarLogEntryProps> = ({
       ) : (
         ""
       )}
-    </React.Fragment>
+    </Fragment>
   );
 };

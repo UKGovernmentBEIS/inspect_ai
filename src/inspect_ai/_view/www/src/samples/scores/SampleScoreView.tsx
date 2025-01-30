@@ -1,5 +1,4 @@
 import clsx from "clsx";
-import { html } from "htm/preact";
 import { Card, CardBody, CardHeader } from "../../components/Card";
 import { MarkdownDiv } from "../../components/MarkdownDiv";
 import { MetaDataGrid } from "../../metadata/MetaDataGrid";
@@ -25,7 +24,7 @@ export const SampleScoreView: React.FC<SampleScoreViewProps> = ({
   scorer,
 }) => {
   if (!sampleDescriptor) {
-    return html``;
+    return "";
   }
 
   const scoreInput = inputString(sample.input);

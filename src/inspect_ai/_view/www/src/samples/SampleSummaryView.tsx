@@ -5,7 +5,7 @@ import { arrayToString, inputString } from "../utils/format";
 import { SamplesDescriptor } from "./descriptor/samplesDescriptor";
 import { FlatSampleError } from "./error/FlatSampleErrorView";
 
-import { ReactNode } from "preact/compat";
+import { ReactNode } from "react";
 import styles from "./SampleSummaryView.module.css";
 
 interface SampleSummaryViewProps {

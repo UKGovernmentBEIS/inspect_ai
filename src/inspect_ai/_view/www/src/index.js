@@ -1,10 +1,10 @@
-import { render } from "preact";
 import { html } from "htm/preact";
+import { render } from "preact";
 
-import { App } from "./App.mjs";
+import { App } from "./App";
 import api from "./api/index";
-import { getVscodeApi } from "./utils/vscode";
 import { throttle } from "./utils/sync";
+import { getVscodeApi } from "./utils/vscode";
 
 // Read any state from the page itself
 const vscode = getVscodeApi();

@@ -1,7 +1,5 @@
-// @ts-check
 import clsx from "clsx";
-import { RefObject } from "preact";
-import { useCallback, useState } from "preact/hooks";
+import { RefObject, useCallback, useState } from "react";
 import { StepEvent } from "../../types/log";
 import { formatDateTime } from "../../utils/format";
 import { EventPanel } from "./event/EventPanel";

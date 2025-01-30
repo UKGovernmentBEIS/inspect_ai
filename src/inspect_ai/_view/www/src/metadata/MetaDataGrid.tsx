@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import React from "preact/compat";
+import { Fragment } from "react";
 import styles from "./MetadataGrid.module.css";
 import { RenderedContent } from "./RenderedContent";
 
@@ -26,7 +26,7 @@ export const MetaDataGrid: React.FC<MetadataGridProps> = ({
   const entryEls = entryRecords(entries).map((entry, index) => {
     const id = `${baseId}-value-${index}`;
     return (
-      <React.Fragment>
+      <Fragment>
         <div
           style={{
             gridColumn: "1 / -1",
@@ -49,7 +49,7 @@ export const MetaDataGrid: React.FC<MetadataGridProps> = ({
         >
           <RenderedContent id={id} entry={entry} />
         </div>
-      </React.Fragment>
+      </Fragment>
     );
   });
 

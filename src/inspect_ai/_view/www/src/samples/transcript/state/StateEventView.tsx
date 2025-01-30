@@ -52,7 +52,7 @@ export const StateEventView: React.FC<StateEventViewProps> = ({
       className={clsx(styles.diff)}
     />,
   ];
-  // This clone is important since the state is used by preact as potential values that are rendered
+  // This clone is important since the state is used by react as potential values that are rendered
   // and as a result may be decorated with additional properties, etc..., resulting in DOM elements
   // appearing attached to state.
   const changePreview = generatePreview(

@@ -1,7 +1,4 @@
-import { html } from "htm/preact";
-import { RefObject } from "preact";
-import { useCallback, useState } from "preact/hooks";
-import React from "react";
+import React, { RefObject, useCallback, useState } from "react";
 import { VirtualList } from "../../components/VirtualList";
 import { Events } from "../../types/log";
 import { ApprovalEventView } from "./ApprovalEventView";
@@ -371,7 +368,7 @@ export const RenderedEventNode: React.FC<RenderedEventNodeProps> = ({
       return <ApprovalEventView event={node.event} className={className} />;
 
     default:
-      return html``;
+      return "";
   }
 };
 

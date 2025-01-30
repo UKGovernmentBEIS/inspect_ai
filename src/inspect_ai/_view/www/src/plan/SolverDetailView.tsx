@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import React from "preact/compat";
+import { Fragment } from "react";
 import { ApplicationIcons } from "../appearance/icons";
 import { Steps } from "../types/log";
 import { DetailStep } from "./DetailStep";
@@ -18,13 +18,13 @@ export const SolversDetailView: React.FC<SolversDetailView> = ({ steps }) => {
 
   const details = steps?.map((step, index) => {
     return (
-      <React.Fragment>
+      <Fragment>
         <DetailStep
           name={step.solver}
           className={clsx(styles.items, "text-size-small")}
         />
         {index < steps.length - 1 ? separator : ""}
-      </React.Fragment>
+      </Fragment>
     );
   });
 

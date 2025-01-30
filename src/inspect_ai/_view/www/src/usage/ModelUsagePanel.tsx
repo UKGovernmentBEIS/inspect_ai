@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import React from "preact/compat";
+import { Fragment } from "react";
 import { ModelUsage1 } from "../types/log";
 import { formatNumber } from "../utils/format";
 import styles from "./ModelUsagePanel.module.css";
@@ -73,7 +73,7 @@ export const ModelUsagePanel: React.FC<ModelUsageProps> = ({ usage }) => {
           return <div className={styles.separator}></div>;
         } else {
           return (
-            <React.Fragment>
+            <Fragment>
               <div
                 className={clsx(
                   "text-style-label",
@@ -86,7 +86,7 @@ export const ModelUsagePanel: React.FC<ModelUsageProps> = ({ usage }) => {
               <div className={styles.col3}>
                 {row.value ? formatNumber(row.value) : ""}
               </div>
-            </React.Fragment>
+            </Fragment>
           );
         }
       })}
