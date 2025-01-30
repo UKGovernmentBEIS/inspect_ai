@@ -1,5 +1,12 @@
 import clsx from "clsx";
-import { Fragment, MouseEvent, useCallback, useRef } from "react";
+import {
+  Fragment,
+  MouseEvent,
+  ReactElement,
+  useCallback,
+  useEffect,
+  useRef,
+} from "react";
 import moduleStyles from "./TabSet.module.css";
 
 interface TabSetProps {
@@ -9,7 +16,9 @@ interface TabSetProps {
   tabPanelsClassName?: string | string[];
   tabControlsClassName?: string | string;
   tools?: React.ReactNode;
-  children: React.ReactElement<TabPanelProps>[];
+  children:
+    | ReactElement<TabPanelProps>
+    | (ReactElement<TabPanelProps> | null | undefined)[];
 }
 
 interface TabPanelProps {
@@ -30,46 +39,100 @@ interface TabPanelProps {
 
 export const TabSet: React.FC<TabSetProps> = ({
   id,
-  type,
+  type = "tabs",
   className,
   tabPanelsClassName,
   tabControlsClassName,
   tools,
   children,
 }) => {
-  // The tabs themselves
-  const tabs = children;
+  const validTabs: ReactElement<TabPanelProps>[] = Array.isArray(children)
+    ? (children.filter(Boolean) as ReactElement<TabPanelProps>[])
+    : [children];
 
-  // Process the tab style
-  const tabType = type || "tabs";
+  if (validTabs.length === 0) return null;
 
-  // Render the tabs
   return (
     <Fragment>
       <ul
         id={id}
-        className={clsx("nav", `nav-${tabType}`, className, moduleStyles.tabs)}
+        className={clsx("nav", `nav-${type}`, className, moduleStyles.tabs)}
         role="tablist"
         aria-orientation="horizontal"
       >
-        <Tabs
-          tabs={tabs}
-          type={tabType}
-          className={clsx(tabControlsClassName)}
-        />
-        <TabTools tools={tools} />
+        {validTabs.map((tab, index) => (
+          <Tab
+            key={tab.props.id}
+            index={index}
+            type={type}
+            tab={tab}
+            className={tabControlsClassName}
+          />
+        ))}
+        {tools && <TabTools tools={tools} />}
       </ul>
-      <TabPanels id={id} tabs={tabs} className={clsx(tabPanelsClassName)} />
+      <TabPanels id={id} tabs={validTabs} className={tabPanelsClassName} />
     </Fragment>
   );
 };
 
-// Defines a tab panel that appears within the tabset
+// Individual Tab Component
+const Tab: React.FC<{
+  type?: "tabs" | "pills";
+  tab: React.ReactElement<TabPanelProps>;
+  index: number;
+  className?: string | string[];
+}> = ({ type = "tabs", tab, index, className }) => {
+  const tabId = tab.props.id || computeTabId("tabset", index);
+  const tabContentsId = computeTabContentsId(tab.props.id);
+  const isActive = tab.props.selected;
+
+  return (
+    <li role="presentation" className={clsx("nav-item", moduleStyles.tabItem)}>
+      <button
+        id={tabId}
+        className={clsx(
+          "nav-link",
+          className,
+          isActive && "active",
+          type === "pills" ? moduleStyles.pill : moduleStyles.tab,
+          "text-size-small",
+          "text-style-label",
+        )}
+        type="button"
+        role="tab"
+        aria-controls={tabContentsId}
+        aria-selected={isActive}
+        onClick={(e) => tab.props.onSelected(e)}
+      >
+        {tab.props.icon && (
+          <i className={clsx(tab.props.icon, moduleStyles.tabIcon)} />
+        )}
+        {tab.props.title}
+      </button>
+    </li>
+  );
+};
+
+// Tab Panels Container
+const TabPanels: React.FC<{
+  id: string;
+  tabs: React.ReactElement<TabPanelProps>[];
+  className?: string | string[];
+}> = ({ id, tabs, className }) => (
+  <div className={clsx("tab-content", className)} id={`${id}-content`}>
+    {tabs.map((tab, index) => (
+      <TabPanel key={tab.props.id} {...tab.props} index={index} />
+    ))}
+  </div>
+);
+
+// Individual Tab Panel
 export const TabPanel: React.FC<TabPanelProps> = ({
   id,
   selected,
   style,
-  scrollable,
+  scrollable = true,
   scrollRef,
   className,
   scrollPosition,
@@ -77,22 +140,20 @@ export const TabPanel: React.FC<TabPanelProps> = ({
   children,
 }) => {
   const tabContentsId = computeTabContentsId(id);
-  const tabContentsRef = scrollRef || useRef(null);
+  const tabContentsRef = scrollRef || useRef<HTMLDivElement>(null);
 
-  setTimeout(() => {
-    if (
-      scrollPosition !== undefined &&
-      tabContentsRef.current &&
-      tabContentsRef.current.scrollTop !== scrollPosition
-    ) {
+  // Sync scroll position when component mounts or updates
+  useEffect(() => {
+    if (scrollPosition !== undefined && tabContentsRef.current) {
       tabContentsRef.current.scrollTop = scrollPosition;
     }
-  }, 0);
+  }, [scrollPosition]);
 
+  // Handle scrolling
   const onScroll = useCallback(
-    (e: any) => {
+    (e: React.UIEvent<HTMLDivElement>) => {
       if (setScrollPosition) {
-        setScrollPosition(e.srcElement.scrollTop);
+        setScrollPosition(e.currentTarget.scrollTop);
       }
     },
     [setScrollPosition],
@@ -104,13 +165,10 @@ export const TabPanel: React.FC<TabPanelProps> = ({
       ref={tabContentsRef}
       className={clsx(
         "tab-pane",
-        "show",
-        selected ? "active" : undefined,
+        selected && "show active",
         className,
         moduleStyles.tabContents,
-        scrollable === undefined || scrollable
-          ? moduleStyles.scrollable
-          : undefined,
+        scrollable && moduleStyles.scrollable,
       )}
       style={style}
       onScroll={onScroll}
@@ -120,93 +178,11 @@ export const TabPanel: React.FC<TabPanelProps> = ({
   );
 };
 
-// Render the tabs / pills themselves
-const Tabs: React.FC<{
-  tabs: React.ReactElement<TabPanelProps>[];
-  type?: "tabs" | "pills";
-  className?: string | string[];
-}> = ({ tabs, type, className }) => {
-  return tabs.map((tab, index) => {
-    return (
-      <Tab
-        type={type || "tabs"}
-        tab={tab}
-        index={index}
-        className={clsx(className)}
-      />
-    );
-  });
-};
+// Tab Tools Component
+const TabTools: React.FC<{ tools?: React.ReactNode }> = ({ tools }) => (
+  <div className={clsx("tab-tools", moduleStyles.tabTools)}>{tools}</div>
+);
 
-// An individual tab
-const Tab: React.FC<{
-  type?: "tabs" | "pills";
-  tab: React.ReactElement<TabPanelProps>;
-  index: number;
-  className?: string | string[];
-}> = ({ type, tab, index, className }) => {
-  const tabId = tab.props.id || computeTabId("tabset", index);
-  const tabContentsId = computeTabContentsId(tab.props.id);
-  const isActive = tab.props.selected;
-
-  const tabClz = [moduleStyles.tab, "text-size-small", "text-style-label"];
-  const pillClz: string[] = [];
-  return (
-    <li role="presentation" className={clsx("nav-item", moduleStyles.tabItem)}>
-      <button
-        id={tabId}
-        className={clsx(
-          className,
-          "nav-link",
-          isActive ? "active" : undefined,
-          type === "pills" ? pillClz : tabClz,
-        )}
-        type="button"
-        role="tab"
-        aria-controls={tabContentsId}
-        aria-selected={isActive ? true : false}
-        onClick={(e) => {
-          tab.props.onSelected(e);
-          return false;
-        }}
-      >
-        {tab.props.icon ? (
-          <i className={clsx(tab.props.icon, moduleStyles.tabIcon)} />
-        ) : (
-          ""
-        )}
-        {tab.props.title}
-      </button>
-    </li>
-  );
-};
-
-// The tools shown for the tab
-const TabTools: React.FC<{ tools?: React.ReactNode }> = ({ tools }) => {
-  return (
-    <div className={clsx("tab-tools", moduleStyles.tabTools)}>{tools}</div>
-  );
-};
-
-// Render the tab panels
-const TabPanels: React.FC<{
-  id: string;
-  tabs: React.ReactElement<TabPanelProps>[];
-  className?: string | string[];
-}> = ({ id, tabs, className }) => {
-  return (
-    <div className={clsx("tab-content", className)} id={`${id}-content`}>
-      {tabs.map((tab, index) => {
-        tab.props.index = index;
-        return tab;
-      })}
-    </div>
-  );
-};
-
-const computeTabId = (id: string, index: number) => {
-  return `${id}-${index}`;
-};
-const computeTabContentsId = (id: string) => {
-  return `${id}-contents`;
-};
+// Utility functions
+const computeTabId = (id: string, index: number) => `${id}-${index}`;
+const computeTabContentsId = (id: string) => `${id}-contents`;

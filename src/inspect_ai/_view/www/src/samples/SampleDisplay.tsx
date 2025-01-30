@@ -1,6 +1,5 @@
 import { TabPanel, TabSet } from "../components/TabSet";
 import { MetaDataView } from "../metadata/MetaDataView";
-import { ChatViewVirtualList } from "./chat/ChatViewVirtualList";
 
 import { escapeSelector } from "../utils/html";
 import { isVscode } from "../utils/vscode";
@@ -11,10 +10,9 @@ import { ApplicationIcons } from "../appearance/icons";
 import { ANSIDisplay } from "../components/AnsiDisplay";
 import { ToolButton } from "../components/ToolButton";
 import { SampleScoreView } from "./scores/SampleScoreView";
-import { SampleTranscript } from "./transcript/SampleTranscript";
 
 import clsx from "clsx";
-import { Fragment, JSX, MouseEvent, RefObject } from "react";
+import { Fragment, MouseEvent, RefObject } from "react";
 import { Card, CardBody, CardHeader } from "../components/Card";
 import { EmptyPanel } from "../components/EmptyPanel";
 import { JSONPanel } from "../components/JsonPanel";
@@ -29,9 +27,11 @@ import {
 import { EvalSample } from "../types/log";
 import { ModelTokenTable } from "../usage/ModelTokenTable";
 import { printHeadingHtml, printHtml } from "../utils/print";
+import { ChatViewVirtualList } from "./chat/ChatViewVirtualList";
 import { SamplesDescriptor } from "./descriptor/samplesDescriptor";
 import styles from "./SampleDisplay.module.css";
 import { SampleSummaryView } from "./SampleSummaryView";
+import { SampleTranscript } from "./transcript/SampleTranscript";
 
 interface SampleDisplayProps {
   id: string;
@@ -69,210 +69,11 @@ export const SampleDisplay: React.FC<SampleDisplayProps> = ({
     return false;
   };
 
-  // The core tabs
-  const tabs: JSX.Element[] = [
-    <TabPanel
-      id={kSampleMessagesTabId}
-      className="sample-tab"
-      title="Messages"
-      onSelected={onSelectedTab}
-      selected={selectedTab === kSampleMessagesTabId}
-      scrollable={false}
-      style={{ width: "100%" }}
-    >
-      <ChatViewVirtualList
-        key={`${baseId}-chat-${id}`}
-        id={`${baseId}-chat-${id}`}
-        messages={sample.messages}
-        indented={true}
-        scrollRef={scrollRef}
-        toolCallStyle="complete"
-      />
-    </TabPanel>,
-  ];
-
-  if (sample.events && sample.events.length > 0) {
-    tabs.unshift(
-      <TabPanel
-        id={kSampleTranscriptTabId}
-        className="sample-tab"
-        title="Transcript"
-        onSelected={onSelectedTab}
-        selected={
-          selectedTab === kSampleTranscriptTabId || selectedTab === undefined
-        }
-        scrollable={false}
-      >
-        <SampleTranscript
-          key={`${baseId}-transcript-display-${id}`}
-          id={`${baseId}-transcript-display-${id}`}
-          evalEvents={sample.events}
-          scrollRef={scrollRef}
-        />
-      </TabPanel>,
-    );
-  }
-
   const scorerNames = Object.keys(sample.scores || {});
-  if (scorerNames.length === 1) {
-    tabs.push(
-      <TabPanel
-        id={kSampleScoringTabId}
-        className="sample-tab"
-        title="Scoring"
-        onSelected={onSelectedTab}
-        selected={selectedTab === kSampleScoringTabId}
-      >
-        <SampleScoreView
-          sample={sample}
-          sampleDescriptor={sampleDescriptor}
-          scorer={scorerNames[0]}
-        />
-      </TabPanel>,
-    );
-  } else {
-    for (const scorer of Object.keys(sample.scores || {})) {
-      const tabId = `score-${scorer}`;
-      tabs.push(
-        <TabPanel
-          id={tabId}
-          className="sample-tab"
-          title={scorer}
-          onSelected={onSelectedTab}
-          selected={selectedTab === tabId}
-        >
-          <SampleScoreView
-            sample={sample}
-            sampleDescriptor={sampleDescriptor}
-            scorer={scorer}
-          />
-        </TabPanel>,
-      );
-    }
-  }
-
   const sampleMetadatas = metadataViewsForSample(`${baseId}-${id}`, sample);
-  if (sampleMetadatas.length > 0) {
-    tabs.push(
-      <TabPanel
-        id={kSampleMetdataTabId}
-        className="sample-tab"
-        title="Metadata"
-        onSelected={onSelectedTab}
-        selected={selectedTab === kSampleMetdataTabId}
-      >
-        <div
-          style={{
-            display: "flex",
-            flexWrap: "wrap",
-            alignItems: "flex-start",
-            gap: "1em",
-            paddingLeft: "0",
-            marginTop: "0.5em",
-          }}
-        >
-          {sampleMetadatas}
-        </div>
-      </TabPanel>,
-    );
-  }
-
-  if (sample.error) {
-    tabs.push(
-      <TabPanel
-        id={kSampleErrorTabId}
-        className="sample-tab"
-        title="Error"
-        onSelected={onSelectedTab}
-        selected={selectedTab === kSampleErrorTabId}
-      >
-        <div style={{ paddingLeft: "0.8em", marginTop: "0.4em" }}>
-          <ANSIDisplay
-            output={sample.error.traceback_ansi}
-            style={{ fontSize: FontSize.small, margin: "1em 0" }}
-          />
-        </div>
-      </TabPanel>,
-    );
-  }
-
-  if (sample.messages.length < 100) {
-    tabs.push(
-      <TabPanel
-        id={kSampleJsonTabId}
-        className={"sample-tab"}
-        title="JSON"
-        onSelected={onSelectedTab}
-        selected={selectedTab === kSampleJsonTabId}
-      >
-        <div style={{ paddingLeft: "0.8em", marginTop: "0.4em" }}>
-          <JSONPanel data={sample} simple={true} />
-        </div>
-      </TabPanel>,
-    );
-  }
 
   const tabsetId = `task-sample-details-tab-${id}`;
   const targetId = `${tabsetId}-content`;
-  const printSample = () => {
-    // The active tab
-    const targetTabEl = document.querySelector(
-      `#${escapeSelector(targetId)} .sample-tab.tab-pane.show.active`,
-    );
-    if (targetTabEl) {
-      // The target element
-      const targetEl = targetTabEl.firstElementChild;
-      if (targetEl) {
-        // Get the sample heading to include
-        const headingId = `sample-heading-${id}`;
-        const headingEl = document.getElementById(headingId);
-
-        // Print the document
-        const headingHtml = printHeadingHtml();
-        const css = `
-        html { font-size: 9pt }
-        /* Allow content to break anywhere without any forced page breaks */
-        * {
-          break-inside: auto;  /* Let elements break anywhere */
-          page-break-inside: auto;  /* Legacy support */
-          break-before: auto;
-          page-break-before: auto;
-          break-after: auto;
-          page-break-after: auto;
-        }
-        /* Specifically disable all page breaks for divs */
-        div {
-          break-inside: auto;
-          page-break-inside: auto;
-        }
-        body > .transcript-step {
-          break-inside: avoid;
-        }
-        body{
-          -webkit-print-color-adjust:exact !important;
-          print-color-adjust:exact !important;
-        }
-        /* Allow preformatted text and code blocks to break across pages */
-        pre, code {
-            white-space: pre-wrap; /* Wrap long lines instead of keeping them on one line */
-            overflow-wrap: break-word; /* Ensure long words are broken to fit within the page */
-            break-inside: auto; /* Allow page breaks inside the element */
-            page-break-inside: auto; /* Older equivalent */
-        }
-
-        /* Additional control for long lines within code/preformatted blocks */
-        pre {
-            word-wrap: break-word; /* Break long words if needed */
-        }    
-            
-        `;
-        printHtml(
-          [headingHtml, headingEl?.outerHTML, targetEl.innerHTML].join("\n"),
-          css,
-        );
-      }
-    }
-  };
 
   const tools = [];
   if (!isVscode()) {
@@ -280,7 +81,9 @@ export const SampleDisplay: React.FC<SampleDisplayProps> = ({
       <ToolButton
         label="Print"
         icon={ApplicationIcons.copy}
-        onClick={printSample}
+        onClick={() => {
+          printSample(id, targetId);
+        }}
       />,
     );
   }
@@ -298,7 +101,131 @@ export const SampleDisplay: React.FC<SampleDisplayProps> = ({
         tabPanelsClassName={clsx(styles.tabPanel)}
         tools={tools}
       >
-        {tabs}
+        {sample.events && sample.events.length > 0 ? (
+          <TabPanel
+            id={kSampleTranscriptTabId}
+            className="sample-tab"
+            title="Transcript"
+            onSelected={onSelectedTab}
+            selected={
+              selectedTab === kSampleTranscriptTabId ||
+              selectedTab === undefined
+            }
+            scrollable={false}
+          >
+            <SampleTranscript
+              key={`${baseId}-transcript-display-${id}`}
+              id={`${baseId}-transcript-display-${id}`}
+              evalEvents={sample.events}
+              scrollRef={scrollRef}
+            />
+          </TabPanel>
+        ) : null}
+        <TabPanel
+          id={kSampleMessagesTabId}
+          className="sample-tab"
+          title="Messages"
+          onSelected={onSelectedTab}
+          selected={selectedTab === kSampleMessagesTabId}
+          scrollable={false}
+          style={{ width: "100%" }}
+        >
+          <ChatViewVirtualList
+            key={`${baseId}-chat-${id}`}
+            id={`${baseId}-chat-${id}`}
+            messages={sample.messages}
+            indented={true}
+            scrollRef={scrollRef}
+            toolCallStyle="complete"
+          />
+        </TabPanel>
+        {scorerNames.length === 1 ? (
+          <TabPanel
+            id={kSampleScoringTabId}
+            className="sample-tab"
+            title="Scoring"
+            onSelected={onSelectedTab}
+            selected={selectedTab === kSampleScoringTabId}
+          >
+            <SampleScoreView
+              sample={sample}
+              sampleDescriptor={sampleDescriptor}
+              scorer={scorerNames[0]}
+            />
+          </TabPanel>
+        ) : (
+          <>
+            {Object.keys(sample.scores || {}).map((scorer) => {
+              const tabId = `score-${scorer}`;
+              return (
+                <TabPanel
+                  id={tabId}
+                  className="sample-tab"
+                  title={scorer}
+                  onSelected={onSelectedTab}
+                  selected={selectedTab === tabId}
+                >
+                  <SampleScoreView
+                    sample={sample}
+                    sampleDescriptor={sampleDescriptor}
+                    scorer={scorer}
+                  />
+                </TabPanel>
+              );
+            })}
+          </>
+        )}
+        {sampleMetadatas.length > 0 ? (
+          <TabPanel
+            id={kSampleMetdataTabId}
+            className="sample-tab"
+            title="Metadata"
+            onSelected={onSelectedTab}
+            selected={selectedTab === kSampleMetdataTabId}
+          >
+            <div
+              style={{
+                display: "flex",
+                flexWrap: "wrap",
+                alignItems: "flex-start",
+                gap: "1em",
+                paddingLeft: "0",
+                marginTop: "0.5em",
+              }}
+            >
+              {sampleMetadatas}
+            </div>
+          </TabPanel>
+        ) : null}
+        {sample.error ? (
+          <TabPanel
+            id={kSampleErrorTabId}
+            className="sample-tab"
+            title="Error"
+            onSelected={onSelectedTab}
+            selected={selectedTab === kSampleErrorTabId}
+          >
+            <div style={{ paddingLeft: "0.8em", marginTop: "0.4em" }}>
+              <ANSIDisplay
+                output={sample.error.traceback_ansi}
+                style={{ fontSize: FontSize.small, margin: "1em 0" }}
+              />
+            </div>
+          </TabPanel>
+        ) : null}
+        {sample.messages.length < 100 ? (
+          <TabPanel
+            id={kSampleJsonTabId}
+            className={"sample-tab"}
+            title="JSON"
+            onSelected={onSelectedTab}
+            selected={selectedTab === kSampleJsonTabId}
+          >
+            <div style={{ paddingLeft: "0.8em", marginTop: "0.4em" }}>
+              <JSONPanel data={sample} simple={true} />
+            </div>
+          </TabPanel>
+        ) : null}
       </TabSet>
     </Fragment>
   );
@@ -353,4 +280,63 @@ const metadataViewsForSample = (_id: string, sample: EvalSample) => {
   }
 
   return sampleMetadatas;
+};
+const printSample = (id: string, targetId: string) => {
+  // The active tab
+  const targetTabEl = document.querySelector(
+    `#${escapeSelector(targetId)} .sample-tab.tab-pane.show.active`,
+  );
+  if (targetTabEl) {
+    // The target element
+    const targetEl = targetTabEl.firstElementChild;
+    if (targetEl) {
+      // Get the sample heading to include
+      const headingId = `sample-heading-${id}`;
+      const headingEl = document.getElementById(headingId);
+
+      // Print the document
+      const headingHtml = printHeadingHtml();
+      const css = `
+      html { font-size: 9pt }
+      /* Allow content to break anywhere without any forced page breaks */
+      * {
+        break-inside: auto;  /* Let elements break anywhere */
+        page-break-inside: auto;  /* Legacy support */
+        break-before: auto;
+        page-break-before: auto;
+        break-after: auto;
+        page-break-after: auto;
+      }
+      /* Specifically disable all page breaks for divs */
+      div {
+        break-inside: auto;
+        page-break-inside: auto;
+      }
+      body > .transcript-step {
+        break-inside: avoid;
+      }
+      body{
+        -webkit-print-color-adjust:exact !important;
+        print-color-adjust:exact !important;
+      }
+      /* Allow preformatted text and code blocks to break across pages */
+      pre, code {
+          white-space: pre-wrap; /* Wrap long lines instead of keeping them on one line */
+          overflow-wrap: break-word; /* Ensure long words are broken to fit within the page */
+          break-inside: auto; /* Allow page breaks inside the element */
+          page-break-inside: auto; /* Older equivalent */
+      }
+
+      /* Additional control for long lines within code/preformatted blocks */
+      pre {
+          word-wrap: break-word; /* Break long words if needed */
+      }    
+          
+      `;
+      printHtml(
+        [headingHtml, headingEl?.outerHTML, targetEl.innerHTML].join("\n"),
+        css,
+      );
+    }
+  }
 };
