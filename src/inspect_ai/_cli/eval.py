@@ -592,7 +592,6 @@ def eval_set_command(
     logit_bias: str | None,
     seed: int | None,
     stop_seqs: str | None,
-    suffix: str | None,
     temperature: float | None,
     top_p: float | None,
     top_k: int | None,
