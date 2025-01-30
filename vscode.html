@@ -30,7 +30,7 @@ ul.task-list li input[type="checkbox"] {
 <script src="site_libs/quarto-search/fuse.min.js"></script>
 <script src="site_libs/quarto-search/quarto-search.js"></script>
 <meta name="quarto:offset" content="./">
-<link href="./solvers.html" rel="next">
+<link href="./tasks.html" rel="next">
 <link href="./log-viewer.html" rel="prev">
 <script src="site_libs/quarto-html/quarto.js"></script>
 <script src="site_libs/quarto-html/popper.min.js"></script>
@@ -149,14 +149,14 @@ ul.task-list li input[type="checkbox"] {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./workflow.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Workflow</span></a>
+  <a href="./options.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Options</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./examples/index.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Examples</span></a>
+  <a href="./evals/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Evals</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -184,6 +184,18 @@ ul.task-list li input[type="checkbox"] {
       <ul id="quarto-sidebar-section-2" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./tasks.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Tasks</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./datasets.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Datasets</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./solvers.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Solvers</span></a>
   </div>
@@ -198,12 +210,6 @@ ul.task-list li input[type="checkbox"] {
   <div class="sidebar-item-container"> 
   <a href="./scorers.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Scorers</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="./datasets.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Datasets</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -441,7 +447,7 @@ ul.task-list li input[type="checkbox"] {
 <p><a href="images/inspect-activity-bar.png" class="lightbox" data-gallery="quarto-lightbox-gallery-5"><img src="images/inspect-activity-bar.png" class="border img-fluid" alt="Inspect Activity Bar with user interface for tuning global configuration and task CLI arguments."></a></p>
 <p>The activity bar has four panels:</p>
 <ul>
-<li><p><strong>Configuration</strong> edits global configuration by reading and writing values from the workspace <code>.env</code> config file (see the documentation on <a href="./workflow.html#configuration">Configuration</a> for more details on <code>.env</code> files).</p></li>
+<li><p><strong>Configuration</strong> edits global configuration by reading and writing values from the workspace <code>.env</code> config file (see the documentation on <a href="./options.html">Options</a> for more details on <code>.env</code> files).</p></li>
 <li><p><strong>Tasks</strong> displays all tasks in the current workspace, and can be used to both navigate among tasks as well as run and debug tasks directly.</p></li>
 <li><p><strong>Logs</strong> lists the logs in a local or remote log directory (When you select a log it is displayed in an editor pane using the Inspect log viewer).</p></li>
 <li><p><strong>Task</strong> provides a way to tweak the CLI arguments passed to <code>inspect eval</code> when it is run from the user interface.</p></li>
@@ -919,8 +925,8 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
       </a>          
   </div>
   <div class="nav-page nav-page-next">
-      <a href="./solvers.html" class="pagination-link" aria-label="Solvers">
-        <span class="nav-page-text">Solvers</span> <i class="bi bi-arrow-right-short"></i>
+      <a href="./tasks.html" class="pagination-link" aria-label="Tasks">
+        <span class="nav-page-text">Tasks</span> <i class="bi bi-arrow-right-short"></i>
       </a>
   </div>
 </nav>
@@ -978,7 +984,7 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
     </div>
   </div>
 </footer>
-<script>var lightboxQuarto = GLightbox({"descPosition":"bottom","closeEffect":"zoom","loop":false,"selector":".lightbox","openEffect":"zoom"});
+<script>var lightboxQuarto = GLightbox({"loop":false,"openEffect":"zoom","descPosition":"bottom","selector":".lightbox","closeEffect":"zoom"});
 window.onload = () => {
   lightboxQuarto.on('slide_before_load', (data) => {
     const { slideIndex, slideNode, slideConfig, player, trigger } = data;

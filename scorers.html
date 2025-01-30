@@ -64,7 +64,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="site_libs/quarto-search/fuse.min.js"></script>
 <script src="site_libs/quarto-search/quarto-search.js"></script>
 <meta name="quarto:offset" content="./">
-<link href="./datasets.html" rel="next">
+<link href="./models.html" rel="next">
 <link href="./tools.html" rel="prev">
 <script src="site_libs/quarto-html/quarto.js"></script>
 <script src="site_libs/quarto-html/popper.min.js"></script>
@@ -127,7 +127,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
       <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
         <i class="bi bi-layout-text-sidebar-reverse"></i>
       </button>
-        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./solvers.html">Components</a></li><li class="breadcrumb-item"><a href="./scorers.html">Scorers</a></li></ol></nav>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./tasks.html">Components</a></li><li class="breadcrumb-item"><a href="./scorers.html">Scorers</a></li></ol></nav>
         <a class="flex-grow-1" role="button" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
         </a>
       <button type="button" class="btn quarto-search-button" aria-label="" onclick="window.quartoOpenSearch();">
@@ -180,14 +180,14 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./workflow.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Workflow</span></a>
+  <a href="./options.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Options</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./examples/index.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Examples</span></a>
+  <a href="./evals/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Evals</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -215,6 +215,18 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
       <ul id="quarto-sidebar-section-2" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./tasks.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Tasks</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./datasets.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Datasets</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./solvers.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Solvers</span></a>
   </div>
@@ -229,12 +241,6 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <div class="sidebar-item-container"> 
   <a href="./scorers.html" class="sidebar-item-text sidebar-link active">
  <span class="menu-text">Scorers</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="./datasets.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Datasets</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -400,7 +406,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#built-in-metrics" id="toc-built-in-metrics" class="nav-link" data-scroll-target="#built-in-metrics">Built-In Metrics</a></li>
   <li><a href="#custom-metrics" id="toc-custom-metrics" class="nav-link" data-scroll-target="#custom-metrics">Custom Metrics</a></li>
   </ul></li>
-  <li><a href="#sec-reducing-epochs" id="toc-sec-reducing-epochs" class="nav-link" data-scroll-target="#sec-reducing-epochs">Reducing Epochs</a>
+  <li><a href="#reducing-epochs" id="toc-reducing-epochs" class="nav-link" data-scroll-target="#reducing-epochs">Reducing Epochs</a>
   <ul class="collapse">
   <li><a href="#built-in-reducers" id="toc-built-in-reducers" class="nav-link" data-scroll-target="#built-in-reducers">Built-in Reducers</a></li>
   <li><a href="#custom-reducers" id="toc-custom-reducers" class="nav-link" data-scroll-target="#custom-reducers">Custom Reducers</a></li>
@@ -417,7 +423,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <!-- main -->
 <main class="content" id="quarto-document-content">
 
-<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./solvers.html">Components</a></li><li class="breadcrumb-item"><a href="./scorers.html">Scorers</a></li></ol></nav>
+<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./tasks.html">Components</a></li><li class="breadcrumb-item"><a href="./scorers.html">Scorers</a></li></ol></nav>
 <div class="quarto-title">
 <h1 class="title">Scorers</h1>
 </div>
@@ -949,8 +955,8 @@ Note
 <p>Note that the <code>Score</code> class contains a <code>Value</code> that is a union over several scalar and collection types. As a convenience, <code>Score</code> includes a set of accessor methods to treat the value as a simpler form (e.g.&nbsp;above we use the <code>score.as_float()</code> accessor).</p>
 </section>
 </section>
-<section id="sec-reducing-epochs" class="level2">
-<h2 class="anchored" data-anchor-id="sec-reducing-epochs">Reducing Epochs</h2>
+<section id="reducing-epochs" class="level2">
+<h2 class="anchored" data-anchor-id="reducing-epochs">Reducing Epochs</h2>
 <p>If a task is run over more than one <code>epoch</code>, multiple scores will be generated for each sample. These scores are then <em>reduced</em> to a single score representing the score for the sample across all the epochs.</p>
 <p>By default, this is done by taking the mean of all sample scores, but you may specify other strategies for reducing the samples by passing an <code>Epochs</code>, which includes both a count and one or more reducers to combine sample scores with. For example:</p>
 <div class="sourceCode" id="cb18"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="at">@task</span></span>
@@ -1518,8 +1524,8 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
       </a>          
   </div>
   <div class="nav-page nav-page-next">
-      <a href="./datasets.html" class="pagination-link" aria-label="Datasets">
-        <span class="nav-page-text">Datasets</span> <i class="bi bi-arrow-right-short"></i>
+      <a href="./models.html" class="pagination-link" aria-label="Models">
+        <span class="nav-page-text">Models</span> <i class="bi bi-arrow-right-short"></i>
       </a>
   </div>
 </nav>

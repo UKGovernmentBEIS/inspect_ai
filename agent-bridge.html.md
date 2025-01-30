@@ -1,16 +1,6 @@
 # Agent Bridge
 
 
-> [!NOTE]
->
-> The agent bridge feature described below is currently available only
-> in the development version of Inspect. To install the development
-> version from GitHub:
->
-> ``` bash
-> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-> ```
-
 ## Overview
 
 While Inspect provides facilities for native agent development, you can

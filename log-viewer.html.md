@@ -229,8 +229,7 @@ $ inspect eval biology_qa.py --log-level-transcript http
 
 Note that you can also set the log levels using the `INSPECT_LOG_LEVEL`
 and `INSPECT_LOG_LEVEL_TRANSCRIPT` environment variables (which are
-often included in a [.env configuration
-file](workflow.qmd#sec-workflow-configuration)).
+often included in a [.env configuration file](options.qmd).
 
 ### External File
 

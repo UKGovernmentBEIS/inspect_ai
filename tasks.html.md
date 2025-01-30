@@ -200,98 +200,207 @@ inspect eval security.py --task-config=config.yaml
 ## Solvers
 
 While tasks always include a *default* solver, you can also vary the
-solver to explore other strategies and elicitation techniques.
+solver to explore other strategies and elicitation techniques. This
+section covers best practices for creating solver-independent tasks.
 
-### Solver Roles
+### Solver Parameter
 
-In the example above we combined together several solvers into a
-composite solver. This illustrates the fact that there are two distinct
-roles that solvers can play in the system:
-
-1.  As a *composite* end-to-end specification of how to solve a task.
-
-2.  As a *component* that is chained together with other solvers to
-    create a composite solver;
-
-Some solvers are capable of playing both roles. For example,
-`generate()` is a complete end-to-end solver (albeit a simple one) but
-is often also used as a *component* within other solvers.
-
-### Solver Functions
-
-The most convenient way to create a composite solver is to define a
-`@solver` decorated function that returns a chain of other solvers. For
-example, imagine we have written a `tree_of_thought` module that we want
-to use to create an additional solver. We can re-write the task to have
-multiple solver functions (where `critique` is used as the default):
-
-<div class="code-with-filename">
-
-**theory.py**
+If you want to make your task work with a variety of solvers, the first
+thing to do is add a `solver` parameter to your task function. For
+example, let’s start with a CTF challenge task where the `solver` is
+hard-coded:
 
 ``` python
 from inspect_ai import Task, task
-from inspect_ai.dataset import example_dataset
-from inspect_ai.scorer import model_graded_fact
-from inspect_ai.solver import (               
-  solver, chain, prompt_template, generate, self_critique
-)
-
-DEFAULT_PROMPT="{prompt}"
-
-from tree_of_thought import TREE_PROMPT, generate_tree
-
-@solver 
-def critique():
-    return chain(
-        prompt_template(DEFAULT_PROMPT), 
-        generate(), 
-        self_critique()
-    )
-
-@solver
-def tree_of_thought():
-    return chain(
-        prompt_template(TREE_PROMPT), 
-        generate_tree()
-    )
+from inspect_ai.solver import generate, use_tools
+from inspect_ai.tool import bash, python
+from inspect_ai.scorer import includes
 
 @task
-def theory_of_mind():
-    return Task(  
-        dataset=example_dataset("theory_of_mind"),
-        solver=critique(),
-        scorer=model_graded_fact()
+def ctf():
+    return Task(
+        dataset=read_dataset(),
+        solver=[
+            use_tools([
+                bash(timeout=180), 
+                python(timeout=180)
+            ]),
+            generate()
+        ],
+        sandbox="docker",
+        scorer=includes()
     )
 ```
 
-</div>
+This task uses the most naive solver possible (a simple tool use loop
+with no additional elicitation). That might be okay for initial task
+development, but we’ll likely want to try lots of different strategies.
+We start by breaking the `solver` into its own function and adding an
+alternative solver that uses the `basic_agent()`
 
-Note that we use the `chain()` function to combine mutliple solvers into
-a composite one.
+``` python
+from inspect_ai import Task, task
+from inspect_ai.solver import basic_agent, chain, generate, use_tools
+from inspect_ai.tool import bash, python
+from inspect_ai.scorer import includes
 
-You can switch between solvers when running the evaluation:
+@solver
+def ctf_tool_loop():
+    reutrn chain([
+        use_tools([
+            bash(timeout=180), 
+            python(timeout=180)
+        ]),
+        generate()
+    ])
 
-``` bash
-# run with the default solver (critique)
-$ inspect eval theory.py --model=openai/gpt-4
-
-# run with the tree of thought solver
-$ inspect eval theory.py --solver=tree_of_thought --model=openai/gpt-4
+@solver
+def ctf_agent(max_attempts: int = 3):
+    return basic_agent(
+        tools=[
+            bash(timeout=180), 
+            python(timeout=180)
+        ],
+        max_attempts=max_attempts,
+    ) 
+ 
+@task
+def ctf(solver: Solver | None = None):
+    # use default tool loop solver if no solver specified
+    if solver is None:
+        solver = ctf_tool_loop()
+   
+    # return task
+    return Task(
+        dataset=read_dataset(),
+        solver=solver,
+        sandbox="docker",
+        scorer=includes()
+    )
 ```
 
-Composite solvers by no means need to be implemented using chains. While
-chains are frequently used in more straightforward knowledge and
-reasoning evaluations, fully custom solver functions are often used for
-multi-turn dialog and agent evaluations.
+Note that we use the `chain()` function to combine multiple solvers into
+a composite one.
 
-### 
+You can now switch between solvers when running the evaluation:
+
+``` bash
+# run with the default solver (ctf_tool_loop)
+inspect eval ctf.py 
+
+# run with the ctf agent solver
+inspect eval ctf.py --solver=ctf_agent
+
+# run with a different max_attempts
+inspect eval ctf.py --solver=ctf_agent -S max_attempts=5
+```
+
+Note the use of the `-S` CLI option to pass an alternate value for
+`max_attempts` to the `ctf_agent()` solver.
+
+### Setup Parameter
+
+In some cases, there will be important steps in the setup of a task that
+*should not be substituted* when another solver is used with the task.
+For example, you might have a step that does dynamic prompt engineering
+based on values in the sample `metadata` or you might have a step that
+initialises resources in a sample’s sandbox.
+
+In these scenarios you can define a `setup` solver that is always run
+even when another `solver` is substituted. For example, here we adapt
+our initial example to include a `setup` step:
+
+``` python
+# prompt solver which should always be run
+@solver
+def ctf_prompt():
+    async def solve(state, generate):
+        # TODO: dynamic prompt engineering
+        return state
+
+@task
+def ctf(solver: Solver | None = None):
+    # use default tool loop solver if no solver specified
+    if solver is None:
+        solver = ctf_tool_loop()
+   
+    # return task
+    return Task(
+        dataset=read_dataset(),
+        setup=ctf_prompt(),
+        solver=solver,
+        sandbox="docker",
+        scorer=includes()
+    )
+```
 
 ## Task Reuse
 
+The basic mechanism for task re-use is to create flexible and adaptable
+base `@task` functions (which often have many parameters) and then
+derive new higher-level tasks from them by creating additional `@task`
+functions that call the base function.
+
+In some cases though you might not have full control over the base
+`@task` function (e.g. it’s published in a Python package you aren’t the
+maintainer of) but you nevertheless want to flexibly create derivative
+tasks from it. To do this, you can use the `task_with()` function, which
+clones an existing task and enables you to override any of the task
+fields that you need to.
+
+For example, imagine you are dealing with a `Task` that hard-codes its
+`sandbox` to a particular Dockerfile included with the task, and further
+does not make a `solver` parameter available to swap in other solvers:
+
 ``` python
-task_with
+from inspect_ai import Task, task
+from inspect_ai.solver import basic_agent
+from inspect_ai.tool import bash
+from inspect_ai.scorer import includes
+
+@task
+def hard_coded():
+    return Task(
+        dataset=read_dataset(),
+        solver=basic_agent(tools=[bash()]),
+        sandbox=("docker", "compose.yaml"),
+        scorer=includes()
+    )
 ```
+
+Using `task_with()`, you can adapt this task to use a different `solver`
+and `sandbox` entirely. For example, here we import the original
+`hard_coded()` task from a hypothetical `ctf_tasks` package and provide
+it with a different `solver` and `sandbox`, as well as give it a
+`message_limit` (which we in turn also expose as a parameter of the
+adapted task):
+
+``` python
+from inspect_ai import task, task_with
+from inspect_ai.solver import solver
+
+from ctf_tasks import hard_coded
+
+@solver
+def my_custom_agent():
+    ## custom agent implementation
+    ...
+
+@task
+def adapted(message_limit: int = 20):
+    return task_with(
+        hard_coded(),  # original task definition
+        solver=my_custom_agent(),
+        sandbox=("docker", "custom-compose.yaml"),
+        message_limit=message_limit
+    )
+```
+
+Tasks are recipes for an evaluation and represent the convergence of
+many considerations (datasets, solvers, sandbox environments, limits,
+and scoring). Task variations often lie at the intersection of these,
+and the `task_with()` function is intended to help you produce exactly
+the variation you need for a given evaluation.
 
 ## Exploratory
 

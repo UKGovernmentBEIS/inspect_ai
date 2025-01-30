@@ -16,20 +16,22 @@ data-fig-alt="Inspect running inside Visual Studio Code. The editor shows the AR
 
 We’ll walk through a fairly trivial “Hello, Inspect” example below. Read
 on to learn the basics, then read the documentation on
-[Workflow](workflow.qmd), [Solvers](solvers.qmd), [Tools](tools.qmd),
+[Options](options.qmd), [Solvers](solvers.qmd), [Tools](tools.qmd),
 [Scorers](scorers.qmd), [Datasets](datasets.qmd), and
 [Models](models.qmd) to learn how to create more advanced evaluations.
 
 ## Getting Started
 
-First, install Inspect with:
+To get started using Inspect:
 
-``` bash
-$ pip install inspect-ai
-```
+1.  Install Inspect from PyPI with:
 
-If you are using VS Code, we also recommend installing the [Inspect VS
-Code Extension](vscode.qmd).
+    ``` bash
+    pip install inspect-ai
+    ```
+
+2.  If you are using VS Code, install the [Inspect VS Code
+    Extension](vscode.qmd) (not required but highly recommended).
 
 To develop and run evaluations, you’ll also need access to a model,
 which typically requires installation of a Python package as well as
@@ -44,55 +46,57 @@ providers:
 #### OpenAI
 
 ``` bash
-$ pip install openai
-$ export OPENAI_API_KEY=your-openai-api-key
-$ inspect eval arc.py --model openai/gpt-4
+pip install openai
+export OPENAI_API_KEY=your-openai-api-key
+inspect eval arc.py --model openai/gpt-4o
 ```
 
 #### Anthropic
 
 ``` bash
-$ pip install anthropic
-$ export ANTHROPIC_API_KEY=your-anthropic-api-key
-$ inspect eval arc.py --model anthropic/claude-3-opus-20240229
+pip install anthropic
+export ANTHROPIC_API_KEY=your-anthropic-api-key
+inspect eval arc.py --model anthropic/claude-3-5-sonnet-latest
 ```
 
 #### Google
 
 ``` bash
-$ pip install google-generativeai
-$ export GOOGLE_API_KEY=your-google-api-key
-$ inspect eval arc.py --model google/gemini-1.0-pro
+pip install google-generativeai
+export GOOGLE_API_KEY=your-google-api-key
+inspect eval arc.py --model google/gemini-1.5-pro
+```
+
+#### Grok
+
+``` bash
+pip install openai
+export GROK_API_KEY=your-grok-api-key
+inspect eval arc.py --model grok/grok-beta
 ```
 
 #### Mistral
 
 ``` bash
-$ pip install mistralai
-$ export MISTRAL_API_KEY=your-mistral-api-key
-$ inspect eval arc.py --model mistral/mistral-large-latest
+pip install mistralai
+export MISTRAL_API_KEY=your-mistral-api-key
+inspect eval arc.py --model mistral/mistral-large-latest
 ```
 
 #### HF
 
 ``` bash
-$ pip install torch transformers
-$ export HF_TOKEN=your-hf-token
-$ inspect eval arc.py --model hf/meta-llama/Llama-2-7b-chat-hf
-```
-
-#### vLLM
-
-``` bash
-$ pip install vllm
-$ inspect eval arc.py --model vllm/meta-llama/Llama-2-7b-chat-hf
+pip install torch transformers
+export HF_TOKEN=your-hf-token
+inspect eval arc.py --model hf/meta-llama/Llama-2-7b-chat-hf
 ```
 
 </div>
 
 In addition to the model providers shown above, Inspect also supports
-models hosted on AWS Bedrock, Azure AI, Grok, TogetherAI, Groq, and
-Cloudflare, as well as local models with Ollama or llama-cpp-python.
+models hosted on AWS Bedrock, Azure AI, Vertex AI, TogetherAI, Groq,
+Cloudflare, and Goodfire as well as local models with vLLM, Ollama or
+llama-cpp-python.
 
 ## Hello, Inspect
 
@@ -134,17 +138,15 @@ from inspect_ai import Task, task
 from inspect_ai.dataset import example_dataset
 from inspect_ai.scorer import model_graded_fact
 from inspect_ai.solver import (               
-  prompt_template, generate, self_critique   
+  chain_of_thought(), generate, self_critique   
 )                                             
-
-DEFAULT_PROMPT="{prompt}"
 
 @task
 def theory_of_mind():
     return Task(
         dataset=example_dataset("theory_of_mind"),
         solver=[
-          prompt_template(DEFAULT_PROMPT),
+          chain_of_thought(),
           generate(),
           self_critique()
         ],
@@ -154,16 +156,16 @@ def theory_of_mind():
 
 </div>
 
-Line 12  
+Line 10  
 The `Task` object brings together the dataset, solvers, and scorer, and
 is then evaluated using a model.
 
-Lines 14-17  
+Lines 12-15  
 In this example we are chaining together three standard solver
 components. It’s also possible to create a more complex custom solver
 that manages state and interactions internally.
 
-Line 19  
+Line 17  
 Since the output is likely to have pretty involved language, we use a
 model for scoring.
 
@@ -175,18 +177,11 @@ enables `inspect eval` to find and run the eval in the source file
 passed to it. For example, here we run the eval against GPT-4:
 
 ``` bash
-$ inspect eval theory.py --model openai/gpt-4
+inspect eval theory.py --model openai/gpt-4
 ```
 
 <img src="images/running-theory.png"
 data-fig-alt="The Inspect task results displayed in the terminal. A progress bar indicates that the evaluation is about 60% complete." />
-
-> [!NOTE]
->
-> This example demonstrates evals being run from the terminal with the
-> `inspect eval` command. There is also an `eval()` function which can
-> be used for exploratory work—this is covered further in
-> [Workflow](workflow.qmd).
 
 ## Evaluation Logs
 
@@ -203,7 +198,7 @@ viewer in the browser (you only need to do this once as the viewer will
 automatically updated when new evals are run):
 
 ``` bash
-$ inspect view
+inspect view
 ```
 
 <img src="images/inspect-view-home.png" class="border lightbox"
@@ -211,94 +206,6 @@ data-fig-alt="The Inspect log viewer, displaying a summary of results for the ta
 
 See the [Log Viewer](log-viewer.qmd) section for additional details on
 using Inspect View.
-
-## Tasks and Solvers
-
-While tasks always include a *default* solver, you can also vary the
-solver to explore other strategies and elicitation techniques.
-
-### Solver Roles
-
-In the example above we combined together several solvers into a
-composite solver. This illustrates the fact that there are two distinct
-roles that solvers can play in the system:
-
-1.  As a *composite* end-to-end specification of how to solve a task.
-
-2.  As a *component* that is chained together with other solvers to
-    create a composite solver;
-
-Some solvers are capable of playing both roles. For example,
-`generate()` is a complete end-to-end solver (albeit a simple one) but
-is often also used as a *component* within other solvers.
-
-### Solver Functions
-
-The most convenient way to create a composite solver is to define a
-`@solver` decorated function that returns a chain of other solvers. For
-example, imagine we have written a `tree_of_thought` module that we want
-to use to create an additional solver. We can re-write the task to have
-multiple solver functions (where `critique` is used as the default):
-
-<div class="code-with-filename">
-
-**theory.py**
-
-``` python
-from inspect_ai import Task, task
-from inspect_ai.dataset import example_dataset
-from inspect_ai.scorer import model_graded_fact
-from inspect_ai.solver import (               
-  solver, chain, prompt_template, generate, self_critique
-)
-
-DEFAULT_PROMPT="{prompt}"
-
-from tree_of_thought import TREE_PROMPT, generate_tree
-
-@solver 
-def critique():
-    return chain(
-        prompt_template(DEFAULT_PROMPT), 
-        generate(), 
-        self_critique()
-    )
-
-@solver
-def tree_of_thought():
-    return chain(
-        prompt_template(TREE_PROMPT), 
-        generate_tree()
-    )
-
-@task
-def theory_of_mind():
-    return Task(  
-        dataset=example_dataset("theory_of_mind"),
-        solver=critique(),
-        scorer=model_graded_fact()
-    )
-```
-
-</div>
-
-Note that we use the `chain()` function to combine mutliple solvers into
-a composite one.
-
-You can switch between solvers when running the evaluation:
-
-``` bash
-# run with the default solver (critique)
-$ inspect eval theory.py --model=openai/gpt-4
-
-# run with the tree of thought solver
-$ inspect eval theory.py --solver=tree_of_thought --model=openai/gpt-4
-```
-
-Composite solvers by no means need to be implemented using chains. While
-chains are frequently used in more straightforward knowledge and
-reasoning evaluations, fully custom solver functions are often used for
-multi-turn dialog and agent evaluations.
 
 ## Eval from Python
 
@@ -310,7 +217,6 @@ within Python using the `eval()` function. For example:
 from inspect_ai import eval
 
 eval(theory_of_mind(), model="openai/gpt-4o")
-eval(theory_of_mind(), solver=tree_of_thought(), model="openai/gpt-4o")
 ```
 
 ## Learning More
@@ -321,14 +227,11 @@ The best way to get familar with Inspect’s core features is the
 Next, review these articles which cover basic workflow, more
 sophisticated examples, and additional useful tooling:
 
-- [Workflow](workflow.qmd) covers the mechanics of running evaluations,
-  including how to create evals in both scripts and notebooks,
-  specifying configuration and options, how to parameterise tasks for
-  different scenarios, and how to work with eval log files.
+- [Options](options.qmd) covers the various options available for
+  evaluations as well as how to manage model credentials.
 
-- [Examples](examples/index.qmd) demonstrates a variety of evaluation
-  types and techniques by implementing some popular LLM benchmarks and
-  papers.
+- [Evals](evals/index.qmd) are a set of ready to run evaluations that
+  implement popular LLM benchmarks and papers.
 
 - [Log Viewer](log-viewer.qmd) goes into more depth on how to use
   Inspect View to develop and debug evaluations, including how to
@@ -341,6 +244,15 @@ sophisticated examples, and additional useful tooling:
 These sections provide a more in depth treatment of the various
 components used in evals. Read them as required as you learn to build
 evaluations.
+
+- [Tasks](tasks.qmd) bring together datasets, solvers, and scorers to
+  define a evaluation. This section explores strategies for creating
+  flexible and re-usable tasks.
+
+- [Datasets](datasets.qmd) provide samples to evaluation tasks. This
+  section illustrates how to adapt various data sources for use with
+  Inspect, as well as how to include multi-modal data (images, etc.) in
+  your datasets.
 
 - [Solvers](solvers.qmd) are the heart of Inspect, and encompass prompt
   engineering and various other elicitation strategies (the `plan` in
@@ -355,11 +267,6 @@ evaluations.
   scores into metrics. Sophisticated evals often require custom scorers
   that use models to evaluate output. This section covers how to create
   them.
-
-- [Datasets](datasets.qmd) provide samples to evaluation tasks. This
-  section illustrates how to adapt various data sources for use with
-  Inspect, as well as how to include multi-modal data (images, etc.) in
-  your datasets.
 
 - [Models](models.qmd) provide a uniform API for both evaluating a
   variety of large language models and using models within evaluations

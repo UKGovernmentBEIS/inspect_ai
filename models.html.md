@@ -539,16 +539,6 @@ provider:
 
 ## Goodfire
 
-> [!NOTE]
->
-> The goodfire model provider is currently available only in the
-> development version of Inspect. To install the development version
-> from GitHub:
->
-> ``` bash
-> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-> ```
-
 To use the [Goodfire](https://platform.goodfire.ai/) provider, install
 the `goodfire` package, set your credentials, and specify a model using
 the `--model` option:

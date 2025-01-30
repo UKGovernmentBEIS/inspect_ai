@@ -16,20 +16,22 @@ data-fig-alt="Inspect running inside Visual Studio Code. The editor shows the AR
 
 We’ll walk through a fairly trivial “Hello, Inspect” example below. Read
 on to learn the basics, then read the documentation on
-[Workflow](workflow.qmd), [Solvers](solvers.qmd), [Tools](tools.qmd),
+[Options](options.qmd), [Solvers](solvers.qmd), [Tools](tools.qmd),
 [Scorers](scorers.qmd), [Datasets](datasets.qmd), and
 [Models](models.qmd) to learn how to create more advanced evaluations.
 
 ## Getting Started
 
-First, install Inspect with:
+To get started using Inspect:
 
-``` bash
-$ pip install inspect-ai
-```
+1.  Install Inspect from PyPI with:
 
-If you are using VS Code, we also recommend installing the [Inspect VS
-Code Extension](vscode.qmd).
+    ``` bash
+    pip install inspect-ai
+    ```
+
+2.  If you are using VS Code, install the [Inspect VS Code
+    Extension](vscode.qmd) (not required but highly recommended).
 
 To develop and run evaluations, you’ll also need access to a model,
 which typically requires installation of a Python package as well as
@@ -44,55 +46,57 @@ providers:
 #### OpenAI
 
 ``` bash
-$ pip install openai
-$ export OPENAI_API_KEY=your-openai-api-key
-$ inspect eval arc.py --model openai/gpt-4
+pip install openai
+export OPENAI_API_KEY=your-openai-api-key
+inspect eval arc.py --model openai/gpt-4o
 ```
 
 #### Anthropic
 
 ``` bash
-$ pip install anthropic
-$ export ANTHROPIC_API_KEY=your-anthropic-api-key
-$ inspect eval arc.py --model anthropic/claude-3-opus-20240229
+pip install anthropic
+export ANTHROPIC_API_KEY=your-anthropic-api-key
+inspect eval arc.py --model anthropic/claude-3-5-sonnet-latest
 ```
 
 #### Google
 
 ``` bash
-$ pip install google-generativeai
-$ export GOOGLE_API_KEY=your-google-api-key
-$ inspect eval arc.py --model google/gemini-1.0-pro
+pip install google-generativeai
+export GOOGLE_API_KEY=your-google-api-key
+inspect eval arc.py --model google/gemini-1.5-pro
+```
+
+#### Grok
+
+``` bash
+pip install openai
+export GROK_API_KEY=your-grok-api-key
+inspect eval arc.py --model grok/grok-beta
 ```
 
 #### Mistral
 
 ``` bash
-$ pip install mistralai
-$ export MISTRAL_API_KEY=your-mistral-api-key
-$ inspect eval arc.py --model mistral/mistral-large-latest
+pip install mistralai
+export MISTRAL_API_KEY=your-mistral-api-key
+inspect eval arc.py --model mistral/mistral-large-latest
 ```
 
 #### HF
 
 ``` bash
-$ pip install torch transformers
-$ export HF_TOKEN=your-hf-token
-$ inspect eval arc.py --model hf/meta-llama/Llama-2-7b-chat-hf
-```
-
-#### vLLM
-
-``` bash
-$ pip install vllm
-$ inspect eval arc.py --model vllm/meta-llama/Llama-2-7b-chat-hf
+pip install torch transformers
+export HF_TOKEN=your-hf-token
+inspect eval arc.py --model hf/meta-llama/Llama-2-7b-chat-hf
 ```
 
 </div>
 
 In addition to the model providers shown above, Inspect also supports
-models hosted on AWS Bedrock, Azure AI, Grok, TogetherAI, Groq, and
-Cloudflare, as well as local models with Ollama or llama-cpp-python.
+models hosted on AWS Bedrock, Azure AI, Vertex AI, TogetherAI, Groq,
+Cloudflare, and Goodfire as well as local models with vLLM, Ollama or
+llama-cpp-python.
 
 ## Hello, Inspect
 
@@ -134,17 +138,15 @@ from inspect_ai import Task, task
 from inspect_ai.dataset import example_dataset
 from inspect_ai.scorer import model_graded_fact
 from inspect_ai.solver import (               
-  prompt_template, generate, self_critique   
+  chain_of_thought(), generate, self_critique   
 )                                             
-
-DEFAULT_PROMPT="{prompt}"
 
 @task
 def theory_of_mind():
     return Task(
         dataset=example_dataset("theory_of_mind"),
         solver=[
-          prompt_template(DEFAULT_PROMPT),
+          chain_of_thought(),
           generate(),
           self_critique()
         ],
@@ -154,16 +156,16 @@ def theory_of_mind():
 
 </div>
 
-Line 12  
+Line 10  
 The `Task` object brings together the dataset, solvers, and scorer, and
 is then evaluated using a model.
 
-Lines 14-17  
+Lines 12-15  
 In this example we are chaining together three standard solver
 components. It’s also possible to create a more complex custom solver
 that manages state and interactions internally.
 
-Line 19  
+Line 17  
 Since the output is likely to have pretty involved language, we use a
 model for scoring.
 
@@ -175,18 +177,11 @@ enables `inspect eval` to find and run the eval in the source file
 passed to it. For example, here we run the eval against GPT-4:
 
 ``` bash
-$ inspect eval theory.py --model openai/gpt-4
+inspect eval theory.py --model openai/gpt-4
 ```
 
 <img src="images/running-theory.png"
 data-fig-alt="The Inspect task results displayed in the terminal. A progress bar indicates that the evaluation is about 60% complete." />
-
-> [!NOTE]
->
-> This example demonstrates evals being run from the terminal with the
-> `inspect eval` command. There is also an `eval()` function which can
-> be used for exploratory work—this is covered further in
-> [Workflow](workflow.qmd).
 
 ## Evaluation Logs
 
@@ -203,7 +198,7 @@ viewer in the browser (you only need to do this once as the viewer will
 automatically updated when new evals are run):
 
 ``` bash
-$ inspect view
+inspect view
 ```
 
 <img src="images/inspect-view-home.png" class="border lightbox"
@@ -211,94 +206,6 @@ data-fig-alt="The Inspect log viewer, displaying a summary of results for the ta
 
 See the [Log Viewer](log-viewer.qmd) section for additional details on
 using Inspect View.
-
-## Tasks and Solvers
-
-While tasks always include a *default* solver, you can also vary the
-solver to explore other strategies and elicitation techniques.
-
-### Solver Roles
-
-In the example above we combined together several solvers into a
-composite solver. This illustrates the fact that there are two distinct
-roles that solvers can play in the system:
-
-1.  As a *composite* end-to-end specification of how to solve a task.
-
-2.  As a *component* that is chained together with other solvers to
-    create a composite solver;
-
-Some solvers are capable of playing both roles. For example,
-`generate()` is a complete end-to-end solver (albeit a simple one) but
-is often also used as a *component* within other solvers.
-
-### Solver Functions
-
-The most convenient way to create a composite solver is to define a
-`@solver` decorated function that returns a chain of other solvers. For
-example, imagine we have written a `tree_of_thought` module that we want
-to use to create an additional solver. We can re-write the task to have
-multiple solver functions (where `critique` is used as the default):
-
-<div class="code-with-filename">
-
-**theory.py**
-
-``` python
-from inspect_ai import Task, task
-from inspect_ai.dataset import example_dataset
-from inspect_ai.scorer import model_graded_fact
-from inspect_ai.solver import (               
-  solver, chain, prompt_template, generate, self_critique
-)
-
-DEFAULT_PROMPT="{prompt}"
-
-from tree_of_thought import TREE_PROMPT, generate_tree
-
-@solver 
-def critique():
-    return chain(
-        prompt_template(DEFAULT_PROMPT), 
-        generate(), 
-        self_critique()
-    )
-
-@solver
-def tree_of_thought():
-    return chain(
-        prompt_template(TREE_PROMPT), 
-        generate_tree()
-    )
-
-@task
-def theory_of_mind():
-    return Task(  
-        dataset=example_dataset("theory_of_mind"),
-        solver=critique(),
-        scorer=model_graded_fact()
-    )
-```
-
-</div>
-
-Note that we use the `chain()` function to combine mutliple solvers into
-a composite one.
-
-You can switch between solvers when running the evaluation:
-
-``` bash
-# run with the default solver (critique)
-$ inspect eval theory.py --model=openai/gpt-4
-
-# run with the tree of thought solver
-$ inspect eval theory.py --solver=tree_of_thought --model=openai/gpt-4
-```
-
-Composite solvers by no means need to be implemented using chains. While
-chains are frequently used in more straightforward knowledge and
-reasoning evaluations, fully custom solver functions are often used for
-multi-turn dialog and agent evaluations.
 
 ## Eval from Python
 
@@ -310,7 +217,6 @@ within Python using the `eval()` function. For example:
 from inspect_ai import eval
 
 eval(theory_of_mind(), model="openai/gpt-4o")
-eval(theory_of_mind(), solver=tree_of_thought(), model="openai/gpt-4o")
 ```
 
 ## Learning More
@@ -321,14 +227,11 @@ The best way to get familar with Inspect’s core features is the
 Next, review these articles which cover basic workflow, more
 sophisticated examples, and additional useful tooling:
 
-- [Workflow](workflow.qmd) covers the mechanics of running evaluations,
-  including how to create evals in both scripts and notebooks,
-  specifying configuration and options, how to parameterise tasks for
-  different scenarios, and how to work with eval log files.
+- [Options](options.qmd) covers the various options available for
+  evaluations as well as how to manage model credentials.
 
-- [Examples](examples/index.qmd) demonstrates a variety of evaluation
-  types and techniques by implementing some popular LLM benchmarks and
-  papers.
+- [Evals](evals/index.qmd) are a set of ready to run evaluations that
+  implement popular LLM benchmarks and papers.
 
 - [Log Viewer](log-viewer.qmd) goes into more depth on how to use
   Inspect View to develop and debug evaluations, including how to
@@ -341,6 +244,15 @@ sophisticated examples, and additional useful tooling:
 These sections provide a more in depth treatment of the various
 components used in evals. Read them as required as you learn to build
 evaluations.
+
+- [Tasks](tasks.qmd) bring together datasets, solvers, and scorers to
+  define a evaluation. This section explores strategies for creating
+  flexible and re-usable tasks.
+
+- [Datasets](datasets.qmd) provide samples to evaluation tasks. This
+  section illustrates how to adapt various data sources for use with
+  Inspect, as well as how to include multi-modal data (images, etc.) in
+  your datasets.
 
 - [Solvers](solvers.qmd) are the heart of Inspect, and encompass prompt
   engineering and various other elicitation strategies (the `plan` in
@@ -355,11 +267,6 @@ evaluations.
   scores into metrics. Sophisticated evals often require custom scorers
   that use models to evaluate output. This section covers how to create
   them.
-
-- [Datasets](datasets.qmd) provide samples to evaluation tasks. This
-  section illustrates how to adapt various data sources for use with
-  Inspect, as well as how to include multi-modal data (images, etc.) in
-  your datasets.
 
 - [Models](models.qmd) provide a uniform API for both evaluating a
   variety of large language models and using models within evaluations
@@ -1022,7 +929,7 @@ We run the eval with:
 inspect eval addition_problem.py
 ```
 
-## InterCode CTF \#{sec-intercode-ctf}
+## InterCode CTF
 
 “Capture the Flag” is a competitive cybersecurity game that requires
 expertise in coding, cryptography (i.e. binary exploitation, forensics),
@@ -1128,246 +1035,42 @@ code](https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_ev
 of the Intercode CTF example to explore the dataset and evaluation code
 in more depth.
 
-# Workflow
+# Options
 
 
-There are a variety of ways to run evaluations that range from
-interactive work in a notebook or REPL all the way up to running large
-evaluation suites. We’ll start with the basics, then cover exploratory
-workflows, and finally discuss how to compose evals together into a
-suite.
+## Overview
 
-> [!NOTE]
->
-> If you are using VS Code, we recommend installing the VS Code
-> Extension, which includes tools for running, tuning, debugging, and
-> visualising evals. See the article on the [VS Code
-> Extension](vscode.qmd) for more details on installing and using the
-> extension.
+Inspect evaluations have a large number of options available for
+logging, tuning, diagnostics and model interctions. These options fall
+into roughly two categories:
 
-## Eval Basics
+1.  Options that you want to set on a more durable basis (for a project
+    or session).
 
-To create an evaluation, write a function that returns a `Task`. This
-task will bring together the dataset, solvers, scorer, and configuration
-required for the evaluation. Here’s the example used in the
-introduction:
+2.  Options that you want to tweak per-evel to accomodate particular
+    scenarios.
 
-<div class="code-with-filename">
+For the former, we recommend you specify these options in a `.env` file
+within your project directory, which is covered in the section below.
+See the [Eval Options](#eval-options) for details on all available
+options.
 
-**theory.py**
+## .env Files
 
-``` python
-from inspect_ai import Task, task
-from inspect_ai.dataset import example_dataset
-from inspect_ai.scorer import model_graded_fact
-from inspect_ai.solver import (               
-  chain, prompt_template, generate, self_critique   
-) 
-
-DEFAULT_PROMPT="{prompt}"
-
-from tree_of_thought import TREE_PROMPT, generate_tree
-
-@solver 
-def critique():
-    return chain([
-        prompt_template(DEFAULT_PROMPT), 
-        generate(), 
-        self_critique()
-    ])
-
-@solver
-def tree_of_thought():
-    return chain([
-        prompt_template(TREE_PROMPT), 
-        generate_tree()
-    ])
-
-@task
-def theory_of_mind():
-    return Task(  
-        dataset=example_dataset("theory_of_mind"),
-        solver=critique(),
-        scorer=model_graded_fact()
-    )
-```
-
-</div>
-
-We walked through this code in detail in [Hello,
-Inspect](index.qmd#sec-hello-inspect) so won’t do so again here (you may
-want to refer back to that section now if this code isn’t familiar to
-you).
-
-### Running
-
-You can run this evaluation from the shell using the `inspect eval`
-command. For example:
-
-``` bash
-$ inspect eval theory.py --model openai/gpt-4
-```
-
-<img src="images/running-theory.png"
-data-fig-alt="The Inspect task results displayed in the terminal. A progress bar indicates that the evaluation is about 60% complete." />
-
-Immediately after an evaluation completes, a link to the log for the
-evaluation is written to the terminal.
-
-Note that we have two solvers: `critique` (the default) and
-`tree_of_thought`. We can evaluate using the tree of thought solver
-with:
-
-``` bash
-$ inspect eval theory.py --solver tree_of_thought --model openai/gpt-4
-```
-
-### Models
-
-Run the evaluation against other models as follows:
-
-``` bash
-$ inspect eval theory.py --model anthropic/claude-3-opus-20240229
-$ inspect eval theory.py --model mistral/mistral-large-latest
-$ inspect eval theory.py --model hf/meta-llama/Llama-2-7b-chat-hf
-```
-
-Most often you’ll work with one model at a time. In this case, setting
-the `INSPECT_EVAL_MODEL` environment variable might make sense:
-
-``` bash
-$ export INSPECT_EVAL_MODEL=google/gemini-1.0-pro
-$ inspect eval theory.py
-```
-
-### Parameters
-
-You can optionally parameterise tasks by just adding parameters to the
-`@task` function. For example, here we provide a way to vary the dataset
-for the theory of mind task:
-
-``` python
-@task
-def theory_of_mind(dataset = "validation.csv"):
-    return Task(  
-        dataset=csv_dataset(dataset),
-        solver=critique(),
-        scorer=model_graded_fact()
-    )
-```
-
-Use `-T` to specify task parameters from the CLI:
-
-``` bash
-$ inspect eval theory.py -T dataset="test.csv" --model openai/gpt-4o
-```
-
-Alternatively, use `--task-config` to specify a set of task arguments in
-a JSON or YAML config file:
-
-``` bash
-$ inspect eval theory.py --task-config config.yaml --model openai/gpt-4o
-```
-
-### Solvers
-
-You can vary the solver used for a task using the `--solver` flag. For
-example:
-
-``` bash
-$ inspect eval theory.py --solver=tree_of_thought --model=openai/gpt-4o
-```
-
-Solvers can additionally have their own parameters which you can also
-specify using the CLI. For example, here we extend the `tree_of_thought`
-solver to take a depth parameter (which we forward on to
-`generate_tree()`):
-
-``` python
-@solver
-def tree_of_thought(depth):
-    return chain([
-        prompt_template(TREE_PROMPT), 
-        generate_tree(depth)
-    ])
-```
-
-Use `-S` to specify solver parameters from the CLI:
-
-``` bash
-$ inspect eval theory.py \
-    --solver=tree_of_thought -S depth=3 \
-    --model=openai/gpt-4
-```
-
-Alternative, use `--solver-config` to specify a set of solver arguments
-in a JSON or YAML config file:
-
-``` bash
-$ inspect eval theory.py \
-    --solver=tree_of_thought --solver-config config.yaml \
-    --model=openai/gpt-4
-```
-
-### Visualising
-
-As you iterate on an evaluation, you’ll typically want to dig further
-into message histories, scoring decisions, and other diagnostics.
-Typically at the outset of working session you’ll run `inspect view` to
-open the Inspect [Log Viewer](log-viewer.qmd):
-
-``` bash
-$ inspect view
-```
-
-<img src="images/inspect-view-main.png" class="border lightbox"
-data-fig-alt="The Inspect log viewer, displaying a summary of results for the task as well as 8 individual samples." />
-
-The log viewer will update automatically whenever a new evaluation is
-completed (you can also navigate back to previous evaluations). The log
-viewer summarises aggregate data and also provides a detailed view into
-each sample. For example, here we zoom in on the model’s scoring
-explanation for a specific sample:
-
-<img src="images/inspect-view-scoring.png" class="border lightbox"
-data-fig-alt="The Inspect log viewer showing a sample expanded, with details on the scoring of the sample, including the input, target, answer, and explanation." />
-
-See the [Log Viewer](log-viewer.qmd) section for additional details on
-using Inspect View.
-
-### Options
-
-There are several other command line options you can pass to eval. Here
-are some of the more useful ones:
-
-``` bash
-# limit to 10 samples
-$ inspect eval theory.py --limit 10
-
-# limit to specific sample id(s)
-$ inspect eval theory.py --sample-id 10
-$ insepct eval theory.py --sample_id 9,10
-
-# limit tokens
-$ inspect eval theory.py --max-tokens 128
-
-# set temperature and seed
-$ inspect eval theory.py --temperature 0.5 --seed 42
-```
-
-## Configuration
-
-As you can see, there is often a lot of configuration required for
-calling `inspect eval`. While we can include it all on the command line,
-it’s generally easier to use environment variables. To facilitate this,
-the `inspect` CLI will automatically read and process `.env` files
-located in the current working directory (also searching in parent
-directories if a `.env` file is not found in the working directory).
-This is done using the
+While we can include all required options on the `inspect eval` command
+line, it’s generally easier to use environment variables for commonly
+repeated options. To facilitate this, the `inspect` CLI will
+automatically read and process `.env` files located in the current
+working directory (also searching in parent directories if a `.env` file
+is not found in the working directory). This is done using the
 [python-dotenv](https://pypi.org/project/python-dotenv/) package).
 
 For example, here’s a `.env` file that makes available API keys for
 several providers and sets a bunch of defaults for a working session:
+
+<div class="code-with-filename">
+
+**.env**
 
 ``` makefile
 OPENAI_API_KEY=your-api-key
@@ -1375,16 +1078,17 @@ ANTHROPIC_API_KEY=your-api-key
 GOOGLE_API_KEY=your-api-key
 
 INSPECT_LOG_DIR=./logs-04-07-2024
-INSPECT_LOG_LEVEL=info
+INSPECT_LOG_LEVEL=warning
 
-INSPECT_EVAL_MAX_RETRIES=10
+INSPECT_EVAL_MAX_RETRIES=5
 INSPECT_EVAL_MAX_CONNECTIONS=20
-INSPECT_EVAL_MODEL=anthropic/claude-3-opus-20240229
+INSPECT_EVAL_MODEL=anthropic/claude-3-5-sonnet-20240620
 ```
 
+</div>
+
 All command line options can also be set via environment variable by
-using the `INSPECT_EVAL_` prefix. See `inspect eval –-help` for
-documentation on all available options.
+using the `INSPECT_EVAL_` prefix.
 
 Note that `.env` files are searched for in parent directories, so if you
 run an Inspect command from a subdirectory of a parent that has an
@@ -1402,232 +1106,135 @@ relative to whatever your current working directory is when you run
 > version control which provides an outline (e.g. keys only not values)
 > of variables that are required by the current project.
 
-## Exploratory
+## Specifying Options
 
-Evaluation development is often highly exploratory and requires trying
-(and measuring) many combinations of components. You’ll often want to
-start in a notebook or REPL to facilitate this.
+Below are sections for the various categories of options supported by
+`inspect eval`. Note that all of these options are also available for
+the `eval()` function and settable by environment variables. For
+example:
 
-For exploratory work, you’ll still write a `@task` function, but you’ll
-give it arguments that reflect the things you want to try out and vary.
-You’ll then call Inspect’s `eval()` function interactively rather than
-calling `inspect eval` from the shell.
+| CLI           | eval()      | Environment              |
+|---------------|-------------|--------------------------|
+| `--model`     | `model`     | `INSPECT_EVAL_MODEL`     |
+| `--sample-id` | `sample_id` | `INSPECT_EVAL_SAMPLE_ID` |
+| `--limit`     | `limit`     | `INSPECT_EVAL_LIMIT`     |
 
-> [!NOTE]
->
-> Note that the code below demonstrates exploratory workflows, but
-> unlike the code above isn’t intended for direct execution but rather
-> only for illustration. For example, we call the `plot_results()`
-> function which isn’t directly defined but rather just an example of a
-> function you might call after running some eval tasks.
+## Model Provider
 
-### Task Args
+|                    |                                              |
+|--------------------|----------------------------------------------|
+| `--model`          | Model used to evaluate tasks.                |
+| `--model-base-url` | Base URL for for model API                   |
+| `--model-config`   | Model specific arguments (JSON or YAML file) |
+| `-M`               | Model specific arguments (`key=value`).      |
 
-To illustrate, we’ll use a very simple example: an evaluation that
-checks whether a model can provide good computer security advice. The
-eval uses a model to score the results, and we want to explore how
-different system prompts, grader instructions, and grader models affect
-the quality of the eval.
+## Model Generation
 
-To do this, we add some arguments to our `@task` function. Here’s the
-basic setup for the evaluation:
+|                         |                                                                                                                                                                                                                                                         |
+|-------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `--max-tokens`          | The maximum number of tokens that can be generated in the completion (default is model specific)                                                                                                                                                        |
+| `--system-message`      | Override the default system message.                                                                                                                                                                                                                    |
+| `--temperature`         | What sampling temperature to use, between 0 and 2. Higher values like 0.8 will make the output more random, while lower values like 0.2 will make it more focused and deterministic.                                                                    |
+| `--top-p`               | An alternative to sampling with temperature, called nucleus sampling, where the model considers the results of the tokens with top_p probability mass.                                                                                                  |
+| `--top-k`               | Randomly sample the next word from the top_k most likely next words. Anthropic, Google, HuggingFace, and vLLM only.                                                                                                                                     |
+| `--frequency-penalty`   | Number between -2.0 and 2.0. Positive values penalize new tokens based on their existing frequency in the text so far, decreasing the model’s likelihood to repeat the same line verbatim. OpenAI, Google, Grok, Groq, llama- cpp-python and vLLM only. |
+| `--presence-penalty`    | Number between -2.0 and 2.0. Positive values penalize new tokens based on whether they appear in the text so far, increasing the model’s likelihood to talk about new topics. OpenAI, Google, Grok, Groq, llama-cpp-python and vLLM only.               |
+| `--logit-bias`          | Map token Ids to an associated bias value from -100 to 100 (e.g. “42=10,43=-10”). OpenAI and Grok only.                                                                                                                                                 |
+| `--seed`                | Random seed. OpenAI, Google, Groq, Mistral, HuggingFace, and vLLM only.                                                                                                                                                                                 |
+| `--stop-seqs`           | Sequences where the API will stop generating further tokens. The returned text will not contain the stop sequence.                                                                                                                                      |
+| `--num-choices`         | How many chat completion choices to generate for each input message. OpenAI, Grok, Google, TogetherAI, and vLLM only.                                                                                                                                   |
+| `--best-of`             | Generates best_of completions server-side and returns the ‘best’ (the one with the highest log probability per token). OpenAI only.                                                                                                                     |
+| `--log-probs`           | Return log probabilities of the output tokens. OpenAI, Grok, TogetherAI, Huggingface, llama-cpp-python, and vLLM only.                                                                                                                                  |
+| `--top-logprobs`        | Number of most likely tokens (0-20) to return at each token position, each with an associated log probability. OpenAI, Grok, TogetherAI, Huggingface, and vLLM only.                                                                                    |
+| `--cache-prompt`        | Values: `auto`, `true`, or `false`. Cache prompt prefix (Anthropic only). Defaults to “auto”, which will enable caching for requests with tools.                                                                                                        |
+| `--reasoning-effort`    | Values: `low`, `medium`, or `high`. Constrains effort on reasoning for reasoning models. Open AI o1 models only.                                                                                                                                        |
+| `--parallel-tool-calls` | Whether to enable calling multiple functions during tool use (defaults to True) OpenAI and Groq only.                                                                                                                                                   |
+| `--max-tool-output`     | Maximum size of tool output (in bytes). Defaults to 16 \* 1024.                                                                                                                                                                                         |
+| `--internal-tools`      | Whether to automatically map tools to model internal implementations (e.g. ‘computer’ for Anthropic).                                                                                                                                                   |
+| `--max-retries`         | Maximum number of times to retry request (defaults to 5)                                                                                                                                                                                                |
+| `--timeout`             | Request timeout (in seconds).                                                                                                                                                                                                                           |
 
-``` python
-from inspect_ai import Task, eval, task
-from inspect_ai.dataset import json_dataset
-from inspect_ai.scorer import model_graded_fact
-from inspect_ai.solver import generate, system_message
+## Tasks and Solvers
 
-@task
-def security_guide(
-    system="devops.txt", 
-    grader="expert.txt",
-    grader_model="openai/gpt-4"
-):
-   return Task(
-      dataset=json_dataset("security_guide.jsonl"),
-      solver=[system_message(system), generate()],
-      scorer=model_graded_fact(
-          template=grader, model=grader_model
-      )
-   )
-```
+|                   |                                                   |
+|-------------------|---------------------------------------------------|
+| `--task-config`   | Task arguments (JSON or YAML file)                |
+| `-T`              | Task arguments (`key=value`)                      |
+| `--solver`        | Solver to execute (overrides task default solver) |
+| `--solver-config` | Solver arguments (JSON or YAML file)              |
+| `-S`              | Solver arguments (`key=value`)                    |
 
-The `system` and `grader` arguments point to files we are using as
-system message and grader model templates. At the outset we might want
-to explore every possible combination of these parameters. We can use
-the `itertools.product` function to do this:
+## Sample Selection
 
-``` python
-from itertools import product
+|                    |                                                                                                                                                                |
+|--------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `--limit`          | Limit samples to evaluate by specifying a maximum (e.g. `10`) or range (e.g. `10-20`)                                                                          |
+| `--sample-id`      | Evalute a specific sample (e.g. `44`) or list of samples (e.g. `44,63,91`)                                                                                     |
+| `--epochs`         | Number of times to repeat each sample (defaults to 1)                                                                                                          |
+| `--epochs-reducer` | Method for reducing per-epoch sample scores into a single score. Built in reducers include `mean`, `median`, `mode`, `max`, `at_least_{n}`, and `pass_at_{k}`. |
 
-# 'grid' will be a permutation of all parameters
-params = {
-    "system": ["devops.txt", "researcher.txt"],
-    "grader": ["hacker.txt", "expert.txt"],
-    "grader_model": ["openai/gpt-4", "google/gemini-1.0-pro"],
-}
-grid = list(product(*(params[name] for name in params)))
+## Parallelism
 
-# run the evals and capture the logs
-logs = eval(
-    [
-        security_guide(system, grader, grader_model)
-        for system, grader, grader_model in grid
-    ],
-    model="mistral/mistral-large-latest",
-)
+|                      |                                                                                                 |
+|----------------------|-------------------------------------------------------------------------------------------------|
+| `--max-connections`  | Maximum number of concurrent connections to Model provider (defaults to 10)                     |
+| `--max-samples`      | Maximum number of samples to run in parallel (default is `--max-connections`)                   |
+| `--max-subprocesses` | Maximum number of subprocesses to run in parallel (default is `os.cpu_count()`)                 |
+| `--max-sandboxes`    | Maximum number of sandboxes (per-provider) to run in parallel (default is `2 * os.cpu_count()`) |
+| `--max-tasks`        | Maximum number of tasks to run in parallel (default is 1)                                       |
 
-# analyze the logs...
-plot_results(logs)
-```
+## Errors and Limits
 
-Calling the `eval()` function interactively yields the same progress
-treatment and results display that you see when running `inspect eval`
-from the terminal. However, as demonstrated above, a list of `EvalLog`
-objects is also returned that enables you to compute on the results of
-the evaluation (do diagnostics, generate plots, etc.).
+|                      |                                                                                                                                                                       |
+|----------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `--fail-on-error`    | Threshold of sample errors to tolerate (by default, evals fail when any error occurs). Value between 0 to 1 to set a proportion; value greater than 1 to set a count. |
+| `--no-fail-on-error` | Do not fail the eval if errors occur within samples (instead, continue running other samples)                                                                         |
+| `--message-limit`    | Limit on total messages used for each sample.                                                                                                                         |
+| `--token-limit`      | Limit on total tokens used for each sample.                                                                                                                           |
+| `--time-limit`       | Limit on total execution time for each sample.                                                                                                                        |
 
-Note that if errors occur in one task, it won’t interrupt the entire
-call to `eval()`. Rather, an `EvalLog` with a status of `"error"` will
-be returned. So a more realistic code snippet for handling the result of
-`eval()` might be something like this:
+## Eval Logs
 
-``` python
-plot_results([log for log in logs if log.status == "success"])
-```
+|                          |                                                                                                                                                                                                     |
+|--------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `--log-dir`              | Directory for log files (defaults to `./logs`)                                                                                                                                                      |
+| `--no-log-samples`       | Do not log sample details.                                                                                                                                                                          |
+| `--no-log-images`        | Do not log images and other media.                                                                                                                                                                  |
+| `--log-buffer`           | Number of samples to buffer before writing log file. If not specified, an appropriate default for the format and filesystem is chosen (10 for most cases, 100 for JSON logs on remote filesystems). |
+| `--log-format`           | Values: `eval`, `json` Format for writing log files (defaults to `eval`).                                                                                                                           |
+| `--log-level`            | Python logger level for console. Values: `debug`, `trace`, `http`, `info`, `warning`, `error`, `critical` (defaults to `warning`)                                                                   |
+| `--log-level-transcript` | Python logger level for eval log transcript (values same as `--log-level`, defaults to `info`).                                                                                                     |
 
-You might additionally choose to print error messages for failed tasks,
-or perhaps even abandon plotting altogether if all of the evals don’t
-succeed.
+## Scoring
 
-See [Eval Logs](eval-logs.qmd) for additional details on working with
-evaluation logs.
+|                      |                                                                                   |
+|----------------------|-----------------------------------------------------------------------------------|
+| `--no-score`         | Do not score model output (use the `inspect score` command to score output later) |
+| `--no-score-display` | Do not display realtime scoring information.                                      |
 
-### Transition
+## Sandboxes
 
-Ideally we could have a nice transition between the parameterized task
-functions created in exploratory mode and the more static eval
-definitions used for `inspect eval`. We can actually do this fairly
-easily by letting Python know that certain parts of our script (the
-exploratory code) should not be run when it is read as a module by
-`inspect eval`.
+|                        |                                                                                             |
+|------------------------|---------------------------------------------------------------------------------------------|
+| `--sandbox`            | Sandbox environment type (with optional config file). e.g. ‘docker’ or ‘docker:compose.yml’ |
+| `--no-sandbox-cleanup` | Do not cleanup sandbox environments after task completes                                    |
 
-Returning to the example above, let’s say that after experimenting, we
-were comfortable with our grader, and are now only iterating on the
-system prompt:
+## Debugging
 
-``` python
-@task
-def security_guide(system="devops.txt"):
-   return Task(
-      dataset=json_dataset("security_guide.jsonl"),
-      solver=[system_message(system), generate()],
-      scorer=model_graded_fact(
-          template="expert.txt", model="openai/gpt-4"
-      )
-   )
+|                  |                                                                       |
+|------------------|-----------------------------------------------------------------------|
+| `--debug`        | Wait to attach debugger                                               |
+| `--debug-port`   | Port number for debugger                                              |
+| `--debug-errors` | Raise task errors (rather than logging them) so they can be debugged. |
 
-# vary the system prompt
-tasks = [
-    security_guide(system=prompt)
-    for prompt in ["devops.txt", "researcher.txt"]
-]
-eval(tasks, model = "openai/gpt-4")
-```
+## Miscellaneous
 
-If we enclose the exploratory code at the bottom in a
-`__name__ == "__main__"` conditional, then it will *only* be run when
-interactively executing the script or notebook cell that the code is
-contained in:
-
-``` python
-if __name__ == "__main__":
-    # vary the system prompt
-    tasks = [
-        security_guide(system=prompt)
-        for prompt in ["devops.txt", "researcher.txt"]
-    ]
-    eval(tasks, model = "openai/gpt-4")
-```
-
-> [!NOTE]
->
-> If you aren’t familiar with the `__name__ == "__main__"` idiom, see
-> the docs on
-> [\_\_main\_\_](https://docs.python.org/3/library/__main__.html) for
-> additional details.
-
-Now we can take the same script and use it with `inspect eval` (while
-leaving our exploratory code intact and protected by the `__main__`
-check):
-
-``` bash
-$ inspect eval security.py 
-```
-
-We can even continue to use task parameters with `inspect eval` as
-follows:
-
-``` bash
-$ inspect eval security.py -T system=devops.txt
-```
-
-### Notebooks
-
-We refer to notebooks above but show scripts in all of the examples.
-Everything demonstrated for scripts will work similarly in notebooks,
-specifically:
-
-1.  You can use the `__name__ == "__main__"` check to protect cells that
-    should only be run in exploratory mode.
-
-2.  You can pass a notebook to `inspect eval` just the same as a script
-    (including passing task parameters)
-
-For example, imagine that all of the code shown above for `security.py`
-was in `security.ipynb`. You could run the eval and optionally pass a
-task parameter as follows:
-
-``` bash
-$ inspect eval security.ipynb 
-$ inspect eval security.ipynb -T system=devops.txt
-```
-
-Once you’ve stabilized the definition of an eval, you might also prefer
-to keep exploratory code and eval task definitions entirely separate. In
-that case, keep your `@task` function in `security.py` and then just
-import it into one or more notebooks used to try out variations, analyze
-logs, etc.
-
-## Eval Suites
-
-The examples above either run a single evaluation task from a script or
-notebook, or perhaps run a dynamic set of tasks within an interactive
-session. While this is a good workflow for the development of
-evaluations, eventually you may want to compose a set of evaluations
-into a suite that you run repeatedly for different models.
-
-For example, the left/right listing below shows a project with multiple
-Python scripts, some of which include eval tasks. At right, there is a
-call to `inspect list tasks` to enumerate all the tasks:
-
-<div>
-
-</div>
-
-Here are a few ways you could run these evals as a suite:
-
-``` bash
-$ inspect eval security 
-$ inspect eval security/jeopardy 
-$ inspect eval security/attack_defense 
-```
-
-Inspect has lots of features aimed at running evaluation suites,
-including filtering tasks based on tags/metadata, recovering from
-partially completed suites (due to failed evals), and more. See the
-documentation on [Eval Sets](eval-sets.qmd) to learn more.
+|              |                                                                                             |
+|--------------|---------------------------------------------------------------------------------------------|
+| `--display`  | Display type. Values: `full`, `conversation`, `rich`, `plain`, `none` (defaults to `full`). |
+| `--approval` | Config file for tool call approval.                                                         |
+| `--tags`     | Tags to associate with this evaluation run.                                                 |
+| `--help`     | Display help for command options.                                                           |
 
 # Log Viewer
 
@@ -1860,8 +1467,7 @@ $ inspect eval biology_qa.py --log-level-transcript http
 
 Note that you can also set the log levels using the `INSPECT_LOG_LEVEL`
 and `INSPECT_LOG_LEVEL_TRANSCRIPT` environment variables (which are
-often included in a [.env configuration
-file](workflow.qmd#sec-workflow-configuration)).
+often included in a [.env configuration file](options.qmd).
 
 ### External File
 
@@ -2070,8 +1676,7 @@ The activity bar has four panels:
 
 - **Configuration** edits global configuration by reading and writing
   values from the workspace `.env` config file (see the documentation on
-  [Configuration](workflow.qmd#configuration) for more details on `.env`
-  files).
+  [Options](options.qmd) for more details on `.env` files).
 
 - **Tasks** displays all tasks in the current workspace, and can be used
   to both navigate among tasks as well as run and debug tasks directly.
@@ -2117,6 +1722,804 @@ that the `inspect-ai` package is installed within that environment. Use
 the [**Python: Select
 Interpreter**](https://code.visualstudio.com/docs/python/environments#_working-with-python-interpreters)
 command to associate a version of Python with your workspace.
+
+# Tasks
+
+
+## Overview
+
+This article documents both basic and advanced use of Inspect tasks,
+which are the fundamental unit of integration for datasets, solvers, and
+scorers. Topics covered include:
+
+- [Task Basics](#task-basics) covers core task components and how to
+  compose them.
+
+- [Parameters](#parameters) demonstrates adding parameters to tasks to
+  make them externally flexible and adaptable.
+
+- [Solvers](#solvers) describes how to create tasks that can be used
+  with many different solvers.
+
+- [Task Reuse](#task-reuse) documents how to flexibly derive new tasks
+  from existing task definitions.
+
+- [Exploratory](#exploratory) provides guidance on doing exploratory
+  task and solver development.
+
+## Task Basics
+
+Tasks provide a recipe for an evaluation consisting minimally of a
+dataset, a solver, and a scorer (and possibly other options) and is
+returned from a function decorated with `@task`. For example:
+
+``` python
+from inspect_ai import Task, task
+from inspect_ai.dataset import json_datasets
+from inspect_ai.scorer import model_graded_fact
+from inspect_ai.solver import chain_of_thought, generate
+
+@task
+def security_guide():
+    return Task(
+        dataset=json_dataset("security_guide.json"),
+        solver=[chain_of_thought(), generate()],
+        scorer=model_graded_fact()
+    )
+```
+
+For convenience, tasks always define a default solver. That said, it is
+often desirable to design tasks that can work with *any* solver so that
+you can experiment with different strategies. The [Solvers](#solvers)
+section below goes into depth on how to create tasks that can be
+flexibly used with any solver.
+
+### Task Options
+
+While many tasks can be defined with only a dataset, solver, and scorer,
+there are lots of other useful `Task` options. We won’t describe these
+options in depth here, but rather provide a list along with links to
+other sections of the documentation that cover their usage:
+
+<table>
+<colgroup>
+<col style="width: 25%" />
+<col style="width: 50%" />
+<col style="width: 25%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Option</th>
+<th>Description</th>
+<th>Docs</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>epochs</code></td>
+<td>Epochs to run for each dataset sample.</td>
+<td><a href="scorers.qmd#epoch-reduction">Epochs</a></td>
+</tr>
+<tr class="even">
+<td><code>config</code></td>
+<td>Config for model generation.</td>
+<td><a href="models.qmd#generation-config">Generate Config</a></td>
+</tr>
+<tr class="odd">
+<td><code>setup</code></td>
+<td>Setup solver(s) to run prior to the main solver.</td>
+<td><a href="#setup">Sample Setup</a></td>
+</tr>
+<tr class="even">
+<td><code>sandbox</code></td>
+<td>Sandbox configuration for un-trusted code execution.</td>
+<td><a href="sandboxing.qmd">Sandboxing</a></td>
+</tr>
+<tr class="odd">
+<td><code>approval</code></td>
+<td>Approval policy for tool calls.</td>
+<td><a href="approval.qmd">Tool Approval</a></td>
+</tr>
+<tr class="even">
+<td><code>metrics</code></td>
+<td>Metrics to use in place of scorer metrics.</td>
+<td><a href="scorers.qmd#scoring-metrics">Scoring Metrics</a></td>
+</tr>
+<tr class="odd">
+<td><code>fail_on_error</code></td>
+<td>Failure tolerance for samples.</td>
+<td><a href="errors-and-limits.qmd#failure-threshold">Sample
+Failure</a></td>
+</tr>
+<tr class="even">
+<td><code>message_limit</code><br />
+<code>token_limit</code><br />
+<code>time_limit</code></td>
+<td>Limits to apply to sample execution.</td>
+<td><a href="errors-and-limits.qmd#sample-limits">Sample Limits</a></td>
+</tr>
+<tr class="odd">
+<td><code>name</code><br />
+<code>version</code><br />
+<code>metadata</code></td>
+<td>Eval log attributes for task.</td>
+<td><a href="eval-logs.qmd">Eval Logs</a></td>
+</tr>
+</tbody>
+</table>
+
+You by and large don’t need to worry about these options until you want
+to use the features they are linked to.
+
+## Parameters
+
+Task parameters make it easy to run variants of your task without
+changing its source code. Task parameters are simply the arguments to
+your `@task` decorated function. For example, here we provide parameters
+(and default values) for system and grader prompts, as well as the
+grader model:
+
+<div class="code-with-filename">
+
+**security.py**
+
+``` python
+from inspect_ai import Task, task
+from inspect_ai.dataset import example_dataset
+from inspect_ai.scorer import model_graded_fact
+from inspect_ai.solver import generate, system_message
+
+@task
+def security_guide(
+    system="devops.txt", 
+    grader="expert.txt",
+    grader_model="openai/gpt-4o"
+):
+   return Task(
+      dataset=example_dataset("security_guide"),
+      solver=[system_message(system), generate()],
+      scorer=model_graded_fact(
+          template=grader, model=grader_model
+      )
+   )
+```
+
+</div>
+
+Let’s say we had an alternate system prompt in a file named
+`"researcher.txt"`. We could run the task with this prompt as follows:
+
+``` bash
+inspect eval security.py -T system="researcher.txt"
+```
+
+The `-T` CLI flag is used to specify parameter values. You can include
+multiple `-T` flags. For example:
+
+``` bash
+inspect eval security.py \
+   -T system="researcher.txt" -T grader="hacker.txt"
+```
+
+If you have several task paramaters you want to specify together, you
+can put them in a YAML or JSON file and use the `--task-config` CLI
+option. For example:
+
+<div class="code-with-filename">
+
+**config.yaml**
+
+``` yaml
+system: "researcher.txt"
+grader: "hacker.txt"
+```
+
+</div>
+
+Reference this file from the CLI with:
+
+``` bash
+inspect eval security.py --task-config=config.yaml
+```
+
+## Solvers
+
+While tasks always include a *default* solver, you can also vary the
+solver to explore other strategies and elicitation techniques. This
+section covers best practices for creating solver-independent tasks.
+
+### Solver Parameter
+
+If you want to make your task work with a variety of solvers, the first
+thing to do is add a `solver` parameter to your task function. For
+example, let’s start with a CTF challenge task where the `solver` is
+hard-coded:
+
+``` python
+from inspect_ai import Task, task
+from inspect_ai.solver import generate, use_tools
+from inspect_ai.tool import bash, python
+from inspect_ai.scorer import includes
+
+@task
+def ctf():
+    return Task(
+        dataset=read_dataset(),
+        solver=[
+            use_tools([
+                bash(timeout=180), 
+                python(timeout=180)
+            ]),
+            generate()
+        ],
+        sandbox="docker",
+        scorer=includes()
+    )
+```
+
+This task uses the most naive solver possible (a simple tool use loop
+with no additional elicitation). That might be okay for initial task
+development, but we’ll likely want to try lots of different strategies.
+We start by breaking the `solver` into its own function and adding an
+alternative solver that uses the `basic_agent()`
+
+``` python
+from inspect_ai import Task, task
+from inspect_ai.solver import basic_agent, chain, generate, use_tools
+from inspect_ai.tool import bash, python
+from inspect_ai.scorer import includes
+
+@solver
+def ctf_tool_loop():
+    reutrn chain([
+        use_tools([
+            bash(timeout=180), 
+            python(timeout=180)
+        ]),
+        generate()
+    ])
+
+@solver
+def ctf_agent(max_attempts: int = 3):
+    return basic_agent(
+        tools=[
+            bash(timeout=180), 
+            python(timeout=180)
+        ],
+        max_attempts=max_attempts,
+    ) 
+ 
+@task
+def ctf(solver: Solver | None = None):
+    # use default tool loop solver if no solver specified
+    if solver is None:
+        solver = ctf_tool_loop()
+   
+    # return task
+    return Task(
+        dataset=read_dataset(),
+        solver=solver,
+        sandbox="docker",
+        scorer=includes()
+    )
+```
+
+Note that we use the `chain()` function to combine multiple solvers into
+a composite one.
+
+You can now switch between solvers when running the evaluation:
+
+``` bash
+# run with the default solver (ctf_tool_loop)
+inspect eval ctf.py 
+
+# run with the ctf agent solver
+inspect eval ctf.py --solver=ctf_agent
+
+# run with a different max_attempts
+inspect eval ctf.py --solver=ctf_agent -S max_attempts=5
+```
+
+Note the use of the `-S` CLI option to pass an alternate value for
+`max_attempts` to the `ctf_agent()` solver.
+
+### Setup Parameter
+
+In some cases, there will be important steps in the setup of a task that
+*should not be substituted* when another solver is used with the task.
+For example, you might have a step that does dynamic prompt engineering
+based on values in the sample `metadata` or you might have a step that
+initialises resources in a sample’s sandbox.
+
+In these scenarios you can define a `setup` solver that is always run
+even when another `solver` is substituted. For example, here we adapt
+our initial example to include a `setup` step:
+
+``` python
+# prompt solver which should always be run
+@solver
+def ctf_prompt():
+    async def solve(state, generate):
+        # TODO: dynamic prompt engineering
+        return state
+
+@task
+def ctf(solver: Solver | None = None):
+    # use default tool loop solver if no solver specified
+    if solver is None:
+        solver = ctf_tool_loop()
+   
+    # return task
+    return Task(
+        dataset=read_dataset(),
+        setup=ctf_prompt(),
+        solver=solver,
+        sandbox="docker",
+        scorer=includes()
+    )
+```
+
+## Task Reuse
+
+The basic mechanism for task re-use is to create flexible and adaptable
+base `@task` functions (which often have many parameters) and then
+derive new higher-level tasks from them by creating additional `@task`
+functions that call the base function.
+
+In some cases though you might not have full control over the base
+`@task` function (e.g. it’s published in a Python package you aren’t the
+maintainer of) but you nevertheless want to flexibly create derivative
+tasks from it. To do this, you can use the `task_with()` function, which
+clones an existing task and enables you to override any of the task
+fields that you need to.
+
+For example, imagine you are dealing with a `Task` that hard-codes its
+`sandbox` to a particular Dockerfile included with the task, and further
+does not make a `solver` parameter available to swap in other solvers:
+
+``` python
+from inspect_ai import Task, task
+from inspect_ai.solver import basic_agent
+from inspect_ai.tool import bash
+from inspect_ai.scorer import includes
+
+@task
+def hard_coded():
+    return Task(
+        dataset=read_dataset(),
+        solver=basic_agent(tools=[bash()]),
+        sandbox=("docker", "compose.yaml"),
+        scorer=includes()
+    )
+```
+
+Using `task_with()`, you can adapt this task to use a different `solver`
+and `sandbox` entirely. For example, here we import the original
+`hard_coded()` task from a hypothetical `ctf_tasks` package and provide
+it with a different `solver` and `sandbox`, as well as give it a
+`message_limit` (which we in turn also expose as a parameter of the
+adapted task):
+
+``` python
+from inspect_ai import task, task_with
+from inspect_ai.solver import solver
+
+from ctf_tasks import hard_coded
+
+@solver
+def my_custom_agent():
+    ## custom agent implementation
+    ...
+
+@task
+def adapted(message_limit: int = 20):
+    return task_with(
+        hard_coded(),  # original task definition
+        solver=my_custom_agent(),
+        sandbox=("docker", "custom-compose.yaml"),
+        message_limit=message_limit
+    )
+```
+
+Tasks are recipes for an evaluation and represent the convergence of
+many considerations (datasets, solvers, sandbox environments, limits,
+and scoring). Task variations often lie at the intersection of these,
+and the `task_with()` function is intended to help you produce exactly
+the variation you need for a given evaluation.
+
+## Exploratory
+
+When developing tasks and solvers, you often want to explore how
+changing prompts, generation options, solvers, and models affect
+performance on a task. You can do this by creating multiple tasks with
+varying parameters and passing them all to the `eval_set()` function.
+
+Returning to the example from above, the `system` and `grader`
+parameters point to files we are using as system message and grader
+model templates. At the outset we might want to explore every possible
+combination of these parameters, along with different models. We can use
+the `itertools.product` function to do this:
+
+``` python
+from itertools import product
+
+# 'grid' will be a permutation of all parameters
+params = {
+    "system": ["devops.txt", "researcher.txt"],
+    "grader": ["hacker.txt", "expert.txt"],
+    "grader_model": ["openai/gpt-4o", "google/gemini-1.5-pro"],
+}
+grid = list(product(*(params[name] for name in params)))
+
+# run the evals and capture the logs
+logs = eval_set(
+    [
+        security_guide(system, grader, grader_model)
+        for system, grader, grader_model in grid
+    ],
+    model=["google/gemini-1.5-flash", "mistral/mistral-large-latest"],
+    log_dir="security-tasks"
+)
+
+# analyze the logs...
+plot_results(logs)
+```
+
+Note that we also pass a list of `model` to try out the task on multiple
+models. This eval set will produce in total 16 tasks accounting for the
+parameter and model variation.
+
+See the article on [Eval Sets](eval-sets.qmd) to learn more about using
+eval sets. See the article on [Eval Logs](eval-logs.qmd) for additional
+details on working with evaluation logs.
+
+# Datasets
+
+
+## Overview
+
+Inspect has native support for reading datasets in the CSV, JSON, and
+JSON Lines formats, as well as from [Hugging
+Face](#sec-hugging-face-datasets). In addition, the core dataset
+interface for the evaluation pipeline is flexible enough to accept data
+read from just about any source (see the [Custom
+Reader](#sec-custom-reader) section below for details).
+
+If your data is already in a format amenable for direct reading as an
+Inspect `Sample`, reading a dataset is as simple as this:
+
+``` python
+from inspect_ai.dataset import csv_dataset, json_dataset
+dataset1 = csv_dataset("dataset1.csv")
+dataset2 = json_dataset("dataset2.json")
+```
+
+Of course, many real-world datasets won’t be so trivial to read. Below
+we’ll discuss the various ways you can adapt your datasets for use with
+Inspect.
+
+## Dataset Samples
+
+The core data type underlying the use of datasets with Inspect is the
+`Sample`, which consists of a required `input` field and several other
+optional fields:
+
+**Class** `inspect_ai.dataset.Sample`
+
+| Field      | Type                      | Description                                                                                           |
+|------------|---------------------------|-------------------------------------------------------------------------------------------------------|
+| `input`    | `str | list[ChatMessage]` | The input to be submitted to the model.                                                               |
+| `choices`  | `list[str] | None`        | Optional. Multiple choice answer list.                                                                |
+| `target`   | `str | list[str] | None`  | Optional. Ideal target output. May be a literal value or narrative text to be used by a model grader. |
+| `id`       | `str | None`              | Optional. Unique identifier for sample.                                                               |
+| `metadata` | `dict[str | Any] | None`  | Optional. Arbitrary metadata associated with the sample.                                              |
+| `sandbox`  | `str | tuple[str,str]`    | Optional. Sandbox environment type (or optionally a tuple with type and config file)                  |
+| `files`    | `dict[str | str] | None`  | Optional. Files that go along with the sample (copied to sandbox environments).                       |
+| `setup`    | `str | None`              | Optional. Setup script to run for sample (executed within default sandbox environment).               |
+
+So a CSV dataset with the following structure:
+
+| input                                                                        | target                                                    |
+|------------------------------------------------------------------------------|-----------------------------------------------------------|
+| What cookie attributes should I use for strong security?                     | secure samesite and httponly                              |
+| How should I store passwords securely for an authentication system database? | strong hashing algorithms with salt like Argon2 or bcrypt |
+
+Can be read directly with:
+
+``` python
+dataset = csv_dataset("security_guide.csv")
+```
+
+Note that samples from datasets without an `id` field will automatically
+be assigned ids based on an auto-incrementing integer starting with 1.
+
+If your samples include `choices`, then the `target` should be a numeric
+index into the available `choices` rather than a letter (this is an
+implicit assumption of the `multiple_choice()` solver).
+
+### Files
+
+The `files` field maps container target file paths to file contents
+(where contents can be either a filesystem path, a URL, or a string with
+inline content). For example, to copy a local file named `flag.txt` into
+the container path `/shared/flag.txt` you would use this:
+
+``` python
+"/shared/flag.txt": "flag.txt"
+```
+
+Files are copied into the default sandbox environment unless their name
+contains a prefix mapping them into another environment. For example, to
+copy into the `victim` container:
+
+``` python
+"victim:/shared/flag.txt": "flag.txt"
+```
+
+### Setup
+
+The `setup` field contains either a path to a bash setup script
+(resolved relative to the dataset path) or the contents of a script to
+execute. Setup scripts are executed with a 5 minute timeout. If you have
+setup scripts that may take longer than this you should move some of
+your setup code into the container build setup (e.g. Dockerfile).
+
+## Field Mapping
+
+If your dataset contains inputs and targets that don’t use `input` and
+`target` as field names, you can map them into a `Dataset` using a
+`FieldSpec`. This same mechanism also enables you to collect arbitrary
+additional fields into the `Sample` `metadata` bucket. For example:
+
+``` python
+from inspect_ai.dataset import FieldSpec, json_dataset
+
+dataset = json_dataset(
+    "popularity.jsonl",
+    FieldSpec(
+        input="question",
+        target="answer_matching_behavior",
+        id="question_id",
+        metadata=["label_confidence"],
+    ),
+)
+```
+
+If you need to do more than just map field names and actually do custom
+processing of the data, you can instead pass a function which takes a
+`record` (represented as a `dict`) from the underlying file and returns
+a `Sample`. For example:
+
+``` python
+from inspect_ai.dataset import Sample, json_dataset
+
+def record_to_sample(record):
+    return Sample(
+        input=record["question"],
+        target=record["answer_matching_behavior"].strip(),
+        id=record["question_id"],
+        metadata={
+            "label_confidence": record["label_confidence"]
+        }
+    )
+
+dataset = json_dataset("popularity.jsonl", record_to_sample)
+```
+
+### Typed Metadata
+
+If you want a more strongly typed interface to sample metadata, you can
+define a [Pydantic
+model](https://docs.pydantic.dev/latest/concepts/models/) and use it to
+both validate and read metadata.
+
+For validation, pass a `BaseModel` derived class in the `FieldSpec`. The
+interface to metadata is read-only so you must also specify
+`frozen=True`. For example:
+
+``` python
+from pydantic import BaseModel
+
+class PopularityMetadata(BaseModel, frozen=True):
+    category: str
+    label_confidence: float
+
+dataset = json_dataset(
+    "popularity.jsonl",
+    FieldSpec(
+        input="question",
+        target="answer_matching_behavior",
+        id="question_id",
+        metadata=PopularityMetadata,
+    ),
+)
+```
+
+To read metadata in a typesafe fashion, us the `metadata_as()` method on
+`Sample` or `TaskState`:
+
+``` python
+metadata = state.metadata_as(PopularityMetadata)
+```
+
+Note again that the intended semantics of `metadata` are read-only, so
+attempting to write into the returned metadata will raise a Pydantic
+`FrozenInstanceError`.
+
+If you need per-sample mutable data, use the [sample
+store](agents-api.qmd#sample-store), which also supports
+[typing](agents-api.qmd#store-typing) using Pydantic models.
+
+## Filter and Shuffle
+
+The `Dataset` class includes `filter()` and `shuffle()` methods, as well
+as support for the slice operator.
+
+To select a subset of the dataset, use `filter()`:
+
+``` python
+dataset = json_dataset("popularity.jsonl", record_to_sample)
+dataset = dataset.filter(
+    lambda sample : sample.metadata["category"] == "advanced"
+)
+```
+
+To select a subset of records, use standard Python slicing:
+
+``` python
+dataset = dataset[0:100]
+```
+
+Shuffling is often helpful when you want to vary the samples used during
+evaluation development. To do this, either use the `shuffle()` method or
+the `shuffle` parameter of the dataset loading functions:
+
+``` python
+# shuffle method
+dataset = dataset.shuffle()
+
+# shuffle on load
+dataset = json_dataset("data.jsonl", shuffle=True)
+```
+
+Note that both of these methods optionally support specifying a random
+seed for shuffling.
+
+## Hugging Face
+
+[Hugging Face Datasets](https://huggingface.co/docs/datasets/en/index)
+is a library for easily accessing and sharing datasets for machine
+learning, and features integration with [Hugging Face
+Hub](https://huggingface.co/datasets), a repository with a broad
+selection of publicly shared datasets. Typically datasets on Hugging
+Face will require specification of which split within the dataset to use
+(e.g. train, test, or validation) as well as some field mapping. Use the
+`hf_dataset()` function to read a dataset and specify the requisite
+split and field names:
+
+``` python
+from inspect_ai.dataset import FieldSpec, hf_dataset
+
+dataset=hf_dataset("openai_humaneval", 
+  split="test", 
+  sample_fields=FieldSpec(
+    id="task_id",
+    input="prompt",
+    target="canonical_solution",
+    metadata=["test", "entry_point"]
+  )
+)
+```
+
+Note that some HuggingFace datasets execute Python code in order to
+resolve the underlying dataset files. Since this code is run on your
+local machine, you need to specify `trust = True` in order to perform
+the download. This option should only be set to `True` for repositories
+you trust and in which you have read the code. Here’s an example of
+using the `trust` option (note that it defaults to `False` if not
+specified):
+
+``` python
+dataset=hf_dataset("openai_humaneval", 
+  split="test", 
+  trust=True,
+  ...
+)
+```
+
+Under the hood, the `hf_dataset()` function is calling the
+[load_dataset()](https://huggingface.co/docs/datasets/en/package_reference/loading_methods#datasets.load_dataset)
+function in the Hugging Face datasets package. You can additionally pass
+arbitrary parameters on to `load_dataset()` by including them in the
+call to `hf_dataset()`. For example
+`hf_dataset(..., cache_dir="~/my-cache-dir")`.
+
+## Amazon S3
+
+Inspect has integrated support for storing datasets on [Amazon
+S3](https://aws.amazon.com/pm/serv-s3/). Compared to storing data on the
+local file-system, using S3 can provide more flexible sharing and access
+control, and a more reliable long term store than local files.
+
+Using S3 is mostly a matter of substituting S3 URLs
+(e.g. `s3://my-bucket-name`) for local file-system paths. For example,
+here is how you load a dataset from S3:
+
+``` python
+json_dataset("s3://my-bucket/dataset.jsonl")
+```
+
+S3 buckets are normally access controlled so require authentication to
+read from. There are a wide variety of ways to configure your client for
+AWS authentication, all of which work with Inspect. See the article on
+[Configuring the AWS
+CLI](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-configure.html)
+for additional details.
+
+## Chat Messages
+
+The most important data structure within `Sample` is the `ChatMessage`.
+Note that often datasets will contain a simple string as their input
+(which is then internally converted to a `ChatMessageUser`). However, it
+is possible to include a full message history as the input via
+`ChatMessage`. Another useful application of `ChatMessage` is providing
+multi-modal input (e.g. images).
+
+**Class** `inspect_ai.model.ChatMessage`
+
+| Field     | Type                                       | Description                                                                                                |
+|-----------|--------------------------------------------|------------------------------------------------------------------------------------------------------------|
+| `role`    | `"system" | "user" | "assistant" | "tool"` | Role of this chat message.                                                                                 |
+| `content` | `str | list[Content]`                      | The content of the message. Can be a simple string or a list of content parts intermixing text and images. |
+
+An input with chat messages in your dataset might will look something
+like this:
+
+``` javascript
+"input": [
+  {
+    "role": "user",
+    "content": "What cookie attributes should I use for strong security?"
+  }
+]
+```
+
+Note that for this example we wouldn’t normally use a full chat message
+object (rather we’d just provide a simple string). Chat message objects
+are more useful when you want to include a system prompt or prime the
+conversation with “assistant” responses.
+
+## Custom Reader
+
+You are not restricted to the built in dataset functions for reading
+samples. You can also construct a `MemoryDataset`, and pass that to a
+task. For example:
+
+``` python
+from inspect_ai import Task, task
+from inspect_ai.dataset import MemoryDataset, Sample
+from inspect_ai.scorer import model_graded_fact
+from inspect_ai.solver import generate, system_message
+
+dataset=MemoryDataset([
+    Sample(
+        input="What cookie attributes should I use for strong security?",
+        target="secure samesite and httponly",
+    )
+])
+
+@task
+def security_guide():
+    return Task(
+        dataset=dataset,
+        solver=[system_message(SYSTEM_MESSAGE), generate()],
+        scorer=model_graded_fact(),
+    )
+```
+
+So if the built in dataset functions don’t meet your needs, you can
+create a custom function that yields a `MemoryDataset`and pass those
+directly to your `Task`.
 
 # Solvers
 
@@ -4628,354 +5031,6 @@ scoring_logs = [score(log, model_graded_qa(model=model))
 plot_results(scoring_logs)
 ```
 
-# Datasets
-
-
-## Overview
-
-Inspect has native support for reading datasets in the CSV, JSON, and
-JSON Lines formats, as well as from [Hugging
-Face](#sec-hugging-face-datasets). In addition, the core dataset
-interface for the evaluation pipeline is flexible enough to accept data
-read from just about any source (see the [Custom
-Reader](#sec-custom-reader) section below for details).
-
-If your data is already in a format amenable for direct reading as an
-Inspect `Sample`, reading a dataset is as simple as this:
-
-``` python
-from inspect_ai.dataset import csv_dataset, json_dataset
-dataset1 = csv_dataset("dataset1.csv")
-dataset2 = json_dataset("dataset2.json")
-```
-
-Of course, many real-world datasets won’t be so trivial to read. Below
-we’ll discuss the various ways you can adapt your datasets for use with
-Inspect.
-
-## Dataset Samples
-
-The core data type underlying the use of datasets with Inspect is the
-`Sample`, which consists of a required `input` field and several other
-optional fields:
-
-**Class** `inspect_ai.dataset.Sample`
-
-| Field      | Type                      | Description                                                                                           |
-|------------|---------------------------|-------------------------------------------------------------------------------------------------------|
-| `input`    | `str | list[ChatMessage]` | The input to be submitted to the model.                                                               |
-| `choices`  | `list[str] | None`        | Optional. Multiple choice answer list.                                                                |
-| `target`   | `str | list[str] | None`  | Optional. Ideal target output. May be a literal value or narrative text to be used by a model grader. |
-| `id`       | `str | None`              | Optional. Unique identifier for sample.                                                               |
-| `metadata` | `dict[str | Any] | None`  | Optional. Arbitrary metadata associated with the sample.                                              |
-| `sandbox`  | `str | tuple[str,str]`    | Optional. Sandbox environment type (or optionally a tuple with type and config file)                  |
-| `files`    | `dict[str | str] | None`  | Optional. Files that go along with the sample (copied to sandbox environments).                       |
-| `setup`    | `str | None`              | Optional. Setup script to run for sample (executed within default sandbox environment).               |
-
-So a CSV dataset with the following structure:
-
-| input                                                                        | target                                                    |
-|------------------------------------------------------------------------------|-----------------------------------------------------------|
-| What cookie attributes should I use for strong security?                     | secure samesite and httponly                              |
-| How should I store passwords securely for an authentication system database? | strong hashing algorithms with salt like Argon2 or bcrypt |
-
-Can be read directly with:
-
-``` python
-dataset = csv_dataset("security_guide.csv")
-```
-
-Note that samples from datasets without an `id` field will automatically
-be assigned ids based on an auto-incrementing integer starting with 1.
-
-If your samples include `choices`, then the `target` should be a numeric
-index into the available `choices` rather than a letter (this is an
-implicit assumption of the `multiple_choice()` solver).
-
-### Files
-
-The `files` field maps container target file paths to file contents
-(where contents can be either a filesystem path, a URL, or a string with
-inline content). For example, to copy a local file named `flag.txt` into
-the container path `/shared/flag.txt` you would use this:
-
-``` python
-"/shared/flag.txt": "flag.txt"
-```
-
-Files are copied into the default sandbox environment unless their name
-contains a prefix mapping them into another environment. For example, to
-copy into the `victim` container:
-
-``` python
-"victim:/shared/flag.txt": "flag.txt"
-```
-
-### Setup
-
-The `setup` field contains either a path to a bash setup script
-(resolved relative to the dataset path) or the contents of a script to
-execute. Setup scripts are executed with a 5 minute timeout. If you have
-setup scripts that may take longer than this you should move some of
-your setup code into the container build setup (e.g. Dockerfile).
-
-## Field Mapping
-
-If your dataset contains inputs and targets that don’t use `input` and
-`target` as field names, you can map them into a `Dataset` using a
-`FieldSpec`. This same mechanism also enables you to collect arbitrary
-additional fields into the `Sample` `metadata` bucket. For example:
-
-``` python
-from inspect_ai.dataset import FieldSpec, json_dataset
-
-dataset = json_dataset(
-    "popularity.jsonl",
-    FieldSpec(
-        input="question",
-        target="answer_matching_behavior",
-        id="question_id",
-        metadata=["label_confidence"],
-    ),
-)
-```
-
-If you need to do more than just map field names and actually do custom
-processing of the data, you can instead pass a function which takes a
-`record` (represented as a `dict`) from the underlying file and returns
-a `Sample`. For example:
-
-``` python
-from inspect_ai.dataset import Sample, json_dataset
-
-def record_to_sample(record):
-    return Sample(
-        input=record["question"],
-        target=record["answer_matching_behavior"].strip(),
-        id=record["question_id"],
-        metadata={
-            "label_confidence": record["label_confidence"]
-        }
-    )
-
-dataset = json_dataset("popularity.jsonl", record_to_sample)
-```
-
-### Typed Metadata
-
-If you want a more strongly typed interface to sample metadata, you can
-define a [Pydantic
-model](https://docs.pydantic.dev/latest/concepts/models/) and use it to
-both validate and read metadata.
-
-For validation, pass a `BaseModel` derived class in the `FieldSpec`. The
-interface to metadata is read-only so you must also specify
-`frozen=True`. For example:
-
-``` python
-from pydantic import BaseModel
-
-class PopularityMetadata(BaseModel, frozen=True):
-    category: str
-    label_confidence: float
-
-dataset = json_dataset(
-    "popularity.jsonl",
-    FieldSpec(
-        input="question",
-        target="answer_matching_behavior",
-        id="question_id",
-        metadata=PopularityMetadata,
-    ),
-)
-```
-
-To read metadata in a typesafe fashion, us the `metadata_as()` method on
-`Sample` or `TaskState`:
-
-``` python
-metadata = state.metadata_as(PopularityMetadata)
-```
-
-Note again that the intended semantics of `metadata` are read-only, so
-attempting to write into the returned metadata will raise a Pydantic
-`FrozenInstanceError`.
-
-If you need per-sample mutable data, use the [sample
-store](agents-api.qmd#sample-store), which also supports
-[typing](agents-api.qmd#store-typing) using Pydantic models.
-
-## Filter and Shuffle
-
-The `Dataset` class includes `filter()` and `shuffle()` methods, as well
-as support for the slice operator.
-
-To select a subset of the dataset, use `filter()`:
-
-``` python
-dataset = json_dataset("popularity.jsonl", record_to_sample)
-dataset = dataset.filter(
-    lambda sample : sample.metadata["category"] == "advanced"
-)
-```
-
-To select a subset of records, use standard Python slicing:
-
-``` python
-dataset = dataset[0:100]
-```
-
-Shuffling is often helpful when you want to vary the samples used during
-evaluation development. To do this, either use the `shuffle()` method or
-the `shuffle` parameter of the dataset loading functions:
-
-``` python
-# shuffle method
-dataset = dataset.shuffle()
-
-# shuffle on load
-dataset = json_dataset("data.jsonl", shuffle=True)
-```
-
-Note that both of these methods optionally support specifying a random
-seed for shuffling.
-
-## Hugging Face
-
-[Hugging Face Datasets](https://huggingface.co/docs/datasets/en/index)
-is a library for easily accessing and sharing datasets for machine
-learning, and features integration with [Hugging Face
-Hub](https://huggingface.co/datasets), a repository with a broad
-selection of publicly shared datasets. Typically datasets on Hugging
-Face will require specification of which split within the dataset to use
-(e.g. train, test, or validation) as well as some field mapping. Use the
-`hf_dataset()` function to read a dataset and specify the requisite
-split and field names:
-
-``` python
-from inspect_ai.dataset import FieldSpec, hf_dataset
-
-dataset=hf_dataset("openai_humaneval", 
-  split="test", 
-  sample_fields=FieldSpec(
-    id="task_id",
-    input="prompt",
-    target="canonical_solution",
-    metadata=["test", "entry_point"]
-  )
-)
-```
-
-Note that some HuggingFace datasets execute Python code in order to
-resolve the underlying dataset files. Since this code is run on your
-local machine, you need to specify `trust = True` in order to perform
-the download. This option should only be set to `True` for repositories
-you trust and in which you have read the code. Here’s an example of
-using the `trust` option (note that it defaults to `False` if not
-specified):
-
-``` python
-dataset=hf_dataset("openai_humaneval", 
-  split="test", 
-  trust=True,
-  ...
-)
-```
-
-Under the hood, the `hf_dataset()` function is calling the
-[load_dataset()](https://huggingface.co/docs/datasets/en/package_reference/loading_methods#datasets.load_dataset)
-function in the Hugging Face datasets package. You can additionally pass
-arbitrary parameters on to `load_dataset()` by including them in the
-call to `hf_dataset()`. For example
-`hf_dataset(..., cache_dir="~/my-cache-dir")`.
-
-## Amazon S3
-
-Inspect has integrated support for storing datasets on [Amazon
-S3](https://aws.amazon.com/pm/serv-s3/). Compared to storing data on the
-local file-system, using S3 can provide more flexible sharing and access
-control, and a more reliable long term store than local files.
-
-Using S3 is mostly a matter of substituting S3 URLs
-(e.g. `s3://my-bucket-name`) for local file-system paths. For example,
-here is how you load a dataset from S3:
-
-``` python
-json_dataset("s3://my-bucket/dataset.jsonl")
-```
-
-S3 buckets are normally access controlled so require authentication to
-read from. There are a wide variety of ways to configure your client for
-AWS authentication, all of which work with Inspect. See the article on
-[Configuring the AWS
-CLI](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-configure.html)
-for additional details.
-
-## Chat Messages
-
-The most important data structure within `Sample` is the `ChatMessage`.
-Note that often datasets will contain a simple string as their input
-(which is then internally converted to a `ChatMessageUser`). However, it
-is possible to include a full message history as the input via
-`ChatMessage`. Another useful application of `ChatMessage` is providing
-multi-modal input (e.g. images).
-
-**Class** `inspect_ai.model.ChatMessage`
-
-| Field     | Type                                       | Description                                                                                                |
-|-----------|--------------------------------------------|------------------------------------------------------------------------------------------------------------|
-| `role`    | `"system" | "user" | "assistant" | "tool"` | Role of this chat message.                                                                                 |
-| `content` | `str | list[Content]`                      | The content of the message. Can be a simple string or a list of content parts intermixing text and images. |
-
-An input with chat messages in your dataset might will look something
-like this:
-
-``` javascript
-"input": [
-  {
-    "role": "user",
-    "content": "What cookie attributes should I use for strong security?"
-  }
-]
-```
-
-Note that for this example we wouldn’t normally use a full chat message
-object (rather we’d just provide a simple string). Chat message objects
-are more useful when you want to include a system prompt or prime the
-conversation with “assistant” responses.
-
-## Custom Reader
-
-You are not restricted to the built in dataset functions for reading
-samples. You can also construct a `MemoryDataset`, and pass that to a
-task. For example:
-
-``` python
-from inspect_ai import Task, task
-from inspect_ai.dataset import MemoryDataset, Sample
-from inspect_ai.scorer import model_graded_fact
-from inspect_ai.solver import generate, system_message
-
-dataset=MemoryDataset([
-    Sample(
-        input="What cookie attributes should I use for strong security?",
-        target="secure samesite and httponly",
-    )
-])
-
-@task
-def security_guide():
-    return Task(
-        dataset=dataset,
-        solver=[system_message(SYSTEM_MESSAGE), generate()],
-        scorer=model_graded_fact(),
-    )
-```
-
-So if the built in dataset functions don’t meet your needs, you can
-create a custom function that yields a `MemoryDataset`and pass those
-directly to your `Task`.
-
 # Models
 
 
@@ -5516,16 +5571,6 @@ provider:
 | `CLOUDFLARE_BASE_URL`   | Base URL for requests (optional, defaults to `https://api.cloudflare.com/client/v4/accounts`) |
 
 ## Goodfire
-
-> [!NOTE]
->
-> The goodfire model provider is currently available only in the
-> development version of Inspect. To install the development version
-> from GitHub:
->
-> ``` bash
-> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-> ```
 
 To use the [Goodfire](https://platform.goodfire.ai/) provider, install
 the `goodfire` package, set your credentials, and specify a model using
@@ -7155,16 +7200,6 @@ using sandboxes with Inspect.
 
 # Agent Bridge
 
-
-> [!NOTE]
->
-> The agent bridge feature described below is currently available only
-> in the development version of Inspect. To install the development
-> version from GitHub:
->
-> ``` bash
-> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-> ```
 
 ## Overview
 

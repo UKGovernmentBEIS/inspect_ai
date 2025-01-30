@@ -85,8 +85,7 @@ The activity bar has four panels:
 
 - **Configuration** edits global configuration by reading and writing
   values from the workspace `.env` config file (see the documentation on
-  [Configuration](workflow.qmd#configuration) for more details on `.env`
-  files).
+  [Options](options.qmd) for more details on `.env` files).
 
 - **Tasks** displays all tasks in the current workspace, and can be used
   to both navigate among tasks as well as run and debug tasks directly.

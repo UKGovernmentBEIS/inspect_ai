@@ -591,7 +591,7 @@ We run the eval with:
 inspect eval addition_problem.py
 ```
 
-## InterCode CTF \#{sec-intercode-ctf}
+## InterCode CTF
 
 “Capture the Flag” is a competitive cybersecurity game that requires
 expertise in coding, cryptography (i.e. binary exploitation, forensics),

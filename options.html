@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 
-<title>Inspect - Human Agent</title>
+<title>Inspect - Options</title>
 <style>
 code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
@@ -64,8 +64,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="site_libs/quarto-search/fuse.min.js"></script>
 <script src="site_libs/quarto-search/quarto-search.js"></script>
 <meta name="quarto:offset" content="./">
-<link href="./approval.html" rel="next">
-<link href="./agent-bridge.html" rel="prev">
+<link href="./evals/index.html" rel="next">
+<link href="./tutorial.html" rel="prev">
 <script src="site_libs/quarto-html/quarto.js"></script>
 <script src="site_libs/quarto-html/popper.min.js"></script>
 <script src="site_libs/quarto-html/tippy.umd.min.js"></script>
@@ -75,9 +75,6 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
 <link href="site_libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
-<script src="site_libs/quarto-contrib/glightbox/glightbox.min.js"></script>
-<link href="site_libs/quarto-contrib/glightbox/glightbox.min.css" rel="stylesheet">
-<link href="site_libs/quarto-contrib/glightbox/lightbox.css" rel="stylesheet">
 <script id="quarto-search-options" type="application/json">{
   "location": "sidebar",
   "copy-button": false,
@@ -130,7 +127,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
       <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
         <i class="bi bi-layout-text-sidebar-reverse"></i>
       </button>
-        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./agents.html">Agents</a></li><li class="breadcrumb-item"><a href="./human-agent.html">Human Agent</a></li></ol></nav>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./tutorial.html">Basics</a></li><li class="breadcrumb-item"><a href="./options.html">Options</a></li></ol></nav>
         <a class="flex-grow-1" role="button" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
         </a>
       <button type="button" class="btn quarto-search-button" aria-label="" onclick="window.quartoOpenSearch();">
@@ -183,7 +180,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./options.html" class="sidebar-item-text sidebar-link">
+  <a href="./options.html" class="sidebar-item-text sidebar-link active">
  <span class="menu-text">Options</span></a>
   </div>
 </li>
@@ -289,7 +286,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./human-agent.html" class="sidebar-item-text sidebar-link active">
+  <a href="./human-agent.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Human Agent</span></a>
   </div>
 </li>
@@ -383,25 +380,28 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
    
   <ul>
   <li><a href="#overview" id="toc-overview" class="nav-link active" data-scroll-target="#overview">Overview</a></li>
-  <li><a href="#example" id="toc-example" class="nav-link" data-scroll-target="#example">Example</a></li>
-  <li><a href="#usage" id="toc-usage" class="nav-link" data-scroll-target="#usage">Usage</a>
-  <ul class="collapse">
-  <li><a href="#container-access" id="toc-container-access" class="nav-link" data-scroll-target="#container-access">Container Access</a></li>
-  <li><a href="#task-commands" id="toc-task-commands" class="nav-link" data-scroll-target="#task-commands">Task Commands</a></li>
-  <li><a href="#answer-submission" id="toc-answer-submission" class="nav-link" data-scroll-target="#answer-submission">Answer Submission</a></li>
-  <li><a href="#intermediate-scoring" id="toc-intermediate-scoring" class="nav-link" data-scroll-target="#intermediate-scoring">Intermediate Scoring</a></li>
-  </ul></li>
-  <li><a href="#recording" id="toc-recording" class="nav-link" data-scroll-target="#recording">Recording</a></li>
-  <li><a href="#headless" id="toc-headless" class="nav-link" data-scroll-target="#headless">Headless</a></li>
+  <li><a href="#env-files" id="toc-env-files" class="nav-link" data-scroll-target="#env-files">.env Files</a></li>
+  <li><a href="#specifying-options" id="toc-specifying-options" class="nav-link" data-scroll-target="#specifying-options">Specifying Options</a></li>
+  <li><a href="#model-provider" id="toc-model-provider" class="nav-link" data-scroll-target="#model-provider">Model Provider</a></li>
+  <li><a href="#model-generation" id="toc-model-generation" class="nav-link" data-scroll-target="#model-generation">Model Generation</a></li>
+  <li><a href="#tasks-and-solvers" id="toc-tasks-and-solvers" class="nav-link" data-scroll-target="#tasks-and-solvers">Tasks and Solvers</a></li>
+  <li><a href="#sample-selection" id="toc-sample-selection" class="nav-link" data-scroll-target="#sample-selection">Sample Selection</a></li>
+  <li><a href="#parallelism" id="toc-parallelism" class="nav-link" data-scroll-target="#parallelism">Parallelism</a></li>
+  <li><a href="#errors-and-limits" id="toc-errors-and-limits" class="nav-link" data-scroll-target="#errors-and-limits">Errors and Limits</a></li>
+  <li><a href="#eval-logs" id="toc-eval-logs" class="nav-link" data-scroll-target="#eval-logs">Eval Logs</a></li>
+  <li><a href="#scoring" id="toc-scoring" class="nav-link" data-scroll-target="#scoring">Scoring</a></li>
+  <li><a href="#sandboxes" id="toc-sandboxes" class="nav-link" data-scroll-target="#sandboxes">Sandboxes</a></li>
+  <li><a href="#debugging" id="toc-debugging" class="nav-link" data-scroll-target="#debugging">Debugging</a></li>
+  <li><a href="#miscellaneous" id="toc-miscellaneous" class="nav-link" data-scroll-target="#miscellaneous">Miscellaneous</a></li>
   </ul>
 <div class="toc-actions"><ul><li><a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div></nav>
     </div>
 <!-- main -->
 <main class="content" id="quarto-document-content">
 
-<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./agents.html">Agents</a></li><li class="breadcrumb-item"><a href="./human-agent.html">Human Agent</a></li></ol></nav>
+<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./tutorial.html">Basics</a></li><li class="breadcrumb-item"><a href="./options.html">Options</a></li></ol></nav>
 <div class="quarto-title">
-<h1 class="title">Human Agent</h1>
+<h1 class="title">Options</h1>
 </div>
 
 
@@ -420,132 +420,448 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
 <section id="overview" class="level2">
 <h2 class="anchored" data-anchor-id="overview">Overview</h2>
-<p>The Inspect human agent enables human baselining of agentic tasks that run in a Linux environment. Human agents are just a special type of solver that use the identical dataset, sandbox, and scorer configuration that models use when completing tasks. However, rather than entering an agent loop, the <code>human_agent</code> solver provides the human baseliner with:</p>
+<p>Inspect evaluations have a large number of options available for logging, tuning, diagnostics and model interctions. These options fall into roughly two categories:</p>
 <ol type="1">
-<li><p>A description of the task to be completed (input/prompt from the sample).</p></li>
-<li><p>Means to login to the container provisioned for the sample (including creating a remote VS Code session).</p></li>
-<li><p>CLI commands for use within the container to view instructions, submit answers, pause work, etc.</p></li>
+<li><p>Options that you want to set on a more durable basis (for a project or session).</p></li>
+<li><p>Options that you want to tweak per-evel to accomodate particular scenarios.</p></li>
 </ol>
-<p>Human baselining terminal sessions are <a href="#recording">recorded</a> by default so that you can later view which actions the user took to complete the task.</p>
+<p>For the former, we recommend you specify these options in a <code>.env</code> file within your project directory, which is covered in the section below. See the <a href="#eval-options">Eval Options</a> for details on all available options.</p>
 </section>
-<section id="example" class="level2">
-<h2 class="anchored" data-anchor-id="example">Example</h2>
-<p>Here, we run a human baseline on an <a href="https://ukgovernmentbeis.github.io/inspect_evals/evals/cybersecurity/intercode_ctf/">Intercode CTF</a> sample by using the <code>--solver</code> option to use <code>human_agent</code> rather than the task’s default solver:</p>
-<div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval inspect_evals/gdm_intercode_ctf <span class="dt">\</span></span>
-<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    <span class="at">--sample-id</span> 44 <span class="at">--solver</span> human_agent</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>The evaluation runs as normal, and a <strong>Human Agent</strong> panel appears in the task UI to orient the human baseliner to the task and provide instructions for accessing the container. The user clicks the <strong>VS Code Terminal</strong> link and a terminal interface to the container is provided within VS Code:</p>
-<p><a href="images/inspect-human-agent.png" class="lightbox" data-gallery="quarto-lightbox-gallery-1"><img src="images/inspect-human-agent.png" class="img-fluid"></a></p>
-<p>Note that while this example makes use of VS Code, it is in no way required. Baseliners can use their preferred editor and terminal environment using the <code>docker exec</code> command provided at the bottom. Human baselining can also be done in a “headless” fashion without the task display (see the <a href="#headless">Headless</a> section below for details).</p>
-<p>Once the user discovers the flag, they can submit it using the <code>task submit</code> command. For example:</p>
-<div class="sourceCode" id="cb2"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">task</span> submit picoCTF{73bfc85c1ba7}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<section id="env-files" class="level2">
+<h2 class="anchored" data-anchor-id="env-files">.env Files</h2>
+<p>While we can include all required options on the <code>inspect eval</code> command line, it’s generally easier to use environment variables for commonly repeated options. To facilitate this, the <code>inspect</code> CLI will automatically read and process <code>.env</code> files located in the current working directory (also searching in parent directories if a <code>.env</code> file is not found in the working directory). This is done using the <a href="https://pypi.org/project/python-dotenv/">python-dotenv</a> package).</p>
+<p>For example, here’s a <code>.env</code> file that makes available API keys for several providers and sets a bunch of defaults for a working session:</p>
+<div class="code-with-filename">
+<div class="code-with-filename-file">
+<pre><strong>.env</strong></pre>
+</div>
+<div class="sourceCode" id="cb1" data-filename=".env"><pre class="sourceCode makefile code-with-copy"><code class="sourceCode makefile"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="dt">OPENAI_API_KEY</span><span class="ch">=</span><span class="st">your-api-key</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="dt">ANTHROPIC_API_KEY</span><span class="ch">=</span><span class="st">your-api-key</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="dt">GOOGLE_API_KEY</span><span class="ch">=</span><span class="st">your-api-key</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="dt">INSPECT_LOG_DIR</span><span class="ch">=</span><span class="st">./logs-04-07-2024</span></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="dt">INSPECT_LOG_LEVEL</span><span class="ch">=</span><span class="st">warning</span></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a><span class="dt">INSPECT_EVAL_MAX_RETRIES</span><span class="ch">=</span><span class="st">5</span></span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a><span class="dt">INSPECT_EVAL_MAX_CONNECTIONS</span><span class="ch">=</span><span class="st">20</span></span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a><span class="dt">INSPECT_EVAL_MODEL</span><span class="ch">=</span><span class="st">anthropic/claude-3-5-sonnet-20240620</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>All command line options can also be set via environment variable by using the <code>INSPECT_EVAL_</code> prefix.</p>
+<p>Note that <code>.env</code> files are searched for in parent directories, so if you run an Inspect command from a subdirectory of a parent that has an <code>.env</code> file, it will still be read and resolved. If you define a relative path to <code>INSPECT_LOG_DIR</code> in a <code>.env</code> file, then its location will always be resolved as relative to that <code>.env</code> file (rather than relative to whatever your current working directory is when you run <code>inspect eval</code>).</p>
+<div class="callout callout-style-simple callout-important">
+<div class="callout-body d-flex">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-body-container">
+<p><code>.env</code> files should <em>never</em> be checked into version control, as they nearly always contain either secret API keys or machine specific paths. A best practice is often to check in an <code>.env.example</code> file to version control which provides an outline (e.g.&nbsp;keys only not values) of variables that are required by the current project.</p>
+</div>
+</div>
+</div>
 </section>
-<section id="usage" class="level2">
-<h2 class="anchored" data-anchor-id="usage">Usage</h2>
-<p>Using the <code>human_agent</code> solver is as straightforward as specifying the <code>--solver</code> option for any existing task. Repeating the example above:</p>
-<div class="sourceCode" id="cb3"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval inspect_evals/gdm_intercode_ctf <span class="dt">\</span></span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    <span class="at">--sample-id</span> 44 <span class="at">--solver</span> human_agent</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Or alternatively from within Python:</p>
-<div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> <span class="bu">eval</span></span>
-<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.solver <span class="im">import</span> human_agent</span>
-<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_evals <span class="im">import</span> gdm_intercode_ctf</span>
-<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(gdm_intercode_ctf(), sample_id<span class="op">=</span><span class="dv">44</span>, solver<span class="op">=</span>human_agent())</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>There are however some requirements that should be met by your task before using it with the human agent:</p>
-<ol type="1">
-<li><p>It should be solvable by using the tools available in a Linux environment (plus potentially access to the web, which the baseliner can do using an external web browser).</p></li>
-<li><p>The dataset <code>input</code> must fully specify the instructions for the task. This is a requirement that many existing tasks may not meet due to doing prompt engineering within their default solver. For example, the Intercode CTF eval had to be <a href="https://github.com/UKGovernmentBEIS/inspect_evals/commit/89912a1a51ba5beb4a13e1e480823c8b4626b873">modified in this fashion</a> to make it compatible with human agent.</p></li>
-</ol>
-<section id="container-access" class="level3">
-<h3 class="anchored" data-anchor-id="container-access">Container Access</h3>
-<p>The human agent works on the task within the default sandbox container for the task. Access to the container can be initiated using the command printed at the bottom of the <strong>Human Agent</strong> panel. For example:</p>
-<div class="sourceCode" id="cb5"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="ex">docker</span> exec <span class="at">-it</span> inspect-gdm_intercod-itmzq4e-default-1 bash <span class="at">-l</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Alternatively, if the human agent is working within VS Code then two links are provided to access the container within VS Code:</p>
-<ul>
-<li><p><strong>VS Code Window</strong> opens a new VS Code window logged in to the container. The human agent can than create terminals, browse the file system, etc. using the VS Code interface.</p></li>
-<li><p><strong>VS Code Terminal</strong> opens a new terminal in the main editor area of VS Code (so that it is afforded more space than the default terminal in the panel.</p></li>
-</ul>
-</section>
-<section id="task-commands" class="level3">
-<h3 class="anchored" data-anchor-id="task-commands">Task Commands</h3>
-<p>The Human agent solver installs agent task tools in the default sandbox and presents the user with both task instructions and documentation for the various tools (e.g.&nbsp;<code>task submit</code>, <code>task start</code>, <code>task stop</code>, <code>task instructions</code>, etc.). By default, the following command are available:</p>
+<section id="specifying-options" class="level2">
+<h2 class="anchored" data-anchor-id="specifying-options">Specifying Options</h2>
+<p>Below are sections for the various categories of options supported by <code>inspect eval</code>. Note that all of these options are also available for the <code>eval()</code> function and settable by environment variables. For example:</p>
 <table class="caption-top table">
 <colgroup>
-<col style="width: 40%">
-<col style="width: 60%">
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
 </colgroup>
 <thead>
 <tr class="header">
-<th>Command</th>
-<th>Description</th>
+<th>CLI</th>
+<th>eval()</th>
+<th>Environment</th>
 </tr>
 </thead>
 <tbody>
 <tr class="odd">
-<td><code>task submit</code></td>
-<td>Submit your final answer for the task.</td>
+<td><code>--model</code></td>
+<td><code>model</code></td>
+<td><code>INSPECT_EVAL_MODEL</code></td>
 </tr>
 <tr class="even">
-<td><code>task note</code></td>
-<td>Record a note in the task transcript.</td>
+<td><code>--sample-id</code></td>
+<td><code>sample_id</code></td>
+<td><code>INSPECT_EVAL_SAMPLE_ID</code></td>
 </tr>
 <tr class="odd">
-<td><code>task status</code></td>
-<td>Print task status (clock, scoring , etc.)</td>
-</tr>
-<tr class="even">
-<td><code>task start</code></td>
-<td>Start the task clock (resume working)</td>
-</tr>
-<tr class="odd">
-<td><code>task stop</code></td>
-<td>Stop the task clock (pause working).</td>
-</tr>
-<tr class="even">
-<td><code>task instructions</code></td>
-<td>Display task command and instructions.</td>
+<td><code>--limit</code></td>
+<td><code>limit</code></td>
+<td><code>INSPECT_EVAL_LIMIT</code></td>
 </tr>
 </tbody>
 </table>
-<p>Note that the instructions are also copied to an <code>instructions.txt</code> file in the container user’s working directory.</p>
 </section>
-<section id="answer-submission" class="level3">
-<h3 class="anchored" data-anchor-id="answer-submission">Answer Submission</h3>
-<p>When the human agent has completed the task, they submit their answer using the <code>task submit</code>command. By default, the <code>task submit</code> command requires that an explicit answer be given (e.g.&nbsp;<code>task submit picoCTF{73bfc85c1ba7}</code>).</p>
-<p>However, ff your task is scored by reading from the container filesystem then no explicit answer need be provided. Indicate this by passing <code>answer=False</code> to the <code>human_agent()</code>:</p>
-<div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>solver<span class="op">=</span>human_agent(answer<span class="op">=</span><span class="va">False</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Or from the CLI, use the <code>-S</code> option:</p>
-<div class="sourceCode" id="cb7"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="ex">--solver</span> human_agent <span class="at">-S</span> answer=false</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>You can also specify a regex to match the answer against for validation, for example:</p>
-<div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>solver<span class="op">=</span>human_agent(answer<span class="op">=</span><span class="vs">r"picoCTF{\w+}"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<section id="model-provider" class="level2">
+<h2 class="anchored" data-anchor-id="model-provider">Model Provider</h2>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 37%">
+<col style="width: 63%">
+</colgroup>
+<tbody>
+<tr class="odd">
+<td><code>--model</code></td>
+<td>Model used to evaluate tasks.</td>
+</tr>
+<tr class="even">
+<td><code>--model-base-url</code></td>
+<td>Base URL for for model API</td>
+</tr>
+<tr class="odd">
+<td><code>--model-config</code></td>
+<td>Model specific arguments (JSON or YAML file)</td>
+</tr>
+<tr class="even">
+<td><code>-M</code></td>
+<td>Model specific arguments (<code>key=value</code>).</td>
+</tr>
+</tbody>
+</table>
 </section>
-<section id="intermediate-scoring" class="level3">
-<h3 class="anchored" data-anchor-id="intermediate-scoring">Intermediate Scoring</h3>
-<p>You can optionally make intermediate scoring available to human baseliners so that they can check potential answers as they work. Use the <code>intermediate_scoring</code> option (which defaults to <code>False</code>) to do this:</p>
-<div class="sourceCode" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>solver<span class="op">=</span>human_agent(intermediate_scoring<span class="op">=</span><span class="va">True</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Or from the CLI, use the <code>-S</code> option:</p>
-<div class="sourceCode" id="cb10"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="ex">--solver</span> human_agent <span class="at">-S</span> intermediate_scoring=true</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>With this option enabled, the human agent can check their potential score on the task for a given answer using the <code>task score</code> command. For example:</p>
-<div class="sourceCode" id="cb11"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="ex">task</span> score picoCTF{73bfc85c1ba7}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<section id="model-generation" class="level2">
+<h2 class="anchored" data-anchor-id="model-generation">Model Generation</h2>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 37%">
+<col style="width: 63%">
+</colgroup>
+<tbody>
+<tr class="odd">
+<td><code>--max-tokens</code></td>
+<td>The maximum number of tokens that can be generated in the completion (default is model specific)</td>
+</tr>
+<tr class="even">
+<td><code>--system-message</code></td>
+<td>Override the default system message.</td>
+</tr>
+<tr class="odd">
+<td><code>--temperature</code></td>
+<td>What sampling temperature to use, between 0 and 2. Higher values like 0.8 will make the output more random, while lower values like 0.2 will make it more focused and deterministic.</td>
+</tr>
+<tr class="even">
+<td><code>--top-p</code></td>
+<td>An alternative to sampling with temperature, called nucleus sampling, where the model considers the results of the tokens with top_p probability mass.</td>
+</tr>
+<tr class="odd">
+<td><code>--top-k</code></td>
+<td>Randomly sample the next word from the top_k most likely next words. Anthropic, Google, HuggingFace, and vLLM only.</td>
+</tr>
+<tr class="even">
+<td><code>--frequency-penalty</code></td>
+<td>Number between -2.0 and 2.0. Positive values penalize new tokens based on their existing frequency in the text so far, decreasing the model’s likelihood to repeat the same line verbatim. OpenAI, Google, Grok, Groq, llama- cpp-python and vLLM only.</td>
+</tr>
+<tr class="odd">
+<td><code>--presence-penalty</code></td>
+<td>Number between -2.0 and 2.0. Positive values penalize new tokens based on whether they appear in the text so far, increasing the model’s likelihood to talk about new topics. OpenAI, Google, Grok, Groq, llama-cpp-python and vLLM only.</td>
+</tr>
+<tr class="even">
+<td><code>--logit-bias</code></td>
+<td>Map token Ids to an associated bias value from -100 to 100 (e.g.&nbsp;“42=10,43=-10”). OpenAI and Grok only.</td>
+</tr>
+<tr class="odd">
+<td><code>--seed</code></td>
+<td>Random seed. OpenAI, Google, Groq, Mistral, HuggingFace, and vLLM only.</td>
+</tr>
+<tr class="even">
+<td><code>--stop-seqs</code></td>
+<td>Sequences where the API will stop generating further tokens. The returned text will not contain the stop sequence.</td>
+</tr>
+<tr class="odd">
+<td><code>--num-choices</code></td>
+<td>How many chat completion choices to generate for each input message. OpenAI, Grok, Google, TogetherAI, and vLLM only.</td>
+</tr>
+<tr class="even">
+<td><code>--best-of</code></td>
+<td>Generates best_of completions server-side and returns the ‘best’ (the one with the highest log probability per token). OpenAI only.</td>
+</tr>
+<tr class="odd">
+<td><code>--log-probs</code></td>
+<td>Return log probabilities of the output tokens. OpenAI, Grok, TogetherAI, Huggingface, llama-cpp-python, and vLLM only.</td>
+</tr>
+<tr class="even">
+<td><code>--top-logprobs</code></td>
+<td>Number of most likely tokens (0-20) to return at each token position, each with an associated log probability. OpenAI, Grok, TogetherAI, Huggingface, and vLLM only.</td>
+</tr>
+<tr class="odd">
+<td><code>--cache-prompt</code></td>
+<td>Values: <code>auto</code>, <code>true</code>, or <code>false</code>. Cache prompt prefix (Anthropic only). Defaults to “auto”, which will enable caching for requests with tools.</td>
+</tr>
+<tr class="even">
+<td><code>--reasoning-effort</code></td>
+<td>Values: <code>low</code>, <code>medium</code>, or <code>high</code>. Constrains effort on reasoning for reasoning models. Open AI o1 models only.</td>
+</tr>
+<tr class="odd">
+<td><code>--parallel-tool-calls</code></td>
+<td>Whether to enable calling multiple functions during tool use (defaults to True) OpenAI and Groq only.</td>
+</tr>
+<tr class="even">
+<td><code>--max-tool-output</code></td>
+<td>Maximum size of tool output (in bytes). Defaults to 16 * 1024.</td>
+</tr>
+<tr class="odd">
+<td><code>--internal-tools</code></td>
+<td>Whether to automatically map tools to model internal implementations (e.g.&nbsp;‘computer’ for Anthropic).</td>
+</tr>
+<tr class="even">
+<td><code>--max-retries</code></td>
+<td>Maximum number of times to retry request (defaults to 5)</td>
+</tr>
+<tr class="odd">
+<td><code>--timeout</code></td>
+<td>Request timeout (in seconds).</td>
+</tr>
+</tbody>
+</table>
 </section>
+<section id="tasks-and-solvers" class="level2">
+<h2 class="anchored" data-anchor-id="tasks-and-solvers">Tasks and Solvers</h2>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 37%">
+<col style="width: 63%">
+</colgroup>
+<tbody>
+<tr class="odd">
+<td><code>--task-config</code></td>
+<td>Task arguments (JSON or YAML file)</td>
+</tr>
+<tr class="even">
+<td><code>-T</code></td>
+<td>Task arguments (<code>key=value</code>)</td>
+</tr>
+<tr class="odd">
+<td><code>--solver</code></td>
+<td>Solver to execute (overrides task default solver)</td>
+</tr>
+<tr class="even">
+<td><code>--solver-config</code></td>
+<td>Solver arguments (JSON or YAML file)</td>
+</tr>
+<tr class="odd">
+<td><code>-S</code></td>
+<td>Solver arguments (<code>key=value</code>)</td>
+</tr>
+</tbody>
+</table>
 </section>
-<section id="recording" class="level2">
-<h2 class="anchored" data-anchor-id="recording">Recording</h2>
-<p>By default, human agent terminal sessions are recorded using the LInux <a href="https://www.redhat.com/en/blog/linux-script-command">script command</a>. Recorded sessions are saved in the sample store and available for playback within the Inspect View:</p>
-<p><a href="images/inspect-terminal-transcript.png" class="lightbox" data-gallery="quarto-lightbox-gallery-2"><img src="images/inspect-terminal-transcript.png" class="img-fluid"></a></p>
-<p>You can disable session recording with the <code>record_session</code> option:</p>
-<div class="sourceCode" id="cb12"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="ex">--solver</span> human_agent <span class="at">-S</span> record_session=false</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<section id="sample-selection" class="level2">
+<h2 class="anchored" data-anchor-id="sample-selection">Sample Selection</h2>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 37%">
+<col style="width: 63%">
+</colgroup>
+<tbody>
+<tr class="odd">
+<td><code>--limit</code></td>
+<td>Limit samples to evaluate by specifying a maximum (e.g.&nbsp;<code>10</code>) or range (e.g.&nbsp;<code>10-20</code>)</td>
+</tr>
+<tr class="even">
+<td><code>--sample-id</code></td>
+<td>Evalute a specific sample (e.g.&nbsp;<code>44</code>) or list of samples (e.g.&nbsp;<code>44,63,91</code>)</td>
+</tr>
+<tr class="odd">
+<td><code>--epochs</code></td>
+<td>Number of times to repeat each sample (defaults to 1)</td>
+</tr>
+<tr class="even">
+<td><code>--epochs-reducer</code></td>
+<td>Method for reducing per-epoch sample scores into a single score. Built in reducers include <code>mean</code>, <code>median</code>, <code>mode</code>, <code>max</code>, <code>at_least_{n}</code>, and <code>pass_at_{k}</code>.</td>
+</tr>
+</tbody>
+</table>
 </section>
-<section id="headless" class="level2">
-<h2 class="anchored" data-anchor-id="headless">Headless</h2>
-<p>The examples above demonstrate human baselining being initiated from the CLI and standard task display. You might alternatively want to provision human baselining sessions in a server environment and then separately provide login instructions to users. To suppress the standard task display in favour of just printing out the container login information, pass the <code>--display=plain</code> CLI option:</p>
-<div class="sourceCode" id="cb13"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval inspect_evals/gdm_intercode_ctf <span class="dt">\</span></span>
-<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>    <span class="at">--sample-id</span> 44 <span class="at">--solver</span> human_agent <span class="at">--display</span> plain</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Which will print the following to the terminal:</p>
-<div class="sourceCode" id="cb14"><pre class="sourceCode bash code-overflow-wrap code-with-copy"><code class="sourceCode bash"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="ex">Running</span> task gdm_intercode_ctf <span class="er">(</span><span class="ex">1</span> sample<span class="kw">)</span><span class="bu">:</span> anthropic/claude-3-5-sonnet-20240620 <span class="er">(</span><span class="ex">config:</span> sample_id: 44<span class="kw">)</span><span class="ex">...</span></span>
-<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a><span class="ex">You</span> are completing a task on a Linux system <span class="er">(</span><span class="ex">task</span> instructions will be presented when you login<span class="kw">)</span><span class="bu">.</span> Login to the system with the following command:</span>
-<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a><span class="ex">docker</span> exec <span class="at">-it</span> inspect-gdm_intercod-iebwzkg-default-1 bash <span class="at">-l</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<section id="parallelism" class="level2">
+<h2 class="anchored" data-anchor-id="parallelism">Parallelism</h2>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 37%">
+<col style="width: 63%">
+</colgroup>
+<tbody>
+<tr class="odd">
+<td><code>--max-connections</code></td>
+<td>Maximum number of concurrent connections to Model provider (defaults to 10)</td>
+</tr>
+<tr class="even">
+<td><code>--max-samples</code></td>
+<td>Maximum number of samples to run in parallel (default is <code>--max-connections</code>)</td>
+</tr>
+<tr class="odd">
+<td><code>--max-subprocesses</code></td>
+<td>Maximum number of subprocesses to run in parallel (default is <code>os.cpu_count()</code>)</td>
+</tr>
+<tr class="even">
+<td><code>--max-sandboxes</code></td>
+<td>Maximum number of sandboxes (per-provider) to run in parallel (default is <code>2 * os.cpu_count()</code>)</td>
+</tr>
+<tr class="odd">
+<td><code>--max-tasks</code></td>
+<td>Maximum number of tasks to run in parallel (default is 1)</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="errors-and-limits" class="level2">
+<h2 class="anchored" data-anchor-id="errors-and-limits">Errors and Limits</h2>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 37%">
+<col style="width: 63%">
+</colgroup>
+<tbody>
+<tr class="odd">
+<td><code>--fail-on-error</code></td>
+<td>Threshold of sample errors to tolerate (by default, evals fail when any error occurs). Value between 0 to 1 to set a proportion; value greater than 1 to set a count.</td>
+</tr>
+<tr class="even">
+<td><code>--no-fail-on-error</code></td>
+<td>Do not fail the eval if errors occur within samples (instead, continue running other samples)</td>
+</tr>
+<tr class="odd">
+<td><code>--message-limit</code></td>
+<td>Limit on total messages used for each sample.</td>
+</tr>
+<tr class="even">
+<td><code>--token-limit</code></td>
+<td>Limit on total tokens used for each sample.</td>
+</tr>
+<tr class="odd">
+<td><code>--time-limit</code></td>
+<td>Limit on total execution time for each sample.</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="eval-logs" class="level2">
+<h2 class="anchored" data-anchor-id="eval-logs">Eval Logs</h2>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 37%">
+<col style="width: 63%">
+</colgroup>
+<tbody>
+<tr class="odd">
+<td><code>--log-dir</code></td>
+<td>Directory for log files (defaults to <code>./logs</code>)</td>
+</tr>
+<tr class="even">
+<td><code>--no-log-samples</code></td>
+<td>Do not log sample details.</td>
+</tr>
+<tr class="odd">
+<td><code>--no-log-images</code></td>
+<td>Do not log images and other media.</td>
+</tr>
+<tr class="even">
+<td><code>--log-buffer</code></td>
+<td>Number of samples to buffer before writing log file. If not specified, an appropriate default for the format and filesystem is chosen (10 for most cases, 100 for JSON logs on remote filesystems).</td>
+</tr>
+<tr class="odd">
+<td><code>--log-format</code></td>
+<td>Values: <code>eval</code>, <code>json</code> Format for writing log files (defaults to <code>eval</code>).</td>
+</tr>
+<tr class="even">
+<td><code>--log-level</code></td>
+<td>Python logger level for console. Values: <code>debug</code>, <code>trace</code>, <code>http</code>, <code>info</code>, <code>warning</code>, <code>error</code>, <code>critical</code> (defaults to <code>warning</code>)</td>
+</tr>
+<tr class="odd">
+<td><code>--log-level-transcript</code></td>
+<td>Python logger level for eval log transcript (values same as <code>--log-level</code>, defaults to <code>info</code>).</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="scoring" class="level2">
+<h2 class="anchored" data-anchor-id="scoring">Scoring</h2>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 37%">
+<col style="width: 63%">
+</colgroup>
+<tbody>
+<tr class="odd">
+<td><code>--no-score</code></td>
+<td>Do not score model output (use the <code>inspect score</code> command to score output later)</td>
+</tr>
+<tr class="even">
+<td><code>--no-score-display</code></td>
+<td>Do not display realtime scoring information.</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="sandboxes" class="level2">
+<h2 class="anchored" data-anchor-id="sandboxes">Sandboxes</h2>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 37%">
+<col style="width: 63%">
+</colgroup>
+<tbody>
+<tr class="odd">
+<td><code>--sandbox</code></td>
+<td>Sandbox environment type (with optional config file). e.g.&nbsp;‘docker’ or ‘docker:compose.yml’</td>
+</tr>
+<tr class="even">
+<td><code>--no-sandbox-cleanup</code></td>
+<td>Do not cleanup sandbox environments after task completes</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="debugging" class="level2">
+<h2 class="anchored" data-anchor-id="debugging">Debugging</h2>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 37%">
+<col style="width: 63%">
+</colgroup>
+<tbody>
+<tr class="odd">
+<td><code>--debug</code></td>
+<td>Wait to attach debugger</td>
+</tr>
+<tr class="even">
+<td><code>--debug-port</code></td>
+<td>Port number for debugger</td>
+</tr>
+<tr class="odd">
+<td><code>--debug-errors</code></td>
+<td>Raise task errors (rather than logging them) so they can be debugged.</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="miscellaneous" class="level2">
+<h2 class="anchored" data-anchor-id="miscellaneous">Miscellaneous</h2>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 37%">
+<col style="width: 63%">
+</colgroup>
+<tbody>
+<tr class="odd">
+<td><code>--display</code></td>
+<td>Display type. Values: <code>full</code>, <code>conversation</code>, <code>rich</code>, <code>plain</code>, <code>none</code> (defaults to <code>full</code>).</td>
+</tr>
+<tr class="even">
+<td><code>--approval</code></td>
+<td>Config file for tool call approval.</td>
+</tr>
+<tr class="odd">
+<td><code>--tags</code></td>
+<td>Tags to associate with this evaluation run.</td>
+</tr>
+<tr class="even">
+<td><code>--help</code></td>
+<td>Display help for command options.</td>
+</tr>
+</tbody>
+</table>
 
 
 </section>
@@ -1003,13 +1319,13 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
 </script>
 <nav class="page-navigation">
   <div class="nav-page nav-page-previous">
-      <a href="./agent-bridge.html" class="pagination-link" aria-label="Agent Bridge">
-        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">Agent Bridge</span>
+      <a href="./tutorial.html" class="pagination-link" aria-label="Tutorial">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">Tutorial</span>
       </a>          
   </div>
   <div class="nav-page nav-page-next">
-      <a href="./approval.html" class="pagination-link" aria-label="Approval">
-        <span class="nav-page-text">Approval</span> <i class="bi bi-arrow-right-short"></i>
+      <a href="./evals/index.html" class="pagination-link" aria-label="Evals">
+        <span class="nav-page-text">Evals</span> <i class="bi bi-arrow-right-short"></i>
       </a>
   </div>
 </nav>
@@ -1067,31 +1383,6 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
     </div>
   </div>
 </footer>
-<script>var lightboxQuarto = GLightbox({"closeEffect":"zoom","openEffect":"zoom","loop":false,"descPosition":"bottom","selector":".lightbox"});
-window.onload = () => {
-  lightboxQuarto.on('slide_before_load', (data) => {
-    const { slideIndex, slideNode, slideConfig, player, trigger } = data;
-    const href = trigger.getAttribute('href');
-    if (href !== null) {
-      const imgEl = window.document.querySelector(`a[href="${href}"] img`);
-      if (imgEl !== null) {
-        const srcAttr = imgEl.getAttribute("src");
-        if (srcAttr && srcAttr.startsWith("data:")) {
-          slideConfig.href = srcAttr;
-        }
-      }
-    } 
-  });
-
-  lightboxQuarto.on('slide_after_load', (data) => {
-    const { slideIndex, slideNode, slideConfig, player, trigger } = data;
-    if (window.Quarto?.typesetMath) {
-      window.Quarto.typesetMath(slideNode);
-    }
-  });
-
-};
-          </script>
 
 
 

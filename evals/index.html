@@ -20,26 +20,7 @@ ul.task-list li input[type="checkbox"] {
   margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
   vertical-align: middle;
 }
-/* CSS for citations */
-div.csl-bib-body { }
-div.csl-entry {
-  clear: both;
-}
-.hanging-indent div.csl-entry {
-  margin-left:2em;
-  text-indent:-2em;
-}
-div.csl-left-margin {
-  min-width:2em;
-  float:left;
-}
-div.csl-right-inline {
-  margin-left:2em;
-  padding-left:1em;
-}
-div.csl-indent {
-  margin-left: 2em;
-}</style>
+</style>
 
 
 <script src="../site_libs/quarto-nav/quarto-nav.js"></script>
@@ -99,9 +80,9 @@ div.csl-indent {
     }
 
     const options = {
-      valueNames: ['listing-title','listing-description','listing-arxiv','listing-cite','listing-group','listing-demonstrates','listing-contributors',{ data: ['index'] },{ data: ['categories'] }],
+      valueNames: ['listing-arxiv','listing-categories','listing-contributors','listing-description','listing-group','listing-tasks','listing-title','listing-dependency','listing-tags',{ data: ['index'] },{ data: ['categories'] }],
       
-      searchColumns: ["listing-title","listing-description","listing-arxiv","listing-cite","listing-group","listing-demonstrates","listing-contributors"],
+      searchColumns: ["listing-arxiv","listing-categories","listing-contributors","listing-description","listing-group","listing-tasks","listing-title","listing-dependency","listing-tags"],
     };
 
     window['quarto-listings'] = window['quarto-listings'] || {};
@@ -421,29 +402,8 @@ window.Quarto = {
 <div id="quarto-sidebar-glass" class="quarto-sidebar-collapse-item" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item"></div>
 <!-- margin-sidebar -->
     <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
-        <nav id="TOC" role="doc-toc" class="toc-active">
-<ul>
-<li>
-<a href="#coding" id="toc-coding" class="nav-link active" data-scroll-target="#coding">Coding</a>
-</li>
-<li>
-<a href="#assistants" id="toc-coding" class="nav-link" data-scroll-target="#assistants">Assistants</a>
-</li>
-<li>
-<a href="#cybersecurity" id="toc-coding" class="nav-link" data-scroll-target="#cybersecurity">Cybersecurity</a>
-</li>
-<li>
-<a href="#mathematics" id="toc-mathematics" class="nav-link" data-scroll-target="#mathematics">Mathematics</a>
-</li>
-<li>
-<a href="#reasoning" id="toc-reasoning" class="nav-link" data-scroll-target="#reasoning">Reasoning</a>
-</li>
-<li>
-<a href="#knowledge" id="toc-knowledge" class="nav-link" data-scroll-target="#knowledge">Knowledge</a>
-</li>
-</ul>
-<div class="toc-actions"><ul><li><a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div></nav>
-    </div>
+        
+    <h5 class="quarto-listing-category-title">Categories</h5><div class="quarto-listing-category category-default"><div class="category" data-category="">All <span class="quarto-category-count">(46)</span></div><div class="category" data-category="Agent">Agent <span class="quarto-category-count">(7)</span></div><div class="category" data-category="Assistants">Assistants <span class="quarto-category-count">(2)</span></div><div class="category" data-category="Coding">Coding <span class="quarto-category-count">(6)</span></div><div class="category" data-category="Cybersecurity">Cybersecurity <span class="quarto-category-count">(7)</span></div><div class="category" data-category="Knowledge">Knowledge <span class="quarto-category-count">(8)</span></div><div class="category" data-category="Mathematics">Mathematics <span class="quarto-category-count">(4)</span></div><div class="category" data-category="Multimodal">Multimodal <span class="quarto-category-count">(4)</span></div><div class="category" data-category="Reasoning">Reasoning <span class="quarto-category-count">(17)</span></div><div class="category" data-category="Safeguards">Safeguards <span class="quarto-category-count">(2)</span></div></div></div>
 <!-- main -->
 <main class="content" id="quarto-document-content">
 
@@ -466,20 +426,9 @@ window.Quarto = {
 </header>
 
 
-
 <p><a href="https://ukgovernmentbeis.github.io/inspect_evals/">Inspect Evals</a> is a repository of community contributed evaluations featuring implementations of many popular benchmarks and papers.</p>
-<p>These evaluations demonstrate a wide variety of evaluation types and techniques. If you have just begun learning Inspect, you might benefit from reviewing the <a href="../tutorial.html">Tutorial</a> examples before exploring these.</p>
-<div id="examples">
-
-</div>
-<div id="refs" role="list">
-
-</div>
-
-
-
-
-<div class="quarto-listing quarto-listing-container-custom" id="listing-evals">
+<p>These evals can be <code>pip</code> installed and run with a single command against any model. They are also useful as a learning resource as they demonstrate a wide variety of evaluation types and techniques.</p>
+<div id="listing-evals" class="quarto-listing quarto-listing-container-custom">
 
 <ul class="list no-bullets">
 
@@ -491,7 +440,7 @@ window.Quarto = {
 <li class="group"><h2 href="#coding" class="anchored">Coding</h2></li>
     
   
-<li class="example" data-index="0">
+<li class="example" data-index="0" data-categories="Coding">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-code"></i>
@@ -512,7 +461,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="1">
+<li class="example" data-index="1" data-categories="Coding">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-code"></i>
@@ -533,7 +482,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="2">
+<li class="example" data-index="2" data-categories="Coding,Agent">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-code"></i>
@@ -544,8 +493,69 @@ window.Quarto = {
             SWE-Bench: Resolving Real-World GitHub Issues
           </a>
         </div>
-        <div class="listing-description text-secondary">Software engineering problems drawn from real GitHub issues and corresponding pull requests across 12 popular Python repositories.
-Demonstrates sandboxing untrusted model code.
+        <div class="listing-description text-secondary">Software engineering problems drawn from real GitHub issues and corresponding pull requests across 12 popular Python repositories. Demonstrates sandboxing untrusted model code.
+</div>
+      </div>
+    </div>
+  
+</li>
+
+  
+    
+  
+<li class="example" data-index="3" data-categories="Coding">
+    <div class="example-card">
+      <div class="example-icon fs-5">
+        <i class="bi bi-code"></i>
+      </div>
+      <div class="example-info">
+        <div class="listing-title">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/ds1000">
+            DS-1000: A Natural and Reliable Benchmark for Data Science Code Generation
+          </a>
+        </div>
+        <div class="listing-description text-secondary">DS-1000 is a code generation benchmark with a thousand data science problems spanning seven Python libraries.</div>
+      </div>
+    </div>
+  
+</li>
+
+  
+    
+  
+<li class="example" data-index="4" data-categories="Coding">
+    <div class="example-card">
+      <div class="example-icon fs-5">
+        <i class="bi bi-code"></i>
+      </div>
+      <div class="example-info">
+        <div class="listing-title">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/bigcodebench">
+            BigCodeBench: Benchmarking Code Generation with Diverse Function Calls and Complex Instructions
+          </a>
+        </div>
+        <div class="listing-description text-secondary">Python coding benchmark with 1,140 diverse questions drawing on numerous python libraries.
+</div>
+      </div>
+    </div>
+  
+</li>
+
+  
+    
+  
+<li class="example" data-index="5" data-categories="Coding">
+    <div class="example-card">
+      <div class="example-icon fs-5">
+        <i class="bi bi-code"></i>
+      </div>
+      <div class="example-info">
+        <div class="listing-title">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/class_eval">
+            ClassEval: A Manually-Crafted Benchmark for Evaluating LLMs on Class-level Code Generation
+          </a>
+        </div>
+        <div class="listing-description text-secondary">Evaluates LLMs on class-level code generation with 100 tasks constructed over 500 person-hours. The study shows that LLMs perform worse on class-level tasks compared to method-level tasks. GPT-4 and GPT-3.5 outperform other models, with holistic generation being the best strategy for them, while incremental generation works better for other models. The study also shows that the performance of LLMs is highly correlated with the number of tokens in the prompt.
 </div>
       </div>
     </div>
@@ -558,7 +568,7 @@ Demonstrates sandboxing untrusted model code.
 <li class="group"><h2 href="#assistants" class="anchored">Assistants</h2></li>
     
   
-<li class="example" data-index="3">
+<li class="example" data-index="6" data-categories="Assistants,Agent">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-info-circle"></i>
@@ -577,15 +587,99 @@ Demonstrates sandboxing untrusted model code.
 </li>
 
   
+    
+  
+<li class="example" data-index="7" data-categories="Assistants,Agent">
+    <div class="example-card">
+      <div class="example-icon fs-5">
+        <i class="bi bi-info-circle"></i>
+      </div>
+      <div class="example-info">
+        <div class="listing-title">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/assistant_bench">
+            AssistantBench: Can Web Agents Solve Realistic and Time-Consuming Tasks?
+          </a>
+        </div>
+        <div class="listing-description text-secondary">Tests whether AI agents can perform real-world time-consuming tasks on the web. Includes 214 realistic tasks covering a variety scenarios and domains.
+</div>
+      </div>
+    </div>
+  
+</li>
+
+  
   
     
 <li class="group"><h2 href="#cybersecurity" class="anchored">Cybersecurity</h2></li>
     
   
-<li class="example" data-index="4">
+<li class="example" data-index="8" data-categories="Cybersecurity,Agent">
     <div class="example-card">
       <div class="example-icon fs-5">
-        <i class="bi bi-shield-lock"></i>
+        <i class="bi bi-laptop"></i>
+      </div>
+      <div class="example-info">
+        <div class="listing-title">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/cybench">
+            Cybench: A Framework for Evaluating Cybersecurity Capabilities and Risks of Language Models
+          </a>
+        </div>
+        <div class="listing-description text-secondary">40 professional-level Capture the Flag (CTF) tasks from 4 distinct CTF competitions, chosen to be recent, meaningful, and spanning a wide range of difficulties.
+</div>
+      </div>
+    </div>
+  
+</li>
+
+  
+    
+  
+<li class="example" data-index="9" data-categories="Cybersecurity">
+    <div class="example-card">
+      <div class="example-icon fs-5">
+        <i class="bi bi-laptop"></i>
+      </div>
+      <div class="example-info">
+        <div class="listing-title">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/cybermetric">
+            CyberMetric: A Benchmark Dataset based on Retrieval-Augmented Generation for Evaluating LLMs in Cybersecurity Knowledge
+          </a>
+        </div>
+        <div class="listing-description text-secondary">Datasets containing 80, 500, 2000 and 10000 multiple-choice questions, designed to evaluate understanding across nine domains within cybersecurity
+</div>
+      </div>
+    </div>
+  
+</li>
+
+  
+    
+  
+<li class="example" data-index="10" data-categories="Cybersecurity">
+    <div class="example-card">
+      <div class="example-icon fs-5">
+        <i class="bi bi-laptop"></i>
+      </div>
+      <div class="example-info">
+        <div class="listing-title">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/cyberseceval_2">
+            CyberSecEval_2: A Wide-Ranging Cybersecurity Evaluation Suite for Large Language Models
+          </a>
+        </div>
+        <div class="listing-description text-secondary">Evaluates Large Language Models for risky capabilities in cybersecurity.
+</div>
+      </div>
+    </div>
+  
+</li>
+
+  
+    
+  
+<li class="example" data-index="11" data-categories="Cybersecurity,Agent">
+    <div class="example-card">
+      <div class="example-icon fs-5">
+        <i class="bi bi-laptop"></i>
       </div>
       <div class="example-info">
         <div class="listing-title">
@@ -603,10 +697,10 @@ Demonstrates sandboxing untrusted model code.
   
     
   
-<li class="example" data-index="5">
+<li class="example" data-index="12" data-categories="Cybersecurity,Agent">
     <div class="example-card">
       <div class="example-icon fs-5">
-        <i class="bi bi-shield-lock"></i>
+        <i class="bi bi-laptop"></i>
       </div>
       <div class="example-info">
         <div class="listing-title">
@@ -622,12 +716,101 @@ Demonstrates sandboxing untrusted model code.
 </li>
 
   
+    
+  
+<li class="example" data-index="13" data-categories="Cybersecurity">
+    <div class="example-card">
+      <div class="example-icon fs-5">
+        <i class="bi bi-laptop"></i>
+      </div>
+      <div class="example-info">
+        <div class="listing-title">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/sevenllm">
+            SEvenLLM: A benchmark to elicit, and improve cybersecurity incident analysis and response abilities in LLMs for Security Events.
+          </a>
+        </div>
+        <div class="listing-description text-secondary">Designed for analyzing cybersecurity incidents, which is comprised of two primary task categories: understanding and generation, with a further breakdown into 28 subcategories of tasks.
+</div>
+      </div>
+    </div>
+  
+</li>
+
+  
+    
+  
+<li class="example" data-index="14" data-categories="Cybersecurity">
+    <div class="example-card">
+      <div class="example-icon fs-5">
+        <i class="bi bi-laptop"></i>
+      </div>
+      <div class="example-info">
+        <div class="listing-title">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/sec_qa">
+            SecQA: A Concise Question-Answering Dataset for Evaluating Large Language Models in Computer Security
+          </a>
+        </div>
+        <div class="listing-description text-secondary">"Security Question Answering" dataset to assess LLMs' understanding and application of security principles.
+SecQA has “v1” and “v2” datasets of multiple-choice questions that aim to provide two levels of cybersecurity evaluation criteria. 
+The questions were generated by GPT-4 based on the "Computer Systems Security: Planning for Success" textbook and vetted by humans.
+</div>
+      </div>
+    </div>
+  
+</li>
+
+  
+  
+    
+<li class="group"><h2 href="#safeguards" class="anchored">Safeguards</h2></li>
+    
+  
+<li class="example" data-index="15" data-categories="Safeguards,Agent">
+    <div class="example-card">
+      <div class="example-icon fs-5">
+        <i class="bi bi-shield-lock"></i>
+      </div>
+      <div class="example-info">
+        <div class="listing-title">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/agentharm">
+            AgentHarm: A Benchmark for Measuring Harmfulness of LLM Agents
+          </a>
+        </div>
+        <div class="listing-description text-secondary">Diverse set of 110 explicitly malicious agent tasks (440 with augmentations), covering 11 harm categories including fraud, cybercrime, and harassment.
+</div>
+      </div>
+    </div>
+  
+</li>
+
+  
+    
+  
+<li class="example" data-index="16" data-categories="Safeguards">
+    <div class="example-card">
+      <div class="example-icon fs-5">
+        <i class="bi bi-shield-lock"></i>
+      </div>
+      <div class="example-info">
+        <div class="listing-title">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/wmdp">
+            WMDP: Measuring and Reducing Malicious Use With Unlearning
+          </a>
+        </div>
+        <div class="listing-description text-secondary">A dataset of 3,668 multiple-choice questions developed by a consortium of academics and technical consultants that serve as a proxy measurement of hazardous knowledge in biosecurity, cybersecurity, and chemical security.
+</div>
+      </div>
+    </div>
+  
+</li>
+
+  
   
     
 <li class="group"><h2 href="#mathematics" class="anchored">Mathematics</h2></li>
     
   
-<li class="example" data-index="6">
+<li class="example" data-index="17" data-categories="Mathematics">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-calculator"></i>
@@ -648,7 +831,7 @@ Demonstrates sandboxing untrusted model code.
   
     
   
-<li class="example" data-index="7">
+<li class="example" data-index="18" data-categories="Mathematics">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-calculator"></i>
@@ -659,7 +842,7 @@ Demonstrates sandboxing untrusted model code.
             GSM8K: Training Verifiers to Solve Math Word Problems
           </a>
         </div>
-        <div class="listing-description text-secondary">Dataset of 8.5K high quality linguistically diverse grade school math word problems. Demostrates fewshot prompting.
+        <div class="listing-description text-secondary">Dataset of 8.5K high quality linguistically diverse grade school math word problems. Demonstrates fewshot prompting.
 </div>
       </div>
     </div>
@@ -669,7 +852,7 @@ Demonstrates sandboxing untrusted model code.
   
     
   
-<li class="example" data-index="8">
+<li class="example" data-index="19" data-categories="Mathematics,Multimodal">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-calculator"></i>
@@ -688,12 +871,54 @@ Demonstrates sandboxing untrusted model code.
 </li>
 
   
+    
+  
+<li class="example" data-index="20" data-categories="Mathematics">
+    <div class="example-card">
+      <div class="example-icon fs-5">
+        <i class="bi bi-calculator"></i>
+      </div>
+      <div class="example-info">
+        <div class="listing-title">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/mgsm">
+            MGSM: Multilingual Grade School Math
+          </a>
+        </div>
+        <div class="listing-description text-secondary">Extends the original GSM8K dataset by translating 250 of its problems into 10 typologically diverse languages.
+</div>
+      </div>
+    </div>
+  
+</li>
+
+  
   
     
 <li class="group"><h2 href="#reasoning" class="anchored">Reasoning</h2></li>
     
   
-<li class="example" data-index="9">
+<li class="example" data-index="21" data-categories="Reasoning,Multimodal">
+    <div class="example-card">
+      <div class="example-icon fs-5">
+        <i class="bi bi-boxes"></i>
+      </div>
+      <div class="example-info">
+        <div class="listing-title">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/vstar_bench">
+            V*Bench: A Visual QA Benchmark with Detailed High-resolution Images
+          </a>
+        </div>
+        <div class="listing-description text-secondary">V*Bench is a visual question &amp; answer benchmark that evaluates MLLMs in their ability to process high-resolution and visually crowded images to find and focus on small details.
+</div>
+      </div>
+    </div>
+  
+</li>
+
+  
+    
+  
+<li class="example" data-index="22" data-categories="Reasoning">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-boxes"></i>
@@ -713,14 +938,14 @@ Demonstrates sandboxing untrusted model code.
   
     
   
-<li class="example" data-index="10">
+<li class="example" data-index="23" data-categories="Reasoning">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-boxes"></i>
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/evals/hellaswag">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/hellaswag">
             HellaSwag: Can a Machine Really Finish Your Sentence?
           </a>
         </div>
@@ -734,7 +959,7 @@ Demonstrates sandboxing untrusted model code.
   
     
   
-<li class="example" data-index="11">
+<li class="example" data-index="24" data-categories="Reasoning">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-boxes"></i>
@@ -755,7 +980,49 @@ Demonstrates sandboxing untrusted model code.
   
     
   
-<li class="example" data-index="12">
+<li class="example" data-index="25" data-categories="Reasoning">
+    <div class="example-card">
+      <div class="example-icon fs-5">
+        <i class="bi bi-boxes"></i>
+      </div>
+      <div class="example-info">
+        <div class="listing-title">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/infinite_bench">
+            ∞Bench: Extending Long Context Evaluation Beyond 100K Tokens
+          </a>
+        </div>
+        <div class="listing-description text-secondary">LLM benchmark featuring an average data length surpassing 100K tokens. Comprises synthetic and realistic tasks spanning diverse domains in English and Chinese.
+</div>
+      </div>
+    </div>
+  
+</li>
+
+  
+    
+  
+<li class="example" data-index="26" data-categories="Reasoning">
+    <div class="example-card">
+      <div class="example-icon fs-5">
+        <i class="bi bi-boxes"></i>
+      </div>
+      <div class="example-info">
+        <div class="listing-title">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/bbh">
+            BBH: Challenging BIG-Bench Tasks and Whether Chain-of-Thought Can Solve Them
+          </a>
+        </div>
+        <div class="listing-description text-secondary">Suite of 23 challenging BIG-Bench tasks for which prior language model evaluations did not outperform the average human-rater.
+</div>
+      </div>
+    </div>
+  
+</li>
+
+  
+    
+  
+<li class="example" data-index="27" data-categories="Reasoning">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-boxes"></i>
@@ -776,7 +1043,28 @@ Demonstrates sandboxing untrusted model code.
   
     
   
-<li class="example" data-index="13">
+<li class="example" data-index="28" data-categories="Reasoning,Multimodal">
+    <div class="example-card">
+      <div class="example-icon fs-5">
+        <i class="bi bi-boxes"></i>
+      </div>
+      <div class="example-info">
+        <div class="listing-title">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/docvqa">
+            DocVQA: A Dataset for VQA on Document Images
+          </a>
+        </div>
+        <div class="listing-description text-secondary">DocVQA is a Visual Question Answering benchmark that consists of 50,000 questions covering 12,000+ document images. This implementation solves and scores the "validation" split.
+</div>
+      </div>
+    </div>
+  
+</li>
+
+  
+    
+  
+<li class="example" data-index="29" data-categories="Reasoning">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-boxes"></i>
@@ -797,7 +1085,7 @@ Demonstrates sandboxing untrusted model code.
   
     
   
-<li class="example" data-index="14">
+<li class="example" data-index="30" data-categories="Reasoning">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-boxes"></i>
@@ -818,7 +1106,7 @@ Demonstrates sandboxing untrusted model code.
   
     
   
-<li class="example" data-index="15">
+<li class="example" data-index="31" data-categories="Reasoning">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-boxes"></i>
@@ -839,7 +1127,7 @@ Demonstrates sandboxing untrusted model code.
   
     
   
-<li class="example" data-index="16">
+<li class="example" data-index="32" data-categories="Reasoning,Multimodal">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-boxes"></i>
@@ -860,7 +1148,7 @@ Demonstrates sandboxing untrusted model code.
   
     
   
-<li class="example" data-index="17">
+<li class="example" data-index="33" data-categories="Reasoning">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-boxes"></i>
@@ -881,7 +1169,7 @@ Demonstrates sandboxing untrusted model code.
   
     
   
-<li class="example" data-index="18">
+<li class="example" data-index="34" data-categories="Reasoning">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-boxes"></i>
@@ -902,18 +1190,60 @@ Demonstrates sandboxing untrusted model code.
   
     
   
-<li class="example" data-index="19">
+<li class="example" data-index="35" data-categories="Reasoning">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-boxes"></i>
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/evals/agieval">
-            AGIEval: A Human-Centric Benchmark for Evaluating Foundation Models
+          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/musr">
+            MuSR: Testing the Limits of Chain-of-thought with Multistep Soft Reasoning
           </a>
         </div>
-        <div class="listing-description text-secondary">Questions from human-centric standardized exams, such as college entrance exams, law school admission tests, math competitions, and lawyer qualification tests. Demonstrates custom scoring.
+        <div class="listing-description text-secondary">Evaluating models on multistep soft reasoning tasks in the form of free text narratives.
+</div>
+      </div>
+    </div>
+  
+</li>
+
+  
+    
+  
+<li class="example" data-index="36" data-categories="Reasoning">
+    <div class="example-card">
+      <div class="example-icon fs-5">
+        <i class="bi bi-boxes"></i>
+      </div>
+      <div class="example-info">
+        <div class="listing-title">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/niah">
+            Needle in a Haystack (NIAH): In-Context Retrieval Benchmark for Long Context LLMs
+          </a>
+        </div>
+        <div class="listing-description text-secondary">NIAH evaluates in-context retrieval ability of long context LLMs by testing a model's ability to extract factual information from long-context inputs.
+</div>
+      </div>
+    </div>
+  
+</li>
+
+  
+    
+  
+<li class="example" data-index="37" data-categories="Reasoning">
+    <div class="example-card">
+      <div class="example-icon fs-5">
+        <i class="bi bi-boxes"></i>
+      </div>
+      <div class="example-info">
+        <div class="listing-title">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/paws">
+            PAWS: Paraphrase Adversaries from Word Scrambling
+          </a>
+        </div>
+        <div class="listing-description text-secondary">Evaluating models on the task of paraphrase detection by providing pairs of sentences that are either paraphrases or not.
 </div>
       </div>
     </div>
@@ -926,7 +1256,7 @@ Demonstrates sandboxing untrusted model code.
 <li class="group"><h2 href="#knowledge" class="anchored">Knowledge</h2></li>
     
   
-<li class="example" data-index="20">
+<li class="example" data-index="38" data-categories="Knowledge">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-book"></i>
@@ -947,7 +1277,7 @@ Demonstrates sandboxing untrusted model code.
   
     
   
-<li class="example" data-index="21">
+<li class="example" data-index="39" data-categories="Knowledge">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-book"></i>
@@ -968,7 +1298,7 @@ Demonstrates sandboxing untrusted model code.
   
     
   
-<li class="example" data-index="22">
+<li class="example" data-index="40" data-categories="Knowledge">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-book"></i>
@@ -989,7 +1319,7 @@ Demonstrates sandboxing untrusted model code.
   
     
   
-<li class="example" data-index="23">
+<li class="example" data-index="41" data-categories="Knowledge">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-book"></i>
@@ -1010,7 +1340,7 @@ Demonstrates sandboxing untrusted model code.
   
     
   
-<li class="example" data-index="24">
+<li class="example" data-index="42" data-categories="Knowledge">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-book"></i>
@@ -1031,7 +1361,7 @@ Demonstrates sandboxing untrusted model code.
   
     
   
-<li class="example" data-index="25">
+<li class="example" data-index="43" data-categories="Knowledge">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-book"></i>
@@ -1052,7 +1382,7 @@ Demonstrates sandboxing untrusted model code.
   
     
   
-<li class="example" data-index="26">
+<li class="example" data-index="44" data-categories="Knowledge">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-book"></i>
@@ -1069,12 +1399,38 @@ Demonstrates sandboxing untrusted model code.
     </div>
   
 </li>
+
+  
+    
+  
+<li class="example" data-index="45" data-categories="Knowledge">
+    <div class="example-card">
+      <div class="example-icon fs-5">
+        <i class="bi bi-book"></i>
+      </div>
+      <div class="example-info">
+        <div class="listing-title">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/agieval">
+            AGIEval: A Human-Centric Benchmark for Evaluating Foundation Models
+          </a>
+        </div>
+        <div class="listing-description text-secondary">AGIEval is a human-centric benchmark specifically designed to evaluate the general abilities of foundation models in tasks pertinent to human cognition and problem-solving.
+</div>
+      </div>
+    </div>
+  
+</li>
   
 </ul>
 <div class="listing-no-matching d-none">
 No matching items
 </div>
-</div></main> <!-- /main -->
+</div>
+
+
+
+
+</main> <!-- /main -->
 <script id="quarto-html-after-body" type="application/javascript">
 window.document.addEventListener("DOMContentLoaded", function (event) {
   const toggleBodyColorMode = (bsSheetEl) => {
@@ -1572,7 +1928,7 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
 </a>
   </li>  
 </ul>
-    <div class="toc-actions d-sm-block d-md-none"><ul><li><a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div></div>
+    <div class="toc-actions"><ul><li><a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div></div>
     <div class="nav-footer-right">
       <ul class="footer-items list-unstyled">
     <li class="nav-item compact">
