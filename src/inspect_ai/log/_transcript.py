@@ -70,7 +70,7 @@ class SampleLimitEvent(BaseEvent):
     event: Literal["sample_limit"] = Field(default="sample_limit")
     """Event type."""
 
-    type: Literal["message", "time", "token", "operator"]
+    type: Literal["message", "time", "token", "operator", "custom"]
     """Type of limit that halted processing"""
 
     message: str
@@ -123,6 +123,9 @@ class ModelEvent(BaseEvent):
 
     output: ModelOutput
     """Output from model."""
+
+    error: str | None = Field(default=None)
+    """Error which occurred during model call."""
 
     cache: Literal["read", "write"] | None = Field(default=None)
     """Was this a cache read or write."""

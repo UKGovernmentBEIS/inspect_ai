@@ -76,6 +76,7 @@ export type NumChoices = number | null;
 export type Logprobs = boolean | null;
 export type TopLogprobs = number | null;
 export type ParallelToolCalls = boolean | null;
+export type InternalTools = boolean | null;
 export type MaxToolOutput = number | null;
 export type CachePrompt = "auto" | boolean | null;
 export type ReasoningEffort = ("low" | "medium" | "high") | null;
@@ -231,7 +232,7 @@ export type JsonValue = unknown;
 export type Timestamp1 = string;
 export type Pending1 = boolean | null;
 export type Event1 = "sample_limit";
-export type Type7 = "message" | "time" | "token" | "operator";
+export type Type7 = "message" | "time" | "token" | "operator" | "custom";
 export type Message2 = string;
 export type Limit1 = number | null;
 export type Timestamp2 = string;
@@ -274,6 +275,7 @@ export type Additionalproperties1 = boolean;
 export type Tools1 = ToolInfo[];
 export type ToolChoice = ("auto" | "any" | "none") | ToolFunction;
 export type Name6 = string;
+export type Error1 = string | null;
 export type Cache = ("read" | "write") | null;
 export type Timestamp5 = string;
 export type Pending5 = boolean | null;
@@ -394,7 +396,13 @@ export type Events = (
   | StepEvent
   | SubtaskEvent
 )[];
-export type Type13 = "context" | "time" | "message" | "token" | "operator";
+export type Type13 =
+  | "context"
+  | "time"
+  | "message"
+  | "token"
+  | "operator"
+  | "custom";
 export type Limit2 = number;
 export type Reductions = EvalSampleReductions[] | null;
 export type Scorer1 = string;
@@ -545,6 +553,7 @@ export interface GenerateConfig {
   logprobs: Logprobs;
   top_logprobs: TopLogprobs;
   parallel_tool_calls: ParallelToolCalls;
+  internal_tools: InternalTools;
   max_tool_output: MaxToolOutput;
   cache_prompt: CachePrompt;
   reasoning_effort: ReasoningEffort;
@@ -808,6 +817,7 @@ export interface ModelEvent {
   tool_choice: ToolChoice;
   config: GenerateConfig1;
   output: ModelOutput;
+  error: Error1;
   cache: Cache;
   call: ModelCall | null;
 }
@@ -897,6 +907,7 @@ export interface GenerateConfig1 {
   logprobs: Logprobs;
   top_logprobs: TopLogprobs;
   parallel_tool_calls: ParallelToolCalls;
+  internal_tools: InternalTools;
   max_tool_output: MaxToolOutput;
   cache_prompt: CachePrompt;
   reasoning_effort: ReasoningEffort;

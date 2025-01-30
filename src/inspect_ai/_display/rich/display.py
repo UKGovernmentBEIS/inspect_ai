@@ -129,11 +129,6 @@ class RichDisplay(Display):
     @override
     @contextlib.contextmanager
     def task(self, profile: TaskProfile) -> Iterator[TaskDisplay]:
-        # if there is no ansi display than all of the below will
-        # be a no-op, so we print a simple text message for the task
-        if display_type() == "plain":
-            rich.get_console().print(task_no_ansi(profile))
-
         # for typechekcer
         if self.tasks is None:
             self.tasks = []

@@ -7,12 +7,14 @@ from inspect_ai import Task, eval
 from inspect_ai.dataset import Sample
 from inspect_ai.log._log import EvalLog
 from inspect_ai.log._transcript import SampleLimitEvent
+from inspect_ai.model._chat_message import ChatMessageUser
 from inspect_ai.scorer import match
 from inspect_ai.scorer._metric import Score
 from inspect_ai.scorer._metrics import mean
 from inspect_ai.scorer._scorer import Scorer, scorer
 from inspect_ai.scorer._target import Target
 from inspect_ai.solver import Generate, TaskState, solver
+from inspect_ai.solver._solver import Solver
 
 
 @solver
@@ -26,9 +28,33 @@ def looping_solver(check_tokens: bool = False):
             assert state.token_usage > 0
 
         # keep generating until we hit a limit
-        while not state.completed:
+        while True:
             state.messages.append(state.user_prompt)
             state = await generate(state)
+
+        return state
+
+    return solve
+
+
+@solver
+def appending_solver():
+    async def solve(state: TaskState, generate: Generate):
+        # keep appending until we hit a limit
+        while True:
+            state.messages.append(ChatMessageUser(content="hello"))
+
+        return state
+
+    return solve
+
+
+@solver
+def overwriting_solver(messages: int):
+    async def solve(state: TaskState, generate: Generate):
+        state.messages = [
+            ChatMessageUser(content="message") for _ in range(0, messages)
+        ]
 
         return state
 
@@ -46,7 +72,7 @@ def slow_scorer(seconds: int | None = 10) -> Scorer:
     return score
 
 
-def test_message_limit_complete():
+def check_message_limit(solver: Solver):
     message_limit = randint(1, 3) * 2
     task = Task(
         dataset=[Sample(input="Say Hello", target="Hello")],
@@ -56,12 +82,25 @@ def test_message_limit_complete():
     )
 
     log = eval(task, model="mockllm/model")[0]
+    assert log.samples
     assert len(log.samples[0].messages) == message_limit
     check_limit_event(log, "message")
 
 
+def test_message_limit_generate():
+    check_message_limit(looping_solver())
+
+
+def test_message_limit_append():
+    check_message_limit(appending_solver())
+
+
+def test_message_limit_overwrite():
+    check_message_limit(overwriting_solver(10))
+
+
 @skip_if_no_openai
-def test_token_limit_complete():
+def test_token_limit():
     token_limit = 10
     task = Task(
         dataset=[Sample(input="Say Hello", target="Hello")],

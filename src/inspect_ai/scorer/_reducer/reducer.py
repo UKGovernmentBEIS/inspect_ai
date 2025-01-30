@@ -111,7 +111,7 @@ def pass_at(
             if total - correct < k:
                 return 1.0
             else:
-                return 1.0 - cast(
+                return 1.0 - cast(  # type: ignore[redundant-cast]
                     float,
                     np.prod(1.0 - k / np.arange(total - correct + 1, total + 1)).item(),
                 )

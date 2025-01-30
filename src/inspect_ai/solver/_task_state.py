@@ -2,8 +2,9 @@ from collections.abc import Sequence
 from contextvars import ContextVar
 from copy import deepcopy
 from dataclasses import dataclass
+from itertools import tee
 from random import Random
-from typing import Any, Type, Union, cast, overload
+from typing import Any, Iterable, SupportsIndex, Type, Union, cast, overload
 
 from pydantic_core import to_jsonable_python
 
@@ -15,9 +16,13 @@ from inspect_ai.model import (
     ModelOutput,
 )
 from inspect_ai.model._call_tools import tools_info
+from inspect_ai.model._chat_message import ChatMessageBase
 from inspect_ai.model._model import sample_total_tokens
+from inspect_ai.scorer._metric import Score
+from inspect_ai.scorer._target import Target
 from inspect_ai.tool import Tool, ToolChoice
 from inspect_ai.tool._tool_def import ToolDef
+from inspect_ai.util._limit import SampleLimitExceededError
 from inspect_ai.util._store import Store, store_jsonable
 from inspect_ai.util._store_model import SMT
 
@@ -136,6 +141,7 @@ class TaskState:
         epoch: int,
         input: str | list[ChatMessage],
         messages: list[ChatMessage],
+        target: Target = Target(""),
         choices: list[str] | None = [],
         output: ModelOutput | None = None,
         message_limit: int | None = None,
@@ -161,10 +167,13 @@ class TaskState:
         or `input_text` only
         """
 
+        self.target = target
+        """The scoring target for this `Sample`."""
+
         self.metadata = metadata
         """Metadata from the `Sample` for this `TaskState`"""
 
-        self.messages = messages
+        self._messages: list[ChatMessage] = ChatMessageList(messages)
         """
         Chat conversation history for sample.
 
@@ -189,9 +198,7 @@ class TaskState:
         """
 
         self._message_limit = message_limit
-        self._message_limit_exceeded = False
         self._token_limit = token_limit
-        self._token_limit_exceeded = False
         self._completed = completed
 
         """Store for shared data"""
@@ -201,6 +208,9 @@ class TaskState:
             self.choices = Choices(choices)
         else:
             self.choices = Choices([])
+
+        self.scores: dict[str, Score] | None = None
+        """Scores yielded by running task."""
 
     @property
     def model(self) -> ModelName:
@@ -255,6 +265,16 @@ class TaskState:
             raise ValueError("user_prompt requested from TaskState but none available")
 
     @property
+    def messages(self) -> list[ChatMessage]:
+        """Messages in chat history"""
+        return self._messages
+
+    @messages.setter
+    def messages(self, messages: list[ChatMessage]) -> None:
+        """Set messages in chat history."""
+        self._messages = ChatMessageList(messages)
+
+    @property
     def max_messages(self) -> int | None:
         """Deprecated (use message_limit)."""
         return self.message_limit
@@ -300,40 +320,7 @@ class TaskState:
     @property
     def completed(self) -> bool:
         """Is the task completed."""
-        # update messages
-        from inspect_ai.log._samples import set_active_sample_total_messages
-        from inspect_ai.log._transcript import SampleLimitEvent, transcript
-
-        set_active_sample_total_messages(len(self.messages))
-
-        if self._completed:
-            return True
-        elif self.message_limit and len(self.messages) >= self.message_limit:
-            # log if this is the first time we hit this
-            if not self._message_limit_exceeded:
-                self._message_limit_exceeded = True
-                transcript()._event(
-                    SampleLimitEvent(
-                        type="message",
-                        message=f"Sample completed: exceeded message limit ({self.message_limit})",
-                        limit=self.message_limit,
-                    )
-                )
-            return True
-        elif self.token_limit and self.token_usage >= self.token_limit:
-            # log if this is the first time we hit this
-            if not self._token_limit_exceeded:
-                self._token_limit_exceeded = True
-                transcript()._event(
-                    SampleLimitEvent(
-                        type="token",
-                        message=f"Sample completed: exceeded token limit ({self.token_limit:,})",
-                        limit=self.token_limit,
-                    )
-                )
-            return True
-        else:
-            return False
+        return self._completed
 
     @completed.setter
     def completed(self, completed: bool) -> None:
@@ -413,3 +400,58 @@ def state_jsonable(state: TaskState | None = None) -> dict[str, Any]:
 def sample_jsonable(sample: Sample) -> dict[str, Any]:
     jsonable = to_jsonable_python(sample, exclude_none=True, fallback=lambda _x: None)
     return cast(dict[str, Any], deepcopy(jsonable))
+
+
+class ChatMessageList(list[ChatMessage]):
+    def __init__(self, iterable: Iterable[ChatMessage]):
+        items, length = self._iterable_length(iterable)
+        self._check_size(length)
+        super().__init__(items)
+
+    def _check_size(self, additional_items: int = 1) -> None:
+        from inspect_ai.log._samples import active_sample_message_limit
+
+        messages_limit = active_sample_message_limit()
+        if messages_limit is not None:
+            messages = len(self) + additional_items
+            if messages > messages_limit:
+                raise SampleLimitExceededError(
+                    "message", value=messages, limit=messages_limit
+                )
+
+    def append(self, item: ChatMessage) -> None:
+        self._check_size()
+        super().append(item)
+
+    def extend(self, items: Iterable[ChatMessage]) -> None:
+        items, length = self._iterable_length(items)
+        self._check_size(length)
+        super().extend(items)
+
+    def insert(self, index: SupportsIndex, item: ChatMessage) -> None:
+        self._check_size()
+        super().insert(index, item)
+
+    @overload
+    def __setitem__(self, index: SupportsIndex, item: ChatMessage) -> None: ...
+
+    @overload
+    def __setitem__(self, index: slice, item: Iterable[ChatMessage]) -> None: ...
+
+    def __setitem__(
+        self, index: SupportsIndex | slice, item: ChatMessage | Iterable[ChatMessage]
+    ) -> None:
+        if isinstance(index, slice) and not isinstance(item, ChatMessageBase):
+            item, length = self._iterable_length(item)
+            size_change = length - len(self[index])
+            if size_change > 0:
+                self._check_size(size_change)
+
+        super().__setitem__(index, item)  # type: ignore[assignment,index]
+
+    def _iterable_length(
+        self, items: Iterable[ChatMessage]
+    ) -> tuple[Iterable[ChatMessage], int]:
+        items, counter = tee(items)
+        length = sum(1 for _ in counter)
+        return items, length

@@ -94,7 +94,7 @@ def vertex() -> type[ModelAPI]:
 def google() -> type[ModelAPI]:
     FEATURE = "Google API"
     PACKAGE = "google-generativeai"
-    MIN_VERSION = "0.8.3"
+    MIN_VERSION = "0.8.4"
 
     # workaround log spam
     # https://github.com/ray-project/ray/issues/24917
@@ -237,6 +237,28 @@ def mockllm() -> type[ModelAPI]:
     from .mockllm import MockLLM
 
     return MockLLM
+
+
+@modelapi("goodfire")
+def goodfire() -> type[ModelAPI]:
+    """Get the Goodfire API provider."""
+    FEATURE = "Goodfire API"
+    PACKAGE = "goodfire"
+    MIN_VERSION = "0.3.4"  # Support for newer Llama models and OpenAI compatibility
+
+    # verify we have the package
+    try:
+        import goodfire  # noqa: F401
+    except ImportError:
+        raise pip_dependency_error(FEATURE, [PACKAGE])
+
+    # verify version
+    verify_required_version(FEATURE, PACKAGE, MIN_VERSION)
+
+    # in the clear
+    from .goodfire import GoodfireAPI
+
+    return GoodfireAPI
 
 
 def validate_openai_client(feature: str) -> None:

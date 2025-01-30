@@ -15,13 +15,16 @@ MESSAGE_TITLE = "Message"
 def conversation_tool_mesage(message: ChatMessageTool) -> None:
     if display_type() == "conversation":
         # truncate output to 100 lines
-        output = message.error.message if message.error else message.text.strip()
-        content = lines_display(output, 100)
-
-        conversation_panel(
-            title=f"Tool Output: {message.function}",
-            content=content,
+        output = (
+            message.error.message.strip() if message.error else message.text.strip()
         )
+        if output:
+            content = lines_display(output, 100)
+
+            conversation_panel(
+                title=f"Tool Output: {message.function}",
+                content=content,
+            )
 
 
 def conversation_assistant_message(
@@ -42,8 +45,14 @@ def conversation_assistant_message(
 
         # print tool calls
         if message.tool_calls:
-            content.append(Text())
+            if content:
+                content.append(Text())
             content.extend(render_tool_calls(message.tool_calls))
 
         # print the assistant message
         conversation_panel(title="Assistant", content=content)
+
+
+def conversation_assistant_error(error: Exception) -> None:
+    if display_type() == "conversation":
+        conversation_panel(title="Assistant", content=repr(error))

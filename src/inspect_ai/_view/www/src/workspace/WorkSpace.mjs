@@ -43,7 +43,7 @@ import { debounce } from "../utils/sync.mjs";
  * @param {import("../types/log").EvalStats} [props.evalStats] - The EvalStats for this eval
  * @param {import("../types/log").EvalResults} [props.evalResults] - The EvalResults for this eval
  * @param {import("../Types.mjs").CurrentLog} [props.log] - the current log
- * @param {import("../api/Types.mjs").SampleSummary[]} [props.samples] - the samples
+ * @param {import("../api/Types.ts").SampleSummary[]} [props.samples] - the samples
  * @param {import("../Types.mjs").SampleMode} props.sampleMode - the mode for displaying samples
  * @param {string} props.groupBy - what to group by
  * @param {string} props.groupByOrder - the grouping order
@@ -142,6 +142,8 @@ export const WorkSpace = ({
     }
   }, [divRef, task_id]);
 
+  const sampleTabScrollRef = useRef(/** @type {HTMLElement|null} */ (null));
+
   const resolvedTabs = useMemo(() => {
     // Tabs that are available within the app
     // Include the tab contents as well as any tools that the tab provides
@@ -154,6 +156,7 @@ export const WorkSpace = ({
       resolvedTabs.samples = {
         id: kEvalWorkspaceTabId,
         scrollable: samples.length === 1,
+        scrollRef: sampleTabScrollRef,
         label: samples?.length > 1 ? "Samples" : "Sample",
         content: () => {
           return html` <${SamplesTab}
@@ -178,6 +181,7 @@ export const WorkSpace = ({
             epoch=${epoch}
             sampleScrollPositionRef=${sampleScrollPositionRef}
             setSampleScrollPosition=${setSampleScrollPosition}
+            sampleTabScrollRef=${sampleTabScrollRef}
           />`;
         },
         tools: () => {
@@ -368,6 +372,7 @@ export const WorkSpace = ({
     evalResults=${evalResults}
     evalStats=${evalStats}
     samples=${samples}
+    evalDescriptor=${samplesDescriptor.evalDescriptor}
     status=${evalStatus}
     tabs=${resolvedTabs}
     selectedTab=${selectedTab}
@@ -386,6 +391,7 @@ const WorkspaceDisplay = ({
   evalResults,
   evalStats,
   samples,
+  evalDescriptor,
   status,
   showToggle,
   selectedTab,
@@ -442,6 +448,7 @@ const WorkspaceDisplay = ({
         onSelected=${onSelected}
         selected=${selectedTab === tab.id}
         scrollable=${!!tab.scrollable}
+        scrollRef=${tab.scrollRef}
         scrollPosition=${workspaceTabScrollPositionRef.current[tab.id]}
         setScrollPosition=${useCallback(
           (position) => {
@@ -456,20 +463,19 @@ const WorkspaceDisplay = ({
     }, [tabs]);
 
     return html`
-    
-    
     <${Navbar}
       evalSpec=${evalSpec}
       evalPlan=${evalPlan}
       evalResults=${evalResults}
       evalStats=${evalStats}
       samples=${samples}
+      evalDescriptor=${evalDescriptor}
       status=${status}
       file=${logFileName}
       showToggle=${showToggle}
-      
+
       offcanvas=${offcanvas}
-    />    
+    />
     <div ref=${divRef} class="workspace" style=${{
       paddingTop: "0rem",
       overflowY: "hidden",

@@ -30,8 +30,9 @@ from inspect_ai._util.hooks import send_telemetry
 from inspect_ai._util.registry import (
     is_registry_object,
     registry_log_name,
+    registry_unqualified_name,
 )
-from inspect_ai._util.timeouts import Timeout, timeout, timeout_at
+from inspect_ai._util.timeouts import Timeout, timeout
 from inspect_ai._view.notify import view_notify_eval
 from inspect_ai.dataset import Dataset, Sample
 from inspect_ai.log import (
@@ -45,7 +46,11 @@ from inspect_ai.log import (
 from inspect_ai.log._condense import condense_sample
 from inspect_ai.log._file import eval_log_json_str
 from inspect_ai.log._log import EvalSampleLimit, EvalSampleReductions, eval_error
-from inspect_ai.log._samples import active_sample
+from inspect_ai.log._samples import (
+    active_sample,
+    set_active_sample_message_limit,
+    set_active_sample_token_limit,
+)
 from inspect_ai.log._transcript import (
     ErrorEvent,
     SampleInitEvent,
@@ -72,6 +77,7 @@ from inspect_ai.solver._chain import Chain, unroll
 from inspect_ai.solver._fork import set_task_generate
 from inspect_ai.solver._solver import Solver
 from inspect_ai.solver._task_state import sample_state, set_sample_state, state_jsonable
+from inspect_ai.util._limit import SampleLimitExceededError
 from inspect_ai.util._sandbox.context import sandbox_connections
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
 from inspect_ai.util._subtask import init_subtask
@@ -538,6 +544,9 @@ async def task_run_sample(
     # helper to handle exceptions (will throw if we've exceeded the limit)
     def handle_error(ex: BaseException) -> EvalError:
         err = sample_error(ex)
+        py_logger.warning(
+            f"Sample error (id: {sample.id}, epoch: {state.epoch}): {exception_message(ex)})"
+        )
         transcript()._event(ErrorEvent(error=err))
         return err
 
@@ -630,30 +639,43 @@ async def task_run_sample(
                     else:
                         raise
 
+                except SampleLimitExceededError as ex:
+                    # sample limit event
+                    transcript()._event(
+                        SampleLimitEvent(
+                            type=ex.type,
+                            limit=ex.limit,
+                            message=f"Sample completed: {ex.message}",
+                        )
+                    )
+
+                    # capture most recent state for scoring
+                    state = sample_state() or state
+                    state.completed = True
+
                 except BaseException as ex:
                     error = handle_error(ex)
 
-                # set timeout for scoring. if the original timeout was never hit
-                # then just create a new timeout_cm targeting the original
-                # timeout time. if the original timeout was hit we still want
-                # to provide an opportunity for scoring, but we don't necessarily
+                # set timeout for scoring. if the original timeout was hit we still
+                # want to provide opportunity for scoring, but we don't necessarily
                 # want to wait the full timeout again (especially in the case where
                 # the cause of the timeout is a hung container and scoring requires
                 # interacting with the container). as a middle ground we use half
                 # of the original timeout value for scoring.
                 if isinstance(timeout_cm, Timeout):
-                    if not timeout_cm.expired():
-                        timeout_cm = timeout_at(timeout_cm.when())
-                    else:
-                        assert time_limit
-                        timeout_cm = timeout(time_limit / 2)
+                    assert time_limit
+                    timeout_cm = timeout(time_limit / 2)
+
+                # turn off sample limits
+                set_active_sample_token_limit(None)
+                set_active_sample_message_limit(None)
 
                 # scoring
                 try:
                     # timeout during scoring will result in an ordinary sample error
                     async with timeout_cm:
-                        if scorers and error is None:
-                            for scorer in scorers:
+                        if error is None:
+                            for scorer in scorers or []:
                                 scorer_name = unique_scorer_name(
                                     scorer, list(results.keys())
                                 )
@@ -667,6 +689,7 @@ async def task_run_sample(
                                         sample_score = SampleScore(
                                             score=score_result,
                                             sample_id=sample.id,
+                                            scorer=registry_unqualified_name(scorer),
                                         )
                                         transcript()._event(
                                             ScoreEvent(
@@ -674,6 +697,16 @@ async def task_run_sample(
                                             )
                                         )
                                         results[scorer_name] = sample_score
+
+                            # add scores returned by solvers
+                            if state.scores is not None:
+                                for name, score in state.scores.items():
+                                    results[name] = SampleScore(
+                                        score=score, sample_id=state.sample_id
+                                    )
+
+                            # propagate results into scores
+                            state.scores = {k: v.score for k, v in results.items()}
 
                 except asyncio.CancelledError:
                     if active.interrupt_action:
@@ -819,6 +852,7 @@ async def resolve_dataset(
                 epoch=epoch,
                 model=model_name,
                 input=sample.input,
+                target=Target(sample.target),
                 choices=sample.choices,
                 messages=sample_messages(sample),
                 message_limit=message_limit,

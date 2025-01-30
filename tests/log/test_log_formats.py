@@ -1,5 +1,6 @@
 import json
 import os
+import shutil
 import tempfile
 import zipfile
 from pathlib import Path
@@ -40,6 +41,26 @@ def test_log_format_round_trip_single(original_log, temp_dir):
 
         # Compare the logs
         assert original_log == new_log, f"Round-trip failed for {format} format"
+
+
+def test_eval_format_round_trip_overwrite(original_log, temp_dir):
+    format = "eval"
+
+    # Write it to a new file in the current format
+    new_log_path = (temp_dir / f"new_log.{format}").as_posix()
+    write_eval_log(original_log, new_log_path, format=format)
+
+    # make a copy of the log file for later comparison
+    copy_log_path = (temp_dir / f"new_log_copy.{format}").as_posix()
+    shutil.copy(new_log_path, copy_log_path)
+
+    # Overwrite the file
+    write_eval_log(original_log, new_log_path, format=format)
+
+    # ensure the zip file matches the original after overwriting
+    assert compare_zip_contents(new_log_path, copy_log_path), (
+        "EVAL zip file contents changed after rewriting file"
+    )
 
 
 def test_log_format_round_trip_cross(original_log, temp_dir):

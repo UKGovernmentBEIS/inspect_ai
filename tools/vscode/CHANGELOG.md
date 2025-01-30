@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.50
+
+- Use the integrated terminal when debugging tasks.
+
 ## 0.3.49
 
 - Improve code lense detection of Inspect tasks (ty @tobiasraabe)

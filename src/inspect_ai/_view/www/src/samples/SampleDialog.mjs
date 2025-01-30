@@ -1,5 +1,5 @@
 import { html } from "htm/preact";
-import { useCallback, useMemo } from "preact/hooks";
+import { useCallback, useMemo, useRef } from "preact/hooks";
 
 import { ApplicationIcons } from "../appearance/Icons.mjs";
 import { LargeModal } from "../components/LargeModal.mjs";
@@ -43,6 +43,8 @@ export const SampleDialog = ({
   sampleScrollPositionRef,
   setSampleScrollPosition,
 }) => {
+  const scrollRef = useRef(/** @type {HTMLElement|null} */ (null));
+
   const tools = useMemo(() => {
     const nextTool = {
       label: "Next Sample",
@@ -94,6 +96,7 @@ export const SampleDialog = ({
           sampleDescriptor=${sampleDescriptor}
           selectedTab=${selectedTab}
           setSelectedTab=${setSelectedTab}
+          scrollRef=${scrollRef}
         />`;
   }, [id, sample, sampleDescriptor, selectedTab, setSelectedTab, sampleError]);
 
@@ -113,6 +116,7 @@ export const SampleDialog = ({
       showProgress=${sampleStatus === "loading"}
       initialScrollPositionRef=${sampleScrollPositionRef}
       setInitialScrollPosition=${setSampleScrollPosition}
+      scrollRef=${scrollRef}
     >
         ${children}
     </${LargeModal}>`;

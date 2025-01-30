@@ -21,6 +21,7 @@
   },
   "mypy-type-checker.ignorePatterns": [
     "**/_resources/*.py",
+    "${workspaceFolder}/examples/bridge/*.py",
   ],
   "mypy-type-checker.args": [
     "--config-file",
