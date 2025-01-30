@@ -1,4 +1,5 @@
 import clsx from "clsx";
+import { Fragment } from "react/jsx-runtime";
 import { EvalLogHeader, LogFiles } from "../../api/types";
 import { ApplicationIcons } from "../../appearance/icons";
 import { ProgressBar } from "../../components/ProgressBar";
@@ -30,7 +31,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   };
 
   return (
-    <>
+    <Fragment>
       {/* Optional backdrop for small screens, appears only when offcanvas is open */}
       {offcanvas && <div className={styles.backdrop} onClick={handleToggle} />}
 
@@ -79,6 +80,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
           })}
         </ul>
       </div>
-    </>
+    </Fragment>
   );
 };

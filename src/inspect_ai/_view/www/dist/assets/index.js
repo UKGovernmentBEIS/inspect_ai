@@ -62282,15 +62282,13 @@ ${events}
       const samplesDescriptor = reactExports.useMemo(() => {
         return evalDescriptor && score2 ? createSamplesDescriptor(evalDescriptor, score2) : void 0;
       }, [evalDescriptor, score2]);
-      const refreshSampleTab = reactExports.useCallback(
-        (sample2) => {
-          if (selectedSampleTab === void 0) {
-            const defaultTab = sample2.events && sample2.events.length > 0 ? kSampleTranscriptTabId : kSampleMessagesTabId;
-            setSelectedSampleTab(defaultTab);
-          }
-        },
-        [selectedSampleTab, showingSampleDialog]
-      );
+      reactExports.useEffect(() => {
+        if (selectedSampleTab === void 0 && selectedSample) {
+          setSelectedSampleTab(
+            selectedSample.events && selectedSample.events.length > 0 ? kSampleTranscriptTabId : kSampleMessagesTabId
+          );
+        }
+      }, [selectedSample, selectedSampleTab]);
       const mainAppRef = reactExports.useRef(null);
       reactExports.useEffect(() => {
         if (!selectedLog || selectedSampleIndex === -1) {
@@ -62331,7 +62329,6 @@ ${events}
               sample2.attachments = {};
               sampleScrollPosition.current = 0;
               setSelectedSample(sample2);
-              refreshSampleTab(sample2);
               setSampleStatus("ok");
               loadingSampleIndexRef.current = null;
             } else {
@@ -62536,8 +62533,8 @@ ${events}
           setSelectedLogIndex(newIndex);
         }
       }, [logs, selectedLogIndex, setSelectedLogIndex, setLogs]);
-      const onMessage = reactExports.useMemo(() => {
-        return async (e) => {
+      const onMessage = reactExports.useCallback(
+        async (e) => {
           switch (e.data.type) {
             case "updateState": {
               if (e.data.url) {
@@ -62562,8 +62559,9 @@ ${events}
               break;
             }
           }
-        };
-      }, [logs, showLogFile, refreshLogList]);
+        },
+        [logs, showLogFile, refreshLogList]
+      );
       reactExports.useEffect(() => {
         window.addEventListener("message", onMessage);
         return () => {

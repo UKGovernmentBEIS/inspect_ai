@@ -123,7 +123,7 @@ export const App: React.FC<AppProps> = ({
   const sampleScrollPosition = useRef<number>(
     initialState?.sampleScrollPosition || 0,
   );
-  const loadingSampleIndexRef = useRef<number>(null);
+  const loadingSampleIndexRef = useRef<number | null>(null);
   const workspaceTabScrollPosition = useRef<Record<string, number>>(
     initialState?.workspaceTabScrollPosition || {},
   );
@@ -364,18 +364,15 @@ export const App: React.FC<AppProps> = ({
       : undefined;
   }, [evalDescriptor, score]);
 
-  const refreshSampleTab = useCallback(
-    (sample: EvalSample) => {
-      if (selectedSampleTab === undefined) {
-        const defaultTab =
-          sample.events && sample.events.length > 0
-            ? kSampleTranscriptTabId
-            : kSampleMessagesTabId;
-        setSelectedSampleTab(defaultTab);
-      }
-    },
-    [selectedSampleTab, showingSampleDialog],
-  );
+  useEffect(() => {
+    if (selectedSampleTab === undefined && selectedSample) {
+      setSelectedSampleTab(
+        selectedSample.events && selectedSample.events.length > 0
+          ? kSampleTranscriptTabId
+          : kSampleMessagesTabId,
+      );
+    }
+  }, [selectedSample, selectedSampleTab]);
 
   // The main application reference
   const mainAppRef = useRef<HTMLDivElement>(null);
@@ -441,8 +438,6 @@ export const App: React.FC<AppProps> = ({
 
             sampleScrollPosition.current = 0;
             setSelectedSample(sample);
-
-            refreshSampleTab(sample);
 
             setSampleStatus("ok");
             loadingSampleIndexRef.current = null;
@@ -706,8 +701,8 @@ export const App: React.FC<AppProps> = ({
     }
   }, [logs, selectedLogIndex, setSelectedLogIndex, setLogs]);
 
-  const onMessage = useMemo(() => {
-    return async (e: HostMessage) => {
+  const onMessage = useCallback(
+    async (e: HostMessage) => {
       switch (e.data.type) {
         case "updateState": {
           if (e.data.url) {
@@ -732,8 +727,9 @@ export const App: React.FC<AppProps> = ({
           break;
         }
       }
-    };
-  }, [logs, showLogFile, refreshLogList]);
+    },
+    [logs, showLogFile, refreshLogList],
+  );
 
   // listen for updateState messages from vscode
   useEffect(() => {
