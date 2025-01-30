@@ -1730,13 +1730,13 @@ command to associate a version of Python with your workspace.
 
 This article documents both basic and advanced use of Inspect tasks,
 which are the fundamental unit of integration for datasets, solvers, and
-scorers. Topics covered include:
+scorers. The following topics are explored:
 
-- [Task Basics](#task-basics) covers core task components and how to
-  compose them.
+- [Task Basics](#task-basics) describes the core components and options
+  of tasks.
 
-- [Parameters](#parameters) demonstrates adding parameters to tasks to
-  make them externally flexible and adaptable.
+- [Parameters](#parameters) covers adding parameters to tasks to make
+  them flexible and adaptable.
 
 - [Solvers](#solvers) describes how to create tasks that can be used
   with many different solvers.
@@ -1798,17 +1798,17 @@ other sections of the documentation that cover their usage:
 <tr class="odd">
 <td><code>epochs</code></td>
 <td>Epochs to run for each dataset sample.</td>
-<td><a href="scorers.qmd#epoch-reduction">Epochs</a></td>
+<td><a href="scorers.qmd#reducing-epochs">Epochs</a></td>
 </tr>
 <tr class="even">
 <td><code>config</code></td>
 <td>Config for model generation.</td>
-<td><a href="models.qmd#generation-config">Generate Config</a></td>
+<td><a href="options.qmd#model-generation">Generate Config</a></td>
 </tr>
 <tr class="odd">
 <td><code>setup</code></td>
 <td>Setup solver(s) to run prior to the main solver.</td>
-<td><a href="#setup">Sample Setup</a></td>
+<td><a href="#setup-parameter">Sample Setup</a></td>
 </tr>
 <tr class="even">
 <td><code>sandbox</code></td>

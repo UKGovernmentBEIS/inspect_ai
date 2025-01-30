@@ -419,10 +419,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
 <section id="overview" class="level2">
 <h2 class="anchored" data-anchor-id="overview">Overview</h2>
-<p>This article documents both basic and advanced use of Inspect tasks, which are the fundamental unit of integration for datasets, solvers, and scorers. Topics covered include:</p>
+<p>This article documents both basic and advanced use of Inspect tasks, which are the fundamental unit of integration for datasets, solvers, and scorers. The following topics are explored:</p>
 <ul>
-<li><p><a href="#task-basics">Task Basics</a> covers core task components and how to compose them.</p></li>
-<li><p><a href="#parameters">Parameters</a> demonstrates adding parameters to tasks to make them externally flexible and adaptable.</p></li>
+<li><p><a href="#task-basics">Task Basics</a> describes the core components and options of tasks.</p></li>
+<li><p><a href="#parameters">Parameters</a> covers adding parameters to tasks to make them flexible and adaptable.</p></li>
 <li><p><a href="#solvers">Solvers</a> describes how to create tasks that can be used with many different solvers.</p></li>
 <li><p><a href="#task-reuse">Task Reuse</a> documents how to flexibly derive new tasks from existing task definitions.</p></li>
 <li><p><a href="#exploratory">Exploratory</a> provides guidance on doing exploratory task and solver development.</p></li>
@@ -464,17 +464,17 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <tr class="odd">
 <td><code>epochs</code></td>
 <td>Epochs to run for each dataset sample.</td>
-<td><a href="./scorers.html#epoch-reduction">Epochs</a></td>
+<td><a href="./scorers.html#reducing-epochs">Epochs</a></td>
 </tr>
 <tr class="even">
 <td><code>config</code></td>
 <td>Config for model generation.</td>
-<td><a href="./models.html#generation-config">Generate Config</a></td>
+<td><a href="./options.html#model-generation">Generate Config</a></td>
 </tr>
 <tr class="odd">
 <td><code>setup</code></td>
 <td>Setup solver(s) to run prior to the main solver.</td>
-<td><a href="#setup">Sample Setup</a></td>
+<td><a href="#setup-parameter">Sample Setup</a></td>
 </tr>
 <tr class="even">
 <td><code>sandbox</code></td>

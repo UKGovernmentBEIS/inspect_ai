@@ -1225,7 +1225,7 @@
     "href": "tasks.html",
     "title": "Tasks",
     "section": "",
-    "text": "This article documents both basic and advanced use of Inspect tasks, which are the fundamental unit of integration for datasets, solvers, and scorers. Topics covered include:\n\nTask Basics covers core task components and how to compose them.\nParameters demonstrates adding parameters to tasks to make them externally flexible and adaptable.\nSolvers describes how to create tasks that can be used with many different solvers.\nTask Reuse documents how to flexibly derive new tasks from existing task definitions.\nExploratory provides guidance on doing exploratory task and solver development.",
+    "text": "This article documents both basic and advanced use of Inspect tasks, which are the fundamental unit of integration for datasets, solvers, and scorers. The following topics are explored:\n\nTask Basics describes the core components and options of tasks.\nParameters covers adding parameters to tasks to make them flexible and adaptable.\nSolvers describes how to create tasks that can be used with many different solvers.\nTask Reuse documents how to flexibly derive new tasks from existing task definitions.\nExploratory provides guidance on doing exploratory task and solver development.",
     "crumbs": [
       "Components",
       "Tasks"
@@ -1236,7 +1236,7 @@
     "href": "tasks.html#overview",
     "title": "Tasks",
     "section": "",
-    "text": "This article documents both basic and advanced use of Inspect tasks, which are the fundamental unit of integration for datasets, solvers, and scorers. Topics covered include:\n\nTask Basics covers core task components and how to compose them.\nParameters demonstrates adding parameters to tasks to make them externally flexible and adaptable.\nSolvers describes how to create tasks that can be used with many different solvers.\nTask Reuse documents how to flexibly derive new tasks from existing task definitions.\nExploratory provides guidance on doing exploratory task and solver development.",
+    "text": "This article documents both basic and advanced use of Inspect tasks, which are the fundamental unit of integration for datasets, solvers, and scorers. The following topics are explored:\n\nTask Basics describes the core components and options of tasks.\nParameters covers adding parameters to tasks to make them flexible and adaptable.\nSolvers describes how to create tasks that can be used with many different solvers.\nTask Reuse documents how to flexibly derive new tasks from existing task definitions.\nExploratory provides guidance on doing exploratory task and solver development.",
     "crumbs": [
       "Components",
       "Tasks"
