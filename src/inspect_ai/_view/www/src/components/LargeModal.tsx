@@ -1,7 +1,7 @@
 import clsx from "clsx";
 import { ProgressBar } from "./ProgressBar";
 
-import { ReactNode, useCallback, useEffect, useRef } from "react";
+import { ReactNode, UIEvent, useCallback, useEffect, useRef } from "react";
 import styles from "./LargeModal.module.css";
 
 export interface ModalTool {
@@ -72,8 +72,8 @@ export const LargeModal: React.FC<LargeModalProps> = ({
   }, []);
 
   const onScroll = useCallback(
-    (e: any) => {
-      setInitialScrollPosition(e.srcElement.scrollTop);
+    (e: UIEvent<HTMLDivElement>) => {
+      setInitialScrollPosition(e.currentTarget.scrollTop);
     },
     [setInitialScrollPosition],
   );
