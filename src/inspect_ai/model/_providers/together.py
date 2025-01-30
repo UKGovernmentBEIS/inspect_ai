@@ -99,7 +99,7 @@ class TogetherAIAPI(OpenAIAPI):
 
     # Together uses a default of 512 so we bump it up
     @override
-    def max_tokens(self) -> int:
+    def max_tokens(self) -> int | None:
         return DEFAULT_MAX_TOKENS
 
     @override

@@ -65,11 +65,12 @@ def eval_results(
     # extract scorers info from scorers then create scorers info for any
     # scores not already accounted for by a scorer name
     scorers_info = [ScorerInfo.from_scorer(scorer) for scorer in (scorers or [])]
-    scorer_names = [info.name for info in scorers_info]
-    for name in set(key for sample_scores in scores for key in sample_scores):
-        if name not in scorer_names:
-            scorers_info.append(ScorerInfo.from_name(name))
-            scorer_names.append(name)
+    scorer_names = {info.name for info in scorers_info}
+    for sample_scores in scores:
+        for name, sample_score in sample_scores.items():
+            if sample_score.scorer is None and name not in scorer_names:
+                scorers_info.append(ScorerInfo.from_name(name))
+                scorer_names.add(name)
 
     # record scorer
     if len(scorers_info) > 0:

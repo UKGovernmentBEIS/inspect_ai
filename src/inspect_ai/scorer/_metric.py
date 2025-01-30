@@ -125,6 +125,9 @@ class SampleScore(BaseModel):
     sample_id: str | int | None = Field(default=None)
     """A sample id"""
 
+    scorer: str | None = Field(default=None)
+    """Registry name of scorer that created this score."""
+
 
 ValueToFloat = Callable[[Value], float]
 """Function used by metrics to translate from a Score value to a float value."""
