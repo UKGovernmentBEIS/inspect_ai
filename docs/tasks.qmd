@@ -4,11 +4,11 @@ title: Tasks
 
 ## Overview
 
-This article documents both basic and advanced use of Inspect tasks, which are the fundamental unit of integration for datasets, solvers, and scorers. Topics covered include:
+This article documents both basic and advanced use of Inspect tasks, which are the fundamental unit of integration for datasets, solvers, and scorers. The following topics are explored:
 
--   [Task Basics](#task-basics) covers core task components and how to compose them.
+-   [Task Basics](#task-basics) describes the core components and options of tasks.
 
--   [Parameters](#parameters) demonstrates adding parameters to tasks to make them externally flexible and adaptable.
+-   [Parameters](#parameters) covers adding parameters to tasks to make them flexible and adaptable.
 
 -   [Solvers](#solvers) describes how to create tasks that can be used with many different solvers.
 
@@ -44,11 +44,11 @@ While many tasks can be defined with only a dataset, solver, and scorer, there a
 +------------------+------------------------------------------------------+-----------------------------------------------------------+
 | Option           | Description                                          | Docs                                                      |
 +==================+======================================================+===========================================================+
-| `epochs`         | Epochs to run for each dataset sample.               | [Epochs](scorers.qmd#epoch-reduction)                     |
+| `epochs`         | Epochs to run for each dataset sample.               | [Epochs](scorers.qmd#reducing-epochs)                     |
 +------------------+------------------------------------------------------+-----------------------------------------------------------+
-| `config`         | Config for model generation.                         | [Generate Config](models.qmd#generation-config)           |
+| `config`         | Config for model generation.                         | [Generate Config](options.qmd#model-generation)           |
 +------------------+------------------------------------------------------+-----------------------------------------------------------+
-| `setup`          | Setup solver(s) to run prior to the main solver.     | [Sample Setup](#setup)                                    |
+| `setup`          | Setup solver(s) to run prior to the main solver.     | [Sample Setup](#setup-parameter)                          |
 +------------------+------------------------------------------------------+-----------------------------------------------------------+
 | `sandbox`        | Sandbox configuration for un-trusted code execution. | [Sandboxing](sandboxing.qmd)                              |
 +------------------+------------------------------------------------------+-----------------------------------------------------------+
