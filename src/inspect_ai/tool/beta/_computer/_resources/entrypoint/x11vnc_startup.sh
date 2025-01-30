@@ -5,7 +5,7 @@ echo "starting vnc"
     -forever \
     -shared \
     -wait 50 \
-    -cursor most \
+    -multiptr \
     -cursor arrow \
     -rfbport 5900 \
     -nopw \
