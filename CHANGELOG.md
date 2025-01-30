@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Computer: Enable viewing computer tool's remote mouse cursor via VNC.
+- Computer: Disable lock screen on from computer tool reference image.
+
 ## v0.3.60 (29 January 2025)
 
 - [Agent Bridge](https://inspect.ai-safety-institute.org.uk/agent-bridge.html) for integrating external agent frameworks with Inspect.
