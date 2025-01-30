@@ -11,7 +11,7 @@ import { EmptyPanel } from "../../components/EmptyPanel";
 import { MessageBand } from "../../components/MessageBand";
 import { VirtualList, VirtualListRef } from "../../components/VirtualList";
 import { formatNoDecimal } from "../../utils/format";
-import { ListItem } from "../../workspace/tabs/SamplesTab.mjs";
+import { ListItem } from "../../workspace/tabs/types";
 import { SamplesDescriptor } from "../descriptor/SamplesDescriptor";
 import { SampleRow } from "./SampleRow";
 import { SampleSeparator } from "./SampleSeparator";

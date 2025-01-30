@@ -9,7 +9,7 @@ import { ToolButton } from "../components/ToolButton";
 import { SampleTools } from "../samples/SamplesTools";
 import { Navbar } from "./navbar/Navbar.tsx";
 import { JsonTab } from "./tabs/JsonTab";
-import { SamplesTab } from "./tabs/SamplesTab.mjs";
+import { SamplesTab } from "./tabs/SamplesTab";
 
 import { FontSize } from "../appearance/fonts";
 import {
