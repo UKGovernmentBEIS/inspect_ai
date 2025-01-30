@@ -61044,10 +61044,19 @@ ${events}
       if (evalSpec === void 0) {
         return /* @__PURE__ */ jsxRuntimeExports.jsx(EmptyPanel, {});
       } else {
-        const tabTools2 = reactExports.useMemo(() => {
-          var _a2, _b2;
-          return ((_b2 = (_a2 = tabs2[selectedTab]) == null ? void 0 : _a2.tools) == null ? void 0 : _b2.call(_a2)) ?? null;
-        }, [tabs2, selectedTab]);
+        const tabTools2 = Object.keys(tabs2).map((key2) => {
+          const tab2 = tabs2[key2];
+          return tab2;
+        }).filter((tab2) => {
+          return tab2.id === selectedTab;
+        }).map((tab2) => {
+          if (tab2.tools) {
+            const tools2 = tab2.tools();
+            return tools2;
+          } else {
+            return null;
+          }
+        });
         return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx(
             Navbar,

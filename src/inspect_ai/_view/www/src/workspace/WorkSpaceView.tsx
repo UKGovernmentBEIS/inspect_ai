@@ -108,9 +108,22 @@ export const WorkSpaceView: React.FC<WorkSpaceViewProps> = ({
   if (evalSpec === undefined) {
     return <EmptyPanel />;
   } else {
-    const tabTools = useMemo(() => {
-      return tabs[selectedTab]?.tools?.() ?? null;
-    }, [tabs, selectedTab]);
+    const tabTools = Object.keys(tabs)
+      .map((key) => {
+        const tab = tabs[key];
+        return tab;
+      })
+      .filter((tab) => {
+        return tab.id === selectedTab;
+      })
+      .map((tab) => {
+        if (tab.tools) {
+          const tools = tab.tools();
+          return tools;
+        } else {
+          return null;
+        }
+      });
 
     return (
       <Fragment>
