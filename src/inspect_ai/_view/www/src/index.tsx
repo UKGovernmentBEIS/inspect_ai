@@ -1,8 +1,7 @@
-import { html } from "htm/preact";
-import { render } from "preact";
-
+import { createRoot } from "react-dom/client";
 import { App } from "./App";
 import api from "./api/index";
+import { InitialState } from "./types";
 import { throttle } from "./utils/sync";
 import { getVscodeApi } from "./utils/vscode";
 
@@ -10,24 +9,34 @@ import { getVscodeApi } from "./utils/vscode";
 const vscode = getVscodeApi();
 let initialState = undefined;
 if (vscode) {
-  initialState = filterState(vscode.getState());
+  initialState = filterState(vscode.getState() as InitialState);
 }
 
-render(
-  html`<${App}
-    api=${api}
-    initialState=${initialState}
-    saveInitialState=${throttle((state) => {
+const containerId = "app";
+const container = document.getElementById(containerId);
+if (!container) {
+  console.error("Root container not found");
+  throw new Error(
+    `Expected a container element with Id '${containerId}' but no such container element was present.`,
+  );
+}
+
+const root = createRoot(container as HTMLElement);
+root.render(
+  <App
+    api={api}
+    initialState={initialState}
+    saveInitialState={throttle((state) => {
       const vscode = getVscodeApi();
       if (vscode) {
         vscode.setState(filterState(state));
       }
     }, 1000)}
-  />`,
-  document.getElementById("app"),
+    pollForLogs={false}
+  />,
 );
 
-function filterState(state) {
+function filterState(state: InitialState) {
   if (!state) {
     return state;
   }
@@ -41,7 +50,7 @@ function filterState(state) {
 }
 
 // Filters the selected Sample if it is large
-function filterLargeSample(state) {
+function filterLargeSample(state: InitialState) {
   if (!state || !state.selectedSample) {
     return state;
   }
@@ -56,7 +65,7 @@ function filterLargeSample(state) {
 }
 
 // Filters the selectedlog if it is too large
-function filterLargeSelectedLog(state) {
+function filterLargeSelectedLog(state: InitialState) {
   if (!state || !state.selectedLog?.contents) {
     return state;
   }
@@ -72,8 +81,8 @@ function filterLargeSelectedLog(state) {
   }
 }
 
-function estimateSize(list, frequency = 0.2) {
-  if (!list || list.len === 0) {
+function estimateSize(list: unknown[], frequency = 0.2) {
+  if (!list || list.length === 0) {
     return 0;
   }
 
@@ -81,7 +90,7 @@ function estimateSize(list, frequency = 0.2) {
   const sampleSize = Math.ceil(list.length * frequency);
 
   // Get a proper random sample without duplicates
-  const messageIndices = new Set();
+  const messageIndices = new Set<number>();
   while (
     messageIndices.size < sampleSize &&
     messageIndices.size < list.length
