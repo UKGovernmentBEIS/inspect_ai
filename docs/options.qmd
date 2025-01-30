@@ -1,0 +1,170 @@
+---
+title: Options
+tbl-colwidths: [37,63]
+---
+
+## Overview
+
+Inspect evaluations have a large number of options available for logging, tuning, diagnostics and model interctions. These options fall into roughly two categories:
+
+1.  Options that you want to set on a more durable basis (for a project or session).
+
+2.  Options that you want to tweak per-evel to accomodate particular scenarios.
+
+For the former, we recommend you specify these options in a `.env` file within your project directory, which is covered in the section below. See the [Eval Options](#eval-options) for details on all available options.
+
+## .env Files
+
+While we can include all required options on the `inspect eval` command line, it's generally easier to use environment variables for commonly repeated options. To facilitate this, the `inspect` CLI will automatically read and process `.env` files located in the current working directory (also searching in parent directories if a `.env` file is not found in the working directory). This is done using the [python-dotenv](https://pypi.org/project/python-dotenv/) package).
+
+For example, here's a `.env` file that makes available API keys for several providers and sets a bunch of defaults for a working session:
+
+``` {.makefile filename=".env"}
+OPENAI_API_KEY=your-api-key
+ANTHROPIC_API_KEY=your-api-key
+GOOGLE_API_KEY=your-api-key
+
+INSPECT_LOG_DIR=./logs-04-07-2024
+INSPECT_LOG_LEVEL=warning
+
+INSPECT_EVAL_MAX_RETRIES=5
+INSPECT_EVAL_MAX_CONNECTIONS=20
+INSPECT_EVAL_MODEL=anthropic/claude-3-5-sonnet-20240620
+```
+
+All command line options can also be set via environment variable by using the `INSPECT_EVAL_` prefix.
+
+Note that `.env` files are searched for in parent directories, so if you run an Inspect command from a subdirectory of a parent that has an `.env` file, it will still be read and resolved. If you define a relative path to `INSPECT_LOG_DIR` in a `.env` file, then its location will always be resolved as relative to that `.env` file (rather than relative to whatever your current working directory is when you run `inspect eval`).
+
+::: {.callout-important appearance="simple"}
+`.env` files should *never* be checked into version control, as they nearly always contain either secret API keys or machine specific paths. A best practice is often to check in an `.env.example` file to version control which provides an outline (e.g. keys only not values) of variables that are required by the current project.
+:::
+
+## Specifying Options
+
+Below are sections for the various categories of options supported by `inspect eval`. Note that all of these options are also available for the `eval()` function and settable by environment variables. For example:
+
+| CLI           | eval()      | Environment              |
+|---------------|-------------|--------------------------|
+| `--model`     | `model`     | `INSPECT_EVAL_MODEL`     |
+| `--sample-id` | `sample_id` | `INSPECT_EVAL_SAMPLE_ID` |
+| `--limit`     | `limit`     | `INSPECT_EVAL_LIMIT`     |
+
+: {tbl-colwidths=\[33,33,33\]}
+
+## Model Provider
+
+|                    |                                              |
+|--------------------|----------------------------------------------|
+| `--model`          | Model used to evaluate tasks.                |
+| `--model-base-url` | Base URL for for model API                   |
+| `--model-config`   | Model specific arguments (JSON or YAML file) |
+| `-M`               | Model specific arguments (`key=value`).      |
+
+## Model Generation
+
+|                         |                                                                                                                                                                                                                                                         |
+|------------------------------------|------------------------------------|
+| `--max-tokens`          | The maximum number of tokens that can be generated in the completion (default is model specific)                                                                                                                                                        |
+| `--system-message`      | Override the default system message.                                                                                                                                                                                                                    |
+| `--temperature`         | What sampling temperature to use, between 0 and 2. Higher values like 0.8 will make the output more random, while lower values like 0.2 will make it more focused and deterministic.                                                                    |
+| `--top-p`               | An alternative to sampling with temperature, called nucleus sampling, where the model considers the results of the tokens with top_p probability mass.                                                                                                  |
+| `--top-k`               | Randomly sample the next word from the top_k most likely next words. Anthropic, Google, HuggingFace, and vLLM only.                                                                                                                                     |
+| `--frequency-penalty`   | Number between -2.0 and 2.0. Positive values penalize new tokens based on their existing frequency in the text so far, decreasing the model's likelihood to repeat the same line verbatim. OpenAI, Google, Grok, Groq, llama- cpp-python and vLLM only. |
+| `--presence-penalty`    | Number between -2.0 and 2.0. Positive values penalize new tokens based on whether they appear in the text so far, increasing the model's likelihood to talk about new topics. OpenAI, Google, Grok, Groq, llama-cpp-python and vLLM only.               |
+| `--logit-bias`          | Map token Ids to an associated bias value from -100 to 100 (e.g. "42=10,43=-10"). OpenAI and Grok only.                                                                                                                                                 |
+| `--seed`                | Random seed. OpenAI, Google, Groq, Mistral, HuggingFace, and vLLM only.                                                                                                                                                                                 |
+| `--stop-seqs`           | Sequences where the API will stop generating further tokens. The returned text will not contain the stop sequence.                                                                                                                                      |
+| `--num-choices`         | How many chat completion choices to generate for each input message. OpenAI, Grok, Google, TogetherAI, and vLLM only.                                                                                                                                   |
+| `--best-of`             | Generates best_of completions server-side and returns the 'best' (the one with the highest log probability per token). OpenAI only.                                                                                                                     |
+| `--log-probs`           | Return log probabilities of the output tokens. OpenAI, Grok, TogetherAI, Huggingface, llama-cpp-python, and vLLM only.                                                                                                                                  |
+| `--top-logprobs`        | Number of most likely tokens (0-20) to return at each token position, each with an associated log probability. OpenAI, Grok, TogetherAI, Huggingface, and vLLM only.                                                                                    |
+| `--cache-prompt`        | Values: `auto`, `true`, or `false`. Cache prompt prefix (Anthropic only). Defaults to "auto", which will enable caching for requests with tools.                                                                                                        |
+| `--reasoning-effort`    | Values: `low`, `medium`, or `high`. Constrains effort on reasoning for reasoning models. Open AI o1 models only.                                                                                                                                        |
+| `--parallel-tool-calls` | Whether to enable calling multiple functions during tool use (defaults to True) OpenAI and Groq only.                                                                                                                                                   |
+| `--max-tool-output`     | Maximum size of tool output (in bytes). Defaults to 16 \* 1024.                                                                                                                                                                                         |
+| `--internal-tools`      | Whether to automatically map tools to model internal implementations (e.g. 'computer' for Anthropic).                                                                                                                                                   |
+| `--max-retries`         | Maximum number of times to retry request (defaults to 5)                                                                                                                                                                                                |
+| `--timeout`             | Request timeout (in seconds).                                                                                                                                                                                                                           |
+
+## Tasks and Solvers
+
+|                   |                                                   |
+|-------------------|---------------------------------------------------|
+| `--task-config`   | Task arguments (JSON or YAML file)                |
+| `-T`              | Task arguments (`key=value`)                      |
+| `--solver`        | Solver to execute (overrides task default solver) |
+| `--solver-config` | Solver arguments (JSON or YAML file)              |
+| `-S`              | Solver arguments (`key=value`)                    |
+
+## Sample Selection
+
+|                    |                                                                                                                                                                |
+|-------------------------|----------------------------------------------|
+| `--limit`          | Limit samples to evaluate by specifying a maximum (e.g. `10`) or range (e.g. `10-20`)                                                                          |
+| `--sample-id`      | Evalute a specific sample (e.g. `44`) or list of samples (e.g. `44,63,91`)                                                                                     |
+| `--epochs`         | Number of times to repeat each sample (defaults to 1)                                                                                                          |
+| `--epochs-reducer` | Method for reducing per-epoch sample scores into a single score. Built in reducers include `mean`, `median`, `mode`, `max`, `at_least_{n}`, and `pass_at_{k}`. |
+
+## Parallelism
+
+|                      |                                                                                                 |
+|-------------------------|----------------------------------------------|
+| `--max-connections`  | Maximum number of concurrent connections to Model provider (defaults to 10)                     |
+| `--max-samples`      | Maximum number of samples to run in parallel (default is `--max-connections`)                   |
+| `--max-subprocesses` | Maximum number of subprocesses to run in parallel (default is `os.cpu_count()`)                 |
+| `--max-sandboxes`    | Maximum number of sandboxes (per-provider) to run in parallel (default is `2 * os.cpu_count()`) |
+| `--max-tasks`        | Maximum number of tasks to run in parallel (default is 1)                                       |
+
+## Errors and Limits
+
+|                      |                                                                                                                                                                       |
+|-------------------------|----------------------------------------------|
+| `--fail-on-error`    | Threshold of sample errors to tolerate (by default, evals fail when any error occurs). Value between 0 to 1 to set a proportion; value greater than 1 to set a count. |
+| `--no-fail-on-error` | Do not fail the eval if errors occur within samples (instead, continue running other samples)                                                                         |
+| `--message-limit`    | Limit on total messages used for each sample.                                                                                                                         |
+| `--token-limit`      | Limit on total tokens used for each sample.                                                                                                                           |
+| `--time-limit`       | Limit on total execution time for each sample.                                                                                                                        |
+
+## Eval Logs
+
+|                          |                                                                                                                                                                                                     |
+|-------------------------|----------------------------------------------|
+| `--log-dir`              | Directory for log files (defaults to `./logs`)                                                                                                                                                      |
+| `--no-log-samples`       | Do not log sample details.                                                                                                                                                                          |
+| `--no-log-images`        | Do not log images and other media.                                                                                                                                                                  |
+| `--log-buffer`           | Number of samples to buffer before writing log file. If not specified, an appropriate default for the format and filesystem is chosen (10 for most cases, 100 for JSON logs on remote filesystems). |
+| `--log-format`           | Values: `eval`, `json` Format for writing log files (defaults to `eval`).                                                                                                                           |
+| `--log-level`            | Python logger level for console. Values: `debug`, `trace`, `http`, `info`, `warning`, `error`, `critical` (defaults to `warning`)                                                                   |
+| `--log-level-transcript` | Python logger level for eval log transcript (values same as `--log-level`, defaults to `info`).                                                                                                     |
+
+## Scoring
+
+|                      |                                                                                   |
+|-------------------------|----------------------------------------------|
+| `--no-score`         | Do not score model output (use the `inspect score` command to score output later) |
+| `--no-score-display` | Do not display realtime scoring information.                                      |
+
+## Sandboxes
+
+|                        |                                                                                             |
+|-------------------------|----------------------------------------------|
+| `--sandbox`            | Sandbox environment type (with optional config file). e.g. 'docker' or 'docker:compose.yml' |
+| `--no-sandbox-cleanup` | Do not cleanup sandbox environments after task completes                                    |
+
+## Debugging
+
+|                  |                                                                       |
+|-------------------------|----------------------------------------------|
+| `--debug`        | Wait to attach debugger                                               |
+| `--debug-port`   | Port number for debugger                                              |
+| `--debug-errors` | Raise task errors (rather than logging them) so they can be debugged. |
+
+## Miscellaneous
+
+|              |                                                                                             |
+|-------------------------|----------------------------------------------|
+| `--display`  | Display type. Values: `full`, `conversation`, `rich`, `plain`, `none` (defaults to `full`). |
+| `--approval` | Config file for tool call approval.                                                         |
+| `--tags`     | Tags to associate with this evaluation run.                                                 |
+| `--help`     | Display help for command options.                                                           |

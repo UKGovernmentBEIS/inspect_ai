@@ -36,18 +36,20 @@ website:
         - section: "Basics"
           contents:
             - tutorial.qmd
-            - workflow.qmd
-            - examples/index.qmd
+            - options.qmd
+            - text: "Evals"
+              href: evals/index.qmd
             - log-viewer.qmd
             - text: "VS Code"
               href: vscode.qmd
 
         - section: "Components"
           contents: 
+            - tasks.qmd
+            - datasets.qmd
             - solvers.qmd
             - tools.qmd
             - scorers.qmd
-            - datasets.qmd
             - models.qmd
 
         - section: "Agents"
