@@ -33,8 +33,6 @@ RUN apt-get update && \
 
 # Userland apt-get'able apps
 RUN apt-get install -y --no-install-recommends \
-      # A simple image viewer.
-      xpaint \
       # A calculator application.
       galculator && \
     apt-get clean
