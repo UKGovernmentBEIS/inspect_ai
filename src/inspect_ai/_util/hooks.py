@@ -19,14 +19,19 @@ from .error import PrerequisiteError
 # environment variable that points to a function in a package which
 # conforms to the TelemetrySend signature below.
 
-# There are currently two types of telemetry sent:
-#    - model_usage (type ModelUsage)
-#    - eval_log    (type EvalLog)
+# There are currently three types of telemetry sent:
+#    - model_usage       (JSON string of the model usage)
+#    - eval_log          (JSON string of the eval log)
+#    - eval_log_location (file path or URL string of the eval log)
+# The eval_log_location type is preferred over eval_log as it means we can take
+# advantage of the .eval format and avoid loading the whole log into memory.
 
 TelemetrySend = Callable[[str, str], Awaitable[None]]
 
 
-async def send_telemetry(type: Literal["model_usage", "eval_log"], json: str) -> None:
+async def send_telemetry(
+    type: Literal["model_usage", "eval_log", "eval_log_location"], json: str
+) -> None:
     global _send_telemetry
     if _send_telemetry:
         await _send_telemetry(type, json)

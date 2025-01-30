@@ -402,6 +402,9 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
         view_notify_eval(logger.location)
 
         try:
+            # Send the newer "eval_log_location" event first so that subscribers know
+            # they can ignore all subsequent "eval_log" events.
+            await send_telemetry("eval_log_location", eval_log.location)
             await send_telemetry("eval_log", eval_log_json_str(eval_log))
         except Exception as ex:
             py_logger.warning(
