@@ -5,13 +5,10 @@ import moduleStyles from "./TabSet.module.css";
 interface TabSetProps {
   id: string;
   type?: "tabs" | "pills";
-  classes?: string;
+  className?: string | string[];
+  tabPanelsClassName?: string | string[];
+  tabControlsClassName?: string | string;
   tools?: React.ReactNode;
-  styles?: {
-    tabSet?: React.CSSProperties;
-    tabs?: React.CSSProperties;
-    tabBody?: React.CSSProperties;
-  };
   children: React.ReactElement<TabPanelProps>[];
 }
 
@@ -22,7 +19,7 @@ interface TabPanelProps {
   style?: React.CSSProperties;
   scrollable?: boolean;
   scrollRef?: React.RefObject<HTMLDivElement>;
-  classes?: string;
+  className?: string | string[];
   scrollPosition?: number;
   setScrollPosition?: (position: number) => void;
   children?: React.ReactNode;
@@ -34,9 +31,10 @@ interface TabPanelProps {
 export const TabSet: React.FC<TabSetProps> = ({
   id,
   type,
-  classes,
+  className,
+  tabPanelsClassName,
+  tabControlsClassName,
   tools,
-  styles,
   children,
 }) => {
   // The tabs themselves
@@ -50,15 +48,18 @@ export const TabSet: React.FC<TabSetProps> = ({
     <Fragment>
       <ul
         id={id}
-        class={clsx("nav", `nav-${tabType}`, classes, moduleStyles.tabs)}
+        class={clsx("nav", `nav-${tabType}`, className, moduleStyles.tabs)}
         role="tablist"
         aria-orientation="horizontal"
-        style={{ ...styles?.tabSet }}
       >
-        <Tabs tabs={tabs} type={tabType} style={styles?.tabs} />
+        <Tabs
+          tabs={tabs}
+          type={tabType}
+          className={clsx(tabControlsClassName)}
+        />
         <TabTools tools={tools} />
       </ul>
-      <TabPanels id={id} tabs={tabs} style={styles?.tabBody} />
+      <TabPanels id={id} tabs={tabs} className={clsx(tabPanelsClassName)} />
     </Fragment>
   );
 };
@@ -70,7 +71,7 @@ export const TabPanel: React.FC<TabPanelProps> = ({
   style,
   scrollable,
   scrollRef,
-  classes,
+  className,
   scrollPosition,
   setScrollPosition,
   children,
@@ -105,7 +106,7 @@ export const TabPanel: React.FC<TabPanelProps> = ({
         "tab-pane",
         "show",
         selected ? "active" : undefined,
-        classes,
+        className,
         moduleStyles.tabContents,
         scrollable === undefined || scrollable
           ? moduleStyles.scrollable
@@ -123,10 +124,17 @@ export const TabPanel: React.FC<TabPanelProps> = ({
 const Tabs: React.FC<{
   tabs: React.ReactElement<TabPanelProps>[];
   type?: "tabs" | "pills";
-  style?: React.CSSProperties;
-}> = ({ tabs, type, style }) => {
+  className?: string | string[];
+}> = ({ tabs, type, className }) => {
   return tabs.map((tab, index) => {
-    return <Tab type={type || "tabs"} tab={tab} index={index} style={style} />;
+    return (
+      <Tab
+        type={type || "tabs"}
+        tab={tab}
+        index={index}
+        className={clsx(className)}
+      />
+    );
   });
 };
 
@@ -135,8 +143,8 @@ const Tab: React.FC<{
   type?: "tabs" | "pills";
   tab: React.ReactElement<TabPanelProps>;
   index: number;
-  style?: React.CSSProperties;
-}> = ({ type, tab, index, style }) => {
+  className?: string | string[];
+}> = ({ type, tab, index, className }) => {
   const tabId = tab.props.id || computeTabId("tabset", index);
   const tabContentsId = computeTabContentsId(tab.props.id);
   const isActive = tab.props.selected;
@@ -144,11 +152,15 @@ const Tab: React.FC<{
   const tabClz = [moduleStyles.tab, "text-size-small", "text-style-label"];
   const pillClz: string[] = [];
   return (
-    <li class="nav-item" role="presentation" className={moduleStyles.tabItem}>
+    <li
+      class="nav-item"
+      role="presentation"
+      className={clsx(moduleStyles.tabItem)}
+    >
       <button
         id={tabId}
-        style={style}
         className={clsx(
+          className,
           "nav-link",
           isActive ? "active" : undefined,
           type === "pills" ? pillClz : tabClz,
@@ -184,10 +196,10 @@ const TabTools: React.FC<{ tools?: React.ReactNode }> = ({ tools }) => {
 const TabPanels: React.FC<{
   id: string;
   tabs: React.ReactElement<TabPanelProps>[];
-  style?: React.CSSProperties;
-}> = ({ id, tabs, style }) => {
+  className?: string | string[];
+}> = ({ id, tabs, className }) => {
   return (
-    <div className="tab-content" id={`${id}-content`} style={style}>
+    <div className={clsx("tab-content", className)} id={`${id}-content`}>
       {tabs.map((tab, index) => {
         tab.props.index = index;
         return tab;

@@ -3536,23 +3536,23 @@ var require_assets = __commonJS({
     const container$d = "_container_1phwy_13";
     const animate = "_animate_1phwy_21";
     const leftToRight = "_leftToRight_1phwy_1";
-    const styles$13 = {
+    const styles$14 = {
       wrapper: wrapper$3,
       container: container$d,
       animate,
       leftToRight
     };
     const ProgressBar = ({ animating }) => {
-      return /* @__PURE__ */ u("div", { className: styles$13.wrapper, children: /* @__PURE__ */ u(
+      return /* @__PURE__ */ u("div", { className: styles$14.wrapper, children: /* @__PURE__ */ u(
         "div",
         {
-          className: styles$13.container,
+          className: styles$14.container,
           role: "progressbar",
           "aria-label": "Basic example",
           "aria-valuenow": 25,
           "aria-valuemin": 0,
           "aria-valuemax": 100,
-          children: animating && /* @__PURE__ */ u("div", { className: styles$13.animate })
+          children: animating && /* @__PURE__ */ u("div", { className: styles$14.animate })
         }
       ) });
     };
@@ -3913,7 +3913,7 @@ var require_assets = __commonJS({
     const circle$1 = "_circle_upui3_1";
     const green$1 = "_green_upui3_12";
     const red$1 = "_red_upui3_18";
-    const styles$12 = {
+    const styles$13 = {
       circle: circle$1,
       green: green$1,
       red: red$1
@@ -3929,7 +3929,7 @@ var require_assets = __commonJS({
             "span",
             {
               className: clsx(
-                styles$12.circle,
+                styles$13.circle,
                 "text-size-small",
                 score2 ? "green" : "red"
               ),
@@ -3986,7 +3986,7 @@ var require_assets = __commonJS({
     const padded = "_padded_w37fs_8";
     const key$1 = "_key_w37fs_12";
     const value$1 = "_value_w37fs_16";
-    const styles$11 = {
+    const styles$12 = {
       container: container$c,
       padded,
       key: key$1,
@@ -4033,12 +4033,12 @@ var require_assets = __commonJS({
                 "div",
                 {
                   className: clsx(
-                    styles$11.container,
-                    index + 1 < keys.length ? styles$11.padded : void 0
+                    styles$12.container,
+                    index + 1 < keys.length ? styles$12.padded : void 0
                   ),
                   children: [
-                    /* @__PURE__ */ u("div", { className: clsx(styles$11.key, "text-size-smaller"), children: key2 }),
-                    /* @__PURE__ */ u("div", { className: clsx(styles$11.value, "text-size-title"), children: formattedValue })
+                    /* @__PURE__ */ u("div", { className: clsx(styles$12.key, "text-size-smaller"), children: key2 }),
+                    /* @__PURE__ */ u("div", { className: clsx(styles$12.value, "text-size-title"), children: formattedValue })
                   ]
                 }
               )
@@ -5445,7 +5445,7 @@ var require_assets = __commonJS({
     const hidden$3 = "_hidden_tm52u_5";
     const pills = "_pills_tm52u_9";
     const pill = "_pill_tm52u_9";
-    const styles$10 = {
+    const styles$11 = {
       visible,
       hidden: hidden$3,
       pills,
@@ -5473,7 +5473,7 @@ var require_assets = __commonJS({
         return /* @__PURE__ */ u(
           "div",
           {
-            className: ((_a2 = child["props"]) == null ? void 0 : _a2.title) === activeItem ? styles$10.visible : styles$10.hidden,
+            className: ((_a2 = child["props"]) == null ? void 0 : _a2.title) === activeItem ? styles$11.visible : styles$11.hidden,
             children: child
           }
         );
@@ -5482,7 +5482,7 @@ var require_assets = __commonJS({
         /* @__PURE__ */ u(
           "ul",
           {
-            className: clsx("nav", "nav-pills", styles$10.pills),
+            className: clsx("nav", "nav-pills", styles$11.pills),
             role: "tablist",
             "aria-orientation": "horizontal",
             children: navPills
@@ -5509,7 +5509,7 @@ var require_assets = __commonJS({
               "nav-link",
               "text-style-label",
               active2 ? "active " : "",
-              styles$10.pill
+              styles$11.pill
             ),
             onClick: () => {
               setActiveItem(title2);
@@ -5627,7 +5627,7 @@ var require_assets = __commonJS({
     const messageGrid = "_messageGrid_xh8qq_13";
     const messageContents = "_messageContents_xh8qq_21";
     const indented = "_indented_xh8qq_26";
-    const styles$$ = {
+    const styles$10 = {
       message: message$1,
       systemRole,
       messageGrid,
@@ -10885,14 +10885,14 @@ var require_assets = __commonJS({
       );
     }
     const contentImage = "_contentImage_121dp_1";
-    const styles$_ = {
+    const styles$$ = {
       contentImage
     };
     const toolImage = "_toolImage_hw4du_1";
     const output$1 = "_output_hw4du_6";
     const textOutput = "_textOutput_hw4du_10";
     const textCode = "_textCode_hw4du_17";
-    const styles$Z = {
+    const styles$_ = {
       toolImage,
       output: output$1,
       textOutput,
@@ -10910,7 +10910,7 @@ var require_assets = __commonJS({
           } else {
             if (out.image.startsWith("data:")) {
               outputs.push(
-                /* @__PURE__ */ u("img", { className: clsx(styles$Z.toolImage), src: out.image })
+                /* @__PURE__ */ u("img", { className: clsx(styles$_.toolImage), src: out.image })
               );
             } else {
               outputs.push(/* @__PURE__ */ u(ToolTextOutput, { text: String(out.image) }));
@@ -10920,10 +10920,10 @@ var require_assets = __commonJS({
       } else {
         outputs.push(/* @__PURE__ */ u(ToolTextOutput, { text: String(output2) }));
       }
-      return /* @__PURE__ */ u("div", { className: clsx(styles$Z.output), children: outputs });
+      return /* @__PURE__ */ u("div", { className: clsx(styles$_.output), children: outputs });
     };
     const ToolTextOutput = ({ text: text2 }) => {
-      return /* @__PURE__ */ u("pre", { className: clsx(styles$Z.textOutput), children: /* @__PURE__ */ u("code", { class: "sourceCode", className: clsx(styles$Z.textCode), children: text2.trim() }) });
+      return /* @__PURE__ */ u("pre", { className: clsx(styles$_.textOutput), children: /* @__PURE__ */ u("code", { class: "sourceCode", className: clsx(styles$_.textCode), children: text2.trim() }) });
     };
     const MessageContent = ({ contents: contents2 }) => {
       if (Array.isArray(contents2)) {
@@ -10972,7 +10972,7 @@ var require_assets = __commonJS({
         render: (content2) => {
           const c2 = content2;
           if (c2.image.startsWith("data:")) {
-            return /* @__PURE__ */ u("img", { src: c2.image, className: styles$_.contentImage });
+            return /* @__PURE__ */ u("img", { src: c2.image, className: styles$$.contentImage });
           } else {
             return /* @__PURE__ */ u("code", { children: c2.image });
           }
@@ -11170,7 +11170,7 @@ var require_assets = __commonJS({
     const outputPre = "_outputPre_18agr_1";
     const outputCode = "_outputCode_18agr_7";
     const bottomMargin = "_bottomMargin_18agr_12";
-    const styles$Y = {
+    const styles$Z = {
       outputPre,
       outputCode,
       bottomMargin
@@ -11208,7 +11208,7 @@ var require_assets = __commonJS({
           {
             markdown: view.content,
             ref: toolViewRef,
-            className: clsx(styles$Y.bottomMargin)
+            className: clsx(styles$Z.bottomMargin)
           }
         );
       } else {
@@ -11226,12 +11226,12 @@ var require_assets = __commonJS({
         return /* @__PURE__ */ u(
           "pre",
           {
-            className: clsx("tool-output", styles$Y.outputPre, styles$Y.bottomMargin),
+            className: clsx("tool-output", styles$Z.outputPre, styles$Z.bottomMargin),
             children: /* @__PURE__ */ u(
               "code",
               {
                 ref: toolInputRef,
-                className: clsx("source-code", `language-${type}`, styles$Y.outputCode),
+                className: clsx("source-code", `language-${type}`, styles$Z.outputCode),
                 children: contents2
               },
               key2
@@ -11241,12 +11241,12 @@ var require_assets = __commonJS({
       }
     };
     const image = "_image_10saa_1";
-    const styles$X = {
+    const styles$Y = {
       image
     };
     const ToolTitle = ({ title: title2 }) => {
       return /* @__PURE__ */ u(k$2, { children: [
-        /* @__PURE__ */ u("i", { className: clsx("bi", "bi-tools", styles$X.styles) }),
+        /* @__PURE__ */ u("i", { className: clsx("bi", "bi-tools", styles$Y.styles) }),
         /* @__PURE__ */ u("code", { className: "text-size-small", children: title2 })
       ] });
     };
@@ -11297,7 +11297,7 @@ var require_assets = __commonJS({
       }
     };
     const content$3 = "_content_p4lvn_1";
-    const styles$W = {
+    const styles$X = {
       content: content$3
     };
     const MessageContents = ({
@@ -11309,7 +11309,7 @@ var require_assets = __commonJS({
         const result = [];
         if (message2.content) {
           result.push(
-            /* @__PURE__ */ u("div", { className: styles$W.content, children: /* @__PURE__ */ u(MessageContent, { contents: message2.content }) })
+            /* @__PURE__ */ u("div", { className: styles$X.content, children: /* @__PURE__ */ u(MessageContent, { contents: message2.content }) })
           );
         }
         const toolCalls = message2.tool_calls.map((tool_call, idx) => {
@@ -11469,11 +11469,11 @@ var require_assets = __commonJS({
           className: clsx(
             message2.role,
             "text-size-base",
-            styles$$.message,
-            message2.role === "system" ? styles$$.systemRole : void 0
+            styles$10.message,
+            message2.role === "system" ? styles$10.systemRole : void 0
           ),
           children: [
-            /* @__PURE__ */ u("div", { className: clsx(styles$$.messageGrid, "text-style-label"), children: [
+            /* @__PURE__ */ u("div", { className: clsx(styles$10.messageGrid, "text-style-label"), children: [
               /* @__PURE__ */ u("i", { class: iconForMsg(message2) }),
               message2.role
             ] }),
@@ -11481,8 +11481,8 @@ var require_assets = __commonJS({
               "div",
               {
                 className: clsx(
-                  styles$$.messageContents,
-                  indented2 ? styles$$.indented : void 0
+                  styles$10.messageContents,
+                  indented2 ? styles$10.indented : void 0
                 ),
                 children: /* @__PURE__ */ u(ExpandablePanel, { collapse, children: /* @__PURE__ */ u(
                   MessageContents,
@@ -11501,7 +11501,7 @@ var require_assets = __commonJS({
     };
     const grid$6 = "_grid_140x5_1";
     const number$1 = "_number_140x5_7";
-    const styles$V = {
+    const styles$W = {
       grid: grid$6,
       number: number$1
     };
@@ -11513,14 +11513,14 @@ var require_assets = __commonJS({
       indented: indented2
     }) => {
       if (number2) {
-        return /* @__PURE__ */ u("div", { className: styles$V.grid, children: [
+        return /* @__PURE__ */ u("div", { className: styles$W.grid, children: [
           /* @__PURE__ */ u(
             "div",
             {
               className: clsx(
                 "text-size-smaller",
                 "text-style-secondary",
-                styles$V.number
+                styles$W.number
               ),
               children: number2
             }
@@ -11605,7 +11605,7 @@ var require_assets = __commonJS({
     const compact = "_compact_1memb_15";
     const cellKey = "_cellKey_1memb_19";
     const cellValue = "_cellValue_1memb_31";
-    const styles$U = {
+    const styles$V = {
       table: table$1,
       th,
       cell: cell$2,
@@ -11634,15 +11634,15 @@ var require_assets = __commonJS({
             "td",
             {
               className: clsx(
-                styles$U.cell,
-                styles$U.cellKey,
+                styles$V.cell,
+                styles$V.cellKey,
                 "text-size-small",
                 "text-style-label"
               ),
               children: entry2.name
             }
           ),
-          /* @__PURE__ */ u("td", { className: clsx(styles$U.cell, styles$U.cellValue, "text-size-small"), children: /* @__PURE__ */ u(RenderedContent, { id: id2, entry: entry2 }) })
+          /* @__PURE__ */ u("td", { className: clsx(styles$V.cell, styles$V.cellValue, "text-size-small"), children: /* @__PURE__ */ u(RenderedContent, { id: id2, entry: entry2 }) })
         ] });
       });
       return /* @__PURE__ */ u(
@@ -11652,8 +11652,8 @@ var require_assets = __commonJS({
           className: clsx(
             "table",
             tblClz,
-            styles$U.table,
-            compact2 ? styles$U.compact : void 0,
+            styles$V.table,
+            compact2 ? styles$V.compact : void 0,
             className2
           ),
           style: style2,
@@ -11680,7 +11680,7 @@ var require_assets = __commonJS({
     const query = "_query_9u9bt_1";
     const summary$3 = "_summary_9u9bt_6";
     const preWrap = "_preWrap_9u9bt_10";
-    const styles$T = {
+    const styles$U = {
       query,
       summary: summary$3,
       preWrap
@@ -11811,7 +11811,7 @@ var require_assets = __commonJS({
         render: (_id, entry2) => {
           const results = [];
           results.push(
-            /* @__PURE__ */ u("div", { className: styles$T.query, children: [
+            /* @__PURE__ */ u("div", { className: styles$U.query, children: [
               /* @__PURE__ */ u("i", { class: ApplicationIcons.search }),
               " ",
               entry2.value.query
@@ -11823,7 +11823,7 @@ var require_assets = __commonJS({
                 /* @__PURE__ */ u("div", { children: /* @__PURE__ */ u("a", { href: result.url, children: result.url }) })
               );
               results.push(
-                /* @__PURE__ */ u("div", { className: clsx("text-size-smaller", styles$T.summary), children: result.summary })
+                /* @__PURE__ */ u("div", { className: clsx("text-size-smaller", styles$U.summary), children: result.summary })
               );
             }
           );
@@ -11840,7 +11840,7 @@ var require_assets = __commonJS({
         },
         render: (_id, entry2) => {
           return {
-            rendered: /* @__PURE__ */ u("pre", { className: styles$T.preWrap, children: entry2.value })
+            rendered: /* @__PURE__ */ u("pre", { className: styles$U.preWrap, children: entry2.value })
           };
         }
       },
@@ -11917,7 +11917,7 @@ var require_assets = __commonJS({
     const green = "_green_1iagp_12";
     const red = "_red_1iagp_18";
     const orange = "_orange_1iagp_24";
-    const styles$S = {
+    const styles$T = {
       circle,
       green,
       red,
@@ -11958,22 +11958,22 @@ var require_assets = __commonJS({
             return /* @__PURE__ */ u(
               "span",
               {
-                className: clsx("text-size-small", styles$S.circle, styles$S.green),
+                className: clsx("text-size-small", styles$T.circle, styles$T.green),
                 children: "C"
               }
             );
           } else if (score2 === "I") {
-            return /* @__PURE__ */ u("span", { className: clsx("text-size-small", styles$S.circle, styles$S.red), children: "I" });
+            return /* @__PURE__ */ u("span", { className: clsx("text-size-small", styles$T.circle, styles$T.red), children: "I" });
           } else if (score2 === "P") {
             return /* @__PURE__ */ u(
               "span",
               {
-                className: clsx("text-size-small", styles$S.circle, styles$S.orange),
+                className: clsx("text-size-small", styles$T.circle, styles$T.orange),
                 children: "P"
               }
             );
           } else if (score2 === "N") {
-            return /* @__PURE__ */ u("span", { className: clsx("text-size-small", styles$S.circle, styles$S.red), children: "N" });
+            return /* @__PURE__ */ u("span", { className: clsx("text-size-small", styles$T.circle, styles$T.red), children: "N" });
           } else {
             return score2;
           }
@@ -14897,7 +14897,7 @@ categories: ${categories.join(" ")}`;
     };
     const flex$1 = "_flex_1kye9_1";
     const label$5 = "_label_1kye9_5";
-    const styles$R = {
+    const styles$S = {
       flex: flex$1,
       label: label$5
     };
@@ -14928,7 +14928,7 @@ categories: ${categories.join(" ")}`;
         label: "score desc",
         val: kScoreDescVal
       });
-      return /* @__PURE__ */ u("div", { className: styles$R.flex, children: [
+      return /* @__PURE__ */ u("div", { className: styles$S.flex, children: [
         /* @__PURE__ */ u(
           "span",
           {
@@ -14937,7 +14937,7 @@ categories: ${categories.join(" ")}`;
               "text-size-smaller",
               "text-style-label",
               "text-style-secondary",
-              styles$R.label
+              styles$S.label
             ),
             children: "Sort:"
           }
@@ -15084,7 +15084,7 @@ categories: ${categories.join(" ")}`;
       });
     };
     const dirname$1 = "_dirname_16ra5_1";
-    const styles$Q = {
+    const styles$R = {
       dirname: dirname$1
     };
     const LogDirectoryTitleView = ({
@@ -15109,7 +15109,7 @@ categories: ${categories.join(" ")}`;
             "span",
             {
               title: displayDir,
-              className: clsx("text-size-base", styles$Q.dirname),
+              className: clsx("text-size-base", styles$R.dirname),
               children: offcanvas ? displayDir : ""
             }
           )
@@ -15140,7 +15140,7 @@ categories: ${categories.join(" ")}`;
     const backdrop = "_backdrop_1u82r_55";
     const active = "_active_1u82r_62";
     const item$2 = "_item_1u82r_66";
-    const styles$P = {
+    const styles$Q = {
       sidebar,
       sidebarClosed,
       sidebarOpen,
@@ -15155,7 +15155,7 @@ categories: ${categories.join(" ")}`;
     const error = "_error_srruf_1";
     const running = "_running_srruf_6";
     const cancelled = "_cancelled_srruf_13";
-    const styles$O = {
+    const styles$P = {
       error,
       running,
       cancelled
@@ -15164,15 +15164,15 @@ categories: ${categories.join(" ")}`;
     const metric = "_metric_1frsg_8";
     const metricName$1 = "_metricName_1frsg_17";
     const metricReducer$1 = "_metricReducer_1frsg_21";
-    const styles$N = {
+    const styles$O = {
       container: container$b,
       metric,
       metricName: metricName$1,
       metricReducer: metricReducer$1
     };
     const SidebarScoreView = ({ scorer }) => {
-      return /* @__PURE__ */ u("div", { className: styles$N.container, children: Object.keys(scorer.metrics).map((metric2) => {
-        return /* @__PURE__ */ u("div", { className: styles$N.metric, children: [
+      return /* @__PURE__ */ u("div", { className: styles$O.container, children: Object.keys(scorer.metrics).map((metric2) => {
+        return /* @__PURE__ */ u("div", { className: styles$O.metric, children: [
           /* @__PURE__ */ u(
             "div",
             {
@@ -15180,12 +15180,12 @@ categories: ${categories.join(" ")}`;
                 "text-style-secondary",
                 "text-style-label",
                 "text-size-small",
-                styles$N.metricName
+                styles$O.metricName
               ),
               children: scorer.metrics[metric2].name
             }
           ),
-          scorer.reducer ? /* @__PURE__ */ u("div", { className: clsx("text-size-small", styles$N.metricReducer), children: [
+          scorer.reducer ? /* @__PURE__ */ u("div", { className: clsx("text-size-small", styles$O.metricReducer), children: [
             "$",
             scorer.reducer
           ] }) : "",
@@ -15199,7 +15199,7 @@ categories: ${categories.join(" ")}`;
     const metricReducer = "_metricReducer_5kpg1_22";
     const metricValues = "_metricValues_5kpg1_27";
     const metricValue = "_metricValue_5kpg1_27";
-    const styles$M = {
+    const styles$N = {
       container: container$a,
       scoreWrapper,
       metricName,
@@ -15208,10 +15208,10 @@ categories: ${categories.join(" ")}`;
       metricValue
     };
     const SidebarScoresView = ({ scores: scores2 }) => {
-      return /* @__PURE__ */ u("div", { className: styles$M.container, children: scores2.map((score2) => {
+      return /* @__PURE__ */ u("div", { className: styles$N.container, children: scores2.map((score2) => {
         const name2 = score2.name;
         const reducer = score2.reducer;
-        return /* @__PURE__ */ u("div", { className: styles$M.scoreWrapper, children: [
+        return /* @__PURE__ */ u("div", { className: styles$N.scoreWrapper, children: [
           /* @__PURE__ */ u(
             "div",
             {
@@ -15219,13 +15219,13 @@ categories: ${categories.join(" ")}`;
                 "text-style-secondary",
                 "text-label",
                 "text-size-small",
-                styles$M.metricName
+                styles$N.metricName
               ),
               children: name2
             }
           ),
-          reducer ? /* @__PURE__ */ u("div", { className: clsx("text-size-small", styles$M.metricReducer), children: reducer }) : "",
-          /* @__PURE__ */ u("div", { className: clsx("text-size-small", styles$M.metricValues), children: Object.keys(score2.metrics).map((key2) => {
+          reducer ? /* @__PURE__ */ u("div", { className: clsx("text-size-small", styles$N.metricReducer), children: reducer }) : "",
+          /* @__PURE__ */ u("div", { className: clsx("text-size-small", styles$N.metricValues), children: Object.keys(score2.metrics).map((key2) => {
             const metric2 = score2.metrics[key2];
             return /* @__PURE__ */ u(Rn.Fragment, { children: [
               /* @__PURE__ */ u(
@@ -15238,7 +15238,7 @@ categories: ${categories.join(" ")}`;
                   children: metric2.name
                 }
               ),
-              /* @__PURE__ */ u("div", { className: styles$M.metricValue, children: formatPrettyDecimal(metric2.value) })
+              /* @__PURE__ */ u("div", { className: styles$N.metricValue, children: formatPrettyDecimal(metric2.value) })
             ] }, key2);
           }) })
         ] });
@@ -15273,7 +15273,7 @@ categories: ${categories.join(" ")}`;
             "text-style-secondary",
             "text-style-label",
             "text-size-small",
-            styles$O.cancelled
+            styles$P.cancelled
           ),
           children: message2
         }
@@ -15287,21 +15287,21 @@ categories: ${categories.join(" ")}`;
             "text-style-secondary",
             "text-style-label",
             "text-size-small",
-            styles$O.running
+            styles$P.running
           ),
           children: /* @__PURE__ */ u("div", { children: message2 })
         }
       );
     };
     const StatusError = ({ message: message2 }) => {
-      return /* @__PURE__ */ u("div", { className: clsx(styles$O.error, "text-size-small"), children: message2 });
+      return /* @__PURE__ */ u("div", { className: clsx(styles$P.error, "text-size-small"), children: message2 });
     };
     const entry = "_entry_12m5n_1";
     const title$3 = "_title_12m5n_7";
     const task = "_task_12m5n_12";
     const params = "_params_12m5n_18";
     const scores = "_scores_12m5n_22";
-    const styles$L = {
+    const styles$M = {
       entry,
       title: title$3,
       task,
@@ -15333,15 +15333,15 @@ categories: ${categories.join(" ")}`;
         minute: "2-digit"
       })}` : "";
       return /* @__PURE__ */ u(Rn.Fragment, { children: [
-        /* @__PURE__ */ u("div", { className: styles$L.entry, children: [
-          /* @__PURE__ */ u("div", { className: styles$L.title, children: [
-            /* @__PURE__ */ u("div", { className: clsx(styles$L.task, "text-size-title-secondary"), children: ((_i = logHeader == null ? void 0 : logHeader.eval) == null ? void 0 : _i.task) || task2 }),
+        /* @__PURE__ */ u("div", { className: styles$M.entry, children: [
+          /* @__PURE__ */ u("div", { className: styles$M.title, children: [
+            /* @__PURE__ */ u("div", { className: clsx(styles$M.task, "text-size-title-secondary"), children: ((_i = logHeader == null ? void 0 : logHeader.eval) == null ? void 0 : _i.task) || task2 }),
             /* @__PURE__ */ u("small", { className: clsx("mb-1", "text-size-small"), children: timeStr }),
             model2 ? /* @__PURE__ */ u("div", { children: /* @__PURE__ */ u("small", { className: clsx("mb-1", "text-size-small"), children: model2 }) }) : ""
           ] }),
           /* @__PURE__ */ u(EvalStatus, { logHeader })
         ] }),
-        /* @__PURE__ */ u("div", { className: clsx(styles$L.params, "three-line-clamp"), children: /* @__PURE__ */ u("small", { className: "mb-1", children: Object.keys(hyperparameters).map((key2) => {
+        /* @__PURE__ */ u("div", { className: clsx(styles$M.params, "three-line-clamp"), children: /* @__PURE__ */ u("small", { className: "mb-1", children: Object.keys(hyperparameters).map((key2) => {
           const val = hyperparameters[key2];
           if (Array.isArray(val) || typeof val === "object") {
             return `${key2}: ${JSON.stringify(val)}`;
@@ -15352,13 +15352,13 @@ categories: ${categories.join(" ")}`;
         (((_j = logHeader == null ? void 0 : logHeader.eval) == null ? void 0 : _j.dataset) || ((_k = logHeader == null ? void 0 : logHeader.results) == null ? void 0 : _k.scores)) && (logHeader == null ? void 0 : logHeader.status) === "success" ? /* @__PURE__ */ u(
           "div",
           {
-            className: clsx("text-truncate", "text-size-small", styles$L.scores),
+            className: clsx("text-truncate", "text-size-small", styles$M.scores),
             children: [
               /* @__PURE__ */ u("div", { children: [
                 "dataset: ",
                 datasetName || "(samples)"
               ] }),
-              /* @__PURE__ */ u("div", { className: clsx("text-truncate", styles$L.scoreInfo), children: [
+              /* @__PURE__ */ u("div", { className: clsx("text-truncate", styles$M.scoreInfo), children: [
                 scorerLabel,
                 ": ",
                 scorerNames || "(none)"
@@ -15381,30 +15381,30 @@ categories: ${categories.join(" ")}`;
         setOffcanvas(!offcanvas);
       };
       return /* @__PURE__ */ u(k$2, { children: [
-        offcanvas && /* @__PURE__ */ u("div", { className: styles$P.backdrop, onClick: handleToggle }),
+        offcanvas && /* @__PURE__ */ u("div", { className: styles$Q.backdrop, onClick: handleToggle }),
         /* @__PURE__ */ u(
           "div",
           {
             className: clsx(
-              styles$P.sidebar,
-              offcanvas ? styles$P.sidebarOpen : styles$P.sidebarClosed
+              styles$Q.sidebar,
+              offcanvas ? styles$Q.sidebarOpen : styles$Q.sidebarClosed
             ),
             children: [
-              /* @__PURE__ */ u("div", { className: styles$P.header, children: [
+              /* @__PURE__ */ u("div", { className: styles$Q.header, children: [
                 /* @__PURE__ */ u(LogDirectoryTitleView, { log_dir: logs.log_dir, offcanvas }),
                 /* @__PURE__ */ u(
                   "button",
                   {
                     onClick: handleToggle,
-                    className: clsx("btn", styles$P.toggle),
+                    className: clsx("btn", styles$Q.toggle),
                     type: "button",
                     "aria-label": "Close sidebar",
                     children: /* @__PURE__ */ u("i", { className: ApplicationIcons.close })
                   }
                 )
               ] }),
-              /* @__PURE__ */ u("div", { className: styles$P.progress, children: /* @__PURE__ */ u(ProgressBar, { animating: loading }) }),
-              /* @__PURE__ */ u("ul", { className: clsx("list-group", styles$P.list), children: logs.files.map((file, index) => {
+              /* @__PURE__ */ u("div", { className: styles$Q.progress, children: /* @__PURE__ */ u(ProgressBar, { animating: loading }) }),
+              /* @__PURE__ */ u("ul", { className: clsx("list-group", styles$Q.list), children: logs.files.map((file, index) => {
                 const logHeader = logHeaders[file.name];
                 return /* @__PURE__ */ u(
                   "li",
@@ -15412,8 +15412,8 @@ categories: ${categories.join(" ")}`;
                     className: clsx(
                       "list-group-item",
                       "list-group-item-action",
-                      styles$P.item,
-                      selectedIndex === index ? styles$P.active : void 0
+                      styles$Q.item,
+                      selectedIndex === index ? styles$Q.active : void 0
                     ),
                     onClick: () => onSelectedIndexChanged(index),
                     children: /* @__PURE__ */ u(SidebarLogEntry, { logHeader, task: file.task })
@@ -15438,7 +15438,7 @@ categories: ${categories.join(" ")}`;
     ToolButton.displayName = "ToolButton";
     const container$9 = "_container_15b4r_1";
     const label$4 = "_label_15b4r_5";
-    const styles$K = {
+    const styles$L = {
       container: container$9,
       label: label$4
     };
@@ -15455,7 +15455,7 @@ categories: ${categories.join(" ")}`;
         const sel = e2.target;
         setEpoch(sel.value);
       };
-      return /* @__PURE__ */ u("div", { className: styles$K.container, children: [
+      return /* @__PURE__ */ u("div", { className: styles$L.container, children: [
         /* @__PURE__ */ u(
           "span",
           {
@@ -15464,7 +15464,7 @@ categories: ${categories.join(" ")}`;
               "text-size-smaller",
               "text-style-label",
               "text-style-secondary",
-              styles$K.label
+              styles$L.label
             ),
             children: "Epochs:"
           }
@@ -35617,7 +35617,7 @@ categories: ${categories.join(" ")}`;
     const label$3 = "_label_jbrqc_1";
     const input = "_input_jbrqc_7";
     const help = "_help_jbrqc_11";
-    const styles$J = {
+    const styles$K = {
       label: label$3,
       input,
       help
@@ -35818,7 +35818,7 @@ Supported expressions:
               "text-size-smaller",
               "text-style-label",
               "text-style-secondary",
-              styles$J.label
+              styles$K.label
             ),
             children: "Filter:"
           }
@@ -35829,14 +35829,14 @@ Supported expressions:
             ref: editorRef,
             className: clsx(
               (filteringResultInstant == null ? void 0 : filteringResultInstant.error) && "filter-pending",
-              styles$J.input
+              styles$K.input
             )
           }
         ),
         /* @__PURE__ */ u(
           "span",
           {
-            className: clsx("bi", "bi-question-circle", styles$J.help),
+            className: clsx("bi", "bi-question-circle", styles$K.help),
             "data-tooltip": FILTER_TOOLTIP,
             "data-tooltip-position": "bottom-left"
           }
@@ -35847,7 +35847,7 @@ Supported expressions:
     const label$2 = "_label_anstf_5";
     const secondSel = "_secondSel_anstf_9";
     const secondLabel = "_secondLabel_anstf_13";
-    const styles$I = {
+    const styles$J = {
       flex,
       label: label$2,
       secondSel,
@@ -35867,7 +35867,7 @@ Supported expressions:
         return accum;
       }, []);
       if (scorers.length === 1) {
-        return /* @__PURE__ */ u("div", { className: styles$I.flex, children: [
+        return /* @__PURE__ */ u("div", { className: styles$J.flex, children: [
           /* @__PURE__ */ u(
             "span",
             {
@@ -35876,7 +35876,7 @@ Supported expressions:
                 "text-size-smaller",
                 "text-style-label",
                 "text-style-secondary",
-                styles$I.label
+                styles$J.label
               ),
               children: "Score:"
             }
@@ -35913,7 +35913,7 @@ Supported expressions:
             /* @__PURE__ */ u(
               ScoreSelector,
               {
-                className: clsx(styles$I.secondSel),
+                className: clsx(styles$J.secondSel),
                 scores: scorerScores,
                 selectedIndex: scoreIndex(score2, scorerScores),
                 setSelectedIndex: (index) => {
@@ -35923,7 +35923,7 @@ Supported expressions:
             )
           );
         }
-        return /* @__PURE__ */ u("div", { className: styles$I.flex, children: [
+        return /* @__PURE__ */ u("div", { className: styles$J.flex, children: [
           /* @__PURE__ */ u(
             "span",
             {
@@ -35932,8 +35932,8 @@ Supported expressions:
                 "text-size-smaller",
                 "text-style-label",
                 "text-style-secondary",
-                styles$I.label,
-                styles$I.secondLabel
+                styles$J.label,
+                styles$J.secondLabel
               ),
               children: "Scorer:"
             }
@@ -38764,7 +38764,7 @@ self.onmessage = function (e) {
       }
       return value2;
     };
-    const styles$H = {
+    const styles$I = {
       "json-tab": "_json-tab_w7sx0_1"
     };
     const kJsonMaxSize = 1e7;
@@ -38775,7 +38775,7 @@ self.onmessage = function (e) {
     }) => {
       if (logFile && json.length > kJsonMaxSize && capabilities.downloadFiles) {
         const file = `${filename(logFile)}.json`;
-        return /* @__PURE__ */ u("div", { className: styles$H["json-tab"], children: /* @__PURE__ */ u(
+        return /* @__PURE__ */ u("div", { className: styles$I["json-tab"], children: /* @__PURE__ */ u(
           DownloadPanel,
           {
             message: "The JSON for this log file is too large to render.",
@@ -38791,7 +38791,7 @@ self.onmessage = function (e) {
     const EmptyPanel = ({ children: children2 }) => {
       return /* @__PURE__ */ u("div", { className: "empty-panel", children: /* @__PURE__ */ u("div", { className: "container", children: /* @__PURE__ */ u("div", { children: children2 }) }) });
     };
-    const tabs = "_tabs_1qj7d_1";
+    const tabs$1 = "_tabs_1qj7d_1";
     const tabContents = "_tabContents_1qj7d_5";
     const scrollable = "_scrollable_1qj7d_10";
     const tab$1 = "_tab_1qj7d_1";
@@ -38799,7 +38799,7 @@ self.onmessage = function (e) {
     const tabIcon = "_tabIcon_1qj7d_28";
     const tabTools = "_tabTools_1qj7d_32";
     const moduleStyles = {
-      tabs,
+      tabs: tabs$1,
       tabContents,
       scrollable,
       tab: tab$1,
@@ -38810,9 +38810,10 @@ self.onmessage = function (e) {
     const TabSet = ({
       id,
       type,
-      classes,
+      className: className2,
+      tabPanelsClassName,
+      tabControlsClassName,
       tools: tools2,
-      styles: styles2,
       children: children2
     }) => {
       const tabs2 = children2;
@@ -38822,17 +38823,23 @@ self.onmessage = function (e) {
           "ul",
           {
             id,
-            class: clsx("nav", `nav-${tabType}`, classes, moduleStyles.tabs),
+            class: clsx("nav", `nav-${tabType}`, className2, moduleStyles.tabs),
             role: "tablist",
             "aria-orientation": "horizontal",
-            style: { ...styles2 == null ? void 0 : styles2.tabSet },
             children: [
-              /* @__PURE__ */ u(Tabs, { tabs: tabs2, type: tabType, style: styles2 == null ? void 0 : styles2.tabs }),
+              /* @__PURE__ */ u(
+                Tabs,
+                {
+                  tabs: tabs2,
+                  type: tabType,
+                  className: clsx(tabControlsClassName)
+                }
+              ),
               /* @__PURE__ */ u(TabTools, { tools: tools2 })
             ]
           }
         ),
-        /* @__PURE__ */ u(TabPanels, { id, tabs: tabs2, style: styles2 == null ? void 0 : styles2.tabBody })
+        /* @__PURE__ */ u(TabPanels, { id, tabs: tabs2, className: clsx(tabPanelsClassName) })
       ] });
     };
     const TabPanel = ({
@@ -38841,7 +38848,7 @@ self.onmessage = function (e) {
       style: style2,
       scrollable: scrollable2,
       scrollRef,
-      classes,
+      className: className2,
       scrollPosition,
       setScrollPosition,
       children: children2
@@ -38870,7 +38877,7 @@ self.onmessage = function (e) {
             "tab-pane",
             "show",
             selected2 ? "active" : void 0,
-            classes,
+            className2,
             moduleStyles.tabContents,
             scrollable2 === void 0 || scrollable2 ? moduleStyles.scrollable : void 0
           ),
@@ -38880,47 +38887,63 @@ self.onmessage = function (e) {
         }
       );
     };
-    const Tabs = ({ tabs: tabs2, type, style: style2 }) => {
+    const Tabs = ({ tabs: tabs2, type, className: className2 }) => {
       return tabs2.map((tab2, index) => {
-        return /* @__PURE__ */ u(Tab, { type: type || "tabs", tab: tab2, index, style: style2 });
+        return /* @__PURE__ */ u(
+          Tab,
+          {
+            type: type || "tabs",
+            tab: tab2,
+            index,
+            className: clsx(className2)
+          }
+        );
       });
     };
-    const Tab = ({ type, tab: tab2, index, style: style2 }) => {
+    const Tab = ({ type, tab: tab2, index, className: className2 }) => {
       const tabId = tab2.props.id || computeTabId("tabset", index);
       const tabContentsId = computeTabContentsId(tab2.props.id);
       const isActive = tab2.props.selected;
       const tabClz = [moduleStyles.tab, "text-size-small", "text-style-label"];
       const pillClz = [];
-      return /* @__PURE__ */ u("li", { class: "nav-item", role: "presentation", className: moduleStyles.tabItem, children: /* @__PURE__ */ u(
-        "button",
+      return /* @__PURE__ */ u(
+        "li",
         {
-          id: tabId,
-          style: style2,
-          className: clsx(
-            "nav-link",
-            isActive ? "active" : void 0,
-            type === "pills" ? pillClz : tabClz
-          ),
-          type: "button",
-          role: "tab",
-          "aria-controls": tabContentsId,
-          "aria-selected": isActive ? true : false,
-          onClick: (e2) => {
-            tab2.props.onSelected(e2);
-            return false;
-          },
-          children: [
-            tab2.props.icon ? /* @__PURE__ */ u("i", { className: clsx(tab2.props.icon, moduleStyles.tabIcon) }) : "",
-            tab2.props.title
-          ]
+          class: "nav-item",
+          role: "presentation",
+          className: clsx(moduleStyles.tabItem),
+          children: /* @__PURE__ */ u(
+            "button",
+            {
+              id: tabId,
+              className: clsx(
+                className2,
+                "nav-link",
+                isActive ? "active" : void 0,
+                type === "pills" ? pillClz : tabClz
+              ),
+              type: "button",
+              role: "tab",
+              "aria-controls": tabContentsId,
+              "aria-selected": isActive ? true : false,
+              onClick: (e2) => {
+                tab2.props.onSelected(e2);
+                return false;
+              },
+              children: [
+                tab2.props.icon ? /* @__PURE__ */ u("i", { className: clsx(tab2.props.icon, moduleStyles.tabIcon) }) : "",
+                tab2.props.title
+              ]
+            }
+          )
         }
-      ) });
+      );
     };
     const TabTools = ({ tools: tools2 }) => {
       return /* @__PURE__ */ u("div", { className: clsx("tab-tools", moduleStyles.tabTools), children: tools2 });
     };
-    const TabPanels = ({ id, tabs: tabs2, style: style2 }) => {
-      return /* @__PURE__ */ u("div", { className: "tab-content", id: `${id}-content`, style: style2, children: tabs2.map((tab2, index) => {
+    const TabPanels = ({ id, tabs: tabs2, className: className2 }) => {
+      return /* @__PURE__ */ u("div", { className: clsx("tab-content", className2), id: `${id}-content`, children: tabs2.map((tab2, index) => {
         tab2.props.index = index;
         return tab2;
       }) });
@@ -38934,7 +38957,7 @@ self.onmessage = function (e) {
     const container$8 = "_container_1vi7u_1";
     const hidden$2 = "_hidden_1vi7u_8";
     const content$1 = "_content_1vi7u_12";
-    const styles$G = {
+    const styles$H = {
       container: container$8,
       hidden: hidden$2,
       content: content$1
@@ -39119,14 +39142,14 @@ self.onmessage = function (e) {
         "div",
         {
           className: clsx(
-            styles$G.container,
-            !(scrollRef == null ? void 0 : scrollRef.current) ? styles$G.hidden : void 0
+            styles$H.container,
+            !(scrollRef == null ? void 0 : scrollRef.current) ? styles$H.hidden : void 0
           ),
           style: { height: `${listMetrics.totalHeight}px` },
           children: /* @__PURE__ */ u(
             "div",
             {
-              className: styles$G.content,
+              className: styles$H.content,
               style: { transform: `translateY(${top2}px)` },
               ref: containerRef,
               children: renderedRows
@@ -39146,7 +39169,7 @@ self.onmessage = function (e) {
       };
     };
     const list$1 = "_list_1emnm_1";
-    const styles$F = {
+    const styles$G = {
       list: list$1
     };
     const ChatViewVirtualList = ({
@@ -39178,7 +39201,7 @@ self.onmessage = function (e) {
           data: collapsedMessages,
           renderRow,
           scrollRef,
-          className: clsx(styles$F.list, className2)
+          className: clsx(styles$G.list, className2)
         }
       );
       return result;
@@ -39240,7 +39263,7 @@ self.onmessage = function (e) {
     const grid$5 = "_grid_12d2w_1";
     const cell$1 = "_cell_12d2w_7";
     const value = "_value_12d2w_12";
-    const styles$E = {
+    const styles$F = {
       grid: grid$5,
       cell: cell$1,
       value
@@ -39270,7 +39293,7 @@ self.onmessage = function (e) {
             {
               className: clsx(
                 `${baseId}-key`,
-                styles$E.cell,
+                styles$F.cell,
                 "text-style-label",
                 "text-style-secondary",
                 "text-size-small"
@@ -39281,13 +39304,13 @@ self.onmessage = function (e) {
           /* @__PURE__ */ u(
             "div",
             {
-              className: clsx(styles$E.value, `${baseId}-value`, "text-size-small"),
+              className: clsx(styles$F.value, `${baseId}-value`, "text-size-small"),
               children: /* @__PURE__ */ u(RenderedContent, { id: id2, entry: entry2 })
             }
           )
         ] });
       });
-      return /* @__PURE__ */ u("div", { id, className: clsx(className2, styles$E.grid), style: style2, children: entryEls });
+      return /* @__PURE__ */ u("div", { id, className: clsx(className2, styles$F.grid), style: style2, children: entryEls });
     };
     const entryRecords = (entries) => {
       if (!entries) {
@@ -39302,7 +39325,7 @@ self.onmessage = function (e) {
       }
     };
     const grid$4 = "_grid_3umed_1";
-    const styles$D = {
+    const styles$E = {
       grid: grid$4
     };
     const SampleScores = ({
@@ -39320,7 +39343,7 @@ self.onmessage = function (e) {
             /* @__PURE__ */ u("div", { children: score2.rendered() })
           ] });
         });
-        return /* @__PURE__ */ u("div", { className: styles$D.grid, children: rows });
+        return /* @__PURE__ */ u("div", { className: styles$E.grid, children: rows });
       }
     };
     const container$7 = "_container_43lfg_1";
@@ -39334,7 +39357,7 @@ self.onmessage = function (e) {
     const scoreValue = "_scoreValue_43lfg_42";
     const noLeft$1 = "_noLeft_43lfg_47";
     const noTop = "_noTop_43lfg_51";
-    const styles$C = {
+    const styles$D = {
       container: container$7,
       label: label$1,
       wordBreak,
@@ -39379,7 +39402,7 @@ self.onmessage = function (e) {
             "container-fluid",
             className2,
             "font-size-base",
-            styles$C.container
+            styles$D.container
           ),
           children: [
             /* @__PURE__ */ u(Card, { children: [
@@ -39390,7 +39413,7 @@ self.onmessage = function (e) {
                     "div",
                     {
                       className: clsx(
-                        styles$C.label,
+                        styles$D.label,
                         "text-style-label",
                         "text-style-secondary"
                       ),
@@ -39401,17 +39424,17 @@ self.onmessage = function (e) {
                     MarkdownDiv,
                     {
                       markdown: scoreInput.join("\n"),
-                      className: styles$C.wordBreak
+                      className: styles$D.wordBreak
                     }
                   ) })
                 ] }),
-                /* @__PURE__ */ u("table", { className: clsx("table", styles$C.scoreTable), children: [
-                  /* @__PURE__ */ u("thead", { className: styles$C.bottomBorder, children: /* @__PURE__ */ u("tr", { children: [
+                /* @__PURE__ */ u("table", { className: clsx("table", styles$D.scoreTable), children: [
+                  /* @__PURE__ */ u("thead", { className: styles$D.bottomBorder, children: /* @__PURE__ */ u("tr", { children: [
                     /* @__PURE__ */ u(
                       "th",
                       {
                         className: clsx(
-                          styles$C.label,
+                          styles$D.label,
                           "text-style-label",
                           "text-style-secondary"
                         ),
@@ -39422,7 +39445,7 @@ self.onmessage = function (e) {
                       "th",
                       {
                         className: clsx(
-                          styles$C.label,
+                          styles$D.label,
                           "text-style-label",
                           "text-style-secondary"
                         ),
@@ -39433,33 +39456,33 @@ self.onmessage = function (e) {
                       "th",
                       {
                         className: clsx(
-                          styles$C.label,
+                          styles$D.label,
                           "text-style-label",
                           "text-style-secondary",
-                          styles$C.headerScore
+                          styles$D.headerScore
                         ),
                         children: "Score"
                       }
                     )
                   ] }) }),
-                  /* @__PURE__ */ u("tbody", { className: styles$C.bottomBorder, children: /* @__PURE__ */ u("tr", { children: [
-                    /* @__PURE__ */ u("td", { className: styles$C.targetValue, children: /* @__PURE__ */ u(
+                  /* @__PURE__ */ u("tbody", { className: styles$D.bottomBorder, children: /* @__PURE__ */ u("tr", { children: [
+                    /* @__PURE__ */ u("td", { className: styles$D.targetValue, children: /* @__PURE__ */ u(
                       MarkdownDiv,
                       {
                         markdown: arrayToString(
                           arrayToString((sample2 == null ? void 0 : sample2.target) || "none")
                         ),
-                        className: clsx("no-last-para-padding", styles$C.noLeft)
+                        className: clsx("no-last-para-padding", styles$D.noLeft)
                       }
                     ) }),
-                    /* @__PURE__ */ u("td", { className: clsx(styles$C.answerValue), children: /* @__PURE__ */ u(
+                    /* @__PURE__ */ u("td", { className: clsx(styles$D.answerValue), children: /* @__PURE__ */ u(
                       MarkdownDiv,
                       {
-                        className: clsx("no-last-para-padding", styles$C.noLeft),
+                        className: clsx("no-last-para-padding", styles$D.noLeft),
                         markdown: answer2
                       }
                     ) }),
-                    /* @__PURE__ */ u("td", { className: clsx(styles$C.scoreValue), children: /* @__PURE__ */ u(
+                    /* @__PURE__ */ u("td", { className: clsx(styles$D.scoreValue), children: /* @__PURE__ */ u(
                       SampleScores,
                       {
                         sample: sample2,
@@ -39477,7 +39500,7 @@ self.onmessage = function (e) {
                 MarkdownDiv,
                 {
                   markdown: arrayToString(explanation2),
-                  className: clsx("no-last-para-padding", styles$C.noLeft)
+                  className: clsx("no-last-para-padding", styles$D.noLeft)
                 }
               ) })
             ] }) : "",
@@ -39487,7 +39510,7 @@ self.onmessage = function (e) {
                 MetaDataGrid,
                 {
                   id: "task-sample-score-metadata",
-                  className: clsx("tab-pane", styles$C.noTop),
+                  className: clsx("tab-pane", styles$D.noTop),
                   entries: metadata2
                 }
               ) })
@@ -39498,7 +39521,7 @@ self.onmessage = function (e) {
     };
     const title$2 = "_title_19l1b_1";
     const contents = "_contents_19l1b_8";
-    const styles$B = {
+    const styles$C = {
       title: title$2,
       contents
     };
@@ -39508,12 +39531,12 @@ self.onmessage = function (e) {
       className: className2,
       children: children2
     }) => {
-      const contentEl = title2 ? /* @__PURE__ */ u("div", { className: clsx("text-size-small", styles$B.title, className2), children: [
+      const contentEl = title2 ? /* @__PURE__ */ u("div", { className: clsx("text-size-small", styles$C.title, className2), children: [
         /* @__PURE__ */ u("i", { className: icon || ApplicationIcons.metadata }),
         /* @__PURE__ */ u("div", { className: clsx("text-style-label"), children: title2 }),
         /* @__PURE__ */ u("div", { children: children2 })
       ] }) : "";
-      const card2 = /* @__PURE__ */ u("div", { className: clsx("card", styles$B.contents), children: contentEl });
+      const card2 = /* @__PURE__ */ u("div", { className: clsx("card", styles$C.contents), children: contentEl });
       return card2;
     };
     const ApprovalEventView = ({
@@ -39563,7 +39586,7 @@ self.onmessage = function (e) {
       }
     };
     const tab = "_tab_1je38_1";
-    const styles$A = {
+    const styles$B = {
       tab
     };
     const EventNav = ({
@@ -39585,7 +39608,7 @@ self.onmessage = function (e) {
             active2 ? "active " : "",
             "text-style-label",
             "text-size-small",
-            styles$A.tab
+            styles$B.tab
           ),
           onClick: () => {
             setSelectedNav(target2);
@@ -39595,7 +39618,7 @@ self.onmessage = function (e) {
       ) });
     };
     const navs$1 = "_navs_1vm6p_1";
-    const styles$z = {
+    const styles$A = {
       navs: navs$1
     };
     const EventNavs = ({
@@ -39606,7 +39629,7 @@ self.onmessage = function (e) {
       return /* @__PURE__ */ u(
         "ul",
         {
-          className: clsx("nav", "nav-pills", styles$z.navs),
+          className: clsx("nav", "nav-pills", styles$A.navs),
           role: "tablist",
           "aria-orientation": "horizontal",
           children: navs2.map((nav2) => {
@@ -39628,7 +39651,7 @@ self.onmessage = function (e) {
     const card = "_card_7z797_12";
     const cardContent = "_cardContent_7z797_18";
     const hidden$1 = "_hidden_7z797_23";
-    const styles$y = {
+    const styles$z = {
       label,
       navs,
       card,
@@ -39724,14 +39747,14 @@ self.onmessage = function (e) {
             /* @__PURE__ */ u(
               "div",
               {
-                className: clsx("text-style-secondary", styles$y.label),
+                className: clsx("text-style-secondary", styles$z.label),
                 onClick: () => {
                   setCollapsed(!isCollapsed);
                 },
                 children: collapsed ? text2 : ""
               }
             ),
-            /* @__PURE__ */ u("div", { className: styles$y.navs, children: (!hasCollapse || !isCollapsed) && filteredArrChildren && filteredArrChildren.length > 1 ? /* @__PURE__ */ u(
+            /* @__PURE__ */ u("div", { className: styles$z.navs, children: (!hasCollapse || !isCollapsed) && filteredArrChildren && filteredArrChildren.length > 1 ? /* @__PURE__ */ u(
               EventNavs,
               {
                 navs: filteredArrChildren.map((child, index) => {
@@ -39751,15 +39774,15 @@ self.onmessage = function (e) {
           ]
         }
       ) : "";
-      const card2 = /* @__PURE__ */ u("div", { id, className: clsx(className2, styles$y.card), children: [
+      const card2 = /* @__PURE__ */ u("div", { id, className: clsx(className2, styles$z.card), children: [
         titleEl,
         /* @__PURE__ */ u(
           "div",
           {
             className: clsx(
               "tab-content",
-              styles$y.cardContent,
-              hasCollapse && isCollapsed ? styles$y.hidden : void 0
+              styles$z.cardContent,
+              hasCollapse && isCollapsed ? styles$z.hidden : void 0
             ),
             children: filteredArrChildren == null ? void 0 : filteredArrChildren.map((child, index) => {
               const id2 = pillId(index);
@@ -39815,7 +39838,7 @@ self.onmessage = function (e) {
       );
     };
     const panel = "_panel_8zdtn_1";
-    const styles$x = {
+    const styles$y = {
       panel
     };
     const InfoEventView = ({
@@ -39827,9 +39850,9 @@ self.onmessage = function (e) {
     }) => {
       const panels = [];
       if (typeof event.data === "string") {
-        panels.push(/* @__PURE__ */ u(MarkdownDiv, { markdown: event.data, className: styles$x.panel }));
+        panels.push(/* @__PURE__ */ u(MarkdownDiv, { markdown: event.data, className: styles$y.panel }));
       } else {
-        panels.push(/* @__PURE__ */ u(JSONPanel, { data: event.data, className: styles$x.panel }));
+        panels.push(/* @__PURE__ */ u(JSONPanel, { data: event.data, className: styles$y.panel }));
       }
       return /* @__PURE__ */ u(
         EventPanel,
@@ -39885,7 +39908,7 @@ self.onmessage = function (e) {
       );
     };
     const grid$3 = "_grid_1pgwi_1";
-    const styles$w = {
+    const styles$x = {
       grid: grid$3
     };
     const LoggerEventView = ({
@@ -39898,7 +39921,7 @@ self.onmessage = function (e) {
           className: className2,
           title: event.message.level,
           icon: ApplicationIcons.logging[event.message.level.toLowerCase()],
-          children: /* @__PURE__ */ u("div", { className: clsx("text-size-base", styles$w.grid), children: [
+          children: /* @__PURE__ */ u("div", { className: clsx("text-size-base", styles$x.grid), children: [
             /* @__PURE__ */ u("div", { className: clsx("text-size-smaller"), children: [
               "$",
               event.message.message
@@ -39917,7 +39940,7 @@ self.onmessage = function (e) {
     const col1_3 = "_col1_3_b0it4_12";
     const col3 = "_col3_b0it4_16";
     const separator$2 = "_separator_b0it4_20";
-    const styles$v = {
+    const styles$w = {
       wrapper: wrapper$2,
       col2: col2$1,
       col1_3,
@@ -39965,9 +39988,9 @@ self.onmessage = function (e) {
         value: usage.total_tokens,
         secondary: false
       });
-      return /* @__PURE__ */ u("div", { className: clsx("text-size-small", styles$v.wrapper), children: rows.map((row2) => {
+      return /* @__PURE__ */ u("div", { className: clsx("text-size-small", styles$w.wrapper), children: rows.map((row2) => {
         if (row2.label === "---") {
-          return /* @__PURE__ */ u("div", { className: styles$v.separator });
+          return /* @__PURE__ */ u("div", { className: styles$w.separator });
         } else {
           return /* @__PURE__ */ u(Rn.Fragment, { children: [
             /* @__PURE__ */ u(
@@ -39976,19 +39999,19 @@ self.onmessage = function (e) {
                 className: clsx(
                   "text-style-label",
                   "text-style-secondary",
-                  row2.secondary ? styles$v.col2 : styles$v.col1_3
+                  row2.secondary ? styles$w.col2 : styles$w.col1_3
                 ),
                 children: row2.label
               }
             ),
-            /* @__PURE__ */ u("div", { className: styles$v.col3, children: row2.value ? formatNumber(row2.value) : "" })
+            /* @__PURE__ */ u("div", { className: styles$w.col3, children: row2.value ? formatNumber(row2.value) : "" })
           ] });
         }
       }) });
     };
     const container$6 = "_container_1brs9_1";
     const title$1 = "_title_1brs9_5";
-    const styles$u = {
+    const styles$v = {
       container: container$6,
       title: title$1
     };
@@ -39997,11 +40020,11 @@ self.onmessage = function (e) {
       children: children2,
       className: className2
     }) => {
-      return /* @__PURE__ */ u("div", { className: clsx(styles$u.container, className2), children: [
+      return /* @__PURE__ */ u("div", { className: clsx(styles$v.container, className2), children: [
         /* @__PURE__ */ u(
           "div",
           {
-            className: clsx("text-size-small", "text-style-label", styles$u.title),
+            className: clsx("text-size-small", "text-style-label", styles$v.title),
             children: title2
           }
         ),
@@ -40016,7 +40039,7 @@ self.onmessage = function (e) {
     const codePre = "_codePre_19u93_26";
     const code$1 = "_code_19u93_26";
     const toolConfig = "_toolConfig_19u93_38";
-    const styles$t = {
+    const styles$u = {
       output,
       container: container$5,
       all,
@@ -40075,25 +40098,25 @@ self.onmessage = function (e) {
             setEventState({ ...eventState, collapsed });
           },
           children: [
-            /* @__PURE__ */ u("div", { "data-name": "Summary", className: styles$t.container, children: /* @__PURE__ */ u(
+            /* @__PURE__ */ u("div", { "data-name": "Summary", className: styles$u.container, children: /* @__PURE__ */ u(
               ChatView,
               {
                 id: `${id}-model-output`,
                 messages: [...userMessages, ...outputMessages || []],
-                className: clsx(styles$t.output),
+                className: clsx(styles$u.output),
                 numbered: false,
                 toolCallStyle: "compact"
               }
             ) }),
-            /* @__PURE__ */ u("div", { "data-name": "All", className: styles$t.container, children: [
-              /* @__PURE__ */ u("div", { className: styles$t.all, children: [
-                /* @__PURE__ */ u(EventSection, { title: "Configuration", className: styles$t.tableSelection, children: /* @__PURE__ */ u(MetaDataGrid, { entries, plain: true }) }),
-                /* @__PURE__ */ u(EventSection, { title: "Usage", className: styles$t.tableSelection, children: event.output.usage !== null ? /* @__PURE__ */ u(ModelUsagePanel, { usage: event.output.usage }) : void 0 }),
+            /* @__PURE__ */ u("div", { "data-name": "All", className: styles$u.container, children: [
+              /* @__PURE__ */ u("div", { className: styles$u.all, children: [
+                /* @__PURE__ */ u(EventSection, { title: "Configuration", className: styles$u.tableSelection, children: /* @__PURE__ */ u(MetaDataGrid, { entries, plain: true }) }),
+                /* @__PURE__ */ u(EventSection, { title: "Usage", className: styles$u.tableSelection, children: event.output.usage !== null ? /* @__PURE__ */ u(ModelUsagePanel, { usage: event.output.usage }) : void 0 }),
                 /* @__PURE__ */ u(
                   EventSection,
                   {
                     title: "Tools",
-                    className: clsx(styles$t.tableSelection, styles$t.tools),
+                    className: clsx(styles$u.tableSelection, styles$u.tools),
                     children: /* @__PURE__ */ u(ToolsConfig, { tools: event.tools })
                   }
                 )
@@ -40111,7 +40134,7 @@ self.onmessage = function (e) {
               {
                 "data-name": "API",
                 call: event.call,
-                className: styles$t.container
+                className: styles$u.container
               }
             ) : ""
           ]
@@ -40140,13 +40163,13 @@ self.onmessage = function (e) {
           prismExports.highlightElement(codeRef.current);
         }
       }, [codeRef.current, contents2]);
-      return /* @__PURE__ */ u("div", { children: /* @__PURE__ */ u("pre", { className: styles$t.codePre, children: /* @__PURE__ */ u(
+      return /* @__PURE__ */ u("div", { children: /* @__PURE__ */ u("pre", { className: styles$u.codePre, children: /* @__PURE__ */ u(
         "code",
         {
           id,
           ref: codeRef,
           class: "language-json",
-          className: clsx("language-json", styles$t.code, "text-size-small"),
+          className: clsx("language-json", styles$u.code, "text-size-small"),
           children: sourceCode
         }
       ) }) });
@@ -40158,14 +40181,14 @@ self.onmessage = function (e) {
           /* @__PURE__ */ u("div", { children: tool2.description })
         ] });
       });
-      return /* @__PURE__ */ u("div", { className: styles$t.toolConfig, children: toolEls });
+      return /* @__PURE__ */ u("div", { className: styles$u.toolConfig, children: toolEls });
     };
     const noMargin = "_noMargin_1a3fk_1";
     const code = "_code_1a3fk_5";
     const sample = "_sample_1a3fk_10";
     const section = "_section_1a3fk_14";
     const metadata$1 = "_metadata_1a3fk_21";
-    const styles$s = {
+    const styles$t = {
       noMargin,
       code,
       sample,
@@ -40184,13 +40207,13 @@ self.onmessage = function (e) {
       if (event.sample.files && Object.keys(event.sample.files).length > 0) {
         sections.push(
           /* @__PURE__ */ u(EventSection, { title: "Files", children: Object.keys(event.sample.files).map((file) => {
-            return /* @__PURE__ */ u("pre", { className: styles$s.noMargin, children: file });
+            return /* @__PURE__ */ u("pre", { className: styles$t.noMargin, children: file });
           }) })
         );
       }
       if (event.sample.setup) {
         sections.push(
-          /* @__PURE__ */ u(EventSection, { title: "Setup", children: /* @__PURE__ */ u("pre", { className: styles$s.code, children: /* @__PURE__ */ u("code", { class: "sourceCode", children: event.sample.setup }) }) })
+          /* @__PURE__ */ u(EventSection, { title: "Setup", children: /* @__PURE__ */ u("pre", { className: styles$t.code, children: /* @__PURE__ */ u("code", { class: "sourceCode", children: event.sample.setup }) }) })
         );
       }
       return /* @__PURE__ */ u(
@@ -40210,7 +40233,7 @@ self.onmessage = function (e) {
             setEventState({ ...eventState, collapsed });
           },
           children: [
-            /* @__PURE__ */ u("div", { "data-name": "Sample", className: styles$s.sample, children: [
+            /* @__PURE__ */ u("div", { "data-name": "Sample", className: styles$t.sample, children: [
               /* @__PURE__ */ u(ChatView, { messages: stateObj["messages"] }),
               /* @__PURE__ */ u("div", { children: [
                 event.sample.choices ? event.sample.choices.map((choice, index) => {
@@ -40220,7 +40243,7 @@ self.onmessage = function (e) {
                     choice
                   ] });
                 }) : "",
-                sections.length > 0 ? /* @__PURE__ */ u("div", { className: styles$s.section, children: sections }) : "",
+                sections.length > 0 ? /* @__PURE__ */ u("div", { className: styles$t.section, children: sections }) : "",
                 /* @__PURE__ */ u(EventSection, { title: "Target", children: toArray(event.sample.target).map((target2) => {
                   return /* @__PURE__ */ u("div", { children: target2 });
                 }) })
@@ -40230,7 +40253,7 @@ self.onmessage = function (e) {
               MetaDataGrid,
               {
                 "data-name": "Metadata",
-                className: styles$s.metadata,
+                className: styles$t.metadata,
                 entries: event.sample.metadata
               }
             ) : ""
@@ -40297,7 +40320,7 @@ self.onmessage = function (e) {
     const explanation = "_explanation_1ww42_1";
     const separator$1 = "_separator_1ww42_8";
     const metadata = "_metadata_1ww42_13";
-    const styles$r = {
+    const styles$s = {
       explanation,
       separator: separator$1,
       metadata
@@ -40327,28 +40350,28 @@ self.onmessage = function (e) {
             setEventState({ ...eventState, collapsed });
           },
           children: [
-            /* @__PURE__ */ u("div", { "data-name": "Explanation", className: clsx(styles$r.explanation), children: [
+            /* @__PURE__ */ u("div", { "data-name": "Explanation", className: clsx(styles$s.explanation), children: [
               event.target ? /* @__PURE__ */ u(k$2, { children: [
-                /* @__PURE__ */ u("div", { className: clsx(styles$r.separator) }),
+                /* @__PURE__ */ u("div", { className: clsx(styles$s.separator) }),
                 /* @__PURE__ */ u("div", { className: "text-style-label", children: "Target" }),
                 /* @__PURE__ */ u("div", { children: /* @__PURE__ */ u(MarkdownDiv, { markdown: resolvedTarget || "" }) })
               ] }) : "",
-              /* @__PURE__ */ u("div", { className: clsx(styles$r.separator) }),
+              /* @__PURE__ */ u("div", { className: clsx(styles$s.separator) }),
               /* @__PURE__ */ u("div", { className: "text-style-label", children: "Answer" }),
               /* @__PURE__ */ u("div", { children: /* @__PURE__ */ u(MarkdownDiv, { markdown: event.score.answer || "" }) }),
-              /* @__PURE__ */ u("div", { className: clsx(styles$r.separator) }),
+              /* @__PURE__ */ u("div", { className: clsx(styles$s.separator) }),
               /* @__PURE__ */ u("div", { className: "text-style-label", children: "Explanation" }),
               /* @__PURE__ */ u("div", { children: /* @__PURE__ */ u(MarkdownDiv, { markdown: event.score.explanation || "" }) }),
-              /* @__PURE__ */ u("div", { className: clsx(styles$r.separator) }),
+              /* @__PURE__ */ u("div", { className: clsx(styles$s.separator) }),
               /* @__PURE__ */ u("div", { className: "text-style-label", children: "Score" }),
               /* @__PURE__ */ u("div", { children: renderScore(event.score.value) }),
-              /* @__PURE__ */ u("div", { className: clsx(styles$r.separator) })
+              /* @__PURE__ */ u("div", { className: clsx(styles$s.separator) })
             ] }),
             event.score.metadata ? /* @__PURE__ */ u("div", { "data-name": "Metadata", children: /* @__PURE__ */ u(
               MetaDataGrid,
               {
                 entries: event.score.metadata,
-                className: styles$r.metadata
+                className: styles$s.metadata
               }
             ) }) : void 0
           ]
@@ -46873,7 +46896,7 @@ ${events}
     };
     const tools = "_tools_13oio_1";
     const tool = "_tool_13oio_1";
-    const styles$q = {
+    const styles$r = {
       tools,
       tool
     };
@@ -47011,7 +47034,7 @@ ${events}
           toolsInfo["Tools"] = /* @__PURE__ */ u(Tools, { toolDefinitions: filtered });
         }
       }
-      return /* @__PURE__ */ u("div", { className: clsx(styles$q.tools), children: Object.keys(toolsInfo).map((key2) => {
+      return /* @__PURE__ */ u("div", { className: clsx(styles$r.tools), children: Object.keys(toolsInfo).map((key2) => {
         return /* @__PURE__ */ u(k$2, { children: [
           /* @__PURE__ */ u(
             "div",
@@ -47046,11 +47069,11 @@ ${events}
     };
     const Tool = ({ toolName, toolArgs }) => {
       const functionCall = toolArgs && toolArgs.length > 0 ? `${toolName}(${toolArgs.join(", ")})` : toolName;
-      return /* @__PURE__ */ u("div", { children: /* @__PURE__ */ u("code", { className: clsx("text-size-small", styles$q.tool), children: functionCall }) });
+      return /* @__PURE__ */ u("div", { children: /* @__PURE__ */ u("code", { className: clsx("text-size-small", styles$r.tool), children: functionCall }) });
     };
     const diff = "_diff_eobja_1";
     const summary$2 = "_summary_eobja_6";
-    const styles$p = {
+    const styles$q = {
       diff,
       summary: summary$2
     };
@@ -47071,7 +47094,7 @@ ${events}
             before,
             after,
             "data-name": "Diff",
-            className: clsx(styles$p.diff)
+            className: clsx(styles$q.diff)
           }
         )
       ];
@@ -47082,7 +47105,7 @@ ${events}
       );
       if (changePreview) {
         tabs2.unshift(
-          /* @__PURE__ */ u("div", { "data-name": "Summary", className: clsx(styles$p.summary), children: changePreview })
+          /* @__PURE__ */ u("div", { "data-name": "Summary", className: clsx(styles$q.summary), children: changePreview })
         );
       }
       const title2 = event.event === "state" ? "State Updated" : "Store Updated";
@@ -47423,7 +47446,7 @@ ${events}
     const summaryRendered = "_summaryRendered_ac4z2_6";
     const subtaskSummary = "_subtaskSummary_ac4z2_10";
     const subtaskLabel = "_subtaskLabel_ac4z2_17";
-    const styles$o = {
+    const styles$p = {
       summary: summary$1,
       summaryRendered,
       subtaskSummary,
@@ -47446,9 +47469,9 @@ ${events}
           depth: depth + 1
         }
       ) : "";
-      const body2 = event.type === "fork" ? /* @__PURE__ */ u("div", { title: "Summary", className: clsx(styles$o.summary), children: [
+      const body2 = event.type === "fork" ? /* @__PURE__ */ u("div", { title: "Summary", className: clsx(styles$p.summary), children: [
         /* @__PURE__ */ u("div", { className: clsx("text-style-label"), children: "Inputs" }),
-        /* @__PURE__ */ u("div", { className: clsx(styles$o.summaryRendered), children: /* @__PURE__ */ u(Rendered, { values: event.input }) }),
+        /* @__PURE__ */ u("div", { className: clsx(styles$p.summaryRendered), children: /* @__PURE__ */ u(Rendered, { values: event.input }) }),
         /* @__PURE__ */ u("div", { className: clsx("text-style-label"), children: "Transcript" }),
         transcript
       ] }) : /* @__PURE__ */ u(k$2, { children: [
@@ -47485,12 +47508,12 @@ ${events}
     };
     const SubtaskSummary = ({ input: input2, result }) => {
       result = typeof result === "object" ? result : { result };
-      return /* @__PURE__ */ u("div", { className: clsx(styles$o.subtaskSummary), children: [
+      return /* @__PURE__ */ u("div", { className: clsx(styles$p.subtaskSummary), children: [
         /* @__PURE__ */ u("div", { className: clsx("text-style-label"), children: "Input" }),
-        /* @__PURE__ */ u("div", { className: clsx("text-size-large", styles$o.subtaskLabel) }),
+        /* @__PURE__ */ u("div", { className: clsx("text-size-large", styles$p.subtaskLabel) }),
         /* @__PURE__ */ u("div", { className: clsx("text-style-label"), children: "Output" }),
         /* @__PURE__ */ u(Rendered, { values: input2 }),
-        /* @__PURE__ */ u("div", { className: clsx("text-size-title-secondary", styles$o.subtaskLabel), children: /* @__PURE__ */ u("i", { class: ApplicationIcons.arrows.right }) }),
+        /* @__PURE__ */ u("div", { className: clsx("text-size-title-secondary", styles$p.subtaskLabel), children: /* @__PURE__ */ u("i", { class: ApplicationIcons.arrows.right }) }),
         /* @__PURE__ */ u("div", { children: /* @__PURE__ */ u(Rendered, { values: result }) })
       ] });
     };
@@ -47507,7 +47530,7 @@ ${events}
     };
     const summary = "_summary_1qkjz_1";
     const approval = "_approval_1qkjz_6";
-    const styles$n = {
+    const styles$o = {
       summary,
       approval
     };
@@ -47545,7 +47568,7 @@ ${events}
             setEventState({ ...eventState, collapsed });
           },
           children: [
-            /* @__PURE__ */ u("div", { "data-name": "Summary", className: styles$n.summary, children: [
+            /* @__PURE__ */ u("div", { "data-name": "Summary", className: styles$o.summary, children: [
               /* @__PURE__ */ u(
                 ToolCallView,
                 {
@@ -47561,7 +47584,7 @@ ${events}
                 ApprovalEventView,
                 {
                   event: approvalEvent,
-                  className: styles$n.approval
+                  className: styles$o.approval
                 }
               ) : ""
             ] }),
@@ -47598,7 +47621,7 @@ ${events}
     const lastNode = "_lastNode_c8m1t_39";
     const eventNodeContainer = "_eventNodeContainer_c8m1t_43";
     const noBottom = "_noBottom_c8m1t_47";
-    const styles$m = {
+    const styles$n = {
       darkenedBg,
       normalBg,
       node,
@@ -47659,8 +47682,8 @@ ${events}
     };
     const TranscriptVirtualListComponent = ({ id, eventNodes, scrollRef, transcriptState, setTranscriptState }) => {
       const renderRow = (item2, index) => {
-        const bgClass = item2.depth % 2 == 0 ? styles$m.darkenedBg : styles$m.normalBg;
-        const paddingClass = index === 0 ? styles$m.first : void 0;
+        const bgClass = item2.depth % 2 == 0 ? styles$n.darkenedBg : styles$n.normalBg;
+        const paddingClass = index === 0 ? styles$n.first : void 0;
         const eventId = `${id}-event${index}`;
         const setEventState = q$1(
           (state) => {
@@ -47668,7 +47691,7 @@ ${events}
           },
           [setTranscriptState, transcriptState]
         );
-        return /* @__PURE__ */ u("div", { className: clsx(styles$m.node, paddingClass), children: /* @__PURE__ */ u(
+        return /* @__PURE__ */ u("div", { className: clsx(styles$n.node, paddingClass), children: /* @__PURE__ */ u(
           RenderedEventNode,
           {
             id: eventId,
@@ -47687,7 +47710,7 @@ ${events}
           tabIndex: 0,
           renderRow,
           scrollRef,
-          className: styles$m.nodes
+          className: styles$n.nodes
         }
       );
     };
@@ -47698,12 +47721,12 @@ ${events}
       eventNodes
     }) => {
       const rows = eventNodes.map((eventNode2, index) => {
-        const clz = [styles$m.eventNode];
+        const clz = [styles$n.eventNode];
         if (eventNode2.depth % 2 == 0) {
-          clz.push(styles$m.darkenBg);
+          clz.push(styles$n.darkenBg);
         }
         if (index === eventNodes.length - 1) {
-          clz.push(styles$m.lastNode);
+          clz.push(styles$n.lastNode);
         }
         const eventId = `${id}-event${index}`;
         const setEventState = q$1(
@@ -47716,8 +47739,8 @@ ${events}
           "div",
           {
             className: clsx(
-              styles$m.eventNodeContainer,
-              index === eventNodes.length - 1 ? styles$m.noBottom : void 0
+              styles$n.eventNodeContainer,
+              index === eventNodes.length - 1 ? styles$n.noBottom : void 0
             ),
             children: /* @__PURE__ */ u(
               RenderedEventNode,
@@ -47737,7 +47760,7 @@ ${events}
         "div",
         {
           id,
-          className: clsx("text-size-small", styles$m.transcriptComponent),
+          className: clsx("text-size-small", styles$n.transcriptComponent),
           children: rows
         }
       );
@@ -47958,7 +47981,7 @@ ${events}
     const tableTokens = "_tableTokens_dbhwb_6";
     const tableH = "_tableH_dbhwb_10";
     const model = "_model_dbhwb_15";
-    const styles$l = {
+    const styles$m = {
       table,
       tableTokens,
       tableH,
@@ -47968,7 +47991,7 @@ ${events}
       return /* @__PURE__ */ u(
         "table",
         {
-          className: clsx("table", "table-sm", "text-size-smaller", styles$l.table),
+          className: clsx("table", "table-sm", "text-size-smaller", styles$m.table),
           style: style2,
           children: children2
         }
@@ -47984,7 +48007,7 @@ ${events}
               colspan: 3,
               className: clsx(
                 "card-subheading",
-                styles$l.tableTokens,
+                styles$m.tableTokens,
                 "text-size-small",
                 "text-style-label",
                 "text-style-secondary"
@@ -47999,7 +48022,7 @@ ${events}
             "th",
             {
               className: clsx(
-                styles$l.tableH,
+                styles$m.tableH,
                 "text-sixe-small",
                 "text-style-label",
                 "text-style-secondary"
@@ -48011,7 +48034,7 @@ ${events}
             "th",
             {
               className: clsx(
-                styles$l.tableH,
+                styles$m.tableH,
                 "text-sixe-small",
                 "text-style-label",
                 "text-style-secondary"
@@ -48024,7 +48047,7 @@ ${events}
     };
     const TokenRow = ({ model: model2, usage }) => {
       return /* @__PURE__ */ u("tr", { children: [
-        /* @__PURE__ */ u("td", { children: /* @__PURE__ */ u("div", { className: styles$l.model, children: model2 }) }),
+        /* @__PURE__ */ u("td", { children: /* @__PURE__ */ u("div", { className: styles$m.model, children: model2 }) }),
         /* @__PURE__ */ u("td", { children: /* @__PURE__ */ u(ModelUsagePanel, { usage }) })
       ] });
     };
@@ -48083,6 +48106,10 @@ ${events}
 <div style="text-align: right;">${time}</div>
 </div>`;
       return headingHtml;
+    };
+    const tabPanel = "_tabPanel_nhiv5_1";
+    const styles$l = {
+      tabPanel
     };
     const body$2 = "_body_5y0hl_1";
     const iconSmall = "_iconSmall_5y0hl_9";
@@ -48267,7 +48294,7 @@ ${events}
           TabPanel,
           {
             id: kSampleMessagesTabId,
-            classes: "sample-tab",
+            className: "sample-tab",
             title: "Messages",
             onSelected: onSelectedTab,
             selected: selectedTab === kSampleMessagesTabId,
@@ -48293,7 +48320,7 @@ ${events}
             TabPanel,
             {
               id: kSampleTranscriptTabId,
-              classes: "sample-tab",
+              className: "sample-tab",
               title: "Transcript",
               onSelected: onSelectedTab,
               selected: selectedTab === kSampleTranscriptTabId || selectedTab === void 0,
@@ -48318,7 +48345,7 @@ ${events}
             TabPanel,
             {
               id: kSampleScoringTabId,
-              classes: "sample-tab",
+              className: "sample-tab",
               title: "Scoring",
               onSelected: onSelectedTab,
               selected: selectedTab === kSampleScoringTabId,
@@ -48341,7 +48368,7 @@ ${events}
               TabPanel,
               {
                 id: tabId,
-                classes: "sample-tab",
+                className: "sample-tab",
                 title: scorer,
                 onSelected: onSelectedTab,
                 selected: selectedTab === tabId,
@@ -48365,7 +48392,7 @@ ${events}
             TabPanel,
             {
               id: kSampleMetdataTabId,
-              classes: "sample-tab",
+              className: "sample-tab",
               title: "Metadata",
               onSelected: onSelectedTab,
               selected: selectedTab === kSampleMetdataTabId,
@@ -48393,7 +48420,7 @@ ${events}
             TabPanel,
             {
               id: kSampleErrorTabId,
-              classes: "sample-tab",
+              className: "sample-tab",
               title: "Error",
               onSelected: onSelectedTab,
               selected: selectedTab === kSampleErrorTabId,
@@ -48414,7 +48441,7 @@ ${events}
             TabPanel,
             {
               id: kSampleJsonTabId,
-              classes: "sample-tab",
+              className: "sample-tab",
               title: "JSON",
               onSelected: onSelectedTab,
               selected: selectedTab === kSampleJsonTabId,
@@ -48505,12 +48532,8 @@ ${events}
           TabSet,
           {
             id: tabsetId,
-            styles: {
-              tabs: {
-                fontSize: FontSize.base
-              },
-              tabBody: { paddingBottom: "1em" }
-            },
+            tabControlsClassName: clsx("text-size-base"),
+            tabPanelsClassName: clsx(styles$l.tabPanel),
             tools: tools2,
             children: tabs2
           }
@@ -50536,11 +50559,17 @@ ${events}
         )
       ] });
     };
-    const workspace = "_workspace_12cyj_1";
-    const tabContainer = "_tabContainer_12cyj_6";
+    const workspace = "_workspace_1r3mu_1";
+    const tabContainer = "_tabContainer_1r3mu_6";
+    const tabSet = "_tabSet_1r3mu_14";
+    const tabs = "_tabs_1r3mu_21";
+    const tabPanels = "_tabPanels_1r3mu_29";
     const styles = {
       workspace,
-      tabContainer
+      tabContainer,
+      tabSet,
+      tabs,
+      tabPanels
     };
     const WorkSpaceView = ({
       logFileName,
@@ -50591,7 +50620,7 @@ ${events}
           },
           [setSelectedTab]
         );
-        const tabPanels = T$1(() => {
+        const tabPanels2 = T$1(() => {
           return Object.keys(tabs2).map((key2) => {
             var _a2;
             const tab2 = tabs2[key2];
@@ -50639,25 +50668,10 @@ ${events}
               id: "log-details",
               tools: tabTools2,
               type: "pills",
-              styles: {
-                tabSet: {
-                  fontSize: FontSize.smaller,
-                  flexWrap: "nowrap",
-                  padding: "0.5em 1em 0.5em 1em",
-                  borderBottom: "solid 1px var(--bs-border-color)",
-                  background: "var(--bs-light)"
-                },
-                tabBody: { flex: "1", overflowY: "hidden", display: "flex" },
-                tabs: {
-                  padding: ".3rem 0.3rem .3rem 0.3rem",
-                  width: "5rem",
-                  fontSize: FontSize.smaller,
-                  textTransform: "uppercase",
-                  borderRadius: "var(--bs-border-radius)",
-                  fontWeight: 600
-                }
-              },
-              children: tabPanels
+              className: clsx(styles.tabSet, "text-size-smaller"),
+              tabControlsClassName: clsx(styles.tabs, "text-size-smaller"),
+              tabPanelsClassName: clsx(styles.tabPanels),
+              children: tabPanels2
             }
           ) }) })
         ] });

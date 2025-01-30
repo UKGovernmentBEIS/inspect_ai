@@ -19042,6 +19042,9 @@ span.ap-marker-container:hover span.ap-marker {
 ._model_dbhwb_15 {
   padding-right: 1em;
 }
+._tabPanel_nhiv5_1 {
+  padding-bottom: 1em;
+}
 ._body_5y0hl_1 {
   color: var(--bs-danger);
   display: grid;
@@ -19570,15 +19573,36 @@ span.ap-marker-container:hover span.ap-marker {
   margin: 0;
   width: 100%;
 }
-._workspace_12cyj_1 {
+._workspace_1r3mu_1 {
   padding-top: 0rem;
   overflow-y: hidden;
 }
 
-._tabContainer_12cyj_6 {
+._tabContainer_1r3mu_6 {
   padding: 0;
   flex: 1;
   display: flex;
   flex-direction: column;
   overflow-y: hidden;
+}
+
+._tabSet_1r3mu_14 {
+  flex-wrap: nowrap;
+  padding: 0.5em 1em 0.5em 1em;
+  border-bottom: solid 1px var(--bs-border-color);
+  background: var(--bs-light);
+}
+
+._tabs_1r3mu_21 {
+  padding: 0.3rem 0.3rem 0.3rem 0.3rem;
+  width: 5rem;
+  text-transform: uppercase;
+  border-radius: var(--bs-border-radius);
+  font-weight: 600;
+}
+
+._tabPanels_1r3mu_29 {
+  flex: 1;
+  overflow-y: hidden;
+  display: flex;
 }

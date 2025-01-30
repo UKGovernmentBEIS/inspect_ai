@@ -13,6 +13,7 @@ import { ToolButton } from "../components/ToolButton";
 import { SampleScoreView } from "./scores/SampleScoreView";
 import { SampleTranscript } from "./transcript/SampleTranscript";
 
+import clsx from "clsx";
 import { Fragment, JSX, RefObject } from "react";
 import { Card, CardBody, CardHeader } from "../components/Card";
 import { EmptyPanel } from "../components/EmptyPanel";
@@ -29,6 +30,7 @@ import { EvalSample } from "../types/log";
 import { ModelTokenTable } from "../usage/ModelTokenTable";
 import { printHeadingHtml, printHtml } from "../utils/print";
 import { SamplesDescriptor } from "./descriptor/samplesDescriptor";
+import styles from "./SampleDisplay.module.css";
 import { SampleSummaryView } from "./SampleSummaryView";
 
 interface SampleDisplayProps {
@@ -71,7 +73,7 @@ export const SampleDisplay: React.FC<SampleDisplayProps> = ({
   const tabs: JSX.Element[] = [
     <TabPanel
       id={kSampleMessagesTabId}
-      classes="sample-tab"
+      className="sample-tab"
       title="Messages"
       onSelected={onSelectedTab}
       selected={selectedTab === kSampleMessagesTabId}
@@ -93,7 +95,7 @@ export const SampleDisplay: React.FC<SampleDisplayProps> = ({
     tabs.unshift(
       <TabPanel
         id={kSampleTranscriptTabId}
-        classes="sample-tab"
+        className="sample-tab"
         title="Transcript"
         onSelected={onSelectedTab}
         selected={
@@ -116,7 +118,7 @@ export const SampleDisplay: React.FC<SampleDisplayProps> = ({
     tabs.push(
       <TabPanel
         id={kSampleScoringTabId}
-        classes="sample-tab"
+        className="sample-tab"
         title="Scoring"
         onSelected={onSelectedTab}
         selected={selectedTab === kSampleScoringTabId}
@@ -134,7 +136,7 @@ export const SampleDisplay: React.FC<SampleDisplayProps> = ({
       tabs.push(
         <TabPanel
           id={tabId}
-          classes="sample-tab"
+          className="sample-tab"
           title={scorer}
           onSelected={onSelectedTab}
           selected={selectedTab === tabId}
@@ -154,7 +156,7 @@ export const SampleDisplay: React.FC<SampleDisplayProps> = ({
     tabs.push(
       <TabPanel
         id={kSampleMetdataTabId}
-        classes="sample-tab"
+        className="sample-tab"
         title="Metadata"
         onSelected={onSelectedTab}
         selected={selectedTab === kSampleMetdataTabId}
@@ -179,7 +181,7 @@ export const SampleDisplay: React.FC<SampleDisplayProps> = ({
     tabs.push(
       <TabPanel
         id={kSampleErrorTabId}
-        classes="sample-tab"
+        className="sample-tab"
         title="Error"
         onSelected={onSelectedTab}
         selected={selectedTab === kSampleErrorTabId}
@@ -198,7 +200,7 @@ export const SampleDisplay: React.FC<SampleDisplayProps> = ({
     tabs.push(
       <TabPanel
         id={kSampleJsonTabId}
-        classes="sample-tab"
+        className="sample-tab"
         title="JSON"
         onSelected={onSelectedTab}
         selected={selectedTab === kSampleJsonTabId}
@@ -292,12 +294,8 @@ export const SampleDisplay: React.FC<SampleDisplayProps> = ({
       />
       <TabSet
         id={tabsetId}
-        styles={{
-          tabs: {
-            fontSize: FontSize.base,
-          },
-          tabBody: { paddingBottom: "1em" },
-        }}
+        tabControlsClassName={clsx("text-size-base")}
+        tabPanelsClassName={clsx(styles.tabPanel)}
         tools={tools}
       >
         {tabs}

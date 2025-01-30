@@ -1,7 +1,6 @@
 import clsx from "clsx";
 import { Fragment, MouseEvent, RefObject, useCallback, useMemo } from "react";
 import { SampleSummary } from "../api/types";
-import { FontSize } from "../appearance/fonts";
 import { EmptyPanel } from "../components/EmptyPanel";
 import { TabPanel, TabSet } from "../components/TabSet";
 import { EvalDescriptor } from "../samples/descriptor/types";
@@ -140,24 +139,9 @@ export const WorkSpaceView: React.FC<WorkSpaceViewProps> = ({
               id="log-details"
               tools={tabTools}
               type="pills"
-              styles={{
-                tabSet: {
-                  fontSize: FontSize.smaller,
-                  flexWrap: "nowrap",
-                  padding: "0.5em 1em 0.5em 1em",
-                  borderBottom: "solid 1px var(--bs-border-color)",
-                  background: "var(--bs-light)",
-                },
-                tabBody: { flex: "1", overflowY: "hidden", display: "flex" },
-                tabs: {
-                  padding: ".3rem 0.3rem .3rem 0.3rem",
-                  width: "5rem",
-                  fontSize: FontSize.smaller,
-                  textTransform: "uppercase",
-                  borderRadius: "var(--bs-border-radius)",
-                  fontWeight: 600,
-                },
-              }}
+              className={clsx(styles.tabSet, "text-size-smaller")}
+              tabControlsClassName={clsx(styles.tabs, "text-size-smaller")}
+              tabPanelsClassName={clsx(styles.tabPanels)}
             >
               {tabPanels}
             </TabSet>
