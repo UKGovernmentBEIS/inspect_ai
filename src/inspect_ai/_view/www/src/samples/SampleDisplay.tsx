@@ -200,7 +200,7 @@ export const SampleDisplay: React.FC<SampleDisplayProps> = ({
     tabs.push(
       <TabPanel
         id={kSampleJsonTabId}
-        className="sample-tab"
+        className={"sample-tab"}
         title="JSON"
         onSelected={onSelectedTab}
         selected={selectedTab === kSampleJsonTabId}
