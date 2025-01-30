@@ -18,7 +18,6 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.5.0",
-    "@preact/preset-vite": "^2.9.4",
     "@types/bootstrap": "^5.2.10",
     "@types/clipboard": "^2.0.10",
     "@types/codemirror": "^5.60.15",
@@ -58,7 +57,8 @@
     "markdown-it": "^14.1.0",
     "murmurhash": "^2.0.1",
     "postcss-url": "^10.1.3",
-    "preact": "^10.24.3",
-    "prismjs": "^1.29.0"
+    "prismjs": "^1.29.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
   }
 }
