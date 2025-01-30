@@ -40,7 +40,7 @@ export const TranscriptView: React.FC<TranscriptViewProps> = ({
     (state: TranscriptState) => {
       setTranscriptState(state);
     },
-    [transcriptState, setTranscriptState],
+    [setTranscriptState],
   );
 
   // Normalize Events themselves
@@ -108,27 +108,28 @@ interface TranscriptVirtualListComponentProps {
 export const TranscriptVirtualListComponent: React.FC<
   TranscriptVirtualListComponentProps
 > = ({ id, eventNodes, scrollRef, transcriptState, setTranscriptState }) => {
+  const setEventState = useCallback(
+    (eventId: string, state: TranscriptEventState) => {
+      setTranscriptState({ ...transcriptState, [eventId]: state });
+    },
+    [setTranscriptState],
+  );
+
   const renderRow = (item: EventNode, index: number) => {
     const bgClass = item.depth % 2 == 0 ? styles.darkenedBg : styles.normalBg;
     const paddingClass = index === 0 ? styles.first : undefined;
 
     const eventId = `${id}-event${index}`;
-    const setEventState = useCallback(
-      (state: TranscriptEventState) => {
-        setTranscriptState({ ...transcriptState, [eventId]: state });
-      },
-      [setTranscriptState, transcriptState],
-    );
 
     return (
-      <div className={clsx(styles.node, paddingClass)}>
+      <div key={eventId} className={clsx(styles.node, paddingClass)}>
         <RenderedEventNode
           id={eventId}
           node={item}
           className={clsx(bgClass)}
           scrollRef={scrollRef}
           eventState={transcriptState[eventId] || {}}
-          setEventState={setEventState}
+          setEventState={(state) => setEventState(eventId, state)}
         />
       </div>
     );
@@ -179,6 +180,7 @@ export const TranscriptComponent: React.FC<TranscriptComponentProps> = ({
 
     const row = (
       <div
+        key={eventId}
         className={clsx(
           styles.eventNodeContainer,
           index === eventNodes.length - 1 ? styles.noBottom : undefined,

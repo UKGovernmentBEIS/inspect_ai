@@ -58358,7 +58358,7 @@ ${events}
         (state) => {
           setTranscriptState(state);
         },
-        [transcriptState, setTranscriptState]
+        [setTranscriptState]
       );
       const resolvedEvents = fixupEventStream(events);
       const eventNodes = treeifyEvents(resolvedEvents, depth);
@@ -58395,16 +58395,16 @@ ${events}
       );
     };
     const TranscriptVirtualListComponent = ({ id, eventNodes, scrollRef, transcriptState, setTranscriptState }) => {
+      const setEventState = reactExports.useCallback(
+        (eventId, state) => {
+          setTranscriptState({ ...transcriptState, [eventId]: state });
+        },
+        [setTranscriptState]
+      );
       const renderRow = (item2, index2) => {
         const bgClass = item2.depth % 2 == 0 ? styles$j.darkenedBg : styles$j.normalBg;
         const paddingClass = index2 === 0 ? styles$j.first : void 0;
         const eventId = `${id}-event${index2}`;
-        const setEventState = reactExports.useCallback(
-          (state) => {
-            setTranscriptState({ ...transcriptState, [eventId]: state });
-          },
-          [setTranscriptState, transcriptState]
-        );
         return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$j.node, paddingClass), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
           RenderedEventNode,
           {
@@ -58413,9 +58413,9 @@ ${events}
             className: clsx(bgClass),
             scrollRef,
             eventState: transcriptState[eventId] || {},
-            setEventState
+            setEventState: (state) => setEventState(eventId, state)
           }
-        ) });
+        ) }, eventId);
       };
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
         VirtualList,
@@ -58466,7 +58466,8 @@ ${events}
                 setEventState
               }
             )
-          }
+          },
+          eventId
         );
         return row2;
       });
