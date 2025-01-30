@@ -56,17 +56,25 @@ export const WorkSpaceView: React.FC<WorkSpaceViewProps> = ({
   workspaceTabScrollPositionRef,
   setWorkspaceTabScrollPosition,
 }) => {
-  const onScroll = useCallback(
-    debounce((id, position) => {
+  const debouncedScroll = useMemo(() => {
+    return debounce((id, position) => {
       setWorkspaceTabScrollPosition(id, position);
-    }, 100),
-    [setWorkspaceTabScrollPosition],
+    }, 100);
+  }, [setWorkspaceTabScrollPosition]);
+
+  const onScroll = useCallback(
+    (id: string, position: number) => {
+      debouncedScroll(id, position);
+    },
+    [debouncedScroll],
   );
 
   const onSelected = useCallback(
     (e: MouseEvent<HTMLElement>) => {
       const id = e.currentTarget?.id;
-      setSelectedTab(id);
+      if (id) {
+        setSelectedTab(id);
+      }
     },
     [setSelectedTab],
   );
@@ -95,28 +103,14 @@ export const WorkSpaceView: React.FC<WorkSpaceViewProps> = ({
         </TabPanel>
       );
     });
-  }, [tabs]);
+  }, [tabs, selectedTab]);
 
   if (evalSpec === undefined) {
     return <EmptyPanel />;
   } else {
-    // Compute the tools for this tab
-    const tabTools = Object.keys(tabs)
-      .map((key) => {
-        const tab = tabs[key];
-        return tab;
-      })
-      .filter((tab) => {
-        return tab.id === selectedTab;
-      })
-      .map((tab) => {
-        if (tab.tools) {
-          const tools = tab.tools();
-          return tools;
-        } else {
-          return null;
-        }
-      });
+    const tabTools = useMemo(() => {
+      return tabs[selectedTab]?.tools?.() ?? null;
+    }, [tabs, selectedTab]);
 
     return (
       <Fragment>

@@ -61041,17 +61041,24 @@ ${events}
       workspaceTabScrollPositionRef,
       setWorkspaceTabScrollPosition
     }) => {
-      const onScroll = reactExports.useCallback(
-        debounce$1((id, position) => {
+      const debouncedScroll = reactExports.useMemo(() => {
+        return debounce$1((id, position) => {
           setWorkspaceTabScrollPosition(id, position);
-        }, 100),
-        [setWorkspaceTabScrollPosition]
+        }, 100);
+      }, [setWorkspaceTabScrollPosition]);
+      const onScroll = reactExports.useCallback(
+        (id, position) => {
+          debouncedScroll(id, position);
+        },
+        [debouncedScroll]
       );
       const onSelected = reactExports.useCallback(
         (e) => {
           var _a2;
           const id = (_a2 = e.currentTarget) == null ? void 0 : _a2.id;
-          setSelectedTab(id);
+          if (id) {
+            setSelectedTab(id);
+          }
         },
         [setSelectedTab]
       );
@@ -61079,23 +61086,14 @@ ${events}
             }
           );
         });
-      }, [tabs2]);
+      }, [tabs2, selectedTab]);
       if (evalSpec === void 0) {
         return /* @__PURE__ */ jsxRuntimeExports.jsx(EmptyPanel, {});
       } else {
-        const tabTools2 = Object.keys(tabs2).map((key2) => {
-          const tab2 = tabs2[key2];
-          return tab2;
-        }).filter((tab2) => {
-          return tab2.id === selectedTab;
-        }).map((tab2) => {
-          if (tab2.tools) {
-            const tools2 = tab2.tools();
-            return tools2;
-          } else {
-            return null;
-          }
-        });
+        const tabTools2 = reactExports.useMemo(() => {
+          var _a2, _b2;
+          return ((_b2 = (_a2 = tabs2[selectedTab]) == null ? void 0 : _a2.tools) == null ? void 0 : _b2.call(_a2)) ?? null;
+        }, [tabs2, selectedTab]);
         return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx(
             Navbar,
