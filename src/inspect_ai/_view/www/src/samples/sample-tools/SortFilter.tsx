@@ -9,7 +9,7 @@ import {
   kScoreDescVal,
 } from "../../constants";
 import { isNumeric } from "../../utils/type";
-import { SamplesDescriptor } from "../descriptor/SamplesDescriptor";
+import { SamplesDescriptor } from "../descriptor/samplesDescriptor";
 import styles from "./SortFilter.module.css";
 
 interface SortFilterProps {

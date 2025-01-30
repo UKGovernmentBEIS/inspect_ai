@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { Fragment, useCallback, useRef } from "react";
+import { Fragment, MouseEvent, useCallback, useRef } from "react";
 import moduleStyles from "./TabSet.module.css";
 
 interface TabSetProps {
@@ -28,7 +28,7 @@ interface TabPanelProps {
   children?: React.ReactNode;
   title: string;
   icon?: string;
-  onSelected: (e: MouseEvent) => void;
+  onSelected: (e: MouseEvent<HTMLElement>) => void;
 }
 
 export const TabSet: React.FC<TabSetProps> = ({

@@ -5,7 +5,7 @@ import { Ref, RefObject, useCallback, useMemo, useRef } from "react";
 import { ErrorPanel } from "../components/ErrorPanel";
 import { EvalSample } from "../types/log";
 import { SampleDisplay } from "./SampleDisplay";
-import { SamplesDescriptor } from "./descriptor/SamplesDescriptor";
+import { SamplesDescriptor } from "./descriptor/samplesDescriptor";
 
 interface SampleDialogProps {
   id: string;

@@ -3,7 +3,7 @@ import { ErrorPanel } from "../components/ErrorPanel";
 import { ProgressBar } from "../components/ProgressBar";
 import { EvalSample } from "../types/log";
 import { SampleDisplay } from "./SampleDisplay";
-import { SamplesDescriptor } from "./descriptor/SamplesDescriptor";
+import { SamplesDescriptor } from "./descriptor/samplesDescriptor";
 
 import styles from "./InlineSampleDisplay.module.css";
 

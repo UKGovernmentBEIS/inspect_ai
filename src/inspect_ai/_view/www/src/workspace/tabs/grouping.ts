@@ -1,5 +1,5 @@
 import { SampleSummary } from "../../api/types";
-import { SamplesDescriptor } from "../../samples/descriptor/SamplesDescriptor";
+import { SamplesDescriptor } from "../../samples/descriptor/samplesDescriptor";
 import { ListItem, SampleListItem, SeparatorListItem } from "./types";
 
 export const getSampleProcessor = (

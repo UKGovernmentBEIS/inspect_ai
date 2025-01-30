@@ -2,7 +2,7 @@ import clsx from "clsx";
 import { MarkdownDiv } from "../components/MarkdownDiv";
 import { EvalSample } from "../types/log";
 import { arrayToString, inputString } from "../utils/format";
-import { SamplesDescriptor } from "./descriptor/SamplesDescriptor";
+import { SamplesDescriptor } from "./descriptor/samplesDescriptor";
 import { FlatSampleError } from "./error/FlatSampleErrorView";
 
 import { ReactNode } from "preact/compat";

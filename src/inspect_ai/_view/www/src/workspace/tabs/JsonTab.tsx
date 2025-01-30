@@ -8,7 +8,7 @@ import styles from "./JsonTab.module.css";
 const kJsonMaxSize = 10000000;
 
 interface JsonTabProps {
-  logFile: string;
+  logFile?: string;
   capabilities: Capabilities;
   selected: boolean;
   json: string;
@@ -22,7 +22,7 @@ export const JsonTab: React.FC<JsonTabProps> = ({
   capabilities,
   json,
 }) => {
-  if (json.length > kJsonMaxSize && capabilities.downloadFiles) {
+  if (logFile && json.length > kJsonMaxSize && capabilities.downloadFiles) {
     // This JSON file is so large we can't really productively render it
     // we should instead just provide a DL link
     const file = `${filename(logFile)}.json`;

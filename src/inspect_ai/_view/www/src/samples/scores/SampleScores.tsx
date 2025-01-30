@@ -1,6 +1,6 @@
 import { Fragment } from "react";
 import { SampleSummary } from "../../api/types";
-import { SamplesDescriptor } from "../descriptor/SamplesDescriptor";
+import { SamplesDescriptor } from "../descriptor/samplesDescriptor";
 
 import styles from "./SampleScores.module.css";
 

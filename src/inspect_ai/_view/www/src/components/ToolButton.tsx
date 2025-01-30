@@ -1,16 +1,15 @@
-// ToolButton.tsx
-import React from "react";
+import React, { ReactNode } from "react";
 import "./ToolButton.css";
 
 interface ToolButtonProps
   extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  name: string;
+  label: string | ReactNode;
   classes?: string;
   icon?: string;
 }
 
 export const ToolButton = React.forwardRef<HTMLButtonElement, ToolButtonProps>(
-  ({ name, classes = "", icon, className, ...rest }, ref) => {
+  ({ label, classes = "", icon, className, ...rest }, ref) => {
     // Combine class names, ensuring default classes are applied first
     const combinedClasses =
       `btn btn-tools tool-button ${classes} ${className || ""}`.trim();
@@ -18,7 +17,7 @@ export const ToolButton = React.forwardRef<HTMLButtonElement, ToolButtonProps>(
     return (
       <button ref={ref} type="button" className={combinedClasses} {...rest}>
         {icon && <i className={`${icon}`} />}
-        {name}
+        {label}
       </button>
     );
   },

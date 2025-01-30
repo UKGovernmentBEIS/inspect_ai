@@ -62,7 +62,7 @@ const bannedShortScoreNames = (scores: ScoreLabel[]): Set<string> => {
  * Child metrics are accessed using dot notation (e.g. `scorer_name.score_name`) or
  * directly by name when it is unique.
  *
- * @param {import("../../samples/descriptor/SamplesDescriptor").EvalDescriptor} evalDescriptor
+ * @param {import("../../samples/descriptor/samplesDescriptor").EvalDescriptor} evalDescriptor
  * @param {import("../../types/log").Scores1} sampleScores
  * @returns {Object<string, any>}
  */
@@ -264,7 +264,7 @@ export const filterExpression = (
 };
 
 /**
- * @param {import("../../samples/descriptor/SamplesDescriptor").EvalDescriptor} evalDescriptor
+ * @param {import("../../samples/descriptor/samplesDescriptor").EvalDescriptor} evalDescriptor
  * @param {import("../../api/types").SampleSummary[]} samples
  * @param {string} filterValue
  * @returns {}

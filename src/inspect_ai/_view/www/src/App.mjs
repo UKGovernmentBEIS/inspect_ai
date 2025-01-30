@@ -33,7 +33,7 @@ import { kDefaultSort } from "./constants";
 import {
   createEvalDescriptor,
   createSamplesDescriptor,
-} from "./samples/descriptor/SamplesDescriptor";
+} from "./samples/descriptor/samplesDescriptor";
 import { filterSamples } from "./samples/sample-tools/filters";
 import {
   byEpoch,
@@ -43,7 +43,7 @@ import {
 import { resolveAttachments } from "./utils/attachments";
 import { getVscodeApi, isVscode } from "./utils/vscode";
 import { Sidebar } from "./workspace/sidebar/Sidebar.tsx";
-import { WorkSpace } from "./workspace/WorkSpace.mjs";
+import { WorkSpace } from "./workspace/WorkSpace";
 
 import {
   kEvalWorkspaceTabId,

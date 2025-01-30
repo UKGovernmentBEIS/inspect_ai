@@ -2,7 +2,7 @@ import clsx from "clsx";
 import { SampleSummary } from "../../api/types";
 import { MarkdownDiv } from "../../components/MarkdownDiv";
 import { arrayToString, inputString } from "../../utils/format";
-import { SamplesDescriptor } from "../descriptor/SamplesDescriptor";
+import { SamplesDescriptor } from "../descriptor/samplesDescriptor";
 import { SampleErrorView } from "../error/SampleErrorView";
 import styles from "./SampleRow.module.css";
 

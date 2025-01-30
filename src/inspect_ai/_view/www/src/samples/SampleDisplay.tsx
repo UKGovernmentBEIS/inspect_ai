@@ -28,7 +28,7 @@ import {
 import { EvalSample } from "../types/log";
 import { ModelTokenTable } from "../usage/ModelTokenTable";
 import { printHeadingHtml, printHtml } from "../utils/print";
-import { SamplesDescriptor } from "./descriptor/SamplesDescriptor";
+import { SamplesDescriptor } from "./descriptor/samplesDescriptor";
 import { SampleSummaryView } from "./SampleSummaryView";
 
 interface SampleDisplayProps {
@@ -276,7 +276,7 @@ export const SampleDisplay: React.FC<SampleDisplayProps> = ({
   if (!isVscode()) {
     tools.push(
       <ToolButton
-        name="Print"
+        label="Print"
         icon={ApplicationIcons.copy}
         onClick={printSample}
       />,

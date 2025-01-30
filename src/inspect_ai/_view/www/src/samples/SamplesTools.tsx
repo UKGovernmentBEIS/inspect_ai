@@ -1,5 +1,5 @@
 import { ScoreFilter, ScoreLabel } from "../types";
-import { SamplesDescriptor } from "./descriptor/SamplesDescriptor";
+import { SamplesDescriptor } from "./descriptor/samplesDescriptor";
 import { EpochFilter } from "./sample-tools/EpochFilter";
 import { SampleFilter } from "./sample-tools/sample-filter/SampleFilter";
 import { SelectScorer } from "./sample-tools/SelectScorer";

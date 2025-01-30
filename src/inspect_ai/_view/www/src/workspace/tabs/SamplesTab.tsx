@@ -6,7 +6,7 @@ import { EmptyPanel } from "../../components/EmptyPanel.tsx";
 import { VirtualListRef } from "../../components/VirtualList.tsx";
 import { InlineSampleDisplay } from "../../samples/InlineSampleDisplay";
 import { SampleDialog } from "../../samples/SampleDialog";
-import { SamplesDescriptor } from "../../samples/descriptor/SamplesDescriptor.ts";
+import { SamplesDescriptor } from "../../samples/descriptor/samplesDescriptor.ts";
 import { SampleList } from "../../samples/list/SampleList";
 import { SampleMode, ScoreFilter } from "../../types.ts";
 import { EvalSample } from "../../types/log";
