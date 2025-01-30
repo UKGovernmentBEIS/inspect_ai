@@ -87,21 +87,6 @@ export const SampleDialog: React.FC<SampleDialogProps> = ({
     [prevSample, nextSample],
   );
 
-  const children = useMemo(() => {
-    return sampleError ? (
-      <ErrorPanel title="Sample Error" error={sampleError} />
-    ) : (
-      <SampleDisplay
-        id={id}
-        sample={sample}
-        sampleDescriptor={sampleDescriptor}
-        selectedTab={selectedTab}
-        setSelectedTab={setSelectedTab}
-        scrollRef={scrollRef}
-      />
-    );
-  }, [id, sample, sampleDescriptor, selectedTab, setSelectedTab, sampleError]);
-
   const onHide = useCallback(() => {
     setShowingSampleDialog(false);
   }, [setShowingSampleDialog]);
@@ -120,7 +105,18 @@ export const SampleDialog: React.FC<SampleDialogProps> = ({
       setInitialScrollPosition={setSampleScrollPosition}
       scrollRef={scrollRef}
     >
-      {children}
+      {sampleError ? (
+        <ErrorPanel title="Sample Error" error={sampleError} />
+      ) : (
+        <SampleDisplay
+          id={id}
+          sample={sample}
+          sampleDescriptor={sampleDescriptor}
+          selectedTab={selectedTab}
+          setSelectedTab={setSelectedTab}
+          scrollRef={scrollRef}
+        />
+      )}
     </LargeModal>
   );
 };

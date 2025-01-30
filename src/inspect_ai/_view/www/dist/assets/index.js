@@ -59266,19 +59266,6 @@ ${events}
         },
         [prevSample, nextSample]
       );
-      const children2 = reactExports.useMemo(() => {
-        return sampleError ? /* @__PURE__ */ jsxRuntimeExports.jsx(ErrorPanel, { title: "Sample Error", error: sampleError }) : /* @__PURE__ */ jsxRuntimeExports.jsx(
-          SampleDisplay,
-          {
-            id,
-            sample: sample2,
-            sampleDescriptor,
-            selectedTab,
-            setSelectedTab,
-            scrollRef
-          }
-        );
-      }, [id, sample2, sampleDescriptor, selectedTab, setSelectedTab, sampleError]);
       const onHide = reactExports.useCallback(() => {
         setShowingSampleDialog(false);
       }, [setShowingSampleDialog]);
@@ -59295,7 +59282,17 @@ ${events}
           initialScrollPositionRef: sampleScrollPositionRef,
           setInitialScrollPosition: setSampleScrollPosition,
           scrollRef,
-          children: children2
+          children: sampleError ? /* @__PURE__ */ jsxRuntimeExports.jsx(ErrorPanel, { title: "Sample Error", error: sampleError }) : /* @__PURE__ */ jsxRuntimeExports.jsx(
+            SampleDisplay,
+            {
+              id,
+              sample: sample2,
+              sampleDescriptor,
+              selectedTab,
+              setSelectedTab,
+              scrollRef
+            }
+          )
         }
       );
     };
