@@ -113,17 +113,15 @@ from inspect_ai import Task, task
 from inspect_ai.dataset import example_dataset
 from inspect_ai.scorer import model_graded_fact
 from inspect_ai.solver import (               
-  prompt_template, generate, self_critique   
+  chain_of_thought(), generate, self_critique   
 )                                             
-
-DEFAULT_PROMPT="{prompt}"
 
 @task
 def theory_of_mind():
     return Task(  # <1>
         dataset=example_dataset("theory_of_mind"),
-        solver=[                      # <2>
-          prompt_template(DEFAULT_PROMPT), # <2>
+        solver=[                           # <2>
+          chain_of_thought(),              # <2>
           generate(),                      # <2>
           self_critique()                  # <2>
         ],
@@ -173,7 +171,6 @@ Above we demonstrated using `inspect eval` from CLI to run evaluations—you can
 from inspect_ai import eval
 
 eval(theory_of_mind(), model="openai/gpt-4o")
-eval(theory_of_mind(), solver=tree_of_thought(), model="openai/gpt-4o")
 ```
 
 ## Learning More
