@@ -17,7 +17,9 @@ def test_multiple_tool_responses_remain_adjacent():
 
     modified_a = _modified_image_response_message(tool_a)
     modified_b = _modified_image_response_message(tool_b)
-    fabricated_user = ChatMessageUser(content=tool_a.content + tool_b.content)
+    fabricated_user = ChatMessageUser(
+        content=tool_a.content + tool_b.content, tool_call_id=["a", "b"]
+    )
 
     assert tool_result_images_as_user_message(messages) == [
         modified_a,
@@ -40,7 +42,9 @@ def test_multiple_tool_responses_remain_adjacent_when_not_at_end_of_list():
 
     modified_a = _modified_image_response_message(tool_a)
     modified_b = _modified_image_response_message(tool_b)
-    fabricated_user = ChatMessageUser(content=tool_a.content + tool_b.content)
+    fabricated_user = ChatMessageUser(
+        content=tool_a.content + tool_b.content, tool_call_id=["a", "b"]
+    )
 
     assert tool_result_images_as_user_message(messages) == [
         modified_a,

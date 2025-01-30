@@ -769,19 +769,20 @@ def tool_result_images_as_user_message(
 
     Tool responses will have images replaced with "Image content is included below.", and the new user message will contain the images.
     """
-    init_accum: ImagesAccumulator = ([], [])
-    chat_messages, user_message_content = functools.reduce(
+    init_accum: ImagesAccumulator = ([], [], [])
+    chat_messages, user_message_content, tool_call_ids = functools.reduce(
         tool_result_images_reducer, messages, init_accum
     )
     # if the last message was a tool result, we may need to flush the pending stuff here
-    return maybe_adding_user_message(chat_messages, user_message_content)
+    return maybe_adding_user_message(chat_messages, user_message_content, tool_call_ids)
 
 
-ImagesAccumulator = tuple[list[ChatMessage], list[Content]]
+ImagesAccumulator = tuple[list[ChatMessage], list[Content], list[str]]
 """
-ImagesAccumulator is a tuple containing two lists:
+ImagesAccumulator is a tuple containing three lists:
 - The first list contains ChatMessages that are the result of processing.
 - The second list contains ContentImages that need to be inserted into a fabricated user message.
+- The third list contains the tool_call_id's associated with the tool responses.
 """
 
 
@@ -789,7 +790,7 @@ def tool_result_images_reducer(
     accum: ImagesAccumulator,
     message: ChatMessage,
 ) -> ImagesAccumulator:
-    messages, pending_content = accum
+    messages, pending_content, tool_call_ids = accum
     # if there are tool result images, pull them out into a ChatUserMessage
     if (
         isinstance(message, ChatMessageTool)
@@ -801,16 +802,26 @@ def tool_result_images_reducer(
             tool_result_image_content_reducer, message.content, init_accum
         )
 
-        return messages + [
-            ChatMessageTool(
-                content=edited_tool_message_content,
-                tool_call_id=message.tool_call_id,
-                function=message.function,
-            )
-        ], pending_content + new_user_message_content
+        return (
+            messages
+            + [
+                ChatMessageTool(
+                    content=edited_tool_message_content,
+                    tool_call_id=message.tool_call_id,
+                    function=message.function,
+                )
+            ],
+            pending_content + new_user_message_content,
+            tool_call_ids + ([message.tool_call_id] if message.tool_call_id else []),
+        )
 
     else:
-        return maybe_adding_user_message(messages, pending_content) + [message], []
+        return (
+            maybe_adding_user_message(messages, pending_content, tool_call_ids)
+            + [message],
+            [],
+            [],
+        )
 
 
 ImageContentAccumulator = tuple[list[Content], list[Content]]
@@ -843,7 +854,7 @@ def tool_result_image_content_reducer(
 
 
 def maybe_adding_user_message(
-    messages: list[ChatMessage], content: list[Content]
+    messages: list[ChatMessage], content: list[Content], tool_call_ids: list[str]
 ) -> list[ChatMessage]:
     """If content is empty, return messages, otherwise, create a new ChatMessageUser with it and return a new messages list with that message added."""
     return (
@@ -851,8 +862,9 @@ def maybe_adding_user_message(
         + [
             ChatMessageUser(
                 content=content,
-                # TODO ???
-                # tool_call_id=message.tool_call_id
+                tool_call_id=tool_call_ids
+                if len(tool_call_ids) > 1
+                else tool_call_ids[0],
             )
         ]
         if content
