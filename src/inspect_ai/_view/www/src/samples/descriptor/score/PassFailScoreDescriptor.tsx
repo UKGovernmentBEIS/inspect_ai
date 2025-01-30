@@ -65,7 +65,7 @@ export const passFailScoreDescriptor = (values: Value2[]): ScoreDescriptor => {
           </span>
         );
       } else {
-        return score;
+        return String(score);
       }
     },
     compare: (a: SelectedScore, b: SelectedScore) => {

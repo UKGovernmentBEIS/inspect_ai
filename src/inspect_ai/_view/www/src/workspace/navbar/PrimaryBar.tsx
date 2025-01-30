@@ -66,7 +66,7 @@ export const PrimaryBar: React.FC<PrimaryBarProps> = ({
             )}
             type="button"
           >
-            <i class={ApplicationIcons.menu}></i>
+            <i className={ApplicationIcons.menu}></i>
           </button>
         ) : (
           ""

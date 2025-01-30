@@ -6,7 +6,7 @@ interface EventRowProps {
   title: string;
   icon: string;
   className?: string | string[];
-  chidren?: React.ReactNode | React.ReactNode[];
+  children?: React.ReactNode | React.ReactNode[];
 }
 /**
  * Renders the EventRow component.

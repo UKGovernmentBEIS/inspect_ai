@@ -47,7 +47,7 @@ export const SampleInitEventView: React.FC<SampleInitEventViewProps> = ({
     sections.push(
       <EventSection title="Setup">
         <pre className={styles.code}>
-          <code class="sourceCode">{event.sample.setup}</code>
+          <code className="sourceCode">{event.sample.setup}</code>
         </pre>
       </EventSection>,
     );

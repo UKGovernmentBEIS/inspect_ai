@@ -103,7 +103,7 @@ const SubtaskSummary: React.FC<SubtaskSummaryProps> = ({ input, result }) => {
       <div className={clsx("text-style-label")}>Output</div>
       <Rendered values={input} />
       <div className={clsx("text-size-title-secondary", styles.subtaskLabel)}>
-        <i class={ApplicationIcons.arrows.right} />
+        <i className={ApplicationIcons.arrows.right} />
       </div>
       <div>
         <Rendered values={result} />

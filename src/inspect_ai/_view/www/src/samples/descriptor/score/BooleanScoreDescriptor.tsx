@@ -18,7 +18,7 @@ export const booleanScoreDescriptor = (): ScoreDescriptor => {
             score ? "green" : "red",
           )}
         >
-          {score}
+          {String(score)}
         </span>
       );
     },

@@ -1,3 +1,5 @@
+import { ReactNode } from "react";
+
 export const Buckets = {
   first: 0,
   intermediate: 10,
@@ -11,13 +13,6 @@ export interface ContentRenderer {
     id: string,
     content: any,
   ) => {
-    rendered:
-      | string
-      | number
-      | bigint
-      | boolean
-      | object
-      | React.ReactElement<any>
-      | null;
+    rendered: string | number | bigint | boolean | object | ReactNode | null;
   };
 }

@@ -20,7 +20,7 @@ export const ErrorPanel: React.FC<ErrorPanelProps> = ({ title, error }) => {
     <div className={"error-panel centered-flex"}>
       <div className={"error-panel-heading centered-flex"}>
         <div>
-          <i class={`${ApplicationIcons.error} error-icon`}></i>
+          <i className={`${ApplicationIcons.error} error-icon`}></i>
         </div>
         <div>{title || ""}</div>
       </div>

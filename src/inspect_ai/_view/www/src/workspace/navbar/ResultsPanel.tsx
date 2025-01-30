@@ -77,7 +77,7 @@ const VerticalMetric: React.FC<VerticalMetricProps> = ({
   return (
     <div style={{ paddingLeft: isFirst ? "0" : "1em" }}>
       <div
-        class={clsx(
+        className={clsx(
           "vertical-metric-label",
           "text-style-label",
           "text-style-secondary",
@@ -87,7 +87,9 @@ const VerticalMetric: React.FC<VerticalMetricProps> = ({
         {metricSummary.metric.name}
       </div>
       {reducer_component}
-      <div class={clsx("vertical-metric-value", styles.verticalMetricValue)}>
+      <div
+        className={clsx("vertical-metric-value", styles.verticalMetricValue)}
+      >
         {formatPrettyDecimal(metricSummary.metric.value)}
       </div>
     </div>

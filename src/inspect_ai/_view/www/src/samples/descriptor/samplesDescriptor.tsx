@@ -163,7 +163,7 @@ export const createEvalDescriptor = (
     } else if (score && descriptor && descriptor.render) {
       return descriptor.render(score);
     } else {
-      return score;
+      return <span>{String(score)}</span>;
     }
   };
 

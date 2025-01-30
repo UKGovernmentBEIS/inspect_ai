@@ -131,11 +131,12 @@ export const WorkSpace: React.FC<WorkSpaceProps> = ({
   workspaceTabScrollPositionRef,
   setWorkspaceTabScrollPosition,
 }) => {
-  const divRef = useRef<HTMLDivElement>(null);
-
   if (!evalSpec) {
     return "";
   }
+
+  const divRef = useRef<HTMLDivElement>(null);
+  const sampleTabScrollRef = useRef<HTMLDivElement>(null);
 
   // Display the log
   useEffect(() => {
@@ -143,8 +144,6 @@ export const WorkSpace: React.FC<WorkSpaceProps> = ({
       divRef.current.scrollTop = 0;
     }
   }, [divRef, task_id]);
-
-  const sampleTabScrollRef = useRef<HTMLDivElement>(null);
 
   const resolvedTabs = useMemo<Record<string, TabDescriptor>>(() => {
     // Tabs that are available within the app

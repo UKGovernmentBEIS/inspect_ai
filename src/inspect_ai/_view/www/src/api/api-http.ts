@@ -37,7 +37,6 @@ export default function simpleHttpApi(
  * Fetches a file from the specified URL and parses its content.
  */
 function simpleHttpAPI(logInfo: LogInfo): LogViewAPI {
-  const log_file = logInfo.log_file;
   const log_dir = logInfo.log_dir;
 
   async function open_log_file() {

@@ -70,7 +70,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 )}
                 onClick={() => onSelectedIndexChanged(index)}
               >
-                <SidebarLogEntry logHeader={logHeader} task={file.task} />
+                <SidebarLogEntry
+                  logHeader={logHeader}
+                  task={file.task || "unknown task"}
+                />
               </li>
             );
           })}

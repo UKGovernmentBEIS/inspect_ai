@@ -18,7 +18,7 @@ interface TabPanelProps {
   selected?: boolean;
   style?: React.CSSProperties;
   scrollable?: boolean;
-  scrollRef?: React.RefObject<HTMLDivElement>;
+  scrollRef?: React.RefObject<HTMLDivElement | null>;
   className?: string | string[];
   scrollPosition?: number;
   setScrollPosition?: (position: number) => void;
@@ -48,7 +48,7 @@ export const TabSet: React.FC<TabSetProps> = ({
     <Fragment>
       <ul
         id={id}
-        class={clsx("nav", `nav-${tabType}`, className, moduleStyles.tabs)}
+        className={clsx("nav", `nav-${tabType}`, className, moduleStyles.tabs)}
         role="tablist"
         aria-orientation="horizontal"
       >
@@ -152,11 +152,7 @@ const Tab: React.FC<{
   const tabClz = [moduleStyles.tab, "text-size-small", "text-style-label"];
   const pillClz: string[] = [];
   return (
-    <li
-      class="nav-item"
-      role="presentation"
-      className={clsx(moduleStyles.tabItem)}
-    >
+    <li role="presentation" className={clsx("nav-item", moduleStyles.tabItem)}>
       <button
         id={tabId}
         className={clsx(

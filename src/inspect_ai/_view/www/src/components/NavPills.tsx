@@ -76,7 +76,7 @@ const NavPill: React.FC<NavPillProps> = ({
   const active = activeItem === title;
 
   return (
-    <li class="nav-item">
+    <li className={"nav-item"}>
       <button
         type="button"
         role="tab"

@@ -67,7 +67,7 @@ export const MetaDataView: React.FC<MetadataViewProps> = ({
     >
       <thead>
         <tr>
-          <th colspan={2} className={"th"}></th>
+          <th colSpan={2} className={"th"}></th>
         </tr>
       </thead>
       <tbody>{entryEls}</tbody>

@@ -11,7 +11,7 @@ interface StepEventViewProps {
   eventState: TranscriptEventState;
   setEventState: (state: TranscriptEventState) => void;
   children: EventNode[];
-  scrollRef?: RefObject<HTMLDivElement>;
+  scrollRef?: RefObject<HTMLDivElement | null>;
   className?: string | string[];
 }
 

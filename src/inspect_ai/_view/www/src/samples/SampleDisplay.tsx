@@ -14,7 +14,7 @@ import { SampleScoreView } from "./scores/SampleScoreView";
 import { SampleTranscript } from "./transcript/SampleTranscript";
 
 import clsx from "clsx";
-import { Fragment, JSX, RefObject } from "react";
+import { Fragment, JSX, MouseEvent, RefObject } from "react";
 import { Card, CardBody, CardHeader } from "../components/Card";
 import { EmptyPanel } from "../components/EmptyPanel";
 import { JSONPanel } from "../components/JsonPanel";
@@ -39,7 +39,7 @@ interface SampleDisplayProps {
   sampleDescriptor: SamplesDescriptor;
   selectedTab?: string;
   setSelectedTab: (tab: string) => void;
-  scrollRef: RefObject<HTMLDivElement>;
+  scrollRef: RefObject<HTMLDivElement | null>;
 }
 
 /**
@@ -62,7 +62,7 @@ export const SampleDisplay: React.FC<SampleDisplayProps> = ({
   }
 
   // Tab selection
-  const onSelectedTab = (e: MouseEvent) => {
+  const onSelectedTab = (e: MouseEvent<HTMLElement>) => {
     const el = e.currentTarget as HTMLElement;
     const id = el.id;
     setSelectedTab(id);

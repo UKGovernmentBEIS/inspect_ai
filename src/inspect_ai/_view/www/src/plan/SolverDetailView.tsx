@@ -12,7 +12,7 @@ interface SolversDetailView {
 export const SolversDetailView: React.FC<SolversDetailView> = ({ steps }) => {
   const separator = (
     <div className={clsx(styles.items, "text-size-small", styles.separator)}>
-      <i class={ApplicationIcons.arrows.right} />
+      <i className={ApplicationIcons.arrows.right} />
     </div>
   );
 

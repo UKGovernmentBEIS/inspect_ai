@@ -36,7 +36,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
       )}
     >
       <div className={clsx(styles.messageGrid, "text-style-label")}>
-        <i class={iconForMsg(message)} />
+        <i className={iconForMsg(message)} />
         {message.role}
       </div>
       <div

@@ -194,7 +194,6 @@ export const APICodeCell: React.FC<APICodeCellProps> = ({ id, contents }) => {
         <code
           id={id}
           ref={codeRef}
-          class="language-json"
           className={clsx("language-json", styles.code, "text-size-small")}
         >
           {sourceCode}

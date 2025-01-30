@@ -60,7 +60,7 @@ interface TranscriptVirtualListProps {
   id: string;
   events: Events;
   depth?: number;
-  scrollRef: RefObject<HTMLDivElement>;
+  scrollRef: RefObject<HTMLDivElement | null>;
 }
 
 /**
@@ -99,7 +99,7 @@ interface TranscriptVirtualListComponentProps {
   eventNodes: EventNode[];
   transcriptState: TranscriptState;
   setTranscriptState: (state: TranscriptState) => void;
-  scrollRef?: RefObject<HTMLDivElement>;
+  scrollRef?: RefObject<HTMLDivElement | null>;
 }
 
 /**
@@ -209,7 +209,7 @@ export const TranscriptComponent: React.FC<TranscriptComponentProps> = ({
 interface RenderedEventNodeProps {
   id: string;
   node: EventNode;
-  scrollRef?: RefObject<HTMLDivElement>;
+  scrollRef?: RefObject<HTMLDivElement | null>;
   eventState: TranscriptEventState;
   setEventState: (state: TranscriptEventState) => void;
   className?: string | string[];

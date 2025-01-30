@@ -1,5 +1,6 @@
 import clsx from "clsx";
 import {
+  KeyboardEvent,
   RefObject,
   useCallback,
   useEffect,
@@ -24,7 +25,7 @@ const kSampleHeight = 88;
 const kSeparatorHeight = 24;
 
 interface SampleListProps {
-  listRef: RefObject<VirtualListRef>;
+  listRef: RefObject<VirtualListRef | null>;
   items: ListItem[];
   sampleDescriptor: SamplesDescriptor;
   selectedIndex: number;
@@ -108,23 +109,23 @@ export const SampleList: React.FC<SampleListProps> = (props) => {
   };
 
   const onkeydown = useCallback(
-    (e: KeyboardEvent) => {
+    (e: KeyboardEvent<HTMLDivElement>) => {
       switch (e.key) {
         case "ArrowUp":
           prevSample();
           e.preventDefault();
           e.stopPropagation();
-          return false;
+          break;
         case "ArrowDown":
           nextSample();
           e.preventDefault();
           e.stopPropagation();
-          return false;
+          break;
         case "Enter":
           showSample(selectedIndex);
           e.preventDefault();
           e.stopPropagation();
-          return false;
+          break;
       }
     },
     [selectedIndex],

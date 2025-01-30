@@ -5,7 +5,7 @@ import { TranscriptVirtualList } from "./TranscriptView";
 interface SampleTranscriptProps {
   id: string;
   evalEvents: Events;
-  scrollRef: RefObject<HTMLDivElement>;
+  scrollRef: RefObject<HTMLDivElement | null>;
 }
 
 /**

@@ -30,7 +30,7 @@ interface WorkSpaceViewProps {
   tabs: Record<string, TabDescriptor>;
   selectedTab: string;
   setSelectedTab: (tab: string) => void;
-  divRef: RefObject<HTMLDivElement>;
+  divRef: RefObject<HTMLDivElement | null>;
   offcanvas: boolean;
   setOffcanvas: (offcanvas: boolean) => void;
   workspaceTabScrollPositionRef: RefObject<Record<string, number>>;
@@ -56,6 +56,47 @@ export const WorkSpaceView: React.FC<WorkSpaceViewProps> = ({
   workspaceTabScrollPositionRef,
   setWorkspaceTabScrollPosition,
 }) => {
+  const onScroll = useCallback(
+    debounce((id, position) => {
+      setWorkspaceTabScrollPosition(id, position);
+    }, 100),
+    [setWorkspaceTabScrollPosition],
+  );
+
+  const onSelected = useCallback(
+    (e: MouseEvent<HTMLElement>) => {
+      const id = e.currentTarget?.id;
+      setSelectedTab(id);
+    },
+    [setSelectedTab],
+  );
+
+  // Compute tab panels anytime the tabs change
+  const tabPanels = useMemo(() => {
+    return Object.keys(tabs).map((key) => {
+      const tab = tabs[key];
+      return (
+        <TabPanel
+          id={tab.id}
+          title={tab.label}
+          onSelected={onSelected}
+          selected={selectedTab === tab.id}
+          scrollable={!!tab.scrollable}
+          scrollRef={tab.scrollRef}
+          scrollPosition={workspaceTabScrollPositionRef.current?.[tab.id]}
+          setScrollPosition={useCallback(
+            (position: number) => {
+              onScroll(tab.id, position);
+            },
+            [onScroll],
+          )}
+        >
+          {tab.content()}
+        </TabPanel>
+      );
+    });
+  }, [tabs]);
+
   if (evalSpec === undefined) {
     return <EmptyPanel />;
   } else {
@@ -76,47 +117,6 @@ export const WorkSpaceView: React.FC<WorkSpaceViewProps> = ({
           return "";
         }
       });
-
-    const onScroll = useCallback(
-      debounce((id, position) => {
-        setWorkspaceTabScrollPosition(id, position);
-      }, 100),
-      [setWorkspaceTabScrollPosition],
-    );
-
-    const onSelected = useCallback(
-      (e: MouseEvent<HTMLElement>) => {
-        const id = e.currentTarget?.id;
-        setSelectedTab(id);
-      },
-      [setSelectedTab],
-    );
-
-    // Compute tab panels anytime the tabs change
-    const tabPanels = useMemo(() => {
-      return Object.keys(tabs).map((key) => {
-        const tab = tabs[key];
-        return (
-          <TabPanel
-            id={tab.id}
-            title={tab.label}
-            onSelected={onSelected}
-            selected={selectedTab === tab.id}
-            scrollable={!!tab.scrollable}
-            scrollRef={tab.scrollRef}
-            scrollPosition={workspaceTabScrollPositionRef.current?.[tab.id]}
-            setScrollPosition={useCallback(
-              (position: number) => {
-                onScroll(tab.id, position);
-              },
-              [onScroll],
-            )}
-          >
-            {tab.content()}
-          </TabPanel>
-        );
-      });
-    }, [tabs]);
 
     return (
       <Fragment>

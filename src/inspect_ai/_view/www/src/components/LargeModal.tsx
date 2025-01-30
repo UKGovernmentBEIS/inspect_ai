@@ -1,7 +1,7 @@
 import clsx from "clsx";
 import { ProgressBar } from "./ProgressBar";
 
-import { useCallback, useEffect, useRef } from "react";
+import { ReactNode, useCallback, useEffect, useRef } from "react";
 import styles from "./LargeModal.module.css";
 
 export interface ModalTool {
@@ -26,9 +26,10 @@ interface LargeModalProps {
   visible: boolean;
   onkeyup: (e: any) => void;
   onHide: () => void;
-  scrollRef: React.RefObject<HTMLDivElement>;
+  scrollRef: React.RefObject<HTMLDivElement | null>;
   initialScrollPositionRef: React.RefObject<number>;
   setInitialScrollPosition: (position: number) => void;
+  children: ReactNode;
 }
 
 export const LargeModal: React.FC<LargeModalProps> = ({
@@ -36,12 +37,12 @@ export const LargeModal: React.FC<LargeModalProps> = ({
   title,
   detail,
   detailTools,
+  children,
   footer,
   onkeyup,
   visible,
   onHide,
   showProgress,
-  children,
   initialScrollPositionRef,
   setInitialScrollPosition,
   scrollRef,
@@ -135,7 +136,7 @@ export const LargeModal: React.FC<LargeModalProps> = ({
       )}
       role="dialog"
       onKeyUp={onkeyup}
-      tabindex={visible ? 0 : undefined}
+      tabIndex={visible ? 0 : undefined}
     >
       <div
         className={clsx(
@@ -148,7 +149,7 @@ export const LargeModal: React.FC<LargeModalProps> = ({
         <div className={clsx("modal-content", styles.content)}>
           <div className={clsx("modal-header", styles.header)}>{headerEls}</div>
           <ProgressBar animating={showProgress} />
-          <div class="modal-body" ref={scrollRef} onScroll={onScroll}>
+          <div className={"modal-body"} ref={scrollRef} onScroll={onScroll}>
             {children}
           </div>
           {modalFooter}
@@ -192,7 +193,7 @@ const TitleTool: React.FC<TitleToolProps> = ({
       onClick={onClick}
       disabled={!enabled}
     >
-      <i class={icon} />
+      <i className={icon} />
     </button>
   );
 };

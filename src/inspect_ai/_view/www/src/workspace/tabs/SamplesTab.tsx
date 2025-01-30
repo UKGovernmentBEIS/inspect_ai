@@ -11,7 +11,7 @@ import { EmptyPanel } from "../../components/EmptyPanel.tsx";
 import { VirtualListRef } from "../../components/VirtualList.tsx";
 import { InlineSampleDisplay } from "../../samples/InlineSampleDisplay";
 import { SampleDialog } from "../../samples/SampleDialog";
-import { SamplesDescriptor } from "../../samples/descriptor/samplesDescriptor.ts";
+import { SamplesDescriptor } from "../../samples/descriptor/samplesDescriptor.tsx";
 import { SampleList } from "../../samples/list/SampleList";
 import { SampleMode, ScoreFilter } from "../../types.ts";
 import { EvalSample } from "../../types/log";
@@ -40,7 +40,7 @@ interface SamplesTabProps {
   filter: ScoreFilter;
   sampleScrollPositionRef: RefObject<number>;
   setSampleScrollPosition: (position: number) => void;
-  sampleTabScrollRef: RefObject<HTMLDivElement>;
+  sampleTabScrollRef: RefObject<HTMLDivElement | null>;
 }
 
 export const SamplesTab: React.FC<SamplesTabProps> = ({
@@ -184,7 +184,6 @@ export const SamplesTab: React.FC<SamplesTabProps> = ({
         ) : undefined}
         <SampleDialog
           id={String(sample?.id || "")}
-          ref={sampleDialogRef}
           title={title}
           sample={sample}
           sampleStatus={sampleStatus}

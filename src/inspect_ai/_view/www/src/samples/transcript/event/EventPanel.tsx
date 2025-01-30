@@ -3,6 +3,7 @@ import { ReactNode } from "react";
 import { ApplicationIcons } from "../../../appearance/icons";
 import { EventNavs } from "./EventNavs";
 
+import React from "react";
 import styles from "./EventPanel.module.css";
 
 interface EventPanelProps {
@@ -18,6 +19,10 @@ interface EventPanelProps {
   selectedNav: string;
   setSelectedNav: (nav: string) => void;
   children?: ReactNode | ReactNode[];
+}
+
+interface ChildProps {
+  "data-name"?: string;
 }
 
 /**
@@ -132,8 +137,8 @@ export const EventPanel: React.FC<EventPanelProps> = ({
               navs={filteredArrChildren.map((child, index) => {
                 const defaultTitle = `Tab ${index}`;
                 const title =
-                  child && typeof child === "object"
-                    ? child["props"]?.["data-name"] || defaultTitle
+                  child && React.isValidElement<ChildProps>(child)
+                    ? (child.props as ChildProps)["data-name"] || defaultTitle
                     : defaultTitle;
                 return {
                   id: `eventpanel-${id}-${index}`,

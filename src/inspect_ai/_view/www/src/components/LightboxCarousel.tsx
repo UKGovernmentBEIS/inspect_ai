@@ -96,7 +96,7 @@ export const LightboxCarousel: React.FC<LightboxCarouselProps> = ({
         <div className={clsx("lightbox-overlay", isOpen ? "open" : "closed")}>
           <div className={"lightbox-button-close-wrapper"}>
             <button className={"lightbox-button-close"} onClick={closeLightbox}>
-              <i class={ApplicationIcons.close}></i>
+              <i className={ApplicationIcons.close}></i>
             </button>
           </div>
           {slides.length > 1 ? (
@@ -104,7 +104,7 @@ export const LightboxCarousel: React.FC<LightboxCarouselProps> = ({
               className={"lightbox-preview-button prev"}
               onClick={showPrev}
             >
-              <i class={ApplicationIcons.previous}></i>
+              <i className={ApplicationIcons.previous}></i>
             </button>
           ) : (
             ""
@@ -114,7 +114,7 @@ export const LightboxCarousel: React.FC<LightboxCarouselProps> = ({
               className={"lightbox-preview-button next"}
               onClick={showNext}
             >
-              <i class={ApplicationIcons.next} />
+              <i className={ApplicationIcons.next} />
             </button>
           ) : (
             ""

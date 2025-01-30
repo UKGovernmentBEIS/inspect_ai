@@ -25,7 +25,7 @@ export const TokenHeader = () => {
       <tr>
         <td></td>
         <td
-          colspan={3}
+          colSpan={3}
           className={clsx(
             "card-subheading",
             styles.tableTokens,

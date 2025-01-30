@@ -47,9 +47,7 @@ interface ToolTextOutputProps {
 const ToolTextOutput: React.FC<ToolTextOutputProps> = ({ text }) => {
   return (
     <pre className={clsx(styles.textOutput)}>
-      <code class="sourceCode" className={clsx(styles.textCode)}>
-        {text.trim()}
-      </code>
+      <code className={clsx("sourceCode", styles.textCode)}>{text.trim()}</code>
     </pre>
   );
 };

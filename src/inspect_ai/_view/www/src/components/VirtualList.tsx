@@ -20,7 +20,7 @@ interface VirtualListProps<T> {
   overscanCount?: number;
   initialEstimatedRowHeight?: number;
   sync?: boolean;
-  scrollRef?: React.RefObject<HTMLElement>;
+  scrollRef?: React.RefObject<HTMLElement | null>;
   className?: string;
   style?: React.CSSProperties;
   tabIndex?: number;

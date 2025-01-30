@@ -12,7 +12,7 @@ export const categoricalScoreDescriptor = (
       return String(a).localeCompare(String(b));
     },
     render: (score) => {
-      return score;
+      return String(score);
     },
   };
 };

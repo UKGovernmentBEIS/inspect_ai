@@ -14,7 +14,7 @@ interface ChatViewVirtualListProps {
   className?: string | string[];
   indented: boolean;
   numbered?: boolean;
-  scrollRef?: RefObject<HTMLElement>;
+  scrollRef?: RefObject<HTMLElement | null>;
 }
 
 /**

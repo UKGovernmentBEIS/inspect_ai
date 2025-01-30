@@ -6,7 +6,7 @@ import { formatNumber } from "../utils/format";
 import { MetaDataView } from "./MetaDataView";
 
 import clsx from "clsx";
-import { Fragment } from "react";
+import React, { Fragment, JSX } from "react";
 import styles from "./RenderedContent.module.css";
 import { Buckets, ContentRenderer } from "./types";
 
@@ -21,9 +21,10 @@ interface RenderedContentProps {
 export const RenderedContent: React.FC<RenderedContentProps> = ({
   id,
   entry,
-}) => {
+}): JSX.Element => {
+  // Explicitly specify return type
   if (entry.value === null) {
-    return "[null]";
+    return <span>[null]</span>;
   }
 
   const renderer = Object.keys(contentRenderers)
@@ -39,14 +40,25 @@ export const RenderedContent: React.FC<RenderedContentProps> = ({
 
   if (renderer) {
     const { rendered } = renderer.render(id, entry);
-    if (rendered !== undefined) {
+    // Check if rendered is already a valid ReactNode (JSX.Element)
+    if (rendered !== undefined && React.isValidElement(rendered)) {
       return rendered;
-    } else {
-      return entry.value;
     }
-  } else {
-    return entry.value;
   }
+
+  // Safely convert any value to a string representation
+  const displayValue = (() => {
+    try {
+      if (typeof entry.value === "object") {
+        return JSON.stringify(entry.value);
+      }
+      return String(entry.value);
+    } catch (e) {
+      return "[Unable to display value]";
+    }
+  })();
+
+  return <span>{displayValue}</span>;
 };
 
 /**
@@ -76,7 +88,7 @@ const contentRenderers: Record<string, ContentRenderer> = {
       return {
         rendered: (
           <Fragment>
-            <i class={ApplicationIcons.model} /> {entry.value._model}
+            <i className={ApplicationIcons.model} /> {entry.value._model}
           </Fragment>
         ),
       };
@@ -157,7 +169,7 @@ const contentRenderers: Record<string, ContentRenderer> = {
       const results: React.ReactNode[] = [];
       results.push(
         <div className={styles.query}>
-          <i class={ApplicationIcons.search}></i> {entry.value.query}
+          <i className={ApplicationIcons.search}></i> {entry.value.query}
         </div>,
       );
       entry.value.results.forEach(

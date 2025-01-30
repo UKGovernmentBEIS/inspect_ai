@@ -49,7 +49,7 @@ const StatusPanel: React.FC<StatusPanelProps> = ({
 }) => {
   return (
     <div className={styles.statusPanel}>
-      <i class={clsx(icon, styles.statusIcon)} style={{}} />
+      <i className={clsx(icon, styles.statusIcon)} style={{}} />
       <div>
         <div>${status}</div>
         <div>

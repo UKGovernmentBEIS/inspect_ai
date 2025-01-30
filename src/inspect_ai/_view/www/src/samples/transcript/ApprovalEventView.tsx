@@ -20,7 +20,7 @@ export const ApprovalEventView: React.FC<ApprovalEventViewProps> = ({
       icon={decisionIcon(event.decision)}
       className={className}
     >
-      {event.explanation}
+      {event.explanation || ""}
     </EventRow>
   );
 };
