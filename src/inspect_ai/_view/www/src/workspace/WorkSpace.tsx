@@ -31,7 +31,6 @@ import {
   Status,
 } from "../types/log";
 import { InfoTab } from "./tabs/InfoTab.tsx";
-import { TabDescriptor } from "./types.ts";
 import { WorkSpaceView } from "./WorkSpaceView.tsx";
 
 interface WorkSpaceProps {
@@ -85,257 +84,41 @@ interface WorkSpaceProps {
 /**
  * Renders the Main Application
  */
-export const WorkSpace: React.FC<WorkSpaceProps> = ({
-  task_id,
-  evalStatus,
-  logFileName,
-  evalError,
-  evalSpec,
-  evalVersion,
-  evalPlan,
-  evalStats,
-  evalResults,
-  samples,
-  sampleMode,
-  selectedSample,
-  groupBy,
-  groupByOrder,
-  showToggle,
-  refreshLog,
-  capabilities,
-  offcanvas,
-  setOffcanvas,
-  samplesDescriptor,
-  selectedSampleIndex,
-  setSelectedSampleIndex,
-  showingSampleDialog,
-  setShowingSampleDialog,
-  selectedSampleTab,
-  setSelectedSampleTab,
-  sampleStatus,
-  sampleError,
-  sort,
-  setSort,
-  epochs,
-  epoch,
-  setEpoch,
-  filter,
-  setFilter,
-  score,
-  setScore,
-  scores,
-  selectedTab,
-  setSelectedTab,
-  sampleScrollPositionRef,
-  setSampleScrollPosition,
-  workspaceTabScrollPositionRef,
-  setWorkspaceTabScrollPosition,
-}) => {
+export const WorkSpace: React.FC<WorkSpaceProps> = (props) => {
+  const {
+    task_id,
+    evalStatus,
+    logFileName,
+    evalSpec,
+    evalPlan,
+    evalStats,
+    evalResults,
+    samples,
+    showToggle,
+    offcanvas,
+    setOffcanvas,
+    samplesDescriptor,
+    selectedTab,
+    setSelectedTab,
+    workspaceTabScrollPositionRef,
+    setWorkspaceTabScrollPosition,
+  } = props;
   if (!evalSpec) {
     return null;
   }
 
   const divRef = useRef<HTMLDivElement>(null);
-  const sampleTabScrollRef = useRef<HTMLDivElement>(null);
 
   // Display the log
   useEffect(() => {
     if (divRef.current) {
       divRef.current.scrollTop = 0;
     }
-  }, [divRef, task_id]);
+  }, [task_id]);
 
-  const resolvedTabs = useMemo<Record<string, TabDescriptor>>(() => {
-    // Tabs that are available within the app
-    // Include the tab contents as well as any tools that the tab provides
-    // when it is displayed
-    const resolvedTabs: Record<string, TabDescriptor> = {};
+  const resolvedTabs = useResolvedTabs(props);
 
-    // The samples tab
-    // Currently only appears when the result is successful
-    if (sampleMode !== "none") {
-      resolvedTabs.samples = {
-        id: kEvalWorkspaceTabId,
-        scrollable: samples?.length === 1,
-        scrollRef: sampleTabScrollRef,
-        label: (samples || []).length > 1 ? "Samples" : "Sample",
-        content: () => {
-          return (
-            <SamplesTab
-              sample={selectedSample}
-              sampleStatus={sampleStatus}
-              sampleError={sampleError}
-              showingSampleDialog={showingSampleDialog}
-              setShowingSampleDialog={setShowingSampleDialog}
-              samples={samples}
-              sampleMode={sampleMode}
-              groupBy={groupBy}
-              groupByOrder={groupByOrder}
-              selectedSampleIndex={selectedSampleIndex}
-              setSelectedSampleIndex={setSelectedSampleIndex}
-              sampleDescriptor={samplesDescriptor}
-              selectedSampleTab={selectedSampleTab}
-              setSelectedSampleTab={setSelectedSampleTab}
-              filter={filter}
-              epoch={epoch}
-              sampleScrollPositionRef={sampleScrollPositionRef}
-              setSampleScrollPosition={setSampleScrollPosition}
-              sampleTabScrollRef={sampleTabScrollRef}
-            />
-          );
-        },
-        tools: () => {
-          // Don't show tools if there is a single sample
-          if (sampleMode === "single" || !samplesDescriptor) {
-            return undefined;
-          }
-          const sampleTools = [
-            <SampleTools
-              epoch={epoch}
-              epochs={epochs || 1}
-              setEpoch={setEpoch}
-              scoreFilter={filter}
-              setScoreFilter={setFilter}
-              sort={sort}
-              setSort={setSort}
-              score={score}
-              setScore={setScore}
-              scores={scores}
-              sampleDescriptor={samplesDescriptor}
-            />,
-          ];
-          if (evalStatus === "started") {
-            sampleTools.push(
-              <ToolButton
-                label={"Refresh"}
-                icon="{ApplicationIcons.refresh}"
-                onClick={refreshLog}
-              />,
-            );
-          }
-
-          return sampleTools;
-        },
-      };
-    }
-
-    // The info tab
-    resolvedTabs.config = {
-      id: kInfoWorkspaceTabId,
-      label: "Info",
-      scrollable: true,
-      content: () => {
-        return (
-          <InfoTab
-            evalSpec={evalSpec}
-            evalPlan={evalPlan}
-            evalError={evalError}
-            evalResults={evalResults}
-            evalStats={evalStats}
-            samples={samples}
-          />
-        );
-      },
-    };
-
-    // The JSON Tab
-    resolvedTabs.json = {
-      id: kJsonWorkspaceTabId,
-      label: "JSON",
-      scrollable: true,
-      content: () => {
-        const evalHeader = {
-          version: evalVersion,
-          status: evalStatus,
-          eval: evalSpec,
-          plan: evalPlan,
-          error: evalError,
-          results: evalResults,
-          stats: evalStats,
-        };
-        const json = JSON.stringify(evalHeader, null, 2);
-        return (
-          <JsonTab
-            logFile={logFileName}
-            json={json}
-            capabilities={capabilities}
-            selected={selectedTab === kJsonWorkspaceTabId}
-          />
-        );
-      },
-      tools: () => {
-        return [
-          <ToolButton
-            label={<span className="task-btn-copy-content">Copy JSON</span>}
-            icon={ApplicationIcons.copy}
-            className={clsx("task-btn-json-copy", "clipboard-button")}
-            data-clipboard-target="#task-json-contents"
-            onClick={copyFeedback}
-          />,
-        ];
-      },
-    };
-
-    const copyFeedback = (e: MouseEvent<HTMLElement>) => {
-      const textEl = e.currentTarget.querySelector(".task-btn-copy-content");
-      const iconEl = e.currentTarget.querySelector("i.bi");
-      if (textEl) {
-        const htmlEl = textEl as HTMLElement;
-        const htmlIconEl = iconEl as HTMLElement;
-        const oldText = htmlEl.innerText;
-        const oldIconClz = htmlIconEl.className;
-        htmlEl.innerText = "Copied!";
-        htmlIconEl.className = `${ApplicationIcons.confirm}`;
-        setTimeout(() => {
-          window.getSelection()?.removeAllRanges();
-        }, 50);
-        setTimeout(() => {
-          htmlEl.innerText = oldText;
-          htmlIconEl.className = oldIconClz;
-        }, 1250);
-      }
-    };
-
-    return resolvedTabs;
-  }, [
-    evalStatus,
-    sampleMode,
-    samples,
-    task_id,
-    score,
-    selectedSample,
-    sampleStatus,
-    sampleError,
-    showingSampleDialog,
-    setShowingSampleDialog,
-    groupBy,
-    groupByOrder,
-    selectedSampleIndex,
-    setSelectedSampleIndex,
-    samplesDescriptor,
-    selectedSampleTab,
-    setSelectedSampleTab,
-    filter,
-    sort,
-    epoch,
-    sampleScrollPositionRef,
-    setSampleScrollPosition,
-    epochs,
-    setEpoch,
-    setFilter,
-    setSort,
-    setScore,
-    scores,
-    evalSpec,
-    evalPlan,
-    evalResults,
-    evalStats,
-    evalError,
-    logFileName,
-    capabilities,
-    selectedTab,
-  ]);
-
+  
   return (
     <WorkSpaceView
       logFileName={logFileName}
@@ -356,5 +139,185 @@ export const WorkSpace: React.FC<WorkSpaceProps> = ({
       setWorkspaceTabScrollPosition={setWorkspaceTabScrollPosition}
       setOffcanvas={setOffcanvas}
     />
+  );
+};
+
+const copyFeedback = (e: MouseEvent<HTMLElement>) => {
+  const textEl = e.currentTarget.querySelector(".task-btn-copy-content");
+  const iconEl = e.currentTarget.querySelector("i.bi");
+  if (textEl) {
+    const htmlEl = textEl as HTMLElement;
+    const htmlIconEl = iconEl as HTMLElement;
+    const oldText = htmlEl.innerText;
+    const oldIconClz = htmlIconEl.className;
+    htmlEl.innerText = "Copied!";
+    htmlIconEl.className = `${ApplicationIcons.confirm}`;
+    setTimeout(() => {
+      window.getSelection()?.removeAllRanges();
+    }, 50);
+    setTimeout(() => {
+      htmlEl.innerText = oldText;
+      htmlIconEl.className = oldIconClz;
+    }, 1250);
+  }
+};
+
+
+const useResolvedTabs = ({
+  evalVersion,
+  evalStatus,
+  sampleMode,
+  samples,
+  selectedSample,
+  sampleStatus,
+  sampleError,
+  showingSampleDialog,
+  setShowingSampleDialog,
+  groupBy,
+  groupByOrder,
+  selectedSampleIndex,
+  setSelectedSampleIndex,
+  samplesDescriptor,
+  selectedSampleTab,
+  setSelectedSampleTab,
+  filter,
+  sort,
+  epoch,
+  sampleScrollPositionRef,
+  setSampleScrollPosition,
+  epochs,
+  setEpoch,
+  setFilter,
+  setSort,
+  score,
+  setScore,
+  scores,
+  evalSpec,
+  evalPlan,
+  evalResults,
+  evalStats,
+  evalError,
+  logFileName,
+  capabilities,
+  selectedTab,
+  refreshLog,
+}: WorkSpaceProps) => {
+  const sampleTabScrollRef = useRef<HTMLDivElement>(null);
+
+  const samplesTab = sampleMode !== "none" ? {
+    id: kEvalWorkspaceTabId,
+    scrollable: samples?.length === 1,
+    scrollRef: sampleTabScrollRef,
+    label: (samples || []).length > 1 ? "Samples" : "Sample",
+    content: () => (
+      <SamplesTab
+        sample={selectedSample}
+        sampleStatus={sampleStatus}
+        sampleError={sampleError}
+        showingSampleDialog={showingSampleDialog}
+        setShowingSampleDialog={setShowingSampleDialog}
+        samples={samples}
+        sampleMode={sampleMode}
+        groupBy={groupBy}
+        groupByOrder={groupByOrder}
+        selectedSampleIndex={selectedSampleIndex}
+        setSelectedSampleIndex={setSelectedSampleIndex}
+        sampleDescriptor={samplesDescriptor}
+        selectedSampleTab={selectedSampleTab}
+        setSelectedSampleTab={setSelectedSampleTab}
+        filter={filter}
+        epoch={epoch}
+        sampleScrollPositionRef={sampleScrollPositionRef}
+        setSampleScrollPosition={setSampleScrollPosition}
+        sampleTabScrollRef={sampleTabScrollRef}
+      />
+    ),
+    tools: () =>
+      sampleMode === "single" || !samplesDescriptor
+        ? undefined
+        : [
+            <SampleTools
+              key="sample-tools"
+              epoch={epoch}
+              epochs={epochs || 1}
+              setEpoch={setEpoch}
+              scoreFilter={filter}
+              setScoreFilter={setFilter}
+              sort={sort}
+              setSort={setSort}
+              score={score}
+              setScore={setScore}
+              scores={scores}
+              sampleDescriptor={samplesDescriptor}
+            />,
+            evalStatus === "started" && (
+              <ToolButton
+                key="refresh"
+                label="Refresh"
+                icon={ApplicationIcons.refresh}
+                onClick={refreshLog}
+              />
+            ),
+          ].filter(Boolean),
+  } : null;
+
+  const configTab = {
+    id: kInfoWorkspaceTabId,
+    label: "Info",
+    scrollable: true,
+    content: () => (
+      <InfoTab
+        evalSpec={evalSpec}
+        evalPlan={evalPlan}
+        evalError={evalError}
+        evalResults={evalResults}
+        evalStats={evalStats}
+        samples={samples}
+      />
+    ),
+  };
+
+  const jsonTab = {
+    id: kJsonWorkspaceTabId,
+    label: "JSON",
+    scrollable: true,
+    content: () => {
+      const evalHeader = {
+        version: evalVersion,
+        status: evalStatus,
+        eval: evalSpec,
+        plan: evalPlan,
+        error: evalError,
+        results: evalResults,
+        stats: evalStats,
+      };
+      return (
+        <JsonTab
+          logFile={logFileName}
+          json={JSON.stringify(evalHeader, null, 2)}
+          capabilities={capabilities}
+          selected={selectedTab === kJsonWorkspaceTabId}
+        />
+      );
+    },
+    tools: () => [
+      <ToolButton
+        key="copy-json"
+        label="Copy JSON"
+        icon={ApplicationIcons.copy}
+        className={clsx("task-btn-json-copy", "clipboard-button")}
+        data-clipboard-target="#task-json-contents"
+        onClick={copyFeedback}
+      />,
+    ],
+  };
+
+  return useMemo(
+    () => ({
+      ...(samplesTab ? { samples: samplesTab } : {}),
+      config: configTab,
+      json: jsonTab,
+    }),
+    [samplesTab, configTab, jsonTab]
   );
 };
