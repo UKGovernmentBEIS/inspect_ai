@@ -33,8 +33,6 @@ RUN apt-get update && \
 
 # Userland apt-get'able apps
 RUN apt-get install -y --no-install-recommends \
-      # A simple image viewer.
-      xpaint \
       # A calculator application.
       galculator && \
     apt-get clean
@@ -78,7 +76,7 @@ RUN useradd -m -s /bin/bash -d $HOME $USERNAME
 RUN echo "${USERNAME} ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
 USER ${USERNAME}
 WORKDIR $HOME
-COPY --chown=$USERNAME:$USERNAME image_home_dir/ $HOME
+ADD --chown=$USERNAME:$USERNAME image_home_dir/ $HOME
 
 # configure Firefox to skip all 'first run' UI
 RUN mkdir -p $HOME/.mozilla/firefox-esr/profile.default && \
