@@ -76,7 +76,7 @@ RUN useradd -m -s /bin/bash -d $HOME $USERNAME
 RUN echo "${USERNAME} ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
 USER ${USERNAME}
 WORKDIR $HOME
-COPY --chown=$USERNAME:$USERNAME image_home_dir/ $HOME
+ADD --chown=$USERNAME:$USERNAME image_home_dir/ $HOME
 
 # configure Firefox to skip all 'first run' UI
 RUN mkdir -p $HOME/.mozilla/firefox-esr/profile.default && \
