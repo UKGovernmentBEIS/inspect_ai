@@ -105,6 +105,9 @@ export const PrimaryBar: React.FC<PrimaryBarProps> = ({
       <div className={clsx(styles.taskStatus, "navbar-text")}>
         {statusPanel}
       </div>
+      <div id="task-created" style={{ display: "none" }}>
+        {evalSpec?.created}
+      </div>
     </div>
   );
 };
