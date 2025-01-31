@@ -61996,79 +61996,83 @@ ${events}
     const ClipboardJS = /* @__PURE__ */ getDefaultExportFromCjs(clipboardExports);
     const App = ({
       api: api2,
-      initialState: initialState2,
-      saveInitialState,
+      applicationState,
+      saveApplicationState,
       pollForLogs = true,
       capabilities: capabilities2
     }) => {
       var _a2, _b2, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m;
       const [logs, setLogs] = reactExports.useState(
-        (initialState2 == null ? void 0 : initialState2.logs) || { log_dir: "", files: [] }
+        (applicationState == null ? void 0 : applicationState.logs) || { log_dir: "", files: [] }
       );
       const [selectedLogIndex, setSelectedLogIndex] = reactExports.useState(
-        (initialState2 == null ? void 0 : initialState2.selectedLogIndex) !== void 0 ? initialState2.selectedLogIndex : -1
+        (applicationState == null ? void 0 : applicationState.selectedLogIndex) !== void 0 ? applicationState.selectedLogIndex : -1
       );
       const [logHeaders, setLogHeaders] = reactExports.useState(
-        (initialState2 == null ? void 0 : initialState2.logHeaders) || {}
+        (applicationState == null ? void 0 : applicationState.logHeaders) || {}
       );
       const [headersLoading, setHeadersLoading] = reactExports.useState(
-        (initialState2 == null ? void 0 : initialState2.headersLoading) || false
+        (applicationState == null ? void 0 : applicationState.headersLoading) || false
       );
       const [selectedLog, setSelectedLog] = reactExports.useState(
-        initialState2 == null ? void 0 : initialState2.selectedLog
+        applicationState == null ? void 0 : applicationState.selectedLog
       );
       const [selectedWorkspaceTab, setSelectedWorkspaceTab] = reactExports.useState(
-        (initialState2 == null ? void 0 : initialState2.selectedWorkspaceTab) || kEvalWorkspaceTabId
+        (applicationState == null ? void 0 : applicationState.selectedWorkspaceTab) || kEvalWorkspaceTabId
       );
       const [selectedSampleIndex, setSelectedSampleIndex] = reactExports.useState(
-        (initialState2 == null ? void 0 : initialState2.selectedSampleIndex) !== void 0 ? initialState2.selectedSampleIndex : -1
+        (applicationState == null ? void 0 : applicationState.selectedSampleIndex) !== void 0 ? applicationState.selectedSampleIndex : -1
       );
       const [selectedSample, setSelectedSample] = reactExports.useState(
-        initialState2 == null ? void 0 : initialState2.selectedSample
+        applicationState == null ? void 0 : applicationState.selectedSample
       );
       const [sampleStatus, setSampleStatus] = reactExports.useState(
-        (initialState2 == null ? void 0 : initialState2.sampleStatus) || "loading"
+        (applicationState == null ? void 0 : applicationState.sampleStatus) || "loading"
       );
       const [sampleError, setSampleError] = reactExports.useState(
-        initialState2 == null ? void 0 : initialState2.sampleError
+        applicationState == null ? void 0 : applicationState.sampleError
       );
-      const [selectedSampleTab, setSelectedSampleTab] = reactExports.useState(initialState2 == null ? void 0 : initialState2.selectedSampleTab);
+      const [selectedSampleTab, setSelectedSampleTab] = reactExports.useState(applicationState == null ? void 0 : applicationState.selectedSampleTab);
       const sampleScrollPosition = reactExports.useRef(
-        (initialState2 == null ? void 0 : initialState2.sampleScrollPosition) || 0
+        (applicationState == null ? void 0 : applicationState.sampleScrollPosition) || 0
       );
       const loadingSampleIndexRef = reactExports.useRef(null);
       const workspaceTabScrollPosition = reactExports.useRef(
-        (initialState2 == null ? void 0 : initialState2.workspaceTabScrollPosition) || {}
+        (applicationState == null ? void 0 : applicationState.workspaceTabScrollPosition) || {}
       );
       const [showingSampleDialog, setShowingSampleDialog] = reactExports.useState(
-        !!(initialState2 == null ? void 0 : initialState2.showingSampleDialog)
+        !!(applicationState == null ? void 0 : applicationState.showingSampleDialog)
       );
       const [status, setStatus] = reactExports.useState(
-        (initialState2 == null ? void 0 : initialState2.status) || { loading: false }
+        (applicationState == null ? void 0 : applicationState.status) || { loading: false }
       );
       const [offcanvas, setOffcanvas] = reactExports.useState(
-        (initialState2 == null ? void 0 : initialState2.offcanvas) || false
+        (applicationState == null ? void 0 : applicationState.offcanvas) || false
       );
       const [showFind, setShowFind] = reactExports.useState(
-        (initialState2 == null ? void 0 : initialState2.showFind) || false
+        (applicationState == null ? void 0 : applicationState.showFind) || false
       );
-      const [filter, setFilter] = reactExports.useState((initialState2 == null ? void 0 : initialState2.filter) || {});
-      const [epoch, setEpoch] = reactExports.useState((initialState2 == null ? void 0 : initialState2.epoch) || "all");
-      const [sort, setSort] = reactExports.useState((initialState2 == null ? void 0 : initialState2.sort) || kDefaultSort);
+      const [filter, setFilter] = reactExports.useState(
+        (applicationState == null ? void 0 : applicationState.filter) || {}
+      );
+      const [epoch, setEpoch] = reactExports.useState((applicationState == null ? void 0 : applicationState.epoch) || "all");
+      const [sort, setSort] = reactExports.useState(
+        (applicationState == null ? void 0 : applicationState.sort) || kDefaultSort
+      );
       const [scores2, setScores] = reactExports.useState(
-        (initialState2 == null ? void 0 : initialState2.scores) || []
+        (applicationState == null ? void 0 : applicationState.scores) || []
       );
       const [score2, setScore] = reactExports.useState(
-        initialState2 == null ? void 0 : initialState2.score
+        applicationState == null ? void 0 : applicationState.score
       );
       const [filteredSamples, setFilteredSamples] = reactExports.useState(
-        (initialState2 == null ? void 0 : initialState2.filteredSamples) || []
+        (applicationState == null ? void 0 : applicationState.filteredSamples) || []
       );
       const [groupBy, setGroupBy] = reactExports.useState(
-        (initialState2 == null ? void 0 : initialState2.groupBy) || "none"
+        (applicationState == null ? void 0 : applicationState.groupBy) || "none"
       );
       const [groupByOrder, setGroupByOrder] = reactExports.useState(
-        (initialState2 == null ? void 0 : initialState2.groupByOrder) || "asc"
+        (applicationState == null ? void 0 : applicationState.groupByOrder) || "asc"
       );
       const saveState = reactExports.useCallback(() => {
         const state = {
@@ -62098,8 +62102,8 @@ ${events}
           sampleScrollPosition: sampleScrollPosition.current,
           workspaceTabScrollPosition: workspaceTabScrollPosition.current
         };
-        if (saveInitialState) {
-          saveInitialState(state);
+        if (saveApplicationState) {
+          saveApplicationState(state);
         }
       }, [
         logs,
@@ -62754,8 +62758,8 @@ ${events}
         App,
         {
           api,
-          initialState,
-          saveInitialState: throttle$2((state) => {
+          applicationState: initialState,
+          saveApplicationState: throttle$2((state) => {
             const vscode2 = getVscodeApi();
             if (vscode2) {
               vscode2.setState(filterState(state));

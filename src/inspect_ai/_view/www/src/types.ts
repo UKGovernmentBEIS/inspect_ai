@@ -6,7 +6,7 @@ import {
 } from "./api/types";
 import { ContentImage, ContentText, EvalSample } from "./types/log";
 
-export interface InitialState {
+export interface ApplicationState {
   logs?: LogFiles;
   selectedLogIndex?: number;
   logHeaders?: Record<string, EvalLogHeader>;

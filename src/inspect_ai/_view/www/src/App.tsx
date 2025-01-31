@@ -52,10 +52,10 @@ import {
   kSampleTranscriptTabId,
 } from "./constants";
 import {
+  ApplicationState,
   AppStatus,
   Capabilities,
   CurrentLog,
-  InitialState,
   ScoreFilter,
   ScoreLabel,
 } from "./types.ts";
@@ -63,8 +63,8 @@ import { EvalSample } from "./types/log";
 
 interface AppProps {
   api: ClientAPI;
-  initialState?: InitialState;
-  saveInitialState?: (state: InitialState) => void;
+  applicationState?: ApplicationState;
+  saveApplicationState?: (state: ApplicationState) => void;
   pollForLogs: boolean;
   capabilities: Capabilities;
 }
@@ -74,102 +74,106 @@ interface AppProps {
  */
 export const App: React.FC<AppProps> = ({
   api,
-  initialState,
-  saveInitialState,
+  applicationState,
+  saveApplicationState,
   pollForLogs = true,
   capabilities,
 }) => {
   // List of Logs
   const [logs, setLogs] = useState<LogFiles>(
-    initialState?.logs || { log_dir: "", files: [] },
+    applicationState?.logs || { log_dir: "", files: [] },
   );
   const [selectedLogIndex, setSelectedLogIndex] = useState<number>(
-    initialState?.selectedLogIndex !== undefined
-      ? initialState.selectedLogIndex
+    applicationState?.selectedLogIndex !== undefined
+      ? applicationState.selectedLogIndex
       : -1,
   );
 
   // Log Headers
   const [logHeaders, setLogHeaders] = useState<Record<string, EvalLogHeader>>(
-    initialState?.logHeaders || {},
+    applicationState?.logHeaders || {},
   );
   const [headersLoading, setHeadersLoading] = useState<boolean>(
-    initialState?.headersLoading || false,
+    applicationState?.headersLoading || false,
   );
 
   const [selectedLog, setSelectedLog] = useState<CurrentLog | undefined>(
-    initialState?.selectedLog,
+    applicationState?.selectedLog,
   );
 
   // Workspace (the selected tab)
   const [selectedWorkspaceTab, setSelectedWorkspaceTab] = useState<string>(
-    initialState?.selectedWorkspaceTab || kEvalWorkspaceTabId,
+    applicationState?.selectedWorkspaceTab || kEvalWorkspaceTabId,
   );
   const [selectedSampleIndex, setSelectedSampleIndex] = useState<number>(
-    initialState?.selectedSampleIndex !== undefined
-      ? initialState.selectedSampleIndex
+    applicationState?.selectedSampleIndex !== undefined
+      ? applicationState.selectedSampleIndex
       : -1,
   );
   const [selectedSample, setSelectedSample] = useState<EvalSample | undefined>(
-    initialState?.selectedSample,
+    applicationState?.selectedSample,
   );
   const [sampleStatus, setSampleStatus] = useState<"loading" | "ok" | "error">(
-    initialState?.sampleStatus || "loading",
+    applicationState?.sampleStatus || "loading",
   );
   const [sampleError, setSampleError] = useState<Error | undefined>(
-    initialState?.sampleError,
+    applicationState?.sampleError,
   );
   const [selectedSampleTab, setSelectedSampleTab] = useState<
     string | undefined
-  >(initialState?.selectedSampleTab);
+  >(applicationState?.selectedSampleTab);
   const sampleScrollPosition = useRef<number>(
-    initialState?.sampleScrollPosition || 0,
+    applicationState?.sampleScrollPosition || 0,
   );
   const loadingSampleIndexRef = useRef<number | null>(null);
   const workspaceTabScrollPosition = useRef<Record<string, number>>(
-    initialState?.workspaceTabScrollPosition || {},
+    applicationState?.workspaceTabScrollPosition || {},
   );
 
   const [showingSampleDialog, setShowingSampleDialog] = useState<boolean>(
-    !!initialState?.showingSampleDialog,
+    !!applicationState?.showingSampleDialog,
   );
 
   // App loading status
   const [status, setStatus] = useState<AppStatus>(
-    initialState?.status || { loading: false },
+    applicationState?.status || { loading: false },
   );
 
   // Other application state
   const [offcanvas, setOffcanvas] = useState<boolean>(
-    initialState?.offcanvas || false,
+    applicationState?.offcanvas || false,
   );
   const [showFind, setShowFind] = useState<boolean>(
-    initialState?.showFind || false,
+    applicationState?.showFind || false,
   );
 
   // Filtering and sorting
-  const [filter, setFilter] = useState<ScoreFilter>(initialState?.filter || {});
+  const [filter, setFilter] = useState<ScoreFilter>(
+    applicationState?.filter || {},
+  );
 
-  const [epoch, setEpoch] = useState<string>(initialState?.epoch || "all");
-  const [sort, setSort] = useState<string>(initialState?.sort || kDefaultSort);
+  const [epoch, setEpoch] = useState<string>(applicationState?.epoch || "all");
+  const [sort, setSort] = useState<string>(
+    applicationState?.sort || kDefaultSort,
+  );
 
   const [scores, setScores] = useState<ScoreLabel[]>(
-    initialState?.scores || [],
+    applicationState?.scores || [],
   );
 
   const [score, setScore] = useState<ScoreLabel | undefined>(
-    initialState?.score,
+    applicationState?.score,
   );
 
   // Re-filter the samples
   const [filteredSamples, setFilteredSamples] = useState<SampleSummary[]>(
-    initialState?.filteredSamples || [],
+    applicationState?.filteredSamples || [],
   );
   const [groupBy, setGroupBy] = useState<"none" | "epoch" | "sample">(
-    initialState?.groupBy || "none",
+    applicationState?.groupBy || "none",
   );
   const [groupByOrder, setGroupByOrder] = useState<"asc" | "desc">(
-    initialState?.groupByOrder || "asc",
+    applicationState?.groupByOrder || "asc",
   );
 
   const saveState = useCallback(() => {
@@ -200,8 +204,8 @@ export const App: React.FC<AppProps> = ({
       sampleScrollPosition: sampleScrollPosition.current,
       workspaceTabScrollPosition: workspaceTabScrollPosition.current,
     };
-    if (saveInitialState) {
-      saveInitialState(state);
+    if (saveApplicationState) {
+      saveApplicationState(state);
     }
   }, [
     logs,

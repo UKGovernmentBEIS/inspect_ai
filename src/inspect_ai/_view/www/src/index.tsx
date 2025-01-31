@@ -1,7 +1,7 @@
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
 import api from "./api/index";
-import { Capabilities, InitialState } from "./types";
+import { ApplicationState, Capabilities } from "./types";
 import { throttle } from "./utils/sync";
 import { getVscodeApi } from "./utils/vscode";
 
@@ -13,7 +13,7 @@ let capabilities: Capabilities = {
   webWorkers: true,
 };
 if (vscode) {
-  initialState = filterState(vscode.getState() as InitialState);
+  initialState = filterState(vscode.getState() as ApplicationState);
 
   // Determine the capabilities
   const extensionVersionEl = document.querySelector(
@@ -41,8 +41,8 @@ const root = createRoot(container as HTMLElement);
 root.render(
   <App
     api={api}
-    initialState={initialState}
-    saveInitialState={throttle((state) => {
+    applicationState={initialState}
+    saveApplicationState={throttle((state) => {
       const vscode = getVscodeApi();
       if (vscode) {
         vscode.setState(filterState(state));
@@ -53,7 +53,7 @@ root.render(
   />,
 );
 
-function filterState(state: InitialState) {
+function filterState(state: ApplicationState) {
   if (!state) {
     return state;
   }
@@ -67,7 +67,7 @@ function filterState(state: InitialState) {
 }
 
 // Filters the selected Sample if it is large
-function filterLargeSample(state: InitialState) {
+function filterLargeSample(state: ApplicationState) {
   if (!state || !state.selectedSample) {
     return state;
   }
@@ -82,7 +82,7 @@ function filterLargeSample(state: InitialState) {
 }
 
 // Filters the selectedlog if it is too large
-function filterLargeSelectedLog(state: InitialState) {
+function filterLargeSelectedLog(state: ApplicationState) {
   if (!state || !state.selectedLog?.contents) {
     return state;
   }
