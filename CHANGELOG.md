@@ -4,6 +4,7 @@
 
 - Computer: Enable viewing computer tool's remote mouse cursor via VNC.
 - Computer: Disable lock screen on from computer tool reference image.
+- Limits: Amend `SampleLimitExceededError` with current `state` so that messages, etc. are preserved when limits are hit.
 - Tools: Properly handle image dispatching when multiple tool calls are made by assistant.
 - Anthropic: Raise error on 400 status not identified as model_length or content_filter.
 - Bugfix: Remove `suffix` from `eval-set` CLI args.
