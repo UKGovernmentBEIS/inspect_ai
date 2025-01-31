@@ -55,7 +55,7 @@ eval("intercode_ctf.py", fail_on_error=False)
 
 You might choose to do this if you want to tolerate a certain proportion of errors during development but want to ensure there are never errors when running in production.
 
-## Sample Limits {#sec-sample-limits}
+## Sample Limits {#sample-limits}
 
 In open-ended model conversations (for example, an agent evaluation with tool usage) it's possible that a model will get "stuck" attempting to perform a task with no realistic prospect of completing it. Further, sometimes models will call commands in a sandbox that take an extremely long time (or worst case, hang indefinitely).
 
