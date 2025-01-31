@@ -51052,7 +51052,7 @@ self.onmessage = function (e) {
         {
           id,
           title: "Score",
-          className: className2,
+          className: clsx(className2, "text-size-small"),
           subTitle: formatDateTime(new Date(event.timestamp)),
           icon: ApplicationIcons.scorer,
           selectedNav: eventState.selectedNav || "",
@@ -60578,10 +60578,9 @@ ${events}
       scorer,
       isFirst
     }) => {
-      const metricsLen = Object.keys(scorer.metrics).length === 1;
-      const titleFontClz = metricsLen ? "text-size-larger" : "text-size-base";
-      const reducerFontClz = metricsLen ? "text-size-small" : "text-size-smaller";
-      const valueFontClz = metricsLen ? "text-size-base" : "text-size-base";
+      const titleFontClz = "text-size-base";
+      const reducerFontClz = "text-size-smaller";
+      const valueFontClz = "text-size-base";
       const reducer_component = scorer.reducer ? /* @__PURE__ */ jsxRuntimeExports.jsx(
         "div",
         {

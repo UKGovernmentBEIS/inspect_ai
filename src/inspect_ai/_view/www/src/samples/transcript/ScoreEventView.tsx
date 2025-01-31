@@ -38,7 +38,7 @@ export const ScoreEventView: React.FC<ScoreEventViewProps> = ({
     <EventPanel
       id={id}
       title="Score"
-      className={className}
+      className={clsx(className, "text-size-small")}
       subTitle={formatDateTime(new Date(event.timestamp))}
       icon={ApplicationIcons.scorer}
       selectedNav={eventState.selectedNav || ""}

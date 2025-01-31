@@ -105,10 +105,9 @@ const MultiScorerMetric: React.FC<MultiScorerMetricProps> = ({
   scorer,
   isFirst,
 }) => {
-  const metricsLen = Object.keys(scorer.metrics).length === 1;
-  const titleFontClz = metricsLen ? "text-size-larger" : "text-size-base";
-  const reducerFontClz = metricsLen ? "text-size-small" : "text-size-smaller";
-  const valueFontClz = metricsLen ? "text-size-base" : "text-size-base";
+  const titleFontClz = "text-size-base";
+  const reducerFontClz = "text-size-smaller";
+  const valueFontClz = "text-size-base";
 
   const reducer_component = scorer.reducer ? (
     <div
