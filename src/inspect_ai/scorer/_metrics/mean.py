@@ -1,6 +1,6 @@
 import numpy as np
 
-from .._metric import Metric, Score, metric
+from .._metric import Metric, SampleScore, metric
 
 
 @metric
@@ -11,8 +11,8 @@ def mean() -> Metric:
        mean metric
     """
 
-    def metric(scores: list[Score]) -> float:
-        return np.mean([score.as_float() for score in scores]).item()
+    def metric(scores: list[SampleScore]) -> float:
+        return np.mean([score.score.as_float() for score in scores]).item()
 
     return metric
 
@@ -25,7 +25,7 @@ def var() -> Metric:
        var metric
     """
 
-    def metric(scores: list[Score]) -> float:
-        return np.var([score.as_float() for score in scores]).item()
+    def metric(scores: list[SampleScore]) -> float:
+        return np.var([score.score.as_float() for score in scores]).item()
 
     return metric

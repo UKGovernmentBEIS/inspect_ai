@@ -324,6 +324,7 @@ class EvalScore(BaseModel):
 
 class EvalSampleScore(Score):
     sample_id: str | int | None = Field(default=None)
+    """Sample ID."""
 
 
 class EvalSampleReductions(BaseModel):

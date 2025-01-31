@@ -154,6 +154,7 @@ async def task_score(task: Task, log: EvalLog) -> EvalLog:
                 score_key: SampleScore(
                     score=score,
                     sample_id=sample.id,
+                    sample_metadata=sample.metadata,
                 )
                 for score_key, score in sample.scores.items()
             }
@@ -185,6 +186,7 @@ async def run_score_task(
         results[scorer_name] = SampleScore(
             score=result,
             sample_id=state.sample_id,
+            sample_metadata=state.metadata,
             scorer=registry_unqualified_name(scorer),
         )
 

@@ -125,6 +125,9 @@ class SampleScore(BaseModel):
     sample_id: str | int | None = Field(default=None)
     """A sample id"""
 
+    sample_metadata: dict[str, Any] | None = Field(default=None)
+    """Metadata from the sample"""
+
     scorer: str | None = Field(default=None)
     """Registry name of scorer that created this score."""
 
@@ -192,13 +195,13 @@ class Metric(Protocol):
     r"""Evaluate scores using a metric.
 
     Args:
-        scores (list[Score]): List of scores.
+        scores (list[SampleScore]): List of sample scores.
 
     Returns:
         Metric value
     """
 
-    def __call__(self, scores: list[Score]) -> Value: ...
+    def __call__(self, scores: list[SampleScore]) -> Value: ...
 
 
 P = ParamSpec("P")
