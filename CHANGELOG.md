@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Tasks: Log sample with error prior to raising task-ending exception.
+
 ## v0.3.61 (31 January 2025)
 
 - Computer: Enable viewing computer tool's remote mouse cursor via VNC.
