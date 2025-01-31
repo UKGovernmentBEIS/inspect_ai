@@ -4,6 +4,7 @@
 
 - Computer: Enable viewing computer tool's remote mouse cursor via VNC.
 - Computer: Disable lock screen on from computer tool reference image.
+- Anthropic: Raise error on 400 status not identified as model_length or content_filter.
 - Bugfix: Remove `suffix` from `eval-set` CLI args.
 - Bugfix: Only catch `Exception` from sandboxenv_init (allow cancelled to propagate)
 
