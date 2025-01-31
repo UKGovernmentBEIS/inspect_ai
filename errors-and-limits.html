@@ -585,7 +585,7 @@ Important
 <section id="custom-limit" class="level3">
 <h3 class="anchored" data-anchor-id="custom-limit">Custom Limit</h3>
 <p>When limits are exceeded, a <code>SampleLimitExceededError</code> is raised and caught by the main Inspect sample execution logic. If you want to create custom limit types, you can enforce them by raising a <code>SampleLimitExceededError</code> as follows:</p>
-<div class="sourceCode" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.util <span class="im">import</span> SampleLimitExceededError</span>
+<div class="sourceCode" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.solver <span class="im">import</span> SampleLimitExceededError</span>
 <span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a><span class="cf">raise</span> SampleLimitExceededError(</span>
 <span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">"custom"</span>, </span>

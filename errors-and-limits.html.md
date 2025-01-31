@@ -261,7 +261,7 @@ custom limit types, you can enforce them by raising a
 `SampleLimitExceededError` as follows:
 
 ``` python
-from inspect_ai.util import SampleLimitExceededError
+from inspect_ai.solver import SampleLimitExceededError
 
 raise SampleLimitExceededError(
     "custom", 
