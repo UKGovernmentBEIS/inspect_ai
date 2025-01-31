@@ -48659,11 +48659,11 @@ self.onmessage = function (e) {
         return void 0;
       }
     }
-    async function eval_log(log_file, headerOnly, capabilities) {
+    async function eval_log(log_file, headerOnly, capabilities2) {
       const response = await vscodeClient(kMethodEvalLog, [log_file, headerOnly]);
       if (response) {
         let json;
-        if (capabilities == null ? void 0 : capabilities.webWorkers) {
+        if (capabilities2 == null ? void 0 : capabilities2.webWorkers) {
           json = await asyncJsonParse(response);
         } else {
           json = lib.parse(response);
@@ -49226,10 +49226,10 @@ self.onmessage = function (e) {
     const kJsonMaxSize = 1e7;
     const JsonTab = ({
       logFile,
-      capabilities,
+      capabilities: capabilities2,
       json
     }) => {
-      if (logFile && json.length > kJsonMaxSize && capabilities.downloadFiles) {
+      if (logFile && json.length > kJsonMaxSize && capabilities2.downloadFiles) {
         const file = `${filename(logFile)}.json`;
         return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$I["json-tab"], children: /* @__PURE__ */ jsxRuntimeExports.jsx(
           DownloadPanel,
@@ -61225,7 +61225,7 @@ ${events}
       evalStats,
       evalError,
       logFileName,
-      capabilities,
+      capabilities: capabilities2,
       selectedTab,
       refreshLog
     }) => {
@@ -61323,7 +61323,7 @@ ${events}
             {
               logFile: logFileName,
               json: JSON.stringify(evalHeader, null, 2),
-              capabilities,
+              capabilities: capabilities2,
               selected: selectedTab === kJsonWorkspaceTabId
             }
           );
@@ -61998,7 +61998,8 @@ ${events}
       api: api2,
       initialState: initialState2,
       saveInitialState,
-      pollForLogs = true
+      pollForLogs = true,
+      capabilities: capabilities2
     }) => {
       var _a2, _b2, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m;
       const [logs, setLogs] = reactExports.useState(
@@ -62045,12 +62046,6 @@ ${events}
       const [status, setStatus] = reactExports.useState(
         (initialState2 == null ? void 0 : initialState2.status) || { loading: false }
       );
-      const [capabilities, setCapabilities] = reactExports.useState(
-        (initialState2 == null ? void 0 : initialState2.capabilities) || {
-          downloadFiles: true,
-          webWorkers: true
-        }
-      );
       const [offcanvas, setOffcanvas] = reactExports.useState(
         (initialState2 == null ? void 0 : initialState2.offcanvas) || false
       );
@@ -62090,7 +62085,6 @@ ${events}
           selectedSampleTab,
           showingSampleDialog,
           status,
-          capabilities,
           offcanvas,
           showFind,
           filter,
@@ -62121,7 +62115,6 @@ ${events}
         selectedSampleTab,
         showingSampleDialog,
         status,
-        capabilities,
         offcanvas,
         showFind,
         filter,
@@ -62172,7 +62165,6 @@ ${events}
         selectedSampleTab,
         showingSampleDialog,
         status,
-        capabilities,
         offcanvas,
         showFind,
         filter,
@@ -62398,14 +62390,7 @@ ${events}
           }
         };
         loadSpecificLog();
-      }, [
-        selectedLogIndex,
-        logs,
-        capabilities,
-        selectedLog,
-        setSelectedLog,
-        setStatus
-      ]);
+      }, [selectedLogIndex, logs, selectedLog, setSelectedLog, setStatus]);
       const loadLogs = async () => {
         try {
           const result = await api2.get_log_paths();
@@ -62526,15 +62511,6 @@ ${events}
       reactExports.useEffect(() => {
         const loadLogsAndState = async () => {
           const urlParams = new URLSearchParams(window.location.search);
-          const extensionVersionEl = document.querySelector(
-            'meta[name="inspect-extension:version"]'
-          );
-          const extensionVersion = extensionVersionEl ? extensionVersionEl.getAttribute("content") : void 0;
-          if (isVscode()) {
-            if (!extensionVersion) {
-              setCapabilities({ downloadFiles: false, webWorkers: false });
-            }
-          }
           const logPath = urlParams.get("task_file");
           const resolvedLogPath = logPath ? logPath.replace(" ", "+") : logPath;
           const load = resolvedLogPath ? async () => {
@@ -62667,7 +62643,7 @@ ${events}
                   refreshLog,
                   offcanvas,
                   setOffcanvas,
-                  capabilities,
+                  capabilities: capabilities2,
                   selectedSample,
                   selectedSampleIndex,
                   setSelectedSampleIndex,
@@ -62750,8 +62726,19 @@ ${events}
     };
     const vscode = getVscodeApi();
     let initialState = void 0;
+    let capabilities = {
+      downloadFiles: true,
+      webWorkers: true
+    };
     if (vscode) {
       initialState = filterState(vscode.getState());
+      const extensionVersionEl = document.querySelector(
+        'meta[name="inspect-extension:version"]'
+      );
+      const extensionVersion = extensionVersionEl ? extensionVersionEl.getAttribute("content") : void 0;
+      if (!extensionVersion) {
+        capabilities = { downloadFiles: false, webWorkers: false };
+      }
     }
     const containerId = "app";
     const container = document.getElementById(containerId);
@@ -62774,6 +62761,7 @@ ${events}
               vscode2.setState(filterState(state));
             }
           }, 1e3),
+          capabilities,
           pollForLogs: false
         }
       )

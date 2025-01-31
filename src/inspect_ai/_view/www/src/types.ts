@@ -21,7 +21,6 @@ export interface InitialState {
   sampleScrollPosition?: number;
   showingSampleDialog?: boolean;
   status?: AppStatus;
-  capabilities?: Capabilities;
   offcanvas?: boolean;
   showFind?: boolean;
   filter?: ScoreFilter;

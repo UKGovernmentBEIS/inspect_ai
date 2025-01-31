@@ -1,15 +1,31 @@
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
 import api from "./api/index";
-import { InitialState } from "./types";
+import { Capabilities, InitialState } from "./types";
 import { throttle } from "./utils/sync";
 import { getVscodeApi } from "./utils/vscode";
 
 // Read any state from the page itself
 const vscode = getVscodeApi();
 let initialState = undefined;
+let capabilities: Capabilities = {
+  downloadFiles: true,
+  webWorkers: true,
+};
 if (vscode) {
   initialState = filterState(vscode.getState() as InitialState);
+
+  // Determine the capabilities
+  const extensionVersionEl = document.querySelector(
+    'meta[name="inspect-extension:version"]',
+  );
+  const extensionVersion = extensionVersionEl
+    ? extensionVersionEl.getAttribute("content")
+    : undefined;
+
+  if (!extensionVersion) {
+    capabilities = { downloadFiles: false, webWorkers: false };
+  }
 }
 
 const containerId = "app";
@@ -32,6 +48,7 @@ root.render(
         vscode.setState(filterState(state));
       }
     }, 1000)}
+    capabilities={capabilities}
     pollForLogs={false}
   />,
 );

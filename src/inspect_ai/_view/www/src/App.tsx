@@ -30,7 +30,7 @@ import {
   sortSamples,
 } from "./samples/sample-tools/SortFilter";
 import { resolveAttachments } from "./utils/attachments";
-import { getVscodeApi, isVscode } from "./utils/vscode";
+import { getVscodeApi } from "./utils/vscode";
 import { Sidebar } from "./workspace/sidebar/Sidebar.tsx";
 import { WorkSpace } from "./workspace/WorkSpace";
 
@@ -66,6 +66,7 @@ interface AppProps {
   initialState?: InitialState;
   saveInitialState?: (state: InitialState) => void;
   pollForLogs: boolean;
+  capabilities: Capabilities;
 }
 
 /**
@@ -76,6 +77,7 @@ export const App: React.FC<AppProps> = ({
   initialState,
   saveInitialState,
   pollForLogs = true,
+  capabilities,
 }) => {
   // List of Logs
   const [logs, setLogs] = useState<LogFiles>(
@@ -137,14 +139,6 @@ export const App: React.FC<AppProps> = ({
     initialState?.status || { loading: false },
   );
 
-  // App host capabilities
-  const [capabilities, setCapabilities] = useState<Capabilities>(
-    initialState?.capabilities || {
-      downloadFiles: true,
-      webWorkers: true,
-    },
-  );
-
   // Other application state
   const [offcanvas, setOffcanvas] = useState<boolean>(
     initialState?.offcanvas || false,
@@ -193,7 +187,6 @@ export const App: React.FC<AppProps> = ({
       selectedSampleTab,
       showingSampleDialog,
       status,
-      capabilities,
       offcanvas,
       showFind,
       filter,
@@ -224,7 +217,6 @@ export const App: React.FC<AppProps> = ({
     selectedSampleTab,
     showingSampleDialog,
     status,
-    capabilities,
     offcanvas,
     showFind,
     filter,
@@ -282,7 +274,6 @@ export const App: React.FC<AppProps> = ({
     selectedSampleTab,
     showingSampleDialog,
     status,
-    capabilities,
     offcanvas,
     showFind,
     filter,
@@ -594,14 +585,7 @@ export const App: React.FC<AppProps> = ({
     };
 
     loadSpecificLog();
-  }, [
-    selectedLogIndex,
-    logs,
-    capabilities,
-    selectedLog,
-    setSelectedLog,
-    setStatus,
-  ]);
+  }, [selectedLogIndex, logs, selectedLog, setSelectedLog, setStatus]);
 
   // Load the list of logs
   const loadLogs = async (): Promise<LogFiles> => {
@@ -743,20 +727,6 @@ export const App: React.FC<AppProps> = ({
     const loadLogsAndState = async () => {
       // See whether a specific task_file has been passed.
       const urlParams = new URLSearchParams(window.location.search);
-
-      // Determine the capabilities
-      const extensionVersionEl = document.querySelector(
-        'meta[name="inspect-extension:version"]',
-      );
-      const extensionVersion = extensionVersionEl
-        ? extensionVersionEl.getAttribute("content")
-        : undefined;
-
-      if (isVscode()) {
-        if (!extensionVersion) {
-          setCapabilities({ downloadFiles: false, webWorkers: false });
-        }
-      }
 
       // If the URL provides a task file, load that
       const logPath = urlParams.get("task_file");
