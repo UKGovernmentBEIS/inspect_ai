@@ -1,8 +1,9 @@
 from logging import getLogger
-from typing import Callable, cast
+from typing import Awaitable, Callable, cast
 
 from typing_extensions import TypedDict, Unpack
 
+from inspect_ai._util._async import is_callable_coroutine
 from inspect_ai.model._cache import CachePolicy
 from inspect_ai.model._call_tools import call_tools
 from inspect_ai.model._chat_message import ChatMessageTool, ChatMessageUser
@@ -58,7 +59,9 @@ def basic_agent(
     max_tool_output: int | None = None,
     score_value: ValueToFloat | None = None,
     incorrect_message: str
-    | Callable[[TaskState, list[Score]], str] = DEFAULT_INCORRECT_MESSAGE,
+    | Callable[
+        [TaskState, list[Score]], str | Awaitable[str]
+    ] = DEFAULT_INCORRECT_MESSAGE,
     continue_message: str = DEFAULT_CONTINUE_MESSAGE,
     submit_name: str = DEFAULT_SUBMIT_NAME,
     submit_description: str = DEFAULT_SUBMIT_DESCRIPTION,
@@ -93,8 +96,9 @@ def basic_agent(
           Defaults to max_tool_output from active GenerateConfig.
        score_value (ValueToFloat): Function used to extract float from scores (defaults
          to standard value_to_float())
-       incorrect_message (str | Callable[[TaskState, list[Score]], str]): User message reply for an
-         incorrect submission from the model. Alternatively, a function which returns a message.
+       incorrect_message (str | Callable[[TaskState, list[Score]], str | Awaitable[str]]):
+         User message reply for an incorrect submission from the model. Alternatively,
+         a function which returns a message (function may optionally be async)
        continue_message (str): User message to urge the model to continue when it
          doesn't make a tool call.
        submit_name (str): Name for tool used to make submissions
@@ -216,11 +220,17 @@ def basic_agent(
 
                             # otherwise notify the model that it was incorrect and continue
                             else:
-                                response_message = (
-                                    incorrect_message(state, answer_scores)
-                                    if callable(incorrect_message)
-                                    else incorrect_message
-                                )
+                                if is_callable_coroutine(incorrect_message):
+                                    response_message: str = await incorrect_message(
+                                        state, answer_scores
+                                    )  # type: ignore[misc,operator]
+                                elif callable(incorrect_message):
+                                    response_message = cast(
+                                        str, incorrect_message(state, answer_scores)
+                                    )
+                                else:
+                                    response_message = incorrect_message
+
                                 state.messages.append(
                                     ChatMessageUser(content=response_message)
                                 )

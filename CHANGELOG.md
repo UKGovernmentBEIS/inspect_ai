@@ -11,6 +11,7 @@
 - Limits: Amend `SampleLimitExceededError` with current `state` so that messages, etc. are preserved when limits are hit.
 - Tools: Properly handle image dispatching when multiple tool calls are made by assistant.
 - Anthropic: Raise error on 400 status not identified as model_length or content_filter.
+- Basic Agent: `incorrect_message` can now optionally be an async function.
 - Bugfix: Remove `suffix` from `eval-set` CLI args.
 - Bugfix: Only catch `Exception` from sandboxenv_init (allow cancelled to propagate)
 
