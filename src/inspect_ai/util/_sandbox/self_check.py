@@ -71,16 +71,13 @@ async def _cleanup_file(sandbox_env: SandboxEnvironment, filename: str) -> None:
 
 async def test_read_and_write_file_text(sandbox_env: SandboxEnvironment) -> None:
     file_name = "test_read_and_write_file_text.file"
-    await sandbox_env.write_file(
-        file_name, "great #content\nincluding newlines"
-    )
-    written_file_string = await sandbox_env.read_file(
-        file_name, text=True
-    )
+    await sandbox_env.write_file(file_name, "great #content\nincluding newlines")
+    written_file_string = await sandbox_env.read_file(file_name, text=True)
     assert "great #content\nincluding newlines" == written_file_string, (
         f"unexpected content: [{written_file_string}]"
     )
     await _cleanup_file(sandbox_env, file_name)
+
 
 async def test_write_file_text_utf(sandbox_env: SandboxEnvironment) -> None:
     utf_content = "✨☽︎✨🌞︎︎✨🚀✨"
@@ -91,15 +88,14 @@ async def test_write_file_text_utf(sandbox_env: SandboxEnvironment) -> None:
     assert file_with_utf_content == utf_content
     await _cleanup_file(sandbox_env, file_name)
 
+
 async def test_read_and_write_file_binary(sandbox_env: SandboxEnvironment) -> None:
     file_name = "test_read_and_write_file_binary.file"
     await sandbox_env.write_file(
         file_name, b"\xc3\x28"
     )  # invalid UTF-8 from https://stackoverflow.com/a/17199164/116509
 
-    written_file_bytes = await sandbox_env.read_file(
-        file_name, text=False
-    )
+    written_file_bytes = await sandbox_env.read_file(file_name, text=False)
     assert b"\xc3\x28" == written_file_bytes
     await _cleanup_file(sandbox_env, file_name)
 
@@ -199,7 +195,6 @@ async def test_write_file_space(sandbox_env: SandboxEnvironment) -> None:
     await _cleanup_file(sandbox_env, file_name)
 
 
-
 async def test_write_file_is_directory(
     sandbox_env: SandboxEnvironment,
 ) -> None:
@@ -213,7 +208,9 @@ async def test_write_file_is_directory(
             "content cannot go in a directory, dummy",
         )
     assert "directory" in str(e_info.value)
-    await sandbox_env.exec(["rm", "-rf", "/tmp/inspect_ai_test_write_file_is_directory"])
+    await sandbox_env.exec(
+        ["rm", "-rf", "/tmp/inspect_ai_test_write_file_is_directory"]
+    )
 
 
 async def test_write_file_without_permissions(
