@@ -858,15 +858,7 @@ def maybe_adding_user_message(
 ) -> list[ChatMessage]:
     """If content is empty, return messages, otherwise, create a new ChatMessageUser with it and return a new messages list with that message added."""
     return (
-        messages
-        + [
-            ChatMessageUser(
-                content=content,
-                tool_call_id=tool_call_ids
-                if len(tool_call_ids) > 1
-                else tool_call_ids[0],
-            )
-        ]
+        messages + [ChatMessageUser(content=content, tool_call_id=tool_call_ids)]
         if content
         else messages
     )
