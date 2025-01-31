@@ -15,13 +15,16 @@ def test_multiple_tool_responses_remain_adjacent():
     )
     messages = [tool_a, tool_b]
 
-    modified_a = _modified_image_response_message(tool_a)
-    modified_b = _modified_image_response_message(tool_b)
-    fabricated_user = ChatMessageUser(
-        content=tool_a.content + tool_b.content, tool_call_id=["a", "b"]
+    execute_and_assert(
+        messages,
+        [
+            _modified_image_response_message(tool_a),
+            _modified_image_response_message(tool_b),
+            ChatMessageUser(
+                content=tool_a.content + tool_b.content, tool_call_id=["a", "b"]
+            ),
+        ],
     )
-
-    execute_and_assert(messages, [modified_a, modified_b, fabricated_user])
 
 
 def test_multiple_tool_responses_remain_adjacent_when_not_at_end_of_list():
@@ -36,18 +39,14 @@ def test_multiple_tool_responses_remain_adjacent_when_not_at_end_of_list():
     user = ChatMessageUser(content="yo")
     messages = [tool_a, tool_b, user]
 
-    modified_a = _modified_image_response_message(tool_a)
-    modified_b = _modified_image_response_message(tool_b)
-    fabricated_user = ChatMessageUser(
-        content=tool_a.content + tool_b.content, tool_call_id=["a", "b"]
-    )
-
     execute_and_assert(
         messages,
         [
-            modified_a,
-            modified_b,
-            fabricated_user,
+            _modified_image_response_message(tool_a),
+            _modified_image_response_message(tool_b),
+            ChatMessageUser(
+                content=tool_a.content + tool_b.content, tool_call_id=["a", "b"]
+            ),
             user,
         ],
     )
