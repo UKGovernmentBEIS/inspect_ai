@@ -69,4 +69,4 @@ def test_read_eval_log_samples_with_error():
         total_samples = 0
         for _ in read_eval_log_samples(log_file, all_samples_required=False):
             total_samples += 1
-        assert total_samples == 1
+        assert total_samples == 2

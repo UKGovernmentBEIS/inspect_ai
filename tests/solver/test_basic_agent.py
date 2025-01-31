@@ -161,23 +161,34 @@ def test_basic_agent_retries_with_custom_incorrect_message():
     def custom_incorrect_message(state: TaskState, scores: list[Score]):
         return f"Your response to the input '{state.input}' was incorrect: {scores[0].explanation}"
 
-    addition_task = Task(
-        dataset=[Sample(input="What is 1 + 1?", target="2")],
-        solver=basic_agent(
-            tools=[addition()],
-            max_attempts=3,
-            message_limit=30,
-            incorrect_message=custom_incorrect_message,
-        ),
-        scorer=compare_quantities(),
-    )
-    log = eval(addition_task, mockllm_model(["5", "1", "2"]))[0]
-    assert log.results.scores[0].metrics["accuracy"].value == 1
-    user_msgs = [
-        m.content for m in log.samples[0].messages if isinstance(m, ChatMessageUser)
-    ]
-    assert user_msgs == [
-        "What is 1 + 1?",
-        "Your response to the input 'What is 1 + 1?' was incorrect: Answer is too high",
-        "Your response to the input 'What is 1 + 1?' was incorrect: Answer is too low",
-    ]
+    async def async_custom_incorrect_message(state: TaskState, scores: list[Score]):
+        return f"Your response to the input '{state.input}' was incorrect: {scores[0].explanation}"
+
+    def check_task(incorrect_message):
+        addition_task = Task(
+            dataset=[Sample(input="What is 1 + 1?", target="2")],
+            solver=basic_agent(
+                tools=[addition()],
+                max_attempts=3,
+                message_limit=30,
+                incorrect_message=incorrect_message,
+            ),
+            scorer=compare_quantities(),
+        )
+        log = eval(addition_task, mockllm_model(["5", "1", "2"]), display="plain")[0]
+        assert log.results.scores[0].metrics["accuracy"].value == 1
+        user_msgs = [
+            m.content for m in log.samples[0].messages if isinstance(m, ChatMessageUser)
+        ]
+        assert user_msgs == [
+            "What is 1 + 1?",
+            "Your response to the input 'What is 1 + 1?' was incorrect: Answer is too high",
+            "Your response to the input 'What is 1 + 1?' was incorrect: Answer is too low",
+        ]
+
+    check_task(custom_incorrect_message)
+    check_task(async_custom_incorrect_message)
+
+
+if __name__ == "__main__":
+    test_basic_agent_retries_with_custom_incorrect_message()
