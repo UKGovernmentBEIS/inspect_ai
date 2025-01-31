@@ -1,5 +1,5 @@
 from inspect_ai._util.content import ContentText
-from inspect_ai.model import ChatMessageTool, ChatMessageUser, ContentImage
+from inspect_ai.model import ChatMessage, ChatMessageTool, ChatMessageUser, ContentImage
 from inspect_ai.model._model import tool_result_images_as_user_message
 
 
@@ -21,11 +21,7 @@ def test_multiple_tool_responses_remain_adjacent():
         content=tool_a.content + tool_b.content, tool_call_id=["a", "b"]
     )
 
-    assert tool_result_images_as_user_message(messages) == [
-        modified_a,
-        modified_b,
-        fabricated_user,
-    ]
+    execute_and_assert(messages, [modified_a, modified_b, fabricated_user])
 
 
 def test_multiple_tool_responses_remain_adjacent_when_not_at_end_of_list():
@@ -46,12 +42,19 @@ def test_multiple_tool_responses_remain_adjacent_when_not_at_end_of_list():
         content=tool_a.content + tool_b.content, tool_call_id=["a", "b"]
     )
 
-    assert tool_result_images_as_user_message(messages) == [
-        modified_a,
-        modified_b,
-        fabricated_user,
-        user,
-    ]
+    execute_and_assert(
+        messages,
+        [
+            modified_a,
+            modified_b,
+            fabricated_user,
+            user,
+        ],
+    )
+
+
+def execute_and_assert(input_messages: list[ChatMessage], expected: list[ChatMessage]):
+    assert tool_result_images_as_user_message(input_messages) == expected
 
 
 def _modified_image_response_message(message: ChatMessageTool) -> ChatMessageTool:
