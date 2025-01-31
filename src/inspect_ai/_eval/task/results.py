@@ -385,16 +385,27 @@ def reduce_scores(
     # reduce the scores
     reduced_scores: list[EvalSampleScore] = []
     for scores in grouped_scores.values():
-        reduced = reducer([score.score for score in scores])
-        reduced_scores.append(
-            EvalSampleScore(
-                sample_id=scores[0].sample_id,
-                value=reduced.value,
-                answer=reduced.answer,
-                explanation=reduced.explanation,
-                metadata=reduced.metadata,
+        if len(scores) > 1:
+            reduced = reducer([score.score for score in scores])
+            reduced_scores.append(
+                EvalSampleScore(
+                    sample_id=scores[0].sample_id,
+                    value=reduced.value,
+                    answer=reduced.answer,
+                    explanation=reduced.explanation,
+                    metadata=reduced.metadata,
+                )
             )
-        )
+        else:
+            reduced_scores.append(
+                EvalSampleScore(
+                    sample_id=scores[0].sample_id,
+                    value=scores[0].score.value,
+                    answer=scores[0].score.answer,
+                    explanation=scores[0].score.explanation,
+                    metadata=scores[0].score.metadata,
+                )
+            )
 
     return reduced_scores
 
