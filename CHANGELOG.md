@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.3.61 (31 January 2025)
 
 - Computer: Enable viewing computer tool's remote mouse cursor via VNC.
 - Computer: Disable lock screen on from computer tool reference image.
