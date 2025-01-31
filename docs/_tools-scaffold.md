@@ -16,27 +16,30 @@ def agent_loop(message_limit: int = 50):
         # establish messages limit so we have a termination condition
         state.message_limit = message_limit
 
-        # call the model in a loop
-        while not state.completed:
-            # call model
-            output = await get_model().generate(state.messages, state.tools)
+        try:
+            # call the model in a loop
+            while not state.completed:
+                # call model
+                output = await get_model().generate(state.messages, state.tools)
 
-            # update state
-            state.output = output
-            state.messages.append(output.message)
+                # update state
+                state.output = output
+                state.messages.append(output.message)
 
-            # make tool calls or terminate if there are none
-            if output.message.tool_calls:
-                state.messages.extend(call_tools(output.message, state.tools))
-            else:
-                break
+                # make tool calls or terminate if there are none
+                if output.message.tool_calls:
+                    state.messages.extend(call_tools(output.message, state.tools))
+                else:
+                    break
+        except SampleLimitExceededError as ex:
+            raise ex.with_state(state)
 
         return state
 
     return solve
 ```
 
-Solvers can set the `state.completed` flag to indicate that the sample is complete, so we check it at the top of the loop.
+Solvers can set the `state.completed` flag to indicate that the sample is complete, so we check it at the top of the loop. When sample limits (e.g. tokens or messages) are exceeded an exception is thrown, so we re-raise it along with the current state of our agent loop.
 
 You can imagine several ways you might want to customise this loop:
 

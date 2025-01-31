@@ -70,13 +70,27 @@ async def solver_subtask(state: TaskState, solver: Solver) -> TaskState:
 
     @subtask(name=name, store=state.store, type="fork", input=input)  # type: ignore
     async def solve() -> TaskState:
-        if not isinstance(solver, Chain):
-            with solver_transcript(solver, state) as st:
-                new_state = await solver(state, generate)
-                st.complete(new_state)
-            return new_state
-        else:
-            return await solver(state, generate)
+        from inspect_ai.log._transcript import SampleLimitEvent, transcript
+
+        from ._limit import SampleLimitExceededError
+
+        try:
+            if not isinstance(solver, Chain):
+                with solver_transcript(solver, state) as st:
+                    new_state = await solver(state, generate)
+                    st.complete(new_state)
+                return new_state
+            else:
+                return await solver(state, generate)
+        except SampleLimitExceededError as ex:
+            transcript()._event(
+                SampleLimitEvent(
+                    type=ex.type,
+                    limit=ex.limit,
+                    message=f"Forked subtask completed: {ex.message}",
+                )
+            )
+            return ex.state or state
 
     # call it and return TaskState
     return cast(TaskState, await solve())
