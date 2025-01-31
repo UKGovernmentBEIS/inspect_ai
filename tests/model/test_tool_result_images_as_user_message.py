@@ -13,10 +13,9 @@ def test_multiple_tool_responses_remain_adjacent():
         tool_call_id="b",
         content=[ContentImage(image="image_for_b")],
     )
-    messages = [tool_a, tool_b]
 
     execute_and_assert(
-        messages,
+        [tool_a, tool_b],
         [
             _modified_image_response_message(tool_a),
             _modified_image_response_message(tool_b),
@@ -37,10 +36,9 @@ def test_multiple_tool_responses_remain_adjacent_when_not_at_end_of_list():
         content=[ContentImage(image="image_for_b")],
     )
     user = ChatMessageUser(content="yo")
-    messages = [tool_a, tool_b, user]
 
     execute_and_assert(
-        messages,
+        [tool_a, tool_b, user],
         [
             _modified_image_response_message(tool_a),
             _modified_image_response_message(tool_b),
