@@ -118,7 +118,6 @@ export const WorkSpace: React.FC<WorkSpaceProps> = (props) => {
 
   const resolvedTabs = useResolvedTabs(props);
 
-  
   return (
     <WorkSpaceView
       logFileName={logFileName}
@@ -162,7 +161,6 @@ const copyFeedback = (e: MouseEvent<HTMLElement>) => {
   }
 };
 
-
 const useResolvedTabs = ({
   evalVersion,
   evalStatus,
@@ -204,62 +202,65 @@ const useResolvedTabs = ({
 }: WorkSpaceProps) => {
   const sampleTabScrollRef = useRef<HTMLDivElement>(null);
 
-  const samplesTab = sampleMode !== "none" ? {
-    id: kEvalWorkspaceTabId,
-    scrollable: samples?.length === 1,
-    scrollRef: sampleTabScrollRef,
-    label: (samples || []).length > 1 ? "Samples" : "Sample",
-    content: () => (
-      <SamplesTab
-        sample={selectedSample}
-        sampleStatus={sampleStatus}
-        sampleError={sampleError}
-        showingSampleDialog={showingSampleDialog}
-        setShowingSampleDialog={setShowingSampleDialog}
-        samples={samples}
-        sampleMode={sampleMode}
-        groupBy={groupBy}
-        groupByOrder={groupByOrder}
-        selectedSampleIndex={selectedSampleIndex}
-        setSelectedSampleIndex={setSelectedSampleIndex}
-        sampleDescriptor={samplesDescriptor}
-        selectedSampleTab={selectedSampleTab}
-        setSelectedSampleTab={setSelectedSampleTab}
-        filter={filter}
-        epoch={epoch}
-        sampleScrollPositionRef={sampleScrollPositionRef}
-        setSampleScrollPosition={setSampleScrollPosition}
-        sampleTabScrollRef={sampleTabScrollRef}
-      />
-    ),
-    tools: () =>
-      sampleMode === "single" || !samplesDescriptor
-        ? undefined
-        : [
-            <SampleTools
-              key="sample-tools"
-              epoch={epoch}
-              epochs={epochs || 1}
-              setEpoch={setEpoch}
-              scoreFilter={filter}
-              setScoreFilter={setFilter}
-              sort={sort}
-              setSort={setSort}
-              score={score}
-              setScore={setScore}
-              scores={scores}
+  const samplesTab =
+    sampleMode !== "none"
+      ? {
+          id: kEvalWorkspaceTabId,
+          scrollable: samples?.length === 1,
+          scrollRef: sampleTabScrollRef,
+          label: (samples || []).length > 1 ? "Samples" : "Sample",
+          content: () => (
+            <SamplesTab
+              sample={selectedSample}
+              sampleStatus={sampleStatus}
+              sampleError={sampleError}
+              showingSampleDialog={showingSampleDialog}
+              setShowingSampleDialog={setShowingSampleDialog}
+              samples={samples}
+              sampleMode={sampleMode}
+              groupBy={groupBy}
+              groupByOrder={groupByOrder}
+              selectedSampleIndex={selectedSampleIndex}
+              setSelectedSampleIndex={setSelectedSampleIndex}
               sampleDescriptor={samplesDescriptor}
-            />,
-            evalStatus === "started" && (
-              <ToolButton
-                key="refresh"
-                label="Refresh"
-                icon={ApplicationIcons.refresh}
-                onClick={refreshLog}
-              />
-            ),
-          ].filter(Boolean),
-  } : null;
+              selectedSampleTab={selectedSampleTab}
+              setSelectedSampleTab={setSelectedSampleTab}
+              filter={filter}
+              epoch={epoch}
+              sampleScrollPositionRef={sampleScrollPositionRef}
+              setSampleScrollPosition={setSampleScrollPosition}
+              sampleTabScrollRef={sampleTabScrollRef}
+            />
+          ),
+          tools: () =>
+            sampleMode === "single" || !samplesDescriptor
+              ? undefined
+              : [
+                  <SampleTools
+                    key="sample-tools"
+                    epoch={epoch}
+                    epochs={epochs || 1}
+                    setEpoch={setEpoch}
+                    scoreFilter={filter}
+                    setScoreFilter={setFilter}
+                    sort={sort}
+                    setSort={setSort}
+                    score={score}
+                    setScore={setScore}
+                    scores={scores}
+                    sampleDescriptor={samplesDescriptor}
+                  />,
+                  evalStatus === "started" && (
+                    <ToolButton
+                      key="refresh"
+                      label="Refresh"
+                      icon={ApplicationIcons.refresh}
+                      onClick={refreshLog}
+                    />
+                  ),
+                ].filter(Boolean),
+        }
+      : null;
 
   const configTab = {
     id: kInfoWorkspaceTabId,
@@ -318,6 +319,6 @@ const useResolvedTabs = ({
       config: configTab,
       json: jsonTab,
     }),
-    [samplesTab, configTab, jsonTab]
+    [samplesTab, configTab, jsonTab],
   );
 };
