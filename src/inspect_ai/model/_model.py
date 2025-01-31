@@ -33,7 +33,6 @@ from inspect_ai._util.trace import trace_action
 from inspect_ai.tool import Tool, ToolChoice, ToolFunction, ToolInfo
 from inspect_ai.tool._tool_def import ToolDef, tool_defs
 from inspect_ai.util import concurrency
-from inspect_ai.util._limit import SampleLimitExceededError
 
 from ._cache import CacheEntry, CachePolicy, cache_fetch, cache_store
 from ._call_tools import disable_parallel_tools, tool_call_view, tools_info
@@ -948,6 +947,7 @@ def handle_sample_message_limit(input: str | list[ChatMessage]) -> None:
         active_sample_message_limit,
         set_active_sample_total_messages,
     )
+    from inspect_ai.solver._limit import SampleLimitExceededError
 
     total_messages = 1 if isinstance(input, str) else len(input)
     message_limit = active_sample_message_limit()
@@ -974,6 +974,7 @@ def record_model_usage(model: str, usage: ModelUsage) -> None:
         active_sample_token_limit,
         set_active_sample_total_tokens,
     )
+    from inspect_ai.solver._limit import SampleLimitExceededError
 
     # record usage
     set_model_usage(model, usage, sample_model_usage_context_var.get(None))
