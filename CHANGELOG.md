@@ -3,6 +3,7 @@
 ## Unreleased
 
 - OpenAI: Handle `reasoning_effort`, `max_tokens`, `temperature`, and `parallel_tool_calls` correctly for o3 models.
+- OpenAI: Map some additional 400 status codes to `content_filter` stop reason.
 - Tasks: Log sample with error prior to raising task-ending exception.
 
 ## v0.3.61 (31 January 2025)

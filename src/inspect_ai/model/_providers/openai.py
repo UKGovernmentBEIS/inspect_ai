@@ -316,7 +316,11 @@ class OpenAIAPI(ModelAPI):
         stop_reason: StopReason | None = None
         if e.code == "context_length_exceeded":
             stop_reason = "model_length"
-        elif e.code == "invalid_prompt":
+        elif (
+            e.code == "invalid_prompt"  # seems to happen for o1/o3
+            or e.code == "content_policy_violation"  # seems to happen for vision
+            or e.code == "content_filter"  # seems to happen on azure
+        ):
             stop_reason = "content_filter"
 
         if stop_reason:
