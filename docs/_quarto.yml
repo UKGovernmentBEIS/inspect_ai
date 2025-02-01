@@ -27,16 +27,15 @@ website:
       background: light
       search: true
       logo: images/aisi-logo.png
-      logo-href: https://www.aisi.gov.uk/          
-      right: 
+      logo-href: https://www.aisi.gov.uk/     
+      left:      
           - text: "User Guide"
             href: index.qmd
           - text: "Reference"
             href: reference/index.qmd
-          - text: "Changelog"
-            href: changelog.md
           - text: "Evals"
             href: evals/index.qmd
+      right: 
           - icon: github
             href: https://github.com/UKGovernmentBEIS/inspect_ai
       
