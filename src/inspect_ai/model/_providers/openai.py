@@ -35,10 +35,11 @@ from .._model_output import (
     StopReason,
 )
 from .._openai import (
-    is_o1,
     is_o1_full,
     is_o1_mini,
     is_o1_preview,
+    is_o3,
+    is_o_series,
     openai_chat_messages,
     openai_chat_tool_choice,
     openai_chat_tools,
@@ -140,14 +141,17 @@ class OpenAIAPI(ModelAPI):
     def is_azure(self) -> bool:
         return self.service == "azure"
 
-    def is_o1(self) -> bool:
-        return is_o1(self.model_name)
+    def is_o_series(self) -> bool:
+        return is_o_series(self.model_name)
 
     def is_o1_full(self) -> bool:
         return is_o1_full(self.model_name)
 
     def is_o1_mini(self) -> bool:
         return is_o1_mini(self.model_name)
+
+    def is_o3(self) -> bool:
+        return is_o3(self.model_name)
 
     def is_o1_preview(self) -> bool:
         return is_o1_preview(self.model_name)
@@ -258,7 +262,7 @@ class OpenAIAPI(ModelAPI):
             model=self.model_name,
         )
         if config.max_tokens is not None:
-            if self.is_o1():
+            if self.is_o_series():
                 params["max_completion_tokens"] = config.max_tokens
             else:
                 params["max_tokens"] = config.max_tokens
@@ -273,10 +277,10 @@ class OpenAIAPI(ModelAPI):
         if config.seed is not None:
             params["seed"] = config.seed
         if config.temperature is not None:
-            if self.is_o1():
+            if self.is_o_series():
                 warn_once(
                     logger,
-                    "o1 models do not support the 'temperature' parameter (temperature is always 1).",
+                    "o series models do not support the 'temperature' parameter (temperature is always 1).",
                 )
             else:
                 params["temperature"] = config.temperature
@@ -293,9 +297,9 @@ class OpenAIAPI(ModelAPI):
             params["logprobs"] = config.logprobs
         if config.top_logprobs is not None:
             params["top_logprobs"] = config.top_logprobs
-        if tools and config.parallel_tool_calls is not None and not self.is_o1():
+        if tools and config.parallel_tool_calls is not None and not self.is_o_series():
             params["parallel_tool_calls"] = config.parallel_tool_calls
-        if config.reasoning_effort is not None and self.is_o1_full():
+        if config.reasoning_effort is not None and self.is_o1_full() or self.is_o3():
             params["reasoning_effort"] = config.reasoning_effort
 
         return params
