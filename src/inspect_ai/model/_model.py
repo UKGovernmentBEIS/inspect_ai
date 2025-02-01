@@ -738,6 +738,9 @@ def simple_input_messages(
 def resolve_reasoning_history(
     messages: list[ChatMessage], config: GenerateConfig, api_has_reasoning_history: bool
 ) -> list[ChatMessage]:
+    # determine if we are including reasoning history
+    reasoning_history = config.reasoning_history is not False
+
     # determine up front if we have any reasoning content
     have_reasoning = any(
         [
@@ -753,7 +756,7 @@ def resolve_reasoning_history(
     #   (b) Leave the messages alone if config says to include it
     if api_has_reasoning_history:
         # remove reasoning history as per config
-        if config.reasoning_history is False:
+        if not reasoning_history:
             resolved_messages: list[ChatMessage] = []
             for message in messages:
                 if isinstance(message, ChatMessageAssistant):
@@ -770,7 +773,7 @@ def resolve_reasoning_history(
             return messages
 
     # API can't represent reasoning natively so include <think> tags
-    else:
+    elif reasoning_history:
         resolved_messages = []
         for message in messages:
             if (
@@ -791,6 +794,10 @@ def resolve_reasoning_history(
             resolved_messages.append(message)
 
         return resolved_messages
+
+    # api doesn't handle reasoning and config says no reasoning_history, nothing to do
+    else:
+        return messages
 
 
 def resolve_tool_model_input(
