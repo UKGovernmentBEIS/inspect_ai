@@ -28,3 +28,36 @@ async def test_openai_api() -> None:
     message = ChatMessageUser(content="This is a test string. What are you?")
     response = await model.generate(input=[message])
     assert len(response.completion) >= 1
+
+
+@pytest.mark.asyncio
+@skip_if_no_openai
+async def test_openai_o_series_reasoning_effort() -> None:
+    async def check_reasoning_effort(model_name: str):
+        model = get_model(
+            model_name,
+            config=GenerateConfig(reasoning_effort="medium", parallel_tool_calls=True),
+        )
+        message = ChatMessageUser(content="This is a test string. What are you?")
+        response = await model.generate(input=[message])
+        assert len(response.completion) >= 1
+        print(response)
+
+    await check_reasoning_effort("openai/o1")
+    await check_reasoning_effort("openai/o3-mini")
+
+
+@pytest.mark.asyncio
+@skip_if_no_openai
+async def test_openai_o_series_max_tokens() -> None:
+    async def check_max_tokens(model_name: str):
+        model = get_model(
+            model_name,
+            config=GenerateConfig(max_tokens=4096, reasoning_effort="low"),
+        )
+        message = ChatMessageUser(content="This is a test string. What are you?")
+        response = await model.generate(input=[message])
+        assert len(response.completion) >= 1
+
+    await check_max_tokens("openai/o1")
+    await check_max_tokens("openai/o3-mini")
