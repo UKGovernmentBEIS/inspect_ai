@@ -108,6 +108,7 @@ class GroqAPI(ModelAPI):
         response: ChatCompletion = await self.client.chat.completions.create(
             messages=messages,
             model=self.model_name,
+            reasoning_format="parsed",
             **params,
         )
 
@@ -294,8 +295,12 @@ def chat_tool_calls(message: Any, tools: list[ToolInfo]) -> Optional[List[ToolCa
 
 
 def chat_message_assistant(message: Any, tools: list[ToolInfo]) -> ChatMessageAssistant:
+    reasoning = getattr(message, "reasoning", None)
+    if reasoning is not None:
+        reasoning = str(reasoning)
     return ChatMessageAssistant(
         content=message.content or "",
         source="generate",
         tool_calls=chat_tool_calls(message, tools),
+        reasoning=reasoning,
     )

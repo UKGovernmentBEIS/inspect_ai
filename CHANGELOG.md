@@ -5,6 +5,9 @@
 - OpenAI: Handle `reasoning_effort`, `max_tokens`, `temperature`, and `parallel_tool_calls` correctly for o3 models.
 - OpenAI: Map some additional 400 status codes to `content_filter` stop reason.
 - Tasks: Log sample with error prior to raising task-ending exception.
+- Reasoning: Include `reasoning_effort` field in OpenAI interface when using non-GPT models (enables `reasoning_effort` to work when using the OpenAI interface to talk to OpenAI compatible endpoints e.g. TogetherAI)
+- Reasoning: New `reasoning` field on `ChatMessageAssistant` which separates out reasoning from response content.
+- Reasoning: `reasoning_history` generation option to control whether reasoning is included in message history sent to generate.
 
 ## v0.3.61 (31 January 2025)
 
