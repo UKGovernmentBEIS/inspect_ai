@@ -108,7 +108,6 @@ class GroqAPI(ModelAPI):
         response: ChatCompletion = await self.client.chat.completions.create(
             messages=messages,
             model=self.model_name,
-            reasoning_format="parsed",
             **params,
         )
 
