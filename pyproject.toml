@@ -143,5 +143,5 @@ dev = [
     "types-psutil",
     "types-python-dateutil"
 ]
-doc = ["quarto-cli", "jupyter"]
+doc = ["quarto-cli", "jupyter", "griffe", "panflute"]
 dist = ["twine", "build"]
