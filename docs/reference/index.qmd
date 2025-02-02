@@ -5,9 +5,8 @@ title: "Reference"
 
 # Header 
 
-```yaml
-- eval
-- score
+```reference
+- solver.basic_agent
 
 
 ```
