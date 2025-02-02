@@ -38,8 +38,20 @@ def conversation_assistant_message(
                 content=transcript_markdown(m.text, escape=True),
             )
 
-        # start with assistant content
-        content: list[RenderableType] = (
+        # build content
+        content: list[RenderableType] = []
+
+        # reasoning
+        if message.reasoning:
+            content.append(
+                transcript_markdown(
+                    f"<think>  \n{message.reasoning}  \n</think>\n\n", escape=True
+                )
+            )
+            content.append(Text())
+
+        # message text
+        content.extend(
             [transcript_markdown(message.text, escape=True)] if message.text else []
         )
 
