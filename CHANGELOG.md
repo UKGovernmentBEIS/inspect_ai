@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Various improvements for [reasoning models](https://github.com/UKGovernmentBEIS/inspect_ai/pull/1229) including extracting `reasoning` from assistant messages.
+- Various improvements for [reasoning models](https://github.com/UKGovernmentBEIS/inspect_ai/pull/1229) including extracting reasoning content from assistant messages.
 - OpenAI: Handle `reasoning_effort`, `max_tokens`, `temperature`, and `parallel_tool_calls` correctly for o3 models.
 - OpenAI: Map some additional 400 status codes to `content_filter` stop reason.
 - Tasks: Log sample with error prior to raising task-ending exception.
