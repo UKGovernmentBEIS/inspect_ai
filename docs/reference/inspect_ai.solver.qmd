@@ -1,0 +1,10 @@
+---
+title: "inspect_ai.solver"
+---
+
+## Solvers
+
+```reference
+- solver.user_message
+- solver.system_message
+```

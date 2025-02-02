@@ -1,0 +1,10 @@
+---
+title: "inspect_ai.scorer"
+---
+
+## Metrics
+
+```reference
+- scorer.accuracy
+- scorer.stderr
+```
