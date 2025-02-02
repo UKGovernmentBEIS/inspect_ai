@@ -486,7 +486,10 @@
         "tool_call_id": {
           "anyOf": [
             {
-              "type": "string"
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
             },
             {
               "type": "null"
@@ -1131,7 +1134,6 @@
             "presence_penalty": null,
             "logit_bias": null,
             "seed": null,
-            "suffix": null,
             "top_k": null,
             "num_choices": null,
             "logprobs": null,
@@ -2120,18 +2122,6 @@
           "default": null,
           "title": "Seed"
         },
-        "suffix": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Suffix"
-        },
         "top_k": {
           "anyOf": [
             {
@@ -2266,7 +2256,6 @@
         "presence_penalty",
         "logit_bias",
         "seed",
-        "suffix",
         "top_k",
         "num_choices",
         "logprobs",
@@ -4249,7 +4238,6 @@
           "reasoning_effort": null,
           "seed": null,
           "stop_seqs": null,
-          "suffix": null,
           "system_message": null,
           "temperature": null,
           "timeout": null,

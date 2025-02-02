@@ -70,7 +70,6 @@ export type LogitBias = {
   [k: string]: number;
 } | null;
 export type Seed = number | null;
-export type Suffix = string | null;
 export type TopK = number | null;
 export type NumChoices = number | null;
 export type Logprobs = boolean | null;
@@ -133,7 +132,7 @@ export type Content1 =
   | (ContentText | ContentImage | ContentAudio | ContentVideo)[];
 export type Source1 = ("input" | "generate") | null;
 export type Role1 = "user";
-export type ToolCallId = string | null;
+export type ToolCallId = string[] | null;
 export type Content2 =
   | string
   | (ContentText | ContentImage | ContentAudio | ContentVideo)[];
@@ -547,7 +546,6 @@ export interface GenerateConfig {
   presence_penalty: PresencePenalty;
   logit_bias: LogitBias;
   seed: Seed;
-  suffix: Suffix;
   top_k: TopK;
   num_choices: NumChoices;
   logprobs: Logprobs;
@@ -901,7 +899,6 @@ export interface GenerateConfig1 {
   presence_penalty: PresencePenalty;
   logit_bias: LogitBias;
   seed: Seed;
-  suffix: Suffix;
   top_k: TopK;
   num_choices: NumChoices;
   logprobs: Logprobs;

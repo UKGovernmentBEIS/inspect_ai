@@ -43,8 +43,16 @@ from ._chat_message import (
 from ._model_output import ModelUsage, StopReason, as_stop_reason
 
 
+def is_o_series(name: str) -> bool:
+    return is_o1(name) or is_o3(name)
+
+
 def is_o1(name: str) -> bool:
     return name.startswith("o1")
+
+
+def is_o3(name: str) -> bool:
+    return name.startswith("o3")
 
 
 def is_o1_full(name: str) -> bool:
@@ -53,6 +61,10 @@ def is_o1_full(name: str) -> bool:
 
 def is_o1_mini(name: str) -> bool:
     return name.startswith("o1-mini")
+
+
+def is_o3_mini(name: str) -> bool:
+    return name.startswith("o3-mini")
 
 
 def is_o1_preview(name: str) -> bool:
