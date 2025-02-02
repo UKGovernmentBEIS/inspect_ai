@@ -63,6 +63,10 @@ def start(
     INSPECT_VIEW_AUTHORIZATION_TOKEN = "INSPECT_VIEW_AUTHORIZATION_TOKEN"
     authorization = os.environ.get(INSPECT_VIEW_AUTHORIZATION_TOKEN, None)
     if authorization:
+        # this indicates we are in vscode -- we want to set the log level to HTTP
+        # in vscode, updated versions of the extension do this but we set it
+        # manually here as a temporary bridge for running against older versions
+        common["log_level"] = "HTTP"
         del os.environ[INSPECT_VIEW_AUTHORIZATION_TOKEN]
         os.unsetenv(INSPECT_VIEW_AUTHORIZATION_TOKEN)
 

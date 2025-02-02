@@ -157,7 +157,7 @@ export class InspectViewServer implements Disposable {
           const args = [
             "view", "start",
             "--port", String(this.serverPort_),
-            "--log-level", "info", "--no-ansi"
+            "--log-level", "http", "--no-ansi"
           ];
           this.serverProcess_ = spawnProcess(quote(inspect.path), args.map(quote), options, {
             stdout: onOutput,
