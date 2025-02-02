@@ -2,7 +2,7 @@ from rich.console import RenderableType
 from rich.text import Text
 
 from inspect_ai._util.rich import lines_display
-from inspect_ai._util.transcript import transcript_markdown
+from inspect_ai._util.transcript import transcript_markdown, transcript_reasoning
 from inspect_ai.util._conversation import conversation_panel
 from inspect_ai.util._display import display_type
 
@@ -43,12 +43,7 @@ def conversation_assistant_message(
 
         # reasoning
         if message.reasoning:
-            content.append(
-                transcript_markdown(
-                    f"<think>  \n{message.reasoning}  \n</think>\n\n", escape=True
-                )
-            )
-            content.append(Text())
+            content.extend(transcript_reasoning(message.reasoning))
 
         # message text
         content.extend(
