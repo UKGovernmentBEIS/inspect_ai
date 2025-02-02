@@ -851,6 +851,9 @@ def config_from_locals(locals: dict[str, Any]) -> GenerateConfigArgs:
             if key == "internal_tools":
                 if value is not False:
                     value = None
+            if key == "reasoning_history":
+                if value is not False:
+                    value = None
             config[key] = value  # type: ignore
     return config
 
