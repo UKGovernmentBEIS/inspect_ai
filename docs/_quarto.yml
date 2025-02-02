@@ -5,7 +5,10 @@ project:
       - llms.txt
    pre-render: scripts/pre-render.sh
    post-render: scripts/post-render.sh
-  
+
+metadata-files: 
+  - reference/_sidebar.yml  
+
 website:
    title: "Inspect"
    bread-crumbs: true
@@ -85,31 +88,6 @@ website:
                - parallelism.qmd
                - interactivity.qmd
                - extensions.qmd
-
-      - title: Reference
-        style: docked
-        collapse-level: 1
-        contents:
-          - text: Reference
-            href: reference/index.qmd
-          - section: inspect_ai.solver
-            href: reference/inspect_ai.solver.qmd
-            contents:
-              - text: user_message
-                href: reference/inspect_ai.solver.qmd#user_message
-              - text: system_message
-                href: reference/inspect_ai.solver.qmd#system_message
-          - section: inspect_ai.scorer
-            href: reference/inspect_ai.scorer.qmd
-            contents:
-              - text: accuracy
-                href: reference/inspect_ai.scorer.qmd#accuracy
-              - text: stderr
-                href: reference/inspect_ai.scorer.qmd#stderr
-           
-
-
-          
 
    page-footer: 
       left: 
