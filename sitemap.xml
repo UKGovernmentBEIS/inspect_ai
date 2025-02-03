@@ -2,7 +2,7 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://inspect.ai-safety-institute.org.uk/errors-and-limits.html</loc>
-    <lastmod>2025-01-31T19:10:10.531Z</lastmod>
+    <lastmod>2025-01-31T22:00:20.400Z</lastmod>
   </url>
   <url>
     <loc>https://inspect.ai-safety-institute.org.uk/tracing.html</loc>
@@ -34,43 +34,47 @@
   </url>
   <url>
     <loc>https://inspect.ai-safety-institute.org.uk/models.html</loc>
-    <lastmod>2025-01-29T22:40:23.062Z</lastmod>
+    <lastmod>2025-02-01T18:58:44.687Z</lastmod>
   </url>
   <url>
     <loc>https://inspect.ai-safety-institute.org.uk/log-viewer.html</loc>
     <lastmod>2025-01-30T17:05:27.140Z</lastmod>
   </url>
   <url>
-    <loc>https://inspect.ai-safety-institute.org.uk/approval.html</loc>
-    <lastmod>2025-01-26T12:49:42.859Z</lastmod>
+    <loc>https://inspect.ai-safety-institute.org.uk/changelog.html</loc>
+    <lastmod>2025-02-03T01:35:21.939Z</lastmod>
   </url>
   <url>
-    <loc>https://inspect.ai-safety-institute.org.uk/agents.html</loc>
-    <lastmod>2025-01-26T12:49:42.859Z</lastmod>
-  </url>
-  <url>
-    <loc>https://inspect.ai-safety-institute.org.uk/vscode.html</loc>
-    <lastmod>2025-01-30T17:05:27.142Z</lastmod>
-  </url>
-  <url>
-    <loc>https://inspect.ai-safety-institute.org.uk/solvers.html</loc>
-    <lastmod>2025-01-28T11:52:57.176Z</lastmod>
-  </url>
-  <url>
-    <loc>https://inspect.ai-safety-institute.org.uk/tasks.html</loc>
-    <lastmod>2025-01-30T17:14:00.355Z</lastmod>
-  </url>
-  <url>
-    <loc>https://inspect.ai-safety-institute.org.uk/evals/index.html</loc>
-    <lastmod>2025-01-30T17:05:27.139Z</lastmod>
+    <loc>https://inspect.ai-safety-institute.org.uk/tools.html</loc>
+    <lastmod>2025-01-26T12:49:42.866Z</lastmod>
   </url>
   <url>
     <loc>https://inspect.ai-safety-institute.org.uk/tutorial.html</loc>
     <lastmod>2025-01-30T17:05:27.142Z</lastmod>
   </url>
   <url>
-    <loc>https://inspect.ai-safety-institute.org.uk/tools.html</loc>
-    <lastmod>2025-01-26T12:49:42.866Z</lastmod>
+    <loc>https://inspect.ai-safety-institute.org.uk/evals/index.html</loc>
+    <lastmod>2025-01-30T17:05:27.139Z</lastmod>
+  </url>
+  <url>
+    <loc>https://inspect.ai-safety-institute.org.uk/tasks.html</loc>
+    <lastmod>2025-01-30T17:14:00.355Z</lastmod>
+  </url>
+  <url>
+    <loc>https://inspect.ai-safety-institute.org.uk/solvers.html</loc>
+    <lastmod>2025-01-28T11:52:57.176Z</lastmod>
+  </url>
+  <url>
+    <loc>https://inspect.ai-safety-institute.org.uk/vscode.html</loc>
+    <lastmod>2025-01-30T17:05:27.142Z</lastmod>
+  </url>
+  <url>
+    <loc>https://inspect.ai-safety-institute.org.uk/agents.html</loc>
+    <lastmod>2025-01-26T12:49:42.859Z</lastmod>
+  </url>
+  <url>
+    <loc>https://inspect.ai-safety-institute.org.uk/approval.html</loc>
+    <lastmod>2025-01-26T12:49:42.859Z</lastmod>
   </url>
   <url>
     <loc>https://inspect.ai-safety-institute.org.uk/sandboxing.html</loc>
@@ -90,7 +94,7 @@
   </url>
   <url>
     <loc>https://inspect.ai-safety-institute.org.uk/index.html</loc>
-    <lastmod>2025-01-30T17:05:27.139Z</lastmod>
+    <lastmod>2025-02-03T01:37:19.769Z</lastmod>
   </url>
   <url>
     <loc>https://inspect.ai-safety-institute.org.uk/eval-sets.html</loc>
@@ -110,6 +114,6 @@
   </url>
   <url>
     <loc>https://inspect.ai-safety-institute.org.uk/options.html</loc>
-    <lastmod>2025-01-30T17:05:27.140Z</lastmod>
+    <lastmod>2025-02-01T16:50:58.201Z</lastmod>
   </url>
 </urlset>
