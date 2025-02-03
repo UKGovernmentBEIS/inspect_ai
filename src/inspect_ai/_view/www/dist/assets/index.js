@@ -62703,6 +62703,9 @@ ${events}
     };
     const defaultScorer = (log2) => {
       var _a2, _b2, _c;
+      if (log2.sampleSummaries.length === 0) {
+        return void 0;
+      }
       const scores2 = log2.sampleSummaries[0].scores;
       const scorer = ((_a2 = log2.results) == null ? void 0 : _a2.scores[0]) ? {
         name: (_b2 = log2.results) == null ? void 0 : _b2.scores[0].name,

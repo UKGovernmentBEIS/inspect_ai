@@ -945,6 +945,10 @@ interface ScorerInfo {
  * Determines the default scorer for a log
  */
 const defaultScorer = (log: EvalSummary): ScorerInfo | undefined => {
+  if (log.sampleSummaries.length === 0) {
+    return undefined;
+  }
+
   // Select the default scorer to use
   const scores = log.sampleSummaries[0].scores;
 
