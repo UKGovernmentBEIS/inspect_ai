@@ -87,11 +87,16 @@ img.navbar-logo {
 }
 
 .source-link > a {
+    color: $btn-code-copy-color;
     position: absolute;
     right: 5px;
     top: 0;
     font-size: 0.8em;
-    text-decoration: none;
+    // text-decoration: none;
     z-index: 1001;
+}
+
+.source-link a:hover {
+    color: $btn-code-copy-color-active;
 }
 

@@ -52,13 +52,12 @@ def stderr(to_float: ValueToFloat = value_to_float()) -> Metric:
     """Standard error of the mean using Central Limit Theorem.
 
     Args:
-        to_float (ValueToFloat): Function for mapping
-            Value to float for computing metrics. The default
-            `value_to_float()` maps CORRECT ("C") to 1.0,
-            INCORRECT ("I") to 0, PARTIAL ("P") to 0.5, and
-            NOANSWER ("N") to 0, casts numeric values to
-            float directly, and prints a warning and returns
-            0 if the Value is a complex object (list or dict).
+       to_float: Function for mapping `Value` to float for computing
+          metrics. The default `value_to_float()` maps CORRECT ("C") to 1.0,
+          INCORRECT ("I") to 0, PARTIAL ("P") to 0.5, and NOANSWER ("N") to 0,
+          casts numeric values to float directly, and prints a warning and returns
+          0 if the Value is a complex object (list or dict).
+
 
     Returns:
         stderr metric
@@ -89,13 +88,12 @@ def std(to_float: ValueToFloat = value_to_float()) -> Metric:
     """Calculates the sample standard deviation of a list of scores.
 
     Args:
-        to_float (ValueToFloat): Function for mapping
-            Value to float for computing metrics. The default
-            `value_to_float()` maps CORRECT ("C") to 1.0,
-            INCORRECT ("I") to 0, PARTIAL ("P") to 0.5, and
-            NOANSWER ("N") to 0, casts numeric values to
-            float directly, and prints a warning and returns
-            0 if the Value is a complex object (list or dict).
+       to_float: Function for mapping `Value` to float for computing
+          metrics. The default `value_to_float()` maps CORRECT ("C") to 1.0,
+          INCORRECT ("I") to 0, PARTIAL ("P") to 0.5, and NOANSWER ("N") to 0,
+          casts numeric values to float directly, and prints a warning and returns
+          0 if the Value is a complex object (list or dict).
+
 
     Returns:
         std metric

@@ -9,14 +9,20 @@ website:
     - section: inspect_ai.solver
       href: reference/inspect_ai.solver.qmd
       contents:
-      - text: self_critique
-        href: reference/inspect_ai.solver.qmd#self_critique
       - text: prompt_template
         href: reference/inspect_ai.solver.qmd#prompt_template
-      - text: user_message
-        href: reference/inspect_ai.solver.qmd#user_message
       - text: system_message
         href: reference/inspect_ai.solver.qmd#system_message
+      - text: user_message
+        href: reference/inspect_ai.solver.qmd#user_message
+      - text: chain_of_thought
+        href: reference/inspect_ai.solver.qmd#chain_of_thought
+      - text: self_critique
+        href: reference/inspect_ai.solver.qmd#self_critique
+      - text: basic_agent
+        href: reference/inspect_ai.solver.qmd#basic_agent
+      - text: human_agent
+        href: reference/inspect_ai.solver.qmd#human_agent
     - section: inspect_ai.scorer
       href: reference/inspect_ai.scorer.qmd
       contents:

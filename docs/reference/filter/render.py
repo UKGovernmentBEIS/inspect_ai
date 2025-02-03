@@ -44,7 +44,7 @@ def render_params_header() -> pf.TableHead:
 
 def render_param(param: DocParameter) -> pf.TableRow:
     return pf.TableRow(
-        pf.TableCell(pf.Plain(pf.Str(param.name))),
+        pf.TableCell(pf.Plain(pf.Code(param.name))),
         pf.TableCell(pf.Plain(pf.Str(param.type))),
         pf.TableCell(pf.Plain(pf.RawInline(param.description, format="markdown")))
     )

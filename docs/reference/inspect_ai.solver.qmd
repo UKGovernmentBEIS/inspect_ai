@@ -2,9 +2,25 @@
 title: "inspect_ai.solver"
 ---
 
-## Solvers
+<!--
+TODO:
+  Consolidate type into first column
+  'Returns'
+  'Examples'
+   sections (multiple choice)
 
-### self_critique
+-->
+
+## Prompts
+
 ### prompt_template
-### user_message
 ### system_message
+### user_message
+### chain_of_thought
+### self_critique
+
+
+## Agents
+
+### basic_agent
+### human_agent
