@@ -6,7 +6,7 @@ from griffe import Module
 import griffe
 import panflute as pf # type: ignore
 
-from parse import DocParseOptions, parse_docs
+from parse import DocFunction, DocParseOptions, parse_docs
 
 @dataclass
 class Reference:
@@ -27,17 +27,24 @@ def main():
         source_url=source_url
     )
 
-    def reference(options: list[str | dict[str,Any]], data: str, element: pf.Element, doc: pf.Doc) -> pf.Element:
-        refs = [Reference(**option) if isinstance(option, dict) else Reference(object=option) for option in options]
+    def reference(elem: pf.Element, doc: pf.Doc):
+        if isinstance(elem, pf.Header) and elem.level == 3:
+            title = pf.stringify(doc.metadata["title"])
+            if title.startswith("inspect_ai."):
+                # get target object
+                module = title.removeprefix("inspect_ai.")
+                object = f"{module}.{pf.stringify(elem.content)}"
 
+                # render docs
+                elements: list[pf.Element] = []
+                docs = parse_docs(object, parse_options)
+                elements.append(elem)
+                elements.append(pf.RawBlock(docs.description, "markdown"))
+                if isinstance(docs, DocFunction):
+                    elements.append(pf.CodeBlock(docs.declaration, classes = ["python"]))
+                return elements
 
-        div = pf.Div()
-        for ref in refs:
-            docs = parse_docs(ref.object, parse_options)
-            div.content.append(pf.CodeBlock(f"{docs.name}\n\n{docs.description}"))
-        return div
-
-    return pf.run_filter(pf.yaml_filter, tag='reference', function=reference)
+    return pf.run_filter(reference)
 
 if __name__ == "__main__":
     main()

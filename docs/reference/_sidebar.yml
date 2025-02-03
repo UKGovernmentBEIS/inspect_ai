@@ -9,6 +9,8 @@ website:
     - section: inspect_ai.solver
       href: reference/inspect_ai.solver.qmd
       contents:
+      - text: prompt_template
+        href: reference/inspect_ai.solver.qmd#prompt_template
       - text: user_message
         href: reference/inspect_ai.solver.qmd#user_message
       - text: system_message
@@ -20,3 +22,5 @@ website:
         href: reference/inspect_ai.scorer.qmd#accuracy
       - text: stderr
         href: reference/inspect_ai.scorer.qmd#stderr
+      - text: std
+        href: reference/inspect_ai.scorer.qmd#std
