@@ -142,12 +142,24 @@ export const TabPanel: React.FC<TabPanelProps> = ({
   const tabContentsId = computeTabContentsId(id);
   const tabContentsRef = scrollRef || useRef<HTMLDivElement>(null);
 
-  // Sync scroll position when component mounts or updates
   useEffect(() => {
-    if (scrollPosition !== undefined && tabContentsRef.current) {
-      tabContentsRef.current.scrollTop = scrollPosition;
-    }
-  }, [scrollPosition]);
+    if (!selected || scrollPosition === undefined || !tabContentsRef.current)
+      return;
+
+    const observer = new MutationObserver(() => {
+      if (tabContentsRef.current) {
+        tabContentsRef.current.scrollTop = scrollPosition;
+      }
+      observer.disconnect(); // Stop observing after first content load
+    });
+
+    observer.observe(tabContentsRef.current, {
+      childList: true,
+      subtree: true,
+    });
+
+    return () => observer.disconnect();
+  }, []);
 
   // Handle scrolling
   const onScroll = useCallback(

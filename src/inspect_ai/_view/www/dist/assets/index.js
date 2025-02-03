@@ -49343,10 +49343,20 @@ self.onmessage = function (e) {
       const tabContentsId = computeTabContentsId(id);
       const tabContentsRef = scrollRef || reactExports.useRef(null);
       reactExports.useEffect(() => {
-        if (scrollPosition !== void 0 && tabContentsRef.current) {
-          tabContentsRef.current.scrollTop = scrollPosition;
-        }
-      }, [scrollPosition]);
+        if (!selected2 || scrollPosition === void 0 || !tabContentsRef.current)
+          return;
+        const observer = new MutationObserver(() => {
+          if (tabContentsRef.current) {
+            tabContentsRef.current.scrollTop = scrollPosition;
+          }
+          observer.disconnect();
+        });
+        observer.observe(tabContentsRef.current, {
+          childList: true,
+          subtree: true
+        });
+        return () => observer.disconnect();
+      }, []);
       const onScroll = reactExports.useCallback(
         (e) => {
           if (setScrollPosition) {
