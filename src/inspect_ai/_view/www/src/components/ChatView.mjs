@@ -282,6 +282,21 @@ const ChatMessage = ({
         <i class="${iconForMsg(message)}"></i>
         ${message.role}
       </div>
+      
+      ${
+        message.role === "assistant" && message.reasoning
+          ? html` <div
+              style=${{
+                marginLeft: indented ? "1.1rem" : "0",
+                paddingBottom: "0.8rem",
+              }}
+            >
+              <div>(Reasoning)</div>
+              <div>${message.reasoning}</div>
+            </div>`
+          : undefined
+      }
+
       <div style=${{ marginLeft: indented ? "1.1rem" : "0", paddingBottom: indented ? "0.8rem" : "0" }}>
       <${ExpandablePanel} collapse=${collapse}>
         <${MessageContents}
