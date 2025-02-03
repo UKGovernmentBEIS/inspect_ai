@@ -203,7 +203,7 @@ The following environment variables are supported by the Google provider
 | Variable         | Description       |
 |------------------|-----------------------------|
 | `GOOGLE_API_KEY`           | API key credentials (required).         |
-| `ANTHROPIC_BASE_URL`           | Base URL for requests (optional)          |
+| `GOOGLE_BASE_URL`           | Base URL for requests (optional)          |
 
 ### Safety Settings
 

@@ -50,7 +50,7 @@ dataset = csv_dataset("security_guide.csv")
 
 Note that samples from datasets without an `id` field will automatically be assigned ids based on an auto-incrementing integer starting with 1.
 
-If your samples include `choices`, then the `target` should be a numeric index into the available `choices` rather than a letter (this is an implicit assumption of the `multiple_choice()` solver).
+If your samples include `choices`, then the `target` should be a capital letter representing the correct answer in `choices`, see [`multiple_choice`](solvers.qmd#multiple-choice)
 
 ### Files
 
