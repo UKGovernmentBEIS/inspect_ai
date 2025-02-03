@@ -80,7 +80,13 @@ def stderr(
         cluster_list = []
         value_list = []
         for sample_score in scores:
-            assert sample_score.sample_metadata is not None
+            if (
+                sample_score.sample_metadata is None
+                or cluster not in sample_score.sample_metadata
+            ):
+                raise ValueError(
+                    f"Sample {sample_score.sample_id} has no cluster metadata. To compute `stderr` with clustering, each sample metadata must have a value for '{cluster}'"
+                )
             cluster_list.append(sample_score.sample_metadata[cluster])
             value_list.append(to_float(sample_score.score.value))
         clusters = np.array(cluster_list)
