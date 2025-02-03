@@ -9,6 +9,7 @@ from inspect_ai.model import ModelOutput
 from inspect_ai.scorer import CORRECT, includes
 from inspect_ai.solver import Generate, Solver, TaskState, solver
 from inspect_ai.util import sandbox
+from inspect_ai.util._sandbox.docker.config import is_dockerfile
 
 SANDBOX_SETUP_FILE = (Path(__file__).parent / "sandbox_setup.sh").as_posix()
 SANDBOX_SETUP_ERROR_FILE = (Path(__file__).parent / "sandbox_setup_error.sh").as_posix()
@@ -82,6 +83,12 @@ def test_docker_sandbox_setup_fail_on_error():
     assert log.status == "success"
     assert log.samples
     assert log.samples[0].error
+
+
+def test_is_dockerfile():
+    assert is_dockerfile("/path/to/Dockerfile")
+    assert is_dockerfile("/path/to/name.Dockerfile")
+    assert not is_dockerfile("/path/to/not_a_dockerfile.txt")
 
 
 if __name__ == "__main__":
