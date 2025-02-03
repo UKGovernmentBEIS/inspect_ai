@@ -42,8 +42,8 @@ def find_compose_file(parent: str = "") -> str | None:
 
 
 def is_dockerfile(file: str) -> bool:
-    file = Path(file)
-    return file.name == DOCKERFILE or file.suffix == ".Dockerfile"
+    path = Path(file)
+    return path.name == DOCKERFILE or path.suffix == ".Dockerfile"
 
 
 def has_dockerfile(parent: str = "") -> bool:
