@@ -3,7 +3,7 @@
 
 ## Overview
 
-Reasoning models like OpenAI o\` and o3, Google’s Gemini 2.0 Flash
+Reasoning models like OpenAI o1 and o3, Google’s Gemini 2.0 Flash
 Thinking, and DeepSeek’s r1 have some additional options that can be
 used to tailor their behaviour. They also in some cases make available
 full or partial reasoning traces for the chains of thought that led to
