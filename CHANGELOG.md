@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.3.62 (03 February 2025)
 
 - Various improvements for [reasoning models](https://github.com/UKGovernmentBEIS/inspect_ai/pull/1229) including extracting reasoning content from assistant messages.
 - OpenAI: Handle `reasoning_effort`, `max_tokens`, `temperature`, and `parallel_tool_calls` correctly for o3 models.
