@@ -2,6 +2,7 @@
 import { html } from "htm/preact";
 import { ChatView } from "../../../components/ChatView.mjs";
 import { FontSize, TextStyle } from "../../../appearance/Fonts.mjs";
+import { HumanBaselineView } from "../../../components/HumanBaselineView.mjs";
 
 /**
  * @typedef {Object} Signature
@@ -59,6 +60,58 @@ const add_tools = {
   },
   render: (changes, resolvedState) => {
     return renderTools(changes, resolvedState);
+  },
+};
+
+const humanAgentKey = (key) => {
+  return `HumanAgentState:${key}`;
+};
+const human_baseline_session = {
+  type: "human_baseline_session",
+  signature: {
+    add: ["HumanAgentState:logs"],
+    replace: [],
+    remove: [],
+  },
+  render: (changes, resolvedState) => {
+    // Read the session values
+    const started = resolvedState[humanAgentKey("started_running")];
+    const runtime = resolvedState[humanAgentKey("accumulated_time")];
+    const answer = resolvedState[humanAgentKey("answer")];
+    const completed = !!answer;
+    const running = resolvedState[humanAgentKey("running_state")];
+    const rawSessions = resolvedState[humanAgentKey("logs")];
+
+    // Tweak the date value
+    const startedDate = started ? new Date(started * 1000) : undefined;
+
+    // Convert raw sessions into session logs
+    const sessions = {};
+    if (rawSessions) {
+      for (const key of Object.keys(rawSessions)) {
+        const value = rawSessions[key];
+        // this pulls the key apart into
+        // <user>_<timestamp>.<type>
+        const match = key.match(/(.*)_(\d+_\d+)\.(.*)/);
+        if (match) {
+          const user = match[1];
+          const timestamp = match[2];
+          const type = match[3];
+          sessions[timestamp] = sessions[timestamp] || {};
+          sessions[timestamp][type] = value;
+          sessions[timestamp]["user"] = user;
+        }
+      }
+    }
+
+    return html`<${HumanBaselineView}
+      started=${startedDate}
+      running=${running}
+      completed=${completed}
+      answer=${answer}
+      runtime=${runtime}
+      sessionLogs=${Object.values(sessions)}
+    />`;
   },
 };
 
@@ -136,6 +189,9 @@ export const RenderableChangeTypes = [
   add_tools,
 ];
 
+/** @type {ChangeType[]} */
+export const StoreSpecificRenderableTypes = [human_baseline_session];
+
 /**
  * @typedef {Object} ToolParameters
  * @property {string} type - The type of the parameters object, typically "object".
@@ -154,7 +210,7 @@ export const RenderableChangeTypes = [
  * @typedef {Object} ToolDefinition
  * @property {string} name - The name of the tool (e.g., "python").
  * @property {string} description - A brief description of what the tool does.
- * @property {ToolParameters} parameters - An object describing the parameters that the tool accepts.
+ * @property {ToolParameters} [parameters] - An object describing the parameters that the tool accepts.
  */
 
 /**
@@ -168,7 +224,9 @@ export const RenderableChangeTypes = [
 export const Tools = ({ toolDefinitions }) => {
   return toolDefinitions.map((toolDefinition) => {
     const toolName = toolDefinition.name;
-    const toolArgs = Object.keys(toolDefinition.parameters.properties);
+    const toolArgs = toolDefinition.parameters?.properties
+      ? Object.keys(toolDefinition.parameters.properties)
+      : [];
     return html`<${Tool} toolName=${toolName} toolArgs=${toolArgs} />`;
   });
 };

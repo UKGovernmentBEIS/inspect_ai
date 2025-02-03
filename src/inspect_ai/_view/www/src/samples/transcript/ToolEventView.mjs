@@ -2,14 +2,10 @@
 import { html } from "htm/preact";
 import { EventPanel } from "./EventPanel.mjs";
 import { ApplicationIcons } from "../../appearance/Icons.mjs";
-import { ExpandablePanel } from "../../components/ExpandablePanel.mjs";
-import {
-  resolveToolInput,
-  ToolCallView,
-  ToolOutput,
-} from "../../components/Tools.mjs";
+import { resolveToolInput, ToolCallView } from "../../components/Tools.mjs";
 import { TranscriptView } from "./TranscriptView.mjs";
 import { ApprovalEventView } from "./ApprovalEventView.mjs";
+import { formatDateTime } from "../../utils/Format.mjs";
 
 /**
  * Renders the ToolEventView component.
@@ -17,11 +13,20 @@ import { ApprovalEventView } from "./ApprovalEventView.mjs";
  * @param {Object} props - The properties passed to the component.
  * @param { string  } props.id - The id of this event.
  * @param {import("../../types/log").ToolEvent} props.event - The event object to display.
+ * @param {import("./Types.mjs").TranscriptEventState} props.eventState - The state for this event
+ * @param {(state: import("./Types.mjs").TranscriptEventState) => void} props.setEventState - Update the state for this event
  * @param { Object } props.style - The style of this event.
  * @param { number } props.depth - The depth of this event.
  * @returns {import("preact").JSX.Element} The component.
  */
-export const ToolEventView = ({ id, event, style, depth }) => {
+export const ToolEventView = ({
+  id,
+  event,
+  eventState,
+  setEventState,
+  style,
+  depth,
+}) => {
   // Extract tool input
   const { input, functionCall, inputType } = resolveToolInput(
     event.function,
@@ -33,52 +38,51 @@ export const ToolEventView = ({ id, event, style, depth }) => {
     return e.event === "approval";
   });
 
-  const title = `Tool: ${event.function}`;
-  const output = event.result || event.error?.message;
+  const title = `Tool: ${event.view?.title || event.function}`;
   return html`
-  <${EventPanel} id=${id} title="${title}" icon=${ApplicationIcons.solvers.use_tools} style=${style}>
-    <div name="Summary" style=${{ width: "100%", margin: "0.5em 0" }}>
-        ${
-          !output
-            ? "(No output)"
-            : html`
-          <${ExpandablePanel} collapse=${true} border=${true} lines=${15}>
-            <${ToolOutput}
-              output=${output}
-            />
-          </${ExpandablePanel}>`
-        }
-        ${
-          approvalEvent
-            ? html`<${ApprovalEventView}
-                id="${id}-approval"
-                event=${approvalEvent}
-                style=${{ border: "none", padding: 0, marginBottom: 0 }}
-              />`
-            : ""
-        }
-    </div>
-    
-  
-  <div name="Transcript" style=${{ margin: "0.5em 0" }}>
+  <${EventPanel} 
+    id=${id} 
+    title="${title}" 
+    subTitle=${formatDateTime(new Date(event.timestamp))} 
+    icon=${ApplicationIcons.solvers.use_tools} 
+    style=${style}
+    selectedNav=${eventState.selectedNav || ""}
+    onSelectedNav=${(selectedNav) => {
+      setEventState({ ...eventState, selectedNav });
+    }}
+    collapsed=${eventState.collapsed}
+    onCollapsed=${(collapsed) => {
+      setEventState({ ...eventState, collapsed });
+    }}              
+  >  
+  <div name="Summary" style=${{ margin: "0.5em 0", width: "100%" }}>
     <${ToolCallView}
       functionCall=${functionCall}
       input=${input}
       inputType=${inputType}
-      output=${event.result}
+      output=${event.error?.message || event.result}
       mode="compact"
+      view=${event.view}
       />
-        ${
-          event.events.length > 0
-            ? html`<${TranscriptView}
-                id="${id}-subtask"
-                name="Transcript"
-                events=${event.events}
-                depth=${depth + 1}
-              />`
-            : ""
-        }
-
+      ${
+        approvalEvent
+          ? html`<${ApprovalEventView}
+              id="${id}-approval"
+              event=${approvalEvent}
+              style=${{ border: "none", padding: 0, marginBottom: 0 }}
+            />`
+          : ""
+      }
   </div>
+    ${
+      event.events.length > 0
+        ? html`<${TranscriptView}
+            id="${id}-subtask"
+            name="Transcript"
+            events=${event.events}
+            depth=${depth + 1}
+          />`
+        : ""
+    }
   </${EventPanel}>`;
 };

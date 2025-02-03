@@ -9,6 +9,7 @@ from typing_extensions import override
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_info import ToolInfo
 
+from ..._call_tools import parse_tool_call, tool_parse_error_message
 from ..._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
@@ -16,7 +17,6 @@ from ..._chat_message import (
     ChatMessageTool,
 )
 from .chatapi import ChatAPIHandler, ChatAPIMessage
-from .util import parse_tool_call, tool_parse_error_message
 
 logger = getLogger(__name__)
 
@@ -104,12 +104,16 @@ class Llama31Handler(ChatAPIHandler):
 
             # return the message
             return ChatMessageAssistant(
-                content=content, tool_calls=tool_calls, source="generate"
+                content=filter_assistant_header(content),
+                tool_calls=tool_calls,
+                source="generate",
             )
 
         # otherwise this is just an ordinary assistant message
         else:
-            return ChatMessageAssistant(content=response, source="generate")
+            return ChatMessageAssistant(
+                content=filter_assistant_header(response), source="generate"
+            )
 
     @override
     def assistant_message(self, message: ChatMessageAssistant) -> ChatAPIMessage:
@@ -183,3 +187,7 @@ def parse_tool_call_content(content: str, tools: list[ToolInfo]) -> ToolCall:
             type="function",
             parse_error=parse_error,
         )
+
+
+def filter_assistant_header(message: str) -> str:
+    return re.sub(r"<\|start_header_id\|>assistant<\|end_header_id\|>", "", message)

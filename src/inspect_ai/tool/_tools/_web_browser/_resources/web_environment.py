@@ -20,34 +20,20 @@ class WebEnvironment(dm_env.Environment):
 
     DEFAULT_OBSERVATIONS = ["web_url", "web_at", "error", "info"]
 
-    def __init__(self):
+    def __init__(self, browser_context):
         """Initializes the environment."""
         super().__init__()
         self._web: playwright_crawler.PlaywrightCrawler = (
-            playwright_crawler.PlaywrightCrawler()
+            playwright_crawler.PlaywrightCrawler(browser_context)
         )
         self._last_error = ""
         self._hostname = socket.gethostname()
         self._required_observations = self.DEFAULT_OBSERVATIONS
         self._selected_node_id: str | None = None
 
-    def reset(self) -> dm_env.TimeStep:
-        """Starts a new sequence and returns the first `TimeStep` of this sequence.
-
-        Returns:
-          A `TimeStep` namedtuple containing:
-            step_type: Always `StepType.FIRST`.
-            reward: Always None.
-            discount: Always None.
-            observation: The initial system state.
-        """
-        # Start with google as the default website.
-        # Note: we close and reopen the browser here so that history gets cleared.
-        self._web.close()
-        self._web = playwright_crawler.PlaywrightCrawler()
-        self._web.go_to_page("www.google.com/")
-        self._auto_click_cookies()
-        return dm_env.restart(observation=self.get_observations())
+    def reset(self):
+        # We're not using reset at the moment
+        pass
 
     def step(self, action: str) -> dm_env.TimeStep:
         """Updates the environment according to the action and returns a `TimeStep`.

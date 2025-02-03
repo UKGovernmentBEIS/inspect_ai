@@ -8,6 +8,7 @@ on:
     branches:
       - main
       - "release/**"
+  workflow_dispatch:
 
 jobs:
   ruff:
@@ -89,4 +90,4 @@ jobs:
       - name: Delete knowingly duplicated files
         run: rm src/inspect_ai/_view/www/favicon.svg
 
-      - uses: hynek/build-and-inspect-python-package@v1
+      - uses: hynek/build-and-inspect-python-package@v2

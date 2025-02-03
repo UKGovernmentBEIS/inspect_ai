@@ -1,3 +1,5 @@
+from ..._call_tools import parse_tool_call, tool_parse_error_message
+from ..._model_output import as_stop_reason
 from .chatapi import (
     ChatAPIHandler,
     ChatAPIMessage,
@@ -5,13 +7,11 @@ from .chatapi import (
     chat_api_request,
     is_chat_api_rate_limit,
 )
+from .hf_handler import HFHandler
 from .llama31 import Llama31Handler
 from .util import (
-    as_stop_reason,
     environment_prerequisite_error,
     model_base_url,
-    parse_tool_call,
-    tool_parse_error_message,
 )
 
 __all__ = [
@@ -26,4 +26,5 @@ __all__ = [
     "ChatAPIHandler",
     "ChatAPIMessage",
     "Llama31Handler",
+    "HFHandler",
 ]

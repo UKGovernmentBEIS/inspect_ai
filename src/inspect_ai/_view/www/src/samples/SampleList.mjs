@@ -1,5 +1,6 @@
 import { html } from "htm/preact";
-import { useEffect, useMemo } from "preact/hooks";
+import { useCallback, useMemo, useState } from "preact/hooks";
+import { useEffect, useRef } from "preact/hooks";
 
 import { ApplicationStyles } from "../appearance/Styles.mjs";
 import { FontSize } from "../appearance/Fonts.mjs";
@@ -10,13 +11,28 @@ import { SampleError } from "./SampleError.mjs";
 import { arrayToString, formatNoDecimal } from "../utils/Format.mjs";
 import { EmptyPanel } from "../components/EmptyPanel.mjs";
 import { VirtualList } from "../components/VirtualList.mjs";
-import { WarningBand } from "../components/WarningBand.mjs";
+import { MessageBand } from "../components/MessageBand.mjs";
 import { inputString } from "../utils/Format.mjs";
 
 const kSampleHeight = 88;
 const kSeparatorHeight = 24;
 
-// Convert samples to a datastructure which contemplates grouping, etc...
+/**
+ * Convert samples to a datastructure which contemplates grouping, etc...
+ *
+ * @param {Object} props - The parameters for the component.
+ * @param {Object} props.listRef - The ref for the list.
+ * @param {import("./SamplesTab.mjs").ListItem[]} props.items - The samples.
+ * @param {import("../samples/SamplesDescriptor.mjs").SamplesDescriptor} props.sampleDescriptor - The sample descriptor.
+ * @param {Object} props.style - The style for the element
+ * @param {number} props.selectedIndex - The index of the selected sample.
+ * @param {(index: number) => void} props.setSelectedIndex - The function to set the selected sample index.
+ * @param {import("../Types.mjs").ScoreLabel} props.selectedScore - The function to get the selected score.
+ * @param {() => void} props.nextSample - The function to move to the next sample.
+ * @param {() => void} props.prevSample - The function to move to the previous sample.
+ * @param {(index: number) => void} props.showSample - The function to show the sample.
+ * @returns {import("preact").JSX.Element} The SampleList component.
+ */
 export const SampleList = (props) => {
   const {
     listRef,
@@ -35,68 +51,45 @@ export const SampleList = (props) => {
     return html`<${EmptyPanel}>No Samples</${EmptyPanel}>`;
   }
 
-  const heightForType = (type) => {
-    return type === "sample" ? kSampleHeight : kSeparatorHeight;
-  };
-
-  // Compute the row arrangement
-  const rowMap = useMemo(() => {
-    return items.reduce((values, current, index) => {
-      const height = heightForType(current.type);
-      const previous =
-        values.length > 0 ? values[values.length - 1] : undefined;
-      const start =
-        previous === undefined ? 0 : previous.start + previous.height;
-      values.push({
-        index,
-        height,
-        start,
-      });
-      return values;
-    }, []);
+  const [hidden, setHidden] = useState(false);
+  useEffect(() => {
+    setHidden(false);
   }, [items]);
 
+  // Keep a mapping of the indexes to items (skipping separators)
+  const itemRowMapping = useMemo(() => {
+    const rowIndexes = [];
+    items.forEach((item, index) => {
+      if (item.type === "sample") {
+        rowIndexes.push(index);
+      }
+    });
+    return rowIndexes;
+  }, [items]);
+
+  const prevSelectedIndexRef = useRef(null);
   useEffect(() => {
     const listEl = listRef.current;
     if (listEl) {
-      // Decide if we need to scroll the element into position
-      const selected = rowMap[selectedIndex];
-      if (selected) {
-        const itemTop = selected.start;
-        const itemBottom = selected.start + selected.height;
-
-        const scrollTop = listEl.base.scrollTop;
-        const scrollBottom = scrollTop + listEl.base.offsetHeight;
-
-        // It is visible
-        if (itemTop >= scrollTop && itemBottom <= scrollBottom) {
-          return;
-        }
-
-        if (itemTop < scrollTop) {
-          // Top is scrolled off
-          listEl.base.scrollTo({ top: itemTop });
-          return;
-        }
-
-        if (itemBottom > scrollBottom) {
-          listEl.base.scrollTo({ top: itemBottom - listEl.base.offsetHeight });
-          return;
-        }
-      }
+      const actualRowIndex = itemRowMapping[selectedIndex];
+      const direction =
+        actualRowIndex > prevSelectedIndexRef.current ? "down" : "up";
+      listRef.current?.scrollToIndex(actualRowIndex, direction);
+      prevSelectedIndexRef.current = actualRowIndex;
     }
-  }, [selectedIndex, rowMap, listRef]);
+  }, [selectedIndex, listRef, itemRowMapping]);
 
-  const renderRow = (item, index) => {
+  /** @param {import("./SamplesTab.mjs").ListItem} item */
+  const renderRow = (item) => {
     if (item.type === "sample") {
       return html`
         <${SampleRow}
           id=${item.number}
-          index=${index}
+          index=${item.index}
           sample=${item.data}
           height=${kSampleHeight}
           sampleDescriptor=${sampleDescriptor}
-          selected=${selectedIndex === index}
+          selected=${selectedIndex === item.index}
           setSelected=${setSelectedIndex}
           selectedScore=${selectedScore}
           showSample=${showSample}
@@ -115,27 +108,31 @@ export const SampleList = (props) => {
     }
   };
 
-  const onkeydown = (e) => {
-    switch (e.key) {
-      case "ArrowUp":
-        prevSample();
-        e.preventDefault();
-        e.stopPropagation();
-        return false;
-      case "ArrowDown":
-        nextSample();
-        e.preventDefault();
-        e.stopPropagation();
-        return false;
-      case "Enter":
-        showSample();
-        e.preventDefault();
-        e.stopPropagation();
-        return false;
-    }
-  };
+  const onkeydown = useCallback(
+    (e) => {
+      switch (e.key) {
+        case "ArrowUp":
+          prevSample();
+          e.preventDefault();
+          e.stopPropagation();
+          return false;
+        case "ArrowDown":
+          nextSample();
+          e.preventDefault();
+          e.stopPropagation();
+          return false;
+        case "Enter":
+          showSample(selectedIndex);
+          e.preventDefault();
+          e.stopPropagation();
+          return false;
+      }
+    },
+    [selectedIndex],
+  );
 
   const listStyle = { ...style, flex: "1", overflowY: "auto", outline: "none" };
+  const { input, limit, answer, target } = gridColumns(sampleDescriptor);
 
   const headerRow = html`<div
     style=${{
@@ -149,11 +146,12 @@ export const SampleList = (props) => {
       borderBottom: "solid var(--bs-light-border-subtle) 1px",
     }}
   >
-    <div>#</div>
-    <div>Input</div>
-    <div>Target</div>
-    <div>Answer</div>
-    <div>Score</div>
+    <div>Id</div>
+    <div>${input !== "0" ? "Input" : ""}</div>
+    <div>${target !== "0" ? "Target" : ""}</div>
+    <div>${answer !== "0" ? "Answer" : ""}</div>
+    <div>${limit !== "0" ? "Limit" : ""}</div>
+    <div style=${{ justifySelf: "center" }}>Score</div>
   </div>`;
 
   const sampleCount = items?.reduce((prev, current) => {
@@ -181,6 +179,7 @@ export const SampleList = (props) => {
   // Count any sample errors and display a bad alerting the user
   // to any errors
   const errorCount = items?.reduce((previous, item) => {
+    // @ts-expect-error
     if (item.data.error) {
       return previous + 1;
     } else {
@@ -188,14 +187,32 @@ export const SampleList = (props) => {
     }
   }, 0);
 
+  // Count limits
+  const limitCount = items?.reduce((previous, item) => {
+    // @ts-expect-error
+    if (item.data.limit) {
+      return previous + 1;
+    } else {
+      return previous;
+    }
+  }, 0);
+
   const percentError = (errorCount / sampleCount) * 100;
+  const percentLimit = (limitCount / sampleCount) * 100;
   const warningMessage =
     errorCount > 0
-      ? `WARNING: ${errorCount} of ${sampleCount} samples (${formatNoDecimal(percentError)}%) had errors and were not scored.`
-      : undefined;
+      ? `INFO: ${errorCount} of ${sampleCount} samples (${formatNoDecimal(percentError)}%) had errors and were not scored.`
+      : limitCount
+        ? `INFO: ${limitCount} of ${sampleCount} samples (${formatNoDecimal(percentLimit)}%) completed due to exceeding a limit.`
+        : undefined;
 
   const warningRow = warningMessage
-    ? html`<${WarningBand} message=${warningMessage} />`
+    ? html`<${MessageBand}
+        message=${warningMessage}
+        hidden=${hidden}
+        setHidden=${setHidden}
+        type="info"
+      />`
     : "";
 
   return html` <div
@@ -208,7 +225,6 @@ export const SampleList = (props) => {
       tabIndex="0"
       renderRow=${renderRow}
       onkeydown=${onkeydown}
-      rowMap=${rowMap}
       style=${listStyle}
     />
     ${footerRow}
@@ -232,6 +248,17 @@ const SeparatorRow = ({ id, title, height }) => {
   </div>`;
 };
 
+/**
+ * @param {Object} props - The parameters for the component.
+ * @param {string} props.id - The unique identifier for the sample.
+ * @param {number} props.index - The index of the sample.
+ * @param {import("../api/Types.ts").SampleSummary} props.sample - The sample.
+ * @param {import("../samples/SamplesDescriptor.mjs").SamplesDescriptor} props.sampleDescriptor - The sample descriptor.
+ * @param {number} props.height - The height of the sample row.
+ * @param {boolean} props.selected - Whether the sample is selected.
+ * @param {(index: number) => void} props.showSample - The function to show the sample.
+ * @returns {import("preact").JSX.Element} The SampleRow component.
+ */
 const SampleRow = ({
   id,
   index,
@@ -239,7 +266,6 @@ const SampleRow = ({
   sampleDescriptor,
   height,
   selected,
-  setSelected,
   showSample,
 }) => {
   const selectedStyle = selected
@@ -257,13 +283,7 @@ const SampleRow = ({
     <div
       id=${`sample-${id}`}
       onclick=${() => {
-        if (setSelected) {
-          setSelected(index);
-        }
-
-        if (showSample) {
-          showSample();
-        }
+        showSample(index);
       }}
       style=${{
         height: `${height}px`,
@@ -279,7 +299,12 @@ const SampleRow = ({
         overflowY: "hidden",
       }}
     >
-      <div class="sample-index" style=${{ ...cellStyle }}>${id}</div>
+      <div
+        class="sample-id"
+        style=${{ ...cellStyle, ...ApplicationStyles.threeLineClamp }}
+      >
+        ${sample.id}
+      </div>
       <div
         class="sample-input"
         style=${{
@@ -288,7 +313,7 @@ const SampleRow = ({
           ...cellStyle,
         }}
       >
-        ${inputString(sample.input)}
+        ${inputString(sample.input).join(" ")}
       </div>
       <div
         class="sample-target"
@@ -313,12 +338,24 @@ const SampleRow = ({
         ${sample
           ? html`
               <${MarkdownDiv}
-                markdown=${sampleDescriptor?.selectedScorer(sample).answer()}
+                markdown=${sampleDescriptor
+                  ?.selectedScorerDescriptor(sample)
+                  .answer()}
                 style=${{ paddingLeft: "0" }}
                 class="no-last-para-padding"
               />
             `
           : ""}
+      </div>
+      <div
+        class="sample-limit"
+        style=${{
+          fontSize: FontSize.small,
+          ...ApplicationStyles.threeLineClamp,
+          ...cellStyle,
+        }}
+      >
+        ${sample.limit}
       </div>
 
       <div
@@ -326,10 +363,11 @@ const SampleRow = ({
           fontSize: FontSize.small,
           ...cellStyle,
           display: "flex",
+          justifySelf: "center",
         }}
       >
         ${sample.error
-          ? html`<${SampleError} message=${sample.error.message} />`
+          ? html`<${SampleError} message=${sample.error} />`
           : sampleDescriptor?.selectedScore(sample).render()}
       </div>
     </div>
@@ -337,28 +375,53 @@ const SampleRow = ({
 };
 
 const gridColumnStyles = (sampleDescriptor) => {
-  const { input, target, answer } = gridColumns(sampleDescriptor);
-
+  const { input, target, answer, limit, id, score } =
+    gridColumns(sampleDescriptor);
   return {
-    gridGap: "0.5em",
-    gridTemplateColumns: `minmax(2rem, auto) ${input}fr ${target}fr ${answer}fr minmax(2rem, auto)`,
-    paddingLeft: "1em",
-    paddingRight: "1em",
+    gridGap: "10px",
+    gridTemplateColumns: `${id} ${input} ${target} ${answer} ${limit} ${score}`,
+    paddingLeft: "1rem",
+    paddingRight: "1rem",
   };
 };
 
 const gridColumns = (sampleDescriptor) => {
   const input =
-    sampleDescriptor?.messageShape.input > 0
-      ? Math.max(0.15, sampleDescriptor.messageShape.input)
+    sampleDescriptor?.messageShape.normalized.input > 0
+      ? Math.max(0.15, sampleDescriptor.messageShape.normalized.input)
       : 0;
   const target =
-    sampleDescriptor?.messageShape.target > 0
-      ? Math.max(0.15, sampleDescriptor.messageShape.target)
+    sampleDescriptor?.messageShape.normalized.target > 0
+      ? Math.max(0.15, sampleDescriptor.messageShape.normalized.target)
       : 0;
   const answer =
-    sampleDescriptor?.messageShape.answer > 0
-      ? Math.max(0.15, sampleDescriptor.messageShape.answer)
+    sampleDescriptor?.messageShape.normalized.answer > 0
+      ? Math.max(0.15, sampleDescriptor.messageShape.normalized.answer)
       : 0;
-  return { input, target, answer };
+  const limit =
+    sampleDescriptor?.messageShape.normalized.limit > 0
+      ? Math.max(0.15, sampleDescriptor.messageShape.normalized.limit)
+      : 0;
+  const id = Math.max(2, Math.min(10, sampleDescriptor?.messageShape.raw.id));
+  const score = Math.max(
+    3,
+    Math.min(10, sampleDescriptor?.messageShape.raw.score),
+  );
+
+  const frSize = (val) => {
+    if (val === 0) {
+      return "0";
+    } else {
+      return `${val}fr`;
+    }
+  };
+
+  return {
+    input: frSize(input),
+    target: frSize(target),
+    answer: frSize(answer),
+    limit: frSize(limit),
+    id: `${id}rem`,
+    score: `${score}rem`,
+  };
 };

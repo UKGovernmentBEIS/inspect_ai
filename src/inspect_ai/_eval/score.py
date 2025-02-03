@@ -5,13 +5,13 @@ from typing import Callable, cast
 from inspect_ai._display import display
 from inspect_ai._util.path import chdir_python
 from inspect_ai._util.platform import platform_init
-from inspect_ai._util.registry import registry_create
+from inspect_ai._util.registry import registry_create, registry_unqualified_name
 from inspect_ai.log import (
     EvalLog,
     EvalMetric,
 )
 from inspect_ai.model import ModelName
-from inspect_ai.scorer import Metric, Score, Scorer, Target
+from inspect_ai.scorer import Metric, Scorer, Target
 from inspect_ai.scorer._metric import SampleScore
 from inspect_ai.scorer._reducer import (
     ScoreReducer,
@@ -85,6 +85,7 @@ async def score_async(
             sample_id=sample.id,
             epoch=sample.epoch,
             input=sample.input,
+            target=Target(sample.target),
             choices=sample.choices,
             messages=sample.messages,
             output=sample.output,
@@ -108,7 +109,7 @@ async def score_async(
 
         # write them back (gather ensures that they come back in the same order)
         for index, score in enumerate(scores):
-            log.samples[index].scores = cast(dict[str, Score], score)
+            log.samples[index].scores = {k: v.score for k, v in score.items()}
 
         # collect metrics from EvalLog (they may overlap w/ the scorer metrics,
         # that will be taken care of in eval_results)
@@ -122,7 +123,7 @@ async def score_async(
             epochs_reducer = reducers_from_log(log)
 
         # compute metrics
-        log.results = eval_results(
+        log.results, log.reductions = eval_results(
             len(log.samples), scores, epochs_reducer, scorers, log_metrics
         )
 
@@ -151,11 +152,8 @@ async def task_score(task: Task, log: EvalLog) -> EvalLog:
         sample_scores = [
             {
                 score_key: SampleScore(
+                    score=score,
                     sample_id=sample.id,
-                    value=score.value,
-                    answer=score.answer,
-                    explanation=score.explanation,
-                    metadata=score.metadata,
                 )
                 for score_key, score in sample.scores.items()
             }
@@ -163,7 +161,7 @@ async def task_score(task: Task, log: EvalLog) -> EvalLog:
             if sample.scores is not None
         ]
 
-        log.results = eval_results(
+        log.results, log.reductions = eval_results(
             log.results.total_samples if log.results else 0,
             sample_scores,
             task.epochs_reducer,
@@ -185,11 +183,9 @@ async def run_score_task(
         scorer_name = unique_scorer_name(scorer, list(results.keys()))
 
         results[scorer_name] = SampleScore(
+            score=result,
             sample_id=state.sample_id,
-            value=result.value,
-            answer=result.answer,
-            explanation=result.explanation,
-            metadata=result.metadata,
+            scorer=registry_unqualified_name(scorer),
         )
 
     progress()

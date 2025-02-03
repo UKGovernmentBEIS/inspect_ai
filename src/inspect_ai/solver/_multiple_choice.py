@@ -102,9 +102,23 @@ def parse_answers(state: TaskState) -> Match[str] | None:
     However, if the answer isn't in the expected format the model has
     failed in the task so we'll ultimately just mark it as incorrect
     """
-    return re.search(
-        r"(?i)ANSWER\s*:\s*([A-Za-z ,]+)(?:[^\w]|\n|$)", state.output.completion
+    # First check whether the string strictly ends with the expected answer
+    # In this case, we're looking for a single line which contains the expected
+    # ANSWER: B,C string with only whitespace after it
+    match = re.search(
+        r"(?i)^ANSWER\s*:\s*([A-Za-z ,]+)\s*(?:$|\n)",
+        state.output.completion,
+        flags=re.MULTILINE,
     )
+
+    # If we couldn't match the strict version, we can try the less strict
+    # version for backward compatibility
+    if match is None:
+        return re.search(
+            r"(?i)ANSWER\s*:\s*([A-Za-z ,]+)(?:[^\w]|\n|$)", state.output.completion
+        )
+    else:
+        return match
 
 
 def set_choices_based_on_generated_response(state: TaskState, answers: str) -> None:

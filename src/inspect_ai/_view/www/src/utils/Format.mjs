@@ -16,11 +16,11 @@ export const arrayToString = (val) => {
  * Gets a string for a sample input.
  *
  * @param {(string|Array.<import("../types/log").ChatMessageUser | import("../types/log").ChatMessageSystem | import("../types/log").ChatMessageAssistant | import("../types/log").ChatMessageTool>)} input - The input to process. Can be a string or an array of objects containing a content string.
- * @returns {(string | string[])} - The processed string or an array of strings.
+ * @returns {(string[])} - The processed string or an array of strings.
  */
 export const inputString = (input) => {
   if (typeof input === "string") {
-    return input;
+    return [input];
   } else {
     return input.map((inp) => {
       if (typeof inp === "string") {
@@ -126,10 +126,17 @@ export const formatTime = (seconds) => {
     return `${seconds} sec`;
   } else if (seconds < 60 * 60) {
     return `${Math.floor(seconds / 60)} min ${seconds % 60} sec`;
+  } else if (seconds < 60 * 60 * 24) {
+    const hours = Math.floor(seconds / (60 * 60));
+    const minutes = Math.floor((seconds % (60 * 60)) / 60);
+    const remainingSeconds = seconds % 60;
+    return `${hours} hr ${minutes} min ${remainingSeconds} sec`;
   } else {
-    return `${Math.floor(seconds / (60 * 60 * 24))} days ${Math.floor(
-      seconds / 60,
-    )} min ${seconds % 60} sec`;
+    const days = Math.floor(seconds / (60 * 60 * 24));
+    const hours = Math.floor((seconds % (60 * 60 * 24)) / (60 * 60));
+    const minutes = Math.floor((seconds % (60 * 60)) / 60);
+    const remainingSeconds = seconds % 60;
+    return `${days} days ${hours} hr ${minutes} min ${remainingSeconds} sec`;
   }
 };
 
@@ -215,4 +222,39 @@ export function formatNumber(num) {
     minimumFractionDigits: 0,
     maximumFractionDigits: 5,
   });
+}
+
+/**
+ * Formats a number to a string without trailing zeroes after the decimal point.
+ *
+ * @param {Date} date - The number to format.
+ * @returns {string} - The formatted number as a string
+ */
+export function formatDateTime(date) {
+  const options = {
+    year: "2-digit",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "numeric",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: true,
+  };
+
+  // Use the default system locale and timezone
+  // @ts-ignore
+  return new Intl.DateTimeFormat(undefined, options).format(date);
+}
+
+/**
+ * Returns the formatted duration between two dates
+ *
+ * @param {Date} start - The starting date/time to format.
+ * @param {Date} end - The starting date/time to format.
+ * @returns {string} - The formatted number as a string
+ */
+export function formatDuration(start, end) {
+  const durationMs = end.getTime() - start.getTime();
+  const durationSec = durationMs / 1000;
+  return formatTime(durationSec);
 }

@@ -1,17 +1,27 @@
 import functools
 import os
+import sys
 from copy import copy
 from logging import getLogger
-from typing import Any, Literal, Tuple, cast
+from typing import Any, Literal, Tuple, TypedDict, cast
+
+if sys.version_info >= (3, 11):
+    from typing import NotRequired
+else:
+    from typing_extensions import NotRequired
 
 from anthropic import (
     APIConnectionError,
+    APIStatusError,
     AsyncAnthropic,
     AsyncAnthropicBedrock,
+    AsyncAnthropicVertex,
     BadRequestError,
     InternalServerError,
+    NotGiven,
     RateLimitError,
 )
+from anthropic._types import Body
 from anthropic.types import (
     ImageBlockParam,
     Message,
@@ -27,28 +37,23 @@ from anthropic.types import (
 from pydantic import JsonValue
 from typing_extensions import override
 
-from inspect_ai._util.constants import BASE_64_DATA_REMOVED, DEFAULT_MAX_RETRIES
-from inspect_ai._util.content import Content, ContentText
+from inspect_ai._util.constants import (
+    BASE_64_DATA_REMOVED,
+    DEFAULT_MAX_RETRIES,
+    NO_CONTENT,
+)
+from inspect_ai._util.content import Content, ContentImage, ContentText
 from inspect_ai._util.error import exception_message
-from inspect_ai._util.images import image_as_data_uri
+from inspect_ai._util.images import file_as_data_uri
 from inspect_ai._util.logger import warn_once
-from inspect_ai._util.url import data_uri_mime_type, data_uri_to_base64, is_data_uri
+from inspect_ai._util.url import data_uri_mime_type, data_uri_to_base64
 from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
 
-from .._chat_message import (
-    ChatMessage,
-    ChatMessageAssistant,
-    ChatMessageSystem,
-)
+from .._chat_message import ChatMessage, ChatMessageAssistant, ChatMessageSystem
 from .._generate_config import GenerateConfig
 from .._model import ModelAPI
 from .._model_call import ModelCall
-from .._model_output import (
-    ChatCompletionChoice,
-    ModelOutput,
-    ModelUsage,
-    StopReason,
-)
+from .._model_output import ChatCompletionChoice, ModelOutput, ModelUsage, StopReason
 from .util import environment_prerequisite_error, model_base_url
 
 logger = getLogger(__name__)
@@ -63,15 +68,25 @@ class AnthropicAPI(ModelAPI):
         base_url: str | None = None,
         api_key: str | None = None,
         config: GenerateConfig = GenerateConfig(),
-        bedrock: bool = False,
         **model_args: Any,
     ):
         # extract any service prefix from model name
         parts = model_name.split("/")
         if len(parts) > 1:
-            service = parts[0]
-            bedrock = service == "bedrock"
+            self.service: str | None = parts[0]
             model_name = "/".join(parts[1:])
+        else:
+            self.service = None
+
+        # collect gemerate model_args (then delete them so we can pass the rest on)
+        def collect_model_arg(name: str) -> Any | None:
+            nonlocal model_args
+            value = model_args.get(name, None)
+            if value is not None:
+                model_args.pop(name)
+            return value
+
+        self.extra_body: Body | None = collect_model_arg("extra_body")
 
         # call super
         super().__init__(
@@ -83,7 +98,7 @@ class AnthropicAPI(ModelAPI):
         )
 
         # create client
-        if bedrock:
+        if self.is_bedrock():
             base_url = model_base_url(
                 base_url, ["ANTHROPIC_BEDROCK_BASE_URL", "BEDROCK_ANTHROPIC_BASE_URL"]
             )
@@ -94,12 +109,29 @@ class AnthropicAPI(ModelAPI):
             if base_region is None:
                 aws_region = os.environ.get("AWS_DEFAULT_REGION", None)
 
-            self.client: AsyncAnthropic | AsyncAnthropicBedrock = AsyncAnthropicBedrock(
+            self.client: (
+                AsyncAnthropic | AsyncAnthropicBedrock | AsyncAnthropicVertex
+            ) = AsyncAnthropicBedrock(
                 base_url=base_url,
                 max_retries=(
                     config.max_retries if config.max_retries else DEFAULT_MAX_RETRIES
                 ),
                 aws_region=aws_region,
+                **model_args,
+            )
+        elif self.is_vertex():
+            base_url = model_base_url(
+                base_url, ["ANTHROPIC_VERTEX_BASE_URL", "VERTEX_ANTHROPIC_BASE_URL"]
+            )
+            region = os.environ.get("ANTHROPIC_VERTEX_REGION", NotGiven())
+            project_id = os.environ.get("ANTHROPIC_VERTEX_PROJECT_ID", NotGiven())
+            self.client = AsyncAnthropicVertex(
+                region=region,
+                project_id=project_id,
+                base_url=base_url,
+                max_retries=(
+                    config.max_retries if config.max_retries else DEFAULT_MAX_RETRIES
+                ),
                 **model_args,
             )
         else:
@@ -118,24 +150,41 @@ class AnthropicAPI(ModelAPI):
                 **model_args,
             )
 
+    def is_bedrock(self) -> bool:
+        return self.service == "bedrock"
+
+    def is_vertex(self) -> bool:
+        return self.service == "vertex"
+
     async def generate(
         self,
         input: list[ChatMessage],
         tools: list[ToolInfo],
         tool_choice: ToolChoice,
         config: GenerateConfig,
-    ) -> ModelOutput | tuple[ModelOutput, ModelCall]:
+    ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
+        # setup request and response for ModelCall
+        request: dict[str, Any] = {}
+        response: dict[str, Any] = {}
+
+        def model_call() -> ModelCall:
+            return ModelCall.create(
+                request=request,
+                response=response,
+                filter=model_call_filter,
+            )
+
         # generate
         try:
             (
                 system_param,
                 tools_param,
                 messages,
-                cache_prompt,
+                computer_use,
             ) = await resolve_chat_input(self.model_name, input, tools, config)
 
             # prepare request params (assembed this way so we can log the raw model call)
-            request: dict[str, Any] = dict(messages=messages)
+            request = dict(messages=messages)
 
             # system messages and tools
             if system_param is not None:
@@ -147,33 +196,39 @@ class AnthropicAPI(ModelAPI):
             # additional options
             request = request | self.completion_params(config)
 
-            # caching header
-            if cache_prompt:
-                request["extra_headers"] = {
-                    "anthropic-beta": "prompt-caching-2024-07-31"
-                }
+            # computer use beta
+            if computer_use:
+                request["extra_headers"] = {"anthropic-beta": "computer-use-2024-10-22"}
 
-            # call model
+            # extra_body
+            if self.extra_body is not None:
+                request["extra_body"] = self.extra_body
+
+            # make request
             message = await self.client.messages.create(**request, stream=False)
+
+            # set response for ModelCall
+            response = message.model_dump()
 
             # extract output
             output = model_output_from_message(message, tools)
 
             # return output and call
-            call = ModelCall.create(
-                request=request,
-                response=message.model_dump(),
-                filter=model_call_filter,
-            )
+            return output, model_call()
 
-            return output, call
-
-        except BadRequestError as ex:
-            error_output = self.handle_bad_request(ex)
-            if error_output is not None:
-                return error_output
+        except APIStatusError as ex:
+            if ex.status_code == 413:
+                return ModelOutput.from_content(
+                    model=self.model_name,
+                    content=ex.message,
+                    stop_reason="model_length",
+                    error=ex.message,
+                ), model_call()
             else:
                 raise ex
+
+        except BadRequestError as ex:
+            return self.handle_bad_request(ex), model_call()
 
     def completion_params(self, config: GenerateConfig) -> dict[str, Any]:
         params = dict(model=self.model_name, max_tokens=cast(int, config.max_tokens))
@@ -221,8 +276,12 @@ class AnthropicAPI(ModelAPI):
     def tools_required(self) -> bool:
         return True
 
+    @override
+    def tool_result_images(self) -> bool:
+        return True
+
     # convert some common BadRequestError states into 'refusal' model output
-    def handle_bad_request(self, ex: BadRequestError) -> ModelOutput | None:
+    def handle_bad_request(self, ex: BadRequestError) -> ModelOutput | Exception:
         error = exception_message(ex).lower()
         content: str | None = None
         stop_reason: StopReason | None = None
@@ -253,7 +312,21 @@ class AnthropicAPI(ModelAPI):
                 error=error,
             )
         else:
-            return None
+            return ex
+
+
+# native anthropic tool definitions for computer use beta
+# https://docs.anthropic.com/en/docs/build-with-claude/computer-use
+class ComputerUseToolParam(TypedDict):
+    type: str
+    name: str
+    display_width_px: NotRequired[int]
+    display_height_px: NotRequired[int]
+    display_number: NotRequired[int]
+
+
+# tools can be either a stock tool param or a special computer use tool param
+ToolParamDef = ToolParam | ComputerUseToolParam
 
 
 async def resolve_chat_input(
@@ -261,19 +334,9 @@ async def resolve_chat_input(
     input: list[ChatMessage],
     tools: list[ToolInfo],
     config: GenerateConfig,
-) -> Tuple[list[TextBlockParam] | None, list[ToolParam], list[MessageParam], bool]:
+) -> Tuple[list[TextBlockParam] | None, list[ToolParamDef], list[MessageParam], bool]:
     # extract system message
     system_messages, messages = split_system_messages(input, config)
-
-    # some special handling for tools
-    if len(tools) > 0:
-        # encourage claude to show its thinking, see
-        # https://docs.anthropic.com/claude/docs/tool-use#chain-of-thought-tool-use
-        system_messages.append(
-            ChatMessageSystem(
-                content="Before answering, explain your reasoning step-by-step in tags."
-            )
-        )
 
     # messages
     message_params = [(await message_param(message)) for message in messages]
@@ -284,14 +347,7 @@ async def resolve_chat_input(
     )
 
     # tools
-    tools_params = [
-        ToolParam(
-            name=tool.name,
-            description=tool.description,
-            input_schema=tool.parameters.model_dump(exclude_none=True),
-        )
-        for tool in tools
-    ]
+    tools_params, computer_use = tool_params_for_tools(tools, config)
 
     # system messages
     if len(system_messages) > 0:
@@ -341,10 +397,66 @@ async def resolve_chat_input(
                 add_cache_control(cast(dict[str, Any], content[-1]))
 
     # return chat input
-    return system_param, tools_params, message_params, cache_prompt
+    return system_param, tools_params, message_params, computer_use
 
 
-def add_cache_control(param: TextBlockParam | ToolParam | dict[str, Any]) -> None:
+def tool_params_for_tools(
+    tools: list[ToolInfo], config: GenerateConfig
+) -> tuple[list[ToolParamDef], bool]:
+    # tool params and computer_use bit to return
+    tool_params: list[ToolParamDef] = []
+    computer_use = False
+
+    # for each tool, check if it has a native computer use implementation and use that
+    # when available (noting that we need to set the computer use request header)
+    for tool in tools:
+        computer_use_tool = (
+            computer_use_tool_param(tool)
+            if config.internal_tools is not False
+            else None
+        )
+        if computer_use_tool:
+            tool_params.append(computer_use_tool)
+            computer_use = True
+        else:
+            tool_params.append(
+                ToolParam(
+                    name=tool.name,
+                    description=tool.description,
+                    input_schema=tool.parameters.model_dump(exclude_none=True),
+                )
+            )
+
+    return tool_params, computer_use
+
+
+def computer_use_tool_param(tool: ToolInfo) -> ComputerUseToolParam | None:
+    # check for compatible 'computer' tool
+    if tool.name == "computer" and (
+        sorted(tool.parameters.properties.keys())
+        == sorted(["action", "coordinate", "text"])
+    ):
+        return ComputerUseToolParam(
+            type="computer_20241022",
+            name="computer",
+            # Note: The dimensions passed here for display_width_px and display_height_px should
+            # match the dimensions of screenshots returned by the tool.
+            # Those dimensions will always be one of the values in MAX_SCALING_TARGETS
+            # in _x11_client.py.
+            # TODO: enhance this code to calculate the dimensions based on the scaled screen
+            # size used by the container.
+            display_width_px=1366,
+            display_height_px=768,
+            display_number=1,
+        )
+    # not a computer_use tool
+    else:
+        return None
+
+
+def add_cache_control(
+    param: TextBlockParam | ToolParam | ComputerUseToolParam | dict[str, Any],
+) -> None:
     cast(dict[str, Any], param)["cache_control"] = {"type": "ephemeral"}
 
 
@@ -403,6 +515,12 @@ def message_tool_choice(tool_choice: ToolChoice) -> message_create_params.ToolCh
 
 
 async def message_param(message: ChatMessage) -> MessageParam:
+    # if content is empty that is going to result in an error when we replay
+    # this message to claude, so in that case insert a NO_CONTENT message
+    if isinstance(message.content, list) and len(message.content) == 0:
+        message = message.model_copy()
+        message.content = [ContentText(text=NO_CONTENT)]
+
     # no system role for anthropic (this is more like an assertion,
     # as these should have already been filtered out)
     if message.role == "system":
@@ -422,7 +540,7 @@ async def message_param(message: ChatMessage) -> MessageParam:
             if not content:
                 content = "error"
         elif isinstance(message.content, str):
-            content = [TextBlockParam(type="text", text=message.content)]
+            content = [TextBlockParam(type="text", text=message.content or NO_CONTENT)]
         else:
             content = [
                 await message_param_content(content) for content in message.content
@@ -444,7 +562,7 @@ async def message_param(message: ChatMessage) -> MessageParam:
     elif message.role == "assistant" and message.tool_calls:
         # first include content (claude <thinking>)
         tools_content: list[TextBlockParam | ImageBlockParam | ToolUseBlockParam] = (
-            [TextBlockParam(type="text", text=message.content)]
+            [TextBlockParam(type="text", text=message.content or NO_CONTENT)]
             if isinstance(message.content, str)
             else (
                 [(await message_param_content(content)) for content in message.content]
@@ -475,7 +593,7 @@ async def message_param(message: ChatMessage) -> MessageParam:
 
     # normal text content
     elif isinstance(message.content, str):
-        return MessageParam(role=message.role, content=message.content)
+        return MessageParam(role=message.role, content=message.content or NO_CONTENT)
 
     # mixed text/images
     else:
@@ -571,12 +689,10 @@ async def message_param_content(
     content: Content,
 ) -> TextBlockParam | ImageBlockParam:
     if isinstance(content, ContentText):
-        return TextBlockParam(type="text", text=content.text)
-    else:
+        return TextBlockParam(type="text", text=content.text or NO_CONTENT)
+    elif isinstance(content, ContentImage):
         # resolve to url
-        image = content.image
-        if not is_data_uri(image):
-            image = await image_as_data_uri(image)
+        image = await file_as_data_uri(content.image)
 
         # resolve mime type and base64 content
         media_type = data_uri_mime_type(image) or "image/png"
@@ -588,6 +704,10 @@ async def message_param_content(
         return ImageBlockParam(
             type="image",
             source=dict(type="base64", media_type=cast(Any, media_type), data=image),
+        )
+    else:
+        raise RuntimeError(
+            "Anthropic models do not currently support audio or video inputs."
         )
 
 

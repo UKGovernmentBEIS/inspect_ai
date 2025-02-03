@@ -45,6 +45,8 @@ export const FontSize = {
  * @property {string} label.textTransform - The text transformation for label text.
  * @property {Object} secondary - The style for secondary text.
  * @property {string} secondary.color - The color for secondary text.
+ * @property {Object} tertiary - The style for secondary text.
+ * @property {string} tertiary.color - The color for secondary text.
  */
 
 /**
@@ -57,5 +59,8 @@ export const TextStyle = {
   },
   secondary: {
     color: "var(--bs-secondary)",
+  },
+  tertiary: {
+    color: "var(--bs-tertiary-color)",
   },
 };

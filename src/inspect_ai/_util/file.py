@@ -1,16 +1,23 @@
+import asyncio
+import contextlib
 import datetime
 import io
 import os
+import re
+import string
+import unicodedata
 from contextlib import contextmanager
 from copy import deepcopy
 from pathlib import Path
-from typing import Any, BinaryIO, Iterator, Literal, cast, overload
+from typing import Any, AsyncIterator, BinaryIO, Iterator, Literal, cast, overload
 from urllib.parse import urlparse
 
-import fsspec  # type: ignore
-from fsspec.core import split_protocol  # type: ignore
+import fsspec  # type: ignore  # type: ignore
+from fsspec.asyn import AsyncFileSystem  # type: ignore
+from fsspec.core import split_protocol  # type: ignore  # type: ignore
 from fsspec.implementations.local import make_path_posix  # type: ignore
 from pydantic import BaseModel
+from s3fs import S3FileSystem  # type: ignore
 
 # https://filesystem-spec.readthedocs.io/en/latest/_modules/fsspec/spec.html#AbstractFileSystem
 # https://filesystem-spec.readthedocs.io/en/latest/api.html#fsspec.generic.GenericFileSystem
@@ -47,7 +54,6 @@ def file(
     encoding: str = "utf-8",
     fs_options: dict[str, Any] = {},
 ) -> Iterator[io.TextIOWrapper] | Iterator[BinaryIO]:
-    open
     """Open local or remote file stream.
 
     Open a file stream for reading or writing. Refer to a local file or
@@ -79,6 +85,35 @@ def file(
             f.close()
 
 
+def open_file(
+    file: str,
+    mode: OpenTextMode | OpenBinaryMode,
+    encoding: str = "utf-8",
+    fs_options: dict[str, Any] = {},
+) -> fsspec.core.OpenFile:
+    # get the default storage options for the scheme then apply passed options
+    options = default_fs_options(file)
+    options.update(fs_options)
+
+    # open the file and return the stream
+    return fsspec.open(file, mode=mode, encoding=encoding, **options)
+
+
+# utility to copy a file
+def copy_file(
+    input_file: str,
+    output_file: str,
+    buffer_size: int = 1024 * 1024,
+) -> None:
+    """Copy a file across filesystems."""
+    with file(input_file, "rb") as fin, file(output_file, "wb") as fout:
+        while True:
+            chunk = fin.read(buffer_size)
+            if not chunk:
+                break
+            fout.write(chunk)
+
+
 def basename(file: str) -> str:
     """Get the base name of the file.
 
@@ -99,12 +134,22 @@ def basename(file: str) -> str:
     return name
 
 
+def dirname(file: str) -> str:
+    base = basename(file)
+    return file[: -(len(base) + 1)]
+
+
+def exists(file: str) -> bool:
+    fs = filesystem(file)
+    return fs.exists(file)
+
+
 class FileInfo(BaseModel):
     name: str
     """Name of file."""
 
     type: str
-    """Type of file (file or dir)"""
+    """Type of file (file or directory)"""
 
     size: int
     """File size in bytes."""
@@ -130,7 +175,22 @@ class FileSystem:
         self.fs.rm(path, recursive=recursive, maxdepth=maxdepth)
 
     def mkdir(self, path: str, exist_ok: bool = False) -> None:
-        self.fs.makedirs(path, exist_ok=exist_ok)
+        if self.is_s3():
+            # try to avoid calling create_bucket on s3 filesystems (as that requires distinct
+            # privileges from being able to write to an existing bucket). we do this by
+            # first calling mkdir w/ create_parents=False and then only if that fails
+            # with FileNotFound do we attempt to create the bucket by calling mkdirs
+            try:
+                self.fs.makedir(path, create_parents=False)
+            except FileExistsError:
+                if exist_ok:
+                    pass
+                else:
+                    raise
+            except FileNotFoundError:
+                self.fs.makedirs(path, exist_ok=exist_ok)
+        else:
+            self.fs.makedirs(path, exist_ok=exist_ok)
 
     def info(self, path: str, **kwargs: dict[str, Any]) -> FileInfo:
         return self._file_info(self.fs.info(path, **kwargs))
@@ -158,11 +218,20 @@ class FileSystem:
     def is_local(self) -> bool:
         return isinstance(self.fs, fsspec.implementations.local.LocalFileSystem)
 
+    def is_async(self) -> bool:
+        return isinstance(self.fs, fsspec.asyn.AsyncFileSystem)
+
+    def is_s3(self) -> bool:
+        return isinstance(self.fs, S3FileSystem)
+
     def put_file(self, lpath: str, rpath: str) -> None:
         self.fs.put_file(lpath, rpath)
 
     def get_file(self, rpath: str, lpath: str) -> None:
         self.fs.get_file(rpath, lpath)
+
+    def read_bytes(self, path: str, start: int, end: int) -> bytes:
+        return cast(bytes, self.fs.read_bytes(path, start, end))
 
     def _file_info(self, info: dict[str, Any]) -> FileInfo:
         # name needs the protocol prepended
@@ -211,8 +280,32 @@ def filesystem(path: str, fs_options: dict[str, Any] = {}) -> FileSystem:
     options.update(fs_options)
 
     # create filesystem
-    fs, path = fsspec.core.url_to_fs(path)
+    fs, path = fsspec.core.url_to_fs(path, **options)
     return FileSystem(fs)
+
+
+@contextlib.asynccontextmanager
+async def async_fileystem(
+    location: str, fs_options: dict[str, Any] = {}
+) -> AsyncIterator[AsyncFileSystem]:
+    # determine protocol
+    protocol, _ = split_protocol(location)
+    protocol = protocol or "file"
+
+    # build options
+    options = default_fs_options(location)
+    options.update(fs_options)
+
+    if protocol == "s3":
+        s3 = S3FileSystem(asynchronous=True, **options)
+        session = await s3.set_session()
+        try:
+            yield s3
+        finally:
+            await session.close()
+    else:
+        options.update({"asynchronous": True, "loop": asyncio.get_event_loop()})
+        yield fsspec.filesystem(protocol, **options)
 
 
 def absolute_file_path(file: str) -> str:
@@ -248,6 +341,58 @@ def size_in_mb(file: str) -> float:
     # Get the size in megabytes
     file_size_in_mb = file_size_in_bytes / (1024 * 1024)
     return file_size_in_mb
+
+
+def safe_filename(s: str, max_length: int = 255) -> str:
+    """
+    Convert a string into a safe filename by removing or replacing unsafe characters.
+
+    Args:
+        s (str): The input string to convert
+        max_length (int): Maximum length of the resulting filename (default 255)
+
+    Returns:
+        str: A safe filename string
+
+    Example:
+        >>> safe_filename("Hello/World?.txt")
+        'Hello_World.txt'
+    """
+    # normalize unicode characters
+    s = unicodedata.normalize("NFKD", s)
+    s = s.encode("ASCII", "ignore").decode("ASCII")
+
+    # remove or replace unsafe characters
+    # Keep only alphanumeric characters, dots, dashes, and underscores
+    safe_chars = string.ascii_letters + string.digits + ".-_"
+    s = "".join(c if c in safe_chars else "_" for c in s)
+
+    # remove consecutive underscores
+    s = re.sub(r"_+", "_", s)
+
+    # remove leading/trailing periods and underscores
+    s = s.strip("._")
+
+    # handle empty string case
+    if not s:
+        s = "untitled"
+
+    # handle starting with a period (hidden files)
+    if s.startswith("."):
+        s = "_" + s
+
+    # enforce length limit
+    if len(s) > max_length:
+        # If we need to truncate, preserve the file extension if present
+        name, ext = os.path.splitext(s)
+        ext_len = len(ext)
+        if ext_len > 0:
+            max_name_length = max_length - ext_len
+            s = name[:max_name_length] + ext
+        else:
+            s = s[:max_length]
+
+    return s
 
 
 DEFAULT_FS_OPTIONS: dict[str, dict[str, Any]] = dict(

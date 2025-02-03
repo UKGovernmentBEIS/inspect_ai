@@ -57,7 +57,7 @@ async def validate_docker_compose(
     version: str = DOCKER_COMPOSE_REQUIRED_VERSION,
 ) -> None:
     def parse_version(stdout: str) -> semver.Version:
-        version = json.loads(stdout)["version"].removeprefix("v")
+        version = json.loads(stdout)["version"].removeprefix("v").split("+")[0]
         return semver.Version.parse(version)
 
     await validate_version(

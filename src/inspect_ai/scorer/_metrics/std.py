@@ -15,10 +15,10 @@ logger = getLogger(__name__)
 
 
 @metric
-def bootstrap_std(
+def bootstrap_stderr(
     num_samples: int = 1000, to_float: ValueToFloat = value_to_float()
 ) -> Metric:
-    """Standard deviation of a bootstrapped estimate of the mean.
+    """Standard error of the mean using bootstrap.
 
     Args:
        num_samples (int): Number of bootstrap samples to take.
@@ -31,7 +31,7 @@ def bootstrap_std(
          0 if the Value is a complex object (list or dict).
 
     Returns:
-       bootstrap_std metric
+       bootstrap_stderr metric
     """
 
     def metric(scores: list[Score]) -> float:

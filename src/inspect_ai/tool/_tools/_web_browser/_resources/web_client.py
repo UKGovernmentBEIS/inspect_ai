@@ -8,10 +8,27 @@ from dm_env_rpc.v1 import dm_env_adaptor, dm_env_rpc_pb2
 
 _DM_ENV_BASE_PORT = 9443
 _WORLD_NAME = "WebBrowser"
+_SESSION_FLAG = "--session_name="
+
+
+def parse_args(cli_args: list[str]) -> tuple[str, str]:
+    if not cli_args:
+        return _WORLD_NAME, ""
+
+    if cli_args[0].startswith(_SESSION_FLAG):
+        world_name = cli_args[0][len(_SESSION_FLAG) :]
+
+        if len(cli_args) == 1:
+            return world_name, ""
+        else:
+            return world_name, " ".join(cli_args[1:])
+
+    else:
+        return _WORLD_NAME, " ".join(cli_args)
 
 
 def main() -> None:
-    command_params = sys.argv[1:]
+    world_name, command = parse_args(sys.argv[1:])
 
     # Keep connection open even when empty data pings are received. This is
     # required to avoid a "too many pings" error.
@@ -31,13 +48,13 @@ def main() -> None:
     connection = dm_env_connection.Connection(channel)
 
     specs = connection.send(
-        dm_env_rpc_pb2.JoinWorldRequest(world_name=_WORLD_NAME)
+        dm_env_rpc_pb2.JoinWorldRequest(world_name=world_name)
     ).specs
 
     with dm_env_adaptor.DmEnvAdaptor(
         connection=connection, specs=specs, nested_tensors=False
     ) as env:
-        time_step = env.step({"command": " ".join(command_params)})
+        time_step = env.step({"command": command})
         for key, value in time_step.observation.items():
             print(key, ": ", value)
         env.close()

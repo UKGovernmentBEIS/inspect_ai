@@ -4,10 +4,14 @@ from typing import Any, NoReturn, cast
 
 from shortuuid import uuid
 
+from inspect_ai._util.constants import SANDBOX_SETUP_TIMEOUT
+
 from .environment import (
     SampleCleanup,
     SampleInit,
+    SandboxConnection,
     SandboxEnvironment,
+    SandboxEnvironmentConfigType,
 )
 from .registry import registry_find_sandboxenv
 
@@ -22,6 +26,10 @@ def sandbox(name: str | None = None) -> SandboxEnvironment:
 
     Return:
       SandboxEnvironment instance.
+
+    Raises:
+      ProcessLookupError: If there are no sandboxes available.
+      ValueError: If an invalid sandbox name is specified.
     """
     # verify we have a context
     environments = sandbox_environments_context_var.get(None)
@@ -85,23 +93,36 @@ async def sandbox_with(file: str) -> SandboxEnvironment | None:
     return None
 
 
+async def sandbox_connections() -> dict[str, SandboxConnection]:
+    environments = sandbox_environments_context_var.get(None)
+    if environments:
+        connections: dict[str, SandboxConnection] = {}
+        for name, environment in environments.items():
+            try:
+                connections[name] = await environment.connection()
+            except (NotImplementedError, ConnectionError):
+                pass
+        return connections
+    else:
+        return {}
+
+
 def raise_no_sandbox() -> NoReturn:
-    raise RuntimeError(
+    raise ProcessLookupError(
         "No sandbox environment has been provided for the current sample or task. "
         + "Please specify a sandbox for the sample or a global default sandbox for the task"
     )
 
 
 async def init_sandbox_environments_sample(
-    type: str,
+    sandboxenv_type: type[SandboxEnvironment],
     task_name: str,
-    config: str | None,
+    config: SandboxEnvironmentConfigType | None,
     files: dict[str, bytes],
     setup: bytes | None,
     metadata: dict[str, Any],
 ) -> dict[str, SandboxEnvironment]:
     # get setup and cleanup functions
-    sandboxenv_type = registry_find_sandboxenv(type)
     sample_init = cast(SampleInit, getattr(sandboxenv_type, "sample_init"))
     sample_cleanup = cast(SampleCleanup, getattr(sandboxenv_type, "sample_cleanup"))
 
@@ -134,7 +155,7 @@ async def init_sandbox_environments_sample(
 async def cleanup_sandbox_environments_sample(
     type: str,
     task_name: str,
-    config: str | None,
+    config: SandboxEnvironmentConfigType | None,
     environments: dict[str, SandboxEnvironment],
     interrupted: bool,
 ) -> None:
@@ -174,18 +195,20 @@ async def setup_sandbox_environment(
     setup_file = f"/tmp/{uuid()}"
     await env.write_file(setup_file, setup)
 
-    # chmod, execute, and remove
-    async def exec(cmd: list[str]) -> None:
-        result = await env.exec(cmd)
-
+    # execute and then remove setup script (don't retry it on timeout
+    # in case it is not idempotent)
+    try:
+        await env.exec(["chmod", "+x", setup_file], timeout=30)
+        result = await env.exec(
+            ["env", setup_file], timeout=SANDBOX_SETUP_TIMEOUT, timeout_retry=False
+        )
         if not result.success:
             raise RuntimeError(
                 f"Failed to execute setup script for sample: {result.stderr}"
             )
-
-    await exec(["chmod", "+x", setup_file])
-    await exec(["env", setup_file])
-    await exec(["rm", setup_file])
+        await env.exec(["rm", setup_file], timeout=30)
+    except TimeoutError:
+        raise RuntimeError("Timed out executing setup command in sandbox")
 
 
 def default_sandbox_environment(

@@ -49,7 +49,7 @@ asyncio_default_fixture_loop_scope = "function"
 log_level = "warning"
 
 [tool.mypy]
-exclude = ["tests/test_package", "build", "(?:^|/)_resources/"]
+exclude = ["tests/test_package", "build", "(?:^|/)_resources/", "examples/bridge"]
 warn_unused_ignores = true
 no_implicit_reexport = true
 strict_equality = true
@@ -113,8 +113,10 @@ inspect = "inspect_ai._cli.main:main"
 dev = [
     "anthropic", 
     "aioboto3", 
+    "azure-ai-inference",
     "google-cloud-aiplatform",
     "google-generativeai", 
+    "goodfire",
     "groq", 
     "ipython",
     "mistralai",
@@ -128,9 +130,9 @@ dev = [
     "pytest-cov",
     "pytest-dotenv",
     "pytest-xdist",
-    "ruff==0.6.9", # match version specified in .pre-commit-config.yaml
+    "ruff==0.9.4", # match version specified in .pre-commit-config.yaml
+    "textual-dev>=0.86.2",
     "types-PyYAML",
-    "types-aiofiles",
     "types-beautifulsoup4",
     "types-aioboto3",
     "types-boto3",

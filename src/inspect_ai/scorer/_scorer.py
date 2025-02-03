@@ -1,8 +1,9 @@
+from functools import wraps
 from typing import (
     Any,
     Callable,
+    ParamSpec,
     Protocol,
-    TypeVar,
     cast,
     runtime_checkable,
 )
@@ -42,18 +43,12 @@ class Scorer(Protocol):
     ) -> Score: ...
 
 
-ScorerType = TypeVar("ScorerType", Callable[..., Scorer], type[Scorer])
-r"""Scorer type.
-
-Valid scorer types include:
- - Functions that return a Scorer
- - Classes derived from Scorer
-"""
+P = ParamSpec("P")
 
 
 def scorer_register(
-    scorer: ScorerType, name: str = "", metadata: dict[str, Any] = {}
-) -> ScorerType:
+    scorer: Callable[P, Scorer], name: str = "", metadata: dict[str, Any] = {}
+) -> Callable[P, Scorer]:
     r"""Register a function or class as a scorer.
 
     Args:
@@ -91,7 +86,7 @@ def scorer(
     metrics: list[Metric | dict[str, list[Metric]]] | dict[str, list[Metric]],
     name: str | None = None,
     **metadata: Any,
-) -> Callable[[Callable[..., Scorer]], Callable[..., Scorer]]:
+) -> Callable[[Callable[P, Scorer]], Callable[P, Scorer]]:
     r"""Decorator for registering scorers.
 
     Args:
@@ -106,17 +101,17 @@ def scorer(
 
     Returns:
         Scorer with registry attributes.
-
     """
 
-    def wrapper(scorer_type: ScorerType) -> ScorerType:
+    def wrapper(scorer_type: Callable[P, Scorer]) -> Callable[P, Scorer]:
         # determine the name (explicit or implicit from object)
         scorer_name = registry_name(
             scorer_type, name if name else getattr(scorer_type, "__name__")
         )
 
         # wrap instantiations of scorer so they carry registry info and metrics
-        def scorer_wrapper(*args: Any, **kwargs: Any) -> Scorer:
+        @wraps(scorer_type)
+        def scorer_wrapper(*args: P.args, **kwargs: P.kwargs) -> Scorer:
             scorer = scorer_type(*args, **kwargs)
 
             if not is_callable_coroutine(scorer):
@@ -139,7 +134,7 @@ def scorer(
 
         # register the scorer
         return scorer_register(
-            scorer=cast(ScorerType, scorer_wrapper),
+            scorer=cast(Callable[P, Scorer], scorer_wrapper),
             name=scorer_name,
             metadata={SCORER_METRICS: metrics} | metadata,
         )
@@ -157,8 +152,8 @@ def scorer_metrics(
         return cast(list[Metric | dict[str, list[Metric]]], metrics_raw)
 
 
-def unique_scorer_name(scorer: Scorer, already_used_names: list[str]) -> str:
-    base_name = registry_unqualified_name(scorer)
+def unique_scorer_name(scorer: Scorer | str, already_used_names: list[str]) -> str:
+    base_name = scorer if isinstance(scorer, str) else registry_unqualified_name(scorer)
     scorer_name = base_name
     count = 1
     while scorer_name in already_used_names:

@@ -146,7 +146,7 @@ def copy_log_files(
     log_fs = filesystem(log_dir, fs_options)
     if log_fs.exists(log_dir):
         eval_logs = log_files_from_ls(
-            log_fs.ls(log_dir, recursive=True), [".json"], True
+            log_fs.ls(log_dir, recursive=True), ["json", "eval"], True
         )
         if len(eval_logs) == 0:
             raise PrerequisiteError(
@@ -157,7 +157,13 @@ def copy_log_files(
         with progress_adapter(p, 200, len(eval_logs)) as tick:
             for eval_log in eval_logs:
                 relative_path = os.path.relpath(eval_log.name, base_log_dir)
-                log_fs.get_file(eval_log.name, os.path.join(target_dir, relative_path))
+                output_path = os.path.join(target_dir, relative_path)
+
+                # Make directories containing output_path if they don't exist.
+                os.makedirs(os.path.dirname(output_path), exist_ok=True)
+
+                # Copy log to output_path
+                log_fs.get_file(eval_log.name, output_path)
                 tick()
 
     else:

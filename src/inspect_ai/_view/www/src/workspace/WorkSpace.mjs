@@ -1,5 +1,4 @@
 /// <reference path="../types/prism.d.ts" />
-import Prism from "prismjs";
 import { html } from "htm/preact";
 import {
   useCallback,
@@ -14,230 +13,248 @@ import { EmptyPanel } from "../components/EmptyPanel.mjs";
 import { TabPanel, TabSet } from "../components/TabSet.mjs";
 import { ToolButton } from "../components/ToolButton.mjs";
 import { PlanCard } from "../plan/PlanCard.mjs";
-import { samplesDescriptor } from "../samples/SamplesDescriptor.mjs";
 import { SamplesTab } from "../samples/SamplesTab.mjs";
+import { JsonTab } from "../json/JsonTab.mjs";
 import { SampleTools } from "../samples/SamplesTools.mjs";
-import { kDefaultSort } from "../samples/tools/SortFilter.mjs";
 import { UsageCard } from "../usage/UsageCard.mjs";
-import { filename } from "../utils/Path.mjs";
 import { Navbar } from "../navbar/Navbar.mjs";
 
-import { DownloadPanel } from "../components/DownloadPanel.mjs";
 import { TaskErrorCard } from "./TaskErrorPanel.mjs";
 import { FontSize } from "../appearance/Fonts.mjs";
-import { WarningBand } from "../components/WarningBand.mjs";
+import { MessageBand } from "../components/MessageBand.mjs";
+import {
+  kEvalWorkspaceTabId,
+  kInfoWorkspaceTabId,
+  kJsonWorkspaceTabId,
+} from "../constants.mjs";
+import { debounce } from "../utils/sync.mjs";
 
-const kEvalTabId = "eval-tab";
-const kJsonTabId = "json-tab";
-const kInfoTabId = "plan-tab";
-
-const kPrismRenderMaxSize = 250000;
-const kJsonMaxSize = 10000000;
-
-export const WorkSpace = (props) => {
+/**
+ * Renders the Main Application
+ *
+ * @param {Object} props - The parameters for the component.
+ * @param {string} [props.task_id] - The task id
+ * @param {string} [props.logFileName] - The logFileName name
+ * @param {string} [props.evalError] - Error message for this eval
+ * @param {string} [props.evalStatus] - status
+ * @param {number} [props.evalVersion] - the eval version
+ * @param {import("../types/log").EvalSpec} [props.evalSpec] - The EvalSpec for this eval
+ * @param {import("../types/log").EvalPlan} [props.evalPlan] - The EvalPlan for this eval
+ * @param {import("../types/log").EvalStats} [props.evalStats] - The EvalStats for this eval
+ * @param {import("../types/log").EvalResults} [props.evalResults] - The EvalResults for this eval
+ * @param {import("../Types.mjs").CurrentLog} [props.log] - the current log
+ * @param {import("../api/Types.ts").SampleSummary[]} [props.samples] - the samples
+ * @param {import("../Types.mjs").SampleMode} props.sampleMode - the mode for displaying samples
+ * @param {string} props.groupBy - what to group by
+ * @param {string} props.groupByOrder - the grouping order
+ * @param {import("../types/log").Sample} [props.selectedSample] - the current sample (if any)
+ * @param {string} props.sampleStatus - whether a sample is loading
+ * @param {Error} [props.sampleError] - sample error
+ * @param {boolean} props.showToggle - whether to show the toggler
+ * @param {() => Promise<void>} props.refreshLog - Whether the application should poll for log changes
+ * @param {import("../Types.mjs").Capabilities} props.capabilities - Capabilities of the application host
+ * @param {number} props.selectedSampleIndex - the selected sample index
+ * @param {import("../samples/SamplesDescriptor.mjs").SamplesDescriptor | undefined} props.samplesDescriptor - the samples descriptor
+ * @param {(index: number) => void} props.setSelectedSampleIndex - function to selected a sample
+ * @param {string} props.selectedSampleTab - the selected sample tab
+ * @param {(tab: string) => void} props.setSelectedSampleTab - the function to select a sample tab
+ * @param {string} props.sort - the current sort
+ * @param {(sort: string) => void} props.setSort - set the current sort
+ * @param {number} [props.epochs] - the number of epochs
+ * @param {string} props.epoch - the current epoch
+ * @param {boolean} props.showingSampleDialog - Whether the sample dialog is showing
+ * @param {(showing: boolean) => void} props.setShowingSampleDialog - Call to show the sample dialog
+ * @param {(epoch: string) => void} props.setEpoch - set the current epoch
+ * @param {import("../Types.mjs").ScoreFilter} props.filter - the current filter
+ * @param {(epoch: import("../Types.mjs").ScoreFilter) => void } props.setFilter - set the current filter
+ * @param {import("../Types.mjs").ScoreLabel} props.score - The current selected scorer
+ * @param {(score: import("../Types.mjs").ScoreLabel) => void} props.setScore - Set the current selected scorer
+ * @param {import("../Types.mjs").ScoreLabel[]} props.scores - The current selected scorer
+ * @param {boolean} props.offcanvas - is this off canvas
+ * @param {string} props.selectedTab - The selected tab id
+ * @param {(id: string) => void} props.setSelectedTab - function to update the selected tab
+ * @param {import("preact/hooks").MutableRef<number>} props.sampleScrollPositionRef - The initial scroll position for the sample
+ * @param {(position: number) => void} props.setSampleScrollPosition - Set the most recent scroll position for this element
+ * @param {import("preact/hooks").MutableRef<number>} props.workspaceTabScrollPositionRef - The initial scroll position for the workspace tabs
+ * @param {(tab: string, position: number) => void} props.setWorkspaceTabScrollPosition - The initial scroll position for the workspace tabs
+ * @returns {import("preact").JSX.Element | string} The Workspace component.
+ */
+export const WorkSpace = ({
+  task_id,
+  evalStatus,
+  logFileName,
+  evalError,
+  evalSpec,
+  evalVersion,
+  evalPlan,
+  evalStats,
+  evalResults,
+  samples,
+  sampleMode,
+  selectedSample,
+  groupBy,
+  groupByOrder,
+  showToggle,
+  refreshLog,
+  capabilities,
+  offcanvas,
+  samplesDescriptor,
+  selectedSampleIndex,
+  setSelectedSampleIndex,
+  showingSampleDialog,
+  setShowingSampleDialog,
+  selectedSampleTab,
+  setSelectedSampleTab,
+  sampleStatus,
+  sampleError,
+  sort,
+  setSort,
+  epochs,
+  epoch,
+  setEpoch,
+  filter,
+  setFilter,
+  score,
+  setScore,
+  scores,
+  selectedTab,
+  setSelectedTab,
+  sampleScrollPositionRef,
+  setSampleScrollPosition,
+  workspaceTabScrollPositionRef,
+  setWorkspaceTabScrollPosition,
+}) => {
   const divRef = useRef(/** @type {HTMLElement|null} */ (null));
-  const codeRef = useRef(/** @type {HTMLElement|null} */ (null));
 
-  // alias the log for the workspace
-  const workspaceLog = props.log;
+  if (!evalSpec) {
+    return "";
+  }
 
-  // State tracking for the view
-  const [currentTaskId, setCurrentTaskId] = useState(
-    workspaceLog?.contents?.eval?.run_id,
-  );
-  const [selectedTab, setSelectedTab] = useState();
-  const [scores, setScores] = useState([]);
-  const [score, setScore] = useState(undefined);
-  const [samplesDesc, setSamplesDesc] = useState(undefined);
-  const [filter, setFilter] = useState({});
-  const [epoch, setEpoch] = useState("all");
-  const [sort, setSort] = useState(kDefaultSort);
-  const [renderedCode, setRenderedCode] = useState(false);
-
-  // Context is shared with most/all components and
-  // allows for global information to pass between components
-  const afterBodyElements = [];
-  const context = {
-    afterBody: (el) => {
-      afterBodyElements.push(el);
-    },
-  };
-
-  const clearSampleTools = useCallback(() => {
-    setEpoch("all");
-    setFilter({});
-    setSort(kDefaultSort);
-  }, [setEpoch, setFilter, setSort]);
+  const [hidden, setHidden] = useState(false);
+  useEffect(() => {
+    setHidden(false);
+  }, [logFileName]);
 
   // Display the log
   useEffect(() => {
-    if (
-      workspaceLog.contents &&
-      workspaceLog.contents.eval?.run_id !== currentTaskId
-    ) {
-      const defaultTab = Object.values(tabs)[0].id;
-      setSelectedTab(defaultTab);
-      if (divRef.current) {
-        divRef.current.scrollTop = 0;
-      }
+    if (divRef.current) {
+      divRef.current.scrollTop = 0;
     }
-  }, [workspaceLog, divRef, currentTaskId, setSelectedTab]);
+  }, [divRef, task_id]);
 
-  useEffect(() => {
-    // Select the default scorer to use
-    const scorer = workspaceLog?.contents?.results?.scores[0]
-      ? {
-          name: workspaceLog.contents.results?.scores[0].name,
-          scorer: workspaceLog.contents.results?.scores[0].scorer,
-        }
-      : undefined;
-    const scorers = (workspaceLog.contents?.results?.scores || [])
-      .map((score) => {
-        return {
-          name: score.name,
-          scorer: score.scorer,
-        };
-      })
-      .reduce((accum, scorer) => {
-        if (
-          !accum.find((sc) => {
-            return scorer.scorer === sc.scorer && scorer.name === sc.name;
-          })
-        ) {
-          accum.push(scorer);
-        }
-        return accum;
-      }, []);
+  const sampleTabScrollRef = useRef(/** @type {HTMLElement|null} */ (null));
 
-    // Reset state
-    setScores(scorers);
-    setScore(scorer);
-    clearSampleTools();
-    setRenderedCode(false);
-  }, [workspaceLog, setScores, setScore, setEpoch, setFilter, setRenderedCode]);
-
-  useEffect(() => {
-    clearSampleTools();
-  }, [score]);
-
-  useEffect(() => {
-    const sampleDescriptor = samplesDescriptor(
-      score,
-      scores,
-      workspaceLog.contents?.samples,
-      workspaceLog.contents?.eval?.config?.epochs || 1,
-      context,
-    );
-    setSamplesDesc(sampleDescriptor);
-  }, [workspaceLog, score, scores, setSamplesDesc]);
-
-  useEffect(() => {
-    setCurrentTaskId(workspaceLog.contents?.eval?.run_id);
-  }, [workspaceLog]);
-
-  // Tabs that are available within the app
-  // Include the tab contents as well as any tools that the tab provides
-  // when it is displayed
-  const tabs = useMemo(() => {
+  const resolvedTabs = useMemo(() => {
+    // Tabs that are available within the app
+    // Include the tab contents as well as any tools that the tab provides
+    // when it is displayed
     const resolvedTabs = {};
 
     // The samples tab
     // Currently only appears when the result is successful
-    if (
-      workspaceLog.contents?.status !== "error" &&
-      workspaceLog.contents?.samples
-    ) {
+    if (sampleMode !== "none") {
       resolvedTabs.samples = {
-        id: kEvalTabId,
-        scrollable: workspaceLog.contents?.samples?.length === 1,
-        label:
-          workspaceLog.contents?.samples?.length > 1 ? "Samples" : "Sample",
+        id: kEvalWorkspaceTabId,
+        scrollable: samples.length === 1,
+        scrollRef: sampleTabScrollRef,
+        label: samples?.length > 1 ? "Samples" : "Sample",
         content: () => {
           return html` <${SamplesTab}
-            task=${workspaceLog.contents?.eval?.task_id}
-            model=${workspaceLog.contents?.eval?.model}
+            task_id=${task_id}
             selectedScore=${score}
-            setSelectedScore=${setScore}
-            samples=${workspaceLog.contents?.samples}
-            sampleDescriptor=${samplesDesc}
+            sample=${selectedSample}
+            sampleStatus=${sampleStatus}
+            sampleError=${sampleError}
+            showingSampleDialog=${showingSampleDialog}
+            setShowingSampleDialog=${setShowingSampleDialog}
+            samples=${samples}
+            sampleMode=${sampleMode}
+            groupBy=${groupBy}
+            groupByOrder=${groupByOrder}
+            selectedSampleIndex=${selectedSampleIndex}
+            setSelectedSampleIndex=${setSelectedSampleIndex}
+            sampleDescriptor=${samplesDescriptor}
+            selectedSampleTab=${selectedSampleTab}
+            setSelectedSampleTab=${setSelectedSampleTab}
             filter=${filter}
             sort=${sort}
             epoch=${epoch}
-            context=${context}
+            sampleScrollPositionRef=${sampleScrollPositionRef}
+            setSampleScrollPosition=${setSampleScrollPosition}
+            sampleTabScrollRef=${sampleTabScrollRef}
           />`;
         },
         tools: () => {
-          if (workspaceLog.contents?.status === "started") {
-            return html`<${ToolButton}
-              name=${html`Refresh`}
-              icon="${ApplicationIcons.refresh}"
-              onclick="${props.refreshLog}"
-            />`;
-          }
-
-          // Don't show tools if there is a sample sample
-          if (workspaceLog.contents?.samples?.length <= 1) {
+          // Don't show tools if there is a single sample
+          if (sampleMode === "single") {
             return "";
           }
-          return html`<${SampleTools}
-            epoch=${epoch}
-            epochs=${workspaceLog.contents?.eval?.config?.epochs}
-            setEpoch=${setEpoch}
-            filter=${filter}
-            filterChanged=${setFilter}
-            sort=${sort}
-            setSort=${setSort}
-            score=${score}
-            setScore=${setScore}
-            scores=${scores}
-            sampleDescriptor=${samplesDesc}
-          />`;
+          const sampleTools = [
+            html`<${SampleTools}
+              epoch=${epoch}
+              epochs=${epochs}
+              setEpoch=${setEpoch}
+              filter=${filter}
+              filterChanged=${setFilter}
+              sort=${sort}
+              setSort=${setSort}
+              score=${score}
+              setScore=${setScore}
+              scores=${scores}
+              sampleDescriptor=${samplesDescriptor}
+            />`,
+          ];
+          if (evalStatus === "started") {
+            sampleTools.push(
+              html`<${ToolButton}
+                name=${html`Refresh`}
+                icon="${ApplicationIcons.refresh}"
+                onclick="${refreshLog}"
+              />`,
+            );
+          }
+
+          return sampleTools;
         },
       };
     }
 
     // The info tab
     resolvedTabs.config = {
-      id: kInfoTabId,
+      id: kInfoWorkspaceTabId,
       label: "Info",
       scrollable: true,
       content: () => {
         const infoCards = [];
         infoCards.push([
           html`<${PlanCard}
-            log="${workspaceLog.contents}"
-            context=${context}
+            evalSpec=${evalSpec}
+            evalPlan=${evalPlan}
+            scores=${evalResults?.scores}
           />`,
         ]);
 
-        if (workspaceLog.contents?.status !== "started") {
-          infoCards.push(
-            html`<${UsageCard}
-              stats=${workspaceLog.contents?.stats}
-              context=${context}
-            />`,
-          );
+        if (evalStatus !== "started") {
+          infoCards.push(html`<${UsageCard} stats=${evalStats} />`);
         }
 
         // If there is error or progress, includes those within info
-        if (
-          workspaceLog.contents?.status === "error" &&
-          workspaceLog.contents?.error
-        ) {
-          infoCards.unshift(
-            html`<${TaskErrorCard} evalError=${workspaceLog.contents.error} />`,
-          );
+        if (evalStatus === "error" && evalError) {
+          infoCards.unshift(html`<${TaskErrorCard} evalError=${evalError} />`);
         }
 
         const warnings = [];
         if (
-          !workspaceLog.contents?.samples &&
-          workspaceLog.contents?.eval?.dataset?.samples > 0 &&
-          workspaceLog.contents?.status !== "error"
+          (!samples || samples.length === 0) &&
+          evalSpec?.dataset?.samples > 0 &&
+          evalStatus === "success"
         ) {
           warnings.push(
-            html`<${WarningBand}
+            html`<${MessageBand}
               message="Unable to display samples (this evaluation log may be too large)."
+              hidden=${hidden}
+              setHidden=${setHidden}
+              type="warning"
             />`,
           );
         }
@@ -253,99 +270,41 @@ export const WorkSpace = (props) => {
 
     // The JSON Tab
     resolvedTabs.json = {
-      id: kJsonTabId,
+      id: kJsonWorkspaceTabId,
       label: "JSON",
       scrollable: true,
       content: () => {
-        const renderedContent = [];
-        if (
-          workspaceLog.raw.length > kJsonMaxSize &&
-          props.capabilities.downloadFiles
-        ) {
-          // This JSON file is so large we can't really productively render it
-          // we should instead just provide a DL link
-          const file = `${filename(workspaceLog.name)}.json`;
-          renderedContent.push(
-            html`<${DownloadPanel}
-              message="Log file raw JSON is too large to render."
-              buttonLabel="Download JSON File"
-              logFile=${workspaceLog.name}
-              fileName=${file}
-              fileContents=${workspaceLog.raw}
-            />`,
-          );
-        } else {
-          if (codeRef.current && !renderedCode) {
-            if (workspaceLog.raw.length < kPrismRenderMaxSize) {
-              codeRef.current.innerHTML = Prism.highlight(
-                workspaceLog.raw,
-                Prism.languages.javascript,
-                "javacript",
-              );
-            } else {
-              const textNode = document.createTextNode(workspaceLog.raw);
-              codeRef.current.innerText = "";
-              codeRef.current.appendChild(textNode);
-            }
-
-            setRenderedCode(true);
-          }
-          renderedContent.push(
-            html`<pre>
-            <code id="task-json-contents" class="sourceCode" ref=${codeRef} style=${{
-              fontSize: FontSize.small,
-              whiteSpace: "pre-wrap",
-              wordWrap: "anywhere",
-            }}>
-            </code>
-          </pre>`,
-          );
-        }
-
-        // note that we'e rendered
-        return html` <div
-          style=${{
-            padding: "1rem",
-            fontSize: FontSize.small,
-            width: "100%",
-          }}
-        >
-          ${renderedContent}
-        </div>`;
+        const evalHeader = {
+          version: evalVersion,
+          status: evalStatus,
+          eval: evalSpec,
+          plan: evalPlan,
+          error: evalError,
+          results: evalResults,
+          stats: evalStats,
+        };
+        const json = JSON.stringify(evalHeader, null, 2);
+        return html`<${JsonTab}
+          logFileName=${logFileName}
+          json=${json}
+          capabilities=${capabilities}
+          selected=${selectedTab === kJsonWorkspaceTabId}
+        />`;
       },
       tools: () => {
-        if (workspaceLog.raw.length > kJsonMaxSize) {
-          return [];
-        } else {
-          return [
-            html`<${ToolButton}
-              name=${html`<span class="task-btn-copy-content">Copy JSON</span>`}
-              icon="${ApplicationIcons.copy}"
-              classes="task-btn-json-copy clipboard-button"
-              data-clipboard-target="#task-json-contents"
-              onclick="${copyFeedback}"
-            />`,
-          ];
-        }
+        return [
+          html`<${ToolButton}
+            name=${html`<span class="task-btn-copy-content">Copy JSON</span>`}
+            icon="${ApplicationIcons.copy}"
+            classes="task-btn-json-copy clipboard-button"
+            data-clipboard-target="#task-json-contents"
+            onclick="${copyFeedback}"
+          />`,
+        ];
       },
     };
 
-    return resolvedTabs;
-  }, [
-    samplesDesc,
-    workspaceLog,
-    filter,
-    setFilter,
-    epoch,
-    setEpoch,
-    sort,
-    setSort,
-    renderedCode,
-    setRenderedCode,
-  ]);
-
-  const copyFeedback = useCallback(
-    (e) => {
+    const copyFeedback = (e) => {
       const textEl = e.currentTarget.querySelector(".task-btn-copy-content");
       const iconEl = e.currentTarget.querySelector("i.bi");
       if (textEl) {
@@ -361,64 +320,162 @@ export const WorkSpace = (props) => {
           iconEl.className = oldIconClz;
         }, 1250);
       }
-    },
-    [renderedCode],
-  );
+    };
 
-  // Compute the tools for this tab
-  const tabTools = Object.keys(tabs)
-    .map((key) => {
-      const tab = tabs[key];
-      return tab;
-    })
-    .filter((tab) => {
-      return tab.id === selectedTab;
-    })
-    .map((tab) => {
-      if (tab.tools) {
-        const tools = tab.tools();
-        return tools;
-      } else {
-        return "";
-      }
-    });
+    return resolvedTabs;
+  }, [
+    evalStatus,
+    sampleMode,
+    samples,
+    task_id,
+    score,
+    selectedSample,
+    sampleStatus,
+    sampleError,
+    showingSampleDialog,
+    setShowingSampleDialog,
+    groupBy,
+    groupByOrder,
+    selectedSampleIndex,
+    setSelectedSampleIndex,
+    samplesDescriptor,
+    selectedSampleTab,
+    setSelectedSampleTab,
+    filter,
+    sort,
+    epoch,
+    sampleScrollPositionRef,
+    setSampleScrollPosition,
+    epochs,
+    setEpoch,
+    setFilter,
+    setSort,
+    setScore,
+    scores,
+    evalSpec,
+    evalPlan,
+    evalResults,
+    evalStats,
+    evalError,
+    logFileName,
+    capabilities,
+    selectedTab,
+    setHidden,
+    hidden,
+  ]);
 
   return html`<${WorkspaceDisplay}
+    logFileName=${logFileName}
     divRef=${divRef}
-    tabs=${tabs}
-    tabTools=${tabTools}
-    log=${workspaceLog}
-    logs=${props.logs}
+    evalSpec=${evalSpec}
+    evalPlan=${evalPlan}
+    evalResults=${evalResults}
+    evalStats=${evalStats}
+    samples=${samples}
+    evalDescriptor=${samplesDescriptor.evalDescriptor}
+    status=${evalStatus}
+    tabs=${resolvedTabs}
     selectedTab=${selectedTab}
-    fullScreen=${props.fullScreen}
-    offcanvas=${props.offcanvas}
+    showToggle=${showToggle}
+    offcanvas=${offcanvas}
     setSelectedTab=${setSelectedTab}
-    afterBodyElements=${afterBodyElements}
+    workspaceTabScrollPositionRef=${workspaceTabScrollPositionRef}
+    setWorkspaceTabScrollPosition=${setWorkspaceTabScrollPosition}
   />`;
 };
 
 const WorkspaceDisplay = ({
-  log,
-  logs,
+  logFileName,
+  evalSpec,
+  evalPlan,
+  evalResults,
+  evalStats,
+  samples,
+  evalDescriptor,
+  status,
+  showToggle,
   selectedTab,
   tabs,
-  tabTools,
   setSelectedTab,
   divRef,
-  afterBodyElements,
   offcanvas,
+  workspaceTabScrollPositionRef,
+  setWorkspaceTabScrollPosition,
 }) => {
-  if (log.contents === undefined) {
+  if (evalSpec === undefined) {
     return html`<${EmptyPanel} />`;
   } else {
+    // Compute the tools for this tab
+    const tabTools = Object.keys(tabs)
+      .map((key) => {
+        const tab = tabs[key];
+        return tab;
+      })
+      .filter((tab) => {
+        return tab.id === selectedTab;
+      })
+      .map((tab) => {
+        if (tab.tools) {
+          const tools = tab.tools();
+          return tools;
+        } else {
+          return "";
+        }
+      });
+
+    const onScroll = useCallback(
+      debounce((id, position) => {
+        setWorkspaceTabScrollPosition(id, position);
+      }, 100),
+      [setWorkspaceTabScrollPosition],
+    );
+
+    const onSelected = useCallback(
+      (e) => {
+        const id = e.currentTarget.id;
+        setSelectedTab(id);
+      },
+      [setSelectedTab],
+    );
+
+    // Compute tab panels anytime the tabs change
+    const tabPanels = useMemo(() => {
+      return Object.keys(tabs).map((key) => {
+        const tab = tabs[key];
+        return html`<${TabPanel}
+        id=${tab.id}
+        title="${tab.label}"
+        onSelected=${onSelected}
+        selected=${selectedTab === tab.id}
+        scrollable=${!!tab.scrollable}
+        scrollRef=${tab.scrollRef}
+        scrollPosition=${workspaceTabScrollPositionRef.current[tab.id]}
+        setScrollPosition=${useCallback(
+          (position) => {
+            onScroll(tab.id, position);
+          },
+          [onScroll],
+        )}
+        >
+          ${tab.content()}
+        </${TabPanel}>`;
+      });
+    }, [tabs]);
+
     return html`
-    
     <${Navbar}
-      file=${log.name}
-      logs=${logs}
-      log=${log.contents}
+      evalSpec=${evalSpec}
+      evalPlan=${evalPlan}
+      evalResults=${evalResults}
+      evalStats=${evalStats}
+      samples=${samples}
+      evalDescriptor=${evalDescriptor}
+      status=${status}
+      file=${logFileName}
+      showToggle=${showToggle}
+
       offcanvas=${offcanvas}
-    />    
+    />
     <div ref=${divRef} class="workspace" style=${{
       paddingTop: "0rem",
       overflowY: "hidden",
@@ -451,23 +508,9 @@ const WorkspaceDisplay = ({
                 fontWeight: 600,
               },
             }} >
-              ${Object.keys(tabs).map((key) => {
-                const tab = tabs[key];
-                return html`<${TabPanel}
-                id=${tab.id}
-                title="${tab.label}"
-                onSelected=${(e) => {
-                  const id = e.currentTarget.id;
-                  setSelectedTab(id);
-                }}
-                selected=${selectedTab === tab.id}
-                scrollable=${!!tab.scrollable}>
-                  ${tab.content()}
-                </${TabPanel}>`;
-              })}
+            ${tabPanels}
             </${TabSet}>
             </div>
-          </div>
-          ${afterBodyElements}`;
+          </div>`;
   }
 };

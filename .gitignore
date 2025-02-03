@@ -84,6 +84,10 @@ target/
 profile_default/
 ipython_config.py
 
+# VSCode
+# Ignore developer specific files.
+.vscode/bookmarks.json
+
 # pyenv
 #   For a library or package, you might want to ignore these files since the code is
 #   intended to run in multiple environments; otherwise, check them in:
@@ -163,6 +167,7 @@ cython_debug/
 *.*workspace
 data/datasets/*/hidden
 logs/
+logs-*/
 
 # thumbnails
 .DS_Store
@@ -171,4 +176,7 @@ thumbs.db
 # JS
 node_modules/
 
+# Quarto
 /.luarc.json
+/.Rproj.user
+*.Rproj

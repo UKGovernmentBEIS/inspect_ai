@@ -1,24 +1,22 @@
+import asyncio
 import contextlib
 from contextvars import ContextVar
 from datetime import datetime
 from logging import getLogger
 from typing import (
     Any,
-    Callable,
     Iterator,
     Literal,
+    Sequence,
     TypeAlias,
     Union,
 )
 
-import mmh3
-from pydantic import BaseModel, Field, JsonValue, field_serializer
+from pydantic import BaseModel, ConfigDict, Field, JsonValue, field_serializer
 
-from inspect_ai._util.constants import BASE_64_DATA_REMOVED, SAMPLE_SUBTASK
-from inspect_ai._util.content import Content, ContentImage, ContentText
+from inspect_ai._util.constants import SAMPLE_SUBTASK
 from inspect_ai._util.error import EvalError
 from inspect_ai._util.json import JsonChange, json_changes
-from inspect_ai._util.url import is_data_uri
 from inspect_ai.dataset._dataset import Sample
 from inspect_ai.log._message import LoggingMessage
 from inspect_ai.model._chat_message import ChatMessage
@@ -28,7 +26,12 @@ from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.scorer._metric import Score
 from inspect_ai.solver._task_state import state_jsonable
 from inspect_ai.tool._tool import ToolResult
-from inspect_ai.tool._tool_call import ToolCall, ToolCallError, ToolCallView
+from inspect_ai.tool._tool_call import (
+    ToolCall,
+    ToolCallContent,
+    ToolCallError,
+    ToolCallView,
+)
 from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.util._store import store, store_changes, store_jsonable
@@ -39,6 +42,9 @@ logger = getLogger(__name__)
 class BaseEvent(BaseModel):
     timestamp: datetime = Field(default_factory=datetime.now)
     """Time at which event occurred."""
+
+    pending: bool | None = Field(default=None)
+    """Is this event pending?"""
 
     @field_serializer("timestamp")
     def serialize_timestamp(self, dt: datetime) -> str:
@@ -56,6 +62,22 @@ class SampleInitEvent(BaseEvent):
 
     state: JsonValue
     """Initial state."""
+
+
+class SampleLimitEvent(BaseEvent):
+    """The sample was unable to finish processing due to a limit"""
+
+    event: Literal["sample_limit"] = Field(default="sample_limit")
+    """Event type."""
+
+    type: Literal["message", "time", "token", "operator", "custom"]
+    """Type of limit that halted processing"""
+
+    message: str
+    """A message associated with this limit"""
+
+    limit: int | None = Field(default=None)
+    """The limit value (if any)"""
 
 
 class StoreEvent(BaseEvent):
@@ -102,6 +124,9 @@ class ModelEvent(BaseEvent):
     output: ModelOutput
     """Output from model."""
 
+    error: str | None = Field(default=None)
+    """Error which occurred during model call."""
+
     cache: Literal["read", "write"] | None = Field(default=None)
     """Was this a cache read or write."""
 
@@ -127,7 +152,10 @@ class ToolEvent(BaseEvent):
     arguments: dict[str, JsonValue]
     """Arguments to function."""
 
-    result: ToolResult
+    view: ToolCallContent | None = Field(default=None)
+    """Custom view of tool call input."""
+
+    result: ToolResult = Field(default_factory=str)
     """Function return value."""
 
     truncated: tuple[int, int] | None = Field(default=None)
@@ -136,8 +164,47 @@ class ToolEvent(BaseEvent):
     error: ToolCallError | None = Field(default=None)
     """Error that occurred during tool call."""
 
-    events: list["Event"]
+    events: list["Event"] = Field(default_factory=list)
     """Transcript of events for tool."""
+
+    def set_result(
+        self,
+        result: ToolResult,
+        truncated: tuple[int, int] | None,
+        error: ToolCallError | None,
+        events: list["Event"],
+    ) -> None:
+        self.result = result
+        self.truncated = truncated
+        self.error = error
+        self.events = events
+        self.pending = None
+
+    # mechanism for operator to cancel the tool call
+
+    def set_task(self, task: asyncio.Task[Any]) -> None:
+        """Set the tool task (for possible cancellation)"""
+        self._task = task
+
+    def cancel(self) -> None:
+        """Cancel the tool task."""
+        if self._task:
+            self._cancelled = True
+            self._task.cancel()
+
+    @property
+    def cancelled(self) -> bool:
+        """Was the task cancelled?"""
+        return self._cancelled is True
+
+    _cancelled: bool | None = None
+    """Was this tool call cancelled?"""
+
+    _task: asyncio.Task[Any] | None = None
+    """Handle to task (used for cancellation)"""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+    """Required so that we can include '_task' as a member."""
 
 
 class ApprovalEvent(BaseEvent):
@@ -258,12 +325,13 @@ class SubtaskEvent(BaseEvent):
     result: Any = Field(default=None)
     """Subtask function result."""
 
-    events: list["Event"]
+    events: list["Event"] = Field(default_factory=list)
     """Transcript of events for subtask."""
 
 
 Event: TypeAlias = Union[
     SampleInitEvent
+    | SampleLimitEvent
     | StateEvent
     | StoreEvent
     | ModelEvent
@@ -285,7 +353,7 @@ class Transcript:
 
     def __init__(self, name: str = "") -> None:
         self.name = name
-        self.events: list[Event] = []
+        self._events: list[Event] = []
 
     def info(self, data: JsonValue) -> None:
         """Add an `InfoEvent` to the transcript.
@@ -313,8 +381,12 @@ class Transcript:
         # end step event
         self._event(StepEvent(action="end", name=name, type=type))
 
+    @property
+    def events(self) -> Sequence[Event]:
+        return self._events
+
     def _event(self, event: Event) -> None:
-        self.events.append(event)
+        self._events.append(event)
 
 
 def transcript() -> Transcript:
@@ -357,219 +429,3 @@ def init_transcript(transcript: Transcript) -> None:
 _transcript: ContextVar[Transcript] = ContextVar(
     "subtask_transcript", default=Transcript()
 )
-
-
-CONTENT_PROTOCOL = "tc://"
-
-
-class EvalEvents(BaseModel):
-    events: list[Event] = Field(default_factory=list)
-    """List of events."""
-
-    content: dict[str, str] = Field(default_factory=dict)
-    """Content references."""
-
-
-def eval_events(events: list[Event], log_images: bool) -> EvalEvents:
-    content: dict[str, str] = {}
-
-    def content_fn(text: str) -> str:
-        if not log_images and is_data_uri(text):
-            return BASE_64_DATA_REMOVED
-        elif len(text) > 50:
-            hash = mm3_hash(text)
-            content[hash] = text
-            return f"{CONTENT_PROTOCOL}{hash}"
-        else:
-            return text
-
-    events = walk_events(events, content_fn)
-
-    return EvalEvents(events=events, content=content)
-
-
-def eval_events_with_content(events: EvalEvents) -> list[Event]:
-    def content_fn(text: str) -> str:
-        if text.startswith(CONTENT_PROTOCOL):
-            return events.content.get(text, text)
-        else:
-            return text
-
-    return walk_events(events.events, content_fn)
-
-
-def walk_events(events: list[Event], content_fn: Callable[[str], str]) -> list[Event]:
-    return [walk_event(event, content_fn) for event in events]
-
-
-def walk_event(event: Event, content_fn: Callable[[str], str]) -> Event:
-    if isinstance(event, SampleInitEvent):
-        return walk_sample_init_event(event, content_fn)
-    elif isinstance(event, ModelEvent):
-        return walk_model_event(event, content_fn)
-    elif isinstance(event, StateEvent):
-        return walk_state_event(event, content_fn)
-    elif isinstance(event, StoreEvent):
-        return walk_store_event(event, content_fn)
-    elif isinstance(event, SubtaskEvent):
-        return walk_subtask_event(event, content_fn)
-    elif isinstance(event, ToolEvent):
-        return walk_tool_event(event, content_fn)
-    else:
-        return event
-
-
-def walk_subtask_event(
-    event: SubtaskEvent, content_fn: Callable[[str], str]
-) -> SubtaskEvent:
-    return event.model_copy(update=dict(events=walk_events(event.events, content_fn)))
-
-
-def walk_tool_event(event: ToolEvent, content_fn: Callable[[str], str]) -> ToolEvent:
-    return event.model_copy(update=dict(events=walk_events(event.events, content_fn)))
-
-
-def walk_sample_init_event(
-    event: SampleInitEvent, content_fn: Callable[[str], str]
-) -> SampleInitEvent:
-    return event.model_copy(
-        update=dict(
-            sample=walk_sample(event.sample, content_fn),
-            state=walk_json_value(event.state, content_fn),
-        )
-    )
-
-
-def walk_sample(sample: Sample, content_fn: Callable[[str], str]) -> Sample:
-    if isinstance(sample.input, str):
-        return sample.model_copy(
-            update=dict(input=walk_json_value(sample.input, content_fn))
-        )
-    else:
-        return sample.model_copy(
-            update=dict(
-                input=[
-                    walk_chat_message(message, content_fn) for message in sample.input
-                ]
-            )
-        )
-
-
-def walk_model_event(event: ModelEvent, content_fn: Callable[[str], str]) -> ModelEvent:
-    return event.model_copy(
-        update=dict(
-            input=[walk_chat_message(message, content_fn) for message in event.input],
-            output=walk_model_output(event.output, content_fn),
-            call=walk_model_call(event.call, content_fn),
-        ),
-    )
-
-
-def walk_model_output(
-    output: ModelOutput, content_fn: Callable[[str], str]
-) -> ModelOutput:
-    return output.model_copy(
-        update=dict(
-            choices=[
-                choice.model_copy(
-                    update=dict(message=walk_chat_message(choice.message, content_fn))
-                )
-                for choice in output.choices
-            ]
-        )
-    )
-
-
-def walk_model_call(
-    call: ModelCall | None, content_fn: Callable[[str], str]
-) -> ModelCall | None:
-    if call:
-        return ModelCall(
-            request=walk_json_dict(call.request, content_fn),
-            response=walk_json_dict(call.response, content_fn),
-        )
-    else:
-        return None
-
-
-def walk_state_event(event: StateEvent, content_fn: Callable[[str], str]) -> StateEvent:
-    event = event.model_copy(
-        update=dict(
-            changes=[
-                walk_state_json_change(change, content_fn) for change in event.changes
-            ]
-        )
-    )
-    return event
-
-
-def walk_store_event(event: StoreEvent, content_fn: Callable[[str], str]) -> StoreEvent:
-    event = event.model_copy(
-        update=dict(
-            changes=[
-                walk_state_json_change(change, content_fn) for change in event.changes
-            ]
-        )
-    )
-    return event
-
-
-def walk_state_json_change(
-    change: JsonChange, content_fn: Callable[[str], str]
-) -> JsonChange:
-    return change.model_copy(
-        update=dict(value=walk_json_value(change.value, content_fn))
-    )
-
-
-def walk_json_value(value: JsonValue, content_fn: Callable[[str], str]) -> JsonValue:
-    if isinstance(value, str):
-        return content_fn(value)
-    elif isinstance(value, list):
-        return [walk_json_value(v, content_fn) for v in value]
-    elif isinstance(value, dict):
-        return walk_json_dict(value, content_fn)
-    else:
-        return value
-
-
-def walk_json_dict(
-    value: dict[str, JsonValue], content_fn: Callable[[str], str]
-) -> dict[str, JsonValue]:
-    updates: dict[str, JsonValue] = {}
-    for k, v in value.items():
-        updates[k] = walk_json_value(v, content_fn)
-    if updates:
-        value = value.copy()
-        value.update(updates)
-    return value
-
-
-def walk_chat_message(
-    message: ChatMessage, content_fn: Callable[[str], str]
-) -> ChatMessage:
-    if isinstance(message.content, str):
-        return message.model_copy(update=dict(content=content_fn(message.content)))
-    else:
-        return message.model_copy(
-            update=dict(
-                content=[
-                    walk_content(content, content_fn) for content in message.content
-                ]
-            )
-        )
-
-
-def walk_content(content: Content, content_fn: Callable[[str], str]) -> Content:
-    if isinstance(content, ContentText):
-        return content.model_copy(update=dict(text=content_fn(content.text)))
-    elif isinstance(content, ContentImage):
-        return content.model_copy(update=dict(image=content_fn(content.image)))
-
-
-def mm3_hash(message: str) -> str:
-    # Generate the 128-bit hash as two 64-bit integers
-    h1, h2 = mmh3.hash64(message.encode("utf-8"))
-
-    # Convert to unsigned integers and then to hexadecimal
-    return f"{h1 & 0xFFFFFFFFFFFFFFFF:016x}{h2 & 0xFFFFFFFFFFFFFFFF:016x}"

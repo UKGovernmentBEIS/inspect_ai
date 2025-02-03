@@ -1,8 +1,10 @@
 //@ts-check
+/* eslint-disable @typescript-eslint/no-var-requires */
+/* eslint-disable no-undef */
 
-'use strict';
+"use strict";
 
-const path = require('path');
+const path = require("path");
 
 //@ts-check
 /** @typedef {import('webpack').Configuration} WebpackConfig **/
@@ -29,31 +31,30 @@ const baseConfig = {
         exclude: /node_modules/,
         use: [
           {
-            loader: 'ts-loader'
-          }
-        ]
+            loader: "ts-loader",
+          },
+        ],
       },
       {
         test: /\.css$/,
-        use: ['style-loader', 'css-loader']
-      }
-    ]
+        use: ["style-loader", "css-loader"],
+      },
+    ],
   },
 };
 
 /** @type WebpackConfig */
 const extensionConfig = {
   ...baseConfig,
-  target: 'node', // VS Code extensions run in a Node.js-context 📖 -> https://webpack.js.org/configuration/node/
+  target: "node", // VS Code extensions run in a Node.js-context 📖 -> https://webpack.js.org/configuration/node/
 
-
-  entry: './src/extension.ts', // the entry point of this extension, 📖 -> https://webpack.js.org/configuration/entry-context/
+  entry: "./src/extension.ts", // the entry point of this extension, 📖 -> https://webpack.js.org/configuration/entry-context/
   externals: ["vscode"],
   output: {
     // the bundle is stored in the 'dist' folder (check package.json), 📖 -> https://webpack.js.org/configuration/output/
-    path: path.resolve(__dirname, 'dist'),
-    filename: 'extension.js',
-    libraryTarget: 'commonjs2'
+    path: path.resolve(__dirname, "dist"),
+    filename: "extension.js",
+    libraryTarget: "commonjs2",
   },
 };
 
@@ -74,7 +75,7 @@ const envWebviewConfig = {
     // Increase the size limit to 1 MB (or any value you prefer)
     maxAssetSize: 1000000, // in bytes
     maxEntrypointSize: 1000000, // in bytes
-  }
+  },
 };
 
 const taskHyperparamWebviewConfig = {
@@ -92,9 +93,11 @@ const taskHyperparamWebviewConfig = {
     // Increase the size limit to 1 MB (or any value you prefer)
     maxAssetSize: 1000000, // in bytes
     maxEntrypointSize: 1000000, // in bytes
-  }
+  },
 };
 
-
-
-module.exports = [extensionConfig, envWebviewConfig, taskHyperparamWebviewConfig];
+module.exports = [
+  extensionConfig,
+  envWebviewConfig,
+  taskHyperparamWebviewConfig,
+];

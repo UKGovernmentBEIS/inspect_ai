@@ -1,10 +1,36 @@
 import { html } from "htm/preact";
 
 import { LabeledValue } from "../components/LabeledValue.mjs";
-import { formatDataset } from "../utils/Format.mjs";
+import { formatDataset, formatDuration } from "../utils/Format.mjs";
+import { ExpandablePanel } from "../components/ExpandablePanel.mjs";
+import { scoreFilterItems } from "../samples/tools/filters.mjs";
 
-export const SecondaryBar = ({ log, status, style }) => {
-  if (!log || status !== "success") {
+/**
+ * Renders the Navbar
+ *
+ * @param {Object} props - The parameters for the component.
+ * @param {import("../types/log").EvalSpec} [props.evalSpec] - The EvalSpec
+ * @param {import("../types/log").EvalPlan} [props.evalPlan] - The EvalSpec
+ * @param {import("../types/log").EvalResults} [props.evalResults] - The EvalResults
+ * @param {import("../types/log").EvalStats} [props.evalStats] - The EvalStats
+ * @param {import("../samples/SamplesDescriptor.mjs").EvalDescriptor} [props.evalDescriptor] - The EvalDescriptor
+ * @param {import("../api/Types.ts").SampleSummary[]} [props.samples] - the samples
+ * @param {string} [props.status] - the status
+ * @param {Map<string, string>} [props.style] - is this off canvas
+ *
+ * @returns {import("preact").JSX.Element | string} The TranscriptView component.
+ */
+export const SecondaryBar = ({
+  evalSpec,
+  evalPlan,
+  evalResults,
+  evalStats,
+  samples,
+  evalDescriptor,
+  status,
+  style,
+}) => {
+  if (!evalSpec || status !== "success") {
     return "";
   }
 
@@ -12,32 +38,33 @@ export const SecondaryBar = ({ log, status, style }) => {
     flexShrink: "0",
   };
 
-  const epochs = log.eval.config.epochs || 1;
+  const epochs = evalSpec.config.epochs || 1;
   const hyperparameters = {
-    ...log.plan.config,
-    ...log.eval.task_args,
+    ...evalPlan?.config,
+    ...evalSpec.task_args,
   };
 
   const hasConfig = Object.keys(hyperparameters).length > 0;
 
   const values = [];
+
   values.push({
     size: "minmax(12%, auto)",
     value: html`<${LabeledValue} label="Dataset" style=${staticColStyle}>
     <${DatasetSummary}
-      dataset=${log.eval?.dataset}
-      samples=${log.samples}
+      dataset=${evalSpec.dataset}
+      samples=${samples}
       epochs=${epochs} />
   </${LabeledValue}>
 `,
   });
 
-  const label = log?.results?.scores.length > 1 ? "Scorers" : "Scorer";
+  const label = evalResults?.scores.length > 1 ? "Scorers" : "Scorer";
   values.push({
     size: "minmax(12%, auto)",
-    value: html`<${LabeledValue} label="${label}" style=${staticColStyle} style=${{ justifySelf: hasConfig ? "center" : "right" }}>
-    <${ScorerSummary} 
-      scorers=${log?.results?.scores} />
+    value: html`<${LabeledValue} label="${label}" style=${staticColStyle} style=${{ justifySelf: hasConfig ? "left" : "center" }}>
+    <${ScorerSummary}
+      evalDescriptor=${evalDescriptor} />
   </${LabeledValue}>`,
   });
 
@@ -50,7 +77,20 @@ export const SecondaryBar = ({ log, status, style }) => {
     });
   }
 
+  const totalDuration = formatDuration(
+    new Date(evalStats.started_at),
+    new Date(evalStats.completed_at),
+  );
+  values.push({
+    size: "minmax(12%, auto)",
+    value: html`
+      <${LabeledValue} label="Duration" style=${{ justifySelf: "right" }}>
+        ${totalDuration}
+      </${LabeledValue}>`,
+  });
+
   return html`
+    <${ExpandablePanel} style=${{ margin: "0", ...style }} collapse=${true} lines=${4}>
     <div
       style=${{
         margin: "0",
@@ -63,13 +103,13 @@ export const SecondaryBar = ({ log, status, style }) => {
             return val.size;
           })
           .join(" ")}`,
-        ...style,
       }}
     >
       ${values.map((val) => {
         return val.value;
       })}
     </div>
+    </${ExpandablePanel}>
   `;
 };
 
@@ -87,25 +127,43 @@ const DatasetSummary = ({ dataset, samples, epochs, style }) => {
   `;
 };
 
-const ScorerSummary = ({ scorers }) => {
-  if (!scorers) {
+const ScorerSummary = ({ evalDescriptor }) => {
+  if (!evalDescriptor) {
     return "";
   }
 
-  const uniqScorers = new Set();
-  scorers.forEach((scorer) => {
-    uniqScorers.add(scorer.name);
-  });
+  const items = scoreFilterItems(evalDescriptor);
 
-  return Array.from(uniqScorers).join(", ");
+  return html`
+    <span style=${{ position: "relative" }}>
+      ${Array.from(items).map(
+        (item, index) => html`
+          ${index > 0 ? ", " : ""}
+          <span title=${item.tooltip}>${item.canonicalName}</span>
+        `,
+      )}
+    </span>
+  `;
 };
 
+/**
+ * A component that displays a summary of parameters.
+ *
+ * @param {Object} props - The component props.
+ * @param {Record<string, any>} props.params - An object containing key-value pairs representing parameters.
+ * @returns {import("preact").JSX.Element | string} The component.
+ */
 const ParamSummary = ({ params }) => {
   if (!params) {
     return "";
   }
   const paraValues = Object.keys(params).map((key) => {
-    return `${key}: ${params[key]}`;
+    const val = params[key];
+    if (Array.isArray(val) || typeof val === "object") {
+      return `${key}: ${JSON.stringify(val)}`;
+    } else {
+      return `${key}: ${val}`;
+    }
   });
   if (paraValues.length > 0) {
     return html`<code style=${{ padding: 0, color: "var(--bs-body-color)" }}

@@ -1,4 +1,4 @@
-import { SpawnSyncOptionsWithStringEncoding, spawn, spawnSync } from "child_process";
+import { SpawnOptions, SpawnSyncOptionsWithStringEncoding, spawn, spawnSync } from "child_process";
 import { AbsolutePath } from "./path";
 
 
@@ -35,10 +35,10 @@ export function runProcess(
 export function spawnProcess(
   cmd: string,
   args: string[],
-  cwd: AbsolutePath,
+  options: SpawnOptions,
   io?: {
-    stdout?: (data: Buffer | string) => void;
-    stderr?: (data: Buffer | string) => void;
+    stdout?: (data: string) => void;
+    stderr?: (data: string) => void;
   },
   lifecycle?: {
     onError?: (error: Error) => void;
@@ -46,16 +46,14 @@ export function spawnProcess(
   }
 ) {
   // Process options
-  const options = {
-    cwd: cwd.path,
-    detached: true,
-  };
+  options = { detached: true, ...options };
 
   // Start the actual process
   const process = spawn(cmd, args, options);
 
   // Capture stdout
   if (process.stdout) {
+    process.stdout.setEncoding("utf-8");
     if (io?.stdout) {
       process.stdout.on("data", io.stdout);
     }
@@ -65,6 +63,7 @@ export function spawnProcess(
 
   // Capture stderr
   if (process.stderr) {
+    process.stderr.setEncoding("utf-8");
     if (io?.stderr) {
       process.stderr.on("data", io.stderr);
     }

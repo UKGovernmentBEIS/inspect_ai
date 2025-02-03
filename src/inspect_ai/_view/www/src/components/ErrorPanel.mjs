@@ -48,6 +48,7 @@ export const ErrorPanel = ({ id, classes, title, error }) => {
           <div>
             Error: ${message || ""}
             ${stack &&
+            error.displayStack !== false &&
             html`
               <pre
                 style=${{ fontSize: FontSize.smaller, whiteSpace: "pre-wrap" }}

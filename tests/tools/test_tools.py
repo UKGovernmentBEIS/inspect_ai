@@ -24,6 +24,7 @@ from inspect_ai.model import (
     Model,
     get_model,
 )
+from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.scorer import match
 from inspect_ai.solver import (
     Generate,
@@ -191,7 +192,6 @@ def test_vertex_tools():
     check_tools("vertex/gemini-1.5-flash")
 
 
-@skip_if_no_openai
 def test_dynamic_tools():
     @tool
     def color():
@@ -234,8 +234,25 @@ def test_dynamic_tools():
         solver=dynamic_tools(),
         scorer=match(),
     )
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.for_tool_call(
+                model="mockllm/model",
+                tool_name="color",
+                tool_arguments={},
+            ),
+            ModelOutput.from_content(model="mockllm/model", content="color all set."),
+            ModelOutput.for_tool_call(
+                model="mockllm/model",
+                tool_name="shape",
+                tool_arguments={},
+            ),
+            ModelOutput.from_content(model="mockllm/model", content="shape all set."),
+        ],
+    )
 
-    log = eval(task, model="openai/gpt-4")[0]
+    log = eval(task, model=model)[0]
     assert log.samples
     messages = log.samples[0].messages
     tool_call = get_tool_call(messages, "color")
@@ -245,7 +262,6 @@ def test_dynamic_tools():
     assert tool_call is not None and tool_call.function == "shape"
 
 
-@skip_if_no_openai
 def test_tool_error():
     task = Task(
         dataset=[Sample(input="Please read the file 'foo.txt'")],
@@ -253,7 +269,18 @@ def test_tool_error():
         scorer=match(),
         sandbox="local",
     )
-    log = eval(task, model="openai/gpt-4")[0]
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.for_tool_call(
+                model="mockllm/model",
+                tool_name="read_file",
+                tool_arguments={"file": "foo.txt"},
+            ),
+            ModelOutput.from_content(model="mockllm/model", content="All done."),
+        ],
+    )
+    log = eval(task, model=model)[0]
     assert log.status == "success"
     assert log.samples
     messages = log.samples[0].messages
@@ -264,7 +291,6 @@ def test_tool_error():
     assert response.error
 
 
-@skip_if_no_openai
 def test_tool_eval_error():
     task = Task(
         dataset=[Sample(input="Please raise an error.")],
@@ -272,11 +298,21 @@ def test_tool_eval_error():
         scorer=match(),
         sandbox="local",
     )
-    log = eval(task, model="openai/gpt-4")[0]
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.for_tool_call(
+                model="mockllm/model",
+                tool_name="raise_error",
+                tool_arguments={},
+            ),
+            ModelOutput.from_content(model="mockllm/model", content="All done."),
+        ],
+    )
+    log = eval(task, model=model)[0]
     assert log.status == "error"
 
 
-@skip_if_no_openai
 def test_tool_calls():
     @tool
     def add():
@@ -318,14 +354,28 @@ def test_tool_calls():
         messages = log.samples[0].messages
         assert predicate(messages)
 
+    def mockllm_model() -> Model:
+        return get_model(
+            "mockllm/model",
+            custom_outputs=[
+                ModelOutput.for_tool_call(
+                    model="mockllm/model",
+                    tool_name="add",
+                    tool_arguments={"x": 1, "y": 1},
+                )
+            ]
+            * 3
+            + [ModelOutput.from_content(model="mockllm/model", content="All done.")],
+        )
+
     # tool_calls == "loop"
-    log = eval(task("loop"), model="openai/gpt-4")[0]
+    log = eval(task("loop"), model=mockllm_model())[0]
     check_messages(log, lambda m: len(get_tool_calls(m, "add")) > 1)
 
     # tool_calls == "single"
-    log = eval(task("single"), model="openai/gpt-4")[0]
+    log = eval(task("single"), model=mockllm_model())[0]
     check_messages(log, lambda m: len(get_tool_calls(m, "add")) == 1)
 
     # tool_calls == "none"
-    log = eval(task("none"), model="openai/gpt-4")[0]
+    log = eval(task("none"), model=mockllm_model())[0]
     check_messages(log, lambda m: get_tool_response(m, "add") is None)

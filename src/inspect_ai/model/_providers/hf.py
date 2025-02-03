@@ -1,5 +1,7 @@
 import asyncio
+import copy
 import functools
+import json
 import os
 from dataclasses import dataclass
 from queue import Empty, Queue
@@ -18,6 +20,7 @@ from transformers import (  # type: ignore
 from typing_extensions import override
 
 from inspect_ai._util.constants import DEFAULT_MAX_TOKENS
+from inspect_ai._util.content import ContentText
 from inspect_ai.tool import ToolChoice, ToolInfo
 
 from .._chat_message import ChatMessage, ChatMessageAssistant
@@ -31,7 +34,7 @@ from .._model_output import (
     ModelUsage,
     TopLogprob,
 )
-from .util import chat_api_input
+from .util import ChatAPIHandler, HFHandler
 
 HF_TOKEN = "HF_TOKEN"
 
@@ -61,7 +64,7 @@ class HuggingFaceAPI(ModelAPI):
         def collect_model_arg(name: str) -> Any | None:
             nonlocal model_args
             value = model_args.get(name, None)
-            if value:
+            if value is not None:
                 model_args.pop(name)
             return value
 
@@ -71,6 +74,9 @@ class HuggingFaceAPI(ModelAPI):
         tokenizer_path = collect_model_arg("tokenizer_path")
         self.batch_size = collect_model_arg("batch_size")
         self.chat_template = collect_model_arg("chat_template")
+        self.tokenizer_call_args = collect_model_arg("tokenizer_call_args")
+        if self.tokenizer_call_args is None:
+            self.tokenizer_call_args = {}
 
         # device
         if device:
@@ -113,11 +119,22 @@ class HuggingFaceAPI(ModelAPI):
         tool_choice: ToolChoice,
         config: GenerateConfig,
     ) -> ModelOutput:
+        # create handler
+        handler: ChatAPIHandler | None = (
+            HFHandler(self.model_name) if len(tools) > 0 else None
+        )
+
         # create chat
         chat = self.hf_chat(input, tools)
 
+        assert isinstance(self.tokenizer_call_args, dict)
         # prepare tokenizer
-        tokenizer = functools.partial(self.tokenizer, return_tensors="pt", padding=True)
+        tokenizer = functools.partial(
+            self.tokenizer,
+            return_tensors="pt",
+            padding=True,
+            **self.tokenizer_call_args,
+        )
 
         # prepare generator
         kwargs: dict[str, Any] = dict(do_sample=True)
@@ -133,6 +150,12 @@ class HuggingFaceAPI(ModelAPI):
             kwargs["output_logits"] = config.logprobs
         if "return_dict_in_generate" in kwargs:
             assert kwargs["return_dict_in_generate"]
+        if config.stop_seqs is not None:
+            from transformers.generation import StopStringCriteria  # type: ignore
+
+            stopping_criteria = [StopStringCriteria(self.tokenizer, config.stop_seqs)]
+            kwargs["stopping_criteria"] = stopping_criteria
+
         kwargs["return_dict_in_generate"] = True
         generator = functools.partial(self.model.generate, **kwargs)
 
@@ -172,6 +195,15 @@ class HuggingFaceAPI(ModelAPI):
             ),
         )
 
+        choice = ChatCompletionChoice(
+            message=chat_completion_assistant_message(
+                response, tools, handler, self.model_name
+            ),
+            logprobs=(
+                Logprobs(content=final_logprobs) if final_logprobs is not None else None
+            ),
+        )
+
         # return output
         return ModelOutput(
             model=self.model_name,
@@ -199,16 +231,97 @@ class HuggingFaceAPI(ModelAPI):
 
     def hf_chat(self, messages: list[ChatMessage], tools: list[ToolInfo]) -> str:
         # convert to hf format
-        hf_messages = chat_api_input(messages, tools)
+        tools_list = []
+        hf_messages = copy.deepcopy(messages)
+        if len(tools) > 0:
+            tools_list = [
+                json.loads(tool.model_dump_json(exclude_none=True, indent=2))
+                for tool in tools
+            ]
+            if "mistral" in self.model_name.lower():
+                hf_messages = shorten_tool_id(hf_messages)
+                tools_list = tools_to_mistral_format(tools_list)
+            elif "qwen" in self.model_name.lower():
+                hf_messages = inspect_tools_to_string(hf_messages)
+
         # apply chat template
-        chat = self.tokenizer.apply_chat_template(
-            hf_messages,
-            add_generation_prompt=True,
-            tokenize=False,
-            chat_template=self.chat_template,
-        )
+        if self.tokenizer.chat_template is not None:
+            chat = self.tokenizer.apply_chat_template(
+                hf_messages,
+                add_generation_prompt=True,
+                tokenize=False,
+                tools=tools_list if len(tools_list) > 0 else None,
+            )
+        else:
+            chat = ""
+            for message in hf_messages:
+                chat += f"{message.role}: {message.content}\n"
         # return
         return cast(str, chat)
+
+
+def shorten_tool_id(messages: list[ChatMessage]) -> list[ChatMessage]:
+    """Shorten the tool_call_id in the messages to the last 9 characters for Mistral."""
+    for i, message in enumerate(messages):
+        if message.role == "tool":
+            # Trim tool_call_id in tool messages
+            if message.tool_call_id is not None:
+                message.tool_call_id = message.tool_call_id[-9:]
+        elif message.role == "assistant" and hasattr(message, "tool_calls"):
+            # Trim tool_call IDs inside tool_calls for assistant messages
+            for tool_call in message.tool_calls or []:
+                tool_call.id = tool_call.id[-9:]
+    return messages
+
+
+def tools_to_mistral_format(tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Convert tools to the format required for Mistral."""
+    mistral_tools = []
+    for tool in tools:
+        mistral_tools.append(
+            {
+                "function": {
+                    "name": tool["name"],
+                    "description": tool["description"],
+                    "parameters": {
+                        "type": tool["parameters"]["type"],
+                        "properties": tool["parameters"]["properties"],
+                        "required": tool["parameters"]["required"],
+                    },
+                }
+            }
+        )
+    return mistral_tools
+
+
+def inspect_tools_to_string(messages: list[ChatMessage]) -> list[ChatMessage]:
+    """Convert tools to a string for Qwen."""
+    for message in messages:
+        if message.role == "assistant":
+            # check if the message contains a tool call
+            tool_content = ""
+            if message.tool_calls:
+                for tool_call in message.tool_calls:
+                    tool_content += f'\n```json\n{{"name": "{tool_call.function}", "arguments": {json.dumps(tool_call.arguments)}}}\n```'
+            # remove the tool call from the message
+            message.tool_calls = None
+            if isinstance(message.content, str):
+                message.content += tool_content
+            else:
+                message.content.append(ContentText(text=tool_content))
+    return messages
+
+
+def chat_completion_assistant_message(
+    response: Any,
+    tools: list[ToolInfo],
+    handler: ChatAPIHandler | None,
+    model_name: str,
+) -> ChatMessageAssistant:
+    if handler:
+        return handler.parse_assistant_response(response.output, tools)
+    else:
+        return ChatMessageAssistant(content=response.output, source="generate")
 
 
 def set_random_seeds(seed: int | None = None) -> None:

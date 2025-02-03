@@ -26,9 +26,14 @@ class ModelUsage(BaseModel):
 
 
 StopReason = Literal[
-    "stop", "max_tokens", "model_length", "tool_calls", "content_filter", "unknown"
+    "stop",
+    "max_tokens",
+    "model_length",
+    "tool_calls",
+    "content_filter",
+    "unknown",
 ]
-"""Reason that the model stopped generating."""
+"""Reason that the model stopped or failed to generate."""
 
 
 class TopLogprob(BaseModel):
@@ -91,7 +96,7 @@ class ChatCompletionChoice(BaseModel):
 
 
 class ModelOutput(BaseModel):
-    model: str = Field(default="")
+    model: str = Field(default_factory=str)
     """Model used for generation."""
 
     choices: list[ChatCompletionChoice] = Field(default=[])
@@ -99,6 +104,12 @@ class ModelOutput(BaseModel):
 
     usage: ModelUsage | None = Field(default=None)
     """Model token usage"""
+
+    time: float | None = Field(default=None)
+    """Time elapsed (in seconds) for call to generate."""
+
+    metadata: dict[str, Any] | None = Field(default=None)
+    """Additional metadata associated with model output."""
 
     error: str | None = Field(default=None)
     """Error message in the case of content moderation refusals."""
@@ -161,6 +172,7 @@ class ModelOutput(BaseModel):
         model: str,
         tool_name: str,
         tool_arguments: dict[str, Any],
+        tool_call_id: str | None = None,
         content: str | None = None,
     ) -> "ModelOutput":
         """
@@ -170,6 +182,7 @@ class ModelOutput(BaseModel):
             model: model name
             tool_name: The name of the tool.
             tool_arguments: The arguments passed to the tool.
+            tool_call_id: Optional ID for the tool call. Defaults to a random UUID.
             content: Optional content to include in the message. Defaults to "tool call for tool {tool_name}".
 
         Returns:
@@ -177,6 +190,9 @@ class ModelOutput(BaseModel):
         """
         if content is None:
             content = f"tool call for tool {tool_name}"
+
+        if tool_call_id is None:
+            tool_call_id = f"for_tool_call_{uuid.uuid4()}"
 
         return ModelOutput(
             model=model,
@@ -187,7 +203,7 @@ class ModelOutput(BaseModel):
                         source="generate",
                         tool_calls=[
                             ToolCall(
-                                id=f"for_tool_call_{uuid.uuid4()}",
+                                id=tool_call_id,
                                 function=tool_name,
                                 arguments=tool_arguments,
                                 type="function",
@@ -198,3 +214,18 @@ class ModelOutput(BaseModel):
                 )
             ],
         )
+
+
+def as_stop_reason(reason: str | None) -> StopReason:
+    """Encode common reason strings into standard StopReason."""
+    match reason:
+        case "stop" | "eos":
+            return "stop"
+        case "length":
+            return "max_tokens"
+        case "tool_calls" | "function_call":
+            return "tool_calls"
+        case "content_filter" | "model_length" | "max_tokens":
+            return reason
+        case _:
+            return "unknown"

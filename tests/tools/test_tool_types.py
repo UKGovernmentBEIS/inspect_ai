@@ -6,6 +6,7 @@ from pydantic import BaseModel
 from test_helpers.utils import (
     skip_if_no_anthropic,
     skip_if_no_google,
+    skip_if_no_grok,
     skip_if_no_groq,
     skip_if_no_mistral,
     skip_if_no_openai,
@@ -106,6 +107,47 @@ def extract_words():
     return execute
 
 
+@tool
+def sound_check():
+    async def execute(sound: str, extra: str = "stuff"):
+        """
+        Accepts the extracted nouns and adjectives from a sentence
+
+        Args:
+          sound: The sound to check
+          extra: Optional extra stuff
+
+
+        Returns:
+          The sound that was passed to check.
+        """
+        return f"{sound} ({extra})"
+
+    return execute
+
+
+@tool
+def computer_action():
+    async def execute(
+        action: str,
+        text: str | None = None,
+        coordinate: tuple[int, int] | None = None,
+    ) -> str:
+        """Take an action using a computer.
+
+        Args:
+          action: Action to take.
+          text: Text related to the action
+          coordinate: Coordinate related to the action.
+
+        Returns:
+          The sound that was passed to check.
+        """
+        return action
+
+    return execute
+
+
 def check_point(model: str, tool: Tool, function_name: str) -> None:
     task = Task(
         dataset=MemoryDataset(
@@ -172,11 +214,51 @@ def check_list_of_objects(model: str) -> None:
     verify_tool_call(log, "quick:")
 
 
+def check_optional_args(model: str) -> None:
+    task = Task(
+        dataset=MemoryDataset(
+            [
+                Sample(
+                    input="Please call the sound_check tool with single argument 'boo' and report its output."
+                )
+            ]
+        ),
+        solver=[
+            use_tools([sound_check()], tool_choice=ToolFunction("sound_check")),
+            generate(),
+        ],
+    )
+
+    log = eval(task, model=model)[0]
+    verify_tool_call(log, "stuff")
+
+
+def check_none_default_arg(model: str) -> None:
+    task = Task(
+        dataset=MemoryDataset(
+            [
+                Sample(
+                    input="Please call the computer_action function with the action='click' argument."
+                )
+            ]
+        ),
+        solver=[
+            use_tools([computer_action()], tool_choice=ToolFunction("computer_action")),
+            generate(),
+        ],
+    )
+
+    log = eval(task, model=model)[0]
+    verify_tool_call(log, "click")
+
+
 def check_tool_types(model: str):
     check_typed_dict(model)
     check_dataclass(model)
     check_list_of_numbers(model)
     check_list_of_objects(model)
+    check_optional_args(model)
+    check_none_default_arg(model)
 
 
 @skip_if_no_openai
@@ -202,6 +284,11 @@ def test_vertex_tool_types():
 @skip_if_no_mistral
 def test_mistral_tool_types() -> None:
     check_tool_types("mistral/mistral-large-latest")
+
+
+@skip_if_no_grok
+def test_grok_tool_types() -> None:
+    check_tool_types("grok/grok-beta")
 
 
 @skip_if_no_groq

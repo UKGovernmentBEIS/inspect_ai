@@ -1,5 +1,73 @@
 # Changelog
 
+## 0.3.50
+
+- Use the integrated terminal when debugging tasks.
+
+## 0.3.49
+
+- Improve code lense detection of Inspect tasks (ty @tobiasraabe)
+- Use icon to reflect log status in log listing activity panel (red = error, yellow = cancelled, green = running)
+
+## 0.3.48
+
+- Properly shutdown the `inspect view` process when exiting VSCode.
+
+## 0.3.47
+
+- Minor improvements
+
+## 0.3.46
+
+- Update Bedrock models help link to point to more helpful page.
+
+## 0.3.45
+
+- `.eval` file links are now clickable in the terminal when an evaluation completes
+- Improve task listing performance when rendering the task list in the activity bar
+
+## 0.3.44
+
+- Fix incorrect url encoding when copying links to remote log files.
+
+## 0.3.43
+
+- Add support for links which open the log viewer directly in VSCode. You may copy links to remote log files from the logs panel of the Inspect Activity Panel.
+
+## 0.3.42
+
+- Improve support for selecting text in the full screen terminal
+
+## 0.3.41
+
+- Add `Copy Path` context menu to activity bar logs panel
+
+## 0.3.40
+
+- When running and debugging Inspect evals, the extension will by default use any environments present in the task folder or parent folders (up to the workspace). To always use the workspace environment, change the 'Use Subdirectory Environments` setting.
+
+## 0.3.39
+
+- Fix an issue that would cause view to be unable to display when using VSCode extension with Inpsect version 0.3.42
+
+## 0.3.38
+
+- Improved behavior when previewing json files using the Inspect viewer.
+
+## 0.3.37
+
+This version includes a signficant rework of the overall workflow for interacting with Inspect. Changes include:
+
+- The Inspect sidebar now includes a section which allows you to browse and open log files in the viewer. 
+- The Inspect Viewer is no longer opened automatically when an evaluation is completed. Instead a notification is available to open the viewer. 
+- New open log directory command allows you to select a log directory and open the Inspect Viewer for that directory
+- Support for the new Inspect `eval` log format. More information [here](https://inspect.ai-safety-institute.org.uk/eval-logs.html#sec-log-format).
+
+## 0.3.36
+
+- Show Inspect version in status bar
+- Release with internal changes to support future log viewing features.
+
 ## 0.3.33
 
 - Fix bug that prevented run, debug buttons from appearing for tasks whose function declarations spanned more than single line.

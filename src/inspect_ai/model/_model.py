@@ -4,6 +4,7 @@ import functools
 import json
 import logging
 import os
+import time
 from contextvars import ContextVar
 from copy import deepcopy
 from typing import Any, Callable, Literal, Type, cast
@@ -18,7 +19,7 @@ from tenacity import (
 )
 
 from inspect_ai._util.constants import DEFAULT_MAX_CONNECTIONS
-from inspect_ai._util.content import ContentText
+from inspect_ai._util.content import Content, ContentImage, ContentText
 from inspect_ai._util.hooks import init_hooks, override_api_key, send_telemetry
 from inspect_ai._util.platform import platform_init
 from inspect_ai._util.registry import (
@@ -28,17 +29,21 @@ from inspect_ai._util.registry import (
     registry_unqualified_name,
 )
 from inspect_ai._util.retry import log_rate_limit_retry
+from inspect_ai._util.trace import trace_action
 from inspect_ai.tool import Tool, ToolChoice, ToolFunction, ToolInfo
+from inspect_ai.tool._tool_def import ToolDef, tool_defs
 from inspect_ai.util import concurrency
 
 from ._cache import CacheEntry, CachePolicy, cache_fetch, cache_store
-from ._call_tools import disable_parallel_tools, tools_info
+from ._call_tools import disable_parallel_tools, tool_call_view, tools_info
 from ._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
     ChatMessageSystem,
+    ChatMessageTool,
     ChatMessageUser,
 )
+from ._conversation import conversation_assistant_error, conversation_assistant_message
 from ._generate_config import (
     GenerateConfig,
     active_generate_config,
@@ -46,7 +51,6 @@ from ._generate_config import (
 )
 from ._model_call import ModelCall
 from ._model_output import ModelOutput, ModelUsage
-from ._trace import trace_assistant_message
 
 logger = logging.getLogger(__name__)
 
@@ -112,7 +116,7 @@ class ModelAPI(abc.ABC):
         tools: list[ToolInfo],
         tool_choice: ToolChoice,
         config: GenerateConfig,
-    ) -> ModelOutput | tuple[ModelOutput, ModelCall]:
+    ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
         """Generate output from the model.
 
         Args:
@@ -160,6 +164,14 @@ class ModelAPI(abc.ABC):
         """Any tool use in a message stream means that tools must be passed."""
         return False
 
+    def tool_result_images(self) -> bool:
+        """Tool results can contain images"""
+        return False
+
+    def has_reasoning_history(self) -> bool:
+        """Chat message assistant messages can include reasoning."""
+        return False
+
 
 class Model:
     """Model interface."""
@@ -189,7 +201,10 @@ class Model:
     async def generate(
         self,
         input: str | list[ChatMessage],
-        tools: list[Tool] | list[ToolInfo] = [],
+        tools: list[Tool]
+        | list[ToolDef]
+        | list[ToolInfo]
+        | list[Tool | ToolDef | ToolInfo] = [],
         tool_choice: ToolChoice | None = None,
         config: GenerateConfig = GenerateConfig(),
         cache: bool | CachePolicy = False,
@@ -200,7 +215,7 @@ class Model:
           input (str | list[ChatMessage]): Chat message
             input (if a `str` is passed it is converted
             to a `ChatMessageUser`).
-          tools (list[Tool] | list[ToolInfo]): Tools available for the
+          tools (list[Tool] | list[ToolDef] | list[ToolInfo]): Tools available for the
             model to call.
           tool_choice (ToolChoice): Directives to the model
             as to which tools to prefer.
@@ -211,11 +226,17 @@ class Model:
         Returns:
            ModelOutput
         """
+        # if we are the default model then enforce message limit if it
+        # exists (raise an exception if it is exceeded)
+        is_active_model = self == active_model()
+        if is_active_model:
+            handle_sample_message_limit(input)
+
         # base config for this model
         base_config = self.config
 
         # if we are the active_model then merge active generate config
-        if self == active_model():
+        if is_active_model:
             base_config = base_config.merge(active_generate_config())
 
         # merge passed config
@@ -242,7 +263,7 @@ class Model:
         async with self._connection_concurrency(config):
             return await self._generate(
                 input=input,
-                tools=tools_info(tools),
+                tools=tools,
                 tool_choice=tool_choice,
                 config=config,
                 cache=cache,
@@ -251,13 +272,22 @@ class Model:
     async def _generate(
         self,
         input: list[ChatMessage],
-        tools: list[ToolInfo],
+        tools: list[Tool]
+        | list[ToolDef]
+        | list[ToolInfo]
+        | list[Tool | ToolDef | ToolInfo],
         tool_choice: ToolChoice | None,
         config: GenerateConfig,
         cache: bool | CachePolicy = False,
     ) -> ModelOutput:
         # default to 'auto' for tool_choice (same as underlying model apis)
         tool_choice = tool_choice if tool_choice else "auto"
+
+        # extract tool defs if we can
+        tdefs = tool_defs([tool for tool in tools if not isinstance(tool, ToolInfo)])
+
+        # resolve all tools into tool_info
+        tools = tools_info(tools)
 
         # if we have a specific tool selected then filter out the others
         if isinstance(tool_choice, ToolFunction):
@@ -275,6 +305,19 @@ class Model:
             if not self.api.tools_required():
                 tools = []
             tool_choice = "none"
+
+        # handle reasoning history
+        input = resolve_reasoning_history(
+            input, config, self.api.has_reasoning_history()
+        )
+
+        # apply any tool model_input handlers
+        input = resolve_tool_model_input(tdefs, input)
+
+        # break tool image content out into user messages if the model doesn't
+        # support tools returning images
+        if not self.api.tool_result_images():
+            input = tool_result_images_as_user_message(input)
 
         # optionally collapse *consecutive* messages into one -
         # (some apis e.g. anthropic require this)
@@ -324,43 +367,74 @@ class Model:
                 )
                 existing = cache_fetch(cache_entry)
                 if isinstance(existing, ModelOutput):
-                    await self._record_model_interaction(
+                    self._record_model_interaction(
                         input=input,
                         tools=tools,
                         tool_choice=tool_choice,
                         config=config,
-                        output=existing,
                         cache="read",
+                        output=existing,
                         call=None,
                     )
                     return existing
 
-            result = await self.api.generate(
+            # verify that model apis are allowed
+            self.verify_model_apis()
+
+            # record the interaction before the call to generate
+            # (we'll update it with the results once we have them)
+            complete = self._record_model_interaction(
                 input=input,
                 tools=tools,
                 tool_choice=tool_choice,
                 config=config,
+                cache="write" if cache else None,
             )
+
+            with trace_action(logger, "Model", f"generate ({str(self)})"):
+                time_start = time.perf_counter()
+                result = await self.api.generate(
+                    input=input,
+                    tools=tools,
+                    tool_choice=tool_choice,
+                    config=config,
+                )
+                time_elapsed = time.perf_counter() - time_start
+
             if isinstance(result, tuple):
                 output, call = result
             else:
                 output = result
                 call = None
 
-            # write to transcript
-            await self._record_model_interaction(
-                input=input,
-                tools=tools,
-                tool_choice=tool_choice,
-                config=config,
-                output=output,
-                cache="write" if cache else None,
-                call=call,
-            )
+            # raise error
+            if isinstance(output, Exception):
+                complete(output, call)
+
+                # Wrap the error in a runtime error which will show the
+                # request which caused the error
+                error = repr(output)
+                request = json.dumps(call.request, indent=2) if call is not None else ""
+                error_message = f"{error}\n\nRequest:\n{request}"
+                raise RuntimeError(error_message)
+
+            # update output with time elapsed
+            output.time = time_elapsed
+
+            # add views to tool calls
+            for choice in output.choices:
+                for tool_call in choice.message.tool_calls or []:
+                    tool_call.view = tool_call_view(tool_call, tdefs)
+
+            # complete the transcript event
+            complete(output, call)
 
             # record usage
             if output.usage:
+                # record usage
                 record_model_usage(f"{self}", output.usage)
+
+                # send telemetry if its hooked up
                 await send_telemetry(
                     "model_usage",
                     json.dumps(dict(model=str(self), usage=output.usage.model_dump())),
@@ -376,6 +450,14 @@ class Model:
 
         # return results
         return model_output
+
+    # function to verify that its okay to call model apis
+    def verify_model_apis(self) -> None:
+        if (
+            os.getenv("INSPECT_DISABLE_MODEL_API", None) is not None
+            and ModelName(self).api != "mockllm"
+        ):
+            raise RuntimeError("Model APIs disabled by INSPECT_DISABLE_MODEL_API")
 
     # semaphore for model generate requests. these can be shared across
     # instances of Model.  This is so that each distinct model endpoint/account
@@ -402,32 +484,53 @@ class Model:
             key=f"Model{self.api.connection_key()}",
         )
 
-    async def _record_model_interaction(
+    def _record_model_interaction(
         self,
         input: list[ChatMessage],
         tools: list[ToolInfo],
         tool_choice: ToolChoice,
         config: GenerateConfig,
-        output: ModelOutput,
         cache: Literal["read", "write"] | None,
-        call: ModelCall | None,
-    ) -> None:
+        output: ModelOutput | None = None,
+        call: ModelCall | None = None,
+    ) -> Callable[[ModelOutput | Exception, ModelCall | None], None]:
         from inspect_ai.log._transcript import ModelEvent, transcript
 
-        trace_assistant_message(input, output.choices[0].message)
-
-        transcript()._event(
-            ModelEvent(
-                model=str(self),
-                input=input,
-                tools=tools,
-                tool_choice=tool_choice,
-                config=config,
-                output=output,
-                cache=cache,
-                call=call,
-            )
+        # create event and add it to the transcript
+        model = str(self)
+        event = ModelEvent(
+            model=model,
+            input=input,
+            tools=tools,
+            tool_choice=tool_choice,
+            config=config,
+            output=output if output else ModelOutput.from_content(model, ""),
+            cache=cache,
+            call=call,
+            pending=output is None,
         )
+        transcript()._event(event)
+
+        # callable that can be used to update the interaction w/ output
+        def complete(
+            result: ModelOutput | Exception, updated_call: ModelCall | None
+        ) -> None:
+            # trace
+            if isinstance(result, ModelOutput):
+                conversation_assistant_message(input, result.choices[0].message)
+                event.output = result
+            else:
+                conversation_assistant_error(result)
+                event.error = repr(result)
+
+            event.call = updated_call
+            event.pending = None
+
+        # if we have output then complete it now
+        if output:
+            complete(output, call)
+
+        return complete
 
 
 class ModelName:
@@ -632,6 +735,208 @@ def simple_input_messages(
     return messages
 
 
+def resolve_reasoning_history(
+    messages: list[ChatMessage], config: GenerateConfig, api_has_reasoning_history: bool
+) -> list[ChatMessage]:
+    # determine if we are including reasoning history
+    reasoning_history = config.reasoning_history is not False
+
+    # determine up front if we have any reasoning content
+    have_reasoning = any(
+        [
+            isinstance(m, ChatMessageAssistant) and m.reasoning is not None
+            for m in messages
+        ]
+    )
+    if not have_reasoning:
+        return messages
+
+    # API asssistant message format directly supports reasoning history so we will:
+    #   (a) Remove reasoning content entirely if config says not to include it; or
+    #   (b) Leave the messages alone if config says to include it
+    if api_has_reasoning_history:
+        # remove reasoning history as per config
+        if not reasoning_history:
+            resolved_messages: list[ChatMessage] = []
+            for message in messages:
+                if isinstance(message, ChatMessageAssistant):
+                    resolved_messages.append(
+                        message.model_copy(update={"reasoning": None})
+                    )
+                else:
+                    resolved_messages.append(message)
+
+            return resolved_messages
+
+        # include reasoning history as per config
+        else:
+            return messages
+
+    # API can't represent reasoning natively so include <think> tags
+    elif reasoning_history:
+        resolved_messages = []
+        for message in messages:
+            if (
+                isinstance(message, ChatMessageAssistant)
+                and message.reasoning is not None
+            ):
+                message = deepcopy(message)
+                if isinstance(message.content, str):
+                    message.content = (
+                        f"<think>\n{message.reasoning}\n</think>\n\n{message.content}"
+                    )
+                else:
+                    message.content.insert(
+                        0, ContentText(text=f"<think>\n{message.reasoning}\n</think>\n")
+                    )
+                message.reasoning = None
+
+            resolved_messages.append(message)
+
+        return resolved_messages
+
+    # api doesn't handle reasoning and config says no reasoning_history, nothing to do
+    else:
+        return messages
+
+
+def resolve_tool_model_input(
+    tdefs: list[ToolDef], messages: list[ChatMessage]
+) -> list[ChatMessage]:
+    # filter on tooldefs that have a model input handler
+    tdefs = [tdef for tdef in tdefs if tdef.model_input is not None]
+
+    # bail if there are no handlers
+    if len(tdefs) == 0:
+        return messages
+
+    # don't mutate the original messages
+    messages = deepcopy(messages)
+
+    # extract tool messages
+    tool_messages = [
+        message for message in messages if isinstance(message, ChatMessageTool)
+    ]
+    # run model_input handlers over all tool_messages with the same function name
+    for tdef in tdefs:
+        assert tdef.model_input
+        # filter messages down to just this tool
+        tdef_tool_messages = [
+            message for message in tool_messages if message.function == tdef.name
+        ]
+        # call the function for each tool, passing the index, total, and content
+        for index, message in enumerate(tdef_tool_messages):
+            message.content = tdef.model_input(
+                index, len(tool_messages), message.content
+            )
+
+    # return modified messages
+    return messages
+
+
+def tool_result_images_as_user_message(
+    messages: list[ChatMessage],
+) -> list[ChatMessage]:
+    """
+    To conform to models lacking support for images in tool responses, create an alternate message history that moves images into a fabricated user message.
+
+    Tool responses will have images replaced with "Image content is included below.", and the new user message will contain the images.
+    """
+    init_accum: ImagesAccumulator = ([], [], [])
+    chat_messages, user_message_content, tool_call_ids = functools.reduce(
+        tool_result_images_reducer, messages, init_accum
+    )
+    # if the last message was a tool result, we may need to flush the pending stuff here
+    return maybe_adding_user_message(chat_messages, user_message_content, tool_call_ids)
+
+
+ImagesAccumulator = tuple[list[ChatMessage], list[Content], list[str]]
+"""
+ImagesAccumulator is a tuple containing three lists:
+- The first list contains ChatMessages that are the result of processing.
+- The second list contains ContentImages that need to be inserted into a fabricated user message.
+- The third list contains the tool_call_id's associated with the tool responses.
+"""
+
+
+def tool_result_images_reducer(
+    accum: ImagesAccumulator,
+    message: ChatMessage,
+) -> ImagesAccumulator:
+    messages, pending_content, tool_call_ids = accum
+    # if there are tool result images, pull them out into a ChatUserMessage
+    if (
+        isinstance(message, ChatMessageTool)
+        and isinstance(message.content, list)
+        and any([isinstance(c, ContentImage) for c in message.content])
+    ):
+        init_accum: ImageContentAccumulator = ([], [])
+        new_user_message_content, edited_tool_message_content = functools.reduce(
+            tool_result_image_content_reducer, message.content, init_accum
+        )
+
+        return (
+            messages
+            + [
+                ChatMessageTool(
+                    content=edited_tool_message_content,
+                    tool_call_id=message.tool_call_id,
+                    function=message.function,
+                )
+            ],
+            pending_content + new_user_message_content,
+            tool_call_ids + ([message.tool_call_id] if message.tool_call_id else []),
+        )
+
+    else:
+        return (
+            maybe_adding_user_message(messages, pending_content, tool_call_ids)
+            + [message],
+            [],
+            [],
+        )
+
+
+ImageContentAccumulator = tuple[list[Content], list[Content]]
+"""
+ImageContentAccumulator is a tuple containing two lists of Content objects:
+- The first list contains ContentImages that will be included in a fabricated user message.
+- The second list contains modified content for the tool message with images replaced with text.
+"""
+
+
+def tool_result_image_content_reducer(
+    acc: ImageContentAccumulator, content: Content
+) -> ImageContentAccumulator:
+    """
+    Reduces the messages Content into two separate lists: one for a fabricated user message that will contain the images and one for modified tool message with the images replaced with text.
+
+    Returns:
+      ImageContentReducer: A tuple containing two lists of Content objects.
+        - The first list contains the images that will be included in a fabricated user message.
+        - The second list contains modified content for the tool message with images replaced with text.
+    """
+    new_user_message_content, edited_tool_message_content = acc
+    if isinstance(content, ContentImage):
+        return new_user_message_content + [content], edited_tool_message_content + [
+            ContentText(text="Image content is included below.")
+        ]
+
+    else:
+        return new_user_message_content, edited_tool_message_content + [content]
+
+
+def maybe_adding_user_message(
+    messages: list[ChatMessage], content: list[Content], tool_call_ids: list[str]
+) -> list[ChatMessage]:
+    """If content is empty, return messages, otherwise, create a new ChatMessageUser with it and return a new messages list with that message added."""
+    return (
+        messages + [ChatMessageUser(content=content, tool_call_id=tool_call_ids)]
+        if content
+        else messages
+    )
+
+
 # Functions to reduce consecutive user messages to a single user message -> required for some models
 def collapse_consecutive_user_messages(
     messages: list[ChatMessage],
@@ -711,6 +1016,25 @@ def active_model() -> Model | None:
 active_model_context_var: ContextVar[Model] = ContextVar("active_model")
 
 
+def handle_sample_message_limit(input: str | list[ChatMessage]) -> None:
+    from inspect_ai.log._samples import (
+        active_sample_message_limit,
+        set_active_sample_total_messages,
+    )
+    from inspect_ai.solver._limit import SampleLimitExceededError
+
+    total_messages = 1 if isinstance(input, str) else len(input)
+    message_limit = active_sample_message_limit()
+    if message_limit is not None:
+        if total_messages >= message_limit:
+            raise SampleLimitExceededError(
+                "message", value=total_messages, limit=message_limit
+            )
+
+    # set total messages
+    set_active_sample_total_messages(total_messages)
+
+
 def init_model_usage() -> None:
     model_usage_context_var.set({})
 
@@ -720,8 +1044,29 @@ def init_sample_model_usage() -> None:
 
 
 def record_model_usage(model: str, usage: ModelUsage) -> None:
+    from inspect_ai.log._samples import (
+        active_sample_token_limit,
+        set_active_sample_total_tokens,
+    )
+    from inspect_ai.solver._limit import SampleLimitExceededError
+
+    # record usage
     set_model_usage(model, usage, sample_model_usage_context_var.get(None))
     set_model_usage(model, usage, model_usage_context_var.get(None))
+
+    # compute total tokens
+    total_tokens = sample_total_tokens()
+
+    # update active sample
+    set_active_sample_total_tokens(total_tokens)
+
+    # check for token limit overflow and raise
+    token_limit = active_sample_token_limit()
+    if token_limit is not None:
+        if total_tokens > token_limit:
+            raise SampleLimitExceededError(
+                "token", value=total_tokens, limit=token_limit
+            )
 
 
 def set_model_usage(

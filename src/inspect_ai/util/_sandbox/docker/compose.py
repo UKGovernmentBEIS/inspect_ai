@@ -8,15 +8,15 @@ from typing import Any, Literal, TypedDict, cast
 import yaml
 from pydantic import BaseModel
 
-from inspect_ai._util.ansi import no_ansi
 from inspect_ai._util.error import PrerequisiteError
+from inspect_ai.util._display import display_type
 from inspect_ai.util._subprocess import ExecResult, subprocess
 
 from .prereqs import (
     DOCKER_COMPOSE_REQUIRED_VERSION_PULL_POLICY,
     validate_docker_compose,
 )
-from .util import ComposeProject, is_inspect_project, sandbox_log
+from .util import ComposeProject, is_inspect_project
 
 logger = getLogger(__name__)
 
@@ -25,14 +25,17 @@ COMPOSE_WAIT = "120"
 
 
 async def compose_up(project: ComposeProject) -> None:
-    # Start the environment
-    result = await compose_command(
+    # Start the environment. Note that we don't check the result because docker will
+    # return a non-zero exit code for services that exit (even successfully) when
+    # passing the --wait flag (see https://github.com/docker/compose/issues/10596).
+    # In practice, we will catch any errors when calling compose_check_running()
+    # immediately after we call compose_up().
+    await compose_command(
         ["up", "--detach", "--wait", "--wait-timeout", COMPOSE_WAIT],
         project=project,
+        # wait up to 5 minutes for container to go up (compose wait + 3 minutes)
+        timeout=300,
     )
-    if not result.success:
-        msg = f"Failed to start docker services {result.stderr}"
-        raise RuntimeError(msg)
 
 
 async def compose_down(project: ComposeProject, quiet: bool = True) -> None:
@@ -71,27 +74,49 @@ async def compose_down(project: ComposeProject, quiet: bool = True) -> None:
 
 
 async def compose_cp(
-    src: str, dest: str, project: ComposeProject, cwd: str | Path | None = None
+    src: str,
+    dest: str,
+    project: ComposeProject,
+    cwd: str | Path | None = None,
+    output_limit: int | None = None,
 ) -> None:
-    result = await compose_command(["cp", "--", src, dest], project=project, cwd=cwd)
+    result = await compose_command(
+        ["cp", "--", src, dest],
+        project=project,
+        timeout=120,  # 2-minute timeout for file copies
+        cwd=cwd,
+        output_limit=output_limit,
+    )
     if not result.success:
         msg = f"Failed to copy file from '{src}' to '{dest}': {result.stderr}"
         raise RuntimeError(msg)
 
 
-async def compose_check_running(services: list[str], project: ComposeProject) -> None:
+async def compose_check_running(
+    services: list[str], project: ComposeProject
+) -> list[str]:
     # Check to ensure that the status of containers is healthy
     running_services = await compose_ps(project=project, status="running")
-    if len(running_services) > 0:
-        if len(running_services) != len(services):
-            unhealthy_services = services
-            for running_service in running_services:
-                unhealthy_services.remove(running_service["Service"])
+    exited_services = await compose_ps(project=project, status="exited")
+    successful_services = running_services + [
+        service for service in exited_services if service["ExitCode"] == 0
+    ]
 
-            msg = f"One or more docker containers failed to start {','.join(unhealthy_services)}"
+    if len(successful_services) > 0:
+        if len(successful_services) != len(services):
+            unhealthy_services = services
+            for successful_service in successful_services:
+                unhealthy_services.remove(successful_service["Service"])
+
+            msg = (
+                "One or more docker containers failed to start from "
+                f"{project.config}: {','.join(unhealthy_services)}"
+            )
             raise RuntimeError(msg)
     else:
         raise RuntimeError("No services started")
+
+    return [service["Service"] for service in running_services]
 
 
 async def compose_ps(
@@ -107,7 +132,7 @@ async def compose_ps(
         command.append("--all")
     if status:
         command = command + ["--status", status]
-    result = await compose_command(command, project=project)
+    result = await compose_command(command, project=project, timeout=60)
     if not result.success:
         msg = f"Error querying for running services: {result.stderr}"
         raise RuntimeError(msg)
@@ -125,6 +150,7 @@ async def compose_build(project: ComposeProject, capture_output: bool = False) -
     result = await compose_command(
         ["build"],
         project=project,
+        timeout=None,  # no timeout for build
         capture_output=capture_output,
     )
     if not result.success:
@@ -140,22 +166,28 @@ async def compose_pull(
     return await compose_command(
         ["pull", "--ignore-buildable", "--policy", "missing", service],
         project=project,
+        timeout=None,  # no timeout for pull
         capture_output=capture_output,
     )
 
 
 async def compose_exec(
     command: list[str],
+    *,
     project: ComposeProject,
-    timeout: int | None = None,
+    timeout: int | None,
+    timeout_retry: bool = True,
     input: str | bytes | None = None,
+    output_limit: int | None = None,
 ) -> ExecResult[str]:
     return await compose_command(
         ["exec"] + command,
         project=project,
         timeout=timeout,
+        timeout_retry=timeout_retry,
         input=input,
         forward_env=False,
+        output_limit=output_limit,
     )
 
 
@@ -171,7 +203,7 @@ ComposeService = TypedDict(
 
 
 async def compose_services(project: ComposeProject) -> dict[str, ComposeService]:
-    result = await compose_command(["config"], project=project)
+    result = await compose_command(["config"], project=project, timeout=60)
     if not result.success:
         raise RuntimeError(f"Error reading docker config: {result.stderr}")
     return cast(dict[str, ComposeService], yaml.safe_load(result.stdout)["services"])
@@ -195,13 +227,13 @@ async def compose_ls() -> list[Project]:
 
 async def compose_cleanup_images(
     project: ComposeProject,
+    *,
     cwd: str | None = None,
-    timeout: int | None = None,
+    timeout: int | None,
 ) -> None:
-    sandbox_log("Removing images")
     # List the images that would be created for this compose
     images_result = await compose_command(
-        ["config", "--images"], project=project, cwd=cwd
+        ["config", "--images"], project=project, timeout=timeout, cwd=cwd
     )
 
     # Remove those images explicitly
@@ -235,12 +267,15 @@ async def compose_cleanup_images(
 
 async def compose_command(
     command: list[str],
+    *,
     project: ComposeProject,
-    timeout: int | None = None,
+    timeout: int | None,
+    timeout_retry: bool = True,
     input: str | bytes | None = None,
     cwd: str | Path | None = None,
     forward_env: bool = True,
     capture_output: bool = True,
+    output_limit: int | None = None,
     ansi: Literal["never", "always", "auto"] | None = None,
 ) -> ExecResult[str]:
     # The base docker compose command
@@ -250,10 +285,14 @@ async def compose_command(
     env = project.env if (project.env and forward_env) else {}
 
     # ansi (apply global override)
-    if no_ansi():
+    if display_type() == "plain":
         ansi = "never"
     if ansi:
         compose_command = compose_command + ["--ansi", ansi]
+
+    # quiet if display is none
+    if display_type() == "none":
+        compose_command = compose_command + ["--progress", "quiet"]
 
     # add project scope
     compose_command = compose_command + ["--project-name", project.name]
@@ -265,14 +304,46 @@ async def compose_command(
     # build final command
     compose_command = compose_command + command
 
-    # Execute the command
-    sandbox_log(f"compose command: {shlex.join(compose_command)}")
-    result = await subprocess(
-        compose_command,
-        input=input,
-        cwd=cwd,
-        env=env,
-        timeout=timeout,
-        capture_output=capture_output,
-    )
-    return result
+    # function to run command
+    async def run_command(command_timeout: int | None) -> ExecResult[str]:
+        result = await subprocess(
+            compose_command,
+            input=input,
+            cwd=cwd,
+            env=env,
+            timeout=command_timeout,
+            capture_output=capture_output,
+            output_limit=output_limit,
+        )
+        return result
+
+    # we have observed underlying unreliability in docker compose in some linux
+    # environments on EC2 -- this exhibits in very simple commands (e.g. compose config)
+    # simply never returning. this tends to happen when we know there is a large
+    # number of commands in flight (task/sample init) so could be some sort of
+    # timing issue / race condition in the docker daemon. we've also observed that
+    # these same commands succeed if you just retry them. therefore, we add some
+    # extra resiliance by retrying commands with a timeout once. we were observing
+    # commands hanging at a rate of ~ 1/1000, so we retry up to twice (tweaking the
+    # retry time down) to make the odds of hanging vanishingly small
+
+    if timeout is not None:
+        MAX_RETRIES = 2
+        retries = 0
+        while True:
+            try:
+                command_timeout = (
+                    timeout if retries == 0 else (min(timeout, 60) // retries)
+                )
+                return await run_command(command_timeout)
+            except TimeoutError:
+                retries += 1
+                if timeout_retry and (retries <= MAX_RETRIES):
+                    logger.info(
+                        f"Retrying docker compose command: {shlex.join(compose_command)}"
+                    )
+                else:
+                    raise
+
+    else:
+        return await run_command(timeout)

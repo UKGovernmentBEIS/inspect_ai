@@ -1,0 +1,499 @@
+{
+  "version": 2,
+  "status": "success",
+  "eval": {
+    "run_id": "4hZVSqgqbdNBk7pFLr5RWq",
+    "created": "2024-10-22T08:07:14+01:00",
+    "task": "images",
+    "task_id": "Mkzb9fyni2GsX4NSg2b7AF",
+    "task_version": 0,
+    "task_file": "examples/images/images.py",
+    "task_attribs": {},
+    "task_args": {},
+    "dataset": {
+      "name": "images",
+      "location": "images.jsonl",
+      "samples": 1,
+      "shuffled": false
+    },
+    "model": "openai/gpt-4o",
+    "model_args": {},
+    "config": {
+      "log_images": true
+    },
+    "revision": {
+      "type": "git",
+      "origin": "git@github.com:UKGovernmentBEIS/inspect_ai.git",
+      "commit": "4525c3bd"
+    },
+    "packages": {
+      "inspect_ai": "0.3.41.dev123+g9ad2119a.d20241015"
+    }
+  },
+  "plan": {
+    "name": "plan",
+    "steps": [
+      {
+        "solver": "system_message",
+        "params": {
+          "template": "\nFor the following exercise, it is important that you answer with only a single word or numeric value in brackets. For example, [22] or [house]. Do not include any discussion, narrative, or rationale, just a single value in brackets.\n"
+        }
+      },
+      {
+        "solver": "generate",
+        "params": {}
+      }
+    ],
+    "config": {}
+  },
+  "results": {
+    "total_samples": 1,
+    "completed_samples": 1,
+    "scores": [
+      {
+        "name": "match",
+        "scorer": "match",
+        "params": {},
+        "metrics": {
+          "accuracy": {
+            "name": "accuracy",
+            "value": 0.0,
+            "options": {}
+          },
+          "stderr": {
+            "name": "stderr",
+            "value": 0.0,
+            "options": {}
+          }
+        }
+      }
+    ]
+  },
+  "stats": {
+    "started_at": "2024-10-22T08:07:14+01:00",
+    "completed_at": "2024-10-22T08:07:16+01:00",
+    "model_usage": {
+      "openai/gpt-4o": {
+        "input_tokens": 323,
+        "output_tokens": 3,
+        "total_tokens": 326
+      }
+    }
+  },
+  "samples": [
+    {
+      "id": 1,
+      "epoch": 1,
+      "input": [
+        {
+          "content": [
+            {
+              "type": "text",
+              "text": "What is this a picture of?"
+            },
+            {
+              "type": "image",
+              "image": "attachment://734b3dc396aa9924b5f2a48de42561d2",
+              "detail": "auto"
+            }
+          ],
+          "source": "input",
+          "role": "user"
+        }
+      ],
+      "target": [
+        "bike",
+        "bicycle"
+      ],
+      "messages": [
+        {
+          "content": "\nFor the following exercise, it is important that you answer with only a single word or numeric value in brackets. For example, [22] or [house]. Do not include any discussion, narrative, or rationale, just a single value in brackets.\n",
+          "role": "system"
+        },
+        {
+          "content": [
+            {
+              "type": "text",
+              "text": "What is this a picture of?"
+            },
+            {
+              "type": "image",
+              "image": "attachment://734b3dc396aa9924b5f2a48de42561d2",
+              "detail": "auto"
+            }
+          ],
+          "source": "input",
+          "role": "user"
+        },
+        {
+          "content": "[Abstract]",
+          "source": "generate",
+          "role": "assistant"
+        }
+      ],
+      "output": {
+        "model": "gpt-4o-2024-08-06",
+        "choices": [
+          {
+            "message": {
+              "content": "[Abstract]",
+              "source": "generate",
+              "role": "assistant"
+            },
+            "stop_reason": "stop"
+          }
+        ],
+        "usage": {
+          "input_tokens": 323,
+          "output_tokens": 3,
+          "total_tokens": 326
+        }
+      },
+      "scores": {
+        "match": {
+          "value": "I",
+          "answer": "[Abstract]"
+        }
+      },
+      "metadata": {},
+      "store": {},
+      "events": [
+        {
+          "timestamp": "2024-10-22T08:07:14.714517+01:00",
+          "event": "sample_init",
+          "sample": {
+            "input": [
+              {
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "What is this a picture of?"
+                  },
+                  {
+                    "type": "image",
+                    "image": "attachment://734b3dc396aa9924b5f2a48de42561d2",
+                    "detail": "auto"
+                  }
+                ],
+                "source": "input",
+                "role": "user"
+              }
+            ],
+            "target": [
+              "bike",
+              "bicycle"
+            ],
+            "id": 1
+          },
+          "state": {
+            "messages": [
+              {
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "What is this a picture of?"
+                  },
+                  {
+                    "type": "image",
+                    "image": "attachment://734b3dc396aa9924b5f2a48de42561d2",
+                    "detail": "auto"
+                  }
+                ],
+                "source": "input",
+                "role": "user"
+              }
+            ],
+            "tools": [],
+            "tool_choice": null,
+            "store": {},
+            "output": {
+              "model": "openai/gpt-4o",
+              "choices": []
+            },
+            "completed": false,
+            "metadata": {}
+          }
+        },
+        {
+          "timestamp": "2024-10-22T08:07:14.714776+01:00",
+          "event": "step",
+          "action": "begin",
+          "type": "solver",
+          "name": "system_message"
+        },
+        {
+          "timestamp": "2024-10-22T08:07:14.715535+01:00",
+          "event": "state",
+          "changes": [
+            {
+              "op": "remove",
+              "path": "/messages/0/source"
+            },
+            {
+              "op": "replace",
+              "path": "/messages/0/content",
+              "value": "attachment://a20f78037f9b8c8ff928ac9b422ce4c9",
+              "replaced": [
+                {
+                  "type": "text",
+                  "text": "What is this a picture of?"
+                },
+                {
+                  "type": "image",
+                  "image": "data:image/png;base64,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",
+                  "detail": "auto"
+                }
+              ]
+            },
+            {
+              "op": "replace",
+              "path": "/messages/0/role",
+              "value": "system",
+              "replaced": "user"
+            },
+            {
+              "op": "add",
+              "path": "/messages/1",
+              "value": {
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "What is this a picture of?"
+                  },
+                  {
+                    "type": "image",
+                    "image": "attachment://734b3dc396aa9924b5f2a48de42561d2",
+                    "detail": "auto"
+                  }
+                ],
+                "source": "input",
+                "role": "user"
+              }
+            }
+          ]
+        },
+        {
+          "timestamp": "2024-10-22T08:07:14.715554+01:00",
+          "event": "step",
+          "action": "end",
+          "type": "solver",
+          "name": "system_message"
+        },
+        {
+          "timestamp": "2024-10-22T08:07:14.715577+01:00",
+          "event": "step",
+          "action": "begin",
+          "type": "solver",
+          "name": "generate"
+        },
+        {
+          "timestamp": "2024-10-22T08:07:16.633624+01:00",
+          "event": "model",
+          "model": "openai/gpt-4o",
+          "input": [
+            {
+              "content": "attachment://a20f78037f9b8c8ff928ac9b422ce4c9",
+              "role": "system"
+            },
+            {
+              "content": [
+                {
+                  "type": "text",
+                  "text": "What is this a picture of?"
+                },
+                {
+                  "type": "image",
+                  "image": "attachment://734b3dc396aa9924b5f2a48de42561d2",
+                  "detail": "auto"
+                }
+              ],
+              "source": "input",
+              "role": "user"
+            }
+          ],
+          "tools": [],
+          "tool_choice": "none",
+          "config": {},
+          "output": {
+            "model": "gpt-4o-2024-08-06",
+            "choices": [
+              {
+                "message": {
+                  "content": "[Abstract]",
+                  "source": "generate",
+                  "role": "assistant"
+                },
+                "stop_reason": "stop"
+              }
+            ],
+            "usage": {
+              "input_tokens": 323,
+              "output_tokens": 3,
+              "total_tokens": 326
+            }
+          },
+          "call": {
+            "request": {
+              "messages": [
+                {
+                  "role": "system",
+                  "content": "attachment://a20f78037f9b8c8ff928ac9b422ce4c9"
+                },
+                {
+                  "role": "user",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "What is this a picture of?"
+                    },
+                    {
+                      "type": "image_url",
+                      "image_url": {
+                        "url": "<base64-data-removed>",
+                        "detail": "auto"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "tools": null,
+              "tool_choice": null,
+              "model": "gpt-4o"
+            },
+            "response": {
+              "id": "chatcmpl-AL3H2mOXsznIyud1CisXAh5DpGWF1",
+              "choices": [
+                {
+                  "finish_reason": "stop",
+                  "index": 0,
+                  "logprobs": null,
+                  "message": {
+                    "content": "[Abstract]",
+                    "refusal": null,
+                    "role": "assistant",
+                    "function_call": null,
+                    "tool_calls": null
+                  }
+                }
+              ],
+              "created": 1729580836,
+              "model": "gpt-4o-2024-08-06",
+              "object": "chat.completion",
+              "service_tier": null,
+              "system_fingerprint": "fp_45c6de4934",
+              "usage": {
+                "completion_tokens": 3,
+                "prompt_tokens": 323,
+                "total_tokens": 326,
+                "completion_tokens_details": {
+                  "reasoning_tokens": 0
+                },
+                "prompt_tokens_details": {
+                  "cached_tokens": 0
+                }
+              }
+            }
+          }
+        },
+        {
+          "timestamp": "2024-10-22T08:07:16.634366+01:00",
+          "event": "state",
+          "changes": [
+            {
+              "op": "add",
+              "path": "/messages/2",
+              "value": {
+                "content": "[Abstract]",
+                "source": "generate",
+                "role": "assistant"
+              }
+            },
+            {
+              "op": "add",
+              "path": "/output/usage",
+              "value": {
+                "input_tokens": 323,
+                "output_tokens": 3,
+                "total_tokens": 326
+              }
+            },
+            {
+              "op": "add",
+              "path": "/output/choices/0",
+              "value": {
+                "message": {
+                  "content": "[Abstract]",
+                  "source": "generate",
+                  "role": "assistant"
+                },
+                "stop_reason": "stop"
+              }
+            },
+            {
+              "op": "replace",
+              "path": "/output/model",
+              "value": "gpt-4o-2024-08-06",
+              "replaced": "openai/gpt-4o"
+            }
+          ]
+        },
+        {
+          "timestamp": "2024-10-22T08:07:16.634427+01:00",
+          "event": "step",
+          "action": "end",
+          "type": "solver",
+          "name": "generate"
+        },
+        {
+          "timestamp": "2024-10-22T08:07:16.634532+01:00",
+          "event": "step",
+          "action": "begin",
+          "type": "scorer",
+          "name": "match"
+        },
+        {
+          "timestamp": "2024-10-22T08:07:16.634758+01:00",
+          "event": "score",
+          "score": {
+            "value": "I",
+            "answer": "[Abstract]"
+          },
+          "target": [
+            "bike",
+            "bicycle"
+          ]
+        },
+        {
+          "timestamp": "2024-10-22T08:07:16.635225+01:00",
+          "event": "step",
+          "action": "end",
+          "type": "scorer",
+          "name": "match"
+        }
+      ],
+      "model_usage": {
+        "openai/gpt-4o": {
+          "input_tokens": 323,
+          "output_tokens": 3,
+          "total_tokens": 326
+        }
+      },
+      "attachments": {
+        "734b3dc396aa9924b5f2a48de42561d2": "data:image/png;base64,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",
+        "a20f78037f9b8c8ff928ac9b422ce4c9": "\nFor the following exercise, it is important that you answer with only a single word or numeric value in brackets. For example, [22] or [house]. Do not include any discussion, narrative, or rationale, just a single value in brackets.\n"
+      }
+    }
+  ],
+  "reductions": [
+    {
+      "scorer": "match",
+      "samples": [
+        {
+          "value": 0,
+          "answer": "[Abstract]",
+          "sample_id": 1
+        }
+      ]
+    }
+  ]
+}

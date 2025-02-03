@@ -2,9 +2,9 @@ import { html } from "htm/preact";
 import { FontSize, TextStyle } from "../appearance/Fonts.mjs";
 import { ModelUsagePanel } from "./UsageCard.mjs";
 
-export const ModelTokenTable = ({ model_usage }) => {
+export const ModelTokenTable = ({ model_usage, style }) => {
   return html`
-  <${TokenTable}>
+  <${TokenTable} style=${style}>
     <${TokenHeader}/>
     <tbody>
     ${Object.keys(model_usage).map((key) => {
@@ -15,10 +15,15 @@ export const ModelTokenTable = ({ model_usage }) => {
   `;
 };
 
-const TokenTable = ({ children }) => {
+const TokenTable = ({ style, children }) => {
   return html`<table
     class="table table-sm"
-    style=${{ width: "100%", fontSize: FontSize.smaller, marginTop: "0.7rem" }}
+    style=${{
+      width: "100%",
+      fontSize: FontSize.smaller,
+      marginTop: "0.7rem",
+      ...style,
+    }}
   >
     ${children}
   </table>`;

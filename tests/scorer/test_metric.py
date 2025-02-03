@@ -1,4 +1,4 @@
-from typing import Any, cast
+from typing import Any, Callable, cast
 
 from inspect_ai import Task, eval, score
 from inspect_ai._util.constants import PKG_NAME
@@ -17,7 +17,7 @@ from inspect_ai.scorer import (
     scorer,
     std,
 )
-from inspect_ai.scorer._metric import MetricType, metric_create
+from inspect_ai.scorer._metric import metric_create
 from inspect_ai.scorer._target import Target
 from inspect_ai.solver._task_state import TaskState
 
@@ -211,7 +211,35 @@ def test_complex_metrics() -> None:
     check_log(log)
 
 
-def registry_assert(metric: Metric | MetricType, name: str) -> None:
+@scorer(
+    metrics=[
+        {"*": [mean()]},
+    ]
+)
+def wildcard_scorer() -> Scorer:
+    async def score(state: TaskState, target: Target) -> Score:
+        return Score(value={"one": 1, "two": 2, "three": 3})
+
+    return score
+
+
+def test_wildcard() -> None:
+    def check_log(log):
+        assert len(log.results.scores) == 4
+        assert log.results.scores[1].name == "one"
+        assert log.results.scores[1].metrics["mean"].value == 1
+
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target=["2", "2.0", "Two"])],
+        scorer=wildcard_scorer(),
+    )
+
+    # normal eval
+    log = eval(tasks=task, model="mockllm/model")[0]
+    check_log(log)
+
+
+def registry_assert(metric: Metric | Callable[..., Metric], name: str) -> None:
     info = registry_info(metric)
     assert info.name == name
 
@@ -219,3 +247,83 @@ def registry_assert(metric: Metric | MetricType, name: str) -> None:
 def metric_create_assert(name: str, **kwargs: Any) -> None:
     metric = metric_create(name, **kwargs)
     assert metric([]) == 1
+
+
+@metric
+def nested_dict_metric(correct: str = "C") -> Metric:
+    def metric(scores: list[Score]) -> Value:
+        return {"key1": 1.0, "key2": 2.0}
+
+    return metric
+
+
+@scorer(
+    metrics=[
+        {"*": [nested_dict_metric()]},
+    ]
+)
+def nested_dict_scorer() -> Scorer:
+    async def score(state: TaskState, target: Target) -> Score:
+        return Score(value={"one": 1, "two": 2, "three": 3})
+
+    return score
+
+
+def test_nested_dict_metrics() -> None:
+    def check_log(log):
+        assert len(log.results.scores) == 4
+        assert log.results.scores[1].name == "one"
+        assert len(log.results.scores[1].metrics.values()) == 2
+        assert (
+            log.results.scores[1].metrics["nested_dict_metric_key1"].name
+            == "nested_dict_metric_key1"
+        )
+
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target=["2", "2.0", "Two"])],
+        scorer=nested_dict_scorer(),
+    )
+
+    # normal eval
+    log = eval(tasks=task, model="mockllm/model")[0]
+    check_log(log)
+
+
+@metric
+def nested_list_metric(correct: str = "C") -> Metric:
+    def metric(scores: list[Score]) -> Value:
+        return [1.0, 2.0]
+
+    return metric
+
+
+@scorer(
+    metrics=[
+        {"*": [nested_list_metric()]},
+    ]
+)
+def nested_list_scorer() -> Scorer:
+    async def score(state: TaskState, target: Target) -> Score:
+        return Score(value={"one": 1, "two": 2, "three": 3})
+
+    return score
+
+
+def test_nested_list_metrics() -> None:
+    def check_log(log):
+        assert len(log.results.scores) == 4
+        assert log.results.scores[1].name == "one"
+        assert len(log.results.scores[1].metrics.values()) == 2
+        assert (
+            log.results.scores[1].metrics["nested_list_metric_0"].name
+            == "nested_list_metric_0"
+        )
+
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target=["2", "2.0", "Two"])],
+        scorer=nested_list_scorer(),
+    )
+
+    # normal eval
+    log = eval(tasks=task, model="mockllm/model")[0]
+    check_log(log)

@@ -3,7 +3,7 @@ import { html } from "htm/preact";
 
 import { ApplicationIcons } from "../appearance/Icons.mjs";
 import { FontSize, TextStyle } from "../appearance/Fonts.mjs";
-import { formatNumber, formatTime } from "../utils/Format.mjs";
+import { formatDuration, formatNumber } from "../utils/Format.mjs";
 import { Card, CardHeader, CardBody } from "../components/Card.mjs";
 import { MetaDataView } from "../components/MetaDataView.mjs";
 import { ModelTokenTable } from "./ModelTokenTable.mjs";
@@ -15,15 +15,17 @@ const kUsageCardBodyId = "usage-card-body";
  *
  * @param {Object} props - The parameters for the component.
  * @param {import("../types/log").EvalStats} props.stats - The identifier for this view
- * @param {Object} props.context - The
  * @returns {import("preact").JSX.Element | string} The UsageCard component.
  */
-export const UsageCard = ({ stats, context }) => {
+export const UsageCard = ({ stats }) => {
   if (!stats) {
     return "";
   }
 
-  const totalDuration = duration(stats);
+  const totalDuration = formatDuration(
+    new Date(stats.started_at),
+    new Date(stats.completed_at),
+  );
   const usageMetadataStyle = {
     fontSize: FontSize.smaller,
   };
@@ -53,7 +55,6 @@ export const UsageCard = ({ stats, context }) => {
               ["Duration"]: totalDuration,
             }}"
             tableOptions="borderless,sm"
-            context=${context}
             style=${usageMetadataStyle}
           />
           </div>
@@ -72,7 +73,6 @@ export const UsageCard = ({ stats, context }) => {
  *
  * @param {Object} props - The parameters for the component.
  * @param {import("../types/log").ModelUsage1} props.usage - The identifier for this view
- * @param {Object} props.context - The
  * @returns {import("preact").JSX.Element | string} The ModelUsagePanel component.
  */
 export const ModelUsagePanel = ({ usage }) => {
@@ -156,12 +156,4 @@ export const ModelUsagePanel = ({ usage }) => {
       }
     })}
   </div>`;
-};
-
-const duration = (stats) => {
-  const start = new Date(stats.started_at);
-  const end = new Date(stats.completed_at);
-  const durationMs = end.getTime() - start.getTime();
-  const durationSec = durationMs / 1000;
-  return formatTime(durationSec);
 };

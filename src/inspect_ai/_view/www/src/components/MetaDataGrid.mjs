@@ -1,6 +1,6 @@
 // @ts-check
 import { html } from "htm/preact";
-import { RenderedContent } from "./RenderedContent.mjs";
+import { RenderedContent } from "./RenderedContent/RenderedContent.mjs";
 import { FontSize, TextStyle } from "../appearance/Fonts.mjs";
 
 /**
@@ -11,21 +11,11 @@ import { FontSize, TextStyle } from "../appearance/Fonts.mjs";
  * @param {string} [props.classes] - Additional class names for the table element.
  * @param {Object} [props.style] - Inline styles for the table element.
  * @param {Object[]|Record<string, string>} props.entries - The metadata entries to display.
- * @param {Object} [props.context] - Context for rendering the entries.
- * @param {boolean} [props.expanded] - Whether to render the entries in expanded mode.
  * @param {boolean} [props.plain] - Whether to render the entries in plain mode.
  * @param {boolean} [props.compact] - Whether to render the table in compact mode.
  * @returns {import("preact").JSX.Element} The component.
  */
-export const MetaDataGrid = ({
-  id,
-  entries,
-  classes,
-  context,
-  style,
-  expanded,
-  plain,
-}) => {
+export const MetaDataGrid = ({ id, entries, classes, style, plain }) => {
   const baseId = "metadata-grid";
 
   const cellKeyStyle = {
@@ -82,12 +72,7 @@ export const MetaDataGrid = ({
         ${entry.name}
       </div>
       <div class="${baseId}-value" style=${{ ...cellValueStyle }}>
-        <${RenderedContent}
-          id=${id}
-          entry=${entry}
-          context=${context}
-          options=${{ expanded }}
-        />
+        <${RenderedContent} id=${id} entry=${entry} />
       </div>
     `;
   });

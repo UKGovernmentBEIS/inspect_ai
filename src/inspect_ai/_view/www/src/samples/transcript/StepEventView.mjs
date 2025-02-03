@@ -1,7 +1,9 @@
 // @ts-check
 import { html } from "htm/preact";
+import { useCallback, useState } from "preact/hooks";
 import { EventPanel } from "./EventPanel.mjs";
-import { TranscriptComponent } from "./TranscriptView.mjs";
+import { TranscriptVirtualListComponent } from "./TranscriptView.mjs";
+import { formatDateTime } from "../../utils/Format.mjs";
 
 /**
  * Renders the StepEventView component.
@@ -9,29 +11,59 @@ import { TranscriptComponent } from "./TranscriptView.mjs";
  * @param {Object} props - The properties passed to the component.
  * @param {Object} props.style - The style properties passed to the component.
  * @param {import("../../types/log").StepEvent} props.event - The event object to display.
+ * @param {import("./Types.mjs").TranscriptEventState} props.eventState - The state for this event
+ * @param {(state: import("./Types.mjs").TranscriptEventState) => void} props.setEventState - Update the state for this event
  * @param {import("./Types.mjs").EventNode[]} props.children - The event notes children of this step
+ * @param {import("htm/preact").MutableRef<HTMLElement>} props.scrollRef - The scrollable parent element
  * @returns {import("preact").JSX.Element} The component that displays event details.
  */
-export const StepEventView = ({ event, children, style }) => {
+export const StepEventView = ({
+  event,
+  eventState,
+  setEventState,
+  children,
+  style,
+  scrollRef,
+}) => {
   const descriptor = stepDescriptor(event);
   const title =
     descriptor.name ||
     `${event.type ? event.type + ": " : "Step: "}${event.name}`;
   const text = summarize(children);
 
+  const [transcriptState, setTranscriptState] = useState({});
+  const onTranscriptState = useCallback(
+    (state) => {
+      setTranscriptState({ ...state });
+    },
+    [transcriptState, setTranscriptState],
+  );
+
   return html`<${EventPanel}
     id=${`step-${event.name}`}
     classes="transcript-step"
     title="${title}"
+    subTitle=${formatDateTime(new Date(event.timestamp))}
     icon=${descriptor.icon}
     style=${{ ...descriptor.style, ...style }}
     titleStyle=${{ ...descriptor.titleStyle }}
     collapse=${false}
     text=${text}
+    selectedNav=${eventState.selectedNav || ""}
+    onSelectedNav=${(selectedNav) => {
+      setEventState({ ...eventState, selectedNav });
+    }}
+    collapsed=${eventState.collapsed}
+    onCollapsed=${(collapsed) => {
+      setEventState({ ...eventState, collapsed });
+    }}        
   >
-    <${TranscriptComponent}
+    <${TranscriptVirtualListComponent}
       id=${`step-${event.name}-transcript`}
       eventNodes=${children}
+      scrollRef=${scrollRef}
+      transcriptState=${transcriptState}
+      setTranscriptState=${onTranscriptState}
     />
   </EventPanel>
   `;

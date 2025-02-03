@@ -1,24 +1,52 @@
 import { html } from "htm/preact";
+import { useCallback, useEffect, useRef } from "preact/hooks";
 
 import { FontSize } from "../appearance/Fonts.mjs";
+import { ProgressBar } from "./ProgressBar.mjs";
+import { MessageBand } from "./MessageBand.mjs";
 
-export const LargeModal = (props) => {
-  const {
-    id,
-    title,
-    detail,
-    detailTools,
-    footer,
-    onkeyup,
-    visible,
-    onHide,
-    children,
-  } = props;
-
+export const LargeModal = ({
+  id,
+  title,
+  detail,
+  detailTools,
+  footer,
+  onkeyup,
+  visible,
+  onHide,
+  showProgress,
+  children,
+  initialScrollPositionRef,
+  setInitialScrollPosition,
+  warning,
+  warningHidden,
+  setWarningHidden,
+  scrollRef,
+}) => {
   // The footer
   const modalFooter = footer
     ? html`<div class="modal-footer">${footer}</div>`
     : "";
+
+  // Support restoring the scroll position
+  // but only do this for the first time that the children are set
+  scrollRef = scrollRef || useRef(/** @type {HTMLElement|null} */ (null));
+  useEffect(() => {
+    if (scrollRef.current) {
+      setTimeout(() => {
+        if (scrollRef.current.scrollTop !== initialScrollPositionRef?.current) {
+          scrollRef.current.scrollTop = initialScrollPositionRef?.current;
+        }
+      }, 0);
+    }
+  }, []);
+
+  const onScroll = useCallback(
+    (e) => {
+      setInitialScrollPosition(e.srcElement.scrollTop);
+    },
+    [setInitialScrollPosition],
+  );
 
   // Capture header elements
   const headerEls = [];
@@ -115,7 +143,25 @@ export const LargeModal = (props) => {
         >
           ${headerEls}
         </div>
-        <div class="modal-body">${children}</div>
+        <${ProgressBar}
+          animating=${showProgress}
+          containerStyle=${{
+            marginBottom: "-2px",
+            backgroundColor: "var(--bs-body-bg)",
+          }}
+        />
+
+        ${warning
+          ? html`<${MessageBand}
+              message=${warning}
+              hidden=${warningHidden}
+              setHidden=${setWarningHidden}
+              type="warning"
+            />`
+          : ""}
+        <div class="modal-body" ref=${scrollRef} onscroll=${onScroll}>
+          ${children}
+        </div>
         ${modalFooter}
       </div>
     </div>

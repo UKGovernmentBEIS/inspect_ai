@@ -1,15 +1,14 @@
 import { html } from "htm/preact";
 import { isNumeric } from "../../utils/Type.mjs";
 import { FontSize, TextStyle } from "../../appearance/Fonts.mjs";
-
-const kSampleAscVal = "sample-asc";
-const kSampleDescVal = "sample-desc";
-const kEpochAscVal = "epoch-asc";
-const kEpochDescVal = "epoch-desc";
-const kScoreAscVal = "score-asc";
-const kScoreDescVal = "score-desc";
-
-export const kDefaultSort = kSampleAscVal;
+import {
+  kEpochAscVal,
+  kEpochDescVal,
+  kSampleAscVal,
+  kSampleDescVal,
+  kScoreAscVal,
+  kScoreDescVal,
+} from "../../constants.mjs";
 
 export const SortFilter = ({ sampleDescriptor, sort, setSort, epochs }) => {
   const options = [
@@ -26,7 +25,7 @@ export const SortFilter = ({ sampleDescriptor, sort, setSort, epochs }) => {
       val: kEpochDescVal,
     });
   }
-  if (sampleDescriptor?.scoreDescriptor?.compare) {
+  if (sampleDescriptor?.selectedScoreDescriptor?.compare) {
     options.push({
       label: "score asc",
       val: kScoreAscVal,
@@ -75,45 +74,75 @@ export const bySample = (sort) => {
   return sort === kSampleAscVal || sort === kSampleDescVal;
 };
 
-export const sort = (sort, samples, sampleDescriptor) => {
-  const sorted = samples.sort((a, b) => {
+const sortId = (a, b) => {
+  if (isNumeric(a.id) && isNumeric(b.id)) {
+    return Number(a.id) - Number(b.id);
+  } else {
+    // Note that if there are mixed types of ids (e.g. a string
+    // and a number), we need to be sure we're working with strings
+    // to performan the comparison
+    return String(a.id).localeCompare(String(b.id));
+  }
+};
+
+/**
+ * Sorts a list of samples
+ *
+ * @param {string} sort - The sort direction
+ * @param {import("../../api/Types.ts").SampleSummary[]} samples - The samples
+ * @param {import("../SamplesDescriptor.mjs").SamplesDescriptor} samplesDescriptor - The samples descriptor
+ * @returns {{ sorted: import("../../api/Types.ts").SampleSummary[], order: 'asc' | 'desc' }} An object with sorted samples and the sort order.
+ */
+export const sortSamples = (sort, samples, samplesDescriptor) => {
+  const sortedSamples = samples.sort((a, b) => {
     switch (sort) {
-      case kSampleAscVal:
-        if (isNumeric(a.id) && isNumeric(b.id)) {
-          return a.id - b.id;
+      case kSampleAscVal: {
+        const result = sortId(a, b);
+        if (result !== 0) {
+          return result;
         } else {
-          // Note that if there are mixed types of ids (e.g. a string
-          // and a number), we need to be sure we're working with strings
-          // to performan the comparison
-          return String(a.id).localeCompare(String(b.id));
+          return a.epoch - b.epoch;
         }
-      case kSampleDescVal:
-        if (isNumeric(a.id) && isNumeric(b.id)) {
-          return b.id - a.id;
+      }
+      case kSampleDescVal: {
+        const result = sortId(b, a);
+        if (result !== 0) {
+          return result;
         } else {
-          // Note that if there are mixed types of ids (e.g. a string
-          // and a number), we need to be sure we're working with strings
-          // to performan the comparison
-          return String(b.id).localeCompare(String(a.id));
+          return a.epoch - b.epoch;
         }
-      case kEpochAscVal:
-        return a.epoch - b.epoch;
-      case kEpochDescVal:
-        return b.epoch - a.epoch;
+      }
+      case kEpochAscVal: {
+        const result = a.epoch - b.epoch;
+        if (result !== 0) {
+          return result;
+        } else {
+          return sortId(a, b);
+        }
+      }
+      case kEpochDescVal: {
+        const result = b.epoch - a.epoch;
+        if (result !== 0) {
+          return result;
+        } else {
+          return sortId(a, b);
+        }
+      }
+
       case kScoreAscVal:
-        return sampleDescriptor.scoreDescriptor.compare(
-          sampleDescriptor.selectedScore(a).value,
-          sampleDescriptor.selectedScore(b).value,
+        return samplesDescriptor.selectedScoreDescriptor.compare(
+          samplesDescriptor.selectedScore(a).value,
+          samplesDescriptor.selectedScore(b).value,
         );
       case kScoreDescVal:
-        return sampleDescriptor.scoreDescriptor.compare(
-          sampleDescriptor.selectedScore(b).value,
-          sampleDescriptor.selectedScore(a).value,
+        return samplesDescriptor.selectedScoreDescriptor.compare(
+          samplesDescriptor.selectedScore(b).value,
+          samplesDescriptor.selectedScore(a).value,
         );
     }
   });
   return {
-    sorted,
+    sorted: sortedSamples,
     order:
       sort === kSampleAscVal || sort === kEpochAscVal || sort === kScoreAscVal
         ? "asc"

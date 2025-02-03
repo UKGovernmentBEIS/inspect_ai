@@ -1,5 +1,10 @@
+import asyncio
+import functools
+import hashlib
 import json
 from copy import copy
+from io import BytesIO
+from logging import getLogger
 from typing import Any, cast
 
 import proto  # type: ignore
@@ -23,29 +28,39 @@ from google.api_core.exceptions import (
     TooManyRequests,
 )
 from google.api_core.retry.retry_base import if_transient_error
-from google.generativeai import (  # type: ignore
-    GenerationConfig,
-    GenerativeModel,
-    configure,
-)
-from google.generativeai.types import (  # type: ignore
-    AsyncGenerateContentResponse,
+from google.generativeai.client import configure
+from google.generativeai.files import get_file, upload_file
+from google.generativeai.generative_models import GenerativeModel
+from google.generativeai.types import (
     ContentDict,
-    HarmBlockThreshold,
-    HarmCategory,
+    GenerationConfig,
     PartDict,
     PartType,
-    SafetySettingDict,
     Tool,
+)
+from google.generativeai.types.file_types import File
+from google.generativeai.types.generation_types import AsyncGenerateContentResponse
+from google.generativeai.types.safety_types import (
+    EasySafetySettingDict,
+    HarmBlockThreshold,
+    HarmCategory,
 )
 from google.protobuf.json_format import MessageToDict, ParseDict
 from google.protobuf.struct_pb2 import Struct
 from pydantic import JsonValue
 from typing_extensions import override
 
-from inspect_ai._util.constants import BASE_64_DATA_REMOVED
-from inspect_ai._util.content import Content, ContentImage, ContentText
-from inspect_ai._util.images import image_as_data
+from inspect_ai._util.constants import BASE_64_DATA_REMOVED, NO_CONTENT
+from inspect_ai._util.content import (
+    Content,
+    ContentAudio,
+    ContentImage,
+    ContentText,
+    ContentVideo,
+)
+from inspect_ai._util.images import file_as_data
+from inspect_ai._util.kvstore import inspect_kvstore
+from inspect_ai._util.trace import trace_message
 from inspect_ai.tool import ToolCall, ToolChoice, ToolInfo, ToolParam, ToolParams
 
 from .._chat_message import (
@@ -60,15 +75,20 @@ from .._model import ModelAPI
 from .._model_call import ModelCall
 from .._model_output import (
     ChatCompletionChoice,
+    Logprob,
+    Logprobs,
     ModelOutput,
     ModelUsage,
     StopReason,
+    TopLogprob,
 )
 from .util import model_base_url
 
+logger = getLogger(__name__)
+
 SAFETY_SETTINGS = "safety_settings"
 
-DEFAULT_SAFETY_SETTINGS: SafetySettingDict = {
+DEFAULT_SAFETY_SETTINGS: EasySafetySettingDict = {
     HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
     HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
     HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
@@ -120,14 +140,16 @@ class GoogleAPI(ModelAPI):
         tools: list[ToolInfo],
         tool_choice: ToolChoice,
         config: GenerateConfig,
-    ) -> ModelOutput | tuple[ModelOutput, ModelCall]:
+    ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
         parameters = GenerationConfig(
-            candidate_count=config.num_choices,
             temperature=config.temperature,
             top_p=config.top_p,
             top_k=config.top_k,
             max_output_tokens=config.max_tokens,
             stop_sequences=config.stop_seqs,
+            candidate_count=config.num_choices,
+            presence_penalty=config.presence_penalty,
+            frequency_penalty=config.frequency_penalty,
         )
 
         # google-native messages
@@ -137,20 +159,30 @@ class GoogleAPI(ModelAPI):
         gemini_tools = chat_tools(tools) if len(tools) > 0 else None
         gemini_tool_config = chat_tool_config(tool_choice) if len(tools) > 0 else None
 
-        # cast to AsyncGenerateContentResponse since we passed stream=False
-        try:
-            response = cast(
-                AsyncGenerateContentResponse,
-                await self.model.generate_content_async(
-                    contents=contents,
-                    safety_settings=self.safety_settings,
-                    generation_config=parameters,
-                    tools=gemini_tools,
-                    tool_config=gemini_tool_config,
-                ),
+        # response for ModelCall
+        response: AsyncGenerateContentResponse | None = None
+
+        def model_call() -> ModelCall:
+            return build_model_call(
+                contents=contents,
+                safety_settings=self.safety_settings,
+                generation_config=parameters,
+                tools=gemini_tools,
+                tool_config=gemini_tool_config,
+                response=response,
             )
+
+        try:
+            response = await self.model.generate_content_async(
+                contents=contents,
+                safety_settings=self.safety_settings,
+                generation_config=parameters,
+                tools=gemini_tools,
+                tool_config=gemini_tool_config,
+            )
+
         except InvalidArgument as ex:
-            return self.handle_invalid_argument(ex)
+            return self.handle_invalid_argument(ex), model_call()
 
         # build output
         output = ModelOutput(
@@ -163,26 +195,16 @@ class GoogleAPI(ModelAPI):
             ),
         )
 
-        # build call
-        call = model_call(
-            contents=contents,
-            safety_settings=self.safety_settings,
-            generation_config=parameters,
-            tools=gemini_tools,
-            tool_config=gemini_tool_config,
-            response=response,
-        )
-
         # return
-        return output, call
+        return output, model_call()
 
-    def handle_invalid_argument(self, ex: InvalidArgument) -> ModelOutput:
+    def handle_invalid_argument(self, ex: InvalidArgument) -> ModelOutput | Exception:
         if "size exceeds the limit" in ex.message.lower():
             return ModelOutput.from_content(
                 model=self.model_name, content=ex.message, stop_reason="model_length"
             )
         else:
-            raise ex
+            return ex
 
     @override
     def is_rate_limit(self, ex: BaseException) -> bool:
@@ -197,13 +219,13 @@ class GoogleAPI(ModelAPI):
         return self.model_name
 
 
-def model_call(
+def build_model_call(
     contents: list[ContentDict],
     generation_config: GenerationConfig,
-    safety_settings: SafetySettingDict,
+    safety_settings: EasySafetySettingDict,
     tools: list[Tool] | None,
     tool_config: ToolConfig | None,
-    response: AsyncGenerateContentResponse,
+    response: AsyncGenerateContentResponse | None,
 ) -> ModelCall:
     return ModelCall.create(
         request=dict(
@@ -217,7 +239,7 @@ def model_call(
             if tool_config is not None
             else None,
         ),
-        response=response.to_dict(),
+        response=response.to_dict() if response is not None else {},  # type: ignore[no-untyped-call]
         filter=model_call_filter,
     )
 
@@ -238,12 +260,12 @@ def model_call_content(content: ContentDict) -> ContentDict:
 
 def model_call_part(part: PartType) -> PartType:
     if isinstance(part, proto.Message):
-        return MessageToDict(part._pb)
+        return cast(PartDict, MessageToDict(part._pb))
     elif isinstance(part, dict):
         part = part.copy()
         keys = list(part.keys())
         for key in keys:
-            part[key] = model_call_part(part[key])
+            part[key] = model_call_part(part[key])  # type: ignore[literal-required]
         return part
     else:
         return part
@@ -261,8 +283,28 @@ async def as_chat_messages(messages: list[ChatMessage]) -> list[ContentDict]:
     # (if there is no first user message then prepend one)
     prepend_system_messages(chat_messages, system_messages)
 
+    # combine consecutive tool messages
+    chat_messages = functools.reduce(consective_tool_message_reducer, chat_messages, [])
+
     # return messages
     return chat_messages
+
+
+def consective_tool_message_reducer(
+    messages: list[ContentDict],
+    message: ContentDict,
+) -> list[ContentDict]:
+    if (
+        message["role"] == "function"
+        and len(messages) > 0
+        and messages[-1]["role"] == "function"
+    ):
+        messages[-1] = ContentDict(
+            role="function", parts=messages[-1]["parts"] + message["parts"]
+        )
+    else:
+        messages.append(message)
+    return messages
 
 
 async def content_dict(
@@ -272,27 +314,38 @@ async def content_dict(
         return ContentDict(
             role="user",
             parts=(
-                [PartDict(text=message.content)]
+                [message.content or NO_CONTENT]
                 if isinstance(message.content, str)
                 else [await content_part(content) for content in message.content]
             ),
         )
     elif isinstance(message, ChatMessageAssistant):
+        content_parts: list[PartType] = []
+        # tool call parts
         if message.tool_calls is not None:
-            content_parts = [
-                Part(
-                    function_call=FunctionCall(
-                        name=tool_call.function,
-                        args=dict_to_struct(tool_call.arguments),
+            content_parts.extend(
+                [
+                    Part(
+                        function_call=FunctionCall(
+                            name=tool_call.function,
+                            args=dict_to_struct(tool_call.arguments),
+                        )
                     )
-                )
-                for tool_call in message.tool_calls
-            ]
-            if message.content:
-                content_parts.append(Part(text=message.content))
-            return ContentDict(role="model", parts=content_parts)
+                    for tool_call in message.tool_calls
+                ]
+            )
+
+        # content parts
+        if isinstance(message.content, str):
+            content_parts.append(Part(text=message.content or NO_CONTENT))
         else:
-            return ContentDict(role="model", parts=[Part(text=message.content)])
+            content_parts.extend(
+                [await content_part(content) for content in message.content]
+            )
+
+        # return parts
+        return ContentDict(role="model", parts=content_parts)
+
     elif isinstance(message, ChatMessageTool):
         response = FunctionResponse(
             name=message.tool_call_id,
@@ -316,26 +369,32 @@ def dict_to_struct(x: dict[str, Any]) -> Struct:
     return struct
 
 
-async def content_part(content: Content | str) -> PartDict:
+async def content_part(content: Content | str) -> PartType:
     if isinstance(content, str):
-        return PartDict(text=content)
+        return content or NO_CONTENT
     elif isinstance(content, ContentText):
-        return PartDict(text=content.text)
+        return content.text or NO_CONTENT
     else:
-        return PartDict(inline_data=await chat_content_image_to_blob(content))
+        return await chat_content_to_part(content)
 
 
-async def chat_content_image_to_blob(image: ContentImage) -> Blob:
-    image_url = image.image
-    image_bytes, mime_type = await image_as_data(image_url)
-    return Blob(mime_type=mime_type, data=image_bytes)
+async def chat_content_to_part(
+    content: ContentImage | ContentAudio | ContentVideo,
+) -> PartType:
+    if isinstance(content, ContentImage):
+        content_bytes, mime_type = await file_as_data(content.image)
+        return Blob(mime_type=mime_type, data=content_bytes)
+    else:
+        return await file_for_content(content)
 
 
 def prepend_system_messages(
     messages: list[ContentDict], system_messages: list[ChatMessageSystem]
 ) -> None:
     # create system_parts
-    system_parts = [Part(text=message.content) for message in system_messages]
+    system_parts: list[PartType] = [
+        Part(text=message.content) for message in system_messages
+    ]
 
     # we want the system messages to be prepended to the first user message
     # (if there is no first user message then prepend one)
@@ -350,35 +409,46 @@ def chat_tools(tools: list[ToolInfo]) -> list[Tool]:
         FunctionDeclaration(
             name=tool.name,
             description=tool.description,
-            parameters=schema_from_param(tool.parameters),
+            parameters=schema_from_param(tool.parameters)
+            if len(tool.parameters.properties) > 0
+            else None,
         )
         for tool in tools
     ]
-    return [Tool(declarations)]
+    return [Tool(function_declarations=declarations)]
 
 
 # https://ai.google.dev/gemini-api/tutorials/extract_structured_data#define_the_schema
 
 
-def schema_from_param(param: ToolParam | ToolParams) -> Schema:
+def schema_from_param(param: ToolParam | ToolParams, nullable: bool = False) -> Schema:
     if isinstance(param, ToolParams):
         param = ToolParam(
             type=param.type, properties=param.properties, required=param.required
         )
 
     if param.type == "number":
-        return Schema(type=Type.NUMBER, description=param.description)
+        return Schema(
+            type=Type.NUMBER, description=param.description, nullable=nullable
+        )
     elif param.type == "integer":
-        return Schema(type=Type.INTEGER, description=param.description)
+        return Schema(
+            type=Type.INTEGER, description=param.description, nullable=nullable
+        )
     elif param.type == "boolean":
-        return Schema(type=Type.BOOLEAN, description=param.description)
+        return Schema(
+            type=Type.BOOLEAN, description=param.description, nullable=nullable
+        )
     elif param.type == "string":
-        return Schema(type=Type.STRING, description=param.description)
+        return Schema(
+            type=Type.STRING, description=param.description, nullable=nullable
+        )
     elif param.type == "array":
         return Schema(
             type=Type.ARRAY,
             description=param.description,
             items=schema_from_param(param.items) if param.items else None,
+            nullable=nullable,
         )
     elif param.type == "object":
         return Schema(
@@ -388,7 +458,16 @@ def schema_from_param(param: ToolParam | ToolParams) -> Schema:
             if param.properties is not None
             else None,
             required=param.required,
+            nullable=nullable,
         )
+    # convert unions to optional params if the second type is 'null'
+    elif param.anyOf:
+        if len(param.anyOf) == 2 and param.anyOf[1].type == "null":
+            return schema_from_param(param.anyOf[0], nullable=True)
+        else:
+            return Schema(type=Type.TYPE_UNSPECIFIED)
+    elif param.enum:
+        return Schema(type=Type.STRING, format="enum", enum=param.enum)
     else:
         return Schema(type=Type.TYPE_UNSPECIFIED)
 
@@ -441,7 +520,8 @@ def completion_choice_from_candidate(candidate: Candidate) -> ChatCompletionChoi
     # stop reason
     stop_reason = candidate_stop_reason(candidate.finish_reason)
 
-    return ChatCompletionChoice(
+    # build choide
+    choice = ChatCompletionChoice(
         message=ChatMessageAssistant(
             content=content,
             tool_calls=tool_calls if len(tool_calls) > 0 else None,
@@ -449,6 +529,27 @@ def completion_choice_from_candidate(candidate: Candidate) -> ChatCompletionChoi
         ),
         stop_reason=stop_reason,
     )
+
+    # add logprobs if provided
+    if candidate.logprobs_result:
+        logprobs: list[Logprob] = []
+        for chosen, top in zip(
+            candidate.logprobs_result.chosen_candidates,
+            candidate.logprobs_result.top_candidates,
+        ):
+            logprobs.append(
+                Logprob(
+                    token=chosen.token,
+                    logprob=chosen.log_probability,
+                    top_logprobs=[
+                        TopLogprob(token=c.token, logprob=c.log_probability)
+                        for c in top.candidates
+                    ],
+                )
+            )
+        choice.logprobs = Logprobs(content=logprobs)
+
+    return choice
 
 
 def completion_choices_from_candidates(
@@ -491,14 +592,14 @@ def gapi_should_retry(ex: BaseException) -> bool:
 
 def parse_safety_settings(
     safety_settings: Any,
-) -> dict[HarmCategory, HarmBlockThreshold]:
+) -> EasySafetySettingDict:
     # ensure we have a dict
     if isinstance(safety_settings, str):
         safety_settings = json.loads(safety_settings)
     if not isinstance(safety_settings, dict):
         raise ValueError(f"{SAFETY_SETTINGS} must be dictionary.")
 
-    parsed_settings: dict[HarmCategory, HarmBlockThreshold] = {}
+    parsed_settings: EasySafetySettingDict = {}
     for key, value in safety_settings.items():
         if isinstance(key, str):
             key = str_to_harm_category(key)
@@ -514,23 +615,23 @@ def parse_safety_settings(
     return parsed_settings
 
 
-def str_to_harm_category(category: str) -> HarmCategory:
+def str_to_harm_category(category: str) -> int:
     category = category.upper()
     if "HARASSMENT" in category:
-        return HarmCategory.HARM_CATEGORY_HARASSMENT
+        return cast(int, HarmCategory.HARM_CATEGORY_HARASSMENT)
     elif "HATE_SPEECH" in category:
-        return HarmCategory.HARM_CATEGORY_HATE_SPEECH
+        return cast(int, HarmCategory.HARM_CATEGORY_HATE_SPEECH)
     elif "SEXUALLY_EXPLICIT" in category:
-        return HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT
+        return cast(int, HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT)
     elif "DANGEROUS_CONTENT" in category:
-        return HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT
+        return cast(int, HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT)
     else:
         # NOTE: Although there is an "UNSPECIFIED" category, in the
         # documentation, the API does not accept it.
         raise ValueError(f"Unknown HarmCategory: {category}")
 
 
-def str_to_harm_block_threshold(threshold: str) -> HarmBlockThreshold:
+def str_to_harm_block_threshold(threshold: str) -> int:
     threshold = threshold.upper()
     if "LOW" in threshold:
         return HarmBlockThreshold.BLOCK_LOW_AND_ABOVE
@@ -542,3 +643,53 @@ def str_to_harm_block_threshold(threshold: str) -> HarmBlockThreshold:
         return HarmBlockThreshold.BLOCK_NONE
     else:
         raise ValueError(f"Unknown HarmBlockThreshold: {threshold}")
+
+
+async def file_for_content(content: ContentAudio | ContentVideo) -> File:
+    # helper to write trace messages
+    def trace(message: str) -> None:
+        trace_message(logger, "Google Files", message)
+
+    # get the file bytes and compute sha256 hash
+    if isinstance(content, ContentAudio):
+        file = content.audio
+    else:
+        file = content.video
+    content_bytes, mime_type = await file_as_data(file)
+    content_sha256 = hashlib.sha256(content_bytes).hexdigest()
+
+    # we cache uploads for re-use, open the db where we track that
+    # (track up to 1 million previous uploads)
+    with inspect_kvstore("google_files", 1000000) as files_db:
+        # can we serve from existing uploads?
+        uploaded_file = files_db.get(content_sha256)
+        if uploaded_file:
+            try:
+                upload = get_file(uploaded_file)
+                if upload.state.name == "ACTIVE":
+                    trace(f"Using uploaded file: {uploaded_file}")
+                    return upload
+                else:
+                    trace(
+                        f"Not using uploaded file '{uploaded_file} (state was {upload.state})"
+                    )
+            except Exception as ex:
+                trace(f"Error attempting to access uploaded file: {ex}")
+                files_db.delete(content_sha256)
+
+        # do the upload (and record it)
+        upload = upload_file(BytesIO(content_bytes), mime_type=mime_type)
+        while upload.state.name == "PROCESSING":
+            await asyncio.sleep(3)
+            upload = get_file(upload.name)
+
+        if upload.state.name == "FAILED":
+            trace(f"Failed to upload file '{upload.name}: {upload.error}")
+            raise ValueError(f"Google file upload failed: {upload.error}")
+
+        # trace and record it
+        trace(f"Uploaded file: {upload.name}")
+        files_db.put(content_sha256, upload.name)
+
+        # return the file
+        return upload

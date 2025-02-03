@@ -80,6 +80,16 @@
  */
 
 /**
+ * Approval Icons
+ * @typedef {Object} LimitIcons
+ * @property {string} messages
+ * @property {string} time
+ * @property {string} tokens
+ * @property {string} context
+ * @property {string} operator
+ */
+
+/**
  * Provides a centralized repository of Bootstrap icons
  * used throughout the workspace.
  * @typedef {Object} Icons
@@ -103,6 +113,7 @@
  * @property {string} input
  * @property {string} inspect
  * @property {string} json
+ * @property {LimitIcons} limits
  * @property {LoggingIcons} logging
  * @property {string} menu
  * @property {string} messages
@@ -112,6 +123,7 @@
  * @property {string} toggle-right
  * @property {string} more
  * @property {string} next
+ * @property {string} play
  * @property {string} previous
  * @property {string} refresh
  * @property {RoleIcons} role
@@ -174,6 +186,13 @@ export const ApplicationIcons = {
   input: "bi bi-terminal",
   inspect: "bi bi-gear",
   json: "bi bi-filetype-json",
+  limits: {
+    messages: "bi bi-chat-right-text",
+    context: "bi bi-person-workspace",
+    operator: "bi bi-person-workspace",
+    tokens: "bi bi-list",
+    time: "bi bi-stopwatch",
+  },
   logging: {
     notset: "bi bi-card-text",
     debug: "bi bi-bug",
@@ -191,6 +210,7 @@ export const ApplicationIcons = {
   more: "bi bi-zoom-in",
   "multiple-choice": "bi bi-card-list",
   next: "bi bi-chevron-right",
+  play: "bi bi-play-fill",
   previous: "bi bi-chevron-left",
   refresh: "bi bi-arrow-clockwise",
   role: {

@@ -10,7 +10,17 @@ import { CardHeader } from "../components/Card.mjs";
 
 const kPlanCardBodyId = "task-plan-card-body";
 
-export const PlanCard = ({ log, context }) => {
+/**
+ * Renders the plan card
+ *
+ * @param {Object} props - The parameters for the component.
+ * @param {import("../types/log").EvalSpec} [props.evalSpec] - The sample
+ * @param {import("../types/log").EvalPlan} [props.evalPlan] - The task id
+ * @param {import("../types/log").EvalScore[]} [props.scores] - the samples
+ *
+ * @returns {import("preact").JSX.Element} The TranscriptView component.
+ */
+export const PlanCard = ({ evalSpec, evalPlan, scores }) => {
   return html`
     <${Card}>
       <${CardHeader} icon=${ApplicationIcons.config} label="Config"/>
@@ -20,10 +30,9 @@ export const PlanCard = ({ log, context }) => {
       }}>
       
         <${PlanDetailView}
-          evaluation=${log?.eval}
-          plan=${log?.plan}
-          scores=${log?.results?.scores}
-          context=${context}
+          evaluation=${evalSpec}
+          plan=${evalPlan}
+          scores=${scores}
         />
       </${CardBody}>
     </${Card}>
@@ -42,7 +51,7 @@ const planSepStyle = {
   marginBottom: "-0.1em",
 };
 
-const ScorerDetailView = ({ name, scores, params, context }) => {
+const ScorerDetailView = ({ name, scores, params }) => {
   // Merge scores into params
   if (scores.length > 1) {
     params["scores"] = scores;
@@ -52,38 +61,37 @@ const ScorerDetailView = ({ name, scores, params, context }) => {
     icon=${ApplicationIcons.scorer}
     name=${name}
     params=${params}
-    context=${context}
     style=${planItemStyle}
   />`;
 };
 
-const DatasetDetailView = ({ dataset, context, style }) => {
-  if (!dataset || Object.keys(dataset).length === 0) {
+const DatasetDetailView = ({ dataset, style }) => {
+  // Filter out sample_ids
+  const filtered = Object.fromEntries(
+    Object.entries(dataset).filter(([key]) => key !== "sample_ids"),
+  );
+
+  if (!dataset || Object.keys(filtered).length === 0) {
     return html`<span style=${{ ...planItemStyle, ...style }}
       >No dataset information available</span
     >`;
   }
 
   return html`<${MetaDataView}
-    entries="${dataset}"
+    entries="${filtered}"
     tableOptions="borderless,sm"
-    context=${context}
     style=${{ ...planItemStyle, ...style }}
   />`;
 };
 
-const SolversDetailView = ({ steps, context }) => {
+const SolversDetailView = ({ steps }) => {
   const separator = html` <div style=${{ ...planItemStyle, ...planSepStyle }}>
     <i class="${ApplicationIcons.arrows.right}"></i>
   </div>`;
 
   const details = steps?.map((step, index) => {
     return html`
-      <${DetailStep}
-        name=${step.solver}
-        context=${context}
-        style=${planItemStyle}
-      />
+      <${DetailStep} name=${step.solver} style=${planItemStyle} />
       ${index < steps.length - 1 ? separator : ""}
     `;
   });
@@ -98,7 +106,7 @@ const SolversDetailView = ({ steps, context }) => {
   </div>`;
 };
 
-const DetailStep = ({ icon, name, params, style, context }) => {
+const DetailStep = ({ icon, name, params, style }) => {
   const iconHtml = icon
     ? html`<i class="${icon}" style=${{ marginRight: ".3em" }}></i>`
     : "";
@@ -114,7 +122,6 @@ const DetailStep = ({ icon, name, params, style, context }) => {
       >
         ${html`<${MetaDataView}
           entries="${params}"
-          context=${context}
           style=${{ fontSize: FontSize.small }}
         />`}
       </div>
@@ -122,7 +129,7 @@ const DetailStep = ({ icon, name, params, style, context }) => {
   `;
 };
 
-const PlanDetailView = ({ evaluation, plan, context, scores }) => {
+const PlanDetailView = ({ evaluation, plan, scores }) => {
   if (!evaluation) {
     return "";
   }
@@ -157,6 +164,9 @@ const PlanDetailView = ({ evaluation, plan, context, scores }) => {
         })
         .join("<br/>\n")}`,
     };
+  }
+  if (evaluation.tags) {
+    taskInformation["Tags"] = evaluation.tags.join(", ");
   }
 
   if (evaluation?.model) {
@@ -205,18 +215,13 @@ const PlanDetailView = ({ evaluation, plan, context, scores }) => {
   taskColumns.push({
     title: "Dataset",
     style: floatingColumnStyle,
-    contents: html`<${DatasetDetailView}
-      dataset=${evaluation.dataset}
-      context=${context}
-    />`,
+    contents: html`<${DatasetDetailView} dataset=${evaluation.dataset} />`,
   });
 
   taskColumns.push({
     title: "Plan",
     style: wideColumnStyle,
-    contents: html`
-      <${SolversDetailView} steps=${steps} context=${context} />
-    `,
+    contents: html` <${SolversDetailView} steps=${steps} /> `,
   });
 
   if (scores) {
@@ -239,7 +244,6 @@ const PlanDetailView = ({ evaluation, plan, context, scores }) => {
           name=${key}
           scores=${scorers[key].scores}
           params=${scorers[key].params}
-          context=${context}
         />`;
       });
 
@@ -271,7 +275,6 @@ const PlanDetailView = ({ evaluation, plan, context, scores }) => {
         classes="task-title-deets-grid"
         entries="${taskInformation}"
         tableOptions="borderless,sm"
-        context=${context}
       />
     `,
   });
@@ -286,7 +289,6 @@ const PlanDetailView = ({ evaluation, plan, context, scores }) => {
           classes="task-plan-task-args-grid"
           entries="${task_args}"
           tableOptions="sm"
-          context=${context}
         />
       `,
     });
@@ -301,7 +303,6 @@ const PlanDetailView = ({ evaluation, plan, context, scores }) => {
           classes="task-plan-model-args-grid"
           entries="${model_args}"
           tableOptions="sm"
-          context=${context}
         />
       `,
     });
@@ -317,7 +318,6 @@ const PlanDetailView = ({ evaluation, plan, context, scores }) => {
           classes="task-plan-configuration"
           entries="${config}"
           tableOptions="sm"
-          context=${context}
         />
       `,
     });
@@ -333,7 +333,6 @@ const PlanDetailView = ({ evaluation, plan, context, scores }) => {
           classes="task-plan-generate-configuration"
           entries="${generate_config}"
           tableOptions="sm"
-          context=${context}
         />
       `,
     });
@@ -349,7 +348,6 @@ const PlanDetailView = ({ evaluation, plan, context, scores }) => {
           classes="task-plan-metadata"
           entries="${metadata}"
           tableOptions="sm"
-          context=${context}
         />
       `,
     });

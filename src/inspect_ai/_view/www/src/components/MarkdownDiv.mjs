@@ -1,16 +1,8 @@
-import { marked } from "marked";
+import markdownit from "markdown-it";
 import { html } from "htm/preact";
 
-//showdown.setOption("simpleLineBreaks", true);
-// Set options
-marked.use({
-  pedantic: false,
-  gfm: true,
-  breaks: true,
-});
-
 export const MarkdownDiv = (props) => {
-  const { markdown, style } = props;
+  const { markdown, style, contentRef } = props;
 
   // Escape all tags
   const escaped = markdown ? escape(markdown) : "";
@@ -22,7 +14,11 @@ export const MarkdownDiv = (props) => {
 
   let renderedHtml = protectedText;
   try {
-    renderedHtml = marked.parse(protectedText);
+    const md = markdownit({
+      breaks: true,
+      html: true,
+    });
+    renderedHtml = md.render(protectedText);
   } catch (ex) {
     console.log("Unable to markdown render content");
     console.error(ex);
@@ -37,6 +33,7 @@ export const MarkdownDiv = (props) => {
   const markup = { __html: withCode };
 
   return html`<div
+    ref=${contentRef}
     dangerouslySetInnerHTML=${markup}
     style=${style}
     class="${props.class ? `${props.class} ` : ""}markdown-content"

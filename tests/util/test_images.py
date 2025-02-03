@@ -3,6 +3,8 @@ import os
 from test_helpers.utils import (
     skip_if_no_anthropic,
     skip_if_no_google,
+    skip_if_no_grok,
+    skip_if_no_mistral,
     skip_if_no_openai,
     skip_if_no_vertex,
 )
@@ -39,7 +41,7 @@ def test_google_images():
 
 @skip_if_no_openai
 def test_openai_images():
-    check_images("openai/gpt-4")
+    check_images("openai/gpt-4o")
 
 
 @skip_if_no_vertex
@@ -50,3 +52,13 @@ def test_vertex_images():
 @skip_if_no_anthropic
 def test_anthropic_images():
     check_images("anthropic/claude-3-sonnet-20240229")
+
+
+@skip_if_no_mistral
+def test_mistral_images():
+    check_images("mistral/pixtral-12b-2409")
+
+
+@skip_if_no_grok
+def test_grok_images():
+    check_images("grok/grok-vision-beta")

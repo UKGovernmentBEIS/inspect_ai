@@ -1,6 +1,7 @@
 import pytest
 from test_helpers.utils import (
     skip_if_no_anthropic,
+    skip_if_no_grok,
     skip_if_no_groq,
     skip_if_no_mistral,
     skip_if_no_openai,
@@ -52,6 +53,12 @@ async def test_anthropic_stop_reason() -> None:
 @skip_if_no_mistral
 async def test_mistral_stop_reason() -> None:
     await check_stop_reason("mistral/mistral-medium-latest")
+
+
+@pytest.mark.asyncio
+@skip_if_no_grok
+async def test_grok_stop_reason() -> None:
+    await check_stop_reason("grok/grok-beta")
 
 
 @pytest.mark.asyncio

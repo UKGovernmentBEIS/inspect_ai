@@ -1,17 +1,331 @@
 # Changelog
 
+## v0.3.62 (03 February 2025)
+
+- Various improvements for [reasoning models](https://github.com/UKGovernmentBEIS/inspect_ai/pull/1229) including extracting reasoning content from assistant messages.
+- OpenAI: Handle `reasoning_effort`, `max_tokens`, `temperature`, and `parallel_tool_calls` correctly for o3 models.
+- OpenAI: Map some additional 400 status codes to `content_filter` stop reason.
+- Anthropic: Handle 413 status code (Payload Too Large) and map to `model_length` StopReason.
+- Tasks: Log sample with error prior to raising task-ending exception.
+- Computer: Various improvements to image including desktop, python, and VS Code configuration.
+- Bugfix: Don't download full log from S3 for header_only reads.
+
+## v0.3.61 (31 January 2025)
+
+- Computer: Enable viewing computer tool's remote mouse cursor via VNC.
+- Computer: Disable lock screen on from computer tool reference image.
+- Limits: Amend `SampleLimitExceededError` with current `state` so that messages, etc. are preserved when limits are hit.
+- Tools: Properly handle image dispatching when multiple tool calls are made by assistant.
+- Anthropic: Raise error on 400 status not identified as model_length or content_filter.
+- Basic Agent: `incorrect_message` can now optionally be an async function.
+- Bugfix: Remove `suffix` from `eval-set` CLI args.
+- Bugfix: Only catch `Exception` from sandboxenv_init (allow cancelled to propagate)
+
+## v0.3.60 (29 January 2025)
+
+- [Agent Bridge](https://inspect.ai-safety-institute.org.uk/agent-bridge.html) for integrating external agent frameworks with Inspect.
+- [Goodfire](https://inspect.ai-safety-institute.org.uk/models.html#goodfire) model provider.
+- Add `@wraps` to functions wrapped by Inspect decorators to preserve type information.
+- Hugging Face: Add support for stop sequences for HF models.
+- Docker: More robust parsing of version strings (handle development versions).
+- Vertex: Support for Anthropic models hosted on Vertex.
+- OpenAI: Read `refusal` field from assistant message when provided.
+- OpenAI: Use qualifiers rather than model args for OpenAI on other providers (`openai/azure`)
+- Anthropic: Don't insert '(no content)' into cannonical messages list (do only on replay)
+- Anthropic: Use qualifiers rather than model args for Anthropic on other providers (`anthropic/bedrock`, `anthropic/vertex`).
+- Anthropic: Suport for `extra_body` model arg (for adding additional JSON properties to the request)
+- Basic Agent: Append `tools` to `state` so that tools added in `init` are preserved.
+- Scoring: Always provide half-again the sample time limit for scoring.
+- Bugfix: Fix issue w/ approvals for samples with id==0.
+- Bugfix: Use "plain" display when running eval_async() outside of eval().
+- Bugfix: Fix issue with multiple scorers of the same type in a task.
+
+## v0.3.59 (24 January 2025)
+
+- Beta version of [computer()](https://inspect.ai-safety-institute.org.uk/tools.html#sec-computer) tool which models with a computer desktop environment.
+- `user_message()` solver for appending parameterised user messages.
+- `prompt_template()`, `system_message()` and `user_message()` solver now also include the sample `store` in substitution parameters.
+- Limits: Enforce token and message limit at lower level (not longer required to check `state.completed` for limit enforcement).
+- Limits: Enforce [custom limits](https://inspect.ai-safety-institute.org.uk/errors-and-limits.html#custom-limit) for samples by raising `SampleLimitExceededError`.
+- Tasks: Optional ability for solvers to [yield scores](https://inspect.ai-safety-institute.org.uk/solvers.html#sec-scoring-in-solvers) for a task.
+- Model API: Log model calls that result in bad request errors.
+- Tools: `model_input` option that determines how tool call result content is played back to the model.
+- Tools: Don't attempt to marshall arguments of dynamic `ToolDef` with `**kwargs: Any` (just pass them through).
+- Log warning when a non-fatal sample error occurs (i.e. errors permitted by the `fail_on_error` option) 
+- Inspect View: allow filtering samples by compound expressions including multiple scorers. (thanks @andrei-apollo)
+- Inspect View: improve rendering performance and stability for the viewer when viewing very large eval logs or samples with a large number of steps.
+- Task display: Improved `plain` mode with periodic updates on progress, metrics, etc.
+- Google: Update to v0.8.4 of google-generativeai (py.typed support and removal of logprobs generation options)
+- Google: Support for string enums (e.g. `Literal["a", "b", "c"])`) in tool function declarations.
+
+## v0.3.58 (16 January 2025)
+
+- Support for [audio and video](https://inspect.ai-safety-institute.org.uk/multimodal.html) inputs for Open AI and Google Gemini models.
+- Task display: Added Timeout Tool button for manually timing out a tool call.
+- Task display: Automatically switch to "plain" mode when running in a background thread
+- Sandboxes: Setup and initialisation errors are now handled at the sample level.
+- Sandboxes: Increase setup script timeout to 5 minutes (from 30 seconds) and do not retry setup scripts (in case they aren't idempotent).
+- Sandboxes: Add `timeout_retry` option (defaulting to `True`) to `exec()` function.
+- Sandboxes: Add `type` and  optional `container` properties to `SandboxConnection`.
+- Docker: Services which exit with status 0 during setup no longer cause an error.
+- `task_with()` function for creating task variants.
+- Added `--filter` argument to trace CLI commands for filtering on trace log message content.
+- Print model conversations to terminal with `--display=conversation` (was formerly `--trace`, which is now deprecated).
+- HuggingFace: Support models that don't provide a chat template (e.g. gpt2)
+- Eval Set: Ensure that logs with status 'started' are retried.
+- Rename the built in `bootstrap_std` metric to `bootstrap_stderr` (deprecate `bootstrap_std`)
+- Bugfix: Fix duplication of summaries when eval log file is rewritten.
+
+## v0.3.57 (09 January 2025)
+
+- [Tracing API](https://inspect.ai-safety-institute.org.uk/tracing.html#tracing-api) for custom trace logging.
+- Inspect View: never truncate tool result images and display at default width of 800px.
+- Inspect View: display tool error messages in transcript when tool errors occur.
+- Inspect View: display any completed samples even if the task fails because of an error
+- Inspect View: don't display the 'input' column heading if there isn't an input
+- Open AI: Handle additional bad request status codes (mapping them to appropriate `StopReason`)
+- Open AI: Use new `max_completion_tokens` option for o1 full.
+- Web Browser: raise error when both `error` and `web_at` fields are present in response.
+- Sandboxes: Apply dataset filters (limit and sample id) prior to sandbox initialisation.
+- Docker: Prevent issue with container/project names that have a trailing underscore. 
+- Store: initialise `Store` from existing dictionary.
+- Log: provide `metadata_as` and `store_as` typed accessors for sample metadata and store.
+- Tool parameters with a default of `None` are now supported.
+- More fine graned HTML escaping for sample transcripts displalyed in terminal.
+- Bugfix: prevent errors when a state or storage value uses a tilda or slash in the key name.
+- Bugfix: Include input in sample summary when the sample input contains a simple string.
+
+## v0.3.56 (01 January 2025)
+
+- [Human Agent](https://inspect.ai-safety-institute.org.uk/human-agent.html) solver for human baselining of computing tasks.
+- [Typed interfaces](https://inspect.ai-safety-institute.org.uk/typing.html) to `Sample` store and metadata using Pydantic models.
+- [Approval policies](https://inspect.ai-safety-institute.org.uk/approval.html#task-approvers) can now be defined at the `Task` level (`eval` level approval policies take precedence).
+- Tools can now return `ContentText` and `ContentImage`.
+- Move tool result images into subsequent user messages for models that don't support tools returning images.
+- `SandboxConnection` that contains login information from sandboxes.
+- `display_type()` function for detecting the current display type (e.g. "full", "rich", etc.)
+- Trace: improved handling of `eval()` running in multiple processes at once (trace file per-process)
+- Docker: don't apply timeouts to `docker build` and `docker pull` commands.
+- Bugfix: fix issue w/ `store.get()` not auto-inserting `default` value.
+
+## v0.3.55 (29 December 2024)
+
+- Bedrock: redact authentication model args from eval logs.
+- OpenAI: warn when `temperature` is used with o1 models (as it is not supported).
+- Bugfix: spread args for cache trace logging.
+
+## v0.3.54 (26 December 2024)
+
+- [Tracing](https://inspect.ai-safety-institute.org.uk/tracing.html) for diagnosing runs with unterminated action (e.g. model calls, docker commands, etc.).
+- Provide default timeout/retry for docker compose commands to mitigate unreliability in some configurations.
+- Switch to sync S3 writes to overcome unreliability observed when using async interface.
+- Task display: Added `--no-score-display` option to disable realtime scoring metrics.
+- Bugfix: Fix failure to fully clone samples that have message lists as input.
+- llama-cpp-python: Support for `logprobs`.
+
+## v0.3.53 (20 December 2024)
+
+- OpenAI: Support for o1 including native tool calling and `reasoning_effort` generation option.
+- Task API: Introduce `setup` step that always runs even if `solver` is replaced.
+- Bedrock: Support for tool calling on Nova models.
+- Bedrock: Support for custom `model_args` passed through to `session.Client`.
+- Bedrock: Support for `jpeg` images.
+- Bedrock: Correct max_tokens for llama3-8b, llama3-70b models on Bedrock.
+- Inspect View: Various improvements to appearance of tool calls in transcript.
+- Task display: Ensure that widths of progress elements are kept consistent across tasks.
+- Sandboxes: New `max_sandboxes` option for (per-provider) maximum number of running sandboxes.
+- Sandboxes: Remove use of aiofiles to mitigate potential for threading deadlocks.
+- Concurrency: Do not use `max_tasks` as a lower bound for `max_samples`.
+- Log recorder: Always re-open log buffer for `eval` format logs.
+- Bugfix: Proper handling of text find for eval raw JSON display
+- Bugfix: Correct handling for `--sample-id` integer comparisons.
+- Bugfix: Proper removal of model_args with falsey values (explicit check for `None`)
+- Bugfix: Properly handle custom metrics that return dictionaries or lists
+- Bugfix: Proper sample count display when retrying an evaluation
+- Bugfix: Fix inability to define and run tasks in a notebook.
+
+## v0.3.52 (13 December 2024)
+
+- Eval: `--sample-id` option for evaluating specific sample id(s).
+- Bedrock: Detect and report HTTP rate limit errors.
+- Azure AI: Add `emulate_tools` model arg to force tool emulation (emulation is enabled by default for Llama models).
+- Basic Agent: Add `max_tool_output` parameter to override default max tool output from generate config.
+- Inspect View: Correct display of sample ID for single sample tasks.
+- Trace: Show custom tool views in `--trace` mode.
+- Bugfix: Support for dynamic metric names in realtime scoring display.
+
+## v0.3.51 (13 December 2024)
+
+- Bugfix: Task display fails to load when no scorers are defined for a task.
+
+## v0.3.50 (12 December 2024)
+
+- Tools: Improved typing/schema support (unions, optional params, enums).
+- Tools: Added `append` argument to `use_tools()` for adding (rather than replacing) the currently available tools.
+- Docker sandbox: Streamed reads of stderr/stdout (enabling us to enforce output limits for read_file and exec at the source).
+- Sandbox API: Enable passing `BaseModel` types for sandbox `config` (formerly only a file path could be passed).
+- Task display: Show all task scores in realtime (expand task progress to see scores).
+- Task display: Show completed samples and align progress more closely to completed samples (as opposed to steps).
+- Task display: Show sample messages/tokens used (plus limits if specified).
+- Task display: Resolve issue where task display would lose mouse input after VS Code reload.
+- Datasets: Validate that all IDs in datasets are unique (as several downstream problems occur w/ duplicate IDs).
+- Inspect View: Fix issue with incorrectly displayed custom tool views.
+- Human approval: Use fullscreen display (makes approval UI async and enables rapid processing of approvals via the `Enter` key).
+- Added `input_panel()` API for adding custom panels to the fullscreen task display.
+- Log recorder: Methods are now async which will improve performance for fsspec filesystems with async implementations (e.g. S3)
+- Log recorder: Improve `.eval` log reading performance for remote filesystem (eagerly fetch log to local buffer).
+- Add `token_usage` property to `TaskState` which has current total tokens used across all calls to `generate()` (same value that is used for enforcing token limits).
+- Add `time` field to `ModelOutput` that records total time spent within call to ModelAPI `generate()`.
+- Web browser: Remove base64 images from web page contents (prevent filling up model context with large images).
+- Match scorer: If the target of a match isn’t numeric, ignore the numeric flag and instead use text matching (improved handling for percentages).
+- Hugging Face: Support for native HF tool calling for Llama, Mistral, Qwen, and others if they conform to various standard schemas.
+- Hugging Face: `tokenizer_call_args` dict to specify custom args during tokenization, such as `max_length` and `truncation`.
+- Azure AI: Fix schema validation error that occurred when model API returns `None` for `content`.
+- Display: Throttle updating of sample list based on number of samples.
+- Display: Add explicit 'ctrl+c' keybinding (as textual now disables this by default).
+- Bugfix: Correct rate limit error display when running in fullscreen mode.
+- Bugfix: `hf_dataset` now explicitly requires the `split` argument (previously, it would crash when not specified).
+- Bugfix: Prevent cascading textual error when an error occurs during task initialisation.
+- Bugfix: Correctly restore sample summaries from log file after amend.
+- Bugfix: Report errors that occur during task finalisation.
+  
+## v0.3.49 (03 December 2024)
+
+- Logging: Only call CreateBucket on Amazon S3 when the bucket does not already exist.
+- Improve cancellation feedback and prevent multiple cancellations when using fullscreen display.
+- Inspect View: Prevent circular reference error when rendering complex tool input.
+- Inspect View: Resolve display issue with sorting by sample then epoch.
+
+## v0.3.48 (01 December 2024)
+
+- [Realtime display](https://github.com/UKGovernmentBEIS/inspect_ai/pull/865) of sample transcripts (including ability to cancel running samples).
+- Scoring: When using a dictionary to map metrics to score value dictionaries, you may now use globs as keys. See our [scorer documentation](https://inspect.ai-safety-institute.org.uk/scorers.html#sec-multiple-scorers) for more information.
+- `EvalLog` now includes a [location](https://github.com/UKGovernmentBEIS/inspect_ai/pull/872) property indicating where it was read from.
+- Use [tool views](https://inspect.ai-safety-institute.org.uk/approval.html#tool-views) when rendering tool calls in Inspect View.
+- Consistent behavior for `max_samples` across sandbox and non-sandbox evals (both now apply `max_samples` per task, formerly evals with sandboxes applied `max_samples` globally).
+- Log files now properly deal with scores that produce Nan. (fixes [#834](https://github.com/UKGovernmentBEIS/inspect_ai/issues/834))
+- Bash tool: add `--login` option so that e.g. .bashrc is read before executing the command.
+- Google: Support for tools/functions that have no parameters.
+- Google/Vertex: Support for `logprobs` and other new 1.5 (002 series) options.
+- AzureAI: Change default max_tokens for Llama models to 2048 (4096 currently yields an error w/ Llama 3.1).
+- Mistral: Various compatibility changes for their client and tool calling implementation.
+- Handle exponents in numeric normalisation for match, include, and answer scorers.
+- hf_dataset: Added `cached` argument to control whether to use a previously cached version of the dataset if available (defaults to `True`).
+- hf_dataset: Added `revision` option to load a specific branch or commit SHA (when using `revision` datasets are always revalidated on Hugging Face, i.e. `cached` is ignored).
+- Log viewer: Display sample ids rather than indexes.
+- Log viewer: Add timestamps to transcript events.
+- Log viewer: Metadata which contains images will now render the images.
+- Log viewer: Show custom tool call views in messages display.
+- Bugfix: Correctly read and forward image detail property.
+- Bugfix: Correct resolution of global eval override of task or sample sandboxes.
+- Bugfix: Don't do eval log listing on background threads (s3fs can deadlock when run from multiple threads).
+
+## v0.3.47 (18 November 2024)
+
+- Basic agent: Ensure that the scorer is only run once when max_attempts = 1.
+- Basic agent: Support custom function for incorrect_message reply to model.
+- Tool calling: Execute multiple tool calls serially (some models assume that multiple calls are executed this way rather than in parallel).
+- Google: Combine consecutive tool messages into single content part; ensure no empty text content parts.
+- AzureAI: Create and close client with each call to generate (fixes issue w/ using azureai on multiple passes of eval).
+- Bedrock: Migrate to the [Converse API](https://docs.aws.amazon.com/bedrock/latest/userguide/conversation-inference-supported-models-features.html), which supports many more features including tool calling and multimodal models.
+- Scoring: When using a dictionary to map metrics to score value dictionaries, you may now use globs as keys. See our [scorer documentation](https://inspect.ai-safety-institute.org.uk/scorers.html#sec-multiple-scorers) for more information.
+- Sample limit events will now appear in the transcript if a limit (e.g. message, token, or time limit) halt a sample. The sample list and sample detail also display the limit, if applicable.
+
+## v0.3.46 (12 November 2024)
+
+- [eval](https://inspect.ai-safety-institute.org.uk/eval-logs.html#sec-log-format) is now the default log format (use `--log-format=json` to use old format).
+- Base 64 images are now logged by default for all log formats (disable with `--no-log-images`).
+- The log viewer now properly displays sample errors in the sample list for `eval` format log files.
+- Improve path handling when using `inspect log convert` to convert a single log file.
+- Web browser tool: Subtasks now each have independent web browser sessions.
+- Anthropic: Ensure that assistant messages created in generate never have empty content lists.
+- Increase sandbox `exec()` output limit from 1 MiB to 10 MiB.
+
+## v0.3.45 (11 November 2024)
+
+- [time_limit](https://inspect.ai-safety-institute.org.uk/errors_and_limits.html#sample-limits) option for specifying a maximum execution time for samples.
+- [read_eval_log_samples()](https://inspect.ai-safety-institute.org.uk/eval-logs.html#streaming) function for streaming reads of `.eval` log files.
+- Mistral: Support for multi-modal models (requires v1.2 of mistralai package).
+- Groq: Support for multi-modal models (requires v0.11.0 of groq package).
+- AzureAI: Use Model Inference API (preview) for implementation of model client.
+- Bedrock: Fix parsing of Bedrock Mistral Large 2407 responses
+- Apply standard sample error handling (fail-on-error, etc.) when running scorers.
+- Fix issue with correctly logging task_args for eval-set tasks which are interrupted.
+- Move `INSPECT_DISABLE_MODEL_API` into `generate()` (as opposed to `get_model()`)
+- Always treat `.eval` files as logs (don't apply file name pattern restrictions as we do with `.json`).
+- Log model calls when model providers return bad request errors
+- Better lay out large numbers of configuration and parameters when displaying log files.
+- The log viewer now properly displays sample scores for running tasks.
+- Add `metadata` field to `ModelOutput` and provide various fields for the Groq provider.
+
+## v0.3.44 (04 November 2024)
+
+- Revert change to single epoch reducer behavior (regressed some scoring scenarios).
+
+## v0.3.43 (04 November 2024)
+
+- New binary [log format](https://inspect.ai-safety-institute.org.uk/eval-logs.html#sec-log-format) which yields substantial size and speed improvements (JSON format log files are still fully supported and utilities for converting between the formats are provided).
+- [Grok](https://docs.x.ai/) model provider.
+- [llama-cpp-python](https://llama-cpp-python.readthedocs.io/en/latest/) local model provider.
+- Extensions: correctly load extensions in packages where package name differs from dist name.
+- Added `--model-config`, `--task-config`, and `--solver-config` CLI arguments for specifying model, task, and solver args using a JSON or YAML config file.
+- View: properly render complex score objects in transcript.
+- Write custom tool call views into transcript for use by Inspect View.
+- Use `casefold()` for case-insensitive compare in `includes()`, `match()`, `exact()`, and `f1()` scorers.
+- OpenAI: eliminate use of `strict` tool calling (sporadically supported across models and we already internally validate).
+- Mistral: fix bug where base_url was not respected when passing both an api_key and base_url.
+- Don't include package scope for task name part of log files.
+- Improve performance of write_file for Docker sandboxes.
+- Use user_data_dir rather than user_runtime_dir for view notifications.
+- Implement `read_eval_log_sample()` for JSON log files.
+- Log the list of dataset sample IDs.
+- Limit `SandboxEnvironment.exec()` output streams to 1 MiB. Limit `SandboxEnvironment.read_file()` to 100 MiB.
+- Add `INSPECT_DISABLE_MODEL_API` environment variable for disabling all Model APIs save for mockllm.
+- Add optional `tool_call_id` param to `ModelOutput.for_tool_call()`.
+- Support all JSON and CSV dataset arguments in `file_dataset()` function.
+
+## v0.3.42 (23 October 2024)
+
+- [ToolDef](https://inspect.ai-safety-institute.org.uk/tools.html#sec-dynamic-tools) class for dynamically creating tool definitions.
+- Added `--tags` option to eval for tagging evaluation runs.
+- Added APIs for accessing sample event transcripts and for creating and resolving attachments for larger content items.
+- Cleanup Docker Containers immediately for samples with errors.
+- Support Dockerfile as config path for Docker sandboxes (previously only supported compose files).
+- Anthropic: remove stock tool use chain of thought prompt (many Anthropic models now do this internally, in other cases its better for this to be explicit rather than implicit).
+- Anthropic: ensure that we never send empty text content to the API.
+- Google: compatibility with google-generativeai v0.8.3
+- Llama: remove extraneous <|start_header_id|>assistant<|end_header_id|> if it appears in an assistant message.
+- OpenAI: Remove tool call id in user message reporting tool calls to o1- models.
+- Use Dockerhub aisiuk/inspect-web-browser-tool image for web browser tool.
+- Use ParamSpec to capture types of decorated solvers, tools, scorers, and metrics.
+- Support INSPECT_EVAL_MODEL_ARGS environment variable for calls to `eval()`.
+- Requirements: add lower bounds to various dependencies based on usage, compatibility, and stability.
+- Added `include_history` option to model graded scorers to optionally include the full chat history in the presented question.
+- Added `delimiter` option to `csv_dataset()` (defaults to ",")
+- Improve answer detection in multiple choice scorer.
+- Open log files in binary mode when reading headers (fixes ijson deprecation warning).
+- Capture `list` and `dict` of registry objects when logging `plan`.
+- Add `model_usage` field to `EvalSample` to record token usage by model for each sample.
+- Correct directory handling for tasks that are imported as local (non-package) modules.
+- Basic agent: terminate agent loop when the context window is exceeded.
+- Call tools sequentially when they have opted out of parallel calling.
+- Inspect view bundle: support for bundling directories with nested subdirectories.
+- Bugfix: strip protocol prefix when resolving eval event content
+- Bugfix: switch to run directory when running multiple tasks with the same run directory.
+- Bugfix: ensure that log directories don't end in forward/back slash.
+
 ## v0.3.41 (11 October 2024)
 
 - [Approval mode](https://inspect.ai-safety-institute.org.uk/approval.html) for extensible approvals of tool calls (human and auto-approvers built in,  arbitrary other approval schemes via extensions).
 - [Trace mode](https://inspect.ai-safety-institute.org.uk/interactivity.html#sec-trace-mode) for printing model interactions to the terminal.
 - Add `as_dict()` utility method to `Score`
-- [Sample limits](https://inspect.ai-safety-institute.org.uk/errors_and_limits.html#sec-sample-limits) (`token_limit` and `message_limit`) for capping the number of tokens or messages used per sample ( `message_limit` replaces deprecated `max_messages`).
+- [Sample limits](https://inspect.ai-safety-institute.org.uk/errors_and_limits.html#sample-limits) (`token_limit` and `message_limit`) for capping the number of tokens or messages used per sample ( `message_limit` replaces deprecated `max_messages`).
 - Add `metadata` field to `Task` and record in log `EvalSpec`.
 - Include datetime and level in file logger.
 - Correct llama3 and o1 tool calling when empty arguments passed.
 - Allow resolution of any sandbox name when there is only a single environment.
 - Introduce `--log-level-transcript` option for separate control of log entries recorded in the eval log file
-- Improve mime type detection for image content encoding (fixes issues w/ webp images). 
+- Improve mime type detection for image content encoding (fixes issues w/ webp images).
 - Fix memory leak in Inspect View worker-based JSON parsing.
 - Add `fail_on_error` option for `eval_retry()` and `inspect eval-retry`.
 - Defer resolving helper models in `self_critique()` and `model_graded_qa()`.
@@ -34,7 +348,7 @@
 ## v0.3.39 (3 October 2024)
 
 - The sample transcript will now display the target for scoring in the Score Event (for newly run evaluations).
-- Provide setter for `max_messages` on `TaskState`. 
+- Provide setter for `max_messages` on `TaskState`.
 - Provide `max_messages` option for `basic_agent()` (defaulting to 50) and use it rather than any task `max_messages` defined.
 - Improved implementation of disabling parallel tool calling (also fixes a transcript issue introduced by the original implementation).
 - Improve quality of error messages when a model API key environment variable is missing.
@@ -45,7 +359,7 @@
 - Rename `web_browser_tools()` to `web_browser()`, and don't export individual web browsing tools.
 - Add `parallel` option to `@tool` decorator and specify `parallel=False` for web browsing tools.
 - Improve prompting for web browser tools using more explicit examples.
-- Improve prompting for `</tool_call>` end sequence for Llama models. 
+- Improve prompting for `</tool_call>` end sequence for Llama models.
 - Fix issue with failure to execute sample setup scripts.
 
 ## v0.3.37 (2 October 2024)
@@ -54,7 +368,7 @@
 
 ## v0.3.36 (2 October 2024)
 
-- [Web Browser](https://inspect.ai-safety-institute.org.uk/tools.html#sec-web-browser) tool which provides a headless Chromimum browser that supports navigation, history, and mouse/keyboard interactions.
+- [Web Browser](https://inspect.ai-safety-institute.org.uk/tools.html#sec-web-browser) tool which provides a headless Chromium browser that supports navigation, history, and mouse/keyboard interactions.
 - `auto_id` option for dataset readers to assign an auto-incrementing ID to records.
 - Task args: don't attempt to serialise registry objects that don't have captured parameters.
 
@@ -72,7 +386,7 @@
 
 - Support for `max_tokens` on OpenAI o1 models (map to `max_completion_tokens`).
 - Fix regression of log and debug options on `inspect view`
-- Improved focus management for Insepct View
+- Improved focus management for Inspect View
 - Raise error if `epochs` is less than 1
 - Improve code parsing for HumanEval (compatibility with Llama model output)
 
@@ -83,9 +397,9 @@
 - Option to disable ANSI terminal output with `--no-ansi` or `INSPECT_NO_ANSI`
 - Add chain of thought option to `multiple_choice()` and export `MultipleChoiceTemplate` enumeration
 - Allow Docker sandboxes configured with `x-default` to be referred to by their declared service name.
-- Improved error messages for Docier sandbox initialisation.
+- Improved error messages for Docker sandbox initialisation.
 - Improve legibility of Docker sandbox log entries (join rather than displaying as array)
-- Display user message immediately proceding assistant message in model call transcripts.
+- Display user message immediately proceeding assistant message in model call transcripts.
 - Display images created by tool calls in the Viewer.
 - Fix duplicated tool call output display in Viewer for Gemini and Llama models.
 - Require a `max_messages` for use of `basic_agent()` (as without it, the agent could end up in an infinite loop).
@@ -100,8 +414,8 @@
 
 - Fix issue w/ subtasks not getting a fresh store() (regression from introduction of `fork()` in v0.3.30)
 - Fix issue w/ subtasks that return None invalidating the log file.
-- Make subtasks collapsable in Inspect View.
-- Improved error reporting for missing `web_search()` provider environment variables. 
+- Make subtasks collapsible in Inspect View.
+- Improved error reporting for missing `web_search()` provider environment variables.
 
 ## v0.3.31 (24 September 2024)
 
@@ -139,7 +453,7 @@
 - Don't log base64 images by default (re-enable logging with `--log-images`).
 - Provide unique tool id when parsing tool calls for models that don't support native tool usage.
 - Fix bug that prevented `epoch_reducer` from being used in eval-retry.
-- Fix bug that prevented eval() level `epoch` from overriding task level `epoch`. 
+- Fix bug that prevented eval() level `epoch` from overriding task level `epoch`.
 
 ## v0.3.28 (14 September 2024)
 
@@ -174,7 +488,7 @@
 ## v0.3.26 (6 September 2024)
 
 - [Eval Sets](https://inspect.ai-safety-institute.org.uk/eval-sets.html) for running groups of tasks with automatic retries.
-- [Per-sample](https://inspect.ai-safety-institute.org.uk/agents.html#sec-per-sample-sandbox) Sandbox environments can now be specified (e.g. allowing for a distinct Dockerfile or Docker compose file for each sample).
+- [Per-sample](https://inspect.ai-safety-institute.org.uk/sandboxing.html#sec-per-sample-sandbox) Sandbox environments can now be specified (e.g. allowing for a distinct Dockerfile or Docker compose file for each sample).
 - [input_screen()](https://inspect.ai-safety-institute.org.uk/interactivity.html) context manager to temporarily clear task display for user input.
 - Introduce two new scorers, `f1()` (precision and recall in text matching) and `exact()` (whether normalized text matches exactly).
 - Task `metrics` now override built in scorer metrics (previously they were merged). This enables improved re-use of existing scorers where they only change required is a different set of metrics.
@@ -183,7 +497,7 @@
 - Add optional user parameter to SandboxEnvironment.exec for specifying the user. Currently only DockerSandboxEnvironment is supported.
 - Fix issue with resolving Docker configuration files when not running from the task directory.
 - Only populate Docker compose config metadata values when they are used in the file.
-- Treat Sandbox exec `cwd` that are relative paths as relative to sample working directry.
+- Treat Sandbox exec `cwd` that are relative paths as relative to sample working directory.
 - Filter base64 encoded images out of model API call logs.
 - Raise error when a Solver does not return a TaskState.
 - Only run tests that use model APIs when the `--runapi` flag is passed to `pytest` (prevents unintended token usage)
@@ -191,7 +505,6 @@
 - Do not process `.env` files in task directories (all required vars should be specified in the global `.env`).
 - Only enable `strict` mode for OpenAI tool calls when all function parameters are required.
 - Added [MMMU](https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/mmmu), [CommonsenseQA](https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/commonsense_qa), [MMLU-Pro](https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/mmlu_pro), and [XSTest](https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/xstest) benchmarks.
-
 
 ## v0.3.25 (25 August 2024)
 
@@ -213,7 +526,7 @@
 ## v0.3.23 (16 August 2024)
 
 - Support for tool calling for Llama 3.1 models on Azure AI and CloudFlare.
-- Incrase default `max_tokens` from 1024 to 2048.
+- Increase default `max_tokens` from 1024 to 2048.
 - Record individual sample reductions along with results for multi-epoch evals.
 - Change default to not log base64 encoded versions of images, as this often resulted in extremely large log files (use `--log-images` to opt back in).
 - Update to new Mistral API (v1.0.1 of `mistralai` is now required).
@@ -235,13 +548,13 @@
 - Set Claude default `max_tokens` to 4096
 - Combine user and assistant messages for Vertex models.
 - Warn when using the `name` parameter with task created from `@task` decorated function.
-- Make sample `metadata` available in prompt, grading, and self-criqique templates.
+- Make sample `metadata` available in prompt, grading, and self-critique templates.
 - Retry on several additional OpenAI errors (APIConnectionError | APITimeoutError | InternalServerError)
 - Fix a regression which would cause the 'answer' to be improperly recorded when scoring a sample.
 
 ## v0.3.20 (03 August 2024)
 
-- `Epochs` data type for specifying epochs and reducers together (deprecated `epochs_reducer` argument). 
+- `Epochs` data type for specifying epochs and reducers together (deprecated `epochs_reducer` argument).
 - Enable customisation of model generation cache dir via `INSPECT_CACHE_DIR` environment variable.
 - Use doc comment description rather than `prompt` attribute of `@tool` for descriptions.
 - Include examples section from doc comments in tool descriptions.
@@ -294,8 +607,6 @@
 - Set maximum rate limit backoff time to 30 minutes
 - Retry with exponential backoff for web_search Google provider.
 
-
-
 ## v0.3.18 (14 July 2024)
 
 - [Multiple Scorers](https://inspect.ai-safety-institute.org.uk/scorers.html#sec-multiple-scorers) are now supported for evaluation tasks.
@@ -304,7 +615,7 @@
 - Improved handling of very large (> 100MB) log files in Inspect View.
 - Use `network_mode: none` for disabling networking by default in Docker tool environments.
 - Shorten the default shutdown grace period for Docker container cleanup to 1 second.
-- Allow sandbox environent providers to specify a default `max_samples` (set to 25 for the Docker provider).
+- Allow sandbox environment providers to specify a default `max_samples` (set to 25 for the Docker provider).
 - Prevent concurrent calls to `eval_async()` (unsafe because of need to change directories for tasks). Parallel task evaluation will instead be implemented as a top-level feature of `eval()` and `eval_async()`.
 - Match scorers now return answers consistently even when there is no match.
 - Relocate tool related types into a new top-level `inspect_ai.tool` module (previous imports still work fow now, but result in a runtime deprecation warning).
@@ -315,7 +626,7 @@
 
 - Optional increased control over the tool use loop via the `call_tools()` function and new `tool_calls` parameter for `generate()`.
 - New `per_epoch` option for `CachePolicy` to allow caching to ignore epochs.
-- Correctly handle `choices` and `files` when converting `Sample` images to base64. 
+- Correctly handle `choices` and `files` when converting `Sample` images to base64.
 
 ## v0.3.16 (24 June 2024)
 
@@ -329,7 +640,7 @@
 
 ## v0.3.15 (15 June 2024)
 
--   [Sandbox Environments](https://inspect.ai-safety-institute.org.uk/agents.html#sec-sandbox-environments) for executing tool code in a sandbox.
+-   [Sandbox Environments](https://inspect.ai-safety-institute.org.uk/sandboxing.html) for executing tool code in a sandbox.
 -   [Caching](https://inspect.ai-safety-institute.org.uk/caching.html) to reduce the number of model API calls made.
 -   The `multiple_choice()` solver now has support for questions with multiple correct answers.
 -   More fine grained handling of Claude `BadRequestError` (400) errors (which were formerly all treated as content moderation errors).
@@ -394,7 +705,7 @@
 -   Add `multi_scorer()` and `majority_vote()` functions for combining multiple scorers into a single score.
 -   Add support for multiple model graders in `model_graded_qa()`.
 -   Raise `TypeError` for solvers and scorers not declared as `async`.
--   Fallback to standard parase if `NaN` or `Inf` is encountered while reading log file header.
+-   Fallback to standard parse if `NaN` or `Inf` is encountered while reading log file header.
 -   Remove deprecated support for matching partial model names (e.g. "gpt" or "claude").
 
 ## v0.3.8 (07 May 2024)
@@ -426,7 +737,7 @@
 -   `write_eval_log()` now ignores unserializable objects in metadata fields.
 -   `read_eval_log()` now takes a `str` or `FileInfo` (for compatibility w/ list returned from `list_eval_logs()`).
 -   Registry name looks are now case sensitive (fixes issue w/ loading tasks w/ mixed case names).
--   Resiliancy to Python syntax errors that occur when enumerating tasks in a directory.
+-   Resiliency to Python syntax errors that occur when enumerating tasks in a directory.
 -   Do not throw error if unable to parse or load `.ipynb` file due to lack of dependencies (e.g. `nbformat`).
 -   Various additions to log viewer display (log file name, dataset/scorer in listing, filter by complex score types).
 -   Improvements to markdown rendering in log viewer (don't render intraword underscores, escape html tags).

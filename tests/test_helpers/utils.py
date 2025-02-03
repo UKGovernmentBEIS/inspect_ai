@@ -1,10 +1,14 @@
+import asyncio
+import contextlib
 import importlib.util
 import os
+import signal
 import subprocess
 import sys
 from pathlib import Path
 from random import random
-from typing import Sequence
+from types import FrameType
+from typing import Generator, Sequence
 
 import pytest
 
@@ -33,6 +37,10 @@ def skip_if_no_groq(func):
     return pytest.mark.api(skip_if_env_var("GROQ_API_KEY", exists=False)(func))
 
 
+def skip_if_no_goodfire(func):
+    return pytest.mark.api(skip_if_env_var("GOODFIRE_API_KEY", exists=False)(func))
+
+
 def skip_if_no_package(package):
     return pytest.mark.skipif(
         importlib.util.find_spec(package) is None,
@@ -53,7 +61,13 @@ def skip_if_no_accelerate(func):
 
 
 def skip_if_no_openai(func):
-    return pytest.mark.api(skip_if_env_var("OPENAI_API_KEY", exists=False)(func))
+    return pytest.mark.api(
+        pytest.mark.skipif(
+            importlib.util.find_spec("openai") is None
+            or os.environ.get("OPENAI_API_KEY") is None,
+            reason="Test requires both OpenAI package and OPENAI_API_KEY environment variable",
+        )(func)
+    )
 
 
 def skip_if_no_anthropic(func):
@@ -68,6 +82,10 @@ def skip_if_no_mistral(func):
     return pytest.mark.api(skip_if_env_var("MISTRAL_API_KEY", exists=False)(func))
 
 
+def skip_if_no_grok(func):
+    return pytest.mark.api(skip_if_env_var("GROK_API_KEY", exists=False)(func))
+
+
 def skip_if_no_cloudflare(func):
     return pytest.mark.api(skip_if_env_var("CLOUDFLARE_API_TOKEN", exists=False)(func))
 
@@ -77,7 +95,13 @@ def skip_if_no_together(func):
 
 
 def skip_if_no_azureai(func):
-    return pytest.mark.api(skip_if_env_var("AZURE_API_KEY", exists=False)(func))
+    return pytest.mark.api(skip_if_env_var("AZUREAI_API_KEY", exists=False)(func))
+
+
+def skip_if_no_llama_cpp_python(func):
+    return pytest.mark.api(
+        skip_if_env_var("ENABLE_LLAMA_CPP_PYTHON_TESTS", exists=False)(func)
+    )
 
 
 def skip_if_no_vertex(func):
@@ -192,6 +216,15 @@ def failing_task_deterministic(should_fail: Sequence[bool]) -> Task:
     )
 
 
+@solver
+def sleep_for_solver(seconds: int):
+    async def solve(state: TaskState, generate: Generate):
+        await asyncio.sleep(seconds)
+        return state
+
+    return solve
+
+
 def ensure_test_package_installed():
     try:
         import inspect_package  # type: ignore # noqa: F401
@@ -199,3 +232,18 @@ def ensure_test_package_installed():
         subprocess.check_call(
             [sys.executable, "-m", "pip", "install", "--no-deps", "tests/test_package"]
         )
+
+
+@contextlib.contextmanager
+def keyboard_interrupt(seconds: int) -> Generator[None, None, None]:
+    def handler(signum: int, frame: FrameType | None) -> None:
+        raise KeyboardInterrupt
+
+    original_handler = signal.signal(signal.SIGALRM, handler)
+    signal.alarm(seconds)
+
+    try:
+        yield
+    finally:
+        signal.alarm(0)
+        signal.signal(signal.SIGALRM, original_handler)

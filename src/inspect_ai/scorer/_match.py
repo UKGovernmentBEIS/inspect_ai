@@ -48,9 +48,8 @@ def includes(ignore_case: bool = True) -> Scorer:
 
     def check(value: str, target: str) -> tuple[str, bool]:
         if ignore_case:
-            idx = value.lower().rfind(target.lower())
-        else:
-            idx = value.rfind(target)
-        return value, idx != -1
+            value = value.casefold()
+            target = target.casefold()
+        return value, target in value
 
     return str_match_scorer(check)

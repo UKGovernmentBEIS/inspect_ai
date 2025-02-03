@@ -16,7 +16,7 @@ from .._registry import modelapi
 def groq() -> type[ModelAPI]:
     FEATURE = "Groq API"
     PACKAGE = "groq"
-    MIN_VERSION = "0.1.0"
+    MIN_VERSION = "0.16.0"
 
     # verify we have the package
     try:
@@ -69,7 +69,7 @@ def anthropic() -> type[ModelAPI]:
 def vertex() -> type[ModelAPI]:
     FEATURE = "Google Vertex API"
     PACKAGE = "google-cloud-aiplatform"
-    MIN_VERSION = "1.59.0"
+    MIN_VERSION = "1.73.0"
 
     # workaround log spam
     # https://github.com/ray-project/ray/issues/24917
@@ -94,7 +94,7 @@ def vertex() -> type[ModelAPI]:
 def google() -> type[ModelAPI]:
     FEATURE = "Google API"
     PACKAGE = "google-generativeai"
-    MIN_VERSION = "0.8.1"
+    MIN_VERSION = "0.8.4"
 
     # workaround log spam
     # https://github.com/ray-project/ray/issues/24917
@@ -148,7 +148,7 @@ def cf() -> type[ModelAPI]:
 def mistral() -> type[ModelAPI]:
     FEATURE = "Mistral API"
     PACKAGE = "mistralai"
-    MIN_VERSION = "1.1.0"
+    MIN_VERSION = "1.2.0"
 
     # verify we have the package
     try:
@@ -163,6 +163,17 @@ def mistral() -> type[ModelAPI]:
     from .mistral import MistralAPI
 
     return MistralAPI
+
+
+@modelapi(name="grok")
+def grok() -> type[ModelAPI]:
+    # validate
+    validate_openai_client("Grok API")
+
+    # in the clear
+    from .grok import GrokAPI
+
+    return GrokAPI
 
 
 @modelapi(name="together")
@@ -187,8 +198,28 @@ def ollama() -> type[ModelAPI]:
     return OllamaAPI
 
 
+@modelapi(name="llama-cpp-python")
+def llama_cpp_python() -> type[ModelAPI]:
+    # validate
+    validate_openai_client("llama-cpp-python API")
+
+    # in the clear
+    from .llama_cpp_python import LlamaCppPythonAPI
+
+    return LlamaCppPythonAPI
+
+
 @modelapi(name="azureai")
 def azureai() -> type[ModelAPI]:
+    FEATURE = "AzureAI API"
+    PACKAGE = "azure-ai-inference"
+
+    # verify we have the package
+    try:
+        import azure.ai.inference  # noqa: F401
+    except ImportError:
+        raise pip_dependency_error(FEATURE, [PACKAGE])
+
     from .azureai import AzureAIAPI
 
     return AzureAIAPI
@@ -208,10 +239,32 @@ def mockllm() -> type[ModelAPI]:
     return MockLLM
 
 
+@modelapi("goodfire")
+def goodfire() -> type[ModelAPI]:
+    """Get the Goodfire API provider."""
+    FEATURE = "Goodfire API"
+    PACKAGE = "goodfire"
+    MIN_VERSION = "0.3.4"  # Support for newer Llama models and OpenAI compatibility
+
+    # verify we have the package
+    try:
+        import goodfire  # noqa: F401
+    except ImportError:
+        raise pip_dependency_error(FEATURE, [PACKAGE])
+
+    # verify version
+    verify_required_version(FEATURE, PACKAGE, MIN_VERSION)
+
+    # in the clear
+    from .goodfire import GoodfireAPI
+
+    return GoodfireAPI
+
+
 def validate_openai_client(feature: str) -> None:
     FEATURE = feature
     PACKAGE = "openai"
-    MIN_VERSION = "1.45.0"
+    MIN_VERSION = "1.58.1"
 
     # verify we have the package
     try:

@@ -22,7 +22,7 @@ class Approver(Protocol):
         Args:
             message (str): Message genreated by the model along with the tool call.
             call (ToolCall): The tool call to be approved.
-            view (ToolView): Custom rendering of tool context and call.
+            view (ToolCallView): Custom rendering of tool context and call.
             state (state | None): The current task state, if available.
 
         Returns:

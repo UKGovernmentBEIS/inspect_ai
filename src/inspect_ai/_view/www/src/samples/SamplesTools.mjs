@@ -23,6 +23,14 @@ export const SampleTools = (props) => {
   const hasEpochs = epochs > 1;
   const tools = [];
 
+  tools.push(
+    html`<${SampleFilter}
+      evalDescriptor=${sampleDescriptor.evalDescriptor}
+      filter=${filter}
+      filterChanged=${filterChanged}
+    />`,
+  );
+
   if (scores.length > 1) {
     tools.push(
       html`<${SelectScorer}
@@ -42,14 +50,6 @@ export const SampleTools = (props) => {
       />`,
     );
   }
-
-  tools.push(
-    html`<${SampleFilter}
-      filter=${filter}
-      filterChanged=${filterChanged}
-      descriptor=${sampleDescriptor}
-    />`,
-  );
 
   tools.push(
     html`<${SortFilter}
