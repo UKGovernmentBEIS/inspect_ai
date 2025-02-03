@@ -385,10 +385,12 @@ def chat_message_assistant_from_openai(
     message: ChatCompletionMessage, tools: list[ToolInfo]
 ) -> ChatMessageAssistant:
     refusal = getattr(message, "refusal", None)
+    reasoning = getattr(message, "reasoning_content") or getattr(message, "reasoning")
     return ChatMessageAssistant(
         content=refusal or message.content or "",
         source="generate",
         tool_calls=chat_tool_calls_from_openai(message, tools),
+        reasoning=reasoning,
     )
 
 
