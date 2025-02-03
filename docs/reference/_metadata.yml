@@ -1,5 +1,6 @@
 toc-depth: 3
 toc-expand: true
+code-copy: false
 filters: 
    - filter/filter.py
    - filter/markdown.lua

@@ -81,3 +81,17 @@ img.navbar-logo {
 .blockquote {
     color: #505a62;
 }
+
+.source-link {
+    position: relative;
+}
+
+.source-link > a {
+    position: absolute;
+    right: 5px;
+    top: 0;
+    font-size: 0.8em;
+    text-decoration: none;
+    z-index: 1001;
+}
+
