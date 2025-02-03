@@ -4,7 +4,7 @@ title: "inspect_ai.solver"
 
 ## Solvers
 
-
+### self_critique
 ### prompt_template
 ### user_message
 ### system_message

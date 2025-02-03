@@ -9,6 +9,8 @@ website:
     - section: inspect_ai.solver
       href: reference/inspect_ai.solver.qmd
       contents:
+      - text: self_critique
+        href: reference/inspect_ai.solver.qmd#self_critique
       - text: prompt_template
         href: reference/inspect_ai.solver.qmd#prompt_template
       - text: user_message
