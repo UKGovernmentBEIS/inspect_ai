@@ -4,7 +4,7 @@ title: Reasoning
 
 ## Overview
 
-Reasoning models like OpenAI o\` and o3, Google's Gemini 2.0 Flash Thinking, and DeepSeek's r1 have some additional options that can be used to tailor their behaviour. They also in some cases make available full or partial reasoning traces for the chains of thought that led to their response.
+Reasoning models like OpenAI o1 and o3, Google's Gemini 2.0 Flash Thinking, and DeepSeek's r1 have some additional options that can be used to tailor their behaviour. They also in some cases make available full or partial reasoning traces for the chains of thought that led to their response.
 
 This article covers using these models with Inspect---note that the state of support for reasoning models is very early and uneven across providers. As such we'll note below which providers are known to support various options and behaviours.
 
