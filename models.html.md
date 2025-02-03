@@ -149,12 +149,12 @@ constructor of the `AsyncOpenAI` class.
 
 The following environment variables are supported by the OpenAI provider
 
-| Variable            | Description                                                               |
-|---------------------|---------------------------------------------------------------------------|
-| `OPENAI_API_KEY`    | API key credentials (required).                                           |
-| `OPENAI_BASE_URL`   | Base URL for requests (optional, defaults to `https://api.openai.com/v1`) |
-| `OPENAI_ORG_ID`     | OpenAI organization ID (optional)                                         |
-| `OPENAI_PROJECT_ID` | OpenAI project ID (optional)                                              |
+| Variable | Description |
+|----|----|
+| `OPENAI_API_KEY` | API key credentials (required). |
+| `OPENAI_BASE_URL` | Base URL for requests (optional, defaults to `https://api.openai.com/v1`) |
+| `OPENAI_ORG_ID` | OpenAI organization ID (optional) |
+| `OPENAI_PROJECT_ID` | OpenAI project ID (optional) |
 
 ### OpenAI on Azure
 
@@ -194,9 +194,9 @@ the constructor of the `AsyncAnthropic` class.
 The following environment variables are supported by the Anthropic
 provider
 
-| Variable             | Description                                                               |
-|----------------------|---------------------------------------------------------------------------|
-| `ANTHROPIC_API_KEY`  | API key credentials (required).                                           |
+| Variable | Description |
+|----|----|
+| `ANTHROPIC_API_KEY` | API key credentials (required). |
 | `ANTHROPIC_BASE_URL` | Base URL for requests (optional, defaults to `https://api.anthropic.com`) |
 
 ### Anthropic on AWS Bedrock
@@ -253,10 +253,10 @@ For the `google` provider, custom model args (`-M`) are forwarded to the
 
 The following environment variables are supported by the Google provider
 
-| Variable             | Description                      |
-|----------------------|----------------------------------|
-| `GOOGLE_API_KEY`     | API key credentials (required).  |
-| `ANTHROPIC_BASE_URL` | Base URL for requests (optional) |
+| Variable          | Description                      |
+|-------------------|----------------------------------|
+| `GOOGLE_API_KEY`  | API key credentials (required).  |
+| `GOOGLE_BASE_URL` | Base URL for requests (optional) |
 
 ### Safety Settings
 
@@ -266,21 +266,21 @@ you can adjust to determine what sorts of requests will be handled (or
 refused) by the model. The four categories of safety settings are as
 follows:
 
-| Category            | Description                                                                  |
-|---------------------|------------------------------------------------------------------------------|
-| `sexually_explicit` | Contains references to sexual acts or other lewd content.                    |
-| `hate_speech`       | Content that is rude, disrespectful, or profane.                             |
-| `harassment`        | Negative or harmful comments targeting identity and/or protected attributes. |
-| `dangerous_content` | Promotes, facilitates, or encourages harmful acts.                           |
+| Category | Description |
+|----|----|
+| `sexually_explicit` | Contains references to sexual acts or other lewd content. |
+| `hate_speech` | Content that is rude, disrespectful, or profane. |
+| `harassment` | Negative or harmful comments targeting identity and/or protected attributes. |
+| `dangerous_content` | Promotes, facilitates, or encourages harmful acts. |
 
 For each category, the following block thresholds are available:
 
-| Block Threshold    | Description                                                  |
-|--------------------|--------------------------------------------------------------|
-| `none`             | Always show regardless of probability of unsafe content      |
-| `only_high`        | Block when high probability of unsafe content                |
-| `medium_and_above` | Block when medium or high probability of unsafe content      |
-| `low_and_above`    | Block when low, medium or high probability of unsafe content |
+| Block Threshold | Description |
+|----|----|
+| `none` | Always show regardless of probability of unsafe content |
+| `only_high` | Block when high probability of unsafe content |
+| `medium_and_above` | Block when medium or high probability of unsafe content |
+| `low_and_above` | Block when low, medium or high probability of unsafe content |
 
 By default, Inspect sets all four categories to `none` (enabling all
 content). You can override these defaults by using the `safety_settings`
@@ -321,9 +321,9 @@ the constructor of the `Mistral` class.
 The following environment variables are supported by the Mistral
 provider
 
-| Variable           | Description                                                            |
-|--------------------|------------------------------------------------------------------------|
-| `MISTRAL_API_KEY`  | API key credentials (required).                                        |
+| Variable | Description |
+|----|----|
+| `MISTRAL_API_KEY` | API key credentials (required). |
 | `MISTRAL_BASE_URL` | Base URL for requests (optional, defaults to `https://api.mistral.ai`) |
 
 ### Mistral on Azure AI
@@ -359,9 +359,9 @@ constructor of the `AsyncOpenAI` class.
 
 The following environment variables are supported by the Grok provider
 
-| Variable        | Description                                                         |
-|-----------------|---------------------------------------------------------------------|
-| `GROK_API_KEY`  | API key credentials (required).                                     |
+| Variable | Description |
+|----|----|
+| `GROK_API_KEY` | API key credentials (required). |
 | `GROK_BASE_URL` | Base URL for requests (optional, defaults to `https://api.x.ai/v1`) |
 
 ## AWS Bedrock
@@ -486,9 +486,9 @@ the constructor of the `AsyncOpenAI` class.
 The following environment variables are supported by the Together AI
 provider
 
-| Variable            | Description                                                                 |
-|---------------------|-----------------------------------------------------------------------------|
-| `TOGETHER_API_KEY`  | API key credentials (required).                                             |
+| Variable | Description |
+|----|----|
+| `TOGETHER_API_KEY` | API key credentials (required). |
 | `TOGETHER_BASE_URL` | Base URL for requests (optional, defaults to `https://api.together.xyz/v1`) |
 
 ## Groq
@@ -508,9 +508,9 @@ constructor of the `AsyncGroq` class.
 
 The following environment variables are supported by the Groq provider
 
-| Variable        | Description                                                          |
-|-----------------|----------------------------------------------------------------------|
-| `GROQ_API_KEY`  | API key credentials (required).                                      |
+| Variable | Description |
+|----|----|
+| `GROQ_API_KEY` | API key credentials (required). |
 | `GROQ_BASE_URL` | Base URL for requests (optional, defaults to `https://api.groq.com`) |
 
 ## Cloudflare
@@ -531,11 +531,11 @@ fields in the post body of the chat request.
 The following environment variables are supported by the Cloudflare
 provider:
 
-| Variable                | Description                                                                                   |
-|-------------------------|-----------------------------------------------------------------------------------------------|
-| `CLOUDFLARE_ACCOUNT_ID` | Account id (required).                                                                        |
-| `CLOUDFLARE_API_TOKEN`  | API key credentials (required).                                                               |
-| `CLOUDFLARE_BASE_URL`   | Base URL for requests (optional, defaults to `https://api.cloudflare.com/client/v4/accounts`) |
+| Variable | Description |
+|----|----|
+| `CLOUDFLARE_ACCOUNT_ID` | Account id (required). |
+| `CLOUDFLARE_API_TOKEN` | API key credentials (required). |
+| `CLOUDFLARE_BASE_URL` | Base URL for requests (optional, defaults to `https://api.cloudflare.com/client/v4/accounts`) |
 
 ## Goodfire
 
@@ -555,9 +555,9 @@ For the `goodfire` provider, custom model args (`-M`) are forwarded to
 The following environment variables are supported by the Goodfire
 provider
 
-| Variable            | Description                                                             |
-|---------------------|-------------------------------------------------------------------------|
-| `GOODFIRE_API_KEY`  | API key credentials (required).                                         |
+| Variable | Description |
+|----|----|
+| `GOODFIRE_API_KEY` | API key credentials (required). |
 | `GOODFIRE_BASE_URL` | Base URL for requests (optional, defaults to `https://api.goodfire.ai`) |
 
 ## Hugging Face
@@ -724,8 +724,8 @@ berore using it with Inspect.
 
 The following environment variables are supported by the Ollma provider
 
-| Variable          | Description                                                               |
-|-------------------|---------------------------------------------------------------------------|
+| Variable | Description |
+|----|----|
 | `OLLAMA_BASE_URL` | Base URL for requests (optional, defaults to `http://localhost:11434/v1`) |
 
 ## Llama-cpp-python
@@ -748,8 +748,8 @@ running on your system before using it with Inspect.
 The following environment variables are supported by the
 llama-cpp-python provider
 
-| Variable                    | Description                                                              |
-|-----------------------------|--------------------------------------------------------------------------|
+| Variable | Description |
+|----|----|
 | `LLAMA_CPP_PYTHON_BASE_URL` | Base URL for requests (optional, defaults to `http://localhost:8000/v1`) |
 
 ## Custom Models

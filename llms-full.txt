@@ -122,10 +122,10 @@ perform on the
 test, which assesses the ability of a person to infer false beliefs in
 others. Here are some samples from the dataset:
 
-| input                                                                                                                                                                                                                                   | target  |
-|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------|
-| Jackson entered the hall. Chloe entered the hall. The boots is in the bathtub. Jackson exited the hall. Jackson entered the dining_room. Chloe moved the boots to the pantry. Where was the boots at the beginning?                     | bathtub |
-| Hannah entered the patio. Noah entered the patio. The sweater is in the bucket. Noah exited the patio. Ethan entered the study. Ethan exited the study. Hannah moved the sweater to the pantry. Where will Hannah look for the sweater? | pantry  |
+| input | target |
+|----|----|
+| Jackson entered the hall. Chloe entered the hall. The boots is in the bathtub. Jackson exited the hall. Jackson entered the dining_room. Chloe moved the boots to the pantry. Where was the boots at the beginning? | bathtub |
+| Hannah entered the patio. Noah entered the patio. The sweater is in the bucket. Noah exited the patio. Ethan entered the study. Ethan exited the study. Hannah moved the sweater to the pantry. Where will Hannah look for the sweater? | pantry |
 
 Here’s the code for the evaluation:
 
@@ -346,17 +346,19 @@ evaluations. Each example in the tutorial is standalone, so feel free to
 skip between examples that demonstrate the features you are most
 interested in.
 
-| Example                               | Demonstrates                                                           |
-|---------------------------------------|------------------------------------------------------------------------|
-| [Security Guide](#sec-security-guide) | Custom system prompt; Model grading of output.                         |
-| [HellaSwag](#sec-hellaswag)           | Mapping external data formats into Inspect; Multiple choice questions. |
-| [GSM8K](#sec-gsm8k)                   | Using fewshot examples; Scoring numeric output.                        |
-| [Mathematics](#sec-mathematics)       | Creating custom scorers; Developing with larger datasets.              |
-| [Tool Use](#sec-tool-use)             | Tool usage and creating custom tools.                                  |
-| [InterCode CTF](#sec-intercode-ctf)   | Tool using agents; reading complex datasets.                           |
+| Example | Demonstrates |
+|----|----|
+| [Hello World](#hello-world) | Simplest eval to test setup. |
+| [Security Guide](#sec-security-guide) | Custom system prompt; Model grading of output. |
+| [HellaSwag](#sec-hellaswag) | Mapping external data formats into Inspect; Multiple choice questions. |
+| [GSM8K](#sec-gsm8k) | Using fewshot examples; Scoring numeric output. |
+| [Mathematics](#sec-mathematics) | Creating custom scorers; Developing with larger datasets. |
+| [Tool Use](#sec-tool-use) | Tool usage and creating custom tools. |
+| [InterCode CTF](#sec-intercode-ctf) | Tool using agents; reading complex datasets. |
 
-See also the complete list of [Examples](#sec-examples) for
-demonstrations of more advanced features.
+See also the complete list of
+[Examples](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples)
+for demonstrations of more advanced features.
 
 > [!NOTE]
 >
@@ -364,6 +366,33 @@ demonstrations of more advanced features.
 > argument when we call `inspect eval` (the presumption being that it
 > has been already established via the `INSPECT_EVAL_MODEL` environment
 > variable).
+
+## Hello World
+
+This is the simplest possible Inspect evaluation task. The solver
+(`generate()`) just calls the model with the prompt and the scorer
+(`exact()`) checks whether the model produces exactly the `target` from
+the dataset:
+
+``` python
+from inspect_ai import Task, task
+from inspect_ai.dataset import Sample
+from inspect_ai.scorer import exact
+from inspect_ai.solver import generate
+
+@task
+def hello_world():
+    return Task(
+        dataset=[
+            Sample(
+                input="Just reply with Hello World",
+                target="Hello World",
+            )
+        ],
+        solver=[generate()],
+        scorer=exact(),
+    )
+```
 
 ## Security Guide
 
@@ -373,9 +402,9 @@ Evals](https://github.com/openai/evals) repository. This eval tests how
 well models are doing at providing cybersecurity guidance. Here are some
 examples from the dataset:
 
-| input                                                                        | target                                                    |
-|------------------------------------------------------------------------------|-----------------------------------------------------------|
-| What attributes should I set on cookies for strong security?                 | secure samesite and httponly                              |
+| input | target |
+|----|----|
+| What attributes should I set on cookies for strong security? | secure samesite and httponly |
 | How should I store passwords securely for an authentication system database? | strong hashing algorithms with salt like Argon2 or bcrypt |
 
 ### Setup
@@ -385,7 +414,7 @@ a system message that orients the model to its role as a computer
 security expert.
 
 ``` python
-from inspect_ai import Task, eval, task
+from inspect_ai import Task, task
 from inspect_ai.dataset import example_dataset
 from inspect_ai.scorer import model_graded_fact
 from inspect_ai.solver import generate, system_message
@@ -452,7 +481,7 @@ samples (we need to do this to convert the index-based label in the
 dataset to a letter).
 
 ``` python
-from inspect_ai import Task, eval, task
+from inspect_ai import Task, task
 from inspect_ai.dataset import Sample, hf_dataset
 from inspect_ai.scorer import choice
 from inspect_ai.solver import multiple_choice, system_message
@@ -482,8 +511,8 @@ We’ll load the dataset from
 [HuggingFace](https://huggingface.co/datasets/Rowan/hellaswag) using the
 `hf_dataset()` function. We’ll draw data from the validation split, and
 use the `record_to_sample()` function to parse the records (we’ll also
-pass `trust=True` to indicate that we are okay with Hugging Face
-executing the dataset loading code provided by hellaswag):
+pass `trust=True` to indicate that we are okay with locally executing
+the dataset loading code provided by hellaswag):
 
 ``` python
 @task
@@ -528,10 +557,10 @@ word problems. The dataset was created to support the task of question
 answering on basic mathematical problems that require multi-step
 reasoning. Here are some samples from the dataset:
 
-| question                                                                                                           | answer                                                                                                                                                                                    |
-|--------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| James writes a 3-page letter to 2 different friends twice a week. How many pages does he write a year?             | He writes each friend 3\*2=\<\<3\*2=6\>\>6 pages a week So he writes 6\*2=\<\<6\*2=12\>\>12 pages every week That means he writes 12\*52=\<\<12\*52=624\>\>624 pages a year \#### **624** |
-| Weng earns \$12 an hour for babysitting. Yesterday, she just did 50 minutes of babysitting. How much did she earn? | Weng earns 12/60 = \$\<\<12/60=0.2\>\>0.2 per minute. Working 50 minutes, she earned 0.2 x 50 = \$\<\<0.2\*50=10\>\>10. \#### **10**                                                      |
+| question | answer |
+|----|----|
+| James writes a 3-page letter to 2 different friends twice a week. How many pages does he write a year? | He writes each friend 3\*2=\<\<3\*2=6\>\>6 pages a week So he writes 6\*2=\<\<6\*2=12\>\>12 pages every week That means he writes 12\*52=\<\<12\*52=624\>\>624 pages a year \#### **624** |
+| Weng earns \$12 an hour for babysitting. Yesterday, she just did 50 minutes of babysitting. How much did she earn? | Weng earns 12/60 = \$\<\<12/60=0.2\>\>0.2 per minute. Working 50 minutes, she earned 0.2 x 50 = \$\<\<0.2\*50=10\>\>10. \#### **10** |
 
 Note that the final numeric answers are contained at the end of the
 **answer** field after the `####` delimiter.
@@ -576,9 +605,10 @@ def sample_to_fewshot(sample):
     )
 ```
 
-Note that we save the “reasoning” part of the answer in `metadata`—we do
-this so that we can use it to compose the fewshot prompt (as illustrated
-in `sample_to_fewshot()`).
+Note that we save the “reasoning” part of the answer in `metadata` — we
+do this so that we can use it to compose the [fewshot
+prompt](https://www.promptingguide.ai/techniques/fewshot) (as
+illustrated in `sample_to_fewshot()`).
 
 Here’s the prompt we’ll used to elicit a chain of thought answer in the
 right format:
@@ -664,10 +694,10 @@ full step-by-step solution which can be used to teach models to generate
 answer derivations and explanations. Here are some samples from the
 dataset:
 
-| Question                                                                                                                                                         | Answer |
-|------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------:|
+| Question | Answer |
+|----|---:|
 | How many dollars in interest are earned in two years on a deposit of \$10,000 invested at 4.5% and compounded annually? Express your answer to the nearest cent. | 920.25 |
-| Let $p(x)$ be a monic, quartic polynomial, such that $p(1) = 3,$ $p(3) = 11,$ and $p(5) = 27.$ Find $p(-2) + 7p(6)$                                              |   1112 |
+| Let $p(x)$ be a monic, quartic polynomial, such that $p(1) = 3,$ $p(3) = 11,$ and $p(5) = 27.$ Find $p(-2) + 7p(6)$ | 1112 |
 
 ### Setup
 
@@ -729,7 +759,7 @@ def math(shuffle=True):
                 input="problem", 
                 target="solution"
             ),
-            shuffle=True,
+            shuffle=shuffle,
             trust=True,
         ),
         solver=[
@@ -825,10 +855,11 @@ over 12,000 in the dataset):
 $ inspect eval math.py --limit 500
 ```
 
-This will draw 500 random samples from the dataset (because we defined
-`shuffle=True` in our call to load the dataset). The task lets you
-override this with a task parameter (e.g. in case you wanted to evaluate
-a specific sample or range of samples):
+This will draw 500 random samples from the dataset (because the default
+is `shuffle=True` in our call to load the dataset).
+
+The task lets you override this with a task parameter (e.g. in case you
+wanted to evaluate a specific sample or range of samples):
 
 ``` bash
 $ inspect eval math.py --limit 100-200 -T shuffle=false
@@ -861,14 +892,13 @@ We’ll demonstrate with a simple tool that adds two numbers, using the
 `@tool` decorator to register it with the system:
 
 ``` python
-from inspect_ai import Task, eval, task
+from inspect_ai import Task, task
 from inspect_ai.dataset import Sample
-from inspect_ai.scorer import includes, match
+from inspect_ai.scorer import match
 from inspect_ai.solver import (
-    generate, system_message, use_tools
+    generate, use_tools
 )
 from inspect_ai.tool import tool
-from inspect_ai.util import subprocess
 
 @tool
 def add():
@@ -1130,29 +1160,29 @@ example:
 
 ## Model Generation
 
-|                         |                                                                                                                                                                                                                                                         |
-|-------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `--max-tokens`          | The maximum number of tokens that can be generated in the completion (default is model specific)                                                                                                                                                        |
-| `--system-message`      | Override the default system message.                                                                                                                                                                                                                    |
-| `--temperature`         | What sampling temperature to use, between 0 and 2. Higher values like 0.8 will make the output more random, while lower values like 0.2 will make it more focused and deterministic.                                                                    |
-| `--top-p`               | An alternative to sampling with temperature, called nucleus sampling, where the model considers the results of the tokens with top_p probability mass.                                                                                                  |
-| `--top-k`               | Randomly sample the next word from the top_k most likely next words. Anthropic, Google, HuggingFace, and vLLM only.                                                                                                                                     |
-| `--frequency-penalty`   | Number between -2.0 and 2.0. Positive values penalize new tokens based on their existing frequency in the text so far, decreasing the model’s likelihood to repeat the same line verbatim. OpenAI, Google, Grok, Groq, llama- cpp-python and vLLM only. |
-| `--presence-penalty`    | Number between -2.0 and 2.0. Positive values penalize new tokens based on whether they appear in the text so far, increasing the model’s likelihood to talk about new topics. OpenAI, Google, Grok, Groq, llama-cpp-python and vLLM only.               |
-| `--logit-bias`          | Map token Ids to an associated bias value from -100 to 100 (e.g. “42=10,43=-10”). OpenAI and Grok only.                                                                                                                                                 |
-| `--seed`                | Random seed. OpenAI, Google, Groq, Mistral, HuggingFace, and vLLM only.                                                                                                                                                                                 |
-| `--stop-seqs`           | Sequences where the API will stop generating further tokens. The returned text will not contain the stop sequence.                                                                                                                                      |
-| `--num-choices`         | How many chat completion choices to generate for each input message. OpenAI, Grok, Google, TogetherAI, and vLLM only.                                                                                                                                   |
-| `--best-of`             | Generates best_of completions server-side and returns the ‘best’ (the one with the highest log probability per token). OpenAI only.                                                                                                                     |
-| `--log-probs`           | Return log probabilities of the output tokens. OpenAI, Grok, TogetherAI, Huggingface, llama-cpp-python, and vLLM only.                                                                                                                                  |
-| `--top-logprobs`        | Number of most likely tokens (0-20) to return at each token position, each with an associated log probability. OpenAI, Grok, TogetherAI, Huggingface, and vLLM only.                                                                                    |
-| `--cache-prompt`        | Values: `auto`, `true`, or `false`. Cache prompt prefix (Anthropic only). Defaults to “auto”, which will enable caching for requests with tools.                                                                                                        |
-| `--reasoning-effort`    | Values: `low`, `medium`, or `high`. Constrains effort on reasoning for reasoning models. Open AI o1 models only.                                                                                                                                        |
-| `--parallel-tool-calls` | Whether to enable calling multiple functions during tool use (defaults to True) OpenAI and Groq only.                                                                                                                                                   |
-| `--max-tool-output`     | Maximum size of tool output (in bytes). Defaults to 16 \* 1024.                                                                                                                                                                                         |
-| `--internal-tools`      | Whether to automatically map tools to model internal implementations (e.g. ‘computer’ for Anthropic).                                                                                                                                                   |
-| `--max-retries`         | Maximum number of times to retry request (defaults to 5)                                                                                                                                                                                                |
-| `--timeout`             | Request timeout (in seconds).                                                                                                                                                                                                                           |
+|  |  |
+|----|----|
+| `--max-tokens` | The maximum number of tokens that can be generated in the completion (default is model specific) |
+| `--system-message` | Override the default system message. |
+| `--temperature` | What sampling temperature to use, between 0 and 2. Higher values like 0.8 will make the output more random, while lower values like 0.2 will make it more focused and deterministic. |
+| `--top-p` | An alternative to sampling with temperature, called nucleus sampling, where the model considers the results of the tokens with top_p probability mass. |
+| `--top-k` | Randomly sample the next word from the top_k most likely next words. Anthropic, Google, HuggingFace, and vLLM only. |
+| `--frequency-penalty` | Number between -2.0 and 2.0. Positive values penalize new tokens based on their existing frequency in the text so far, decreasing the model’s likelihood to repeat the same line verbatim. OpenAI, Google, Grok, Groq, llama- cpp-python and vLLM only. |
+| `--presence-penalty` | Number between -2.0 and 2.0. Positive values penalize new tokens based on whether they appear in the text so far, increasing the model’s likelihood to talk about new topics. OpenAI, Google, Grok, Groq, llama-cpp-python and vLLM only. |
+| `--logit-bias` | Map token Ids to an associated bias value from -100 to 100 (e.g. “42=10,43=-10”). OpenAI and Grok only. |
+| `--seed` | Random seed. OpenAI, Google, Groq, Mistral, HuggingFace, and vLLM only. |
+| `--stop-seqs` | Sequences where the API will stop generating further tokens. The returned text will not contain the stop sequence. |
+| `--num-choices` | How many chat completion choices to generate for each input message. OpenAI, Grok, Google, TogetherAI, and vLLM only. |
+| `--best-of` | Generates best_of completions server-side and returns the ‘best’ (the one with the highest log probability per token). OpenAI only. |
+| `--log-probs` | Return log probabilities of the output tokens. OpenAI, Grok, TogetherAI, Huggingface, llama-cpp-python, and vLLM only. |
+| `--top-logprobs` | Number of most likely tokens (0-20) to return at each token position, each with an associated log probability. OpenAI, Grok, TogetherAI, Huggingface, and vLLM only. |
+| `--cache-prompt` | Values: `auto`, `true`, or `false`. Cache prompt prefix (Anthropic only). Defaults to “auto”, which will enable caching for requests with tools. |
+| `--reasoning-effort` | Values: `low`, `medium`, or `high`. Constrains effort on reasoning for reasoning models. Open AI o1 models only. |
+| `--parallel-tool-calls` | Whether to enable calling multiple functions during tool use (defaults to True) OpenAI and Groq only. |
+| `--max-tool-output` | Maximum size of tool output (in bytes). Defaults to 16 \* 1024. |
+| `--internal-tools` | Whether to automatically map tools to model internal implementations (e.g. ‘computer’ for Anthropic). |
+| `--max-retries` | Maximum number of times to retry request (defaults to 5) |
+| `--timeout` | Request timeout (in seconds). |
 
 ## Tasks and Solvers
 
@@ -1166,75 +1196,75 @@ example:
 
 ## Sample Selection
 
-|                    |                                                                                                                                                                |
-|--------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `--limit`          | Limit samples to evaluate by specifying a maximum (e.g. `10`) or range (e.g. `10-20`)                                                                          |
-| `--sample-id`      | Evalute a specific sample (e.g. `44`) or list of samples (e.g. `44,63,91`)                                                                                     |
-| `--epochs`         | Number of times to repeat each sample (defaults to 1)                                                                                                          |
+|  |  |
+|----|----|
+| `--limit` | Limit samples to evaluate by specifying a maximum (e.g. `10`) or range (e.g. `10-20`) |
+| `--sample-id` | Evalute a specific sample (e.g. `44`) or list of samples (e.g. `44,63,91`) |
+| `--epochs` | Number of times to repeat each sample (defaults to 1) |
 | `--epochs-reducer` | Method for reducing per-epoch sample scores into a single score. Built in reducers include `mean`, `median`, `mode`, `max`, `at_least_{n}`, and `pass_at_{k}`. |
 
 ## Parallelism
 
-|                      |                                                                                                 |
-|----------------------|-------------------------------------------------------------------------------------------------|
-| `--max-connections`  | Maximum number of concurrent connections to Model provider (defaults to 10)                     |
-| `--max-samples`      | Maximum number of samples to run in parallel (default is `--max-connections`)                   |
-| `--max-subprocesses` | Maximum number of subprocesses to run in parallel (default is `os.cpu_count()`)                 |
-| `--max-sandboxes`    | Maximum number of sandboxes (per-provider) to run in parallel (default is `2 * os.cpu_count()`) |
-| `--max-tasks`        | Maximum number of tasks to run in parallel (default is 1)                                       |
+|  |  |
+|----|----|
+| `--max-connections` | Maximum number of concurrent connections to Model provider (defaults to 10) |
+| `--max-samples` | Maximum number of samples to run in parallel (default is `--max-connections`) |
+| `--max-subprocesses` | Maximum number of subprocesses to run in parallel (default is `os.cpu_count()`) |
+| `--max-sandboxes` | Maximum number of sandboxes (per-provider) to run in parallel (default is `2 * os.cpu_count()`) |
+| `--max-tasks` | Maximum number of tasks to run in parallel (default is 1) |
 
 ## Errors and Limits
 
-|                      |                                                                                                                                                                       |
-|----------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `--fail-on-error`    | Threshold of sample errors to tolerate (by default, evals fail when any error occurs). Value between 0 to 1 to set a proportion; value greater than 1 to set a count. |
-| `--no-fail-on-error` | Do not fail the eval if errors occur within samples (instead, continue running other samples)                                                                         |
-| `--message-limit`    | Limit on total messages used for each sample.                                                                                                                         |
-| `--token-limit`      | Limit on total tokens used for each sample.                                                                                                                           |
-| `--time-limit`       | Limit on total execution time for each sample.                                                                                                                        |
+|  |  |
+|----|----|
+| `--fail-on-error` | Threshold of sample errors to tolerate (by default, evals fail when any error occurs). Value between 0 to 1 to set a proportion; value greater than 1 to set a count. |
+| `--no-fail-on-error` | Do not fail the eval if errors occur within samples (instead, continue running other samples) |
+| `--message-limit` | Limit on total messages used for each sample. |
+| `--token-limit` | Limit on total tokens used for each sample. |
+| `--time-limit` | Limit on total execution time for each sample. |
 
 ## Eval Logs
 
-|                          |                                                                                                                                                                                                     |
-|--------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `--log-dir`              | Directory for log files (defaults to `./logs`)                                                                                                                                                      |
-| `--no-log-samples`       | Do not log sample details.                                                                                                                                                                          |
-| `--no-log-images`        | Do not log images and other media.                                                                                                                                                                  |
-| `--log-buffer`           | Number of samples to buffer before writing log file. If not specified, an appropriate default for the format and filesystem is chosen (10 for most cases, 100 for JSON logs on remote filesystems). |
-| `--log-format`           | Values: `eval`, `json` Format for writing log files (defaults to `eval`).                                                                                                                           |
-| `--log-level`            | Python logger level for console. Values: `debug`, `trace`, `http`, `info`, `warning`, `error`, `critical` (defaults to `warning`)                                                                   |
-| `--log-level-transcript` | Python logger level for eval log transcript (values same as `--log-level`, defaults to `info`).                                                                                                     |
+|  |  |
+|----|----|
+| `--log-dir` | Directory for log files (defaults to `./logs`) |
+| `--no-log-samples` | Do not log sample details. |
+| `--no-log-images` | Do not log images and other media. |
+| `--log-buffer` | Number of samples to buffer before writing log file. If not specified, an appropriate default for the format and filesystem is chosen (10 for most cases, 100 for JSON logs on remote filesystems). |
+| `--log-format` | Values: `eval`, `json` Format for writing log files (defaults to `eval`). |
+| `--log-level` | Python logger level for console. Values: `debug`, `trace`, `http`, `info`, `warning`, `error`, `critical` (defaults to `warning`) |
+| `--log-level-transcript` | Python logger level for eval log transcript (values same as `--log-level`, defaults to `info`). |
 
 ## Scoring
 
-|                      |                                                                                   |
-|----------------------|-----------------------------------------------------------------------------------|
-| `--no-score`         | Do not score model output (use the `inspect score` command to score output later) |
-| `--no-score-display` | Do not display realtime scoring information.                                      |
+|  |  |
+|----|----|
+| `--no-score` | Do not score model output (use the `inspect score` command to score output later) |
+| `--no-score-display` | Do not display realtime scoring information. |
 
 ## Sandboxes
 
-|                        |                                                                                             |
-|------------------------|---------------------------------------------------------------------------------------------|
-| `--sandbox`            | Sandbox environment type (with optional config file). e.g. ‘docker’ or ‘docker:compose.yml’ |
-| `--no-sandbox-cleanup` | Do not cleanup sandbox environments after task completes                                    |
+|  |  |
+|----|----|
+| `--sandbox` | Sandbox environment type (with optional config file). e.g. ‘docker’ or ‘docker:compose.yml’ |
+| `--no-sandbox-cleanup` | Do not cleanup sandbox environments after task completes |
 
 ## Debugging
 
-|                  |                                                                       |
-|------------------|-----------------------------------------------------------------------|
-| `--debug`        | Wait to attach debugger                                               |
-| `--debug-port`   | Port number for debugger                                              |
+|  |  |
+|----|----|
+| `--debug` | Wait to attach debugger |
+| `--debug-port` | Port number for debugger |
 | `--debug-errors` | Raise task errors (rather than logging them) so they can be debugged. |
 
 ## Miscellaneous
 
-|              |                                                                                             |
-|--------------|---------------------------------------------------------------------------------------------|
-| `--display`  | Display type. Values: `full`, `conversation`, `rich`, `plain`, `none` (defaults to `full`). |
-| `--approval` | Config file for tool call approval.                                                         |
-| `--tags`     | Tags to associate with this evaluation run.                                                 |
-| `--help`     | Display help for command options.                                                           |
+|  |  |
+|----|----|
+| `--display` | Display type. Values: `full`, `conversation`, `rich`, `plain`, `none` (defaults to `full`). |
+| `--approval` | Config file for tool call approval. |
+| `--tags` | Tags to associate with this evaluation run. |
+| `--help` | Display help for command options. |
 
 # Log Viewer
 
@@ -1430,15 +1460,15 @@ All of these log entries will be included in the sample transcript.
 The log levels and their applicability are described below (in
 increasing order of severity):
 
-| Level      | Description                                                                                                          |
-|------------|----------------------------------------------------------------------------------------------------------------------|
-| `debug`    | Detailed information, typically of interest only when diagnosing problems.                                           |
-| `trace`    | Show trace messages for runtime actions (e.g. model calls, subprocess exec, etc.).                                   |
-| `http`     | HTTP diagnostics including requests and response statuses                                                            |
-| `info`     | Confirmation that things are working as expected.                                                                    |
-| `warning`  | or indicative of some problem in the near future (e.g. ‘disk space low’). The software is still working as expected. |
-| `error`    | Due to a more serious problem, the software has not been able to perform some function                               |
-| `critical` | A serious error, indicating that the program itself may be unable to continue running.                               |
+| Level | Description |
+|----|----|
+| `debug` | Detailed information, typically of interest only when diagnosing problems. |
+| `trace` | Show trace messages for runtime actions (e.g. model calls, subprocess exec, etc.). |
+| `http` | HTTP diagnostics including requests and response statuses |
+| `info` | Confirmation that things are working as expected. |
+| `warning` | or indicative of some problem in the near future (e.g. ‘disk space low’). The software is still working as expected. |
+| `error` | Due to a more serious problem, the software has not been able to perform some function |
+| `critical` | A serious error, indicating that the program itself may be unable to continue running. |
 
 #### Default Levels
 
@@ -2206,22 +2236,22 @@ optional fields:
 
 **Class** `inspect_ai.dataset.Sample`
 
-| Field      | Type                      | Description                                                                                           |
-|------------|---------------------------|-------------------------------------------------------------------------------------------------------|
-| `input`    | `str | list[ChatMessage]` | The input to be submitted to the model.                                                               |
-| `choices`  | `list[str] | None`        | Optional. Multiple choice answer list.                                                                |
-| `target`   | `str | list[str] | None`  | Optional. Ideal target output. May be a literal value or narrative text to be used by a model grader. |
-| `id`       | `str | None`              | Optional. Unique identifier for sample.                                                               |
-| `metadata` | `dict[str | Any] | None`  | Optional. Arbitrary metadata associated with the sample.                                              |
-| `sandbox`  | `str | tuple[str,str]`    | Optional. Sandbox environment type (or optionally a tuple with type and config file)                  |
-| `files`    | `dict[str | str] | None`  | Optional. Files that go along with the sample (copied to sandbox environments).                       |
-| `setup`    | `str | None`              | Optional. Setup script to run for sample (executed within default sandbox environment).               |
+| Field | Type | Description |
+|----|----|----|
+| `input` | `str | list[ChatMessage]` | The input to be submitted to the model. |
+| `choices` | `list[str] | None` | Optional. Multiple choice answer list. |
+| `target` | `str | list[str] | None` | Optional. Ideal target output. May be a literal value or narrative text to be used by a model grader. |
+| `id` | `str | None` | Optional. Unique identifier for sample. |
+| `metadata` | `dict[str | Any] | None` | Optional. Arbitrary metadata associated with the sample. |
+| `sandbox` | `str | tuple[str,str]` | Optional. Sandbox environment type (or optionally a tuple with type and config file) |
+| `files` | `dict[str | str] | None` | Optional. Files that go along with the sample (copied to sandbox environments). |
+| `setup` | `str | None` | Optional. Setup script to run for sample (executed within default sandbox environment). |
 
 So a CSV dataset with the following structure:
 
-| input                                                                        | target                                                    |
-|------------------------------------------------------------------------------|-----------------------------------------------------------|
-| What cookie attributes should I use for strong security?                     | secure samesite and httponly                              |
+| input | target |
+|----|----|
+| What cookie attributes should I use for strong security? | secure samesite and httponly |
 | How should I store passwords securely for an authentication system database? | strong hashing algorithms with salt like Argon2 or bcrypt |
 
 Can be read directly with:
@@ -2233,9 +2263,9 @@ dataset = csv_dataset("security_guide.csv")
 Note that samples from datasets without an `id` field will automatically
 be assigned ids based on an auto-incrementing integer starting with 1.
 
-If your samples include `choices`, then the `target` should be a numeric
-index into the available `choices` rather than a letter (this is an
-implicit assumption of the `multiple_choice()` solver).
+If your samples include `choices`, then the `target` should be a capital
+letter representing the correct answer in `choices`, see
+[`multiple_choice`](solvers.qmd#multiple-choice)
 
 ### Files
 
@@ -2335,8 +2365,8 @@ dataset = json_dataset(
 )
 ```
 
-To read metadata in a typesafe fashion, us the `metadata_as()` method on
-`Sample` or `TaskState`:
+To read metadata in a typesafe fashion, use the `metadata_as()` method
+on `Sample` or `TaskState`:
 
 ``` python
 metadata = state.metadata_as(PopularityMetadata)
@@ -2467,10 +2497,10 @@ multi-modal input (e.g. images).
 
 **Class** `inspect_ai.model.ChatMessage`
 
-| Field     | Type                                       | Description                                                                                                |
-|-----------|--------------------------------------------|------------------------------------------------------------------------------------------------------------|
-| `role`    | `"system" | "user" | "assistant" | "tool"` | Role of this chat message.                                                                                 |
-| `content` | `str | list[Content]`                      | The content of the message. Can be a simple string or a list of content parts intermixing text and images. |
+| Field | Type | Description |
+|----|----|----|
+| `role` | `"system" | "user" | "assistant" | "tool"` | Role of this chat message. |
+| `content` | `str | list[Content]` | The content of the message. Can be a simple string or a list of content parts intermixing text and images. |
 
 An input with chat messages in your dataset might will look something
 like this:
@@ -2767,10 +2797,10 @@ Below is a full example of reading a dataset for use with
 `multiple choice()` and using it in an evaluation task. The underlying
 data in `mmlu.csv` has the following form:
 
-| Question                                                                            | A   | B   | C   | D   | Answer |
-|-------------------------------------------------------------------------------------|-----|-----|-----|-----|:------:|
-| Find the degree for the given field extension Q(sqrt(2), sqrt(3), sqrt(18)) over Q. | 0   | 4   | 2   | 6   |   B    |
-| Let p = (1, 2, 5, 4)(2, 3) in S_5 . Find the index of \<p\> in S_5.                 | 8   | 2   | 24  | 120 |   C    |
+| Question | A | B | C | D | Answer |
+|----|----|----|----|----|:--:|
+| Find the degree for the given field extension Q(sqrt(2), sqrt(3), sqrt(18)) over Q. | 0 | 4 | 2 | 6 | B |
+| Let p = (1, 2, 5, 4)(2, 3) in S_5 . Find the index of \<p\> in S_5. | 8 | 2 | 24 | 120 | C |
 
 Here is the task definition:
 
@@ -2814,12 +2844,12 @@ model.
 The following options are available for further customisation of the
 multiple choice solver:
 
-| Option             | Description                                                                                                                                                                                                                                                                                                                                                                                               |
-|--------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `template`         | Use `template` to provide an alternate prompt template (note that if you do this your template should handle prompting for `multiple_correct` directly if required). You can access the built in templates using the `MultipleChoiceTemplate` enum.                                                                                                                                                       |
-| `cot`              | Whether the solver should perform chain-of-thought reasoning before answering (defaults to `False`). NOTE: this has no effect if you provide a custom template.                                                                                                                                                                                                                                           |
+| Option | Description |
+|----|----|
+| `template` | Use `template` to provide an alternate prompt template (note that if you do this your template should handle prompting for `multiple_correct` directly if required). You can access the built in templates using the `MultipleChoiceTemplate` enum. |
+| `cot` | Whether the solver should perform chain-of-thought reasoning before answering (defaults to `False`). NOTE: this has no effect if you provide a custom template. |
 | `multiple_correct` | By default, multiple choice questions have a single correct answer. Set `multiple_correct=True` if your target has defined multiple correct answers (for example, a `target` of `["B", "C"]`). In this case the model is prompted to provide one or more answers, and the sample is scored correct only if each of these answers are provided. NOTE: this has no effect if you provide a custom template. |
-| `shuffle`          | If you specify `shuffle=True`, then the order of the answers presented to the model will be randomised (this may or may not affect results, depending on the nature of the questions and the model being evaluated).                                                                                                                                                                                      |
+| `shuffle` | If you specify `shuffle=True`, then the order of the answers presented to the model will be randomised (this may or may not affect results, depending on the nature of the questions and the model being evaluated). |
 
 ### Self Critique
 
@@ -2867,11 +2897,11 @@ Before presenting the examples we’ll take a more in-depth look at the
 properties. The core members of `TaskState` that are *modified* by
 solvers are `messages` / `user_prompt` and `output`:
 
-| Member        | Type                | Description                                                                                                                                                                               |
-|---------------|---------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `messages`    | list\[ChatMessage\] | Chat conversation history for sample. It is automatically appended to by the `generate()` solver, and is often manipulated by other solvers (e.g. for prompt engineering or elicitation). |
-| `user_prompt` | ChatMessageUser     | Convenience property for accessing the first user message in the message history (commonly used for prompt engineering).                                                                  |
-| `output`      | ModelOutput         | The ‘final’ model output once we’ve completed all solving. This field is automatically updated with the last “assistant” message by the `generate()` solver.                              |
+| Member | Type | Description |
+|----|----|----|
+| `messages` | list\[ChatMessage\] | Chat conversation history for sample. It is automatically appended to by the `generate()` solver, and is often manipulated by other solvers (e.g. for prompt engineering or elicitation). |
+| `user_prompt` | ChatMessageUser | Convenience property for accessing the first user message in the message history (commonly used for prompt engineering). |
+| `output` | ModelOutput | The ‘final’ model output once we’ve completed all solving. This field is automatically updated with the last “assistant” message by the `generate()` solver. |
 
 > [!NOTE]
 >
@@ -2885,21 +2915,21 @@ for the task (as other solvers may have re-written or even removed it
 entirely). This is available using the `input` and `input_text`
 properties:
 
-| Member       | Type                       | Description                                                                         |
-|--------------|----------------------------|-------------------------------------------------------------------------------------|
-| `input`      | str \| list\[ChatMessage\] | Original `Sample` input.                                                            |
-| `input_text` | str                        | Convenience function for accessing the initial input from the `Sample` as a string. |
+| Member | Type | Description |
+|----|----|----|
+| `input` | str \| list\[ChatMessage\] | Original `Sample` input. |
+| `input_text` | str | Convenience function for accessing the initial input from the `Sample` as a string. |
 
 There are several other fields used to provide contextual data from
 either the task sample or evaluation:
 
-| Member      | Type                | Description                                               |
-|-------------|---------------------|-----------------------------------------------------------|
-| `sample_id` | int \| str          | Unique ID for sample.                                     |
-| `epoch`     | int                 | Epoch for sample.                                         |
-| `metadata`  | dict                | Original metadata from `Sample`                           |
-| `choices`   | list\[str\] \| None | Choices from sample (used only in multiple-choice evals). |
-| `model`     | ModelName           | Name of model currently being evaluated.                  |
+| Member | Type | Description |
+|----|----|----|
+| `sample_id` | int \| str | Unique ID for sample. |
+| `epoch` | int | Epoch for sample. |
+| `metadata` | dict | Original metadata from `Sample` |
+| `choices` | list\[str\] \| None | Choices from sample (used only in multiple-choice evals). |
+| `model` | ModelName | Name of model currently being evaluated. |
 
 Task states also include available tools as well as guidance for the
 model on which tools to use (if you haven’t yet encountered the concept
@@ -3782,16 +3812,16 @@ If you review the transcripts of a sample with access to the web browser
 tool, you’ll notice that there are several distinct tools made available
 for control of the web browser. These tools include:
 
-| Tool                                        | Description                                                                           |
-|---------------------------------------------|---------------------------------------------------------------------------------------|
-| `web_browser_go(url)`                       | Navigate the web browser to a URL.                                                    |
-| `web_browser_click(element_id)`             | Click an element on the page currently displayed by the web browser.                  |
-| `web_browser_type(element_id)`              | Type text into an input on a web browser page.                                        |
+| Tool | Description |
+|----|----|
+| `web_browser_go(url)` | Navigate the web browser to a URL. |
+| `web_browser_click(element_id)` | Click an element on the page currently displayed by the web browser. |
+| `web_browser_type(element_id)` | Type text into an input on a web browser page. |
 | `web_browser_type_submit(element_id, text)` | Type text into a form input on a web browser page and press ENTER to submit the form. |
-| `web_browser_scroll(direction)`             | Scroll the web browser up or down by one page.                                        |
-| `web_browser_forward()`                     | Navigate the web browser forward in the browser history.                              |
-| `web_browser_back()`                        | Navigate the web browser back in the browser history.                                 |
-| `web_browser_refresh()`                     | Refresh the current page of the web browser.                                          |
+| `web_browser_scroll(direction)` | Scroll the web browser up or down by one page. |
+| `web_browser_forward()` | Navigate the web browser forward in the browser history. |
+| `web_browser_back()` | Navigate the web browser back in the browser history. |
+| `web_browser_refresh()` | Refresh the current page of the web browser. |
 
 The return value of each of these tools is a [web accessibility
 tree](https://web.dev/articles/the-accessibility-tree) for the page,
@@ -3937,10 +3967,10 @@ def computer_task():
 
 The computer tool supports the following options:
 
-| Option            | Description                                                                                                           |
-|-------------------|-----------------------------------------------------------------------------------------------------------------------|
+| Option | Description |
+|----|----|
 | `max_screenshots` | The maximum number of screenshots to play back to the model as input. Defaults to 1 (set to `None` to have no limit). |
-| `timeout`         | Timeout in seconds for computer tool actions. Defaults to 180 (set to `None` for no timeout).                         |
+| `timeout` | Timeout in seconds for computer tool actions. Defaults to 180 (set to `None` for no timeout). |
 
 For example:
 
@@ -4369,12 +4399,12 @@ provide some examples of custom scorers to make things more concrete.
 
 The components of `Score` include:
 
-| Field         | Type            | Description                                                                     |
-|---------------|-----------------|---------------------------------------------------------------------------------|
-| `value`       | `Value`         | Value assigned to the sample (e.g. “C” or “I”, or a raw numeric value).         |
-| `answer`      | `str`           | Text extracted from model output for comparison (optional).                     |
-| `explanation` | `str`           | Explanation of score, e.g. full model output or grader model output (optional). |
-| `metadata`    | `dict[str,Any]` | Additional metadata about the score to record in the log file (optional).       |
+| Field | Type | Description |
+|----|----|----|
+| `value` | `Value` | Value assigned to the sample (e.g. “C” or “I”, or a raw numeric value). |
+| `answer` | `str` | Text extracted from model output for comparison (optional). |
+| `explanation` | `str` | Explanation of score, e.g. full model output or grader model output (optional). |
+| `metadata` | `dict[str,Any]` | Additional metadata about the score to record in the log file (optional). |
 
 For example, the following are all valid `Score` objects:
 
@@ -4915,14 +4945,14 @@ def gpqa():
 
 Inspect includes several built in reducers which are summarised below.
 
-| Reducer       | Description                                                                                    |
-|---------------|------------------------------------------------------------------------------------------------|
-| mean          | Reduce to the average of all scores.                                                           |
-| median        | Reduce to the median of all scores                                                             |
-| mode          | Reduce to the most common score.                                                               |
-| max           | Reduce to the maximum of all scores.                                                           |
-| pass_at\_{k}  | Probability of at least 1 correct sample given `k` epochs (<https://arxiv.org/pdf/2107.03374>) |
-| at_least\_{k} | `1` if at least `k` samples are correct, else `0`.                                             |
+| Reducer | Description |
+|----|----|
+| mean | Reduce to the average of all scores. |
+| median | Reduce to the median of all scores |
+| mode | Reduce to the most common score. |
+| max | Reduce to the maximum of all scores. |
+| pass_at\_{k} | Probability of at least 1 correct sample given `k` epochs (<https://arxiv.org/pdf/2107.03374>) |
+| at_least\_{k} | `1` if at least `k` samples are correct, else `0`. |
 
 > [!NOTE]
 >
@@ -5182,12 +5212,12 @@ constructor of the `AsyncOpenAI` class.
 
 The following environment variables are supported by the OpenAI provider
 
-| Variable            | Description                                                               |
-|---------------------|---------------------------------------------------------------------------|
-| `OPENAI_API_KEY`    | API key credentials (required).                                           |
-| `OPENAI_BASE_URL`   | Base URL for requests (optional, defaults to `https://api.openai.com/v1`) |
-| `OPENAI_ORG_ID`     | OpenAI organization ID (optional)                                         |
-| `OPENAI_PROJECT_ID` | OpenAI project ID (optional)                                              |
+| Variable | Description |
+|----|----|
+| `OPENAI_API_KEY` | API key credentials (required). |
+| `OPENAI_BASE_URL` | Base URL for requests (optional, defaults to `https://api.openai.com/v1`) |
+| `OPENAI_ORG_ID` | OpenAI organization ID (optional) |
+| `OPENAI_PROJECT_ID` | OpenAI project ID (optional) |
 
 ### OpenAI on Azure
 
@@ -5227,9 +5257,9 @@ the constructor of the `AsyncAnthropic` class.
 The following environment variables are supported by the Anthropic
 provider
 
-| Variable             | Description                                                               |
-|----------------------|---------------------------------------------------------------------------|
-| `ANTHROPIC_API_KEY`  | API key credentials (required).                                           |
+| Variable | Description |
+|----|----|
+| `ANTHROPIC_API_KEY` | API key credentials (required). |
 | `ANTHROPIC_BASE_URL` | Base URL for requests (optional, defaults to `https://api.anthropic.com`) |
 
 ### Anthropic on AWS Bedrock
@@ -5286,10 +5316,10 @@ For the `google` provider, custom model args (`-M`) are forwarded to the
 
 The following environment variables are supported by the Google provider
 
-| Variable             | Description                      |
-|----------------------|----------------------------------|
-| `GOOGLE_API_KEY`     | API key credentials (required).  |
-| `ANTHROPIC_BASE_URL` | Base URL for requests (optional) |
+| Variable          | Description                      |
+|-------------------|----------------------------------|
+| `GOOGLE_API_KEY`  | API key credentials (required).  |
+| `GOOGLE_BASE_URL` | Base URL for requests (optional) |
 
 ### Safety Settings
 
@@ -5299,21 +5329,21 @@ you can adjust to determine what sorts of requests will be handled (or
 refused) by the model. The four categories of safety settings are as
 follows:
 
-| Category            | Description                                                                  |
-|---------------------|------------------------------------------------------------------------------|
-| `sexually_explicit` | Contains references to sexual acts or other lewd content.                    |
-| `hate_speech`       | Content that is rude, disrespectful, or profane.                             |
-| `harassment`        | Negative or harmful comments targeting identity and/or protected attributes. |
-| `dangerous_content` | Promotes, facilitates, or encourages harmful acts.                           |
+| Category | Description |
+|----|----|
+| `sexually_explicit` | Contains references to sexual acts or other lewd content. |
+| `hate_speech` | Content that is rude, disrespectful, or profane. |
+| `harassment` | Negative or harmful comments targeting identity and/or protected attributes. |
+| `dangerous_content` | Promotes, facilitates, or encourages harmful acts. |
 
 For each category, the following block thresholds are available:
 
-| Block Threshold    | Description                                                  |
-|--------------------|--------------------------------------------------------------|
-| `none`             | Always show regardless of probability of unsafe content      |
-| `only_high`        | Block when high probability of unsafe content                |
-| `medium_and_above` | Block when medium or high probability of unsafe content      |
-| `low_and_above`    | Block when low, medium or high probability of unsafe content |
+| Block Threshold | Description |
+|----|----|
+| `none` | Always show regardless of probability of unsafe content |
+| `only_high` | Block when high probability of unsafe content |
+| `medium_and_above` | Block when medium or high probability of unsafe content |
+| `low_and_above` | Block when low, medium or high probability of unsafe content |
 
 By default, Inspect sets all four categories to `none` (enabling all
 content). You can override these defaults by using the `safety_settings`
@@ -5354,9 +5384,9 @@ the constructor of the `Mistral` class.
 The following environment variables are supported by the Mistral
 provider
 
-| Variable           | Description                                                            |
-|--------------------|------------------------------------------------------------------------|
-| `MISTRAL_API_KEY`  | API key credentials (required).                                        |
+| Variable | Description |
+|----|----|
+| `MISTRAL_API_KEY` | API key credentials (required). |
 | `MISTRAL_BASE_URL` | Base URL for requests (optional, defaults to `https://api.mistral.ai`) |
 
 ### Mistral on Azure AI
@@ -5392,9 +5422,9 @@ constructor of the `AsyncOpenAI` class.
 
 The following environment variables are supported by the Grok provider
 
-| Variable        | Description                                                         |
-|-----------------|---------------------------------------------------------------------|
-| `GROK_API_KEY`  | API key credentials (required).                                     |
+| Variable | Description |
+|----|----|
+| `GROK_API_KEY` | API key credentials (required). |
 | `GROK_BASE_URL` | Base URL for requests (optional, defaults to `https://api.x.ai/v1`) |
 
 ## AWS Bedrock
@@ -5519,9 +5549,9 @@ the constructor of the `AsyncOpenAI` class.
 The following environment variables are supported by the Together AI
 provider
 
-| Variable            | Description                                                                 |
-|---------------------|-----------------------------------------------------------------------------|
-| `TOGETHER_API_KEY`  | API key credentials (required).                                             |
+| Variable | Description |
+|----|----|
+| `TOGETHER_API_KEY` | API key credentials (required). |
 | `TOGETHER_BASE_URL` | Base URL for requests (optional, defaults to `https://api.together.xyz/v1`) |
 
 ## Groq
@@ -5541,9 +5571,9 @@ constructor of the `AsyncGroq` class.
 
 The following environment variables are supported by the Groq provider
 
-| Variable        | Description                                                          |
-|-----------------|----------------------------------------------------------------------|
-| `GROQ_API_KEY`  | API key credentials (required).                                      |
+| Variable | Description |
+|----|----|
+| `GROQ_API_KEY` | API key credentials (required). |
 | `GROQ_BASE_URL` | Base URL for requests (optional, defaults to `https://api.groq.com`) |
 
 ## Cloudflare
@@ -5564,11 +5594,11 @@ fields in the post body of the chat request.
 The following environment variables are supported by the Cloudflare
 provider:
 
-| Variable                | Description                                                                                   |
-|-------------------------|-----------------------------------------------------------------------------------------------|
-| `CLOUDFLARE_ACCOUNT_ID` | Account id (required).                                                                        |
-| `CLOUDFLARE_API_TOKEN`  | API key credentials (required).                                                               |
-| `CLOUDFLARE_BASE_URL`   | Base URL for requests (optional, defaults to `https://api.cloudflare.com/client/v4/accounts`) |
+| Variable | Description |
+|----|----|
+| `CLOUDFLARE_ACCOUNT_ID` | Account id (required). |
+| `CLOUDFLARE_API_TOKEN` | API key credentials (required). |
+| `CLOUDFLARE_BASE_URL` | Base URL for requests (optional, defaults to `https://api.cloudflare.com/client/v4/accounts`) |
 
 ## Goodfire
 
@@ -5588,9 +5618,9 @@ For the `goodfire` provider, custom model args (`-M`) are forwarded to
 The following environment variables are supported by the Goodfire
 provider
 
-| Variable            | Description                                                             |
-|---------------------|-------------------------------------------------------------------------|
-| `GOODFIRE_API_KEY`  | API key credentials (required).                                         |
+| Variable | Description |
+|----|----|
+| `GOODFIRE_API_KEY` | API key credentials (required). |
 | `GOODFIRE_BASE_URL` | Base URL for requests (optional, defaults to `https://api.goodfire.ai`) |
 
 ## Hugging Face
@@ -5757,8 +5787,8 @@ berore using it with Inspect.
 
 The following environment variables are supported by the Ollma provider
 
-| Variable          | Description                                                               |
-|-------------------|---------------------------------------------------------------------------|
+| Variable | Description |
+|----|----|
 | `OLLAMA_BASE_URL` | Base URL for requests (optional, defaults to `http://localhost:11434/v1`) |
 
 ## Llama-cpp-python
@@ -5781,8 +5811,8 @@ running on your system before using it with Inspect.
 The following environment variables are supported by the
 llama-cpp-python provider
 
-| Variable                    | Description                                                              |
-|-----------------------------|--------------------------------------------------------------------------|
+| Variable | Description |
+|----|----|
 | `LLAMA_CPP_PYTHON_BASE_URL` | Base URL for requests (optional, defaults to `http://localhost:8000/v1`) |
 
 ## Custom Models
@@ -5929,18 +5959,18 @@ repository at
 There are several options available for customising the behaviour of the
 basic agent:
 
-| Option               | Type                    | Description                                                                                                       |
-|----------------------|-------------------------|-------------------------------------------------------------------------------------------------------------------|
-| `init`               | `Solver | list[Solver]` | Agent initialisation (e.g. `system_message()`).                                                                   |
-| `tools`              | `list[Tool]`            | List of tools available to the agent.                                                                             |
-| `max_attempts`       | `int`                   | Maximum number of submission attempts to accept.                                                                  |
-| `message_limit`      | `int`                   | Limit on messages in conversation before terminating agent.                                                       |
-| `token_limit`        | `int`                   | Limit on in conversation before terminating agent.                                                                |
-| `score_value`        | `ValueToFloat`          | Function used to extract values from scores (defaults to standard `value_to_float()`).                            |
-| `incorrect_message`  | `str`                   | User message reply for an incorrect submission from the model. Alternatively, a function which returns a message. |
-| `continue_message`   | `str`                   | User message to urge the model to continue when it doesn’t make a tool call.                                      |
-| `submit_name`        | `str`                   | Name for tool used to make submissions (defaults to ‘submit’).                                                    |
-| `submit_description` | `str`                   | Description of submit tool (defaults to ‘Submit an answer for evaluation’)                                        |
+| Option | Type | Description |
+|----|----|----|
+| `init` | `Solver | list[Solver]` | Agent initialisation (e.g. `system_message()`). |
+| `tools` | `list[Tool]` | List of tools available to the agent. |
+| `max_attempts` | `int` | Maximum number of submission attempts to accept. |
+| `message_limit` | `int` | Limit on messages in conversation before terminating agent. |
+| `token_limit` | `int` | Limit on in conversation before terminating agent. |
+| `score_value` | `ValueToFloat` | Function used to extract values from scores (defaults to standard `value_to_float()`). |
+| `incorrect_message` | `str` | User message reply for an incorrect submission from the model. Alternatively, a function which returns a message. |
+| `continue_message` | `str` | User message to urge the model to continue when it doesn’t make a tool call. |
+| `submit_name` | `str` | Name for tool used to make submissions (defaults to ‘submit’). |
+| `submit_description` | `str` | Description of submit tool (defaults to ‘Submit an answer for evaluation’) |
 
 For multiple attempts, submissions are evaluated using the task’s main
 scorer, with value of 1.0 indicating a correct answer. Scorer values are
@@ -6043,14 +6073,14 @@ if state.output.stop_reason == "model_length":
 
 Here are the possible values for `StopReason` :
 
-| Stop Reason      | Description                                                        |
-|------------------|--------------------------------------------------------------------|
-| `stop`           | The model hit a natural stop point or a provided stop sequence     |
-| `max_tokens`     | The maximum number of tokens specified in the request was reached. |
-| `model_length`   | The model’s context length was exceeded.                           |
-| `tool_calls`     | The model called a tool                                            |
-| `content_filter` | Content was omitted due to a content filter.                       |
-| `unknown`        | Unknown (e.g. unexpected runtime error)                            |
+| Stop Reason | Description |
+|----|----|
+| `stop` | The model hit a natural stop point or a provided stop sequence |
+| `max_tokens` | The maximum number of tokens specified in the request was reached. |
+| `model_length` | The model’s context length was exceeded. |
+| `tool_calls` | The model called a tool |
+| `content_filter` | Content was omitted due to a content filter. |
+| `unknown` | Unknown (e.g. unexpected runtime error) |
 
 ### Error Handling
 
@@ -6308,10 +6338,10 @@ The sandbox is also available to custom scorers.
 
 There are two sandbox environments built in to Inspect:
 
-| Environment Type | Description                                                                                                                                                      |
-|------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `local`          | Run `sandbox()` methods in the same file system as the running evaluation (should *only be used* if you are already running your evaluation in another sandbox). |
-| `docker`         | Run `sandbox()` methods within a Docker container (see the [Docker Configuration](#sec-docker-configuration) section below for additional details).              |
+| Environment Type | Description |
+|----|----|
+| `local` | Run `sandbox()` methods in the same file system as the running evaluation (should *only be used* if you are already running your evaluation in another sandbox). |
+| `docker` | Run `sandbox()` methods within a Docker container (see the [Docker Configuration](#sec-docker-configuration) section below for additional details). |
 
 Sandbox environment definitions can be bound at the `Sample`, `Task`, or
 `eval()` level. Binding precedence goes from `eval()`, to `Task` to
@@ -6396,11 +6426,11 @@ file (`compose.yaml`).
 Here is how Docker sandbox environments are created based on the
 presence of `Dockerfile` and/or `compose.yml` in the task directory:
 
-| Config Files   | Behavior                                                                                                           |
-|----------------|--------------------------------------------------------------------------------------------------------------------|
-| None           | Creates a sandbox environment based on the official [python:3.12-bookworm](https://hub.docker.com/_/python) image. |
-| `Dockerfile`   | Creates a sandbox environment by building the image.                                                               |
-| `compose.yaml` | Creates sandbox environment(s) based on `compose.yaml`.                                                            |
+| Config Files | Behavior |
+|----|----|
+| None | Creates a sandbox environment based on the official [python:3.12-bookworm](https://hub.docker.com/_/python) image. |
+| `Dockerfile` | Creates a sandbox environment by building the image. |
+| `compose.yaml` | Creates sandbox environment(s) based on `compose.yaml`. |
 
 Providing a `compose.yaml` is not strictly required, as Inspect will
 automatically generate one as needed. Note that the automatically
@@ -6981,14 +7011,14 @@ if state.output.stop_reason == "model_length":
 
 Here are the possible values for `StopReason` :
 
-| Stop Reason      | Description                                                        |
-|------------------|--------------------------------------------------------------------|
-| `stop`           | The model hit a natural stop point or a provided stop sequence     |
-| `max_tokens`     | The maximum number of tokens specified in the request was reached. |
-| `model_length`   | The model’s context length was exceeded.                           |
-| `tool_calls`     | The model called a tool                                            |
-| `content_filter` | Content was omitted due to a content filter.                       |
-| `unknown`        | Unknown (e.g. unexpected runtime error)                            |
+| Stop Reason | Description |
+|----|----|
+| `stop` | The model hit a natural stop point or a provided stop sequence |
+| `max_tokens` | The maximum number of tokens specified in the request was reached. |
+| `model_length` | The model’s context length was exceeded. |
+| `tool_calls` | The model called a tool |
+| `content_filter` | Content was omitted due to a content filter. |
+| `unknown` | Unknown (e.g. unexpected runtime error) |
 
 ### Error Handling
 
@@ -7983,13 +8013,13 @@ def auto_approver(decision: ApprovalDecision = "approve") -> Approver:
 
 There are five possible approval decisions:
 
-| Decision  | Description                                                                                          |
-|-----------|------------------------------------------------------------------------------------------------------|
-| approve   | The tool call is approved                                                                            |
-| modify    | The tool call is approved with modification (included in `modified` field of `Approver`)             |
-| reject    | The tool call is rejected (report to the model that the call was rejected along with an explanation) |
-| escalate  | The tool call should be escalated to the next approver in the chain.                                 |
-| terminate | The current sample should be terminated as a result of the tool call.                                |
+| Decision | Description |
+|----|----|
+| approve | The tool call is approved |
+| modify | The tool call is approved with modification (included in `modified` field of `Approver`) |
+| reject | The tool call is rejected (report to the model that the call was rejected along with an explanation) |
+| escalate | The tool call should be escalated to the next approver in the chain. |
+| terminate | The current sample should be terminated as a result of the tool call. |
 
 Here’s a more complicated custom approver that implements an allow list
 for bash commands. Imagine that we’ve implemented this approver within a
@@ -8197,10 +8227,10 @@ by an evaluation. Depending on your configuration and what version of
 Inspect you are running, the log JSON will be stored in one of two file
 types:
 
-| Type    | Description                                                                                                                                                                                 |
-|---------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Type | Description |
+|----|----|
 | `.eval` | Binary file format optimised for size and speed. Typically 1/8 the size of `.json` files and accesses samples incrementally, yielding fast loading in Inspect View no matter the file size. |
-| `.json` | Text file format with native JSON representation. Occupies substantially more disk space and can be slow to load in Inspect View if larger than 50MB.                                       |
+| `.json` | Text file format with native JSON representation. Occupies substantially more disk space and can be slow to load in Inspect View if larger than 50MB. |
 
 Both formats are fully supported by the [Log File
 API](#sec-log-file-api) and [Log Commands](#sec-log-commands) described
@@ -8271,17 +8301,17 @@ interface to the contents of log files:
 
 **Class** `inspect_ai.log.EvalLog`
 
-| Field        | Type                        | Description                                                            |
-|--------------|-----------------------------|------------------------------------------------------------------------|
-| `version`    | `int`                       | File format version (currently 2).                                     |
-| `status`     | `str`                       | Status of evaluation (`"started"`, `"success"`, or `"error"`).         |
-| `eval`       | `EvalSpec`                  | Top level eval details including task, model, creation time, etc.      |
-| `plan`       | `EvalPlan`                  | List of solvers and model generation config used for the eval.         |
-| `results`    | `EvalResults`               | Aggregate results computed by scorer metrics.                          |
-| `stats`      | `EvalStats`                 | Model usage statistics (input and output tokens)                       |
-| `error`      | `EvalError`                 | Error information (if `status == "error`) including traceback.         |
-| `samples`    | `list[EvalSample]`          | Each sample evaluated, including its input, output, target, and score. |
-| `reductions` | `list[EvalSampleReduction]` | Reductions of sample values for multi-epoch evaluations.               |
+| Field | Type | Description |
+|----|----|----|
+| `version` | `int` | File format version (currently 2). |
+| `status` | `str` | Status of evaluation (`"started"`, `"success"`, or `"error"`). |
+| `eval` | `EvalSpec` | Top level eval details including task, model, creation time, etc. |
+| `plan` | `EvalPlan` | List of solvers and model generation config used for the eval. |
+| `results` | `EvalResults` | Aggregate results computed by scorer metrics. |
+| `stats` | `EvalStats` | Model usage statistics (input and output tokens) |
+| `error` | `EvalError` | Error information (if `status == "error`) including traceback. |
+| `samples` | `list[EvalSample]` | Each sample evaluated, including its input, output, target, and score. |
+| `reductions` | `list[EvalSampleReduction]` | Reductions of sample values for multi-epoch evaluations. |
 
 Before analysing results from a log, you should always check their
 status to ensure they represent a successful run:
@@ -8342,13 +8372,13 @@ supported by [fsspec](https://filesystem-spec.readthedocs.io/)).
 You can enumerate, read, and write `EvalLog` objects using the following
 helper functions from the `inspect_ai.log` module:
 
-| Function                | Description                                                                             |
-|-------------------------|-----------------------------------------------------------------------------------------|
-| `list_eval_logs`        | List all of the eval logs at a given location.                                          |
-| `read_eval_log`         | Read an `EvalLog` from a log file path (pass `header_only` to not read samples).        |
-| `read_eval_log_sample`  | Read a single `EvalSample` from a log file                                              |
+| Function | Description |
+|----|----|
+| `list_eval_logs` | List all of the eval logs at a given location. |
+| `read_eval_log` | Read an `EvalLog` from a log file path (pass `header_only` to not read samples). |
+| `read_eval_log_sample` | Read a single `EvalSample` from a log file |
 | `read_eval_log_samples` | Read all samples incrementally (returns a generator that yields samples one at a time). |
-| `write_eval_log`        | Write an `EvalLog` to a log file path.                                                  |
+| `write_eval_log` | Write an `EvalLog` to a log file path. |
 
 A common workflow is to define an `INSPECT_LOG_DIR` for running a set of
 evaluations, then calling `list_eval_logs()` to analyse the results when
@@ -8793,12 +8823,12 @@ was created by a function decorated with `@solver`.
 There are a number of options that control the retry behaviour of eval
 sets:
 
-| **Option**            | Description                                                                                                            |
-|-----------------------|------------------------------------------------------------------------------------------------------------------------|
-| `--retry-attempts`    | Maximum number of retry attempts (defaults to 10)                                                                      |
-| `--retry-wait`        | Time to wait between attempts, increased exponentially. (defaults to 30, resulting in waits of 30, 60, 120, 240, etc.) |
-| `--retry-connections` | Reduce max connections at this rate with each retry (defaults to 0.5)                                                  |
-| `--no-retry-cleanup`  | Do not cleanup failed log files after retries.                                                                         |
+| **Option** | Description |
+|----|----|
+| `--retry-attempts` | Maximum number of retry attempts (defaults to 10) |
+| `--retry-wait` | Time to wait between attempts, increased exponentially. (defaults to 30, resulting in waits of 30, 60, 120, 240, etc.) |
+| `--retry-connections` | Reduce max connections at this rate with each retry (defaults to 0.5) |
+| `--no-retry-cleanup` | Do not cleanup failed log files after retries. |
 
 For example, here we specify a base wait time of 120 seconds:
 
@@ -8823,9 +8853,9 @@ eval_set(
 You can bundle a standalone version of the log viewer for an eval set
 using the bundling options:
 
-| **Option**           | Description                                                        |
-|----------------------|--------------------------------------------------------------------|
-| `--bundle-dir`       | Directory to write standalone log viewer files to.                 |
+| **Option** | Description |
+|----|----|
+| `--bundle-dir` | Directory to write standalone log viewer files to. |
 | `--bundle-overwrite` | Overwrite existing bundle directory (defaults to not overwriting). |
 
 The bundle directory can then be deployed to any static web server
@@ -9733,8 +9763,8 @@ dataset = json_dataset(
 )
 ```
 
-To read metadata in a typesafe fashion, us the `metadata_as()` method on
-`Sample` or `TaskState`:
+To read metadata in a typesafe fashion, use the `metadata_as()` method
+on `Sample` or `TaskState`:
 
 ``` python
 metadata = state.metadata_as(PopularityMetadata)
@@ -10948,10 +10978,10 @@ sophisticated infrastructure (e.g. creating network hosts for a
 cybersecurity eval). Inspect comes with two sandbox environments built
 in:
 
-| Environment Type | Description                                                                                                                                                      |
-|------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `local`          | Run `sandbox()` methods in the same file system as the running evaluation (should *only be used* if you are already running your evaluation in another sandbox). |
-| `docker`         | Run `sandbox()` methods within a Docker container                                                                                                                |
+| Environment Type | Description |
+|----|----|
+| `local` | Run `sandbox()` methods in the same file system as the running evaluation (should *only be used* if you are already running your evaluation in another sandbox). |
+| `docker` | Run `sandbox()` methods within a Docker container |
 
 To create a custom sandbox environment, derive a class from
 `SandboxEnvironment`, implement the required static and instance
@@ -11039,15 +11069,15 @@ registration of sandboxes from the importing of libraries they require
 The class methods take care of various stages of initialisation, setup,
 and teardown:
 
-| Method                  | Lifecycle                                                                                                                               | Purpose                                                                               |
-|-------------------------|-----------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------|
-| `config_files()`        | Called once to determine the names of ‘default’ config files for this provider (e.g. ‘compose.yaml’).                                   |                                                                                       |
-| `default_concurrency()` | Called once to determine the default maximum number of sandboxes to run in parallel. Return `None` for no limit (the default behavior). |                                                                                       |
-| `task_init()`           | Called once for each unique sandbox environment config before executing the tasks in an `eval()` run.                                   | Expensive initialisation operations (e.g. pulling or building images)                 |
-| `sample_init()`         | Called at the beginning of each `Sample`.                                                                                               | Create `SandboxEnvironment` instances for the sample.                                 |
-| `sample_cleanup()`      | Called at the end of each `Sample`                                                                                                      | Cleanup `SandboxEnvironment` instances for the sample.                                |
-| `task_cleanup()`        | Called once for each unique sandbox environment config after executing the tasks in an `eval()` run.                                    | Last chance handler for any resources not yet cleaned up (see also discussion below). |
-| `cli_cleanup()`         | Called via `inspect sandbox cleanup`                                                                                                    | CLI invoked manual cleanup of resources created by this `SandboxEnvironment`.         |
+| Method | Lifecycle | Purpose |
+|----|----|----|
+| `config_files()` | Called once to determine the names of ‘default’ config files for this provider (e.g. ‘compose.yaml’). |  |
+| `default_concurrency()` | Called once to determine the default maximum number of sandboxes to run in parallel. Return `None` for no limit (the default behavior). |  |
+| `task_init()` | Called once for each unique sandbox environment config before executing the tasks in an `eval()` run. | Expensive initialisation operations (e.g. pulling or building images) |
+| `sample_init()` | Called at the beginning of each `Sample`. | Create `SandboxEnvironment` instances for the sample. |
+| `sample_cleanup()` | Called at the end of each `Sample` | Cleanup `SandboxEnvironment` instances for the sample. |
+| `task_cleanup()` | Called once for each unique sandbox environment config after executing the tasks in an `eval()` run. | Last chance handler for any resources not yet cleaned up (see also discussion below). |
+| `cli_cleanup()` | Called via `inspect sandbox cleanup` | CLI invoked manual cleanup of resources created by this `SandboxEnvironment`. |
 
 In the case of parallel execution of a group of tasks within the same
 working directory, the `task_init()` and `task_cleanup()` functions will

@@ -135,18 +135,18 @@ repository at
 There are several options available for customising the behaviour of the
 basic agent:
 
-| Option               | Type                    | Description                                                                                                       |
-|----------------------|-------------------------|-------------------------------------------------------------------------------------------------------------------|
-| `init`               | `Solver | list[Solver]` | Agent initialisation (e.g. `system_message()`).                                                                   |
-| `tools`              | `list[Tool]`            | List of tools available to the agent.                                                                             |
-| `max_attempts`       | `int`                   | Maximum number of submission attempts to accept.                                                                  |
-| `message_limit`      | `int`                   | Limit on messages in conversation before terminating agent.                                                       |
-| `token_limit`        | `int`                   | Limit on in conversation before terminating agent.                                                                |
-| `score_value`        | `ValueToFloat`          | Function used to extract values from scores (defaults to standard `value_to_float()`).                            |
-| `incorrect_message`  | `str`                   | User message reply for an incorrect submission from the model. Alternatively, a function which returns a message. |
-| `continue_message`   | `str`                   | User message to urge the model to continue when it doesn’t make a tool call.                                      |
-| `submit_name`        | `str`                   | Name for tool used to make submissions (defaults to ‘submit’).                                                    |
-| `submit_description` | `str`                   | Description of submit tool (defaults to ‘Submit an answer for evaluation’)                                        |
+| Option | Type | Description |
+|----|----|----|
+| `init` | `Solver | list[Solver]` | Agent initialisation (e.g. `system_message()`). |
+| `tools` | `list[Tool]` | List of tools available to the agent. |
+| `max_attempts` | `int` | Maximum number of submission attempts to accept. |
+| `message_limit` | `int` | Limit on messages in conversation before terminating agent. |
+| `token_limit` | `int` | Limit on in conversation before terminating agent. |
+| `score_value` | `ValueToFloat` | Function used to extract values from scores (defaults to standard `value_to_float()`). |
+| `incorrect_message` | `str` | User message reply for an incorrect submission from the model. Alternatively, a function which returns a message. |
+| `continue_message` | `str` | User message to urge the model to continue when it doesn’t make a tool call. |
+| `submit_name` | `str` | Name for tool used to make submissions (defaults to ‘submit’). |
+| `submit_description` | `str` | Description of submit tool (defaults to ‘Submit an answer for evaluation’) |
 
 For multiple attempts, submissions are evaluated using the task’s main
 scorer, with value of 1.0 indicating a correct answer. Scorer values are
@@ -249,14 +249,14 @@ if state.output.stop_reason == "model_length":
 
 Here are the possible values for `StopReason` :
 
-| Stop Reason      | Description                                                        |
-|------------------|--------------------------------------------------------------------|
-| `stop`           | The model hit a natural stop point or a provided stop sequence     |
-| `max_tokens`     | The maximum number of tokens specified in the request was reached. |
-| `model_length`   | The model’s context length was exceeded.                           |
-| `tool_calls`     | The model called a tool                                            |
-| `content_filter` | Content was omitted due to a content filter.                       |
-| `unknown`        | Unknown (e.g. unexpected runtime error)                            |
+| Stop Reason | Description |
+|----|----|
+| `stop` | The model hit a natural stop point or a provided stop sequence |
+| `max_tokens` | The maximum number of tokens specified in the request was reached. |
+| `model_length` | The model’s context length was exceeded. |
+| `tool_calls` | The model called a tool |
+| `content_filter` | Content was omitted due to a content filter. |
+| `unknown` | Unknown (e.g. unexpected runtime error) |
 
 ### Error Handling
 

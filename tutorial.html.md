@@ -8,17 +8,19 @@ evaluations. Each example in the tutorial is standalone, so feel free to
 skip between examples that demonstrate the features you are most
 interested in.
 
-| Example                               | Demonstrates                                                           |
-|---------------------------------------|------------------------------------------------------------------------|
-| [Security Guide](#sec-security-guide) | Custom system prompt; Model grading of output.                         |
-| [HellaSwag](#sec-hellaswag)           | Mapping external data formats into Inspect; Multiple choice questions. |
-| [GSM8K](#sec-gsm8k)                   | Using fewshot examples; Scoring numeric output.                        |
-| [Mathematics](#sec-mathematics)       | Creating custom scorers; Developing with larger datasets.              |
-| [Tool Use](#sec-tool-use)             | Tool usage and creating custom tools.                                  |
-| [InterCode CTF](#sec-intercode-ctf)   | Tool using agents; reading complex datasets.                           |
+| Example | Demonstrates |
+|----|----|
+| [Hello World](#hello-world) | Simplest eval to test setup. |
+| [Security Guide](#sec-security-guide) | Custom system prompt; Model grading of output. |
+| [HellaSwag](#sec-hellaswag) | Mapping external data formats into Inspect; Multiple choice questions. |
+| [GSM8K](#sec-gsm8k) | Using fewshot examples; Scoring numeric output. |
+| [Mathematics](#sec-mathematics) | Creating custom scorers; Developing with larger datasets. |
+| [Tool Use](#sec-tool-use) | Tool usage and creating custom tools. |
+| [InterCode CTF](#sec-intercode-ctf) | Tool using agents; reading complex datasets. |
 
-See also the complete list of [Examples](#sec-examples) for
-demonstrations of more advanced features.
+See also the complete list of
+[Examples](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples)
+for demonstrations of more advanced features.
 
 > [!NOTE]
 >
@@ -26,6 +28,33 @@ demonstrations of more advanced features.
 > argument when we call `inspect eval` (the presumption being that it
 > has been already established via the `INSPECT_EVAL_MODEL` environment
 > variable).
+
+## Hello World
+
+This is the simplest possible Inspect evaluation task. The solver
+(`generate()`) just calls the model with the prompt and the scorer
+(`exact()`) checks whether the model produces exactly the `target` from
+the dataset:
+
+``` python
+from inspect_ai import Task, task
+from inspect_ai.dataset import Sample
+from inspect_ai.scorer import exact
+from inspect_ai.solver import generate
+
+@task
+def hello_world():
+    return Task(
+        dataset=[
+            Sample(
+                input="Just reply with Hello World",
+                target="Hello World",
+            )
+        ],
+        solver=[generate()],
+        scorer=exact(),
+    )
+```
 
 ## Security Guide
 
@@ -35,9 +64,9 @@ Evals](https://github.com/openai/evals) repository. This eval tests how
 well models are doing at providing cybersecurity guidance. Here are some
 examples from the dataset:
 
-| input                                                                        | target                                                    |
-|------------------------------------------------------------------------------|-----------------------------------------------------------|
-| What attributes should I set on cookies for strong security?                 | secure samesite and httponly                              |
+| input | target |
+|----|----|
+| What attributes should I set on cookies for strong security? | secure samesite and httponly |
 | How should I store passwords securely for an authentication system database? | strong hashing algorithms with salt like Argon2 or bcrypt |
 
 ### Setup
@@ -47,7 +76,7 @@ a system message that orients the model to its role as a computer
 security expert.
 
 ``` python
-from inspect_ai import Task, eval, task
+from inspect_ai import Task, task
 from inspect_ai.dataset import example_dataset
 from inspect_ai.scorer import model_graded_fact
 from inspect_ai.solver import generate, system_message
@@ -114,7 +143,7 @@ samples (we need to do this to convert the index-based label in the
 dataset to a letter).
 
 ``` python
-from inspect_ai import Task, eval, task
+from inspect_ai import Task, task
 from inspect_ai.dataset import Sample, hf_dataset
 from inspect_ai.scorer import choice
 from inspect_ai.solver import multiple_choice, system_message
@@ -144,8 +173,8 @@ We’ll load the dataset from
 [HuggingFace](https://huggingface.co/datasets/Rowan/hellaswag) using the
 `hf_dataset()` function. We’ll draw data from the validation split, and
 use the `record_to_sample()` function to parse the records (we’ll also
-pass `trust=True` to indicate that we are okay with Hugging Face
-executing the dataset loading code provided by hellaswag):
+pass `trust=True` to indicate that we are okay with locally executing
+the dataset loading code provided by hellaswag):
 
 ``` python
 @task
@@ -190,10 +219,10 @@ word problems. The dataset was created to support the task of question
 answering on basic mathematical problems that require multi-step
 reasoning. Here are some samples from the dataset:
 
-| question                                                                                                           | answer                                                                                                                                                                                    |
-|--------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| James writes a 3-page letter to 2 different friends twice a week. How many pages does he write a year?             | He writes each friend 3\*2=\<\<3\*2=6\>\>6 pages a week So he writes 6\*2=\<\<6\*2=12\>\>12 pages every week That means he writes 12\*52=\<\<12\*52=624\>\>624 pages a year \#### **624** |
-| Weng earns \$12 an hour for babysitting. Yesterday, she just did 50 minutes of babysitting. How much did she earn? | Weng earns 12/60 = \$\<\<12/60=0.2\>\>0.2 per minute. Working 50 minutes, she earned 0.2 x 50 = \$\<\<0.2\*50=10\>\>10. \#### **10**                                                      |
+| question | answer |
+|----|----|
+| James writes a 3-page letter to 2 different friends twice a week. How many pages does he write a year? | He writes each friend 3\*2=\<\<3\*2=6\>\>6 pages a week So he writes 6\*2=\<\<6\*2=12\>\>12 pages every week That means he writes 12\*52=\<\<12\*52=624\>\>624 pages a year \#### **624** |
+| Weng earns \$12 an hour for babysitting. Yesterday, she just did 50 minutes of babysitting. How much did she earn? | Weng earns 12/60 = \$\<\<12/60=0.2\>\>0.2 per minute. Working 50 minutes, she earned 0.2 x 50 = \$\<\<0.2\*50=10\>\>10. \#### **10** |
 
 Note that the final numeric answers are contained at the end of the
 **answer** field after the `####` delimiter.
@@ -238,9 +267,10 @@ def sample_to_fewshot(sample):
     )
 ```
 
-Note that we save the “reasoning” part of the answer in `metadata`—we do
-this so that we can use it to compose the fewshot prompt (as illustrated
-in `sample_to_fewshot()`).
+Note that we save the “reasoning” part of the answer in `metadata` — we
+do this so that we can use it to compose the [fewshot
+prompt](https://www.promptingguide.ai/techniques/fewshot) (as
+illustrated in `sample_to_fewshot()`).
 
 Here’s the prompt we’ll used to elicit a chain of thought answer in the
 right format:
@@ -326,10 +356,10 @@ full step-by-step solution which can be used to teach models to generate
 answer derivations and explanations. Here are some samples from the
 dataset:
 
-| Question                                                                                                                                                         | Answer |
-|------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------:|
+| Question | Answer |
+|----|---:|
 | How many dollars in interest are earned in two years on a deposit of \$10,000 invested at 4.5% and compounded annually? Express your answer to the nearest cent. | 920.25 |
-| Let $p(x)$ be a monic, quartic polynomial, such that $p(1) = 3,$ $p(3) = 11,$ and $p(5) = 27.$ Find $p(-2) + 7p(6)$                                              |   1112 |
+| Let $p(x)$ be a monic, quartic polynomial, such that $p(1) = 3,$ $p(3) = 11,$ and $p(5) = 27.$ Find $p(-2) + 7p(6)$ | 1112 |
 
 ### Setup
 
@@ -391,7 +421,7 @@ def math(shuffle=True):
                 input="problem", 
                 target="solution"
             ),
-            shuffle=True,
+            shuffle=shuffle,
             trust=True,
         ),
         solver=[
@@ -487,10 +517,11 @@ over 12,000 in the dataset):
 $ inspect eval math.py --limit 500
 ```
 
-This will draw 500 random samples from the dataset (because we defined
-`shuffle=True` in our call to load the dataset). The task lets you
-override this with a task parameter (e.g. in case you wanted to evaluate
-a specific sample or range of samples):
+This will draw 500 random samples from the dataset (because the default
+is `shuffle=True` in our call to load the dataset).
+
+The task lets you override this with a task parameter (e.g. in case you
+wanted to evaluate a specific sample or range of samples):
 
 ``` bash
 $ inspect eval math.py --limit 100-200 -T shuffle=false
@@ -523,14 +554,13 @@ We’ll demonstrate with a simple tool that adds two numbers, using the
 `@tool` decorator to register it with the system:
 
 ``` python
-from inspect_ai import Task, eval, task
+from inspect_ai import Task, task
 from inspect_ai.dataset import Sample
-from inspect_ai.scorer import includes, match
+from inspect_ai.scorer import match
 from inspect_ai.solver import (
-    generate, system_message, use_tools
+    generate, use_tools
 )
 from inspect_ai.tool import tool
-from inspect_ai.util import subprocess
 
 @tool
 def add():

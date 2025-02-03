@@ -31,22 +31,22 @@ optional fields:
 
 **Class** `inspect_ai.dataset.Sample`
 
-| Field      | Type                      | Description                                                                                           |
-|------------|---------------------------|-------------------------------------------------------------------------------------------------------|
-| `input`    | `str | list[ChatMessage]` | The input to be submitted to the model.                                                               |
-| `choices`  | `list[str] | None`        | Optional. Multiple choice answer list.                                                                |
-| `target`   | `str | list[str] | None`  | Optional. Ideal target output. May be a literal value or narrative text to be used by a model grader. |
-| `id`       | `str | None`              | Optional. Unique identifier for sample.                                                               |
-| `metadata` | `dict[str | Any] | None`  | Optional. Arbitrary metadata associated with the sample.                                              |
-| `sandbox`  | `str | tuple[str,str]`    | Optional. Sandbox environment type (or optionally a tuple with type and config file)                  |
-| `files`    | `dict[str | str] | None`  | Optional. Files that go along with the sample (copied to sandbox environments).                       |
-| `setup`    | `str | None`              | Optional. Setup script to run for sample (executed within default sandbox environment).               |
+| Field | Type | Description |
+|----|----|----|
+| `input` | `str | list[ChatMessage]` | The input to be submitted to the model. |
+| `choices` | `list[str] | None` | Optional. Multiple choice answer list. |
+| `target` | `str | list[str] | None` | Optional. Ideal target output. May be a literal value or narrative text to be used by a model grader. |
+| `id` | `str | None` | Optional. Unique identifier for sample. |
+| `metadata` | `dict[str | Any] | None` | Optional. Arbitrary metadata associated with the sample. |
+| `sandbox` | `str | tuple[str,str]` | Optional. Sandbox environment type (or optionally a tuple with type and config file) |
+| `files` | `dict[str | str] | None` | Optional. Files that go along with the sample (copied to sandbox environments). |
+| `setup` | `str | None` | Optional. Setup script to run for sample (executed within default sandbox environment). |
 
 So a CSV dataset with the following structure:
 
-| input                                                                        | target                                                    |
-|------------------------------------------------------------------------------|-----------------------------------------------------------|
-| What cookie attributes should I use for strong security?                     | secure samesite and httponly                              |
+| input | target |
+|----|----|
+| What cookie attributes should I use for strong security? | secure samesite and httponly |
 | How should I store passwords securely for an authentication system database? | strong hashing algorithms with salt like Argon2 or bcrypt |
 
 Can be read directly with:
@@ -58,9 +58,9 @@ dataset = csv_dataset("security_guide.csv")
 Note that samples from datasets without an `id` field will automatically
 be assigned ids based on an auto-incrementing integer starting with 1.
 
-If your samples include `choices`, then the `target` should be a numeric
-index into the available `choices` rather than a letter (this is an
-implicit assumption of the `multiple_choice()` solver).
+If your samples include `choices`, then the `target` should be a capital
+letter representing the correct answer in `choices`, see
+[`multiple_choice`](solvers.qmd#multiple-choice)
 
 ### Files
 
@@ -160,8 +160,8 @@ dataset = json_dataset(
 )
 ```
 
-To read metadata in a typesafe fashion, us the `metadata_as()` method on
-`Sample` or `TaskState`:
+To read metadata in a typesafe fashion, use the `metadata_as()` method
+on `Sample` or `TaskState`:
 
 ``` python
 metadata = state.metadata_as(PopularityMetadata)
@@ -292,10 +292,10 @@ multi-modal input (e.g. images).
 
 **Class** `inspect_ai.model.ChatMessage`
 
-| Field     | Type                                       | Description                                                                                                |
-|-----------|--------------------------------------------|------------------------------------------------------------------------------------------------------------|
-| `role`    | `"system" | "user" | "assistant" | "tool"` | Role of this chat message.                                                                                 |
-| `content` | `str | list[Content]`                      | The content of the message. Can be a simple string or a list of content parts intermixing text and images. |
+| Field | Type | Description |
+|----|----|----|
+| `role` | `"system" | "user" | "assistant" | "tool"` | Role of this chat message. |
+| `content` | `str | list[Content]` | The content of the message. Can be a simple string or a list of content parts intermixing text and images. |
 
 An input with chat messages in your dataset might will look something
 like this:

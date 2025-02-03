@@ -244,10 +244,10 @@ Below is a full example of reading a dataset for use with
 `multiple choice()` and using it in an evaluation task. The underlying
 data in `mmlu.csv` has the following form:
 
-| Question                                                                            | A   | B   | C   | D   | Answer |
-|-------------------------------------------------------------------------------------|-----|-----|-----|-----|:------:|
-| Find the degree for the given field extension Q(sqrt(2), sqrt(3), sqrt(18)) over Q. | 0   | 4   | 2   | 6   |   B    |
-| Let p = (1, 2, 5, 4)(2, 3) in S_5 . Find the index of \<p\> in S_5.                 | 8   | 2   | 24  | 120 |   C    |
+| Question | A | B | C | D | Answer |
+|----|----|----|----|----|:--:|
+| Find the degree for the given field extension Q(sqrt(2), sqrt(3), sqrt(18)) over Q. | 0 | 4 | 2 | 6 | B |
+| Let p = (1, 2, 5, 4)(2, 3) in S_5 . Find the index of \<p\> in S_5. | 8 | 2 | 24 | 120 | C |
 
 Here is the task definition:
 
@@ -291,12 +291,12 @@ model.
 The following options are available for further customisation of the
 multiple choice solver:
 
-| Option             | Description                                                                                                                                                                                                                                                                                                                                                                                               |
-|--------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `template`         | Use `template` to provide an alternate prompt template (note that if you do this your template should handle prompting for `multiple_correct` directly if required). You can access the built in templates using the `MultipleChoiceTemplate` enum.                                                                                                                                                       |
-| `cot`              | Whether the solver should perform chain-of-thought reasoning before answering (defaults to `False`). NOTE: this has no effect if you provide a custom template.                                                                                                                                                                                                                                           |
+| Option | Description |
+|----|----|
+| `template` | Use `template` to provide an alternate prompt template (note that if you do this your template should handle prompting for `multiple_correct` directly if required). You can access the built in templates using the `MultipleChoiceTemplate` enum. |
+| `cot` | Whether the solver should perform chain-of-thought reasoning before answering (defaults to `False`). NOTE: this has no effect if you provide a custom template. |
 | `multiple_correct` | By default, multiple choice questions have a single correct answer. Set `multiple_correct=True` if your target has defined multiple correct answers (for example, a `target` of `["B", "C"]`). In this case the model is prompted to provide one or more answers, and the sample is scored correct only if each of these answers are provided. NOTE: this has no effect if you provide a custom template. |
-| `shuffle`          | If you specify `shuffle=True`, then the order of the answers presented to the model will be randomised (this may or may not affect results, depending on the nature of the questions and the model being evaluated).                                                                                                                                                                                      |
+| `shuffle` | If you specify `shuffle=True`, then the order of the answers presented to the model will be randomised (this may or may not affect results, depending on the nature of the questions and the model being evaluated). |
 
 ### Self Critique
 
@@ -344,11 +344,11 @@ Before presenting the examples we’ll take a more in-depth look at the
 properties. The core members of `TaskState` that are *modified* by
 solvers are `messages` / `user_prompt` and `output`:
 
-| Member        | Type                | Description                                                                                                                                                                               |
-|---------------|---------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `messages`    | list\[ChatMessage\] | Chat conversation history for sample. It is automatically appended to by the `generate()` solver, and is often manipulated by other solvers (e.g. for prompt engineering or elicitation). |
-| `user_prompt` | ChatMessageUser     | Convenience property for accessing the first user message in the message history (commonly used for prompt engineering).                                                                  |
-| `output`      | ModelOutput         | The ‘final’ model output once we’ve completed all solving. This field is automatically updated with the last “assistant” message by the `generate()` solver.                              |
+| Member | Type | Description |
+|----|----|----|
+| `messages` | list\[ChatMessage\] | Chat conversation history for sample. It is automatically appended to by the `generate()` solver, and is often manipulated by other solvers (e.g. for prompt engineering or elicitation). |
+| `user_prompt` | ChatMessageUser | Convenience property for accessing the first user message in the message history (commonly used for prompt engineering). |
+| `output` | ModelOutput | The ‘final’ model output once we’ve completed all solving. This field is automatically updated with the last “assistant” message by the `generate()` solver. |
 
 > [!NOTE]
 >
@@ -362,21 +362,21 @@ for the task (as other solvers may have re-written or even removed it
 entirely). This is available using the `input` and `input_text`
 properties:
 
-| Member       | Type                       | Description                                                                         |
-|--------------|----------------------------|-------------------------------------------------------------------------------------|
-| `input`      | str \| list\[ChatMessage\] | Original `Sample` input.                                                            |
-| `input_text` | str                        | Convenience function for accessing the initial input from the `Sample` as a string. |
+| Member | Type | Description |
+|----|----|----|
+| `input` | str \| list\[ChatMessage\] | Original `Sample` input. |
+| `input_text` | str | Convenience function for accessing the initial input from the `Sample` as a string. |
 
 There are several other fields used to provide contextual data from
 either the task sample or evaluation:
 
-| Member      | Type                | Description                                               |
-|-------------|---------------------|-----------------------------------------------------------|
-| `sample_id` | int \| str          | Unique ID for sample.                                     |
-| `epoch`     | int                 | Epoch for sample.                                         |
-| `metadata`  | dict                | Original metadata from `Sample`                           |
-| `choices`   | list\[str\] \| None | Choices from sample (used only in multiple-choice evals). |
-| `model`     | ModelName           | Name of model currently being evaluated.                  |
+| Member | Type | Description |
+|----|----|----|
+| `sample_id` | int \| str | Unique ID for sample. |
+| `epoch` | int | Epoch for sample. |
+| `metadata` | dict | Original metadata from `Sample` |
+| `choices` | list\[str\] \| None | Choices from sample (used only in multiple-choice evals). |
+| `model` | ModelName | Name of model currently being evaluated. |
 
 Task states also include available tools as well as guidance for the
 model on which tools to use (if you haven’t yet encountered the concept
