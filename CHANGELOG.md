@@ -6,6 +6,7 @@
 - OpenAI: Map some additional 400 status codes to `content_filter` stop reason.
 - Anthropic: Handle 413 status code (Payload Too Large) and map to `model_length` StopReason.
 - Tasks: Log sample with error prior to raising task-ending exception.
+- Computer: Various improvements to image including desktop, python, and VS Code configuration.
 - Bugfix: Don't download full log from S3 for header_only reads.
 
 ## v0.3.61 (31 January 2025)
