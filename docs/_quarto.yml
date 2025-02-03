@@ -3,7 +3,9 @@ project:
    resources: 
       - CNAME
       - llms.txt
-   pre-render: scripts/pre-render.sh
+   pre-render: 
+      - scripts/pre-render.sh
+      - reference/sidebar.py
    post-render: scripts/post-render.sh
 
 metadata-files: 
@@ -42,7 +44,6 @@ website:
           - icon: github
             href: https://github.com/UKGovernmentBEIS/inspect_ai
       
-
    sidebar:
       - title: Guide
         style: docked

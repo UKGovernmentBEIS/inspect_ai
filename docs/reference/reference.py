@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import subprocess
 from typing import Any, cast
 
@@ -11,6 +11,7 @@ from parse import DocParseOptions, parse_docs
 @dataclass
 class Reference:
     object: str
+    description: str | None = field(default=None)
 
 
 def main():
