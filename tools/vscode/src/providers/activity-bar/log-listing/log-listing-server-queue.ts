@@ -22,6 +22,13 @@ export class LogElementQueueProcessor {
     private readonly onElementUpdated: (element: LogNode) => void,
     private readonly batchSize: number = 10,
   ) {
+    // Load cache from workspace storage
+    const savedCache = this.context.workspaceState.get<Map<string, { iconPath?: string; tooltip?: vscode.MarkdownString }>>('elementCache');
+    if (savedCache) {
+      this.elementCache = new Map(savedCache);
+    } else {
+      this.elementCache = new Map();
+    }
   }
 
   enqueueElement(element: LogNode): void {
@@ -84,8 +91,9 @@ export class LogElementQueueProcessor {
           const evalLogs = JSON.parse(headers) as EvalLog[];
 
           // Update elements with their corresponding evalLog
-          evalLogs.forEach((evalLog, index) => {
-            const uri = uris[index];
+          for (let i = 0; i < evalLogs.length; i++) {
+            const evalLog = evalLogs[i];
+            const uri = uris[i];
             const element = elementUris.get(uri);
             if (element && evalLog?.version === 2) {
               // Populate the server provided props
@@ -104,12 +112,16 @@ export class LogElementQueueProcessor {
                   iconPath: element.iconPath,
                   tooltip: element.tooltip
                 });
+
+                // Persist the cache
+                await this.context.workspaceState.update('elementCache', Array.from(this.elementCache.entries()));
+                this.enforceCacheLimit();
               }
 
               // Notify that the element was updated
               this.onElementUpdated(element);
             }
-          });
+          }
         }
       }
     } catch (error) {
@@ -129,6 +141,15 @@ export class LogElementQueueProcessor {
 
   clearCache(): void {
     this.elementCache.clear();
+  }
+
+  enforceCacheLimit(): void {
+    // Evict the least recently used item if this exceeds 
+    // the max size
+    if (this.elementCache.size > 500) {
+      const keys = Array.from(this.elementCache.keys());
+      this.elementCache.delete(keys[0]);
+    }
   }
 
   public cachedValue(uri: string): {
