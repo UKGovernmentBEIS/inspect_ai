@@ -1,0 +1,12 @@
+.source-link {
+    position: relative;
+}
+
+.source-link > a {
+    position: absolute;
+    right: 4px;
+    top: 0;
+    font-size: 0.8em;
+    text-decoration: none;
+    z-index: 1001;
+}

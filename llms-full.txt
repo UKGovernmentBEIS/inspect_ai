@@ -268,9 +268,22 @@ evaluations.
   that use models to evaluate output. This section covers how to create
   them.
 
-- [Models](models.qmd) provide a uniform API for both evaluating a
-  variety of large language models and using models within evaluations
-  (e.g. for critique or grading).
+These sections cover how to use varoius language models with Inspect:
+
+- [Models](models.qmd) describe various ways to specify and provide
+  options to models in Inspect evaluations.
+
+- [Providers](providers.qmd) covers usage details and available options
+  for the various supported providers.
+
+- [Caching](caching.qmd) explains how to cache model output to reduce
+  the number of API calls made.
+
+- [Multimodal](multimodal.qmd) describes the APIs available for creating
+  multimodal evaluations (including images, audio, and video).
+
+- [Reasoning](reasoning.qmd) documents the additional options and data
+  available for reasoning models.
 
 These sections describe how to create agent evaluations with Inspect:
 
@@ -5061,7 +5074,7 @@ scoring_logs = [score(log, model_graded_qa(model=model))
 plot_results(scoring_logs)
 ```
 
-# Models
+# Using Models
 
 
 ## Overview
@@ -5070,38 +5083,12 @@ Inspect has support for a wide variety of language model APIs and can be
 extended to support arbitrary additional ones. Support for the following
 providers is built in to Inspect:
 
-#### Model Developers
-
-- [OpenAI](#openai)
-- [Anthropic](#anthropic)
-- [Google](#google)
-- [Grok](#grok)
-- [Mistral](#mistral)
-
-#### Cloud Providers
-
-- [AWS Bedrock](#aws-bedrock)
-- [Azure AI](#azure-ai)
-- [Vertex AI](#vertex-ai)
-
-#### Hosting Services
-
-- [Groq](#groq)
-- [Together AI](#together-ai)
-- [Cloudflare](#cloudflare)
-- [Goodfire](#goodfire)
-
-#### Local Models
-
-- [Hugging Face](#hugging-face)
-- [vLLM](#vllm)
-- [Ollama](#ollama)
-- [Lllama-cpp-python](#llama-cpp-python)
-
-See the [Model Basics](#model-basics) section below to learn the various
-ways to specify models in Inspect evaluations. Then, see the
-provider-specific sections for additional usage details and available
-options.
+|  |  |
+|----|----|
+| Lab APIs | [OpenAI](providers.qmd#openai), [Anthropic](providers.qmd#anthropic), [Google](providers.qmd#google), [Grok](providers.qmd#grok), [Mistral](providers.qmd#mistral) |
+| Cloud APIs | [AWS Bedrock](providers.qmd#aws-bedrock), [Azure AI](providers.qmd#azure-ai), [Vertex AI](providers.qmd#vertex-ai) |
+| Open (Hosted) | [Groq](providers.qmd#groq), [Together AI](providers.qmd#together-ai), [Cloudflare](providers.qmd#cloudflare), [Goodfire](providers.qmd#goodfire) |
+| Open (Local) | [Hugging Face](providers.qmd#hugging-face), [vLLM](providers.qmd#vllm), [Ollama](providers.qmd#ollama), [Lllama-cpp-python](providers.qmd#llama-cpp-python) |
 
 > [!NOTE]
 >
@@ -5114,9 +5101,12 @@ options.
 > You can also create [Model API Extensions](extensions.qmd#model-apis)
 > to add model providers using their native interface.
 
-## Model Basics
+Below we’ll describe various ways to specify and provide options to
+models in Inspect evaluations. Review this first, then see the
+provider-specific sections for additional usage details and available
+options.
 
-### Selecting a Model
+## Selecting a Model
 
 To select a model for an evaluation, pass it’s name on the command line
 or use the `model` argument of the `eval()` function:
@@ -5140,7 +5130,7 @@ Alternatively, you can set the `INSPECT_EVAL_MODEL` environment variable
 INSPECT_EVAL_MODEL=google/gemini-1.5-pro
 ```
 
-### Generation Config
+## Generation Config
 
 There are a variety of configuration options that affect the behaviour
 of model generation. There are options which affect the generated tokens
@@ -5165,7 +5155,7 @@ eval("arc.py", model="google/gemini-1.0-pro", max_connections=20)
 Use `inspect eval --help` to learn about all of the available generation
 config options.
 
-### Model Args
+## Model Args
 
 If there is an additional aspect of a model you want to tweak that isn’t
 covered by the `GenerateConfig`, you can use model args to pass
@@ -5179,7 +5169,7 @@ inspect eval arc.py --model google/gemini-1.0-pro -M transport:grpc
 See the documentation for the requisite model provider for information
 on how model args are passed through to model clients.
 
-### Max Connections
+## Max Connections
 
 Inspect uses an asynchronous architecture to run task samples in
 parallel. If your model provider can handle 100 concurrent connections,
@@ -5194,6 +5184,47 @@ experiencing rate-limit errors you will need to experiment with the
 `max_connections` option to find the optimal value that keeps you under
 the rate limit (the section on [Parallelism](parallelism.qmd) includes
 additional documentation on how to do this).
+
+## Learning More
+
+- [Providers](providers.qmd) covers usage details and available options
+  for the various supported providers.
+
+- [Caching](caching.qmd) explains how to cache model output to reduce
+  the number of API calls made.
+
+- [Multimodal](multimodal.qmd) describes the APIs available for creating
+  multimodal evaluations (including images, audio, and video).
+
+- [Reasoning](reasoning.qmd) documents the additional options and data
+  available for reasoning models.
+
+# Model Providers
+
+
+## Overview
+
+Inspect has support for a wide variety of language model APIs and can be
+extended to support arbitrary additional ones. Support for the following
+providers is built in to Inspect:
+
+|  |  |
+|----|----|
+| Lab APIs | [OpenAI](providers.qmd#openai), [Anthropic](providers.qmd#anthropic), [Google](providers.qmd#google), [Grok](providers.qmd#grok), [Mistral](providers.qmd#mistral) |
+| Cloud APIs | [AWS Bedrock](providers.qmd#aws-bedrock), [Azure AI](providers.qmd#azure-ai), [Vertex AI](providers.qmd#vertex-ai) |
+| Open (Hosted) | [Groq](providers.qmd#groq), [Together AI](providers.qmd#together-ai), [Cloudflare](providers.qmd#cloudflare), [Goodfire](providers.qmd#goodfire) |
+| Open (Local) | [Hugging Face](providers.qmd#hugging-face), [vLLM](providers.qmd#vllm), [Ollama](providers.qmd#ollama), [Lllama-cpp-python](providers.qmd#llama-cpp-python) |
+
+> [!NOTE]
+>
+> If the provider you are using is not listed above, you may still be
+> able to use it if it provides an OpenAI compatible API endpoint. In
+> this scenario, use the Inspect `openai` interface and set the
+> `OPENAI_BASE_URL` environment variable to the apprpriate value for
+> your provider.
+>
+> You can also create [Model API Extensions](extensions.qmd#model-apis)
+> to add model providers using their native interface.
 
 ## OpenAI
 
@@ -5821,6 +5852,548 @@ If you want to support another model hosting service or local model
 source, you can add a custom model API. See the documentation on [Model
 API Extensions](extensions.qmd#sec-model-api-extensions) for additional
 details.
+
+# Caching
+
+
+## Overview
+
+Caching enables you to cache model output to reduce the number of API
+calls made, saving both time and expense. Caching is also often useful
+during development—for example, when you are iterating on a scorer you
+may want the model outputs served from a cache to both save time as well
+as for increased determinism.
+
+There are two types of caching available: Inspect local caching and
+provider level caching. We’ll first describe local caching (which works
+for all models) then cover [provider caching](sec-provider-caching)
+which currently works only for Anthropic models.
+
+## Caching Basics
+
+Use the `cache` parameter on calls to `generate()` to activate the use
+of the cache. The keys for caching (what determines if a request can be
+fulfilled from the cache) are as follows:
+
+- Model name and base URL (e.g. `openai/gpt-4-turbo`)
+- Model prompt (i.e. message history)
+- Epoch number (for ensuring distinct generations per epoch)
+- Generate configuration (e.g. `temperature`, `top_p`, etc.)
+- Active `tools` and `tool_choice`
+
+If all of these inputs are identical, then the model response will be
+served from the cache. By default, model responses are cached for 1 week
+(see [Cache Policy](#cache-policy) below for details on customising
+this).
+
+For example, here we are iterating on our self critique template, so we
+cache the main call to `generate()`:
+
+``` python
+@task
+def theory_of_mind():
+    return Task(
+        dataset=example_dataset("theory_of_mind"),
+        solver=[
+            chain_of_thought(),
+            generate(cache = True),
+            self_critique(CRITIQUE_TEMPLATE)
+        ]
+        scorer=model_graded_fact(),
+    )
+```
+
+You can similarly do this with the `generate` function passed into a
+`Solver`:
+
+``` python
+@solver
+def custom_solver(cache):
+
+  async def solve(state, generate):
+
+    # (custom solver logic prior to generate)
+
+    return generate(state, cache)
+
+  return solve
+```
+
+You don’t strictly need to provide a `cache` argument for a custom
+solver that uses caching, but it’s generally good practice to enable
+users of the function to control caching behaviour.
+
+You can also use caching with lower-level `generate()` calls (e.g. a
+model instance you have obtained with `get_model()`. For example:
+
+``` python
+model = get_model("anthropic/claude-3-opus-20240229")
+output = model.generate(input, cache = True)
+```
+
+### Model Versions
+
+The model name (e.g. `openai/gpt-4-turbo`) is used as part of the cache
+key. Note though that many model names are aliases to specific model
+versions. For example, `gpt-4`, `gpt-4-turbo`, may resolve to different
+versions over time as updates are released.
+
+If you want to invalidate caches for updated model versions, it’s much
+better to use an explicitly versioned model name. For example:
+
+``` bash
+$ inspect eval ctf.py --model openai/gpt-4-turbo-2024-04-09
+```
+
+If you do this, then when a new version of `gpt-4-turbo` is deployed a
+call to the model will occur rather than resolving from the cache.
+
+## Cache Policy
+
+By default, if you specify `cache = True` then the cache will expire in
+1 week. You can customise this by passing a `CachePolicy` rather than a
+boolean. For example:
+
+``` python
+cache = CachePolicy(expiry="3h")
+cache = CachePolicy(expiry="4D")
+cache = CachePolicy(expiry="2W")
+cache = CachePolicy(expiry="3M")
+```
+
+You can use `s`, `m`, `h`, `D`, `W` , `M`, and `Y` as abbreviations for
+`expiry` values.
+
+If you want the cache to *never* expire, specify `None`. For example:
+
+``` python
+cache = CachePolicy(expiry = None)
+```
+
+You can also define scopes for cache expiration (e.g. cache for a
+specific task or usage pattern). Use the `scopes` parameter to add named
+scopes to the cache key:
+
+``` python
+cache = CachePolicy(
+    expiry="1M",
+    scopes={"role": "attacker", "team": "red"})
+)
+```
+
+As noted above, caching is by default done per epoch (i.e. each epoch
+has its own cache scope). You can disable the default behaviour by
+setting `per_epoch=False`. For example:
+
+``` python
+cache = CachePolicy(per_epoch=False)
+```
+
+## Management
+
+Use the `inspect cache` command the view the current contents of the
+cache, prune expired entries, or clear entries entirely. For example:
+
+``` bash
+# list the current contents of the cache
+$ inspect cache list
+
+# clear the cache (globally or by model)
+$ inspect cache clear
+$ inspect cache clear --model openai/gpt-4-turbo-2024-04-09
+
+# prune expired entries from the cache
+$ inspect cache list --pruneable
+$ inspect cache prune
+$ inspect cache prune --model openai/gpt-4-turbo-2024-04-09
+```
+
+See `inspect cache --help` for further details on management commands.
+
+### Cache Directory
+
+By default the model generation cache is stored in the system default
+location for user cache files (e.g. `XDG_CACHE_HOME` on Linux). You can
+override this and specify a different directory for cache files using
+the `INSPECT_CACHE_DIR` environment variable. For example:
+
+``` bash
+$ export INSPECT_CACHE_DIR=/tmp/inspect-cache
+```
+
+## Provider Caching
+
+Model providers may also provide prompt caching features to optimise
+cost and performance for multi-turn conversations. Currently, Inspect
+includes support for [Anthropic Prompt
+Caching](https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching)
+and will extend this support to other providers over time as they add
+caching to their APIs.
+
+Provider prompt caching is controlled by the `cache-prompt` generation
+config option. The default value for `cache-prompt` is `"auto"`, which
+enables prompt caching automatically if tool definitions are included in
+the request. Use `true` and `false` to force caching on or off. For
+example:
+
+``` bash
+inspect eval ctf.py --cache-prompt=auto  # enable if tools defined
+inspect eval ctf.py --cache-prompt=true  # force caching on
+inspect eval ctf.py --cache-prompt=false # force caching off
+```
+
+Or with the `eval()` function:
+
+``` python
+eval("ctf.py", cache_prompt=True)
+```
+
+### Cache Scope
+
+Providers will typically provide various means of customising the scope
+of cache usage. The Inspect `cache-prompt` option will by default
+attempt to make maximum use of provider caches (in the Anthropic
+implementation system messages, tool definitions, and all messages up to
+the last user message are included in the cache).
+
+Currently there is no way to customise the Anthropic cache lifetime (it
+defaults to 5 minutes)—once this becomes possible this will also be
+exposed in the Inspect API.
+
+### Usage Reporting
+
+When using provider caching, model token usage will be reported with 4
+distinct values rather than the normal input and output. For example:
+
+``` default
+13,684 tokens [I: 22, CW: 1,711, CR: 11,442, O: 509]
+```
+
+Where the prefixes on reported token counts stand for:
+
+|        |                          |
+|--------|--------------------------|
+| **I**  | Input tokens             |
+| **CW** | Input token cache writes |
+| **CR** | Input token cache reads  |
+| **O**  | Output tokens            |
+
+Input token cache writes will typically cost more (in the case of
+Anthropic roughly 25% more) but cache reads substantially less (for
+Anthropic 90% less) so for the example above there would have been a
+substantial savings in cost and execution time. See the [Anthropic
+Documentation](https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching)
+for additional details.
+
+# Multimodal
+
+
+## Overview
+
+Many models now support multimodal inputs, including images, audio, and
+video. This article describes how to how to create evaluations that
+include these data types.
+
+The following providers currently have support for multimodal inputs:
+
+| Provider  | Images | Audio | Video |
+|-----------|:------:|:-----:|:-----:|
+| OpenAI    |   •    |   •   |       |
+| Anthropic |   •    |       |       |
+| Google    |   •    |   •   |   •   |
+| Vertex    |   •    |   •   |       |
+| Mistral   |   •    |       |       |
+| Grok      |   •    |       |       |
+| Bedrock   |   •    |       |       |
+| AzureAI   |   •    |       |       |
+| Groq      |   •    |       |       |
+
+Note that model providers only support multimodal inputs for a subset of
+their models. In the sections below on images, audio, and video we’ll
+enumerate which models can handle these input types. It’s also always a
+good idea to check the provider documentation for the most up to date
+compatiblity matrix.
+
+## Images
+
+The following models currently support image inputs:
+
+- OpenAI: GPT-4o series and the full o1 model,
+- Anthropic: Claude 3.5 Sonnet and all of the Claude 3 series models.
+- Google/Vertex: Gemini 1.5 and Gemini 2.0 models.
+- Mistral: Pixstral models (e.g. `pixtral-12b-2409`)
+- Grok: Vision models (e.g. `grok-vision-beta`)
+
+For Bedrock, AzureAI, and Groq, please consult model provider
+documentation for details on which models support image inputs.
+
+To include an image in a [dataset](datasets.qmd) you should use JSON
+input format (either standard JSON or JSON Lines). For example, here we
+include an image alongside some text content:
+
+``` javascript
+"input": [
+  {
+    "role": "user",
+    "content": [
+        { "type": "image", "image": "picture.png"},
+        { "type": "text", "text": "What is this a picture of?"}
+    ]
+  }
+]
+```
+
+The `"picture.png"` path is resolved relative to the directory
+containing the dataset file. The image can be specified either as a file
+path or a base64 encoded [Data
+URL](https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/Data_URLs).
+
+If you are constructing chat messages programmatically, then the
+equivalent to the above would be:
+
+``` python
+input = [
+    ChatMessageUser(content = [
+        ContentImage(image="picture.png"),
+        ContentText(text="What is this a picture of?")
+    ])
+]
+```
+
+### Detail
+
+Some providers support a `detail` option that control over how the model
+processes the image and generates its textual understanding. Valid
+options are `auto` (the default), `low`, and `high`. See the [Open AI
+documentation](https://platform.openai.com/docs/guides/vision#low-or-high-fidelity-image-understanding)
+for more information on using this option. The Mistral, AzureAI, and
+Groq APIs also support the `detail` parameter. For example, here we
+explicitly specify image detail:
+
+``` python
+ContentImage(image="picture.png", detail="low")
+```
+
+## Audio
+
+The following models currently support audio inputs:
+
+- Open AI: `gpt-4o-audio-preview`
+- Google/Vertex: Gemini 1.5 and 2.0 models
+
+To include audio in a [dataset](datasets.qmd) you should use JSON input
+format (either standard JSON or JSON Lines). For example, here we
+include audio alongside some text content:
+
+``` javascript
+"input": [
+  {
+    "role": "user",
+    "content": [
+        { "type": "audio", "audio": "sample.mp3", "format": "mp3" },
+        { "type": "text", "text": "What words are spoken in this audio sample?"}
+    ]
+  }
+]
+```
+
+The “sample.mp3” path is resolved relative to the directory containing
+the dataset file. The audio file can be specified either as a file path
+or a base64 encoded [Data
+URL](https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/Data_URLs).
+
+If you are constructing chat messages programmatically, then the
+equivalent to the above would be:
+
+``` python
+input = [
+    ChatMessageUser(content = [
+        ContentAudio(audio="sample.mp3", format="mp3"),
+        ContentText(text="What words are spoken in this audio sample?")
+    ])
+]
+```
+
+### Formats
+
+You can provide audio files in one of two formats:
+
+- MP3
+- WAV
+
+As demonstrated above, you should specify the format explicitly when
+including audio input.
+
+## Video
+
+The following models currently support video inputs:
+
+- Google: Gemini 1.5 and 2.0 models
+
+To include video in a [dataset](datasets.qmd) you should use JSON input
+format (either standard JSON or JSON Lines). For example, here we
+include video alongside some text content:
+
+``` javascript
+"input": [
+  {
+    "role": "user",
+    "content": [
+        { "type": "video", "video": "video.mp4", "format": "mp4" },
+        { "type": "text", "text": "Can you please describe the attached video?"}
+    ]
+  }
+]
+```
+
+The “video.mp4” path is resolved relative to the directory containing
+the dataset file. The video file can be specified either as a file path
+or a base64 encoded [Data
+URL](https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/Data_URLs).
+
+If you are constructing chat messages programmatically, then the
+equivalent to the above would be:
+
+``` python
+input = [
+    ChatMessageUser(content = [
+        ContentVideo(video="video.mp4", format="mp4"),
+        ContentText(text="Can you please describe the attached video?")
+    ])
+]
+```
+
+### Formats
+
+You can provide video files in one of three formats:
+
+- MP4
+- MPEG
+- MOV
+
+As demonstrated above, you should specify the format explicitly when
+including video input.
+
+## Uploads
+
+When using audio and video with the Google Gemini API, media is first
+uploaded using the [File
+API](https://ai.google.dev/gemini-api/docs/audio?lang=python#upload-audio)
+and then the URL to the uploaded file is referenced in the chat message.
+This results in much faster performance for subsequent uses of the media
+file.
+
+The File API lets you store up to 20GB of files per project, with a
+per-file maximum size of 2GB. Files are stored for 48 hours. They can be
+accessed in that period with your API key, but cannot be downloaded from
+the API. The File API is available at no cost in all regions where the
+Gemini API is available.
+
+## Logging
+
+By default, full base64 encoded copies of media files are included in
+the log file. Media file logging will not create performance problems
+when using `.eval` logs, however if you are using `.json` logs then
+large numbers of media files could become unwieldy (i.e. if your `.json`
+log file grows to 100MB or larger as a result).
+
+You can disable all media logging using the `--no-log-images` flag. For
+example, here we enable the `.json` log format and disable media
+logging:
+
+``` bash
+inspect eval images.py --log-format=json --no-log-images
+```
+
+You can also use the `INSPECT_EVAL_LOG_IMAGES` environment variable to
+set a global default in your `.env` configuration file.
+
+# Reasoning
+
+
+## Overview
+
+Reasoning models like OpenAI o\` and o3, Google’s Gemini 2.0 Flash
+Thinking, and DeepSeek’s r1 have some additional options that can be
+used to tailor their behaviour. They also in some cases make available
+full or partial reasoning traces for the chains of thought that led to
+their response.
+
+This article covers using these models with Inspect—note that the state
+of support for reasoning models is very early and uneven across
+providers. As such we’ll note below which providers are known to support
+various options and behaviours.
+
+## Reasoning Effort
+
+OpenAI o1 and o3 models support a
+[`reasoning_effort`](https://platform.openai.com/docs/api-reference/chat/create#chat-create-reasoning_effort)
+field that can be set to `low`, `medium` or `high`.
+
+Gemini 2.0 Flash Thinking does not yet support an option to configure
+reasoning effort.
+
+Deepseek has also indicated that support for the `reasoning_effort`
+option will be [available
+soon](https://api-docs.deepseek.com/guides/reasoning_model). Presumably
+this will option will also be available from other services hosting r1
+models over time.
+
+To support OpenAI today and other provides in the future, Inspect now
+includes the `reasoning_effort` field when using the OpenAI provider (as
+many services including Deepseek and Together AI are accessed using the
+OpenAI provider).
+
+> [!NONE]
+>
+> If you are aware of other providers adding support for
+> `reasoning_effort` please [file an
+> issue](https://github.com/UKGovernmentBEIS/inspect_ai/issues) and we
+> will test and update the provider accordingly.
+
+## Reasoning Traces
+
+In some cases reasoning models provide traces of their chain of thought
+as part of assistant responses. When available, these traces are
+provided by Inspect in a new `reasoning` field of
+`ChatMessageAssistant`.
+
+Reasoning traces are currently captured in two ways:
+
+1.  From OpenAI compatible provider responses that include a `reasoning`
+    or `reasoning_content` field in the assistant message (the latter is
+    currently
+    [provided](https://api-docs.deepseek.com/guides/reasoning_model) by
+    DeepSeek).
+
+2.  From `<think></think>` tags included in the main assistant `content`
+    (this is how Together, Groq, and Ollama currently present reasoning
+    traces).
+
+Gemini 2.0 Flash Thinking currently includes its reasoning inline with
+response content (there is currently no structured way to extract it,
+although this seems likely to change in the future).
+
+We have confirmed that `reasoning` traces can be extracted from models
+using the `together`, `groq`, and `ollama` providers.
+
+We would like to confirm this for other providers (e.g. `bedrock` and
+`azureai`) but as of yet have not been able to access reasoning models
+on those services (we’d very much welcome others contributing here,
+either to confirm that things work or to provide PRs which make the
+required changes).
+
+## Reasoning History
+
+Model APIs do not yet have fields representing reasoning content, so it
+isn’t possible to replay previous reasoning traces in a structured way.
+Nevertheless, it is likely useful to replay this content (e.g. the
+Gemini Flash Thinking docs encourage reply of reasoning history).
+
+To enable models to see their previous reasoning traces, Inspect will by
+default include reasoning in `<think></think>` tags when replaying chat
+history to models. This behavior can be disabled by a new
+`reasoning_history` option on `GenerateConfig`.
 
 # Agent Basics
 
@@ -9423,229 +9996,6 @@ raise SampleLimitExceededError(
 )
 ```
 
-# Multimodal
-
-
-## Overview
-
-Many models now support multimodal inputs, including images, audio, and
-video. This article describes how to how to create evaluations that
-include these data types.
-
-The following providers currently have support for multimodal inputs:
-
-| Provider  | Images | Audio | Video |
-|-----------|:------:|:-----:|:-----:|
-| OpenAI    |   •    |   •   |       |
-| Anthropic |   •    |       |       |
-| Google    |   •    |   •   |   •   |
-| Vertex    |   •    |   •   |       |
-| Mistral   |   •    |       |       |
-| Grok      |   •    |       |       |
-| Bedrock   |   •    |       |       |
-| AzureAI   |   •    |       |       |
-| Groq      |   •    |       |       |
-
-Note that model providers only support multimodal inputs for a subset of
-their models. In the sections below on images, audio, and video we’ll
-enumerate which models can handle these input types. It’s also always a
-good idea to check the provider documentation for the most up to date
-compatiblity matrix.
-
-## Images
-
-The following models currently support image inputs:
-
-- OpenAI: GPT-4o series and the full o1 model,
-- Anthropic: Claude 3.5 Sonnet and all of the Claude 3 series models.
-- Google/Vertex: Gemini 1.5 and Gemini 2.0 models.
-- Mistral: Pixstral models (e.g. `pixtral-12b-2409`)
-- Grok: Vision models (e.g. `grok-vision-beta`)
-
-For Bedrock, AzureAI, and Groq, please consult model provider
-documentation for details on which models support image inputs.
-
-To include an image in a [dataset](datasets.qmd) you should use JSON
-input format (either standard JSON or JSON Lines). For example, here we
-include an image alongside some text content:
-
-``` javascript
-"input": [
-  {
-    "role": "user",
-    "content": [
-        { "type": "image", "image": "picture.png"},
-        { "type": "text", "text": "What is this a picture of?"}
-    ]
-  }
-]
-```
-
-The `"picture.png"` path is resolved relative to the directory
-containing the dataset file. The image can be specified either as a file
-path or a base64 encoded [Data
-URL](https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/Data_URLs).
-
-If you are constructing chat messages programmatically, then the
-equivalent to the above would be:
-
-``` python
-input = [
-    ChatMessageUser(content = [
-        ContentImage(image="picture.png"),
-        ContentText(text="What is this a picture of?")
-    ])
-]
-```
-
-### Detail
-
-Some providers support a `detail` option that control over how the model
-processes the image and generates its textual understanding. Valid
-options are `auto` (the default), `low`, and `high`. See the [Open AI
-documentation](https://platform.openai.com/docs/guides/vision#low-or-high-fidelity-image-understanding)
-for more information on using this option. The Mistral, AzureAI, and
-Groq APIs also support the `detail` parameter. For example, here we
-explicitly specify image detail:
-
-``` python
-ContentImage(image="picture.png", detail="low")
-```
-
-## Audio
-
-The following models currently support audio inputs:
-
-- Open AI: `gpt-4o-audio-preview`
-- Google/Vertex: Gemini 1.5 and 2.0 models
-
-To include audio in a [dataset](datasets.qmd) you should use JSON input
-format (either standard JSON or JSON Lines). For example, here we
-include audio alongside some text content:
-
-``` javascript
-"input": [
-  {
-    "role": "user",
-    "content": [
-        { "type": "audio", "audio": "sample.mp3", "format": "mp3" },
-        { "type": "text", "text": "What words are spoken in this audio sample?"}
-    ]
-  }
-]
-```
-
-The “sample.mp3” path is resolved relative to the directory containing
-the dataset file. The audio file can be specified either as a file path
-or a base64 encoded [Data
-URL](https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/Data_URLs).
-
-If you are constructing chat messages programmatically, then the
-equivalent to the above would be:
-
-``` python
-input = [
-    ChatMessageUser(content = [
-        ContentAudio(audio="sample.mp3", format="mp3"),
-        ContentText(text="What words are spoken in this audio sample?")
-    ])
-]
-```
-
-### Formats
-
-You can provide audio files in one of two formats:
-
-- MP3
-- WAV
-
-As demonstrated above, you should specify the format explicitly when
-including audio input.
-
-## Video
-
-The following models currently support video inputs:
-
-- Google: Gemini 1.5 and 2.0 models
-
-To include video in a [dataset](datasets.qmd) you should use JSON input
-format (either standard JSON or JSON Lines). For example, here we
-include video alongside some text content:
-
-``` javascript
-"input": [
-  {
-    "role": "user",
-    "content": [
-        { "type": "video", "video": "video.mp4", "format": "mp4" },
-        { "type": "text", "text": "Can you please describe the attached video?"}
-    ]
-  }
-]
-```
-
-The “video.mp4” path is resolved relative to the directory containing
-the dataset file. The video file can be specified either as a file path
-or a base64 encoded [Data
-URL](https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/Data_URLs).
-
-If you are constructing chat messages programmatically, then the
-equivalent to the above would be:
-
-``` python
-input = [
-    ChatMessageUser(content = [
-        ContentVideo(video="video.mp4", format="mp4"),
-        ContentText(text="Can you please describe the attached video?")
-    ])
-]
-```
-
-### Formats
-
-You can provide video files in one of three formats:
-
-- MP4
-- MPEG
-- MOV
-
-As demonstrated above, you should specify the format explicitly when
-including video input.
-
-## Uploads
-
-When using audio and video with the Google Gemini API, media is first
-uploaded using the [File
-API](https://ai.google.dev/gemini-api/docs/audio?lang=python#upload-audio)
-and then the URL to the uploaded file is referenced in the chat message.
-This results in much faster performance for subsequent uses of the media
-file.
-
-The File API lets you store up to 20GB of files per project, with a
-per-file maximum size of 2GB. Files are stored for 48 hours. They can be
-accessed in that period with your API key, but cannot be downloaded from
-the API. The File API is available at no cost in all regions where the
-Gemini API is available.
-
-## Logging
-
-By default, full base64 encoded copies of media files are included in
-the log file. Media file logging will not create performance problems
-when using `.eval` logs, however if you are using `.json` logs then
-large numbers of media files could become unwieldy (i.e. if your `.json`
-log file grows to 100MB or larger as a result).
-
-You can disable all media logging using the `--no-log-images` flag. For
-example, here we enable the `.json` log format and disable media
-logging:
-
-``` bash
-inspect eval images.py --log-format=json --no-log-images
-```
-
-You can also use the `INSPECT_EVAL_LOG_IMAGES` environment variable to
-set a global default in your `.env` configuration file.
-
 # Typing
 
 
@@ -9941,238 +10291,6 @@ logger = getLogger(__name__)
 
 trace_message(logger, "MyTool", "message related to tool")
 ```
-
-# Caching
-
-
-## Overview
-
-Caching enables you to cache model output to reduce the number of API
-calls made, saving both time and expense. Caching is also often useful
-during development—for example, when you are iterating on a scorer you
-may want the model outputs served from a cache to both save time as well
-as for increased determinism.
-
-There are two types of caching available: Inspect local caching and
-provider level caching. We’ll first describe local caching (which works
-for all models) then cover [provider caching](sec-provider-caching)
-which currently works only for Anthropic models.
-
-## Caching Basics
-
-Use the `cache` parameter on calls to `generate()` to activate the use
-of the cache. The keys for caching (what determines if a request can be
-fulfilled from the cache) are as follows:
-
-- Model name and base URL (e.g. `openai/gpt-4-turbo`)
-- Model prompt (i.e. message history)
-- Epoch number (for ensuring distinct generations per epoch)
-- Generate configuration (e.g. `temperature`, `top_p`, etc.)
-- Active `tools` and `tool_choice`
-
-If all of these inputs are identical, then the model response will be
-served from the cache. By default, model responses are cached for 1 week
-(see [Cache Policy](#cache-policy) below for details on customising
-this).
-
-For example, here we are iterating on our self critique template, so we
-cache the main call to `generate()`:
-
-``` python
-@task
-def theory_of_mind():
-    return Task(
-        dataset=example_dataset("theory_of_mind"),
-        solver=[
-            chain_of_thought(),
-            generate(cache = True),
-            self_critique(CRITIQUE_TEMPLATE)
-        ]
-        scorer=model_graded_fact(),
-    )
-```
-
-You can similarly do this with the `generate` function passed into a
-`Solver`:
-
-``` python
-@solver
-def custom_solver(cache):
-
-  async def solve(state, generate):
-
-    # (custom solver logic prior to generate)
-
-    return generate(state, cache)
-
-  return solve
-```
-
-You don’t strictly need to provide a `cache` argument for a custom
-solver that uses caching, but it’s generally good practice to enable
-users of the function to control caching behaviour.
-
-You can also use caching with lower-level `generate()` calls (e.g. a
-model instance you have obtained with `get_model()`. For example:
-
-``` python
-model = get_model("anthropic/claude-3-opus-20240229")
-output = model.generate(input, cache = True)
-```
-
-### Model Versions
-
-The model name (e.g. `openai/gpt-4-turbo`) is used as part of the cache
-key. Note though that many model names are aliases to specific model
-versions. For example, `gpt-4`, `gpt-4-turbo`, may resolve to different
-versions over time as updates are released.
-
-If you want to invalidate caches for updated model versions, it’s much
-better to use an explicitly versioned model name. For example:
-
-``` bash
-$ inspect eval ctf.py --model openai/gpt-4-turbo-2024-04-09
-```
-
-If you do this, then when a new version of `gpt-4-turbo` is deployed a
-call to the model will occur rather than resolving from the cache.
-
-## Cache Policy
-
-By default, if you specify `cache = True` then the cache will expire in
-1 week. You can customise this by passing a `CachePolicy` rather than a
-boolean. For example:
-
-``` python
-cache = CachePolicy(expiry="3h")
-cache = CachePolicy(expiry="4D")
-cache = CachePolicy(expiry="2W")
-cache = CachePolicy(expiry="3M")
-```
-
-You can use `s`, `m`, `h`, `D`, `W` , `M`, and `Y` as abbreviations for
-`expiry` values.
-
-If you want the cache to *never* expire, specify `None`. For example:
-
-``` python
-cache = CachePolicy(expiry = None)
-```
-
-You can also define scopes for cache expiration (e.g. cache for a
-specific task or usage pattern). Use the `scopes` parameter to add named
-scopes to the cache key:
-
-``` python
-cache = CachePolicy(
-    expiry="1M",
-    scopes={"role": "attacker", "team": "red"})
-)
-```
-
-As noted above, caching is by default done per epoch (i.e. each epoch
-has its own cache scope). You can disable the default behaviour by
-setting `per_epoch=False`. For example:
-
-``` python
-cache = CachePolicy(per_epoch=False)
-```
-
-## Management
-
-Use the `inspect cache` command the view the current contents of the
-cache, prune expired entries, or clear entries entirely. For example:
-
-``` bash
-# list the current contents of the cache
-$ inspect cache list
-
-# clear the cache (globally or by model)
-$ inspect cache clear
-$ inspect cache clear --model openai/gpt-4-turbo-2024-04-09
-
-# prune expired entries from the cache
-$ inspect cache list --pruneable
-$ inspect cache prune
-$ inspect cache prune --model openai/gpt-4-turbo-2024-04-09
-```
-
-See `inspect cache --help` for further details on management commands.
-
-### Cache Directory
-
-By default the model generation cache is stored in the system default
-location for user cache files (e.g. `XDG_CACHE_HOME` on Linux). You can
-override this and specify a different directory for cache files using
-the `INSPECT_CACHE_DIR` environment variable. For example:
-
-``` bash
-$ export INSPECT_CACHE_DIR=/tmp/inspect-cache
-```
-
-## Provider Caching
-
-Model providers may also provide prompt caching features to optimise
-cost and performance for multi-turn conversations. Currently, Inspect
-includes support for [Anthropic Prompt
-Caching](https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching)
-and will extend this support to other providers over time as they add
-caching to their APIs.
-
-Provider prompt caching is controlled by the `cache-prompt` generation
-config option. The default value for `cache-prompt` is `"auto"`, which
-enables prompt caching automatically if tool definitions are included in
-the request. Use `true` and `false` to force caching on or off. For
-example:
-
-``` bash
-inspect eval ctf.py --cache-prompt=auto  # enable if tools defined
-inspect eval ctf.py --cache-prompt=true  # force caching on
-inspect eval ctf.py --cache-prompt=false # force caching off
-```
-
-Or with the `eval()` function:
-
-``` python
-eval("ctf.py", cache_prompt=True)
-```
-
-### Cache Scope
-
-Providers will typically provide various means of customising the scope
-of cache usage. The Inspect `cache-prompt` option will by default
-attempt to make maximum use of provider caches (in the Anthropic
-implementation system messages, tool definitions, and all messages up to
-the last user message are included in the cache).
-
-Currently there is no way to customise the Anthropic cache lifetime (it
-defaults to 5 minutes)—once this becomes possible this will also be
-exposed in the Inspect API.
-
-### Usage Reporting
-
-When using provider caching, model token usage will be reported with 4
-distinct values rather than the normal input and output. For example:
-
-``` default
-13,684 tokens [I: 22, CW: 1,711, CR: 11,442, O: 509]
-```
-
-Where the prefixes on reported token counts stand for:
-
-|        |                          |
-|--------|--------------------------|
-| **I**  | Input tokens             |
-| **CW** | Input token cache writes |
-| **CR** | Input token cache reads  |
-| **O**  | Output tokens            |
-
-Input token cache writes will typically cost more (in the case of
-Anthropic roughly 25% more) but cache reads substantially less (for
-Anthropic 90% less) so for the example above there would have been a
-substantial savings in cost and execution time. See the [Anthropic
-Documentation](https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching)
-for additional details.
 
 # Parallelism
 

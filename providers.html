@@ -1,0 +1,1630 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.5.57">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>Model Providers – Inspect</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { display: inline-block; text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="site_libs/quarto-nav/quarto-nav.js"></script>
+<script src="site_libs/quarto-nav/headroom.min.js"></script>
+<script src="site_libs/clipboard/clipboard.min.js"></script>
+<script src="site_libs/quarto-search/autocomplete.umd.js"></script>
+<script src="site_libs/quarto-search/fuse.min.js"></script>
+<script src="site_libs/quarto-search/quarto-search.js"></script>
+<meta name="quarto:offset" content="./">
+<link href="./caching.html" rel="next">
+<link href="./models.html" rel="prev">
+<script src="site_libs/quarto-html/quarto.js"></script>
+<script src="site_libs/quarto-html/popper.min.js"></script>
+<script src="site_libs/quarto-html/tippy.umd.min.js"></script>
+<script src="site_libs/quarto-html/anchor.min.js"></script>
+<link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="site_libs/bootstrap/bootstrap.min.js"></script>
+<link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="site_libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
+<script id="quarto-search-options" type="application/json">{
+  "location": "sidebar",
+  "copy-button": false,
+  "collapse-after": 3,
+  "panel-placement": "start",
+  "type": "textbox",
+  "limit": 50,
+  "keyboard-shortcut": [
+    "f",
+    "/",
+    "s"
+  ],
+  "show-item-context": false,
+  "language": {
+    "search-no-results-text": "No results",
+    "search-matching-documents-text": "matching documents",
+    "search-copy-link-title": "Copy link to search",
+    "search-hide-matches-text": "Hide additional matches",
+    "search-more-match-text": "more match in this document",
+    "search-more-matches-text": "more matches in this document",
+    "search-clear-button-title": "Clear",
+    "search-text-placeholder": "",
+    "search-detached-cancel-button-title": "Cancel",
+    "search-submit-button-title": "Submit",
+    "search-label": "Search"
+  }
+}</script>
+
+
+<meta property="og:title" content="Inspect">
+<meta property="og:description" content="Open-source framework for large language model evaluations">
+<meta property="og:image" content="https://inspect.ai-safety-institute.org.uk//images/inspect.png">
+<meta property="og:site_name" content="Inspect">
+<meta property="og:image:height" content="1258">
+<meta property="og:image:width" content="2400">
+<meta name="twitter:title" content="Inspect">
+<meta name="twitter:description" content="Open-source framework for large language model evaluations">
+<meta name="twitter:image" content="https://inspect.ai-safety-institute.org.uk//images/inspect.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image-height" content="1258">
+<meta name="twitter:image-width" content="2400">
+</head>
+
+<body class="nav-sidebar floating">
+
+<div id="quarto-search-results"></div>
+  <header id="quarto-header" class="headroom fixed-top">
+  <nav class="quarto-secondary-nav">
+    <div class="container-fluid d-flex">
+      <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+        <i class="bi bi-layout-text-sidebar-reverse"></i>
+      </button>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./models.html">Models</a></li><li class="breadcrumb-item"><a href="./providers.html">Providers</a></li></ol></nav>
+        <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
+        </a>
+      <button type="button" class="btn quarto-search-button" aria-label="Search" onclick="window.quartoOpenSearch();">
+        <i class="bi bi-search"></i>
+      </button>
+    </div>
+  </nav>
+</header>
+<!-- content -->
+<div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article">
+<!-- sidebar -->
+  <nav id="quarto-sidebar" class="sidebar collapse collapse-horizontal quarto-sidebar-collapse-item sidebar-navigation floating overflow-auto"><div class="quarto-sidebar-header"><div class="sidebar-header-item">
+<p><a href="https://aisi.gov.uk/"><img src="./images/aisi-logo.png" class="img-fluid" alt="UK AI Safety Institute Website"></a></p>
+</div></div>
+    <div class="pt-lg-2 mt-2 text-left sidebar-header">
+    <div class="sidebar-title mb-0 py-0">
+      <a href="./">Inspect</a> 
+        <div class="sidebar-tools-main">
+    <a href="https://github.com/UKGovernmentBEIS/inspect_ai" title="Source Code" class="quarto-navigation-tool px-1" aria-label="Source Code"><i class="bi bi-github"></i></a>
+</div>
+    </div>
+      </div>
+        <div class="mt-2 flex-shrink-0 align-items-center">
+        <div class="sidebar-search">
+        <div id="quarto-search" class="" title="Search"></div>
+        </div>
+        </div>
+    <div class="sidebar-menu-container"> 
+    <ul class="list-unstyled mt-1">
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Welcome</span></a>
+  </div>
+</li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="true">
+ <span class="menu-text">Basics</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-1" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./tutorial.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Tutorial</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./options.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Options</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./evals/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Evals</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./log-viewer.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Log Viewer</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./vscode.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">VS Code</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="true">
+ <span class="menu-text">Components</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-2" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./tasks.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Tasks</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./datasets.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Datasets</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./solvers.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Solvers</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./tools.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Tools</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./scorers.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Scorers</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="true">
+ <span class="menu-text">Models</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-3" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./models.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Using Models</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./providers.html" class="sidebar-item-text sidebar-link active">
+ <span class="menu-text">Providers</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./caching.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Caching</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./multimodal.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Multimodal</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./reasoning.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Reasoning</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="true">
+ <span class="menu-text">Agents</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-4" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./agents.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Agent Basics</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./sandboxing.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Sandboxing</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./agents-api.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Agent API</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./agent-bridge.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Agent Bridge</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./human-agent.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Human Agent</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./approval.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Approval</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" role="navigation" aria-expanded="true">
+ <span class="menu-text">Advanced</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-5" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./eval-logs.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Eval Logs</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./eval-sets.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Eval Sets</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./errors-and-limits.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Errors &amp; Limits</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./typing.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Typing</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./tracing.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Tracing</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./parallelism.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Parallelism</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./interactivity.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Interactivity</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./extensions.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Extensions</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+    </ul>
+    </div>
+</nav>
+<div id="quarto-sidebar-glass" class="quarto-sidebar-collapse-item" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item"></div>
+<!-- margin-sidebar -->
+    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+        <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">On this page</h2>
+   
+  <ul>
+  <li><a href="#overview" id="toc-overview" class="nav-link active" data-scroll-target="#overview">Overview</a></li>
+  <li><a href="#openai" id="toc-openai" class="nav-link" data-scroll-target="#openai">OpenAI</a>
+  <ul class="collapse">
+  <li><a href="#openai-on-azure" id="toc-openai-on-azure" class="nav-link" data-scroll-target="#openai-on-azure">OpenAI on Azure</a></li>
+  </ul></li>
+  <li><a href="#anthropic" id="toc-anthropic" class="nav-link" data-scroll-target="#anthropic">Anthropic</a>
+  <ul class="collapse">
+  <li><a href="#anthropic-on-aws-bedrock" id="toc-anthropic-on-aws-bedrock" class="nav-link" data-scroll-target="#anthropic-on-aws-bedrock">Anthropic on AWS Bedrock</a></li>
+  <li><a href="#anthropic-on-vertex-ai" id="toc-anthropic-on-vertex-ai" class="nav-link" data-scroll-target="#anthropic-on-vertex-ai">Anthropic on Vertex AI</a></li>
+  </ul></li>
+  <li><a href="#google-gemini" id="toc-google-gemini" class="nav-link" data-scroll-target="#google-gemini">Google</a>
+  <ul class="collapse">
+  <li><a href="#safety-settings" id="toc-safety-settings" class="nav-link" data-scroll-target="#safety-settings">Safety Settings</a></li>
+  </ul></li>
+  <li><a href="#mistral" id="toc-mistral" class="nav-link" data-scroll-target="#mistral">Mistral</a>
+  <ul class="collapse">
+  <li><a href="#mistral-on-azure-ai" id="toc-mistral-on-azure-ai" class="nav-link" data-scroll-target="#mistral-on-azure-ai">Mistral on Azure AI</a></li>
+  </ul></li>
+  <li><a href="#grok" id="toc-grok" class="nav-link" data-scroll-target="#grok">Grok</a></li>
+  <li><a href="#aws-bedrock" id="toc-aws-bedrock" class="nav-link" data-scroll-target="#aws-bedrock">AWS Bedrock</a></li>
+  <li><a href="#azure-ai" id="toc-azure-ai" class="nav-link" data-scroll-target="#azure-ai">Azure AI</a>
+  <ul class="collapse">
+  <li><a href="#tool-emulation" id="toc-tool-emulation" class="nav-link" data-scroll-target="#tool-emulation">Tool Emulation</a></li>
+  </ul></li>
+  <li><a href="#vertex-ai" id="toc-vertex-ai" class="nav-link" data-scroll-target="#vertex-ai">Vertex AI</a></li>
+  <li><a href="#together-ai" id="toc-together-ai" class="nav-link" data-scroll-target="#together-ai">Together AI</a></li>
+  <li><a href="#groq" id="toc-groq" class="nav-link" data-scroll-target="#groq">Groq</a></li>
+  <li><a href="#cloudflare" id="toc-cloudflare" class="nav-link" data-scroll-target="#cloudflare">Cloudflare</a></li>
+  <li><a href="#goodfire" id="toc-goodfire" class="nav-link" data-scroll-target="#goodfire">Goodfire</a></li>
+  <li><a href="#hugging-face" id="toc-hugging-face" class="nav-link" data-scroll-target="#hugging-face">Hugging Face</a>
+  <ul class="collapse">
+  <li><a href="#batching" id="toc-batching" class="nav-link" data-scroll-target="#batching">Batching</a></li>
+  <li><a href="#device" id="toc-device" class="nav-link" data-scroll-target="#device">Device</a></li>
+  <li><a href="#local-models" id="toc-local-models" class="nav-link" data-scroll-target="#local-models">Local Models</a></li>
+  </ul></li>
+  <li><a href="#vllm" id="toc-vllm" class="nav-link" data-scroll-target="#vllm">vLLM</a>
+  <ul class="collapse">
+  <li><a href="#batching-1" id="toc-batching-1" class="nav-link" data-scroll-target="#batching-1">Batching</a></li>
+  <li><a href="#device-1" id="toc-device-1" class="nav-link" data-scroll-target="#device-1">Device</a></li>
+  <li><a href="#local-models-1" id="toc-local-models-1" class="nav-link" data-scroll-target="#local-models-1">Local Models</a></li>
+  <li><a href="#vllm-server" id="toc-vllm-server" class="nav-link" data-scroll-target="#vllm-server">vLLM Server</a></li>
+  </ul></li>
+  <li><a href="#ollama" id="toc-ollama" class="nav-link" data-scroll-target="#ollama">Ollama</a></li>
+  <li><a href="#llama-cpp-python" id="toc-llama-cpp-python" class="nav-link" data-scroll-target="#llama-cpp-python">Llama-cpp-python</a></li>
+  <li><a href="#custom-models" id="toc-custom-models" class="nav-link" data-scroll-target="#custom-models">Custom Models</a></li>
+  </ul>
+<div class="toc-actions"><ul><li><a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div></nav>
+    </div>
+<!-- main -->
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./models.html">Models</a></li><li class="breadcrumb-item"><a href="./providers.html">Providers</a></li></ol></nav>
+<div class="quarto-title">
+<h1 class="title">Model Providers</h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<section id="overview" class="level2">
+<h2 class="anchored" data-anchor-id="overview">Overview</h2>
+<p>Inspect has support for a wide variety of language model APIs and can be extended to support arbitrary additional ones. Support for the following providers is built in to Inspect:</p>
+<table class="caption-top table">
+<tbody>
+<tr class="odd">
+<td>Lab APIs</td>
+<td><a href="./providers.html#openai">OpenAI</a>, <a href="./providers.html#anthropic">Anthropic</a>, <a href="./providers.html#google">Google</a>, <a href="./providers.html#grok">Grok</a>, <a href="./providers.html#mistral">Mistral</a></td>
+</tr>
+<tr class="even">
+<td>Cloud APIs</td>
+<td><a href="./providers.html#aws-bedrock">AWS Bedrock</a>, <a href="./providers.html#azure-ai">Azure AI</a>, <a href="./providers.html#vertex-ai">Vertex AI</a></td>
+</tr>
+<tr class="odd">
+<td>Open (Hosted)</td>
+<td><a href="./providers.html#groq">Groq</a>, <a href="./providers.html#together-ai">Together AI</a>, <a href="./providers.html#cloudflare">Cloudflare</a>, <a href="./providers.html#goodfire">Goodfire</a></td>
+</tr>
+<tr class="even">
+<td>Open (Local)</td>
+<td><a href="./providers.html#hugging-face">Hugging Face</a>, <a href="./providers.html#vllm">vLLM</a>, <a href="./providers.html#ollama">Ollama</a>, <a href="./providers.html#llama-cpp-python">Lllama-cpp-python</a></td>
+</tr>
+</tbody>
+</table>
+<div class="callout callout-style-simple callout-note">
+<div class="callout-body d-flex">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-body-container">
+<p>If the provider you are using is not listed above, you may still be able to use it if it provides an OpenAI compatible API endpoint. In this scenario, use the Inspect <code>openai</code> interface and set the <code>OPENAI_BASE_URL</code> environment variable to the apprpriate value for your provider.</p>
+<p>You can also create <a href="./extensions.html#model-apis">Model API Extensions</a> to add model providers using their native interface.</p>
+</div>
+</div>
+</div>
+</section>
+<section id="openai" class="level2">
+<h2 class="anchored" data-anchor-id="openai">OpenAI</h2>
+<p>To use the <a href="https://platform.openai.com/">OpenAI</a> provider, install the <code>openai</code> package, set your credentials, and specify a model using the <code>--model</code> option:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install openai</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">OPENAI_API_KEY</span><span class="op">=</span>your-openai-api-key</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> openai/gpt-4o-mini</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>For the <code>openai</code> provider, custom model args (<code>-M</code>) are forwarded to the constructor of the <code>AsyncOpenAI</code> class.</p>
+<p>The following environment variables are supported by the OpenAI provider</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 38%">
+<col style="width: 61%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Variable</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>OPENAI_API_KEY</code></td>
+<td>API key credentials (required).</td>
+</tr>
+<tr class="even">
+<td><code>OPENAI_BASE_URL</code></td>
+<td>Base URL for requests (optional, defaults to <code>https://api.openai.com/v1</code>)</td>
+</tr>
+<tr class="odd">
+<td><code>OPENAI_ORG_ID</code></td>
+<td>OpenAI organization ID (optional)</td>
+</tr>
+<tr class="even">
+<td><code>OPENAI_PROJECT_ID</code></td>
+<td>OpenAI project ID (optional)</td>
+</tr>
+</tbody>
+</table>
+<section id="openai-on-azure" class="level3">
+<h3 class="anchored" data-anchor-id="openai-on-azure">OpenAI on Azure</h3>
+<p>To use OpenAI models on Azure AI, specify an <code>AZUREAI_OPENAI_API_KEY</code> along with an <code>AZUREAI_OPENAI_BASE_URL</code>. You can then use the normal <code>openai</code> provider with the <code>azure</code> qualifier, specifying a model name that corresponds to the <a href="https://learn.microsoft.com/en-us/azure/ai-services/openai/how-to/create-resource?pivots=web-portal#deploy-a-model">Azure Deployment Name</a> of your model. For example, if your deployed model name was <code>gpt4-1106-preview-ythre:</code></p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">AZUREAI_OPENAI_API_KEY</span><span class="op">=</span>key</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">AZUREAI_OPENAI_BASE_URL</span><span class="op">=</span>https://your-url-at.azure.com</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval <span class="at">--model</span> openai/azure/gpt4-1106-preview-ythre</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>In addition to these variables, you can also set the <code>OPENAI_API_VERSION</code> environment variable to specify a specific version of the OpenAI interface on Azure.</p>
+</section>
+</section>
+<section id="anthropic" class="level2">
+<h2 class="anchored" data-anchor-id="anthropic">Anthropic</h2>
+<p>To use the <a href="https://www.anthropic.com/api">Anthropic</a> provider, install the <code>anthropic</code> package, set your credentials, and specify a model using the <code>--model</code> option:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install anthropic</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">ANTHROPIC_API_KEY</span><span class="op">=</span>your-anthropic-api-key</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> anthropic/claude-3-5-sonnet-latest</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>For the <code>anthropic</code> provider, custom model args (<code>-M</code>) are forwarded to the constructor of the <code>AsyncAnthropic</code> class.</p>
+<p>The following environment variables are supported by the Anthropic provider</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 38%">
+<col style="width: 61%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Variable</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>ANTHROPIC_API_KEY</code></td>
+<td>API key credentials (required).</td>
+</tr>
+<tr class="even">
+<td><code>ANTHROPIC_BASE_URL</code></td>
+<td>Base URL for requests (optional, defaults to <code>https://api.anthropic.com</code>)</td>
+</tr>
+</tbody>
+</table>
+<section id="anthropic-on-aws-bedrock" class="level3">
+<h3 class="anchored" data-anchor-id="anthropic-on-aws-bedrock">Anthropic on AWS Bedrock</h3>
+<p>To use Anthropic models on Bedrock, use the normal <code>anthropic</code> provider with the <code>bedrock</code> qualifier, specifying a model name that corresponds to a model you have access to on Bedrock. For Bedrock, authentication is not handled using an API key but rather your standard AWS credentials (e.g.&nbsp;<code>AWS_ACCESS_KEY_ID</code> and <code>AWS_SECRET_ACCESS_KEY</code>). You should also be sure to have specified an AWS region. For example:</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">AWS_ACCESS_KEY_ID</span><span class="op">=</span>your-aws-access-key-id</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">AWS_SECRET_ACCESS_KEY</span><span class="op">=</span>your-aws-secret-access-key</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">AWS_DEFAULT_REGION</span><span class="op">=</span>us-east-1</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> anthropic/bedrock/anthropic.claude-3-5-sonnet-20241022-v2:0</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>You can also optionally set the <code>ANTHROPIC_BEDROCK_BASE_URL</code> environment variable to set a custom base URL for Bedrock API requests.</p>
+</section>
+<section id="anthropic-on-vertex-ai" class="level3">
+<h3 class="anchored" data-anchor-id="anthropic-on-vertex-ai">Anthropic on Vertex AI</h3>
+<p>To use Anthropic models on Vertex, you can use the standard <code>anthropic</code> model provider with the <code>vertex</code> qualifier (e.g.&nbsp;<code>anthropic/vertex/claude-3-5-sonnet-v2@20241022</code>). You should also set two environment variables indicating your project ID and region. Here is a complete example:</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">ANTHROPIC_VERTEX_PROJECT_ID</span><span class="op">=</span>project-12345</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">ANTHROPIC_VERTEX_REGION</span><span class="op">=</span>us-east5</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval ctf.py <span class="at">--model</span> anthropic/vertex/claude-3-5-sonnet-v2@20241022</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Authentication is doing using the standard Google Cloud CLI (i.e.&nbsp;if you have authorised the CLI then no additional auth is needed for the model API).</p>
+</section>
+</section>
+<section id="google-gemini" class="level2">
+<h2 class="anchored" data-anchor-id="google-gemini">Google</h2>
+<p>To use the <a href="https://ai.google.dev/">Google</a> provider, install the <code>google-generativeai</code> package, set your credentials, and specify a model using the <code>--model</code> option:</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install google-generativeai</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">GOOGLE_API_KEY</span><span class="op">=</span>your-google-api-key</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> google/gemini-1.5-pro</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>For the <code>google</code> provider, custom model args (<code>-M</code>) are forwarded to the <code>genai.configure</code> function.</p>
+<p>The following environment variables are supported by the Google provider</p>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Variable</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>GOOGLE_API_KEY</code></td>
+<td>API key credentials (required).</td>
+</tr>
+<tr class="even">
+<td><code>GOOGLE_BASE_URL</code></td>
+<td>Base URL for requests (optional)</td>
+</tr>
+</tbody>
+</table>
+<section id="safety-settings" class="level3">
+<h3 class="anchored" data-anchor-id="safety-settings">Safety Settings</h3>
+<p>Google models make available <a href="https://ai.google.dev/gemini-api/docs/safety-settings">safety settings</a> that you can adjust to determine what sorts of requests will be handled (or refused) by the model. The four categories of safety settings are as follows:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 35%">
+<col style="width: 65%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Category</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>sexually_explicit</code></td>
+<td>Contains references to sexual acts or other lewd content.</td>
+</tr>
+<tr class="even">
+<td><code>hate_speech</code></td>
+<td>Content that is rude, disrespectful, or profane.</td>
+</tr>
+<tr class="odd">
+<td><code>harassment</code></td>
+<td>Negative or harmful comments targeting identity and/or protected attributes.</td>
+</tr>
+<tr class="even">
+<td><code>dangerous_content</code></td>
+<td>Promotes, facilitates, or encourages harmful acts.</td>
+</tr>
+</tbody>
+</table>
+<p>For each category, the following block thresholds are available:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 35%">
+<col style="width: 65%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Block Threshold</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>none</code></td>
+<td>Always show regardless of probability of unsafe content</td>
+</tr>
+<tr class="even">
+<td><code>only_high</code></td>
+<td>Block when high probability of unsafe content</td>
+</tr>
+<tr class="odd">
+<td><code>medium_and_above</code></td>
+<td>Block when medium or high probability of unsafe content</td>
+</tr>
+<tr class="even">
+<td><code>low_and_above</code></td>
+<td>Block when low, medium or high probability of unsafe content</td>
+</tr>
+</tbody>
+</table>
+<p>By default, Inspect sets all four categories to <code>none</code> (enabling all content). You can override these defaults by using the <code>safety_settings</code> model argument. For example:</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>safety_settings <span class="op">=</span> <span class="bu">dict</span>(</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>  dangerous_content <span class="op">=</span> <span class="st">"medium_and_above"</span>,</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>  hate_speech <span class="op">=</span> <span class="st">"low_and_above"</span></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(</span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>  <span class="st">"eval.py"</span>,</span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>  model_args<span class="op">=</span><span class="bu">dict</span>(safety_settings<span class="op">=</span>safety_settings)</span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>This also can be done from the command line:</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval eval.py <span class="at">-M</span> <span class="st">"safety_settings={'hate_speech': 'low_and_above'}"</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
+</section>
+<section id="mistral" class="level2">
+<h2 class="anchored" data-anchor-id="mistral">Mistral</h2>
+<p>To use the <a href="https://mistral.ai/">Mistral</a> provider, install the <code>mistral</code> package, set your credentials, and specify a model using the <code>--model</code> option:</p>
+<div class="sourceCode" id="cb9"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install mistral</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">MISTRAL_API_KEY</span><span class="op">=</span>your-mistral-api-key</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> mistral/mistral-large-latest</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>For the <code>mistral</code> provider, custom model args (<code>-M</code>) are forwarded to the constructor of the <code>Mistral</code> class.</p>
+<p>The following environment variables are supported by the Mistral provider</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 38%">
+<col style="width: 61%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Variable</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>MISTRAL_API_KEY</code></td>
+<td>API key credentials (required).</td>
+</tr>
+<tr class="even">
+<td><code>MISTRAL_BASE_URL</code></td>
+<td>Base URL for requests (optional, defaults to <code>https://api.mistral.ai</code>)</td>
+</tr>
+</tbody>
+</table>
+<section id="mistral-on-azure-ai" class="level3">
+<h3 class="anchored" data-anchor-id="mistral-on-azure-ai">Mistral on Azure AI</h3>
+<p>To use Mistral models on Azure AI, specify an <code>AZURE_MISTRAL_API_KEY</code> along with an <code>AZUREAI_MISTRAL_BASE_URL</code>. You can then use the normal <code>mistral</code> provider, but you’ll need to specify a model name that corresponds to the <a href="https://learn.microsoft.com/en-us/azure/ai-services/openai/how-to/create-resource?pivots=web-portal#deploy-a-model">Azure Deployment Name</a> of your model. For example, if your deployment model name was <code>mistral-large-ctwi:</code></p>
+<div class="sourceCode" id="cb10"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">AZUREAI_MISTRAL_API_KEY</span><span class="op">=</span>key</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">AZUREAI_MISTRAL_BASE_URL</span><span class="op">=</span>https://your-url-at.azure.com</span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval <span class="at">--model</span> mistral/mistral-large-ctwi</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
+</section>
+<section id="grok" class="level2">
+<h2 class="anchored" data-anchor-id="grok">Grok</h2>
+<p>To use the <a href="https://x.ai/">Grok</a> provider, install the <code>openai</code> package (which the Grok service provides a compatible backend for), set your credentials, and specify a model using the <code>--model</code> option:</p>
+<div class="sourceCode" id="cb11"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install openai</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">GROK_API_KEY</span><span class="op">=</span>your-grok-api-key</span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> grok/grok-beta</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>For the <code>grok</code> provider, custom model args (<code>-M</code>) are forwarded to the constructor of the <code>AsyncOpenAI</code> class.</p>
+<p>The following environment variables are supported by the Grok provider</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 38%">
+<col style="width: 61%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Variable</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>GROK_API_KEY</code></td>
+<td>API key credentials (required).</td>
+</tr>
+<tr class="even">
+<td><code>GROK_BASE_URL</code></td>
+<td>Base URL for requests (optional, defaults to <code>https://api.x.ai/v1</code>)</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="aws-bedrock" class="level2">
+<h2 class="anchored" data-anchor-id="aws-bedrock">AWS Bedrock</h2>
+<p>To use the <a href="https://aws.amazon.com/bedrock/">AWS Bedrock</a> provider, install the <code>aioboto3</code> package, set your credentials, and specify a model using the <code>--model</code> option:</p>
+<div class="sourceCode" id="cb12"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">AWS_ACCESS_KEY_ID</span><span class="op">=</span>access-key-id</span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">AWS_SECRET_ACCESS_KEY</span><span class="op">=</span>secret-access-key</span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">AWS_DEFAULT_REGION</span><span class="op">=</span>us-east-1</span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval bedrock/meta.llama2-70b-chat-v1</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>For the <code>bedrock</code> provider, custom model args (<code>-M</code>) are forwarded to the <code>client</code> method of the <code>aioboto3.Session</code> class.</p>
+<p>Note that all models on AWS Bedrock require that you <a href="https://docs.aws.amazon.com/bedrock/latest/userguide/model-access.html">request model access</a> before using them in a deployment (in some cases access is granted immediately, in other cases it could one or more days).</p>
+<p>You should be also sure that you have the appropriate AWS credentials before accessing models on Bedrock. You aren’t likely to need to, but you can also specify a custom base URL for AWS Bedrock using the <code>BEDROCK_BASE_URL</code> environment variable.</p>
+<p>If you are using Anthropic models on Bedrock, you can alternatively use the <a href="#anthropic-on-aws-bedrock">Anthropic provider</a> as your means of access.</p>
+</section>
+<section id="azure-ai" class="level2">
+<h2 class="anchored" data-anchor-id="azure-ai">Azure AI</h2>
+<p>To use the <a href="https://azure.microsoft.com/en-us/solutions/ai">Azure AI</a> provider, install the <code>azure-ai-inference</code> package, set your credentials and base URL, and specify an <a href="https://learn.microsoft.com/en-us/azure/ai-services/openai/how-to/create-resource?pivots=web-portal#deploy-a-model">Azure Deployment Name</a> as the model name:</p>
+<div class="sourceCode" id="cb13"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install azure-ai-inference</span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">AZUREAI_API_KEY</span><span class="op">=</span>api-key</span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">AZUREAI_BASE_URL</span><span class="op">=</span>https://your-url-at.azure.com</span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval <span class="at">--model</span> azureai/llama-2-70b-chat-wnsnw</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>For the <code>azureai</code> provider, custom model args (<code>-M</code>) are forwarded to the constructor of the <code>ChatCompletionsClient</code> class.</p>
+<p>The following environment variables are supported by the Azure AI provider</p>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Variable</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>AZUREAI_API_KEY</code></td>
+<td>API key credentials (required).</td>
+</tr>
+<tr class="even">
+<td><code>AZUREAI_BASE_URL</code></td>
+<td>Base URL for requests (required)</td>
+</tr>
+</tbody>
+</table>
+<p>If you are using Open AI or Mistral on Azure AI, you can alternatively use the <a href="#openai-on-azure">OpenAI provider</a> or <a href="#mistral-on-azure-ai">Mistral provider</a> as your means of access.</p>
+<section id="tool-emulation" class="level3">
+<h3 class="anchored" data-anchor-id="tool-emulation">Tool Emulation</h3>
+<p>When using the <code>azureai</code> model provider, tool calling support can be ‘emulated’ for models that Azure AI has not yet implemented tool calling for. This occurs by default for Llama models. For other models, use the <code>emulate_tools</code> model arg to force tool emulation:</p>
+<div class="sourceCode" id="cb14"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval ctf.py <span class="at">-M</span> emulate_tools=true</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>You can also use this option to disable tool emulation for Llama models with <code>emulate_tools=false</code>.</p>
+</section>
+</section>
+<section id="vertex-ai" class="level2">
+<h2 class="anchored" data-anchor-id="vertex-ai">Vertex AI</h2>
+<div class="callout callout-style-simple callout-note">
+<div class="callout-body d-flex">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-body-container">
+<p>Vertex AI is a distinct service from Google AI, see a comparison matrix <a href="https://cloud.google.com/vertex-ai/generative-ai/docs/migrate/migrate-google-ai#google-ai">here</a>. Make sure you are using the appropriate model provider.</p>
+</div>
+</div>
+</div>
+<p>To use the <a href="https://cloud.google.com/vertex-ai">Vertex AI</a> provider, install the <code>google-cloud-aiplatform</code> package, <a href="https://cloud.google.com/vertex-ai/generative-ai/docs/start/quickstarts/quickstart-multimodal#expandable-1">configure your environment</a> for Vertex API access, and specify a model using the <code>--model</code> option:</p>
+<div class="sourceCode" id="cb15"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval eval.py <span class="at">--model</span> vertex/gemini-1.5-flash</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>The core libraries for Vertex AI interact directly with Google Cloud Platform so this provider doesn’t use the standard <code>BASE_URL</code>/<code>API_KEY</code> approach that others do. Consequently you don’t need to set these environment variables.</p>
+<p>Vertex AI also provides the same <code>safety_settings</code> outlined in the <a href="#safety-settings">Google</a> provider.</p>
+<p>If you are using Anthropic on Vertex AI, you can alternatively use the <a href="#anthropic-on-vertex-ai">Anthropic provider</a> as your means of access.</p>
+</section>
+<section id="together-ai" class="level2">
+<h2 class="anchored" data-anchor-id="together-ai">Together AI</h2>
+<p>To use the <a href="https://www.together.ai/">Together AI</a> provider, install the <code>openai</code> package (which the Together AI service provides a compatible backend for), set your credentials, and specify a model using the <code>--model</code> option:</p>
+<div class="sourceCode" id="cb16"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install openai</span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">TOGETHER_API_KEY</span><span class="op">=</span>your-together-api-key</span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> together/meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>For the <code>together</code> provider, custom model args (<code>-M</code>) are forwarded to the constructor of the <code>AsyncOpenAI</code> class.</p>
+<p>The following environment variables are supported by the Together AI provider</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 38%">
+<col style="width: 61%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Variable</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>TOGETHER_API_KEY</code></td>
+<td>API key credentials (required).</td>
+</tr>
+<tr class="even">
+<td><code>TOGETHER_BASE_URL</code></td>
+<td>Base URL for requests (optional, defaults to <code>https://api.together.xyz/v1</code>)</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="groq" class="level2">
+<h2 class="anchored" data-anchor-id="groq">Groq</h2>
+<p>To use the <a href="https://groq.com/">Groq</a> provider, install the <code>groq</code> package, set your credentials, and specify a model using the <code>--model</code> option:</p>
+<div class="sourceCode" id="cb17"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install groq</span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">GROQ_API_KEY</span><span class="op">=</span>your-groq-api-key</span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> groq/llama-3.1-70b-versatile</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>For the <code>groq</code> provider, custom model args (<code>-M</code>) are forwarded to the constructor of the <code>AsyncGroq</code> class.</p>
+<p>The following environment variables are supported by the Groq provider</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 38%">
+<col style="width: 61%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Variable</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>GROQ_API_KEY</code></td>
+<td>API key credentials (required).</td>
+</tr>
+<tr class="even">
+<td><code>GROQ_BASE_URL</code></td>
+<td>Base URL for requests (optional, defaults to <code>https://api.groq.com</code>)</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="cloudflare" class="level2">
+<h2 class="anchored" data-anchor-id="cloudflare">Cloudflare</h2>
+<p>To use the <a href="https://developers.cloudflare.com/workers-ai/">Cloudflare</a> provider, set your account id and access token, and specify a model using the <code>--model</code> option:</p>
+<div class="sourceCode" id="cb18"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">CLOUDFLARE_ACCOUNT_ID</span><span class="op">=</span>account-id</span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">CLOUDFLARE_API_TOKEN</span><span class="op">=</span>api-token</span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> cf/meta/llama-3.1-70b-instruct</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>For the <code>cloudflare</code> provider, custom model args (<code>-M</code>) are included as fields in the post body of the chat request.</p>
+<p>The following environment variables are supported by the Cloudflare provider:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 38%">
+<col style="width: 61%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Variable</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>CLOUDFLARE_ACCOUNT_ID</code></td>
+<td>Account id (required).</td>
+</tr>
+<tr class="even">
+<td><code>CLOUDFLARE_API_TOKEN</code></td>
+<td>API key credentials (required).</td>
+</tr>
+<tr class="odd">
+<td><code>CLOUDFLARE_BASE_URL</code></td>
+<td>Base URL for requests (optional, defaults to <code>https://api.cloudflare.com/client/v4/accounts</code>)</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="goodfire" class="level2">
+<h2 class="anchored" data-anchor-id="goodfire">Goodfire</h2>
+<p>To use the <a href="https://platform.goodfire.ai/">Goodfire</a> provider, install the <code>goodfire</code> package, set your credentials, and specify a model using the <code>--model</code> option:</p>
+<div class="sourceCode" id="cb19"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install goodfire</span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">GOODFIRE_API_KEY</span><span class="op">=</span>your-goodfire-api-key</span>
+<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> goodfire/meta-llama/Meta-Llama-3.1-8B-Instruct</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>For the <code>goodfire</code> provider, custom model args (<code>-M</code>) are forwarded to <code>chat.completions.create</code> method of the <code>AsyncClient</code> class.</p>
+<p>The following environment variables are supported by the Goodfire provider</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 38%">
+<col style="width: 61%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Variable</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>GOODFIRE_API_KEY</code></td>
+<td>API key credentials (required).</td>
+</tr>
+<tr class="even">
+<td><code>GOODFIRE_BASE_URL</code></td>
+<td>Base URL for requests (optional, defaults to <code>https://api.goodfire.ai</code>)</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="hugging-face" class="level2">
+<h2 class="anchored" data-anchor-id="hugging-face">Hugging Face</h2>
+<p>The <a href="https://huggingface.co/models">Hugging Face</a> provider implements support for local models using the <a href="https://pypi.org/project/transformers/">transformers</a> package. To use the Hugging Face provider, install the <code>torch</code>, <code>transformers</code>, and <code>accelerate</code> packages and specify a model using the <code>--model</code> option:</p>
+<div class="sourceCode" id="cb20"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install torch transformers accelerate</span>
+<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> hf/openai-community/gpt2</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<section id="batching" class="level3">
+<h3 class="anchored" data-anchor-id="batching">Batching</h3>
+<p>Concurrency for REST API based models is managed using the <code>max_connections</code> option. The same option is used for <code>transformers</code> inference—up to <code>max_connections</code> calls to <code>generate()</code> will be batched together (note that batches will proceed at a smaller size if no new calls to <code>generate()</code> have occurred in the last 2 seconds).</p>
+<p>The default batch size for Hugging Face is 32, but you should tune your <code>max_connections</code> to maximise performance and ensure that batches don’t exceed available GPU memory. The <a href="https://huggingface.co/docs/transformers/main_classes/pipelines#pipeline-batching">Pipeline Batching</a> section of the transformers documentation is a helpful guide to the ways batch size and performance interact.</p>
+</section>
+<section id="device" class="level3">
+<h3 class="anchored" data-anchor-id="device">Device</h3>
+<p>The PyTorch <code>cuda</code> device will be used automatically if CUDA is available (as will the Mac OS <code>mps</code> device). If you want to override the device used, use the <code>device</code> model argument. For example:</p>
+<div class="sourceCode" id="cb21"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval arc.py <span class="at">--model</span> hf/openai-community/gpt2 <span class="at">-M</span> device=cuda:0</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>This also works in calls to <code>eval()</code>:</p>
+<div class="sourceCode" id="cb22"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(<span class="st">"arc.py"</span>, model<span class="op">=</span><span class="st">"hf/openai-community/gpt2"</span>, model_args<span class="op">=</span><span class="bu">dict</span>(device<span class="op">=</span><span class="st">"cuda:0"</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Or in a call to <code>get_model()</code></p>
+<div class="sourceCode" id="cb23"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> get_model(<span class="st">"hf/openai-community/gpt2"</span>, device<span class="op">=</span><span class="st">"cuda:0"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
+<section id="local-models" class="level3">
+<h3 class="anchored" data-anchor-id="local-models">Local Models</h3>
+<p>In addition to using models from the Hugging Face Hub, the Hugging Face provider can also use local model weights and tokenizers (e.g.&nbsp;for a locally fine tuned model). Use <code>hf/local</code> along with the <code>model_path</code>, and (optionally) <code>tokenizer_path</code> arguments to select a local model. For example, from the command line, use the <code>-M</code> flag to pass the model arguments:</p>
+<div class="sourceCode" id="cb24"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval arc.py <span class="at">--model</span> hf/local <span class="at">-M</span> model_path=./my-model</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Or using the <code>eval()</code> function:</p>
+<div class="sourceCode" id="cb25"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(<span class="st">"arc.py"</span>, model<span class="op">=</span><span class="st">"hf/local"</span>, model_args<span class="op">=</span><span class="bu">dict</span>(model_path<span class="op">=</span><span class="st">"./my-model"</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Or in a call to <code>get_model()</code></p>
+<div class="sourceCode" id="cb26"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> get_model(<span class="st">"hf/local"</span>, model_path<span class="op">=</span><span class="st">"./my-model"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
+</section>
+<section id="vllm" class="level2">
+<h2 class="anchored" data-anchor-id="vllm">vLLM</h2>
+<p>The <a href="https://docs.vllm.ai/">vLLM</a> provider also implements support for Hugging Face models using the <a href="https://github.com/vllm-project/vllm/">vllm</a> package. To use the vLLM provider, install the <code>vllm</code> package and specify a model using the <code>--model</code> option:</p>
+<div class="sourceCode" id="cb27"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install vllm</span>
+<span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> vllm/openai-community/gpt2</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>You can also access models from ModelScope rather than Hugging Face, see the <a href="https://docs.vllm.ai/en/latest/getting_started/quickstart.html">vLLM documentation</a> for details on this.</p>
+<p>vLLM is generally much faster than the Hugging Face provider as the library is designed entirely for inference speed whereas the Hugging Face library is more general purpose.</p>
+<div class="callout callout-style-simple callout-tip">
+<div class="callout-body d-flex">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-body-container">
+<p>Rather than doing inference locally, you can also connect to a remote vLLM server. See the section below on <a href="#sec-vllm-server">vLLM Server</a> for details).</p>
+</div>
+</div>
+</div>
+<section id="batching-1" class="level3">
+<h3 class="anchored" data-anchor-id="batching-1">Batching</h3>
+<p>vLLM automatically handles batching, so you generally don’t have to worry about selecting the optimal batch size. However, you can still use the <code>max_connections</code> option to control the number of concurrent requests which defaults to 32.</p>
+</section>
+<section id="device-1" class="level3">
+<h3 class="anchored" data-anchor-id="device-1">Device</h3>
+<p>The <code>device</code> option is also available for vLLM models, and you can use it to specify the device(s) to run the model on. For example:</p>
+<div class="sourceCode" id="cb28"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval arc.py <span class="at">--model</span> vllm/meta-llama/Meta-Llama-3-8B-Instruct <span class="at">-M</span> device=<span class="st">'0,1,2,3'</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
+<section id="local-models-1" class="level3">
+<h3 class="anchored" data-anchor-id="local-models-1">Local Models</h3>
+<p>Similar to the Hugging Face provider, you can also use local models with the vLLM provider. Use <code>vllm/local</code> along with the <code>model_path</code>, and (optionally) <code>tokenizer_path</code> arguments to select a local model. For example, from the command line, use the <code>-M</code> flag to pass the model arguments:</p>
+<div class="sourceCode" id="cb29"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval arc.py <span class="at">--model</span> vllm/local <span class="at">-M</span> model_path=./my-model</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
+<section id="vllm-server" class="level3">
+<h3 class="anchored" data-anchor-id="vllm-server">vLLM Server</h3>
+<p>vLLM provides an HTTP server that implements OpenAI’s Chat API. To use this with Inspect, use the <code>openai</code> provider rather than the <code>vllm</code> provider, setting the model base URL to point to the vLLM server rather than OpenAI. For example:</p>
+<div class="sourceCode" id="cb30"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> export OPENAI_BASE_URL=http://localhost:8080/v1</span>
+<span id="cb30-2"><a href="#cb30-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> export OPENAI_API_KEY=<span class="op">&lt;</span>your-server-api-key<span class="op">&gt;</span></span>
+<span id="cb30-3"><a href="#cb30-3" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval arc.py <span class="at">--model</span> openai/meta-llama/Meta-Llama-3-8B-Instruct</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>See the vLLM documentation on <a href="https://docs.vllm.ai/en/latest/serving/openai_compatible_server.html">Server Mode</a> for additional details.</p>
+</section>
+</section>
+<section id="ollama" class="level2">
+<h2 class="anchored" data-anchor-id="ollama">Ollama</h2>
+<p>To use the <a href="https://ollama.com/">Ollama</a> provider, install the <code>openai</code> package (which Ollama provides a compatible backend for) and specify a model using the <code>--model</code> option:</p>
+<div class="sourceCode" id="cb31"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install openai</span>
+<span id="cb31-2"><a href="#cb31-2" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> ollama/llama3.1</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Note that you should be sure that Ollama is running on your system berore using it with Inspect.</p>
+<p>The following environment variables are supported by the Ollma provider</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 38%">
+<col style="width: 61%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Variable</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>OLLAMA_BASE_URL</code></td>
+<td>Base URL for requests (optional, defaults to <code>http://localhost:11434/v1</code>)</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="llama-cpp-python" class="level2">
+<h2 class="anchored" data-anchor-id="llama-cpp-python">Llama-cpp-python</h2>
+<p>To use the <a href="https://llama-cpp-python.readthedocs.io/en/latest/">Llama-cpp-python</a> provider, install the <code>openai</code> package (which llama-cpp-python provides a compatible backend for) and specify a model using the <code>--model</code> option:</p>
+<div class="sourceCode" id="cb32"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install openai</span>
+<span id="cb32-2"><a href="#cb32-2" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> llama-cpp-python/llama3</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Note that you should be sure that the <a href="https://llama-cpp-python.readthedocs.io/en/latest/server/">llama-cpp-python server</a> is running on your system before using it with Inspect.</p>
+<p>The following environment variables are supported by the llama-cpp-python provider</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 38%">
+<col style="width: 61%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Variable</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>LLAMA_CPP_PYTHON_BASE_URL</code></td>
+<td>Base URL for requests (optional, defaults to <code>http://localhost:8000/v1</code>)</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="custom-models" class="level2">
+<h2 class="anchored" data-anchor-id="custom-models">Custom Models</h2>
+<p>If you want to support another model hosting service or local model source, you can add a custom model API. See the documentation on <a href="./extensions.html#sec-model-api-extensions">Model API Extensions</a> for additional details.</p>
+
+
+</section>
+
+</main> <!-- /main -->
+<script id="quarto-html-after-body" type="application/javascript">
+window.document.addEventListener("DOMContentLoaded", function (event) {
+  const toggleBodyColorMode = (bsSheetEl) => {
+    const mode = bsSheetEl.getAttribute("data-mode");
+    const bodyEl = window.document.querySelector("body");
+    if (mode === "dark") {
+      bodyEl.classList.add("quarto-dark");
+      bodyEl.classList.remove("quarto-light");
+    } else {
+      bodyEl.classList.add("quarto-light");
+      bodyEl.classList.remove("quarto-dark");
+    }
+  }
+  const toggleBodyColorPrimary = () => {
+    const bsSheetEl = window.document.querySelector("link#quarto-bootstrap");
+    if (bsSheetEl) {
+      toggleBodyColorMode(bsSheetEl);
+    }
+  }
+  toggleBodyColorPrimary();  
+  const icon = "";
+  const anchorJS = new window.AnchorJS();
+  anchorJS.options = {
+    placement: 'right',
+    icon: icon
+  };
+  anchorJS.add('.anchored');
+  const isCodeAnnotation = (el) => {
+    for (const clz of el.classList) {
+      if (clz.startsWith('code-annotation-')) {                     
+        return true;
+      }
+    }
+    return false;
+  }
+  const onCopySuccess = function(e) {
+    // button target
+    const button = e.trigger;
+    // don't keep focus
+    button.blur();
+    // flash "checked"
+    button.classList.add('code-copy-button-checked');
+    var currentTitle = button.getAttribute("title");
+    button.setAttribute("title", "Copied!");
+    let tooltip;
+    if (window.bootstrap) {
+      button.setAttribute("data-bs-toggle", "tooltip");
+      button.setAttribute("data-bs-placement", "left");
+      button.setAttribute("data-bs-title", "Copied!");
+      tooltip = new bootstrap.Tooltip(button, 
+        { trigger: "manual", 
+          customClass: "code-copy-button-tooltip",
+          offset: [0, -8]});
+      tooltip.show();    
+    }
+    setTimeout(function() {
+      if (tooltip) {
+        tooltip.hide();
+        button.removeAttribute("data-bs-title");
+        button.removeAttribute("data-bs-toggle");
+        button.removeAttribute("data-bs-placement");
+      }
+      button.setAttribute("title", currentTitle);
+      button.classList.remove('code-copy-button-checked');
+    }, 1000);
+    // clear code selection
+    e.clearSelection();
+  }
+  const getTextToCopy = function(trigger) {
+      const codeEl = trigger.previousElementSibling.cloneNode(true);
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+  }
+  const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+    text: getTextToCopy
+  });
+  clipboard.on('success', onCopySuccess);
+  if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+    // For code content inside modals, clipBoardJS needs to be initialized with a container option
+    // TODO: Check when it could be a function (https://github.com/zenorocha/clipboard.js/issues/860)
+    const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+      text: getTextToCopy,
+      container: window.document.getElementById('quarto-embedded-source-code-modal')
+    });
+    clipboardModal.on('success', onCopySuccess);
+  }
+    var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+    var mailtoRegex = new RegExp(/^mailto:/);
+      var filterRegex = new RegExp("https:\/\/inspect\.ai-safety-institute\.org\.uk\/");
+    var isInternal = (href) => {
+        return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+    }
+    // Inspect non-navigation links and adorn them if external
+ 	var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+    for (var i=0; i<links.length; i++) {
+      const link = links[i];
+      if (!isInternal(link.href)) {
+        // undo the damage that might have been done by quarto-nav.js in the case of
+        // links that we want to consider external
+        if (link.dataset.originalHref !== undefined) {
+          link.href = link.dataset.originalHref;
+        }
+      }
+    }
+  function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+    const config = {
+      allowHTML: true,
+      maxWidth: 500,
+      delay: 100,
+      arrow: false,
+      appendTo: function(el) {
+          return el.parentElement;
+      },
+      interactive: true,
+      interactiveBorder: 10,
+      theme: 'quarto',
+      placement: 'bottom-start',
+    };
+    if (contentFn) {
+      config.content = contentFn;
+    }
+    if (onTriggerFn) {
+      config.onTrigger = onTriggerFn;
+    }
+    if (onUntriggerFn) {
+      config.onUntrigger = onUntriggerFn;
+    }
+    window.tippy(el, config); 
+  }
+  const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+  for (var i=0; i<noterefs.length; i++) {
+    const ref = noterefs[i];
+    tippyHover(ref, function() {
+      // use id or data attribute instead here
+      let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+      try { href = new URL(href).hash; } catch {}
+      const id = href.replace(/^#\/?/, "");
+      const note = window.document.getElementById(id);
+      if (note) {
+        return note.innerHTML;
+      } else {
+        return "";
+      }
+    });
+  }
+  const xrefs = window.document.querySelectorAll('a.quarto-xref');
+  const processXRef = (id, note) => {
+    // Strip column container classes
+    const stripColumnClz = (el) => {
+      el.classList.remove("page-full", "page-columns");
+      if (el.children) {
+        for (const child of el.children) {
+          stripColumnClz(child);
+        }
+      }
+    }
+    stripColumnClz(note)
+    if (id === null || id.startsWith('sec-')) {
+      // Special case sections, only their first couple elements
+      const container = document.createElement("div");
+      if (note.children && note.children.length > 2) {
+        container.appendChild(note.children[0].cloneNode(true));
+        for (let i = 1; i < note.children.length; i++) {
+          const child = note.children[i];
+          if (child.tagName === "P" && child.innerText === "") {
+            continue;
+          } else {
+            container.appendChild(child.cloneNode(true));
+            break;
+          }
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(container);
+        }
+        return container.innerHTML
+      } else {
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        return note.innerHTML;
+      }
+    } else {
+      // Remove any anchor links if they are present
+      const anchorLink = note.querySelector('a.anchorjs-link');
+      if (anchorLink) {
+        anchorLink.remove();
+      }
+      if (window.Quarto?.typesetMath) {
+        window.Quarto.typesetMath(note);
+      }
+      // TODO in 1.5, we should make sure this works without a callout special case
+      if (note.classList.contains("callout")) {
+        return note.outerHTML;
+      } else {
+        return note.innerHTML;
+      }
+    }
+  }
+  for (var i=0; i<xrefs.length; i++) {
+    const xref = xrefs[i];
+    tippyHover(xref, undefined, function(instance) {
+      instance.disable();
+      let url = xref.getAttribute('href');
+      let hash = undefined; 
+      if (url.startsWith('#')) {
+        hash = url;
+      } else {
+        try { hash = new URL(url).hash; } catch {}
+      }
+      if (hash) {
+        const id = hash.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note !== null) {
+          try {
+            const html = processXRef(id, note.cloneNode(true));
+            instance.setContent(html);
+          } finally {
+            instance.enable();
+            instance.show();
+          }
+        } else {
+          // See if we can fetch this
+          fetch(url.split('#')[0])
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.getElementById(id);
+            if (note !== null) {
+              const html = processXRef(id, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      } else {
+        // See if we can fetch a full url (with no hash to target)
+        // This is a special case and we should probably do some content thinning / targeting
+        fetch(url)
+        .then(res => res.text())
+        .then(html => {
+          const parser = new DOMParser();
+          const htmlDoc = parser.parseFromString(html, "text/html");
+          const note = htmlDoc.querySelector('main.content');
+          if (note !== null) {
+            // This should only happen for chapter cross references
+            // (since there is no id in the URL)
+            // remove the first header
+            if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+              note.children[0].remove();
+            }
+            const html = processXRef(null, note);
+            instance.setContent(html);
+          } 
+        }).finally(() => {
+          instance.enable();
+          instance.show();
+        });
+      }
+    }, function(instance) {
+    });
+  }
+      let selectedAnnoteEl;
+      const selectorForAnnotation = ( cell, annotation) => {
+        let cellAttr = 'data-code-cell="' + cell + '"';
+        let lineAttr = 'data-code-annotation="' +  annotation + '"';
+        const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+        return selector;
+      }
+      const selectCodeLines = (annoteEl) => {
+        const doc = window.document;
+        const targetCell = annoteEl.getAttribute("data-target-cell");
+        const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+        const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+        const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+        const lineIds = lines.map((line) => {
+          return targetCell + "-" + line;
+        })
+        let top = null;
+        let height = null;
+        let parent = null;
+        if (lineIds.length > 0) {
+            //compute the position of the single el (top and bottom and make a div)
+            const el = window.document.getElementById(lineIds[0]);
+            top = el.offsetTop;
+            height = el.offsetHeight;
+            parent = el.parentElement.parentElement;
+          if (lineIds.length > 1) {
+            const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+            const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+            height = bottom - top;
+          }
+          if (top !== null && height !== null && parent !== null) {
+            // cook up a div (if necessary) and position it 
+            let div = window.document.getElementById("code-annotation-line-highlight");
+            if (div === null) {
+              div = window.document.createElement("div");
+              div.setAttribute("id", "code-annotation-line-highlight");
+              div.style.position = 'absolute';
+              parent.appendChild(div);
+            }
+            div.style.top = top - 2 + "px";
+            div.style.height = height + 4 + "px";
+            div.style.left = 0;
+            let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+            if (gutterDiv === null) {
+              gutterDiv = window.document.createElement("div");
+              gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+              gutterDiv.style.position = 'absolute';
+              const codeCell = window.document.getElementById(targetCell);
+              const gutter = codeCell.querySelector('.code-annotation-gutter');
+              gutter.appendChild(gutterDiv);
+            }
+            gutterDiv.style.top = top - 2 + "px";
+            gutterDiv.style.height = height + 4 + "px";
+          }
+          selectedAnnoteEl = annoteEl;
+        }
+      };
+      const unselectCodeLines = () => {
+        const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+        elementsIds.forEach((elId) => {
+          const div = window.document.getElementById(elId);
+          if (div) {
+            div.remove();
+          }
+        });
+        selectedAnnoteEl = undefined;
+      };
+        // Handle positioning of the toggle
+    window.addEventListener(
+      "resize",
+      throttle(() => {
+        elRect = undefined;
+        if (selectedAnnoteEl) {
+          selectCodeLines(selectedAnnoteEl);
+        }
+      }, 10)
+    );
+    function throttle(fn, ms) {
+    let throttle = false;
+    let timer;
+      return (...args) => {
+        if(!throttle) { // first call gets through
+            fn.apply(this, args);
+            throttle = true;
+        } else { // all the others get throttled
+            if(timer) clearTimeout(timer); // cancel #2
+            timer = setTimeout(() => {
+              fn.apply(this, args);
+              timer = throttle = false;
+            }, ms);
+        }
+      };
+    }
+      const annoteTargets = window.document.querySelectorAll('.code-annotation-anchor');
+      for (let i=0; i<annoteTargets.length; i++) {
+        const annoteTarget = annoteTargets[i];
+        const targetCell = annoteTarget.getAttribute("data-target-cell");
+        const targetAnnotation = annoteTarget.getAttribute("data-target-annotation");
+        const contentFn = () => {
+          const content = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+          if (content) {
+            const tipContent = content.cloneNode(true);
+            tipContent.classList.add("code-annotation-tip-content");
+            return tipContent.outerHTML;
+          }
+        }
+        const config = {
+          allowHTML: true,
+          content: contentFn,
+          onShow: (instance) => {
+            selectCodeLines(instance.reference);
+            instance.reference.classList.add('code-annotation-active');
+            window.tippy.hideAll();
+          },
+          onHide: (instance) => {
+            unselectCodeLines();
+            instance.reference.classList.remove('code-annotation-active');
+          },
+          maxWidth: 300,
+          delay: [50, 0],
+          duration: [200, 0],
+          offset: [5, 10],
+          arrow: true,
+          trigger: 'click',
+          appendTo: function(el) {
+            return el.parentElement.parentElement.parentElement;
+          },
+          interactive: true,
+          interactiveBorder: 10,
+          theme: 'quarto',
+          placement: 'right',
+          positionFixed: true,
+          popperOptions: {
+            modifiers: [
+            {
+              name: 'flip',
+              options: {
+                flipVariations: false, // true by default
+                allowedAutoPlacements: ['right'],
+                fallbackPlacements: ['right', 'top', 'top-start', 'top-end', 'bottom', 'bottom-start', 'bottom-end', 'left'],
+              },
+            },
+            {
+              name: 'preventOverflow',
+              options: {
+                mainAxis: false,
+                altAxis: false
+              }
+            }
+            ]        
+          }      
+        };
+        window.tippy(annoteTarget, config); 
+      }
+  const findCites = (el) => {
+    const parentEl = el.parentElement;
+    if (parentEl) {
+      const cites = parentEl.dataset.cites;
+      if (cites) {
+        return {
+          el,
+          cites: cites.split(' ')
+        };
+      } else {
+        return findCites(el.parentElement)
+      }
+    } else {
+      return undefined;
+    }
+  };
+  var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+  for (var i=0; i<bibliorefs.length; i++) {
+    const ref = bibliorefs[i];
+    const citeInfo = findCites(ref);
+    if (citeInfo) {
+      tippyHover(citeInfo.el, function() {
+        var popup = window.document.createElement('div');
+        citeInfo.cites.forEach(function(cite) {
+          var citeDiv = window.document.createElement('div');
+          citeDiv.classList.add('hanging-indent');
+          citeDiv.classList.add('csl-entry');
+          var biblioDiv = window.document.getElementById('ref-' + cite);
+          if (biblioDiv) {
+            citeDiv.innerHTML = biblioDiv.innerHTML;
+          }
+          popup.appendChild(citeDiv);
+        });
+        return popup.innerHTML;
+      });
+    }
+  }
+});
+</script>
+<nav class="page-navigation">
+  <div class="nav-page nav-page-previous">
+      <a href="./models.html" class="pagination-link" aria-label="Using Models">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">Using Models</span>
+      </a>          
+  </div>
+  <div class="nav-page nav-page-next">
+      <a href="./caching.html" class="pagination-link" aria-label="Caching">
+        <span class="nav-page-text">Caching</span> <i class="bi bi-arrow-right-short"></i>
+      </a>
+  </div>
+</nav>
+</div> <!-- /content -->
+<footer class="footer">
+  <div class="nav-footer">
+    <div class="nav-footer-left">
+      <ul class="footer-items list-unstyled">
+    <li class="nav-item">
+    <a class="nav-link active" href="https://aisi.gov.uk/" aria-current="page">
+<p>UK AI Safety Institute</p>
+</a>
+  </li>  
+</ul>
+    </div>   
+    <div class="nav-footer-center">
+      <ul class="footer-items list-unstyled">
+    <li class="nav-item">
+    <a class="nav-link" href="https://github.com/UKGovernmentBEIS/inspect_ai">
+<p>Code</p>
+</a>
+  </li>  
+    <li class="nav-item">
+    <a class="nav-link" href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/CHANGELOG.md">
+<p>Changelog</p>
+</a>
+  </li>  
+    <li class="nav-item">
+    <a class="nav-link" href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/LICENSE">
+<p>License</p>
+</a>
+  </li>  
+    <li class="nav-item">
+    <a class="nav-link" href="https://github.com/UKGovernmentBEIS/inspect_ai/issues">
+<p>Issues</p>
+</a>
+  </li>  
+</ul>
+    <div class="toc-actions d-sm-block d-md-none"><ul><li><a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div></div>
+    <div class="nav-footer-right">
+      <ul class="footer-items list-unstyled">
+    <li class="nav-item compact">
+    <a class="nav-link" href="https://twitter.com/AISafetyInst">
+      <i class="bi bi-twitter" role="img" aria-label="UK AI Safety Institute Twitter">
+</i> 
+    </a>
+  </li>  
+    <li class="nav-item compact">
+    <a class="nav-link" href="https://github.com/UKGovernmentBEIS/inspect_ai/">
+      <i class="bi bi-github" role="img" aria-label="Inspect on GitHub">
+</i> 
+    </a>
+  </li>  
+</ul>
+    </div>
+  </div>
+</footer>
+
+
+
+
+</body></html>

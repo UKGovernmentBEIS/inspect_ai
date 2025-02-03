@@ -245,23 +245,58 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
  <span class="menu-text">Scorers</span></a>
   </div>
 </li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="true">
+ <span class="menu-text">Models</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-3" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./models.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Models</span></a>
+ <span class="menu-text">Using Models</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./providers.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Providers</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./caching.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Caching</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./multimodal.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Multimodal</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./reasoning.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Reasoning</span></a>
   </div>
 </li>
       </ul>
   </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="true">
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="true">
  <span class="menu-text">Agents</span></a>
-          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="true" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-3" class="collapse list-unstyled sidebar-section depth1 show">  
+      <ul id="quarto-sidebar-section-4" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./agents.html" class="sidebar-item-text sidebar-link">
@@ -302,13 +337,13 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="true">
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" role="navigation" aria-expanded="true">
  <span class="menu-text">Advanced</span></a>
-          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="true" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-4" class="collapse list-unstyled sidebar-section depth1 show">  
+      <ul id="quarto-sidebar-section-5" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./eval-logs.html" class="sidebar-item-text sidebar-link">
@@ -329,12 +364,6 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./multimodal.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Multimodal</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
   <a href="./typing.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Typing</span></a>
   </div>
@@ -343,12 +372,6 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <div class="sidebar-item-container"> 
   <a href="./tracing.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Tracing</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="./caching.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Caching</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -574,7 +597,14 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <li><p><a href="./solvers.html">Solvers</a> are the heart of Inspect, and encompass prompt engineering and various other elicitation strategies (the <code>plan</code> in the example above). Here we cover using the built-in solvers and creating your own more sophisticated ones.</p></li>
 <li><p><a href="./tools.html">Tools</a> provide a means of extending the capabilities of models by registering Python functions for them to call. This section describes how to create custom tools and use them in evaluations.</p></li>
 <li><p><a href="./scorers.html">Scorers</a> evaluate the work of solvers and aggregate scores into metrics. Sophisticated evals often require custom scorers that use models to evaluate output. This section covers how to create them.</p></li>
-<li><p><a href="./models.html">Models</a> provide a uniform API for both evaluating a variety of large language models and using models within evaluations (e.g.&nbsp;for critique or grading).</p></li>
+</ul>
+<p>These sections cover how to use varoius language models with Inspect:</p>
+<ul>
+<li><p><a href="./models.html">Models</a> describe various ways to specify and provide options to models in Inspect evaluations.</p></li>
+<li><p><a href="./providers.html">Providers</a> covers usage details and available options for the various supported providers.</p></li>
+<li><p><a href="./caching.html">Caching</a> explains how to cache model output to reduce the number of API calls made.</p></li>
+<li><p><a href="./multimodal.html">Multimodal</a> describes the APIs available for creating multimodal evaluations (including images, audio, and video).</p></li>
+<li><p><a href="./reasoning.html">Reasoning</a> documents the additional options and data available for reasoning models.</p></li>
 </ul>
 <p>These sections describe how to create agent evaluations with Inspect:</p>
 <ul>
@@ -1138,7 +1168,7 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
     </div>
   </div>
 </footer>
-<script>var lightboxQuarto = GLightbox({"closeEffect":"zoom","selector":".lightbox","descPosition":"bottom","openEffect":"zoom","loop":false});
+<script>var lightboxQuarto = GLightbox({"selector":".lightbox","descPosition":"bottom","closeEffect":"zoom","openEffect":"zoom","loop":false});
 (function() {
   let previousOnload = window.onload;
   window.onload = () => {
