@@ -12,6 +12,7 @@ else:
 
 from anthropic import (
     APIConnectionError,
+    APIStatusError,
     AsyncAnthropic,
     AsyncAnthropicBedrock,
     AsyncAnthropicVertex,
@@ -214,6 +215,17 @@ class AnthropicAPI(ModelAPI):
 
             # return output and call
             return output, model_call()
+
+        except APIStatusError as ex:
+            if ex.status_code == 413:
+                return ModelOutput.from_content(
+                    model=self.model_name,
+                    content=ex.message,
+                    stop_reason="model_length",
+                    error=ex.message,
+                ), model_call()
+            else:
+                raise ex
 
         except BadRequestError as ex:
             return self.handle_bad_request(ex), model_call()
