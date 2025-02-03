@@ -168,6 +168,10 @@ class ModelAPI(abc.ABC):
         """Tool results can contain images"""
         return False
 
+    def has_reasoning_history(self) -> bool:
+        """Chat message assistant messages can include reasoning."""
+        return False
+
 
 class Model:
     """Model interface."""
@@ -301,6 +305,11 @@ class Model:
             if not self.api.tools_required():
                 tools = []
             tool_choice = "none"
+
+        # handle reasoning history
+        input = resolve_reasoning_history(
+            input, config, self.api.has_reasoning_history()
+        )
 
         # apply any tool model_input handlers
         input = resolve_tool_model_input(tdefs, input)
@@ -724,6 +733,71 @@ def simple_input_messages(
 
     # all done!
     return messages
+
+
+def resolve_reasoning_history(
+    messages: list[ChatMessage], config: GenerateConfig, api_has_reasoning_history: bool
+) -> list[ChatMessage]:
+    # determine if we are including reasoning history
+    reasoning_history = config.reasoning_history is not False
+
+    # determine up front if we have any reasoning content
+    have_reasoning = any(
+        [
+            isinstance(m, ChatMessageAssistant) and m.reasoning is not None
+            for m in messages
+        ]
+    )
+    if not have_reasoning:
+        return messages
+
+    # API asssistant message format directly supports reasoning history so we will:
+    #   (a) Remove reasoning content entirely if config says not to include it; or
+    #   (b) Leave the messages alone if config says to include it
+    if api_has_reasoning_history:
+        # remove reasoning history as per config
+        if not reasoning_history:
+            resolved_messages: list[ChatMessage] = []
+            for message in messages:
+                if isinstance(message, ChatMessageAssistant):
+                    resolved_messages.append(
+                        message.model_copy(update={"reasoning": None})
+                    )
+                else:
+                    resolved_messages.append(message)
+
+            return resolved_messages
+
+        # include reasoning history as per config
+        else:
+            return messages
+
+    # API can't represent reasoning natively so include <think> tags
+    elif reasoning_history:
+        resolved_messages = []
+        for message in messages:
+            if (
+                isinstance(message, ChatMessageAssistant)
+                and message.reasoning is not None
+            ):
+                message = deepcopy(message)
+                if isinstance(message.content, str):
+                    message.content = (
+                        f"<think>\n{message.reasoning}\n</think>\n\n{message.content}"
+                    )
+                else:
+                    message.content.insert(
+                        0, ContentText(text=f"<think>\n{message.reasoning}\n</think>\n")
+                    )
+                message.reasoning = None
+
+            resolved_messages.append(message)
+
+        return resolved_messages
+
+    # api doesn't handle reasoning and config says no reasoning_history, nothing to do
+    else:
+        return messages
 
 
 def resolve_tool_model_input(

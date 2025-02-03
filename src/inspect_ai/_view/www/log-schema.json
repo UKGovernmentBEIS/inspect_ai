@@ -260,13 +260,26 @@
           ],
           "default": null,
           "title": "Tool Calls"
+        },
+        "reasoning": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reasoning"
         }
       },
       "required": [
         "content",
         "source",
         "role",
-        "tool_calls"
+        "tool_calls",
+        "reasoning"
       ],
       "title": "ChatMessageAssistant",
       "type": "object",
@@ -1142,7 +1155,8 @@
             "internal_tools": null,
             "max_tool_output": null,
             "cache_prompt": null,
-            "reasoning_effort": null
+            "reasoning_effort": null,
+            "reasoning_history": null
           }
         }
       },
@@ -2238,6 +2252,18 @@
           ],
           "default": null,
           "title": "Reasoning Effort"
+        },
+        "reasoning_history": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reasoning History"
         }
       },
       "title": "GenerateConfig",
@@ -2264,7 +2290,8 @@
         "internal_tools",
         "max_tool_output",
         "cache_prompt",
-        "reasoning_effort"
+        "reasoning_effort",
+        "reasoning_history"
       ],
       "additionalProperties": false
     },
@@ -4236,6 +4263,7 @@
           "parallel_tool_calls": null,
           "presence_penalty": null,
           "reasoning_effort": null,
+          "reasoning_history": null,
           "seed": null,
           "stop_seqs": null,
           "system_message": null,

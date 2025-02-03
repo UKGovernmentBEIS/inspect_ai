@@ -111,6 +111,17 @@ def transcript_panel(
     )
 
 
+def transcript_reasoning(reasoning: str) -> list[RenderableType]:
+    content: list[RenderableType] = []
+    content.append(
+        transcript_markdown(
+            f"**<think>**  \n{reasoning}  \n**</think>**\n\n", escape=True
+        )
+    )
+    content.append(Text())
+    return content
+
+
 def transcript_separator(title: str, color: str) -> RenderableType:
     return Rule(title=title, style=f"{color} bold", align="center", end="\n\n")
 

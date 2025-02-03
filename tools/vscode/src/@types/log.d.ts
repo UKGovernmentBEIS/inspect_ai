@@ -79,6 +79,7 @@ export type InternalTools = boolean | null;
 export type MaxToolOutput = number | null;
 export type CachePrompt = "auto" | boolean | null;
 export type ReasoningEffort = ("low" | "medium" | "high") | null;
+export type ReasoningHistory = boolean | null;
 export type TotalSamples = number;
 export type CompletedSamples = number;
 export type Name3 = string;
@@ -146,6 +147,7 @@ export type ParseError = string | null;
 export type Title = string | null;
 export type Format2 = "text" | "markdown";
 export type Content3 = string;
+export type Reasoning = string | null;
 export type Content4 =
   | string
   | (ContentText | ContentImage | ContentAudio | ContentVideo)[];
@@ -555,6 +557,7 @@ export interface GenerateConfig {
   max_tool_output: MaxToolOutput;
   cache_prompt: CachePrompt;
   reasoning_effort: ReasoningEffort;
+  reasoning_history: ReasoningHistory;
 }
 export interface EvalResults {
   total_samples: TotalSamples;
@@ -656,6 +659,7 @@ export interface ChatMessageAssistant {
   source: Source2;
   role: Role2;
   tool_calls: ToolCalls;
+  reasoning: Reasoning;
 }
 export interface ToolCall {
   id: Id1;
@@ -908,6 +912,7 @@ export interface GenerateConfig1 {
   max_tool_output: MaxToolOutput;
   cache_prompt: CachePrompt;
   reasoning_effort: ReasoningEffort;
+  reasoning_history: ReasoningHistory;
 }
 /**
  * Model call (raw request/response data).

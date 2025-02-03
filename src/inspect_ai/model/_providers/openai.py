@@ -35,6 +35,7 @@ from .._model_output import (
     StopReason,
 )
 from .._openai import (
+    is_gpt,
     is_o1_full,
     is_o1_mini,
     is_o1_preview,
@@ -155,6 +156,9 @@ class OpenAIAPI(ModelAPI):
 
     def is_o1_preview(self) -> bool:
         return is_o1_preview(self.model_name)
+
+    def is_gpt(self) -> bool:
+        return is_gpt(self.model_name)
 
     async def generate(
         self,
@@ -299,7 +303,7 @@ class OpenAIAPI(ModelAPI):
             params["top_logprobs"] = config.top_logprobs
         if tools and config.parallel_tool_calls is not None and not self.is_o_series():
             params["parallel_tool_calls"] = config.parallel_tool_calls
-        if config.reasoning_effort is not None and self.is_o1_full() or self.is_o3():
+        if config.reasoning_effort is not None and not self.is_gpt():
             params["reasoning_effort"] = config.reasoning_effort
 
         return params

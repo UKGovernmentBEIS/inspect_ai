@@ -71,6 +71,10 @@ def is_o1_preview(name: str) -> bool:
     return name.startswith("o1-preview")
 
 
+def is_gpt(name: str) -> bool:
+    return name.startswith("gpt")
+
+
 def openai_chat_tool_call(tool_call: ToolCall) -> ChatCompletionMessageToolCall:
     return ChatCompletionMessageToolCall(
         type="function",
@@ -308,6 +312,14 @@ def chat_messages_from_openai(
             else:
                 content = [content_from_openai(c) for c in asst_content]
 
+            # resolve reasoning (OpenAI doesn't suport this however OpenAI-compatible
+            # interfaces e.g. DeepSeek do include this field so we pluck it out)
+            reasoning = message.get("reasoning_content", None) or message.get(
+                "reasoning", None
+            )
+            if reasoning is not None:
+                reasoning = str(reasoning)
+
             # return message
             if "tool_calls" in message:
                 tool_calls: list[ToolCall] = []
@@ -318,7 +330,11 @@ def chat_messages_from_openai(
             else:
                 tool_calls = []
             chat_messages.append(
-                ChatMessageAssistant(content=content, tool_calls=tool_calls or None)
+                ChatMessageAssistant(
+                    content=content,
+                    tool_calls=tool_calls or None,
+                    reasoning=reasoning,
+                )
             )
         elif message["role"] == "tool":
             tool_content = message.get("content", None) or ""
@@ -369,10 +385,14 @@ def chat_message_assistant_from_openai(
     message: ChatCompletionMessage, tools: list[ToolInfo]
 ) -> ChatMessageAssistant:
     refusal = getattr(message, "refusal", None)
+    reasoning = getattr(message, "reasoning_content", None) or getattr(
+        message, "reasoning", None
+    )
     return ChatMessageAssistant(
         content=refusal or message.content or "",
         source="generate",
         tool_calls=chat_tool_calls_from_openai(message, tools),
+        reasoning=reasoning,
     )
 
 
