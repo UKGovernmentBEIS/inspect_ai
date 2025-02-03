@@ -8,6 +8,7 @@ import { ExpandablePanel } from "./ExpandablePanel.mjs";
 import { FontSize, TextStyle } from "../appearance/Fonts.mjs";
 import { resolveToolInput, ToolCallView } from "./Tools.mjs";
 import { VirtualList } from "./VirtualList.mjs";
+import { MarkdownDiv } from "./MarkdownDiv.mjs";
 
 /**
  * Renders the ChatViewVirtualList component.
@@ -291,13 +292,20 @@ const ChatMessage = ({
                 paddingBottom: "0.8rem",
               }}
             >
-              <div>(Reasoning)</div>
-              <div>${message.reasoning}</div>
+              <div style=${{ ...TextStyle.label, ...TextStyle.secondary }}>Reasoning</div>
+              <${ExpandablePanel} collapse=${true}><${MarkdownDiv} markdown=${message.reasoning}/></${ExpandablePanel}>
             </div>`
           : undefined
       }
 
       <div style=${{ marginLeft: indented ? "1.1rem" : "0", paddingBottom: indented ? "0.8rem" : "0" }}>
+      ${
+        message.role === "assistant" && message.reasoning
+          ? html`<div style=${{ ...TextStyle.label, ...TextStyle.secondary }}>
+              Response
+            </div>`
+          : ""
+      }
       <${ExpandablePanel} collapse=${collapse}>
         <${MessageContents}
           key=${`${id}-contents`}

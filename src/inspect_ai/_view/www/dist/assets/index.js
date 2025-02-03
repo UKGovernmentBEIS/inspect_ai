@@ -16144,13 +16144,18 @@ var require_assets = __commonJS({
         ${message.role}
       </div>
       
-      ${message.role === "assistant" && message.reasoning ? m$1`
-          <div style=${{ marginLeft: indented ? "1.1rem" : "0", paddingBottom: "0.8rem" }}>
-          <div>(Reasoning)</div>
-          <div>${message.reasoning}</div>
-          </div>` : void 0}
+      ${message.role === "assistant" && message.reasoning ? m$1` <div
+              style=${{
+        marginLeft: indented ? "1.1rem" : "0",
+        paddingBottom: "0.8rem"
+      }}
+            >
+              <div style=${{ ...TextStyle.label, ...TextStyle.secondary }}>Reasoning</div>
+              <${ExpandablePanel} collapse=${true}><${MarkdownDiv} markdown=${message.reasoning}/></${ExpandablePanel}>
+            </div>` : void 0}
 
       <div style=${{ marginLeft: indented ? "1.1rem" : "0", paddingBottom: indented ? "0.8rem" : "0" }}>
+      ${message.role === "assistant" && message.reasoning ? m$1`<div style=${{ ...TextStyle.label, ...TextStyle.secondary }}>Response</div>` : ""}
       <${ExpandablePanel} collapse=${collapse}>
         <${MessageContents}
           key=${`${id}-contents`}
