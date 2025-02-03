@@ -15608,9 +15608,6 @@ ul.jsondiffpatch-textdiff {
   padding: 0.1rem 0.6rem;
   border-radius: var(--bs-border-radius);
 }
-.markdown-ordered-list-item {
-  margin-bottom: 0.2em;
-}
 .expandable-bordered {
   border: solid var(--bs-light-border-subtle) 1px;
 }
@@ -15650,6 +15647,9 @@ ul.jsondiffpatch-textdiff {
   font-size: var(--inspect-font-size-smaller);
   border: none;
   padding: 0.1rem 0.5rem;
+}
+.markdown-ordered-list-item {
+  margin-bottom: 0.2em;
 }
 ._message_xh8qq_1 {
   font-weight: 300;

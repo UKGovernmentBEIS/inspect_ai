@@ -16065,18 +16065,6 @@ var require_assets = __commonJS({
         }
       ) }) });
     };
-    const message$1 = "_message_xh8qq_1";
-    const systemRole = "_systemRole_xh8qq_9";
-    const messageGrid = "_messageGrid_xh8qq_13";
-    const messageContents = "_messageContents_xh8qq_21";
-    const indented = "_indented_xh8qq_26";
-    const styles$10 = {
-      message: message$1,
-      systemRole,
-      messageGrid,
-      messageContents,
-      indented
-    };
     const decodeCache = {};
     function getDecodeCache(exclude) {
       let cache = decodeCache[exclude];
@@ -21327,6 +21315,18 @@ var require_assets = __commonJS({
         }
       );
     }
+    const message$1 = "_message_xh8qq_1";
+    const systemRole = "_systemRole_xh8qq_9";
+    const messageGrid = "_messageGrid_xh8qq_13";
+    const messageContents = "_messageContents_xh8qq_21";
+    const indented = "_indented_xh8qq_26";
+    const styles$10 = {
+      message: message$1,
+      systemRole,
+      messageGrid,
+      messageContents,
+      indented
+    };
     const contentImage = "_contentImage_121dp_1";
     const styles$$ = {
       contentImage
@@ -21920,22 +21920,29 @@ var require_assets = __commonJS({
               /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: iconForMsg(message2) }),
               message2.role
             ] }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx(
+            message2.role === "assistant" && message2.reasoning ? /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-label", "text-style-secondary"), children: "Reasoning" }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx(ExpandablePanel, { collapse: true, children: /* @__PURE__ */ jsxRuntimeExports.jsx(MarkdownDiv, { markdown: message2.reasoning }) })
+            ] }) : void 0,
+            /* @__PURE__ */ jsxRuntimeExports.jsxs(
               "div",
               {
                 className: clsx(
                   styles$10.messageContents,
                   indented2 ? styles$10.indented : void 0
                 ),
-                children: /* @__PURE__ */ jsxRuntimeExports.jsx(ExpandablePanel, { collapse, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-                  MessageContents,
-                  {
-                    message: message2,
-                    toolMessages,
-                    toolCallStyle
-                  },
-                  `${id}-contents`
-                ) })
+                children: [
+                  message2.role === "assistant" && message2.reasoning ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-label", "text-style-secondary"), children: "Response" }) : void 0,
+                  /* @__PURE__ */ jsxRuntimeExports.jsx(ExpandablePanel, { collapse, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+                    MessageContents,
+                    {
+                      message: message2,
+                      toolMessages,
+                      toolCallStyle
+                    },
+                    `${id}-contents`
+                  ) })
+                ]
               }
             )
           ]
