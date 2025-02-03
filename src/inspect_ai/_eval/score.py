@@ -207,7 +207,7 @@ def metrics_from_log(log: EvalLog) -> list[Metric]:
 
 
 def metric_from_log(metric: EvalMetric) -> Metric:
-    return cast(Metric, registry_create("metric", metric.name, **metric.options))
+    return cast(Metric, registry_create("metric", metric.name, **metric.params))
 
 
 def reducers_from_log(log: EvalLog) -> list[ScoreReducer] | None:

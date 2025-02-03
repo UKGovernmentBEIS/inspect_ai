@@ -295,8 +295,8 @@ class EvalMetric(BaseModel):
     value: int | float
     """Metric value."""
 
-    options: dict[str, Any] = Field(default_factory=dict)
-    """Options specified when creating metric."""
+    params: dict[str, Any] = Field(default_factory=dict)
+    """Params specified when creating metric."""
 
     metadata: dict[str, Any] | None = Field(default=None)
     """Additional metadata associated with metric."""
