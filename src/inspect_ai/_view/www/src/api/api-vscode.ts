@@ -1,16 +1,16 @@
-import { asyncJsonParse } from "../utils/json-worker";
 import JSON5 from "json5";
+import { asyncJsonParse } from "../utils/json-worker";
 
+import { getVscodeApi } from "../utils/vscode";
 import {
-  webViewJsonRpcClient,
   kMethodEvalLog,
-  kMethodEvalLogs,
-  kMethodEvalLogSize,
   kMethodEvalLogBytes,
   kMethodEvalLogHeaders,
+  kMethodEvalLogs,
+  kMethodEvalLogSize,
+  webViewJsonRpcClient,
 } from "./jsonrpc";
-import { getVscodeApi } from "../utils/vscode";
-import { Capabilities, LogContents, LogViewAPI } from "./Types";
+import { Capabilities, LogContents, LogViewAPI } from "./types";
 
 const vscodeClient = webViewJsonRpcClient(getVscodeApi());
 

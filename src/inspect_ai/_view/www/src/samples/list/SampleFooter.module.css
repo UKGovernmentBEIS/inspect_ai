@@ -1,0 +1,9 @@
+.footer {
+  border-top: solid var(--bs-light-border-subtle) 1px;
+  background: var(--bs-light-bg-subtle);
+  display: grid;
+  grid-template-columns: max-content;
+  justify-content: end;
+  align-content: end;
+  padding: 0.2em 1em;
+}

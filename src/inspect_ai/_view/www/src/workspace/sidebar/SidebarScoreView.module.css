@@ -1,0 +1,23 @@
+.container {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.metric {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  margin-left: 1em;
+  margin-bottom: 0.4em;
+  margin-top: 0.5rem;
+}
+
+.metricName {
+  margin-bottom: -0.3em;
+}
+
+.metricReducer {
+  margin-bottom: -0.2rem;
+}

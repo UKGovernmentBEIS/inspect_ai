@@ -1,0 +1,13 @@
+.header {
+  display: grid;
+  padding-bottom: 0.3em;
+  padding-top: 0.3em;
+  border-bottom: solid var(--bs-light-border-subtle) 1px;
+  grid-gap: 10px;
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+.center {
+  justify-self: center;
+}

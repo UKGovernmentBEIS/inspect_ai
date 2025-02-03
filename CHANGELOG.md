@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Inspect View: Convert codebase from JS/Preact to Typescript/React
+
 ## v0.3.62 (03 February 2025)
 
 - Various improvements for [reasoning models](https://github.com/UKGovernmentBEIS/inspect_ai/pull/1229) including extracting reasoning content from assistant messages.
