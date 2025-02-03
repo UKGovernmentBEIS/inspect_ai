@@ -107,8 +107,10 @@ def stderr(
                 cluster_data - mean, cluster_data - mean
             ).sum()
 
-        # Divide by (C - 1) instead of C to unbias the variance estimate
-        standard_error = np.sqrt(clustered_variance / cluster_count - 1)
+        # Multiply by C / (C - 1) to unbias the variance estimate
+        standard_error = np.sqrt(
+            clustered_variance * cluster_count / (cluster_count - 1)
+        ) / len(scores)
 
         return cast(float, standard_error)
 

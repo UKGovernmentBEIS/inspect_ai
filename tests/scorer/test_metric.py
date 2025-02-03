@@ -344,4 +344,4 @@ def test_clustered_stderr():
             for i in range(20)
         ]
     )
-    assert se == 5.5
+    assert round(se, 3) == 0.645
