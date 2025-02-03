@@ -4,7 +4,7 @@ project:
       - CNAME
       - llms.txt
    pre-render: 
-      - reference/sidebar.py
+      - reference/filter/sidebar.py
    post-render: 
       - scripts/post-render.sh
 

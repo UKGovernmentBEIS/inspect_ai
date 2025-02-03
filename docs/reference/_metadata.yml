@@ -1,6 +1,6 @@
 toc-depth: 3
 toc-expand: true
 filters: 
-   - reference.py
-   - markdown.lua
+   - filter/filter.py
+   - filter/markdown.lua
 

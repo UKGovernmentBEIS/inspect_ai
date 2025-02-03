@@ -1,4 +1,3 @@
-from dataclasses import dataclass, field
 import subprocess
 from typing import Any, cast
 
@@ -6,7 +5,9 @@ from griffe import Module
 import griffe
 import panflute as pf # type: ignore
 
-from parse import DocFunction, DocParseOptions, parse_docs
+from parse import DocParseOptions, parse_docs
+from render import render_docs
+
 
 def main():
 
@@ -19,31 +20,20 @@ def main():
         source_url=source_url
     )
 
-    # render reference elements
-    def ref_elements(module: str, elem: pf.Element) -> list[pf.Element]:
-        # get target object
-        object = f"{module}.{pf.stringify(elem.content)}"
-
-        # render doc header
-        elements: list[pf.Element] = []
-        docs = parse_docs(object, parse_options)
-        elements.append(elem)
-        elements.append(pf.RawBlock(docs.description, "markdown"))
-
-        # type specific rendering
-        if isinstance(docs, DocFunction):
-            elements.append(pf.CodeBlock(docs.declaration, classes = ["python"]))
-        
-        # return elements
-        return elements
-
     # convert h3 into reference
     def reference(elem: pf.Element, doc: pf.Doc):
         if isinstance(elem, pf.Header) and elem.level == 3:
             title = pf.stringify(doc.metadata["title"])
             if title.startswith("inspect_ai."):
+                # get target object
                 module = title.removeprefix("inspect_ai.")
-                return ref_elements(module, elem)
+                object = f"{module}.{pf.stringify(elem.content)}"
+
+                # parse docs
+                docs = parse_docs(object, parse_options)
+
+                # render docs
+                return render_docs(elem, docs)
 
     return pf.run_filter(reference)
 
