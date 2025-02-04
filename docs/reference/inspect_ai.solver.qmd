@@ -2,11 +2,6 @@
 title: "inspect_ai.solver"
 ---
 
-<!--
-TODO: restore code copy to examples
-
--->
-
 ## Generation
 
 ### generate

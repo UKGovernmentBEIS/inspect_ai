@@ -13,7 +13,7 @@ def render_docs(elem: pf.Element, docs: DocObject) -> list[pf.Element]:
     elements.append(pf.Div(pf.Plain(pf.Link(pf.Str("Source"), url=docs.source)), classes=["source-link"]))
 
     # declaration
-    elements.append(pf.CodeBlock(docs.declaration, classes = ["python"]))
+    elements.append(pf.CodeBlock(docs.declaration, classes = ["python", "doc-declaration"]))
 
     # type specific rendering
     if isinstance(docs, DocFunction):
