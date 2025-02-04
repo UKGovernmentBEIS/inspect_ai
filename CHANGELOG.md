@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Inspect View: Convert codebase from JS/Preact to Typescript/React
+- Add `stop_words` param to the `f1` scorer. `stop_words` will be removed from the target and answer during normalization.
 
 ## v0.3.62 (03 February 2025)
 
