@@ -4,7 +4,6 @@ title: "inspect_ai.solver"
 
 <!--
 TODO:
-  Consolidate type into first column
   'Returns'
   'Examples'
    sections (multiple choice)
