@@ -64,7 +64,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="../site_libs/quarto-search/fuse.min.js"></script>
 <script src="../site_libs/quarto-search/quarto-search.js"></script>
 <meta name="quarto:offset" content="../">
-<link href="../reference/inspect_ai.solver.qmd#prompt_template" rel="next">
+<link href="../reference/inspect_ai.solver.qmd#generate" rel="next">
 <link href="../reference/index.html" rel="prev">
 <script src="../site_libs/quarto-html/quarto.js"></script>
 <script src="../site_libs/quarto-html/popper.min.js"></script>
@@ -197,6 +197,18 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
       <ul id="quarto-sidebar-section-1" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.solver.html#generate" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">generate</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.solver.html#use_tools" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">use_tools</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.solver.html#prompt_template" class="sidebar-item-text sidebar-link">
  <span class="menu-text">prompt_template</span></a>
   </div>
@@ -227,6 +239,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.solver.html#multiple_choice" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">multiple_choice</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.solver.html#basic_agent" class="sidebar-item-text sidebar-link">
  <span class="menu-text">basic_agent</span></a>
   </div>
@@ -235,6 +253,36 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.solver.html#human_agent" class="sidebar-item-text sidebar-link">
  <span class="menu-text">human_agent</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.solver.html#chain" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">chain</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.solver.html#fork" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">fork</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.solver.html#bridge" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">bridge</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.solver.html#Solver" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Solver</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.solver.html#solver" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">solver</span></a>
   </div>
 </li>
       </ul>
@@ -278,18 +326,35 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#prompts" id="toc-prompts" class="nav-link active" data-scroll-target="#prompts">Prompts</a>
+  <li><a href="#generation" id="toc-generation" class="nav-link active" data-scroll-target="#generation">Generation</a>
+  <ul class="collapse">
+  <li><a href="#generate" id="toc-generate" class="nav-link" data-scroll-target="#generate">generate</a></li>
+  <li><a href="#use_tools" id="toc-use_tools" class="nav-link" data-scroll-target="#use_tools">use_tools</a></li>
+  </ul></li>
+  <li><a href="#prompting" id="toc-prompting" class="nav-link" data-scroll-target="#prompting">Prompting</a>
   <ul class="collapse">
   <li><a href="#prompt_template" id="toc-prompt_template" class="nav-link" data-scroll-target="#prompt_template">prompt_template</a></li>
   <li><a href="#system_message" id="toc-system_message" class="nav-link" data-scroll-target="#system_message">system_message</a></li>
   <li><a href="#user_message" id="toc-user_message" class="nav-link" data-scroll-target="#user_message">user_message</a></li>
   <li><a href="#chain_of_thought" id="toc-chain_of_thought" class="nav-link" data-scroll-target="#chain_of_thought">chain_of_thought</a></li>
   <li><a href="#self_critique" id="toc-self_critique" class="nav-link" data-scroll-target="#self_critique">self_critique</a></li>
+  <li><a href="#multiple_choice" id="toc-multiple_choice" class="nav-link" data-scroll-target="#multiple_choice">multiple_choice</a></li>
   </ul></li>
   <li><a href="#agents" id="toc-agents" class="nav-link" data-scroll-target="#agents">Agents</a>
   <ul class="collapse">
   <li><a href="#basic_agent" id="toc-basic_agent" class="nav-link" data-scroll-target="#basic_agent">basic_agent</a></li>
   <li><a href="#human_agent" id="toc-human_agent" class="nav-link" data-scroll-target="#human_agent">human_agent</a></li>
+  </ul></li>
+  <li><a href="#composition" id="toc-composition" class="nav-link" data-scroll-target="#composition">Composition</a>
+  <ul class="collapse">
+  <li><a href="#chain" id="toc-chain" class="nav-link" data-scroll-target="#chain">chain</a></li>
+  <li><a href="#fork" id="toc-fork" class="nav-link" data-scroll-target="#fork">fork</a></li>
+  <li><a href="#bridge" id="toc-bridge" class="nav-link" data-scroll-target="#bridge">bridge</a></li>
+  </ul></li>
+  <li><a href="#solver" id="toc-solver" class="nav-link" data-scroll-target="#solver">Solver</a>
+  <ul class="collapse">
+  <li><a href="#solver-1" id="toc-solver-1" class="nav-link" data-scroll-target="#solver-1">Solver</a></li>
+  <li><a href="#solver-2" id="toc-solver-2" class="nav-link" data-scroll-target="#solver-2">solver</a></li>
   </ul></li>
   </ul>
 <div class="toc-actions"><ul><li><a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div></nav>
@@ -316,43 +381,126 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </header>
 
 
-<!--
-TODO:
-  Consolidate type into first column
-  'Returns'
-  'Examples'
-   sections (multiple choice)
-
--->
-<section id="prompts" class="level2">
-<h2 class="anchored" data-anchor-id="prompts">Prompts</h2>
+<section id="generation" class="level2">
+<h2 class="anchored" data-anchor-id="generation">Generation</h2>
+<section id="generate" class="level3">
+<h3 class="anchored" data-anchor-id="generate">generate</h3>
+<p>Generate output from the model and append it to task message history.</p>
+<p>generate() is the default solver if none is specified for a given task.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/31f30d9bde25ecaa8b4dcadae3effa38d86bf7e2/src/inspect_ai/solver/_solver.py#L255">Source</a>
+</div>
+<div class="sourceCode" id="cb1"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="at">@solver</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> generate(</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    tool_calls: Literal[<span class="st">"loop"</span>, <span class="st">"single"</span>, <span class="st">"none"</span>] <span class="op">=</span> <span class="st">"loop"</span>,</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>    cache: <span class="bu">bool</span> <span class="op">|</span> CachePolicy <span class="op">=</span> <span class="va">False</span>,</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    <span class="op">**</span>kwargs: Unpack[GenerateConfigArgs],</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> Solver</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 75%">
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">Argument</th>
+<th style="text-align: left;">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;"><code>tool_calls</code><br>
+<span class="argument-type">Literal['loop', 'single', 'none']</span></td>
+<td style="text-align: left;"><p>Resolve tool calls: - <code>"loop"</code> resolves tools calls and then invokes <code>generate()</code>, proceeding in a loop which terminates when there are no more tool calls or <code>message_limit</code> or <code>token_limit</code> is exceeded. This is the default behavior. - <code>"single"</code> resolves at most a single set of tool calls and then returns. - <code>"none"</code> does not resolve tool calls at all (in this case you will need to invoke <code>call_tools()</code> directly).</p></td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><code>cache</code><br>
+<span class="argument-type">bool | CachePolicy</span></td>
+<td style="text-align: left;"><p>(bool | CachePolicy): Caching behaviour for generate responses (defaults to no caching).</p></td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;"><code>**kwargs</code><br>
+<span class="argument-type">Unpack[GenerateConfigArgs]</span></td>
+<td style="text-align: left;"><p>Optional generation config arguments.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="use_tools" class="level3">
+<h3 class="anchored" data-anchor-id="use_tools">use_tools</h3>
+<p>Inject tools into the task state to be used in generate().</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/31f30d9bde25ecaa8b4dcadae3effa38d86bf7e2/src/inspect_ai/solver/_use_tools.py#L8">Source</a>
+</div>
+<div class="sourceCode" id="cb2"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="at">@solver</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> use_tools(</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>    <span class="op">*</span>tools: Tool <span class="op">|</span> <span class="bu">list</span>[Tool],</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>    tool_choice: ToolChoice <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="st">"auto"</span>,</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>    append: <span class="bu">bool</span> <span class="op">=</span> <span class="va">False</span>,</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> Solver</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 75%">
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">Argument</th>
+<th style="text-align: left;">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;"><code>*tools</code><br>
+<span class="argument-type">Tool | list[Tool]</span></td>
+<td style="text-align: left;"><p>One or more tools or lists of tools to make available to the model. If no tools are passed, then no change to the currently available set of <code>tools</code> is made.</p></td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><code>tool_choice</code><br>
+<span class="argument-type">ToolChoice | None</span></td>
+<td style="text-align: left;"><p>Directive indicating which tools the model should use. If <code>None</code> is passed, then no change to <code>tool_choice</code> is made.</p></td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;"><code>append</code><br>
+<span class="argument-type">bool</span></td>
+<td style="text-align: left;"><p>If <code>True</code>, then the passed-in tools are appended to the existing tools; otherwise any existing tools are replaced (the default)</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
+<section id="prompting" class="level2">
+<h2 class="anchored" data-anchor-id="prompting">Prompting</h2>
 <section id="prompt_template" class="level3">
 <h3 class="anchored" data-anchor-id="prompt_template">prompt_template</h3>
 <p>Parameterized prompt template.</p>
 <p>Prompt template containing a <code>{prompt}</code> placeholder and any number of additional <code>params</code>. All values contained in sample <code>metadata</code> and <code>store</code> are also automatically included in the <code>params</code>.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/3d6635f0d91a8c3ba5834f5cdfc9685b211967f6/src/inspect_ai/solver/_prompt.py#L13">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/31f30d9bde25ecaa8b4dcadae3effa38d86bf7e2/src/inspect_ai/solver/_prompt.py#L13">Source</a>
 </div>
-<div class="sourceCode" id="cb1"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="at">@solver</span></span>
-<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> prompt_template(template: <span class="bu">str</span>, <span class="op">**</span>params: Any) <span class="op">-&gt;</span> Solver</span></code></pre></div>
+<div class="sourceCode" id="cb3"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="at">@solver</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> prompt_template(template: <span class="bu">str</span>, <span class="op">**</span>params: Any) <span class="op">-&gt;</span> Solver</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 75%">
+</colgroup>
 <thead>
 <tr class="header">
-<th>Argument</th>
-<th>Type</th>
-<th>Description</th>
+<th style="text-align: left;">Argument</th>
+<th style="text-align: left;">Description</th>
 </tr>
 </thead>
 <tbody>
 <tr class="odd">
-<td><code>template</code></td>
-<td>str</td>
-<td>Template for prompt.</td>
+<td style="text-align: left;"><code>template</code><br>
+<span class="argument-type">str</span></td>
+<td style="text-align: left;"><p>Template for prompt.</p></td>
 </tr>
 <tr class="even">
-<td><code>**params</code></td>
-<td>Any</td>
-<td>Parameters to fill into the template.</td>
+<td style="text-align: left;"><code>**params</code><br>
+<span class="argument-type">Any</span></td>
+<td style="text-align: left;"><p>Parameters to fill into the template.</p></td>
 </tr>
 </tbody>
 </table>
@@ -363,28 +511,31 @@ TODO:
 <p>System message template containing any number of optional <code>params</code>. for substitution using the <code>str.format()</code> method. All values contained in sample <code>metadata</code> and <code>store</code> are also automatically included in the <code>params</code>.</p>
 <p>The new message will go after other system messages (if there are none it will be inserted at the beginning of the conversation).</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/3d6635f0d91a8c3ba5834f5cdfc9685b211967f6/src/inspect_ai/solver/_prompt.py#L41">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/31f30d9bde25ecaa8b4dcadae3effa38d86bf7e2/src/inspect_ai/solver/_prompt.py#L41">Source</a>
 </div>
-<div class="sourceCode" id="cb2"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="at">@solver</span></span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> system_message(template: <span class="bu">str</span>, <span class="op">**</span>params: Any) <span class="op">-&gt;</span> Solver</span></code></pre></div>
+<div class="sourceCode" id="cb4"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="at">@solver</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> system_message(template: <span class="bu">str</span>, <span class="op">**</span>params: Any) <span class="op">-&gt;</span> Solver</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 75%">
+</colgroup>
 <thead>
 <tr class="header">
-<th>Argument</th>
-<th>Type</th>
-<th>Description</th>
+<th style="text-align: left;">Argument</th>
+<th style="text-align: left;">Description</th>
 </tr>
 </thead>
 <tbody>
 <tr class="odd">
-<td><code>template</code></td>
-<td>str</td>
-<td>Template for system message.</td>
+<td style="text-align: left;"><code>template</code><br>
+<span class="argument-type">str</span></td>
+<td style="text-align: left;"><p>Template for system message.</p></td>
 </tr>
 <tr class="even">
-<td><code>**params</code></td>
-<td>Any</td>
-<td>Parameters to fill into the template.</td>
+<td style="text-align: left;"><code>**params</code><br>
+<span class="argument-type">Any</span></td>
+<td style="text-align: left;"><p>Parameters to fill into the template.</p></td>
 </tr>
 </tbody>
 </table>
@@ -394,28 +545,31 @@ TODO:
 <p>Solver which inserts a user message into the conversation.</p>
 <p>User message template containing any number of optional <code>params</code>. for substitution using the <code>str.format()</code> method. All values contained in sample <code>metadata</code> and <code>store</code> are also automatically included in the <code>params</code>.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/3d6635f0d91a8c3ba5834f5cdfc9685b211967f6/src/inspect_ai/solver/_prompt.py#L73">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/31f30d9bde25ecaa8b4dcadae3effa38d86bf7e2/src/inspect_ai/solver/_prompt.py#L73">Source</a>
 </div>
-<div class="sourceCode" id="cb3"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="at">@solver</span></span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> user_message(template: <span class="bu">str</span>, <span class="op">**</span>params: Any) <span class="op">-&gt;</span> Solver</span></code></pre></div>
+<div class="sourceCode" id="cb5"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="at">@solver</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> user_message(template: <span class="bu">str</span>, <span class="op">**</span>params: Any) <span class="op">-&gt;</span> Solver</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 75%">
+</colgroup>
 <thead>
 <tr class="header">
-<th>Argument</th>
-<th>Type</th>
-<th>Description</th>
+<th style="text-align: left;">Argument</th>
+<th style="text-align: left;">Description</th>
 </tr>
 </thead>
 <tbody>
 <tr class="odd">
-<td><code>template</code></td>
-<td>str</td>
-<td>Template for user message.</td>
+<td style="text-align: left;"><code>template</code><br>
+<span class="argument-type">str</span></td>
+<td style="text-align: left;"><p>Template for user message.</p></td>
 </tr>
 <tr class="even">
-<td><code>**params</code></td>
-<td>Any</td>
-<td>Parameters to fill into the template.</td>
+<td style="text-align: left;"><code>**params</code><br>
+<span class="argument-type">Any</span></td>
+<td style="text-align: left;"><p>Parameters to fill into the template.</p></td>
 </tr>
 </tbody>
 </table>
@@ -424,23 +578,26 @@ TODO:
 <h3 class="anchored" data-anchor-id="chain_of_thought">chain_of_thought</h3>
 <p>Solver which modifies the user prompt to encourage chain of thought.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/3d6635f0d91a8c3ba5834f5cdfc9685b211967f6/src/inspect_ai/solver/_prompt.py#L107">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/31f30d9bde25ecaa8b4dcadae3effa38d86bf7e2/src/inspect_ai/solver/_prompt.py#L107">Source</a>
 </div>
-<div class="sourceCode" id="cb4"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="at">@solver</span></span>
-<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> chain_of_thought(template: <span class="bu">str</span> <span class="op">=</span> DEFAULT_COT_TEMPLATE) <span class="op">-&gt;</span> Solver</span></code></pre></div>
+<div class="sourceCode" id="cb6"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="at">@solver</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> chain_of_thought(template: <span class="bu">str</span> <span class="op">=</span> DEFAULT_COT_TEMPLATE) <span class="op">-&gt;</span> Solver</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 75%">
+</colgroup>
 <thead>
 <tr class="header">
-<th>Argument</th>
-<th>Type</th>
-<th>Description</th>
+<th style="text-align: left;">Argument</th>
+<th style="text-align: left;">Description</th>
 </tr>
 </thead>
 <tbody>
 <tr class="odd">
-<td><code>template</code></td>
-<td>str</td>
-<td><code>prompt</code>.</td>
+<td style="text-align: left;"><code>template</code><br>
+<span class="argument-type">str</span></td>
+<td style="text-align: left;"><p>String or path to file containing CoT template. The template uses a single variable: <code>prompt</code>.</p></td>
 </tr>
 </tbody>
 </table>
@@ -450,37 +607,100 @@ TODO:
 <p>Solver which uses a model to critique the original answer.</p>
 <p>The <code>critique_template</code> is used to generate a critique and the <code>completion_template</code> is used to play that critique back to the model for an improved response. Note that you can specify an alternate <code>model</code> for critique (you don’t need to use the model being evaluated).</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/3d6635f0d91a8c3ba5834f5cdfc9685b211967f6/src/inspect_ai/solver/_critique.py#L13">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/31f30d9bde25ecaa8b4dcadae3effa38d86bf7e2/src/inspect_ai/solver/_critique.py#L13">Source</a>
 </div>
-<div class="sourceCode" id="cb5"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="at">@solver</span></span>
-<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> self_critique(</span>
-<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>    critique_template: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>    completion_template: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>    model: <span class="bu">str</span> <span class="op">|</span> Model <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> Solver</span></code></pre></div>
+<div class="sourceCode" id="cb7"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="at">@solver</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> self_critique(</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>    critique_template: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>    completion_template: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>    model: <span class="bu">str</span> <span class="op">|</span> Model <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> Solver</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 75%">
+</colgroup>
 <thead>
 <tr class="header">
-<th>Argument</th>
-<th>Type</th>
-<th>Description</th>
+<th style="text-align: left;">Argument</th>
+<th style="text-align: left;">Description</th>
 </tr>
 </thead>
 <tbody>
 <tr class="odd">
-<td><code>critique_template</code></td>
-<td>str | None</td>
-<td><code>question</code> and <code>completion</code>. Variables from sample <code>metadata</code> are also available in the template.</td>
+<td style="text-align: left;"><code>critique_template</code><br>
+<span class="argument-type">str | None</span></td>
+<td style="text-align: left;"><p>String or path to file containing critique template. The template uses two variables: <code>question</code> and <code>completion</code>. Variables from sample <code>metadata</code> are also available in the template.</p></td>
 </tr>
 <tr class="even">
-<td><code>completion_template</code></td>
-<td>str | None</td>
-<td><code>question</code>, <code>completion</code>, and <code>critique</code></td>
+<td style="text-align: left;"><code>completion_template</code><br>
+<span class="argument-type">str | None</span></td>
+<td style="text-align: left;"><p>String or path to file containing completion template. The template uses three variables: <code>question</code>, <code>completion</code>, and <code>critique</code></p></td>
 </tr>
 <tr class="odd">
-<td><code>model</code></td>
-<td>str | Model | None</td>
-<td>Alternate model to be used for critique (by default the model being evaluated is used).</td>
+<td style="text-align: left;"><code>model</code><br>
+<span class="argument-type">str | Model | None</span></td>
+<td style="text-align: left;"><p>Alternate model to be used for critique (by default the model being evaluated is used).</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="multiple_choice" class="level3">
+<h3 class="anchored" data-anchor-id="multiple_choice">multiple_choice</h3>
+<p>Multiple choice question solver. Formats a multiple choice question prompt, then calls <code>generate()</code>.</p>
+<p>Note that due to the way this solver works, it has some constraints:</p>
+<ol type="1">
+<li>The <code>Sample</code> must have the <code>choices</code> attribute set.</li>
+<li>The only built-in compatible scorer is the <code>choice</code> scorer.</li>
+<li>It calls <code>generate()</code> internally, so you don’t need to call it again</li>
+</ol>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/31f30d9bde25ecaa8b4dcadae3effa38d86bf7e2/src/inspect_ai/solver/_multiple_choice.py#L204">Source</a>
+</div>
+<div class="sourceCode" id="cb8"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="at">@solver</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> multiple_choice(</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>    <span class="op">*</span>,</span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>    template: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>    cot: <span class="bu">bool</span> <span class="op">=</span> <span class="va">False</span>,</span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>    multiple_correct: <span class="bu">bool</span> <span class="op">=</span> <span class="va">False</span>,</span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>    shuffle: <span class="bu">bool</span> <span class="op">|</span> Random <span class="op">=</span> <span class="va">False</span>,</span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> Solver</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 75%">
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">Argument</th>
+<th style="text-align: left;">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;"><code>template</code><br>
+<span class="argument-type">str | None</span></td>
+<td style="text-align: left;"><p>Template to use for the multiple choice question. The defaults vary based on the options and are taken from the <code>MultipleChoiceTemplate</code> enum. The template will have questions and possible answers substituted into it before being sent to the model. Consequently it requires three specific template variables:</p>
+<ul>
+<li><code>{question}</code>: The question to be asked.</li>
+<li><code>{choices}</code>: The choices available, which will be formatted as a list of A) … B) … etc. before sending to the model.</li>
+<li><code>{letters}</code>: (optional) A string of letters representing the choices, e.g. “A,B,C”. Used to be explicit to the model about the possible answers.</li>
+</ul></td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><code>cot</code><br>
+<span class="argument-type">bool</span></td>
+<td style="text-align: left;"><p>Default <code>False</code>. Whether the solver should perform chain-of-thought reasoning before answering. NOTE: this has no effect if you provide a custom template.</p></td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;"><code>multiple_correct</code><br>
+<span class="argument-type">bool</span></td>
+<td style="text-align: left;"><p>Default <code>False</code>. Whether to allow multiple answers to the multiple choice question. For example, “What numbers are squares? A) 3, B) 4, C) 9” has multiple correct answers, B and C. Leave as <code>False</code> if there’s exactly one correct answer from the choices available. NOTE: this has no effect if you provide a custom template.</p></td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><code>shuffle</code><br>
+<span class="argument-type">bool | Random</span></td>
+<td style="text-align: left;"><p>Default <code>False</code>. Whether to shuffle the choices in the multiple. Passing a <code>Random</code> instance will use that for shuffling, if <code>True</code> a new <code>Random</code> instance will be created.</p></td>
 </tr>
 </tbody>
 </table>
@@ -494,101 +714,104 @@ TODO:
 <p>Agent that runs a tool use loop until the model submits an answer using the <code>submit()</code> tool. Tailor the model’s instructions by passing a <code>system_message()</code> and/or other steps to <code>init</code> (if no <code>init</code> is specified then a default system message will be used). Use <code>max_attempts</code> to support additional submissions if the initial submission(s) are incorrect.</p>
 <p>Submissions are evaluated using the task’s main scorer, with value of 1.0 indicating a correct answer. Scorer values are converted to float (e.g. “C” becomes 1.0) using the standard value_to_float() function. Provide an alternate conversion scheme as required via <code>score_value</code>.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/3d6635f0d91a8c3ba5834f5cdfc9685b211967f6/src/inspect_ai/solver/_basic_agent.py#L50">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/31f30d9bde25ecaa8b4dcadae3effa38d86bf7e2/src/inspect_ai/solver/_basic_agent.py#L50">Source</a>
 </div>
-<div class="sourceCode" id="cb6"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="at">@solver</span></span>
-<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> basic_agent(</span>
-<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>    <span class="op">*</span>,</span>
-<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>    init: Solver <span class="op">|</span> <span class="bu">list</span>[Solver] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>    tools: <span class="bu">list</span>[Tool] <span class="op">|</span> Solver <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>    cache: <span class="bu">bool</span> <span class="op">|</span> CachePolicy <span class="op">=</span> <span class="va">False</span>,</span>
-<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>    max_attempts: <span class="bu">int</span> <span class="op">=</span> <span class="dv">1</span>,</span>
-<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>    message_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>    token_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a>    max_tool_output: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a>    score_value: ValueToFloat <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a>    incorrect_message: <span class="bu">str</span></span>
-<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a>    <span class="op">|</span> Callable[</span>
-<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a>        [TaskState, <span class="bu">list</span>[Score]], <span class="bu">str</span> <span class="op">|</span> Awaitable[<span class="bu">str</span>]</span>
-<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a>    ] <span class="op">=</span> DEFAULT_INCORRECT_MESSAGE,</span>
-<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a>    continue_message: <span class="bu">str</span> <span class="op">=</span> DEFAULT_CONTINUE_MESSAGE,</span>
-<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a>    submit_name: <span class="bu">str</span> <span class="op">=</span> DEFAULT_SUBMIT_NAME,</span>
-<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a>    submit_description: <span class="bu">str</span> <span class="op">=</span> DEFAULT_SUBMIT_DESCRIPTION,</span>
-<span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a>    <span class="op">**</span>kwargs: Unpack[BasicAgentDeprecatedArgs],</span>
-<span id="cb6-20"><a href="#cb6-20" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> Solver</span></code></pre></div>
+<div class="sourceCode" id="cb9"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="at">@solver</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> basic_agent(</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>    <span class="op">*</span>,</span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>    init: Solver <span class="op">|</span> <span class="bu">list</span>[Solver] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>    tools: <span class="bu">list</span>[Tool] <span class="op">|</span> Solver <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>    cache: <span class="bu">bool</span> <span class="op">|</span> CachePolicy <span class="op">=</span> <span class="va">False</span>,</span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>    max_attempts: <span class="bu">int</span> <span class="op">=</span> <span class="dv">1</span>,</span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>    message_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>    token_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a>    max_tool_output: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a>    score_value: ValueToFloat <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a>    incorrect_message: <span class="bu">str</span></span>
+<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a>    <span class="op">|</span> Callable[</span>
+<span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a>        [TaskState, <span class="bu">list</span>[Score]], <span class="bu">str</span> <span class="op">|</span> Awaitable[<span class="bu">str</span>]</span>
+<span id="cb9-15"><a href="#cb9-15" aria-hidden="true" tabindex="-1"></a>    ] <span class="op">=</span> DEFAULT_INCORRECT_MESSAGE,</span>
+<span id="cb9-16"><a href="#cb9-16" aria-hidden="true" tabindex="-1"></a>    continue_message: <span class="bu">str</span> <span class="op">=</span> DEFAULT_CONTINUE_MESSAGE,</span>
+<span id="cb9-17"><a href="#cb9-17" aria-hidden="true" tabindex="-1"></a>    submit_name: <span class="bu">str</span> <span class="op">=</span> DEFAULT_SUBMIT_NAME,</span>
+<span id="cb9-18"><a href="#cb9-18" aria-hidden="true" tabindex="-1"></a>    submit_description: <span class="bu">str</span> <span class="op">=</span> DEFAULT_SUBMIT_DESCRIPTION,</span>
+<span id="cb9-19"><a href="#cb9-19" aria-hidden="true" tabindex="-1"></a>    <span class="op">**</span>kwargs: Unpack[BasicAgentDeprecatedArgs],</span>
+<span id="cb9-20"><a href="#cb9-20" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> Solver</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 75%">
+</colgroup>
 <thead>
 <tr class="header">
-<th>Argument</th>
-<th>Type</th>
-<th>Description</th>
+<th style="text-align: left;">Argument</th>
+<th style="text-align: left;">Description</th>
 </tr>
 </thead>
 <tbody>
 <tr class="odd">
-<td><code>init</code></td>
-<td>Solver | list[Solver] | None</td>
-<td>Agent initialisation (defaults to system_message with basic ReAct prompt)</td>
+<td style="text-align: left;"><code>init</code><br>
+<span class="argument-type">Solver | list[Solver] | None</span></td>
+<td style="text-align: left;"><p>Agent initialisation (defaults to system_message with basic ReAct prompt)</p></td>
 </tr>
 <tr class="even">
-<td><code>tools</code></td>
-<td>list[Tool] | Solver | None</td>
-<td>Tools available for the agent. Either a list of tools or a Solver that can yield dynamic tools per-sample.</td>
+<td style="text-align: left;"><code>tools</code><br>
+<span class="argument-type">list[Tool] | Solver | None</span></td>
+<td style="text-align: left;"><p>Tools available for the agent. Either a list of tools or a Solver that can yield dynamic tools per-sample.</p></td>
 </tr>
 <tr class="odd">
-<td><code>cache</code></td>
-<td>bool | CachePolicy</td>
-<td>Caching behaviour for generate responses (defaults to no caching).</td>
+<td style="text-align: left;"><code>cache</code><br>
+<span class="argument-type">bool | CachePolicy</span></td>
+<td style="text-align: left;"><p>Caching behaviour for generate responses (defaults to no caching).</p></td>
 </tr>
 <tr class="even">
-<td><code>max_attempts</code></td>
-<td>int</td>
-<td>Maximum number of submissions to accept before terminating.</td>
+<td style="text-align: left;"><code>max_attempts</code><br>
+<span class="argument-type">int</span></td>
+<td style="text-align: left;"><p>Maximum number of submissions to accept before terminating.</p></td>
 </tr>
 <tr class="odd">
-<td><code>message_limit</code></td>
-<td>int | None</td>
-<td>Limit on messages in sample before terminating agent. If not specified, will use limit_messages defined for the task. If there is none defined for the task, 50 will be used as a default.</td>
+<td style="text-align: left;"><code>message_limit</code><br>
+<span class="argument-type">int | None</span></td>
+<td style="text-align: left;"><p>Limit on messages in sample before terminating agent. If not specified, will use limit_messages defined for the task. If there is none defined for the task, 50 will be used as a default.</p></td>
 </tr>
 <tr class="even">
-<td><code>token_limit</code></td>
-<td>int | None</td>
-<td>Limit on tokens used in sample before terminating agent.</td>
+<td style="text-align: left;"><code>token_limit</code><br>
+<span class="argument-type">int | None</span></td>
+<td style="text-align: left;"><p>Limit on tokens used in sample before terminating agent.</p></td>
 </tr>
 <tr class="odd">
-<td><code>max_tool_output</code></td>
-<td>int | None</td>
-<td>Maximum output length (in bytes). Defaults to max_tool_output from active GenerateConfig.</td>
+<td style="text-align: left;"><code>max_tool_output</code><br>
+<span class="argument-type">int | None</span></td>
+<td style="text-align: left;"><p>Maximum output length (in bytes). Defaults to max_tool_output from active GenerateConfig.</p></td>
 </tr>
 <tr class="even">
-<td><code>score_value</code></td>
-<td>ValueToFloat | None</td>
-<td>Function used to extract float from scores (defaults to standard value_to_float())</td>
+<td style="text-align: left;"><code>score_value</code><br>
+<span class="argument-type">ValueToFloat | None</span></td>
+<td style="text-align: left;"><p>Function used to extract float from scores (defaults to standard value_to_float())</p></td>
 </tr>
 <tr class="odd">
-<td><code>incorrect_message</code></td>
-<td>str | Callable[[TaskState, list[Score]], str | Awaitable[str]]</td>
-<td>User message reply for an incorrect submission from the model. Alternatively, a function which returns a message (function may optionally be async)</td>
+<td style="text-align: left;"><code>incorrect_message</code><br>
+<span class="argument-type">str | Callable[[TaskState, list[Score]], str | Awaitable[str]]</span></td>
+<td style="text-align: left;"><p>User message reply for an incorrect submission from the model. Alternatively, a function which returns a message (function may optionally be async)</p></td>
 </tr>
 <tr class="even">
-<td><code>continue_message</code></td>
-<td>str</td>
-<td>User message to urge the model to continue when it doesn’t make a tool call.</td>
+<td style="text-align: left;"><code>continue_message</code><br>
+<span class="argument-type">str</span></td>
+<td style="text-align: left;"><p>User message to urge the model to continue when it doesn’t make a tool call.</p></td>
 </tr>
 <tr class="odd">
-<td><code>submit_name</code></td>
-<td>str</td>
-<td>Name for tool used to make submissions (defaults to ‘submit’)</td>
+<td style="text-align: left;"><code>submit_name</code><br>
+<span class="argument-type">str</span></td>
+<td style="text-align: left;"><p>Name for tool used to make submissions (defaults to ‘submit’)</p></td>
 </tr>
 <tr class="even">
-<td><code>submit_description</code></td>
-<td>str</td>
-<td>Description of submit tool (defaults to ‘Submit an answer for evaluation’)</td>
+<td style="text-align: left;"><code>submit_description</code><br>
+<span class="argument-type">str</span></td>
+<td style="text-align: left;"><p>Description of submit tool (defaults to ‘Submit an answer for evaluation’)</p></td>
 </tr>
 <tr class="odd">
-<td><code>**kwargs</code></td>
-<td>Unpack[BasicAgentDeprecatedArgs]</td>
-<td>Deprecated arguments for backward compatibility.</td>
+<td style="text-align: left;"><code>**kwargs</code><br>
+<span class="argument-type">Unpack[BasicAgentDeprecatedArgs]</span></td>
+<td style="text-align: left;"><p>Deprecated arguments for backward compatibility.</p></td>
 </tr>
 </tbody>
 </table>
@@ -599,42 +822,230 @@ TODO:
 <p>The Human agent solver installs agent task tools in the default sandbox and presents the user with both task instructions and documentation for the various tools (e.g.&nbsp;<code>task submit</code>, <code>task start</code>, <code>task stop</code> <code>task instructions</code>, etc.). A human agent panel is displayed with instructions for logging in to the sandbox.</p>
 <p>If the user is running in VS Code with the Inspect extension, they will also be presented with links to login to the sandbox using a VS Code Window or Terminal.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/3d6635f0d91a8c3ba5834f5cdfc9685b211967f6/src/inspect_ai/solver/_human_agent/agent.py#L14">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/31f30d9bde25ecaa8b4dcadae3effa38d86bf7e2/src/inspect_ai/solver/_human_agent/agent.py#L14">Source</a>
 </div>
-<div class="sourceCode" id="cb7"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="at">@solver</span></span>
-<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> human_agent(</span>
-<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>    answer: <span class="bu">bool</span> <span class="op">|</span> <span class="bu">str</span> <span class="op">=</span> <span class="va">True</span>,</span>
-<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>    intermediate_scoring: <span class="bu">bool</span> <span class="op">=</span> <span class="va">False</span>,</span>
-<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>    record_session: <span class="bu">bool</span> <span class="op">=</span> <span class="va">True</span>,</span>
-<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> Solver</span></code></pre></div>
+<div class="sourceCode" id="cb10"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="at">@solver</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> human_agent(</span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>    answer: <span class="bu">bool</span> <span class="op">|</span> <span class="bu">str</span> <span class="op">=</span> <span class="va">True</span>,</span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>    intermediate_scoring: <span class="bu">bool</span> <span class="op">=</span> <span class="va">False</span>,</span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>    record_session: <span class="bu">bool</span> <span class="op">=</span> <span class="va">True</span>,</span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> Solver</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 75%">
+</colgroup>
 <thead>
 <tr class="header">
-<th>Argument</th>
-<th>Type</th>
-<th>Description</th>
+<th style="text-align: left;">Argument</th>
+<th style="text-align: left;">Description</th>
 </tr>
 </thead>
 <tbody>
 <tr class="odd">
-<td><code>answer</code></td>
-<td>bool | str</td>
-<td>Is an explicit answer required for this task or is it scored based on files in the container? Pass a <code>str</code> with a regex to validate that the answer matches the expected format.</td>
+<td style="text-align: left;"><code>answer</code><br>
+<span class="argument-type">bool | str</span></td>
+<td style="text-align: left;"><p>Is an explicit answer required for this task or is it scored based on files in the container? Pass a <code>str</code> with a regex to validate that the answer matches the expected format.</p></td>
 </tr>
 <tr class="even">
-<td><code>intermediate_scoring</code></td>
-<td>bool</td>
-<td>Allow the human agent to check their score while working.</td>
+<td style="text-align: left;"><code>intermediate_scoring</code><br>
+<span class="argument-type">bool</span></td>
+<td style="text-align: left;"><p>Allow the human agent to check their score while working.</p></td>
 </tr>
 <tr class="odd">
-<td><code>record_session</code></td>
-<td>bool</td>
-<td>Record all user commands and outputs in the sandbox bash session.</td>
+<td style="text-align: left;"><code>record_session</code><br>
+<span class="argument-type">bool</span></td>
+<td style="text-align: left;"><p>Record all user commands and outputs in the sandbox bash session.</p></td>
 </tr>
 </tbody>
 </table>
+</section>
+</section>
+<section id="composition" class="level2">
+<h2 class="anchored" data-anchor-id="composition">Composition</h2>
+<section id="chain" class="level3">
+<h3 class="anchored" data-anchor-id="chain">chain</h3>
+<p>Compose a solver from multiple other solvers.</p>
+<p>Solvers are executed in turn, and a solver step event is added to the transcript for each. If a solver returns a state with <code>completed=True</code>, the chain is terminated early.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/31f30d9bde25ecaa8b4dcadae3effa38d86bf7e2/src/inspect_ai/solver/_chain.py#L9">Source</a>
+</div>
+<div class="sourceCode" id="cb11"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> chain(<span class="op">*</span>solvers: Solver <span class="op">|</span> <span class="bu">list</span>[Solver]) <span class="op">-&gt;</span> Solver</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 75%">
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">Argument</th>
+<th style="text-align: left;">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;"><code>*solvers</code><br>
+<span class="argument-type">Solver | list[Solver]</span></td>
+<td style="text-align: left;"><p>One or more solvers or lists of solvers to chain together.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="fork" class="level3">
+<h3 class="anchored" data-anchor-id="fork">fork</h3>
+<p>Fork the TaskState and evaluate it against multiple solvers in parallel.</p>
+<p>Run several solvers against independent copies of a TaskState. Each Solver gets its own copy of the TaskState and is run (in parallel) in an independent Subtask (meaning that is also has its own independent Store that doesn’t affect the Store of other subtasks or the parent).</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/31f30d9bde25ecaa8b4dcadae3effa38d86bf7e2/src/inspect_ai/solver/_fork.py#L24">Source</a>
+</div>
+<div class="sourceCode" id="cb12"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> fork(</span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>    state: TaskState, solvers: Solver <span class="op">|</span> <span class="bu">list</span>[Solver]</span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> TaskState <span class="op">|</span> <span class="bu">list</span>[TaskState]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 75%">
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">Argument</th>
+<th style="text-align: left;">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;"><code>state</code><br>
+<span class="argument-type">TaskState</span></td>
+<td style="text-align: left;"><p>Beginning TaskState</p></td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><code>solvers</code><br>
+<span class="argument-type">Solver | list[Solver]</span></td>
+<td style="text-align: left;"><p>Solvers to apply on the TaskState. Each Solver will get a standalone copy of the TaskState.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="bridge" class="level3">
+<h3 class="anchored" data-anchor-id="bridge">bridge</h3>
+<p>Bridge an external agent into an Inspect Solver.</p>
+<p>See documentation at <a href="https://inspect.ai-safety-institute.org.uk/agent-bridge.html" class="uri">https://inspect.ai-safety-institute.org.uk/agent-bridge.html</a></p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/31f30d9bde25ecaa8b4dcadae3effa38d86bf7e2/src/inspect_ai/solver/_bridge/bridge.py#L16">Source</a>
+</div>
+<div class="sourceCode" id="cb13"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="at">@solver</span></span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> bridge(agent: Callable[[<span class="bu">dict</span>[<span class="bu">str</span>, Any]], Awaitable[<span class="bu">dict</span>[<span class="bu">str</span>, Any]]]) <span class="op">-&gt;</span> Solver</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 75%">
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">Argument</th>
+<th style="text-align: left;">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;"><code>agent</code><br>
+<span class="argument-type">Callable[[dict[str, Any]], Awaitable[dict[str, Any]]]</span></td>
+<td style="text-align: left;"><p>Callable which takes a sample <code>dict</code> and returns a result <code>dict</code>.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
+<section id="solver" class="level2">
+<h2 class="anchored" data-anchor-id="solver">Solver</h2>
+<section id="solver-1" class="level3">
+<h3 class="anchored" data-anchor-id="solver-1">Solver</h3>
+<p>Contribute to solving an evaluation task.</p>
+<p>Transform a <code>TaskState</code>, returning the new state. Solvers may optionally call the <code>generate()</code> function to create a new state resulting from model generation. Solvers may also do prompt engineering or other types of elicitation.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/31f30d9bde25ecaa8b4dcadae3effa38d86bf7e2/src/inspect_ai/solver/_solver.py#L77">Source</a>
+</div>
+<div class="sourceCode" id="cb14"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Solver(Protocol):</span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> <span class="fu">__call__</span>(</span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>,</span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a>        state: TaskState,</span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a>        generate: Generate,</span>
+<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a>    ) <span class="op">-&gt;</span> TaskState</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 75%">
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">Argument</th>
+<th style="text-align: left;">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;"><code>state</code><br>
+<span class="argument-type">TaskState</span></td>
+<td style="text-align: left;"><p>State for tasks being evaluated.</p></td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><code>generate</code><br>
+<span class="argument-type">Generate</span></td>
+<td style="text-align: left;"><p>Function for generating outputs.</p></td>
+</tr>
+</tbody>
+</table>
+<section class="level4">
+<h4 class="anchored" data-anchor-id="">Examples</h4>
+<div class="sourceCode" id="cb15"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="at">@solver</span></span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> prompt_cot(template: <span class="bu">str</span>) <span class="op">-&gt;</span> Solver:</span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> solve(state: TaskState, generate: Generate) <span class="op">-&gt;</span> TaskState:</span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a>        <span class="co"># insert chain of thought prompt</span></span>
+<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> state</span>
+<span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-7"><a href="#cb15-7" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> solve</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
+</section>
+<section id="solver-2" class="level3">
+<h3 class="anchored" data-anchor-id="solver-2">solver</h3>
+<p>Decorator for registering solvers.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/31f30d9bde25ecaa8b4dcadae3effa38d86bf7e2/src/inspect_ai/solver/_solver.py#L150">Source</a>
+</div>
+<div class="sourceCode" id="cb16"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> solver(</span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a>    name: <span class="bu">str</span> <span class="op">|</span> Callable[P, Solver],</span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> Callable[[Callable[P, Solver]], Callable[P, Solver]] <span class="op">|</span> Callable[P, Solver]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 75%">
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">Argument</th>
+<th style="text-align: left;">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;"><code>name</code><br>
+<span class="argument-type">str | Callable[P, Solver]</span></td>
+<td style="text-align: left;"><p>Optional name for solver. If the decorator has no name argument then the name of the underlying Callable[P, Solver] object will be used to automatically assign a name.</p></td>
+</tr>
+</tbody>
+</table>
+<section class="level4">
+<h4 class="anchored" data-anchor-id="">Examples</h4>
+<div class="sourceCode" id="cb17"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="at">@solver</span></span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> prompt_cot(template: <span class="bu">str</span>) <span class="op">-&gt;</span> Solver:</span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> solve(state: TaskState, generate: Generate) <span class="op">-&gt;</span> TaskState:</span>
+<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a>        <span class="co"># insert chain of thought prompt</span></span>
+<span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> state</span>
+<span id="cb17-6"><a href="#cb17-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-7"><a href="#cb17-7" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> solve</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 
 
+</section>
 </section>
 </section>
 
@@ -666,6 +1077,69 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
     icon: icon
   };
   anchorJS.add('.anchored');
+  const isCodeAnnotation = (el) => {
+    for (const clz of el.classList) {
+      if (clz.startsWith('code-annotation-')) {                     
+        return true;
+      }
+    }
+    return false;
+  }
+  const onCopySuccess = function(e) {
+    // button target
+    const button = e.trigger;
+    // don't keep focus
+    button.blur();
+    // flash "checked"
+    button.classList.add('code-copy-button-checked');
+    var currentTitle = button.getAttribute("title");
+    button.setAttribute("title", "Copied!");
+    let tooltip;
+    if (window.bootstrap) {
+      button.setAttribute("data-bs-toggle", "tooltip");
+      button.setAttribute("data-bs-placement", "left");
+      button.setAttribute("data-bs-title", "Copied!");
+      tooltip = new bootstrap.Tooltip(button, 
+        { trigger: "manual", 
+          customClass: "code-copy-button-tooltip",
+          offset: [0, -8]});
+      tooltip.show();    
+    }
+    setTimeout(function() {
+      if (tooltip) {
+        tooltip.hide();
+        button.removeAttribute("data-bs-title");
+        button.removeAttribute("data-bs-toggle");
+        button.removeAttribute("data-bs-placement");
+      }
+      button.setAttribute("title", currentTitle);
+      button.classList.remove('code-copy-button-checked');
+    }, 1000);
+    // clear code selection
+    e.clearSelection();
+  }
+  const getTextToCopy = function(trigger) {
+      const codeEl = trigger.previousElementSibling.cloneNode(true);
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+  }
+  const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+    text: getTextToCopy
+  });
+  clipboard.on('success', onCopySuccess);
+  if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+    // For code content inside modals, clipBoardJS needs to be initialized with a container option
+    // TODO: Check when it could be a function (https://github.com/zenorocha/clipboard.js/issues/860)
+    const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+      text: getTextToCopy,
+      container: window.document.getElementById('quarto-embedded-source-code-modal')
+    });
+    clipboardModal.on('success', onCopySuccess);
+  }
     var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
     var mailtoRegex = new RegExp(/^mailto:/);
       var filterRegex = new RegExp("https:\/\/inspect\.ai-safety-institute\.org\.uk\/");
@@ -1044,8 +1518,8 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
       </a>          
   </div>
   <div class="nav-page nav-page-next">
-      <a href="../reference/inspect_ai.solver.html#prompt_template" class="pagination-link" aria-label="prompt_template">
-        <span class="nav-page-text">prompt_template</span> <i class="bi bi-arrow-right-short"></i>
+      <a href="../reference/inspect_ai.solver.html#generate" class="pagination-link" aria-label="generate">
+        <span class="nav-page-text">generate</span> <i class="bi bi-arrow-right-short"></i>
       </a>
   </div>
 </nav>

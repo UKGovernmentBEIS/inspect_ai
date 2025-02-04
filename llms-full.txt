@@ -5090,16 +5090,21 @@ providers is built in to Inspect:
 | Open (Hosted) | [Groq](providers.qmd#groq), [Together AI](providers.qmd#together-ai), [Cloudflare](providers.qmd#cloudflare), [Goodfire](providers.qmd#goodfire) |
 | Open (Local) | [Hugging Face](providers.qmd#hugging-face), [vLLM](providers.qmd#vllm), [Ollama](providers.qmd#ollama), [Lllama-cpp-python](providers.qmd#llama-cpp-python) |
 
-> [!NOTE]
->
-> If the provider you are using is not listed above, you may still be
-> able to use it if it provides an OpenAI compatible API endpoint. In
-> this scenario, use the Inspect `openai` interface and set the
-> `OPENAI_BASE_URL` environment variable to the apprpriate value for
-> your provider.
->
-> You can also create [Model API Extensions](extensions.qmd#model-apis)
-> to add model providers using their native interface.
+<br/>
+
+If the provider you are using is not listed above, you may still be able
+to use it if:
+
+1.  It is available via [OpenRouter](providers.qmd#openrouter) (see the
+    docs on using OpenRouter with Inspect).
+
+2.  It provides an OpenAI compatible API endpoint. In this scenario, use
+    the Inspect [OpenAI](providers.qmd#openai) interface and set the
+    `OPENAI_BASE_URL` environment variable to the apprpriate value for
+    your provider.
+
+You can also create [Model API Extensions](extensions.qmd#model-apis) to
+add model providers using their native interface.
 
 Below we’ll describe various ways to specify and provide options to
 models in Inspect evaluations. Review this first, then see the
@@ -5215,16 +5220,21 @@ providers is built in to Inspect:
 | Open (Hosted) | [Groq](providers.qmd#groq), [Together AI](providers.qmd#together-ai), [Cloudflare](providers.qmd#cloudflare), [Goodfire](providers.qmd#goodfire) |
 | Open (Local) | [Hugging Face](providers.qmd#hugging-face), [vLLM](providers.qmd#vllm), [Ollama](providers.qmd#ollama), [Lllama-cpp-python](providers.qmd#llama-cpp-python) |
 
-> [!NOTE]
->
-> If the provider you are using is not listed above, you may still be
-> able to use it if it provides an OpenAI compatible API endpoint. In
-> this scenario, use the Inspect `openai` interface and set the
-> `OPENAI_BASE_URL` environment variable to the apprpriate value for
-> your provider.
->
-> You can also create [Model API Extensions](extensions.qmd#model-apis)
-> to add model providers using their native interface.
+<br/>
+
+If the provider you are using is not listed above, you may still be able
+to use it if:
+
+1.  It is available via [OpenRouter](providers.qmd#openrouter) (see the
+    docs on using OpenRouter with Inspect).
+
+2.  It provides an OpenAI compatible API endpoint. In this scenario, use
+    the Inspect [OpenAI](providers.qmd#openai) interface and set the
+    `OPENAI_BASE_URL` environment variable to the apprpriate value for
+    your provider.
+
+You can also create [Model API Extensions](extensions.qmd#model-apis) to
+add model providers using their native interface.
 
 ## OpenAI
 
@@ -5845,6 +5855,47 @@ llama-cpp-python provider
 | Variable | Description |
 |----|----|
 | `LLAMA_CPP_PYTHON_BASE_URL` | Base URL for requests (optional, defaults to `http://localhost:8000/v1`) |
+
+## OpenRouter
+
+> [!NOTE]
+>
+> The OpenRouter provider described below is currently available only in
+> the development version of Inspect. To install the development version
+> from GitHub:
+>
+> ``` bash
+> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+> ```
+
+To use the [OpenRouter](https://openrouter.ai/) provider, install the
+`openai` package (which the OpenRouter service provides a compatible
+backend for), set your credentials, and specify a model using the
+`--model` option:
+
+``` bash
+pip install openai
+export OPENROUTER_API_KEY=your-openrouter-api-key
+inspect eval arc.py --model openrouter/gryphe/mythomax-l2-13b
+```
+
+For the `openrouter` provider, the following custom model args (`-M`)
+are supported (click the argument name to see its docs on the OpenRouter
+site):
+
+| Argument | Example |
+|----|----|
+| [`models`](https://openrouter.ai/docs/features/model-routing#the-models-parameter) | `-M "models=anthropic/claude-3.5-sonnet, gryphe/mythomax-l2-13b"` |
+| [`provider`](https://openrouter.ai/docs/features/provider-routing) | `-M "provider={ 'quantizations': ['int8'] }"` |
+| [`transforms`](https://openrouter.ai/docs/features/message-transforms) | `-M "transforms=['middle-out']"` |
+
+The following environment variables are supported by the OpenRouter AI
+provider
+
+| Variable | Description |
+|----|----|
+| `OPENROUTER_API_KEY` | API key credentials (required). |
+| `OPENROUTER_BASE_URL` | Base URL for requests (optional, defaults to `https://openrouter.ai/api/v1`) |
 
 ## Custom Models
 

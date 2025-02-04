@@ -315,23 +315,26 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="accuracy">accuracy</h3>
 <p>Compute proportion of total answers which are correct.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/3d6635f0d91a8c3ba5834f5cdfc9685b211967f6/src/inspect_ai/scorer/_metrics/accuracy.py#L14">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/5f01e6e8179caf5a80795fedc590fdf40ac5dcdd/src/inspect_ai/scorer/_metrics/accuracy.py#L14">Source</a>
 </div>
 <div class="sourceCode" id="cb1"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="at">@metric</span></span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> accuracy(to_float: ValueToFloat <span class="op">=</span> value_to_float()) <span class="op">-&gt;</span> Metric</span></code></pre></div>
 <table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 75%">
+</colgroup>
 <thead>
 <tr class="header">
-<th>Argument</th>
-<th>Type</th>
-<th>Description</th>
+<th style="text-align: left;">Argument</th>
+<th style="text-align: left;">Description</th>
 </tr>
 </thead>
 <tbody>
 <tr class="odd">
-<td><code>to_float</code></td>
-<td>ValueToFloat</td>
-<td>Function for mapping <code>Value</code> to float for computing metrics. The default <code>value_to_float()</code> maps CORRECT (“C”) to 1.0, INCORRECT (“I”) to 0, PARTIAL (“P”) to 0.5, and NOANSWER (“N”) to 0, casts numeric values to float directly, and prints a warning and returns 0 if the Value is a complex object (list or dict).</td>
+<td style="text-align: left;"><code>to_float</code><br>
+<span class="argument-type">ValueToFloat</span></td>
+<td style="text-align: left;">Function for mapping <code>Value</code> to float for computing metrics. The default <code>value_to_float()</code> maps CORRECT (“C”) to 1.0, INCORRECT (“I”) to 0, PARTIAL (“P”) to 0.5, and NOANSWER (“N”) to 0, casts numeric values to float directly, and prints a warning and returns 0 if the Value is a complex object (list or dict).</td>
 </tr>
 </tbody>
 </table>
@@ -340,23 +343,26 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="stderr">stderr</h3>
 <p>Standard error of the mean using Central Limit Theorem.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/3d6635f0d91a8c3ba5834f5cdfc9685b211967f6/src/inspect_ai/scorer/_metrics/std.py#L50">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/5f01e6e8179caf5a80795fedc590fdf40ac5dcdd/src/inspect_ai/scorer/_metrics/std.py#L50">Source</a>
 </div>
 <div class="sourceCode" id="cb2"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="at">@metric</span></span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> stderr(to_float: ValueToFloat <span class="op">=</span> value_to_float()) <span class="op">-&gt;</span> Metric</span></code></pre></div>
 <table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 75%">
+</colgroup>
 <thead>
 <tr class="header">
-<th>Argument</th>
-<th>Type</th>
-<th>Description</th>
+<th style="text-align: left;">Argument</th>
+<th style="text-align: left;">Description</th>
 </tr>
 </thead>
 <tbody>
 <tr class="odd">
-<td><code>to_float</code></td>
-<td>ValueToFloat</td>
-<td>Function for mapping <code>Value</code> to float for computing metrics. The default <code>value_to_float()</code> maps CORRECT (“C”) to 1.0, INCORRECT (“I”) to 0, PARTIAL (“P”) to 0.5, and NOANSWER (“N”) to 0, casts numeric values to float directly, and prints a warning and returns 0 if the Value is a complex object (list or dict).</td>
+<td style="text-align: left;"><code>to_float</code><br>
+<span class="argument-type">ValueToFloat</span></td>
+<td style="text-align: left;">Function for mapping <code>Value</code> to float for computing metrics. The default <code>value_to_float()</code> maps CORRECT (“C”) to 1.0, INCORRECT (“I”) to 0, PARTIAL (“P”) to 0.5, and NOANSWER (“N”) to 0, casts numeric values to float directly, and prints a warning and returns 0 if the Value is a complex object (list or dict).</td>
 </tr>
 </tbody>
 </table>
@@ -365,23 +371,26 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="std">std</h3>
 <p>Calculates the sample standard deviation of a list of scores.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/3d6635f0d91a8c3ba5834f5cdfc9685b211967f6/src/inspect_ai/scorer/_metrics/std.py#L86">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/5f01e6e8179caf5a80795fedc590fdf40ac5dcdd/src/inspect_ai/scorer/_metrics/std.py#L86">Source</a>
 </div>
 <div class="sourceCode" id="cb3"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="at">@metric</span></span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> std(to_float: ValueToFloat <span class="op">=</span> value_to_float()) <span class="op">-&gt;</span> Metric</span></code></pre></div>
 <table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 75%">
+</colgroup>
 <thead>
 <tr class="header">
-<th>Argument</th>
-<th>Type</th>
-<th>Description</th>
+<th style="text-align: left;">Argument</th>
+<th style="text-align: left;">Description</th>
 </tr>
 </thead>
 <tbody>
 <tr class="odd">
-<td><code>to_float</code></td>
-<td>ValueToFloat</td>
-<td>Function for mapping <code>Value</code> to float for computing metrics. The default <code>value_to_float()</code> maps CORRECT (“C”) to 1.0, INCORRECT (“I”) to 0, PARTIAL (“P”) to 0.5, and NOANSWER (“N”) to 0, casts numeric values to float directly, and prints a warning and returns 0 if the Value is a complex object (list or dict).</td>
+<td style="text-align: left;"><code>to_float</code><br>
+<span class="argument-type">ValueToFloat</span></td>
+<td style="text-align: left;">Function for mapping <code>Value</code> to float for computing metrics. The default <code>value_to_float()</code> maps CORRECT (“C”) to 1.0, INCORRECT (“I”) to 0, PARTIAL (“P”) to 0.5, and NOANSWER (“N”) to 0, casts numeric values to float directly, and prints a warning and returns 0 if the Value is a complex object (list or dict).</td>
 </tr>
 </tbody>
 </table>

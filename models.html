@@ -456,17 +456,13 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </tr>
 </tbody>
 </table>
-<div class="callout callout-style-simple callout-note">
-<div class="callout-body d-flex">
-<div class="callout-icon-container">
-<i class="callout-icon"></i>
-</div>
-<div class="callout-body-container">
-<p>If the provider you are using is not listed above, you may still be able to use it if it provides an OpenAI compatible API endpoint. In this scenario, use the Inspect <code>openai</code> interface and set the <code>OPENAI_BASE_URL</code> environment variable to the apprpriate value for your provider.</p>
+<p><br></p>
+<p>If the provider you are using is not listed above, you may still be able to use it if:</p>
+<ol type="1">
+<li><p>It is available via <a href="./providers.html#openrouter">OpenRouter</a> (see the docs on using OpenRouter with Inspect).</p></li>
+<li><p>It provides an OpenAI compatible API endpoint. In this scenario, use the Inspect <a href="./providers.html#openai">OpenAI</a> interface and set the <code>OPENAI_BASE_URL</code> environment variable to the apprpriate value for your provider.</p></li>
+</ol>
 <p>You can also create <a href="./extensions.html#model-apis">Model API Extensions</a> to add model providers using their native interface.</p>
-</div>
-</div>
-</div>
 <p>Below we’ll describe various ways to specify and provide options to models in Inspect evaluations. Review this first, then see the provider-specific sections for additional usage details and available options.</p>
 </section>
 <section id="selecting-a-model" class="level2">
