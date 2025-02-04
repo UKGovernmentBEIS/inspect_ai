@@ -24,9 +24,11 @@ def render_docs(elem: pf.Element, docs: DocObject) -> list[pf.Element]:
         for section in docs.text_sections:
             elements.append(pf.RawBlock(section, "markdown"))
         
+        # examples
+        if docs.examples is not None:
+            elements.append(pf.Header(pf.Str("Examples"), level=4))
+            elements.append(pf.RawBlock(docs.examples, "markdown"))
     
-
-
     # return elements
     return elements
 

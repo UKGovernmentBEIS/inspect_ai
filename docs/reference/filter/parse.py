@@ -3,7 +3,7 @@ from itertools import islice
 from pathlib import Path
 import sys
 from typing import Any
-from griffe import Alias, DocstringSectionAdmonition, DocstringSectionParameters, DocstringSectionText, Function, Module, Object, ParameterKind
+from griffe import Alias, DocstringSectionExamples, DocstringSectionParameters, Function, Module, Object, ParameterKind
 
 @dataclass
 class DocParseOptions:
@@ -23,6 +23,7 @@ class DocObject:
     name: str
     description: str
     source: str
+    examples: str | None
     text_sections: list[str]
 
 @dataclass
@@ -59,6 +60,7 @@ def parse_function_docs(function: Function, options: DocParseOptions) -> DocFunc
     doc_sections = function.docstring.parse("google")
     function_description = doc_sections[0].value
 
+    examples: str | None = None
     text_sections: list[str] = []
     parameter_descriptions: dict[str,str] = {}
     for doc_section in doc_sections[1:]:
@@ -66,10 +68,8 @@ def parse_function_docs(function: Function, options: DocParseOptions) -> DocFunc
             for p in doc_sections[1].value:
                 desc = p.description.strip()
                 parameter_descriptions[p.name] = desc
-        elif isinstance(doc_section, DocstringSectionText):
-            text_sections.append(doc_section.value)
-        else:
-            sys.stderr.write(doc_section.kind + "\n")
+        elif isinstance(doc_section, DocstringSectionExamples):
+            examples = "\n\n".join(value[1] for value in doc_section.value)
 
     # url to code
     source = f"{options.source_url}/{function.relative_package_filepath}#L{function.lineno}"
@@ -101,6 +101,7 @@ def parse_function_docs(function: Function, options: DocParseOptions) -> DocFunc
         name=function.name,
         description=function_description,
         source=source,
+        examples=examples,
         text_sections=text_sections,
         declaration=declaration,
         parameters=params

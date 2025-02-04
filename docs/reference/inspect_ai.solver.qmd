@@ -2,11 +2,6 @@
 title: "inspect_ai.solver"
 ---
 
-<!--
-TODO:
-  'Examples'
--->
-
 ## Prompts
 
 ### prompt_template
