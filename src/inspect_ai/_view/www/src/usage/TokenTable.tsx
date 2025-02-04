@@ -4,15 +4,23 @@ import { ModelUsagePanel } from "./ModelUsagePanel";
 import styles from "./TokenTable.module.css";
 
 interface TokenTableProps {
-  style?: React.CSSProperties;
+  className?: string | string[];
   children?: React.ReactNode;
 }
 
-export const TokenTable: React.FC<TokenTableProps> = ({ style, children }) => {
+export const TokenTable: React.FC<TokenTableProps> = ({
+  className,
+  children,
+}) => {
   return (
     <table
-      className={clsx("table", "table-sm", "text-size-smaller", styles.table)}
-      style={style}
+      className={clsx(
+        "table",
+        "table-sm",
+        "text-size-smaller",
+        styles.table,
+        className,
+      )}
     >
       {children}
     </table>
