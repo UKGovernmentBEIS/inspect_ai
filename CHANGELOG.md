@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Inspect View: Convert codebase from JS/Preact to Typescript/React
+- Add `shuffle_choices` to dataset and dataset loading funtions. Deprecate `shuffle` parameter to the `multiple_choice` solver.
 
 ## v0.3.62 (03 February 2025)
 

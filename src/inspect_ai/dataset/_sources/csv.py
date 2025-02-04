@@ -23,6 +23,7 @@ def csv_dataset(
     auto_id: bool = False,
     shuffle: bool = False,
     seed: int | None = None,
+    shuffle_choices: bool | int | None = None,
     limit: int | None = None,
     dialect: str = "unix",
     encoding: str = "utf-8",
@@ -45,6 +46,7 @@ def csv_dataset(
         auto_id (bool): Assign an auto-incrementing ID for each sample.
         shuffle (bool): Randomly shuffle the dataset order.
         seed: (int | None): Seed used for random shuffle.
+        shuffle_choices: (bool | int | None): Whether to shuffle the choices. If an int is passed, this will be used as the seed when shuffling.
         limit (int | None): Limit the number of records to read.
         dialect (str): CSV dialect ("unix", "excel" or"excel-tab"). Defaults to "unix". See https://docs.python.org/3/library/csv.html#dialects-and-formatting-parameters for more details
         encoding (str): Text encoding for file (defaults to "utf-8").
@@ -85,6 +87,12 @@ def csv_dataset(
         # shuffle if requested
         if shuffle:
             dataset.shuffle(seed=seed)
+
+        # shuffle choices, if requested
+        if isinstance(shuffle_choices, int):
+            dataset.shuffle_choices(seed=shuffle_choices)
+        elif shuffle_choices is True:
+            dataset.shuffle_choices()
 
         # limit if requested
         if limit:
