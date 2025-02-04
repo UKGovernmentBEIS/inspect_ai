@@ -76,7 +76,7 @@ export const SampleInitEventView: React.FC<SampleInitEventViewProps> = ({
             ? event.sample.choices.map((choice, index) => {
                 return (
                   <div>
-                    {String.fromCharCode(65 + index)}) ${choice}
+                    {String.fromCharCode(65 + index)}) {choice}
                   </div>
                 );
               })

@@ -2,8 +2,10 @@
 
 ## Unreleased
 
+- Add [OpenRouter](https://inspect.ai-safety-institute.org.uk/providers.html#openrouter) model provider.
 - Inspect View: Convert codebase from JS/Preact to Typescript/React
 - Add `shuffle_choices` to dataset and dataset loading funtions. Deprecate `shuffle` parameter to the `multiple_choice` solver.
+- Tools: Handle return of empty list from tool calls.
 
 ## v0.3.62 (03 February 2025)
 

@@ -27,7 +27,7 @@ export const JsonTab: React.FC<JsonTabProps> = ({
     // we should instead just provide a DL link
     const file = `${filename(logFile)}.json`;
     return (
-      <div className={styles["json-tab"]}>
+      <div className={styles.jsonTab}>
         <DownloadPanel
           message="The JSON for this log file is too large to render."
           buttonLabel="Download JSON File"
@@ -38,7 +38,7 @@ export const JsonTab: React.FC<JsonTabProps> = ({
     );
   } else {
     return (
-      <div className={"json-tab"}>
+      <div className={styles.jsonTab}>
         <JSONPanel id="task-json-contents" json={json} simple={true} />
       </div>
     );
