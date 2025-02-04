@@ -1,0 +1,20 @@
+.json-panel {
+  width: 100%;
+  padding: 0.5em;
+}
+
+.json-panel:not(.simple) {
+  background: var(--bs-light);
+  border-radius: var(--bs-border-radius);
+}
+
+.json-panel .source-code {
+  font-size: var(--inspect-font-size-small);
+  white-space: pre-wrap;
+  word-wrap: anywhere;
+}
+
+/* Prism.js theme customizations can go here if needed */
+.language-javascript {
+  background: transparent !important;
+}

@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Terminal
+Comment=Open Terminal
+Exec=/usr/bin/exo-open --launch TerminalEmulator
+Icon=utilities-terminal
+Path=
+Terminal=false
+StartupNotify=false

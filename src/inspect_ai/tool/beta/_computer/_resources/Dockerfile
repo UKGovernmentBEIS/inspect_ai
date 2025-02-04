@@ -60,6 +60,10 @@ RUN apt-get install -y \
 # configure noVNC
 RUN ln -s /usr/share/novnc/vnc.html /usr/share/novnc/index.html
 
+# configure python alias
+RUN ln -s /usr/bin/python3 /usr/bin/python
+
+
 # We copy requirements.txt by itself so that changes to the scripts will be in a later layer
 # and we only pip install if requirements.txt changes
 COPY tool/requirements.txt /opt/inspect/tool/requirements.txt

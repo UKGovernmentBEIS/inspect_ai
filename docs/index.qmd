@@ -199,7 +199,18 @@ These sections provide a more in depth treatment of the various components used 
 
 -   [Scorers](scorers.qmd) evaluate the work of solvers and aggregate scores into metrics. Sophisticated evals often require custom scorers that use models to evaluate output. This section covers how to create them.
 
--   [Models](models.qmd) provide a uniform API for both evaluating a variety of large language models and using models within evaluations (e.g. for critique or grading).
+These sections cover how to use varoius language models with Inspect:
+
+-   [Models](models.qmd) describe various ways to specify and provide options to models in Inspect evaluations.
+
+-   [Providers](providers.qmd) covers usage details and available options for the various supported providers.
+
+-   [Caching](caching.qmd) explains how to cache model output to reduce the number of API calls made.
+
+-   [Multimodal](multimodal.qmd) describes the APIs available for creating multimodal evaluations (including images, audio, and video).
+
+-   [Reasoning](reasoning.qmd) documents the additional options and data available for reasoning models.
+ 
 
 These sections describe how to create agent evaluations with Inspect:
 

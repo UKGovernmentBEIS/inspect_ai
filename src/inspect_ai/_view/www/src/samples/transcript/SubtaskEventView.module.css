@@ -1,0 +1,19 @@
+.summary {
+  width: 100%;
+  margin: 0.5em 0em;
+}
+
+.summaryRendered {
+  margin-bottom: 1em;
+}
+
+.subtaskSummary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content minmax(0, 1fr);
+  column-gap: 1em;
+  margin: 0.5em 0;
+}
+
+.subtaskLabel {
+  padding: 0 2em;
+}
