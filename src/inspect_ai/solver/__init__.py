@@ -7,6 +7,7 @@ from ._critique import self_critique
 from ._fork import fork
 from ._human_agent.agent import human_agent
 from ._limit import SampleLimitExceededError
+from ._loop import loop
 from ._multiple_choice import MultipleChoiceTemplate, multiple_choice
 from ._plan import Plan, plan
 from ._prompt import chain_of_thought, prompt_template, system_message, user_message
@@ -21,6 +22,7 @@ __all__ = [
     "chain",
     "fork",
     "generate",
+    "loop",
     "prompt_template",
     "chain_of_thought",
     "multiple_choice",
