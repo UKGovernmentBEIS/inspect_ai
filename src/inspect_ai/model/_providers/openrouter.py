@@ -66,7 +66,7 @@ class OpenRouterAPI(OpenAIAPI):
         )
 
     @override
-    def completion_params(self, config: GenerateConfig, tools: bool) -> dict:
+    def completion_params(self, config: GenerateConfig, tools: bool) -> dict[str, Any]:
         # default params
         params = super().completion_params(config, tools)
 
