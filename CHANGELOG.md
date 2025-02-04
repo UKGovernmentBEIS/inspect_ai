@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Add [OpenRouter](https://inspect.ai-safety-institute.org.uk/providers.html#openrouter) model provider.
 - Inspect View: Convert codebase from JS/Preact to Typescript/React
 
 ## v0.3.62 (03 February 2025)
