@@ -1,5 +1,7 @@
 import os
-from typing import Any, override
+from typing import Any
+
+from typing_extensions import override
 
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.model._providers.util import model_base_url
