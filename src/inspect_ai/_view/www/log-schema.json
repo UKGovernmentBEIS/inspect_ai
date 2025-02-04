@@ -2490,6 +2490,7 @@
         "level": {
           "enum": [
             "debug",
+            "trace",
             "http",
             "sandbox",
             "info",
