@@ -67,3 +67,21 @@ async def test_f1_partial_match():
     result = await scorer(state, Target(["Paris, Texas"]))
 
     assert result.text == "0.67"
+
+
+@pytest.mark.asyncio
+async def test_stop_words():
+    scorer = f1(stop_words=["Paris"])
+    state = simple_task_state(model_output="Paris")
+    result = await scorer(state, Target(["Paris, Texas"]))
+
+    assert result.text == "0.0"
+
+
+@pytest.mark.asyncio
+async def test_stop_words2():
+    scorer = f1(stop_words=["Texas"])
+    state = simple_task_state(model_output="Paris")
+    result = await scorer(state, Target(["Paris, Texas"]))
+
+    assert result.text == "1.0"

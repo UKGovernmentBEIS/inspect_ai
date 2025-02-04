@@ -12,7 +12,7 @@ from ._target import Target
 
 @scorer(metrics=[mean(), stderr()])
 def f1(
-    answer_fn: Callable[[str], str] | None = None,
+    answer_fn: Callable[[str], str] | None = None, stop_words: list[str] | None = None
 ) -> Scorer:
     """Scorer which produces an F1 score
 
@@ -26,7 +26,7 @@ def f1(
         )
         targets = target.target
 
-        f1_score = max_f1_score(answer, targets)
+        f1_score = max_f1_score(answer, targets, stop_words=stop_words)
         return Score(
             value=f1_score,
             answer=answer,
@@ -53,12 +53,14 @@ def exact() -> Scorer:
     return score
 
 
-def max_f1_score(answer: str, targets: List[str]) -> float:
+def max_f1_score(
+    answer: str, targets: List[str], stop_words: list[str] | None = None
+) -> float:
     # Find the maximum F1 score for this answer
     max_f1 = 0.0
     for target in targets:
         if target[0].strip():
-            f1_score = compute_f1(answer, target)
+            f1_score = compute_f1(answer, target, stop_words)
             max_f1 = max(max_f1, f1_score)
     return round(max_f1, 2)
 
@@ -75,18 +77,16 @@ def max_exact_score(answer: str, targets: List[str]) -> float:
     return max_exact
 
 
-def compute_f1(answer: str, target: str) -> float:
+def compute_f1(answer: str, target: str, stop_words: list[str] | None = None) -> float:
     """Takes a predicted answer and a gold answer (that are both either a string or a list of strings), and returns exact match and the SQuAD F1 metric for the prediction."""
-    answer_words = _to_words(answer)
-    target_words = _to_words(target)
+    answer_words = _to_words(answer, stop_words)
+    target_words = _to_words(target, stop_words)
 
     return _f1(answer_words=answer_words, target_words=target_words)
 
 
-def _to_words(
-    answer: str,
-) -> set[str]:
-    normalized = _normalize(answer)
+def _to_words(answer: str, stop_words: list[str] | None = None) -> set[str]:
+    normalized = _normalize(answer, stop_words)
     token_bag = set(normalized.split())
     return token_bag
 
@@ -147,16 +147,32 @@ def _tokenize(text: str) -> List[str]:
     return re.split(" |-", text)
 
 
-def _normalize(answer: str) -> str:
+def _normalize(text: str, stop_words: list[str] | None = None) -> str:
     """Normalize text to remove extraneous characters and words."""
     tokens = []
-    tokenized_answer = _tokenize(answer)
+    tokenized_answer = _tokenize(text)
+
+    # Process stop words, if present
+    if stop_words is not None:
+        folded_stop_words = [_normalize_token(word) for word in stop_words]
+    else:
+        folded_stop_words = []
+
+    # Now process the text
     for token in tokenized_answer:
-        token = _remove_punc(token.casefold())
-        token = _normalize_number(token)
-        token = _remove_articles(token)
-        token = _normalize_whitespace(token)
-        tokens.append(token)
+        token = _normalize_token(token)
+        if folded_stop_words is None or token not in folded_stop_words:
+            tokens.append(token)
+
+    # re-join the tokens into a normalized string
     tokens = [token for token in tokens if token.strip()]
     normalized = " ".join(tokens).strip()
     return normalized
+
+
+def _normalize_token(token: str) -> str:
+    token = _remove_punc(token.casefold())
+    token = _normalize_number(token)
+    token = _remove_articles(token)
+    token = _normalize_whitespace(token)
+    return token
