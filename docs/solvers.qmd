@@ -161,7 +161,6 @@ def multiple_choice(
     *,
     template: str | None = None,
     cot: bool = False,
-    shuffle: bool | Random = False,
     multiple_correct: bool = False,
     
 ) -> Solver:
@@ -227,11 +226,14 @@ The following options are available for further customisation of the multiple ch
 | `template`         | Use `template` to provide an alternate prompt template (note that if you do this your template should handle prompting for `multiple_correct` directly if required). You can access the built in templates using the `MultipleChoiceTemplate` enum.                                                                                                                                                       |
 | `cot`              | Whether the solver should perform chain-of-thought reasoning before answering (defaults to `False`). NOTE: this has no effect if you provide a custom template.                                                                                                                                                                                                                                           |
 | `multiple_correct` | By default, multiple choice questions have a single correct answer. Set `multiple_correct=True` if your target has defined multiple correct answers (for example, a `target` of `["B", "C"]`). In this case the model is prompted to provide one or more answers, and the sample is scored correct only if each of these answers are provided. NOTE: this has no effect if you provide a custom template. |
-| `shuffle`          | If you specify `shuffle=True`, then the order of the answers presented to the model will be randomised (this may or may not affect results, depending on the nature of the questions and the model being evaluated).                                                                                                                                                                                      |
-
+                                                                                        
 : {tbl-colwidths=\[35,65\]}
 
-### Self Critique
+### Shuffling
+
+{{< include _shuffling-choices.md >}}
+
+## Self Critique
 
 Here is the declaration for the `self_critique()` solver:
 
