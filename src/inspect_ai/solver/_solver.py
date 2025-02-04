@@ -74,37 +74,37 @@ class SolverSpec:
 
 @runtime_checkable
 class Solver(Protocol):
-    r"""Contribute to solving an evaluation task.
-
-    Transform a `TaskState`, returning the new state. Solvers may
-    optionally call the `generate()` function to create a new
-    state resulting from model generation. Solvers may also do
-    prompt engineering or other types of elicitation.
-
-    Args:
-      state: States for tasks being evaluated.
-      generate: Function for generating outputs.
-
-    Returns:
-      Updated TaskState.
-
-    Examples:
-      ```python
-      @solver
-      def prompt_cot(template: str) -> Solver:
-          def solve(state: TaskState, generate: Generate) -> None:
-              # insert chain of thought prompt
-              return state
-
-          return solve
-      ```
-    """
-
     async def __call__(
         self,
         state: TaskState,
         generate: Generate,
-    ) -> TaskState: ...
+    ) -> TaskState:
+        r"""Contribute to solving an evaluation task.
+
+        Transform a `TaskState`, returning the new state. Solvers may
+        optionally call the `generate()` function to create a new
+        state resulting from model generation. Solvers may also do
+        prompt engineering or other types of elicitation.
+
+        Args:
+          state: State for tasks being evaluated.
+          generate: Function for generating outputs.
+
+        Returns:
+          Updated TaskState.
+
+        Examples:
+          ```python
+          @solver
+          def prompt_cot(template: str) -> Solver:
+              def solve(state: TaskState, generate: Generate) -> TaskState:
+                  # insert chain of thought prompt
+                  return state
+
+              return solve
+          ```
+        """
+        ...
 
 
 P = ParamSpec("P")
@@ -165,7 +165,7 @@ def solver(
         ```python
         @solver
         def prompt_cot(template: str) -> Solver:
-            def solve(state: TaskState, generate: Generate) -> None:
+            def solve(state: TaskState, generate: Generate) -> TaskState:
                 # insert chain of thought prompt
                 return state
 

@@ -56,35 +56,30 @@ def parse_docs(path: str, options: DocParseOptions) -> DocObject:
 
 
 
-def parse_class_docs(clz: Class, options: DocParseOptions) -> DocClass:
-    
-    # read source
-    source, declaration, docstrings = read_source(clz, options)
+def parse_class_docs(clz: Class, options: DocParseOptions) -> DocObject:
     
     # if this is a protocol then ammend the declaration w/ the __call__
-    examples: str | None = None
-    text_sections: list[str] = []
     is_protocol = clz.bases and str(clz.bases[0]) == "Protocol"
     if is_protocol:
-        # read call source code and ammend declaration
-        call = clz.members["__call__"]
-        call_declaration = read_declaration(call)       
-        declaration = f"{declaration}\n{call_declaration}"
-
-        # read examples and text sections
-        docstring_content = read_docstring_sections(docstrings)
-        examples = docstring_content.examples
-        text_sections = docstring_content.text_sections
-
-    # return class
-    return DocClass(
-        name=clz.name,
-        description=docstrings[0].value,
-        source=source,
-        declaration=declaration,
-        examples=examples,
-        text_sections=text_sections
-    )
+        # read from call (substituting the protocol name)
+        call = cast(Function, clz.members["__call__"])
+        call_docs = parse_function_docs(call, options)
+        call_docs.name = clz.name
+        call_docs.declaration = f"class {clz.name}(Protocol):\n{call_docs.declaration}"
+        return call_docs
+    else:
+        # read source
+        source, declaration, docstrings = read_source(clz, options)
+ 
+        # return as a class
+        return DocClass(
+            name=clz.name,
+            description=docstrings[0].value,
+            source=source,
+            declaration=declaration,
+            examples=None,
+            text_sections=[]
+        )
 
 
 
@@ -102,10 +97,28 @@ def parse_function_docs(function: Function, options: DocParseOptions) -> DocFunc
     # read docstring sections
     docstring_content = read_docstring_sections(docstrings)
 
+    # extract params
+    params = read_params(function, docstring_content.parameter_descriptions)
+   
+    # return function
+    return DocFunction(
+        name=function.name,
+        description=docstring_content.description,
+        source=source,
+        declaration=declaration,
+        examples=docstring_content.examples,
+        text_sections=docstring_content.text_sections,
+        parameters=params
+    )
 
+def read_params(function: Function, parameter_descriptions: dict[str, str]) -> list[DocParameter]:
     # extract params
     params: list[DocParameter] = []
     for p in function.parameters:
+        # skip self
+        if p.name == "self":
+            continue
+
         # param name w/ varargs prefix
         name = p.name
         if p.kind == ParameterKind.var_positional:
@@ -119,19 +132,10 @@ def parse_function_docs(function: Function, options: DocParseOptions) -> DocFunc
                 type=str(p.annotation.modernize()), 
                 required=p.required,
                 default=str(p.default) if p.required else "", 
-                description=docstring_content.parameter_descriptions[name])
+                description=parameter_descriptions[name])
         )
 
-    # return function
-    return DocFunction(
-        name=function.name,
-        description=docstring_content.description,
-        source=source,
-        declaration=declaration,
-        examples=docstring_content.examples,
-        text_sections=docstring_content.text_sections,
-        parameters=params
-    )
+    return params
 
 def read_docstring_sections(docstrings: list[DocstringSection]) -> DocstringContent:
      # main text
