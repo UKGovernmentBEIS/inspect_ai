@@ -19,8 +19,8 @@ providers is built in to Inspect:
 If the provider you are using is not listed above, you may still be able
 to use it if:
 
-1.  It is available via [OpenRouter](providers.qmd#openrouter) (see the
-    docs on using OpenRouter with Inspect).
+1.  It is available via OpenRouter (see the docs on using
+    [OpenRouter](providers.qmd#openrouter) with Inspect).
 
 2.  It provides an OpenAI compatible API endpoint. In this scenario, use
     the Inspect [OpenAI](providers.qmd#openai) interface and set the
