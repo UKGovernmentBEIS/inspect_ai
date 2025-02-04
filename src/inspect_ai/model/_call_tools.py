@@ -133,7 +133,8 @@ async def call_tools(
             ):
                 content: str | list[Content] = [result]
             elif isinstance(result, list) and (
-                isinstance(
+                len(result) == 0
+                or isinstance(
                     result[0], ContentText | ContentImage | ContentAudio | ContentVideo
                 )
             ):

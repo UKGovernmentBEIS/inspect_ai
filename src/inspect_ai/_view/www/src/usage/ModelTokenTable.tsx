@@ -2,15 +2,15 @@ import { TokenHeader, TokenRow, TokenTable } from "./TokenTable";
 
 interface ModelTokenTable {
   model_usage: any;
-  style?: React.CSSProperties;
+  className?: string | string[];
 }
 
 export const ModelTokenTable: React.FC<ModelTokenTable> = ({
   model_usage,
-  style,
+  className,
 }) => {
   return (
-    <TokenTable style={style}>
+    <TokenTable className={className}>
       <TokenHeader />
       <tbody>
         {Object.keys(model_usage).map((key) => {

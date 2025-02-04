@@ -16070,7 +16070,7 @@ ul.jsondiffpatch-textdiff {
 .language-javascript {
   background: transparent !important;
 }
-._json-tab_w7sx0_1 {
+._jsonTab_6pq03_1 {
   padding: 0.5rem;
   font-size: var(--inspect-font-size-small);
   width: 100%;
@@ -16312,8 +16312,34 @@ ul.jsondiffpatch-textdiff {
   width: 100%;
   margin-top: 1em;
 }
-._tabPanel_nhiv5_1 {
+._tabPanel_14odp_1 {
   padding-bottom: 1em;
+}
+
+._fullWidth_14odp_5 {
+  width: 100%;
+}
+
+._metadataPanel_14odp_9 {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 1em;
+  padding-left: 0;
+  margin-top: 0.5em;
+}
+
+._padded_14odp_18 {
+  padding-left: 0.8em;
+  margin-top: 0.4em;
+}
+
+._ansi_14odp_23 {
+  margin: 1em 0;
+}
+
+._noTop_14odp_27 {
+  margin-top: 0;
 }
 ._body_5y0hl_1 {
   color: var(--bs-danger);
