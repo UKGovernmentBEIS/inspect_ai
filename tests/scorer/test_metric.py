@@ -17,7 +17,12 @@ from inspect_ai.scorer import (
     scorer,
     std,
 )
-from inspect_ai.scorer._metric import SampleScore, metric_create
+from inspect_ai.scorer._metric import (
+    MetricDeprecated,
+    MetricProtocol,
+    SampleScore,
+    metric_create,
+)
 from inspect_ai.scorer._metrics.std import stderr
 from inspect_ai.scorer._target import Target
 from inspect_ai.solver._task_state import TaskState
@@ -44,16 +49,16 @@ def acc_fn(correct: str = "C") -> Metric:
 
 
 @metric
-class Accuracy3(Metric):
+class Accuracy3(MetricDeprecated):
     def __init__(self, correct: str = "C") -> None:
         self.correct = correct
 
-    def __call__(self, scores: list[SampleScore]) -> int | float:
+    def __call__(self, scores: list[Score]) -> int | float:
         return 1
 
 
 @metric(name="accuracy4")
-class AccuracyNamedCls(Metric):
+class AccuracyNamedCls(MetricProtocol):
     def __init__(self, correct: str = "C") -> None:
         self.correct = correct
 
@@ -65,6 +70,14 @@ class AccuracyNamedCls(Metric):
 def list_metric() -> Metric:
     def metric(scores: list[SampleScore]) -> Value:
         return [1, 2, 3]
+
+    return metric
+
+
+@metric
+def deprecated_metric() -> Metric:
+    def metric(scores: list[Score]) -> Value:
+        return len(scores)
 
     return metric
 
@@ -101,6 +114,22 @@ def test_metric_create() -> None:
 def test_inspect_metrics() -> None:
     registry_assert(accuracy, f"{PKG_NAME}/accuracy")
     registry_assert(accuracy(), f"{PKG_NAME}/accuracy")
+
+
+def test_deprecated_metric() -> None:
+    def check_log(log):
+        assert log.results and (
+            list(log.results.scores[0].metrics.keys()) == ["deprecated_metric"]
+        )
+
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target=["2", "2.0", "Two"])],
+        scorer=match(),
+        metrics=[deprecated_metric()],
+    )
+
+    log = eval(tasks=task, model="mockllm/model")[0]
+    check_log(log)
 
 
 def test_list_metric() -> None:

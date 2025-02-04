@@ -1,10 +1,13 @@
 import fnmatch
+import inspect
+import logging
 import re
 from collections import defaultdict
 from copy import deepcopy
 from dataclasses import dataclass, field
-from typing import Any, Tuple, cast
+from typing import Any, Tuple, TypeGuard, cast, get_args, get_origin, get_type_hints
 
+from inspect_ai._util.logger import warn_once
 from inspect_ai._util.registry import (
     registry_info,
     registry_log_name,
@@ -19,7 +22,12 @@ from inspect_ai.log import (
 )
 from inspect_ai.log._log import EvalSampleReductions
 from inspect_ai.scorer import Metric, Score, Scorer
-from inspect_ai.scorer._metric import SampleScore
+from inspect_ai.scorer._metric import (
+    MetricDeprecated,
+    MetricProtocol,
+    SampleScore,
+    Value,
+)
 from inspect_ai.scorer._metrics.accuracy import accuracy
 from inspect_ai.scorer._metrics.std import stderr
 from inspect_ai.scorer._reducer import ScoreReducer, mean_score, reducer_log_name
@@ -28,6 +36,8 @@ from inspect_ai.scorer._scorer import (
     scorer_metrics,
     unique_scorer_name,
 )
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -203,10 +213,9 @@ def scorer_for_metrics(
             registry_unqualified_name(metric), list(list_metrics.keys())
         )
         params = registry_params(metric)
-
         # process metric values
         if len(sample_scores) > 0:
-            metric_value = metric(sample_scores)
+            metric_value = call_metric(metric, sample_scores)
         else:
             metric_value = float("Nan")
         base_metric_name = registry_log_name(metric)
@@ -300,7 +309,7 @@ def scorers_from_metric_dict(
             metric_name = registry_log_name(target_metric)
             metric_params = registry_params(target_metric)
             if len(metric_scores) > 0:
-                value = target_metric(metric_scores)
+                value = call_metric(target_metric, metric_scores)
             else:
                 value = float("Nan")
 
@@ -339,6 +348,48 @@ def scorers_from_metric_dict(
             )
         )
     return results
+
+
+def call_metric(metric: Metric, sample_scores: list[SampleScore]) -> Value:
+    if is_metric_deprecated(metric):
+        warn_once(
+            logger,
+            f"Metric {registry_log_name(metric)} should be updated to take list[SampleScore]. "
+            f"Metrics with list[Score] are deprecated.",
+        )
+        scores = [sample_score.score for sample_score in sample_scores]
+        return metric(scores)
+    else:
+        metric = cast(MetricProtocol, metric)
+        return metric(sample_scores)
+
+
+def is_metric_deprecated(metric: Metric) -> TypeGuard[MetricDeprecated]:
+    """Type guard to check if a metric follows the deprecated signature."""
+    try:
+        # signature and params
+        sig = inspect.signature(metric)
+        param_types = get_type_hints(metric)
+
+        # there should be only one param, check it
+        first_param = next(iter(sig.parameters.values()), None)
+        if first_param is None:
+            # No parameters, who knows what this is, treat it as deprecated
+            return True
+
+        expected_type: Any = param_types.get(first_param.name, None)
+
+        if expected_type is None or expected_type is Any:
+            # no helpful type info, treat it as deprecated
+            return True
+
+        # Extract generic base type and arguments to check if it matches list[Score]
+        origin = get_origin(expected_type)
+        args = get_args(expected_type)
+
+        return origin is list and args == (Score,)
+    except (AttributeError, ValueError, TypeError):
+        return False
 
 
 def resolve_glob_metric_keys(
