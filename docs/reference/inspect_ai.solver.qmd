@@ -2,17 +2,27 @@
 title: "inspect_ai.solver"
 ---
 
-## Prompts
+## Generation
+
+### generate
+### use_tools
+
+## Prompting
 
 ### prompt_template
 ### system_message
 ### user_message
 ### chain_of_thought
-### multiple_choice
 ### self_critique
-
+### multiple_choice
 
 ## Agents
 
 ### basic_agent
 ### human_agent
+
+## Composition
+
+### chain
+### fork
+### bridge
