@@ -11,7 +11,6 @@ def render_docs(elem: pf.Element, docs: DocObject) -> list[pf.Element]:
 
     # type specific rendering
     if isinstance(docs, DocFunction):
-
         # source link
         elements.append(pf.Div(pf.Plain(pf.Link(pf.Str("Source"), url=docs.source)), classes=["source-link"]))
 
@@ -20,8 +19,14 @@ def render_docs(elem: pf.Element, docs: DocObject) -> list[pf.Element]:
 
         # parameters
         elements.append(render_params(docs.parameters))
+
+        # other sections
+        for section in docs.text_sections:
+            elements.append(pf.RawBlock(section, "markdown"))
         
     
+
+
     # return elements
     return elements
 
@@ -44,5 +49,5 @@ def render_params_header() -> pf.TableHead:
 def render_param(param: DocParameter) -> pf.TableRow:
     return pf.TableRow(
         pf.TableCell(pf.Plain(pf.Code(param.name), pf.LineBreak(), pf.Span(pf.Str(param.type), classes=["argument-type"]))),
-        pf.TableCell(pf.Plain(pf.RawInline(param.description, format="markdown")))
+        pf.TableCell(pf.RawBlock(param.description, format="markdown"))
     )

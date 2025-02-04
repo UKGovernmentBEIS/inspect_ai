@@ -209,43 +209,40 @@ def multiple_choice(
     multiple_correct: bool = False,
     shuffle: bool | Random = False,
 ) -> Solver:
-    """Multiple choice question solver.
-
-    Formats a multiple choice question prompt, then calls `generate()`
-
-    ### Usage
+    """Multiple choice question solver. Formats a multiple choice question prompt, then calls `generate()`.
 
     Note that due to the way this solver works, it has some constraints:
 
-        1. The `Sample` must have the `choices` attribute set.
-        2. The only built-in compatible scorer is the `choice` scorer.
-        3. It calls `generate()` internally, so you don't need to call it again
+    1. The `Sample` must have the `choices` attribute set.
+    2. The only built-in compatible scorer is the `choice` scorer.
+    3. It calls `generate()` internally, so you don't need to call it again
 
-    ### Shuffling
+    Args:
+      template: Template to use for the multiple choice question.
+        The defaults vary based on the options and are taken from the `MultipleChoiceTemplate` enum. The template will have questions and possible answers substituted into it before being sent to the model. Consequently it requires three specific template variables:
+
+          - `{question}`: The question to be asked.
+          - `{choices}`: The choices available, which will be formatted as a
+            list of A) ... B) ... etc. before sending to the model.
+          - `{letters}`: (optional) A string of letters representing the choices, e.g.
+            "A,B,C". Used to be explicit to the model about the possible answers.
+      cot: Default `False`. Whether the solver should perform chain-of-thought
+        reasoning before answering. NOTE: this has no effect if you provide a custom template.
+      multiple_correct: Default `False`. Whether to allow multiple
+        answers to the multiple choice question. For example, "What numbers are
+        squares? A) 3, B) 4, C) 9" has multiple correct answers, B and C. Leave
+        as `False` if there's exactly one correct answer from the choices
+        available. NOTE: this has no effect if you provide a custom template.
+      shuffle: Default `False`. Whether to shuffle the choices
+        in the multiple.  Passing a `Random` instance will use that for shuffling,
+        if `True` a new `Random` instance will be created.
+
+    #### Shuffling
 
     If the choices are shuffled, we will unshuffle them in the message history
     after the model has been called, essentially rewriting history. It is
     something to be aware of if writing custom scorers or solvers that interact
     with this scorer.
-
-    Args:
-      template (str | None): Template to use for the multiple choice question.
-        The defaults vary based on the options and are taken from the `MultipleChoiceTemplate` enum. The template will have questions and possible answers substituted into it before being sent to the model. Consequently it requires three specific template variables:
-        - `{question}`: The question to be asked.
-        - `{choices}`: The choices available, which will be formatted as a
-            list of A) ... B) ... etc. before sending to the model.
-        - `{letters}`: (optional) A string of letters representing the choices, e.g.
-            "A,B,C". Used to be explicit to the model about the possible answers.
-      cot (bool): Default `False`. Whether the solver should perform chain-of-thought
-        reasoning before answering. NOTE: this has no effect if you provide a custom template.
-      multiple_correct (bool): Default `False`. Whether to allow multiple
-        answers to the multiple choice question. For example, "What numbers are
-        squares? A) 3, B) 4, C) 9" has multiple correct answers, B and C. Leave
-        as `False` if there's exactly one correct answer from the choices
-        available. NOTE: this has no effect if you provide a custom template.
-      shuffle (bool | Random): Default `False`. Whether to shuffle the choices
-        in the multiple.  Passing a `Random` instance will use that for shuffling,
-        if `True` a new `Random` instance will be created.
     """
     if template and not valid_template(template):
         raise ValueError(

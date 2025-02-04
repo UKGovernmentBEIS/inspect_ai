@@ -1,8 +1,9 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from itertools import islice
 from pathlib import Path
+import sys
 from typing import Any
-from griffe import Alias, Function, Module, Object, ParameterKind
+from griffe import Alias, DocstringSectionAdmonition, DocstringSectionParameters, DocstringSectionText, Function, Module, Object, ParameterKind
 
 @dataclass
 class DocParseOptions:
@@ -22,6 +23,7 @@ class DocObject:
     name: str
     description: str
     source: str
+    text_sections: list[str]
 
 @dataclass
 class DocFunction(DocObject):
@@ -54,15 +56,20 @@ def parse_function_docs(function: Function, options: DocParseOptions) -> DocFunc
     assert function.docstring.lineno is not None
     
     # parse docstrings
-    sections = function.docstring.parse("google")
-    function_description = sections[0].value
+    doc_sections = function.docstring.parse("google")
+    function_description = doc_sections[0].value
+
+    text_sections: list[str] = []
     parameter_descriptions: dict[str,str] = {}
-    for p in sections[1].value:
-        desc = p.description.strip()
-        if ':' in desc:
-            desc = desc.split(':', 1)[1]
-        parameter_descriptions[p.name] = desc
-     
+    for doc_section in doc_sections[1:]:
+        if isinstance(doc_section, DocstringSectionParameters):
+            for p in doc_sections[1].value:
+                desc = p.description.strip()
+                parameter_descriptions[p.name] = desc
+        elif isinstance(doc_section, DocstringSectionText):
+            text_sections.append(doc_section.value)
+        else:
+            sys.stderr.write(doc_section.kind + "\n")
 
     # url to code
     source = f"{options.source_url}/{function.relative_package_filepath}#L{function.lineno}"
@@ -94,6 +101,7 @@ def parse_function_docs(function: Function, options: DocParseOptions) -> DocFunc
         name=function.name,
         description=function_description,
         source=source,
+        text_sections=text_sections,
         declaration=declaration,
         parameters=params
     )

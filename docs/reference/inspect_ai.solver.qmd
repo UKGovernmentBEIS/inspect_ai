@@ -4,10 +4,7 @@ title: "inspect_ai.solver"
 
 <!--
 TODO:
-  'Returns'
   'Examples'
-   sections (multiple choice)
-
 -->
 
 ## Prompts
@@ -16,6 +13,7 @@ TODO:
 ### system_message
 ### user_message
 ### chain_of_thought
+### multiple_choice
 ### self_critique
 
 

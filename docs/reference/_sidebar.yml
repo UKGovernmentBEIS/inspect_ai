@@ -17,6 +17,8 @@ website:
         href: reference/inspect_ai.solver.qmd#user_message
       - text: chain_of_thought
         href: reference/inspect_ai.solver.qmd#chain_of_thought
+      - text: multiple_choice
+        href: reference/inspect_ai.solver.qmd#multiple_choice
       - text: self_critique
         href: reference/inspect_ai.solver.qmd#self_critique
       - text: basic_agent
