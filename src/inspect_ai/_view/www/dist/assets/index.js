@@ -49767,12 +49767,20 @@ self.onmessage = function (e) {
       tableH,
       model
     };
-    const TokenTable = ({ style: style2, children: children2 }) => {
+    const TokenTable = ({
+      className: className2,
+      children: children2
+    }) => {
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
         "table",
         {
-          className: clsx("table", "table-sm", "text-size-smaller", styles$D.table),
-          style: style2,
+          className: clsx(
+            "table",
+            "table-sm",
+            "text-size-smaller",
+            styles$D.table,
+            className2
+          ),
           children: children2
         }
       );
@@ -49833,9 +49841,9 @@ self.onmessage = function (e) {
     };
     const ModelTokenTable = ({
       model_usage,
-      style: style2
+      className: className2
     }) => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs(TokenTable, { style: style2, children: [
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs(TokenTable, { className: className2, children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx(TokenHeader, {}),
         /* @__PURE__ */ jsxRuntimeExports.jsx("tbody", { children: Object.keys(model_usage).map((key2) => {
           return /* @__PURE__ */ jsxRuntimeExports.jsx(TokenRow, { model: key2, usage: model_usage[key2] });
@@ -50957,7 +50965,7 @@ self.onmessage = function (e) {
                 event.sample.choices ? event.sample.choices.map((choice, index2) => {
                   return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
                     String.fromCharCode(65 + index2),
-                    ") $",
+                    ") ",
                     choice
                   ] });
                 }) : "",
@@ -58902,9 +58910,8 @@ ${events}
               MetaDataView,
               {
                 id: "task-sample-metadata-${id}",
-                className: "tab-pane",
                 entries: sample2 == null ? void 0 : sample2.metadata,
-                className: clsx(styles$A.noTop)
+                className: clsx("tab-pane", styles$A.noTop)
               }
             ) })
           ] })
@@ -58918,9 +58925,8 @@ ${events}
               MetaDataView,
               {
                 id: "task-sample-store-${id}",
-                className: "tab-pane",
                 entries: sample2 == null ? void 0 : sample2.store,
-                className: clsx(styles$A.noTop)
+                className: clsx("tab-pane", styles$A.noTop)
               }
             ) })
           ] })

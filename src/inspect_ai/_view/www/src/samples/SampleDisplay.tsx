@@ -240,9 +240,8 @@ const metadataViewsForSample = (_id: string, sample: EvalSample) => {
         <CardBody>
           <MetaDataView
             id="task-sample-metadata-${id}"
-            className="tab-pane"
             entries={sample?.metadata as Record<string, unknown>}
-            className={clsx(styles.noTop)}
+            className={clsx("tab-pane", styles.noTop)}
           />
         </CardBody>
       </Card>,
@@ -256,9 +255,8 @@ const metadataViewsForSample = (_id: string, sample: EvalSample) => {
         <CardBody>
           <MetaDataView
             id="task-sample-store-${id}"
-            className="tab-pane"
             entries={sample?.store as Record<string, unknown>}
-            className={clsx(styles.noTop)}
+            className={clsx("tab-pane", styles.noTop)}
           />
         </CardBody>
       </Card>,
