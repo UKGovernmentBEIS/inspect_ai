@@ -4,8 +4,6 @@ import { MetaDataView } from "../metadata/MetaDataView";
 import { escapeSelector } from "../utils/html";
 import { isVscode } from "../utils/vscode";
 
-import { FontSize } from "../appearance/fonts";
-
 import { ApplicationIcons } from "../appearance/icons";
 import { ANSIDisplay } from "../components/AnsiDisplay";
 import { ToolButton } from "../components/ToolButton";
@@ -123,12 +121,11 @@ export const SampleDisplay: React.FC<SampleDisplayProps> = ({
         ) : null}
         <TabPanel
           id={kSampleMessagesTabId}
-          className="sample-tab"
+          className={clsx("sample-tab", styles.fullWidth)}
           title="Messages"
           onSelected={onSelectedTab}
           selected={selectedTab === kSampleMessagesTabId}
           scrollable={false}
-          style={{ width: "100%" }}
         >
           <ChatViewVirtualList
             key={`${baseId}-chat-${id}`}
@@ -183,18 +180,7 @@ export const SampleDisplay: React.FC<SampleDisplayProps> = ({
             onSelected={onSelectedTab}
             selected={selectedTab === kSampleMetdataTabId}
           >
-            <div
-              style={{
-                display: "flex",
-                flexWrap: "wrap",
-                alignItems: "flex-start",
-                gap: "1em",
-                paddingLeft: "0",
-                marginTop: "0.5em",
-              }}
-            >
-              {sampleMetadatas}
-            </div>
+            <div className={clsx(styles.metadataPanel)}>{sampleMetadatas}</div>
           </TabPanel>
         ) : null}
         {sample.error ? (
@@ -205,10 +191,10 @@ export const SampleDisplay: React.FC<SampleDisplayProps> = ({
             onSelected={onSelectedTab}
             selected={selectedTab === kSampleErrorTabId}
           >
-            <div style={{ paddingLeft: "0.8em", marginTop: "0.4em" }}>
+            <div className={clsx(styles.padded)}>
               <ANSIDisplay
                 output={sample.error.traceback_ansi}
-                style={{ fontSize: FontSize.small, margin: "1em 0" }}
+                className={clsx("text-size-small", styles.ansi)}
               />
             </div>
           </TabPanel>
@@ -221,7 +207,7 @@ export const SampleDisplay: React.FC<SampleDisplayProps> = ({
             onSelected={onSelectedTab}
             selected={selectedTab === kSampleJsonTabId}
           >
-            <div style={{ paddingLeft: "0.8em", marginTop: "0.4em" }}>
+            <div className={clsx(styles.padded, styles.fullWidth)}>
               <JSONPanel data={sample} simple={true} />
             </div>
           </TabPanel>
@@ -240,7 +226,7 @@ const metadataViewsForSample = (_id: string, sample: EvalSample) => {
         <CardBody>
           <ModelTokenTable
             model_usage={sample.model_usage}
-            style={{ marginTop: 0 }}
+            className={clsx(styles.noTop)}
           />
         </CardBody>
       </Card>,
@@ -254,9 +240,8 @@ const metadataViewsForSample = (_id: string, sample: EvalSample) => {
         <CardBody>
           <MetaDataView
             id="task-sample-metadata-${id}"
-            className="tab-pane"
             entries={sample?.metadata as Record<string, unknown>}
-            style={{ marginTop: "0" }}
+            className={clsx("tab-pane", styles.noTop)}
           />
         </CardBody>
       </Card>,
@@ -270,9 +255,8 @@ const metadataViewsForSample = (_id: string, sample: EvalSample) => {
         <CardBody>
           <MetaDataView
             id="task-sample-store-${id}"
-            className="tab-pane"
             entries={sample?.store as Record<string, unknown>}
-            style={{ marginTop: "0" }}
+            className={clsx("tab-pane", styles.noTop)}
           />
         </CardBody>
       </Card>,

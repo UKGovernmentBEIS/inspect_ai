@@ -34,20 +34,18 @@ export const JSONPanel: React.FC<JSONPanelProps> = ({
   }, [sourceCode]);
 
   return (
-    <div>
-      <pre
-        className={clsx("json-panel", simple ? "simple" : "", className)}
-        style={style}
+    <pre
+      className={clsx("json-panel", simple ? "simple" : "", className)}
+      style={style}
+    >
+      <code
+        id={id}
+        ref={codeRef}
+        className={clsx("source-code", "language-javascript")}
       >
-        <code
-          id={id}
-          ref={codeRef}
-          className={clsx("source-code", "language-javascript")}
-        >
-          {sourceCode}
-        </code>
-      </pre>
-    </div>
+        {sourceCode}
+      </code>
+    </pre>
   );
 };
 

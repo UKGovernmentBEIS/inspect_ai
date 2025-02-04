@@ -14426,12 +14426,12 @@ var require_assets = __commonJS({
       }
     };
     const container$d = "_container_w37fs_1";
-    const padded = "_padded_w37fs_8";
+    const padded$1 = "_padded_w37fs_8";
     const key$1 = "_key_w37fs_12";
     const value$1 = "_value_w37fs_16";
     const styles$12 = {
       container: container$d,
-      padded,
+      padded: padded$1,
       key: key$1,
       value: value$1
     };
@@ -49189,7 +49189,7 @@ self.onmessage = function (e) {
           prismExports.highlightElement(codeRef.current);
         }
       }, [sourceCode]);
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+      return /* @__PURE__ */ jsxRuntimeExports.jsx(
         "pre",
         {
           className: clsx("json-panel", simple ? "simple" : "", className2),
@@ -49204,7 +49204,7 @@ self.onmessage = function (e) {
             }
           )
         }
-      ) });
+      );
     };
     const resolveBase64 = (value2) => {
       const prefix2 = "data:image";
@@ -49227,8 +49227,9 @@ self.onmessage = function (e) {
       }
       return value2;
     };
+    const jsonTab = "_jsonTab_6pq03_1";
     const styles$I = {
-      "json-tab": "_json-tab_w7sx0_1"
+      jsonTab
     };
     const kJsonMaxSize = 1e7;
     const JsonTab = ({
@@ -49238,7 +49239,7 @@ self.onmessage = function (e) {
     }) => {
       if (logFile && json.length > kJsonMaxSize && capabilities2.downloadFiles) {
         const file = `${filename(logFile)}.json`;
-        return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$I["json-tab"], children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+        return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$I.jsonTab, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
           DownloadPanel,
           {
             message: "The JSON for this log file is too large to render.",
@@ -49248,7 +49249,7 @@ self.onmessage = function (e) {
           }
         ) });
       } else {
-        return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "json-tab", children: /* @__PURE__ */ jsxRuntimeExports.jsx(JSONPanel, { id: "task-json-contents", json, simple: true }) });
+        return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$I.jsonTab, children: /* @__PURE__ */ jsxRuntimeExports.jsx(JSONPanel, { id: "task-json-contents", json, simple: true }) });
       }
     };
     const EmptyPanel = ({ children: children2 }) => {
@@ -49396,30 +49397,6 @@ self.onmessage = function (e) {
     function escapeSelector(id) {
       return id.replace(/([ #.;,?!+*~'":^$[\]()=>|/\\])/g, "\\$1");
     }
-    const kBaseFontSize = 0.9;
-    const ScaleBaseFont = (scale) => {
-      return `${kBaseFontSize + scale}rem`;
-    };
-    const FontSize = {
-      title: ScaleBaseFont(0.6),
-      "title-secondary": ScaleBaseFont(0.4),
-      larger: ScaleBaseFont(0.2),
-      large: ScaleBaseFont(0.1),
-      base: ScaleBaseFont(0),
-      small: ScaleBaseFont(-0.1),
-      smaller: ScaleBaseFont(-0.1)
-    };
-    const TextStyle = {
-      label: {
-        textTransform: "uppercase"
-      },
-      secondary: {
-        color: "var(--bs-secondary)"
-      },
-      tertiary: {
-        color: "var(--bs-tertiary-color)"
-      }
-    };
     const CardHeader = ({
       id,
       icon,
@@ -49543,7 +49520,7 @@ self.onmessage = function (e) {
     const answerValue = "_answerValue_43lfg_37";
     const scoreValue = "_scoreValue_43lfg_42";
     const noLeft$1 = "_noLeft_43lfg_47";
-    const noTop = "_noTop_43lfg_51";
+    const noTop$1 = "_noTop_43lfg_51";
     const styles$F = {
       container: container$9,
       label: label$1,
@@ -49555,7 +49532,7 @@ self.onmessage = function (e) {
       answerValue,
       scoreValue,
       noLeft: noLeft$1,
-      noTop
+      noTop: noTop$1
     };
     const SampleScoreView = ({
       sample: sample2,
@@ -49790,12 +49767,20 @@ self.onmessage = function (e) {
       tableH,
       model
     };
-    const TokenTable = ({ style: style2, children: children2 }) => {
+    const TokenTable = ({
+      className: className2,
+      children: children2
+    }) => {
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
         "table",
         {
-          className: clsx("table", "table-sm", "text-size-smaller", styles$D.table),
-          style: style2,
+          className: clsx(
+            "table",
+            "table-sm",
+            "text-size-smaller",
+            styles$D.table,
+            className2
+          ),
           children: children2
         }
       );
@@ -49856,9 +49841,9 @@ self.onmessage = function (e) {
     };
     const ModelTokenTable = ({
       model_usage,
-      style: style2
+      className: className2
     }) => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs(TokenTable, { style: style2, children: [
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs(TokenTable, { className: className2, children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx(TokenHeader, {}),
         /* @__PURE__ */ jsxRuntimeExports.jsx("tbody", { children: Object.keys(model_usage).map((key2) => {
           return /* @__PURE__ */ jsxRuntimeExports.jsx(TokenRow, { model: key2, usage: model_usage[key2] });
@@ -50162,9 +50147,19 @@ self.onmessage = function (e) {
       );
       return result;
     };
-    const tabPanel = "_tabPanel_nhiv5_1";
+    const tabPanel = "_tabPanel_14odp_1";
+    const fullWidth = "_fullWidth_14odp_5";
+    const metadataPanel = "_metadataPanel_14odp_9";
+    const padded = "_padded_14odp_18";
+    const ansi = "_ansi_14odp_23";
+    const noTop = "_noTop_14odp_27";
     const styles$A = {
-      tabPanel
+      tabPanel,
+      fullWidth,
+      metadataPanel,
+      padded,
+      ansi,
+      noTop
     };
     const body$2 = "_body_5y0hl_1";
     const iconSmall = "_iconSmall_5y0hl_9";
@@ -50970,7 +50965,7 @@ self.onmessage = function (e) {
                 event.sample.choices ? event.sample.choices.map((choice, index2) => {
                   return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
                     String.fromCharCode(65 + index2),
-                    ") $",
+                    ") ",
                     choice
                   ] });
                 }) : "",
@@ -58791,12 +58786,11 @@ ${events}
                 TabPanel,
                 {
                   id: kSampleMessagesTabId,
-                  className: "sample-tab",
+                  className: clsx("sample-tab", styles$A.fullWidth),
                   title: "Messages",
                   onSelected: onSelectedTab,
                   selected: selectedTab === kSampleMessagesTabId,
                   scrollable: false,
-                  style: { width: "100%" },
                   children: /* @__PURE__ */ jsxRuntimeExports.jsx(
                     ChatViewVirtualList,
                     {
@@ -58856,20 +58850,7 @@ ${events}
                   title: "Metadata",
                   onSelected: onSelectedTab,
                   selected: selectedTab === kSampleMetdataTabId,
-                  children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-                    "div",
-                    {
-                      style: {
-                        display: "flex",
-                        flexWrap: "wrap",
-                        alignItems: "flex-start",
-                        gap: "1em",
-                        paddingLeft: "0",
-                        marginTop: "0.5em"
-                      },
-                      children: sampleMetadatas
-                    }
-                  )
+                  children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$A.metadataPanel), children: sampleMetadatas })
                 }
               ) : null,
               sample2.error ? /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -58880,11 +58861,11 @@ ${events}
                   title: "Error",
                   onSelected: onSelectedTab,
                   selected: selectedTab === kSampleErrorTabId,
-                  children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { style: { paddingLeft: "0.8em", marginTop: "0.4em" }, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+                  children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$A.padded), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
                     ANSIDisplay,
                     {
                       output: sample2.error.traceback_ansi,
-                      style: { fontSize: FontSize.small, margin: "1em 0" }
+                      className: clsx("text-size-small", styles$A.ansi)
                     }
                   ) })
                 }
@@ -58897,7 +58878,7 @@ ${events}
                   title: "JSON",
                   onSelected: onSelectedTab,
                   selected: selectedTab === kSampleJsonTabId,
-                  children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { style: { paddingLeft: "0.8em", marginTop: "0.4em" }, children: /* @__PURE__ */ jsxRuntimeExports.jsx(JSONPanel, { data: sample2, simple: true }) })
+                  children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$A.padded, styles$A.fullWidth), children: /* @__PURE__ */ jsxRuntimeExports.jsx(JSONPanel, { data: sample2, simple: true }) })
                 }
               ) : null
             ]
@@ -58915,7 +58896,7 @@ ${events}
               ModelTokenTable,
               {
                 model_usage: sample2.model_usage,
-                style: { marginTop: 0 }
+                className: clsx(styles$A.noTop)
               }
             ) })
           ] })
@@ -58929,9 +58910,8 @@ ${events}
               MetaDataView,
               {
                 id: "task-sample-metadata-${id}",
-                className: "tab-pane",
                 entries: sample2 == null ? void 0 : sample2.metadata,
-                style: { marginTop: "0" }
+                className: clsx("tab-pane", styles$A.noTop)
               }
             ) })
           ] })
@@ -58945,9 +58925,8 @@ ${events}
               MetaDataView,
               {
                 id: "task-sample-store-${id}",
-                className: "tab-pane",
                 entries: sample2 == null ? void 0 : sample2.store,
-                style: { marginTop: "0" }
+                className: clsx("tab-pane", styles$A.noTop)
               }
             ) })
           ] })
@@ -59294,6 +59273,30 @@ ${events}
           }
         )
       ] });
+    };
+    const kBaseFontSize = 0.9;
+    const ScaleBaseFont = (scale) => {
+      return `${kBaseFontSize + scale}rem`;
+    };
+    const FontSize = {
+      title: ScaleBaseFont(0.6),
+      "title-secondary": ScaleBaseFont(0.4),
+      larger: ScaleBaseFont(0.2),
+      large: ScaleBaseFont(0.1),
+      base: ScaleBaseFont(0),
+      small: ScaleBaseFont(-0.1),
+      smaller: ScaleBaseFont(-0.1)
+    };
+    const TextStyle = {
+      label: {
+        textTransform: "uppercase"
+      },
+      secondary: {
+        color: "var(--bs-secondary)"
+      },
+      tertiary: {
+        color: "var(--bs-tertiary-color)"
+      }
     };
     const ApplicationStyles = {
       moreButton: {
@@ -61321,7 +61324,7 @@ ${events}
           }
         )
       };
-      const jsonTab = {
+      const jsonTab2 = {
         id: kJsonWorkspaceTabId,
         label: "JSON",
         scrollable: true,
@@ -61363,9 +61366,9 @@ ${events}
         () => ({
           ...samplesTab ? { samples: samplesTab } : {},
           config: configTab,
-          json: jsonTab
+          json: jsonTab2
         }),
-        [samplesTab, configTab, jsonTab]
+        [samplesTab, configTab, jsonTab2]
       );
     };
     var clipboard = { exports: {} };
