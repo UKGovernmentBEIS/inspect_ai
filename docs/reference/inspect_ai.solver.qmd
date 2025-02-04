@@ -2,6 +2,11 @@
 title: "inspect_ai.solver"
 ---
 
+<!--
+TODO: restore code copy to examples
+
+-->
+
 ## Generation
 
 ### generate
@@ -26,3 +31,10 @@ title: "inspect_ai.solver"
 ### chain
 ### fork
 ### bridge
+
+## Solver
+
+### Solver
+### solver
+
+

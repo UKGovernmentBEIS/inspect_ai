@@ -76,19 +76,28 @@ class SolverSpec:
 class Solver(Protocol):
     r"""Contribute to solving an evaluation task.
 
-    Contribute to the solution of a task by transforming a TaskState
-    (e.g. prompt enhancement, elicitation, etc.). Solvers return a
-    TaskState (which could simply be a modified version of the one
-    they were passed) and optionally may call the generate() function
-    to generate output (and a new TaskState with that output).
-
+    Transform a `TaskState`, returning the new state. Solvers may
+    optionally call the `generate()` function to create a new
+    state resulting from model generation. Solvers may also do
+    prompt engineering or other types of elicitation.
 
     Args:
-        state (TaskState): States for tasks being evaluated.
-        generate (Generate): Function for generating outputs.
+      state: States for tasks being evaluated.
+      generate: Function for generating outputs.
 
     Returns:
-        Updated TaskState.
+      Updated TaskState.
+
+    Examples:
+      ```python
+      @solver
+      def prompt_cot(template: str) -> Solver:
+          def solve(state: TaskState, generate: Generate) -> None:
+              # insert chain of thought prompt
+              return state
+
+          return solve
+      ```
     """
 
     async def __call__(
@@ -144,7 +153,7 @@ def solver(
     r"""Decorator for registering solvers.
 
     Args:
-        name: (str | Callable[P, Solver]):
+        name:
             Optional name for solver. If the decorator has no name
             argument then the name of the underlying Callable[P, Solver]
             object will be used to automatically assign a name.
@@ -153,19 +162,15 @@ def solver(
         Solver with registry attributes.
 
     Examples:
-        @solver
-        def prompt_cot(state: TaskState, generate: Generate) -> None:
-            ...
-
-        @solver(name = "prompt_cot")
-        def cot(state: TaskState, generate: Generate) -> None:
-            ...
-
+        ```python
         @solver
         def prompt_cot(template: str) -> Solver:
             def solve(state: TaskState, generate: Generate) -> None:
-                ...
+                # insert chain of thought prompt
+                return state
+
             return solve
+        ```
     """
 
     # create_solver_wrapper:

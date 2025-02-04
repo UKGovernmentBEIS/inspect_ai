@@ -35,6 +35,10 @@ website:
         href: reference/inspect_ai.solver.qmd#fork
       - text: bridge
         href: reference/inspect_ai.solver.qmd#bridge
+      - text: Solver
+        href: reference/inspect_ai.solver.qmd#Solver
+      - text: solver
+        href: reference/inspect_ai.solver.qmd#solver
     - section: inspect_ai.scorer
       href: reference/inspect_ai.scorer.qmd
       contents:

@@ -1,7 +1,7 @@
 
 
 import panflute as pf # type: ignore
-from parse import DocFunction, DocObject, DocParameter
+from parse import DocClass, DocFunction, DocObject, DocParameter
 
 # render reference elements
 def render_docs(elem: pf.Element, docs: DocObject) -> list[pf.Element]:
@@ -9,25 +9,27 @@ def render_docs(elem: pf.Element, docs: DocObject) -> list[pf.Element]:
     elements: list[pf.Element] = [elem]
     elements.append(pf.RawBlock(docs.description, "markdown"))
 
+    # source link
+    elements.append(pf.Div(pf.Plain(pf.Link(pf.Str("Source"), url=docs.source)), classes=["source-link"]))
+
+    # declaration
+    elements.append(pf.CodeBlock(docs.declaration, classes = ["python"]))
+
     # type specific rendering
     if isinstance(docs, DocFunction):
-        # source link
-        elements.append(pf.Div(pf.Plain(pf.Link(pf.Str("Source"), url=docs.source)), classes=["source-link"]))
-
-        # declaration
-        elements.append(pf.CodeBlock(docs.declaration, classes = ["python"]))
-
         # parameters
         elements.append(render_params(docs.parameters))
-
-        # other sections
-        for section in docs.text_sections:
-            elements.append(pf.RawBlock(section, "markdown"))
+    elif isinstance(docs, DocClass):
+        pass
+    
+    # other sections
+    for section in docs.text_sections:
+        elements.append(pf.RawBlock(section, "markdown"))
         
-        # examples
-        if docs.examples is not None:
-            elements.append(pf.Header(pf.Str("Examples"), level=4))
-            elements.append(pf.RawBlock(docs.examples, "markdown"))
+    # examples
+    if docs.examples is not None:
+        elements.append(pf.Header(pf.Str("Examples"), level=4))
+        elements.append(pf.RawBlock(docs.examples, "markdown"))
     
     # return elements
     return elements
