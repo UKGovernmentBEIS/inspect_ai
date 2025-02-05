@@ -1,5 +1,6 @@
 
 
+from textwrap import dedent
 import panflute as pf # type: ignore
 from parse import DocAttribute, DocClass, DocFunction, DocObject, DocParameter
 
@@ -18,9 +19,14 @@ def render_docs(elem: pf.Element, docs: DocObject) -> list[pf.Element]:
     # type specific rendering
     if isinstance(docs, DocFunction):
         elements.append(render_params(docs.parameters))
-    elif isinstance(docs, DocClass) and docs.attributes:
-        elements.append(pf.Header(pf.Str("Attributes"), level=4))
-        elements.append(render_attributes(docs.attributes))
+    elif isinstance(docs, DocClass):
+        if docs.attributes:
+            elements.append(pf.Header(pf.Str("Attributes"), level=4))
+            elements.append(render_attributes(docs.attributes))
+        if docs.methods:
+            elements.append(pf.Header(pf.Str("Methods"), level=4))
+            elements.append(render_methods(docs.methods))
+
     
     
     # other sections
@@ -36,13 +42,27 @@ def render_docs(elem: pf.Element, docs: DocObject) -> list[pf.Element]:
     return elements
 
 def render_attributes(attribs: list[DocAttribute]) -> pf.Table:
-    return render_table(render_header("Attribute", "Description"), attribs)
+    return render_element_table(render_header("Attribute", "Description"), attribs)
+
+def render_methods(methods: list[DocFunction]) -> pf.Table:
+    return pf.Table(
+        pf.TableBody(*[render_method_table_row(method) for method in methods]),
+        head=render_header("Method", "Description"),
+        colspec=[("AlignLeft", 0.25), ("AlignLeft", 0.75)]
+    )
+
+def render_method_table_row(method: DocFunction) -> pf.TableRow:
+    return pf.TableRow(
+        pf.TableCell(pf.Plain(pf.Code(method.name))),
+        pf.TableCell(pf.Div(pf.RawBlock(method.description, format="markdown"), pf.CodeBlock(dedent(method.declaration), classes=["python"])))
+    )
+
 
 
 def render_params(params: list[DocParameter]) -> pf.Table:
-    return render_table(render_header("Argument", "Description"), params)
+    return render_element_table(render_header("Argument", "Description"), params)
    
-def render_table(head: pf.TableHead, elements: list[DocAttribute] | list[DocParameter]) -> pf.Table:
+def render_element_table(head: pf.TableHead, elements: list[DocAttribute] | list[DocParameter]) -> pf.Table:
     return pf.Table(
         pf.TableBody(*[render_table_row(el) for el in elements]),
         head=head,

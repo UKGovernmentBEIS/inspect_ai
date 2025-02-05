@@ -40,6 +40,7 @@ class DocFunction(DocObject):
 @dataclass
 class DocClass(DocObject):
     attributes: list[DocAttribute]
+    methods: list[DocFunction]
 
 def parse_docs(path: str, options: DocParseOptions) -> DocObject:
     # lookup object
@@ -81,17 +82,25 @@ def parse_class_docs(clz: Class, options: DocParseOptions) -> DocObject:
         if declaration.startswith("@dataclass"):
             declaration = read_declaration(clz)
            
-        # read fields
+        # read attributes and methods
         attributes: list[DocAttribute] = []
+        methods: list[DocFunction] = []
         for member in clz.members.values():
+            if member.docstring is None:
+                continue
+            
             if isinstance(member, Attribute):
-                if isinstance(member.annotation, Expr) and member.docstring:
-                    if "deprecated" not in member.docstring.value.lower():
-                        attributes.append(DocAttribute(
-                            name=member.name,
-                            type=str(member.annotation.modernize()),
-                            description=member.docstring.value
-                        ))
+                if not isinstance(member.annotation, Expr):
+                    continue
+                if "deprecated" in member.docstring.value.lower():
+                    continue
+                attributes.append(DocAttribute(
+                    name=member.name,
+                    type=str(member.annotation.modernize()),
+                    description=member.docstring.value
+                ))
+            elif isinstance(member, Function):
+                methods.append(parse_function_docs(member, options))
 
         # return as a class
         return DocClass(
@@ -101,7 +110,8 @@ def parse_class_docs(clz: Class, options: DocParseOptions) -> DocObject:
             declaration=declaration,
             examples=None,
             text_sections=[],
-            attributes=attributes
+            attributes=attributes,
+            methods=methods
         )
 
 
