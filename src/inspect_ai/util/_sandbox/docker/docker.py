@@ -290,8 +290,8 @@ class DockerSandboxEnvironment(SandboxEnvironment):
             result = await self.exec(["sh", "-e", '-c', 'base64 -d | tee -- "$1" > /dev/null', "write_file_script", file], input=base64_contents)
         if result.returncode != 0:
             if "permission denied" in result.stderr.casefold():
-                ls_result = await exec(["ls", "-la", "."])
-                error_string = f"Permission was denied. Error details: {result.stderr}; ls -la: {ls_result.stdout}; {self._docker_user=}"
+                ls_result = await self.exec(["ls", "-la", "."])
+                error_string = f"Permission was denied. Error details: {result.stderr}; ls -la: {ls_result.stdout}"
                 raise PermissionError(error_string)
             elif (
                 "cannot overwrite directory" in result.stderr.casefold()

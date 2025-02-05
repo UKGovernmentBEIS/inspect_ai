@@ -246,9 +246,9 @@ async def test_write_text_file_exists(
 async def test_write_binary_file_zero_length(sandbox_env: SandboxEnvironment) -> None:
     file_name = "zero_length_file.file"
     await sandbox_env.write_file(file_name, b"")
-    zero_length = await sandbox_env.read_file(file_name, text=True)
-    assert isinstance(zero_length, str)
-    assert zero_length == ""
+    zero_length = await sandbox_env.read_file(file_name, text=False)
+    assert isinstance(zero_length, bytes)
+    assert zero_length == b""
     await _cleanup_file(sandbox_env, file_name)
 
 
