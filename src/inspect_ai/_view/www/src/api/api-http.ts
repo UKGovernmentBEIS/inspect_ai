@@ -1,15 +1,14 @@
-//@ts-check
+import { fetchRange, fetchSize } from "../logfile/remoteZipFile";
+import { EvalLog } from "../types/log";
 import { asyncJsonParse } from "../utils/json-worker";
 import { download_file, encodePathParts } from "./api-shared";
-import { fetchRange, fetchSize } from "../utils/remoteZipFile.mjs";
 import {
   Capabilities,
   LogContents,
   LogFiles,
   LogFilesFetchResponse,
   LogViewAPI,
-} from "./Types";
-import { EvalLog } from "../types/log";
+} from "./types";
 
 interface LogInfo {
   log_dir?: string;
@@ -38,7 +37,6 @@ export default function simpleHttpApi(
  * Fetches a file from the specified URL and parses its content.
  */
 function simpleHttpAPI(logInfo: LogInfo): LogViewAPI {
-  const log_file = logInfo.log_file;
   const log_dir = logInfo.log_dir;
 
   async function open_log_file() {

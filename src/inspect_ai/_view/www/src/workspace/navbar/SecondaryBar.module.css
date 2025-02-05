@@ -1,0 +1,28 @@
+.staticCol {
+  flex-shrink: 0;
+}
+
+.justifyLeft {
+  justify-self: left;
+}
+
+.justifyCenter {
+  justify-self: center;
+}
+
+.justifyRight {
+  justify-self: right;
+}
+
+.valueGrid {
+  margin: 0;
+  padding: 0.2em 1em 0.2em 1em;
+  display: grid;
+  grid-column-gap: 1em;
+  border-top: 1px solid var(--bs-border-color);
+}
+
+.container {
+  margin: 0;
+  width: 100%;
+}

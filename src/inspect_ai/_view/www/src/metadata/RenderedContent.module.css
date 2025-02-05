@@ -1,0 +1,12 @@
+.query {
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+}
+
+.summary {
+  margin-bottom: 0.5rem;
+}
+
+.preWrap {
+  white-space: pre-wrap;
+}

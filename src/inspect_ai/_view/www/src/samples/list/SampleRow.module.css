@@ -1,0 +1,33 @@
+.grid {
+  display: grid;
+  padding-top: 1em;
+  padding-bottom: 1em;
+  border-bottom: solid var(--bs-border-color) 1px;
+  cursor: pointer;
+  overflow-y: hidden;
+  grid-gap: 10px;
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+.selected {
+  box-shadow: inset 0 0 0px 2px var(--bs-focus-ring-color);
+}
+
+.cell {
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.wrapAnywhere {
+  word-wrap: anywhere;
+}
+
+.noLeft {
+  padding-left: 0;
+}
+
+.score {
+  display: flex;
+  justify-self: center;
+}

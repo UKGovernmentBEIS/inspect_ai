@@ -1,0 +1,10 @@
+.tools {
+  display: grid;
+  grid-template-columns: max-content max-content;
+  column-gap: 1rem;
+  margin: 0;
+}
+
+.tool {
+  padding: 0;
+}

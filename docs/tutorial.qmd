@@ -8,6 +8,7 @@ Below we'll walk step-by-step through several basic examples of Inspect evaluati
 
 | Example | Demonstrates |
 |-----------------------------|-------------------------------------------|
+| [Hello World](#hello-world) | Simplest eval to test setup. |
 | [Security Guide](#sec-security-guide) | Custom system prompt; Model grading of output. |
 | [HellaSwag](#sec-hellaswag) | Mapping external data formats into Inspect; Multiple choice questions. |
 | [GSM8K](#sec-gsm8k) | Using fewshot examples; Scoring numeric output. |
@@ -19,11 +20,36 @@ Below we'll walk step-by-step through several basic examples of Inspect evaluati
 
 
 
-See also the complete list of [Examples](#sec-examples) for demonstrations of more advanced features.
+See also the complete list of [Examples](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples) for demonstrations of more advanced features.
 
 ::: {.callout-note appearance="simple"}
 Note that in these examples we won't show a `--model` command line argument when we call `inspect eval` (the presumption being that it has been already established via the `INSPECT_EVAL_MODEL` environment variable).
 :::
+
+## Hello World {#hello-world}
+
+This is the simplest possible Inspect evaluation task. The solver (`generate()`) just calls the model with the prompt and the scorer (`exact()`) checks whether the model produces exactly the `target` from the dataset:
+
+```{python}
+from inspect_ai import Task, task
+from inspect_ai.dataset import Sample
+from inspect_ai.scorer import exact
+from inspect_ai.solver import generate
+
+@task
+def hello_world():
+    return Task(
+        dataset=[
+            Sample(
+                input="Just reply with Hello World",
+                target="Hello World",
+            )
+        ],
+        solver=[generate()],
+        scorer=exact(),
+    )
+```
+
 
 ## Security Guide {#sec-security-guide}
 
@@ -39,7 +65,7 @@ The security guide example contains 16 question-answer pairs taken from the secu
 We'll start by importing the functions we need from Inspect and defining a system message that orients the model to its role as a computer security expert.
 
 ```{python}
-from inspect_ai import Task, eval, task
+from inspect_ai import Task, task
 from inspect_ai.dataset import example_dataset
 from inspect_ai.scorer import model_graded_fact
 from inspect_ai.solver import generate, system_message
@@ -92,7 +118,7 @@ For example, here is one of the questions in the dataset along with its set of p
 We'll start by importing the functions we need from Inspect, defining a system message, and writing a function to convert dataset records to samples (we need to do this to convert the index-based label in the dataset to a letter).
 
 ```{python}
-from inspect_ai import Task, eval, task
+from inspect_ai import Task, task
 from inspect_ai.dataset import Sample, hf_dataset
 from inspect_ai.scorer import choice
 from inspect_ai.solver import multiple_choice, system_message
@@ -116,7 +142,7 @@ Note that even though we don't use it for the evaluation, we save the `source_id
 
 ### Eval {.unlisted}
 
-We'll load the dataset from [HuggingFace](https://huggingface.co/datasets/Rowan/hellaswag) using the `hf_dataset()` function. We'll draw data from the validation split, and use the `record_to_sample()` function to parse the records (we'll also pass `trust=True` to indicate that we are okay with Hugging Face executing the dataset loading code provided by hellaswag):
+We'll load the dataset from [HuggingFace](https://huggingface.co/datasets/Rowan/hellaswag) using the `hf_dataset()` function. We'll draw data from the validation split, and use the `record_to_sample()` function to parse the records (we'll also pass `trust=True` to indicate that we are okay with locally executing the dataset loading code provided by hellaswag):
 
 ```{python}
 @task
@@ -197,7 +223,7 @@ def sample_to_fewshot(sample):
     )
 ```
 
-Note that we save the "reasoning" part of the answer in `metadata`—we do this so that we can use it to compose the fewshot prompt (as illustrated in `sample_to_fewshot()`).
+Note that we save the "reasoning" part of the answer in `metadata` — we do this so that we can use it to compose the [fewshot prompt](https://www.promptingguide.ai/techniques/fewshot) (as illustrated in `sample_to_fewshot()`).
 
 Here's the prompt we'll used to elicit a chain of thought answer in the right format:
 
@@ -330,7 +356,7 @@ def math(shuffle=True):
                 input="problem", 
                 target="solution"
             ),
-            shuffle=True,
+            shuffle=shuffle,
             trust=True,
         ),
         solver=[
@@ -419,7 +445,9 @@ Now we run the evaluation, limiting it to 500 problems (as there are over 12,000
 $ inspect eval math.py --limit 500
 ```
 
-This will draw 500 random samples from the dataset (because we defined `shuffle=True` in our call to load the dataset). The task lets you override this with a task parameter (e.g. in case you wanted to evaluate a specific sample or range of samples):
+This will draw 500 random samples from the dataset (because the default is `shuffle=True` in our call to load the dataset).
+
+The task lets you override this with a task parameter (e.g. in case you wanted to evaluate a specific sample or range of samples):
 
 ``` bash
 $ inspect eval math.py --limit 100-200 -T shuffle=false
@@ -442,14 +470,13 @@ If you want to use tools in your evals it's worth taking some time to learn how 
 We'll demonstrate with a simple tool that adds two numbers, using the `@tool` decorator to register it with the system:
 
 ```{python}
-from inspect_ai import Task, eval, task
+from inspect_ai import Task, task
 from inspect_ai.dataset import Sample
-from inspect_ai.scorer import includes, match
+from inspect_ai.scorer import match
 from inspect_ai.solver import (
-    generate, system_message, use_tools
+    generate, use_tools
 )
 from inspect_ai.tool import tool
-from inspect_ai.util import subprocess
 
 @tool
 def add():

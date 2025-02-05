@@ -50,7 +50,15 @@ website:
             - solvers.qmd
             - tools.qmd
             - scorers.qmd
+
+        - section: "Models"
+          contents:
             - models.qmd
+            - text: "Providers"
+              href: providers.qmd
+            - caching.qmd
+            - multimodal.qmd
+            - reasoning.qmd
 
         - section: "Agents"
           contents:
@@ -67,10 +75,8 @@ website:
             - eval-sets.qmd
             - text: "Errors & Limits"
               href: errors-and-limits.qmd
-            - multimodal.qmd
             - typing.qmd
             - tracing.qmd
-            - caching.qmd
             - parallelism.qmd
             - interactivity.qmd
             - extensions.qmd
