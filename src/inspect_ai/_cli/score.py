@@ -6,7 +6,6 @@ from typing_extensions import Unpack
 
 from inspect_ai._display import display
 from inspect_ai._eval.context import init_eval_context, init_task_context
-from inspect_ai._eval.loader import load_tasks
 from inspect_ai._eval.score import task_score
 from inspect_ai._util.constants import SCORED_SUFFIX
 from inspect_ai.log._recorders import create_recorder_for_location
@@ -16,7 +15,6 @@ from .common import CommonOptions, common_options, process_common_options
 
 
 @click.command("score")
-@click.argument("task", type=str)
 @click.argument("log-file", type=str, required=True)
 @click.option(
     "--no-overwrite",
@@ -26,7 +24,6 @@ from .common import CommonOptions, common_options, process_common_options
 )
 @common_options
 def score_command(
-    task: str,
     log_file: str,
     no_overwrite: bool | None,
     **common: Unpack[CommonOptions],
@@ -38,7 +35,6 @@ def score_command(
     # score
     asyncio.run(
         score(
-            task,
             common["log_dir"],
             log_file,
             False if no_overwrite else True,
@@ -48,7 +44,6 @@ def score_command(
 
 
 async def score(
-    task: str,
     log_dir: str,
     log_file: str,
     overwrite: bool,
@@ -75,11 +70,8 @@ async def score(
     # initialize active model
     init_task_context(model)
 
-    # instantiate the task so we can get its scorer and metrics
-    score_task = load_tasks([task], model)[0]
-
     # re-score the task
-    eval_log = await task_score(score_task, eval_log)
+    eval_log = await task_score(eval_log)
 
     # re-write the log (w/ a -score suffix if requested)
     _, ext = os.path.splitext(log_file)

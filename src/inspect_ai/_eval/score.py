@@ -1,9 +1,8 @@
 import asyncio
 from copy import deepcopy
-from typing import Callable, cast
+from typing import Any, Callable, cast
 
 from inspect_ai._display import display
-from inspect_ai._util.path import chdir_python
 from inspect_ai._util.platform import platform_init
 from inspect_ai._util.registry import registry_create, registry_unqualified_name
 from inspect_ai.log import (
@@ -19,12 +18,10 @@ from inspect_ai.scorer._reducer import (
     create_reducers,
     reducer_log_names,
 )
-from inspect_ai.scorer._scorer import unique_scorer_name
+from inspect_ai.scorer._scorer import scorer_create, unique_scorer_name
 from inspect_ai.solver import TaskState
 
-from .task import Task
 from .task.results import eval_results
-from .task.util import task_run_dir
 
 
 def score(
@@ -130,25 +127,27 @@ async def score_async(
     return log
 
 
-async def task_score(task: Task, log: EvalLog) -> EvalLog:
-    with chdir_python(task_run_dir(task)):
-        # confirm we have a scorer
-        if task.scorer is None:
-            raise ValueError("You must specify a scorer for evals to be scored.")
+async def task_score(log: EvalLog) -> EvalLog:
+    ## TODO: Why would we need to change the run dir when scoring?
 
-        # confirm we have samples
-        if log.samples is None or len(log.samples) == 0:
-            raise ValueError("There are no samples to score in the log.")
+    # confirm we have a scorer
+    scorers = scorers_from_log(log)
+    if len(scorers) == 0:
+        raise ValueError("You must specify a scorer for evals to be scored.")
 
-        task_name = task.name
-        display().print(f"Scoring {len(log.samples)} samples for task: {task_name}")
+    # confirm we have samples
+    if log.samples is None or len(log.samples) == 0:
+        raise ValueError("There are no samples to score in the log.")
 
-        # perform scoring
-        log = await score_async(log, task.scorer)
+    task_name = log.eval.task
+    display().print(f"Scoring {len(log.samples)} samples for task: {task_name}")
+
+    # perform scoring
+    log = await score_async(log, scorers)
 
     # compute and log metrics
     display().print(f"Aggregating scores for task: {task_name}")
-    if task.scorer and log.samples:
+    if log.samples:
         sample_scores = [
             {
                 score_key: SampleScore(
@@ -162,12 +161,15 @@ async def task_score(task: Task, log: EvalLog) -> EvalLog:
             if sample.scores is not None
         ]
 
+        epochs_reducer = reducers_from_log(log)
+        metrics = metrics_from_log(log)
+
         log.results, log.reductions = eval_results(
             log.results.total_samples if log.results else 0,
             sample_scores,
-            task.epochs_reducer,
-            task.scorer,
-            task.metrics,
+            epochs_reducer,
+            scorers,
+            metrics,
         )
     return log
 
@@ -212,3 +214,15 @@ def metric_from_log(metric: EvalMetric) -> Metric:
 
 def reducers_from_log(log: EvalLog) -> list[ScoreReducer] | None:
     return create_reducers(log.eval.config.epochs_reducer)
+
+
+def scorers_from_log(log: EvalLog) -> list[Scorer]:
+    return (
+        [scorer_from_log(score.scorer, **score.params) for score in log.results.scores]
+        if log.results
+        else []
+    )
+
+
+def scorer_from_log(scorer: str, **kwargs: Any) -> Scorer:
+    return scorer_create(scorer, **kwargs)
