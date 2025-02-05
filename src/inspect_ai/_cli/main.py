@@ -53,7 +53,7 @@ inspect.add_command(trace_command)
 def main() -> None:
     set_exception_hook()
     init_dotenv()
-    inspect(auto_envvar_prefix="INSPECT")
+    inspect(auto_envvar_prefix="INSPECT")  # pylint: disable=no-value-for-parameter
 
 
 if __name__ == "__main__":
