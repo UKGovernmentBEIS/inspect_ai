@@ -32,6 +32,7 @@ async def self_check(sandbox_env: SandboxEnvironment) -> dict[str, bool | str]:
     for fn in [
         test_read_and_write_file_text,
         test_read_and_write_file_binary,
+        test_read_and_write_large_file_binary,
         test_write_file_text_utf,
         test_read_and_write_file_including_directory_absolute,
         test_read_and_write_file_including_directory_relative,
@@ -102,6 +103,16 @@ async def test_read_and_write_file_binary(sandbox_env: SandboxEnvironment) -> No
 
     written_file_bytes = await sandbox_env.read_file(file_name, text=False)
     assert b"\xc3\x28" == written_file_bytes
+    await _cleanup_file(sandbox_env, file_name)
+
+async def test_read_and_write_large_file_binary(sandbox_env: SandboxEnvironment) -> None:
+    file_name = "test_read_and_write_large_file_binary.file"
+    long_bytes = b"\xc3" * 5_000_000
+    await sandbox_env.write_file(
+        file_name, long_bytes
+    )
+    written_file_bytes = await sandbox_env.read_file(file_name, text=False)
+    assert long_bytes == written_file_bytes
     await _cleanup_file(sandbox_env, file_name)
 
 
