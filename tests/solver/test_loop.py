@@ -39,11 +39,12 @@ def loop_condition_task():
     def loop_solver():
         async def solve(state: TaskState, generate: Generate) -> TaskState:
             # Create a loop solver that runs 'increase_counter'
-            state = await loop(
+            loop_solver = loop(
                 solver=increase_counter(),
                 condition=lambda s: s.store.get("counter", 0) >= 3,
                 max_iterations=10,
-            )(state, generate)
+            )
+            state = await loop_solver(state, generate)
             # Verify that the counter is exactly 3.
             assert state.store.get("counter", 0) == 3, (
                 f"Expected counter to be 3, got {state.store.get('counter', 0)}"
@@ -65,11 +66,12 @@ def loop_max_iterations_task():
     @solver
     def loop_solver():
         async def solve(state: TaskState, generate: Generate) -> TaskState:
-            state = await loop(
+            loop_solver = loop(
                 solver=increase_counter(),
                 condition=lambda s: False,  # Never stops early.
                 max_iterations=5,
-            )(state, generate)
+            )
+            state = await loop_solver(state, generate)
             assert state.store.get("counter", 0) == 5, (
                 f"Expected counter to be 5, got {state.store.get('counter', 0)}"
             )
@@ -90,11 +92,12 @@ def loop_completion_task():
     @solver
     def loop_solver():
         async def solve(state: TaskState, generate: Generate) -> TaskState:
-            state = await loop(
+            loop_solver = loop(
                 solver=complete_immediately(),
                 condition=lambda s: False,  # Condition not used since .completed wins.
                 max_iterations=10,
-            )(state, generate)
+            )
+            state = await loop_solver(state, generate)
             # The counter should be 1 because complete_immediately marks the state as completed.
             assert state.store.get("counter", 0) == 1, (
                 f"Expected counter to be 1, got {state.store.get('counter', 0)}"
@@ -110,12 +113,15 @@ def loop_completion_task():
 
 
 def test_loop_condition():
+    """Test that the loop respects its stop condition."""
     eval(loop_condition_task(), model="mockllm/model")
 
 
 def test_loop_max_iterations():
+    """Test that the loop respects its maximum iterations limit."""
     eval(loop_max_iterations_task(), model="mockllm/model")
 
 
 def test_loop_completion():
+    """Test that the loop stops when a solver marks the state as completed."""
     eval(loop_completion_task(), model="mockllm/model")
