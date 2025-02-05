@@ -203,9 +203,10 @@ Definition** command in your source editor. - `prompt_template()`
 - `multiple_choice()`
 
   A solver which presents A,B,C,D style `choices` from input samples and
-  calls `generate()` to yield model output. This solver should nearly
-  always paired with the `choices()` scorer. Learn more about [Multiple
-  Choice](#sec-multiple-choice) in the section below.
+  calls `generate()` to yield model output. Pair this solver with the
+  choices() scorer. For custom answer parsing or scoring needs (like
+  handling complex outputs), use a custom scorer instead. Learn more
+  about [Multiple Choice](#sec-multiple-choice) in the section below.
 
 ## Multiple Choice
 
@@ -217,7 +218,6 @@ def multiple_choice(
     *,
     template: str | None = None,
     cot: bool = False,
-    shuffle: bool | Random = False,
     multiple_correct: bool = False,
     
 ) -> Solver:
@@ -234,7 +234,8 @@ some special considerations to be aware of when using the
 2.  The `Sample` `target` should be a capital letter (e.g. A, B, C, D,
     etc.)
 3.  You should always pair it with the `choice()` scorer in your task
-    definition.
+    definition. For custom answer parsing or scoring needs (like
+    handling complex model outputs), implement a custom scorer.
 4.  It calls `generate()` internally, so you do need to separately
     include the `generate()` solver.
 
@@ -296,9 +297,50 @@ multiple choice solver:
 | `template` | Use `template` to provide an alternate prompt template (note that if you do this your template should handle prompting for `multiple_correct` directly if required). You can access the built in templates using the `MultipleChoiceTemplate` enum. |
 | `cot` | Whether the solver should perform chain-of-thought reasoning before answering (defaults to `False`). NOTE: this has no effect if you provide a custom template. |
 | `multiple_correct` | By default, multiple choice questions have a single correct answer. Set `multiple_correct=True` if your target has defined multiple correct answers (for example, a `target` of `["B", "C"]`). In this case the model is prompted to provide one or more answers, and the sample is scored correct only if each of these answers are provided. NOTE: this has no effect if you provide a custom template. |
-| `shuffle` | If you specify `shuffle=True`, then the order of the answers presented to the model will be randomised (this may or may not affect results, depending on the nature of the questions and the model being evaluated). |
 
-### Self Critique
+### Shuffling
+
+> [!NOTE]
+>
+> The choice shuffling features below is currently available only in the
+> development version of Inspect. To install the development version
+> from GitHub:
+>
+> ``` bash
+> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+> ```
+
+When working with datasets that contain multiple-choice options, you can
+randomize the order of these choices during data loading. The shuffling
+operation automatically updates any corresponding target values to
+maintain correct answer mappings.
+
+For datasets that contain `choices`, you can shuffle the choices when
+the data is loaded. Shuffling choices will randomly re-order the choices
+and update the sample’s target value or values to align with the
+shuffled choices.
+
+There are two ways to shuffle choices:
+
+``` python
+# Method 1: Using the dataset method
+dataset = dataset.shuffle_choices()
+
+# Method 2: During dataset loading
+dataset = json_dataset("data.jsonl", shuffle_choices=True)
+```
+
+For reproducible shuffling, you can specify a random seed:
+
+``` python
+# Using a seed with the dataset method
+dataset = dataset.shuffle_choices(seed=42)
+
+# Using a seed during loading
+dataset = json_dataset("data.jsonl", shuffle_choices=42)
+```
+
+## Self Critique
 
 Here is the declaration for the `self_critique()` solver:
 

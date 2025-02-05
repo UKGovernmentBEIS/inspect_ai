@@ -64,8 +64,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="../site_libs/quarto-search/fuse.min.js"></script>
 <script src="../site_libs/quarto-search/quarto-search.js"></script>
 <meta name="quarto:offset" content="../">
-<link href="../reference/inspect_ai.scorer.qmd#accuracy" rel="next">
-<link href="../reference/inspect_ai.solver.qmd#human_agent" rel="prev">
+<link href="../reference/inspect_ai.scorer.qmd#match" rel="next">
+<link href="../reference/inspect_ai.solver.qmd#solver" rel="prev">
 <script src="../site_libs/quarto-html/quarto.js"></script>
 <script src="../site_libs/quarto-html/popper.min.js"></script>
 <script src="../site_libs/quarto-html/tippy.umd.min.js"></script>
@@ -197,6 +197,18 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
       <ul id="quarto-sidebar-section-1" class="collapse list-unstyled sidebar-section depth1 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.solver.html#generate" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">generate</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.solver.html#use_tools" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">use_tools</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.solver.html#prompt_template" class="sidebar-item-text sidebar-link">
  <span class="menu-text">prompt_template</span></a>
   </div>
@@ -227,6 +239,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.solver.html#multiple_choice" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">multiple_choice</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.solver.html#basic_agent" class="sidebar-item-text sidebar-link">
  <span class="menu-text">basic_agent</span></a>
   </div>
@@ -235,6 +253,54 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.solver.html#human_agent" class="sidebar-item-text sidebar-link">
  <span class="menu-text">human_agent</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.solver.html#chain" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">chain</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.solver.html#fork" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">fork</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.solver.html#bridge" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">bridge</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.solver.html#Solver" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Solver</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.solver.html#SolverSpec" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">SolverSpec</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.solver.html#TaskState" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">TaskState</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.solver.html#Generate" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Generate</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.solver.html#solver" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">solver</span></a>
   </div>
 </li>
       </ul>
@@ -250,8 +316,80 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
       <ul id="quarto-sidebar-section-2" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#match" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">match</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#includes" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">includes</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#pattern" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">pattern</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#answer" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">answer</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#choice" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">choice</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#f1" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">f1</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#exact" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">exact</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#model_graded_qa" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">model_graded_qa</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#model_graded_fact" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">model_graded_fact</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#multi_scorer" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">multi_scorer</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.scorer.html#accuracy" class="sidebar-item-text sidebar-link">
  <span class="menu-text">accuracy</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#mean" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">mean</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#std" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">std</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -262,8 +400,98 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.scorer.html#std" class="sidebar-item-text sidebar-link">
- <span class="menu-text">std</span></a>
+  <a href="../reference/inspect_ai.scorer.html#bootstrap_stderr" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">bootstrap_stderr</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#at_least" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">at_least</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#pass_at" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">pass_at</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#max_score" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">max_score</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#mean_score" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">mean_score</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#median_score" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">median_score</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#mode_score" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">mode_score</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#Scorer" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Scorer</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#Metric" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Metric</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#ScoreReducer" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ScoreReducer</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#Target" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Target</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#Score" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Score</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#Value" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Value</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#scorer" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">scorer</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#metric" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">metric</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#score_reducer" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">score_reducer</span></a>
   </div>
 </li>
       </ul>
@@ -278,11 +506,50 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#metrics" id="toc-metrics" class="nav-link active" data-scroll-target="#metrics">Metrics</a>
+  <li><a href="#scorers" id="toc-scorers" class="nav-link active" data-scroll-target="#scorers">Scorers</a>
+  <ul class="collapse">
+  <li><a href="#match" id="toc-match" class="nav-link" data-scroll-target="#match">match</a></li>
+  <li><a href="#includes" id="toc-includes" class="nav-link" data-scroll-target="#includes">includes</a></li>
+  <li><a href="#pattern" id="toc-pattern" class="nav-link" data-scroll-target="#pattern">pattern</a></li>
+  <li><a href="#answer" id="toc-answer" class="nav-link" data-scroll-target="#answer">answer</a></li>
+  <li><a href="#choice" id="toc-choice" class="nav-link" data-scroll-target="#choice">choice</a></li>
+  <li><a href="#f1" id="toc-f1" class="nav-link" data-scroll-target="#f1">f1</a></li>
+  <li><a href="#exact" id="toc-exact" class="nav-link" data-scroll-target="#exact">exact</a></li>
+  <li><a href="#model_graded_qa" id="toc-model_graded_qa" class="nav-link" data-scroll-target="#model_graded_qa">model_graded_qa</a></li>
+  <li><a href="#model_graded_fact" id="toc-model_graded_fact" class="nav-link" data-scroll-target="#model_graded_fact">model_graded_fact</a></li>
+  <li><a href="#multi_scorer" id="toc-multi_scorer" class="nav-link" data-scroll-target="#multi_scorer">multi_scorer</a></li>
+  </ul></li>
+  <li><a href="#metrics" id="toc-metrics" class="nav-link" data-scroll-target="#metrics">Metrics</a>
   <ul class="collapse">
   <li><a href="#accuracy" id="toc-accuracy" class="nav-link" data-scroll-target="#accuracy">accuracy</a></li>
-  <li><a href="#stderr" id="toc-stderr" class="nav-link" data-scroll-target="#stderr">stderr</a></li>
+  <li><a href="#mean" id="toc-mean" class="nav-link" data-scroll-target="#mean">mean</a></li>
   <li><a href="#std" id="toc-std" class="nav-link" data-scroll-target="#std">std</a></li>
+  <li><a href="#stderr" id="toc-stderr" class="nav-link" data-scroll-target="#stderr">stderr</a></li>
+  <li><a href="#bootstrap_stderr" id="toc-bootstrap_stderr" class="nav-link" data-scroll-target="#bootstrap_stderr">bootstrap_stderr</a></li>
+  </ul></li>
+  <li><a href="#reducers" id="toc-reducers" class="nav-link" data-scroll-target="#reducers">Reducers</a>
+  <ul class="collapse">
+  <li><a href="#at_least" id="toc-at_least" class="nav-link" data-scroll-target="#at_least">at_least</a></li>
+  <li><a href="#pass_at" id="toc-pass_at" class="nav-link" data-scroll-target="#pass_at">pass_at</a></li>
+  <li><a href="#max_score" id="toc-max_score" class="nav-link" data-scroll-target="#max_score">max_score</a></li>
+  <li><a href="#mean_score" id="toc-mean_score" class="nav-link" data-scroll-target="#mean_score">mean_score</a></li>
+  <li><a href="#median_score" id="toc-median_score" class="nav-link" data-scroll-target="#median_score">median_score</a></li>
+  <li><a href="#mode_score" id="toc-mode_score" class="nav-link" data-scroll-target="#mode_score">mode_score</a></li>
+  </ul></li>
+  <li><a href="#types" id="toc-types" class="nav-link" data-scroll-target="#types">Types</a>
+  <ul class="collapse">
+  <li><a href="#scorer" id="toc-scorer" class="nav-link" data-scroll-target="#scorer">Scorer</a></li>
+  <li><a href="#metric" id="toc-metric" class="nav-link" data-scroll-target="#metric">Metric</a></li>
+  <li><a href="#scorereducer" id="toc-scorereducer" class="nav-link" data-scroll-target="#scorereducer">ScoreReducer</a></li>
+  <li><a href="#target" id="toc-target" class="nav-link" data-scroll-target="#target">Target</a></li>
+  <li><a href="#score" id="toc-score" class="nav-link" data-scroll-target="#score">Score</a></li>
+  <li><a href="#value" id="toc-value" class="nav-link" data-scroll-target="#value">Value</a></li>
+  </ul></li>
+  <li><a href="#decorators" id="toc-decorators" class="nav-link" data-scroll-target="#decorators">Decorators</a>
+  <ul class="collapse">
+  <li><a href="#scorer-1" id="toc-scorer-1" class="nav-link" data-scroll-target="#scorer-1">scorer</a></li>
+  <li><a href="#metric-1" id="toc-metric-1" class="nav-link" data-scroll-target="#metric-1">metric</a></li>
+  <li><a href="#score_reducer" id="toc-score_reducer" class="nav-link" data-scroll-target="#score_reducer">score_reducer</a></li>
   </ul></li>
   </ul>
 <div class="toc-actions"><ul><li><a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div></nav>
@@ -309,16 +576,374 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </header>
 
 
+<section id="scorers" class="level2">
+<h2 class="anchored" data-anchor-id="scorers">Scorers</h2>
+<section id="match" class="level3">
+<h3 class="anchored" data-anchor-id="match">match</h3>
+<p>Scorer which matches text or a number.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/a2a218ff03f0c62435779780d4efbe7a10ce3831/src/inspect_ai/scorer/_match.py#L8">Source</a>
+</div>
+<div class="sourceCode" id="cb1"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="at">@scorer</span>(metrics<span class="op">=</span>[accuracy(), stderr()])</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> match(</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    location: Literal[<span class="st">"begin"</span>, <span class="st">"end"</span>, <span class="st">"any"</span>, <span class="st">"exact"</span>] <span class="op">=</span> <span class="st">"end"</span>,</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>    <span class="op">*</span>,</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    ignore_case: <span class="bu">bool</span> <span class="op">=</span> <span class="va">True</span>,</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>    numeric: <span class="bu">bool</span> <span class="op">=</span> <span class="va">False</span>,</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> Scorer</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 75%">
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">Argument</th>
+<th style="text-align: left;">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;"><code>location</code><br>
+<span class="argument-type">Literal['begin', 'end', 'any', 'exact']</span></td>
+<td style="text-align: left;"><p>Location to match at. “any” matches anywhere in the output; “exact” requires the output be exactly equal to the target (module whitespace, etc.)</p></td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><code>ignore_case</code><br>
+<span class="argument-type">bool</span></td>
+<td style="text-align: left;"><p>Do case insensitive comparison.</p></td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;"><code>numeric</code><br>
+<span class="argument-type">bool</span></td>
+<td style="text-align: left;"><p>Is this a numeric match? (in this case different punctuation removal rules are used and numbers are normalized before comparison).</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="includes" class="level3">
+<h3 class="anchored" data-anchor-id="includes">includes</h3>
+<p>Check whether the specified text is included in the model output.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/a2a218ff03f0c62435779780d4efbe7a10ce3831/src/inspect_ai/scorer/_match.py#L39">Source</a>
+</div>
+<div class="sourceCode" id="cb2"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="at">@scorer</span>(metrics<span class="op">=</span>[accuracy(), stderr()])</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> includes(ignore_case: <span class="bu">bool</span> <span class="op">=</span> <span class="va">True</span>) <span class="op">-&gt;</span> Scorer</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 75%">
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">Argument</th>
+<th style="text-align: left;">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;"><code>ignore_case</code><br>
+<span class="argument-type">bool</span></td>
+<td style="text-align: left;"><p>Use a case insensitive comparison.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="pattern" class="level3">
+<h3 class="anchored" data-anchor-id="pattern">pattern</h3>
+<p>Scorer which extracts the model answer using a regex.</p>
+<p>Note that at least one regex group is required to match against the target.</p>
+<p>The regex can have a single capture group or multiple groups. In the case of multiple groups, the scorer can be configured to match either one or all of the extracted groups</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/a2a218ff03f0c62435779780d4efbe7a10ce3831/src/inspect_ai/scorer/_pattern.py#L46">Source</a>
+</div>
+<div class="sourceCode" id="cb3"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="at">@scorer</span>(metrics<span class="op">=</span>[accuracy(), stderr()])</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> pattern(pattern: <span class="bu">str</span>, ignore_case: <span class="bu">bool</span> <span class="op">=</span> <span class="va">True</span>, match_all: <span class="bu">bool</span> <span class="op">=</span> <span class="va">False</span>) <span class="op">-&gt;</span> Scorer</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 75%">
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">Argument</th>
+<th style="text-align: left;">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;"><code>pattern</code><br>
+<span class="argument-type">str</span></td>
+<td style="text-align: left;"><p>Regular expression for extracting the answer from model output.</p></td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><code>ignore_case</code><br>
+<span class="argument-type">bool</span></td>
+<td style="text-align: left;"><p>Ignore case when comparing the extract answer to the targets. (Default: True)</p></td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;"><code>match_all</code><br>
+<span class="argument-type">bool</span></td>
+<td style="text-align: left;"><p>With multiple captures, do all captured values need to match the target? (Default: False)</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="answer" class="level3">
+<h3 class="anchored" data-anchor-id="answer">answer</h3>
+<p>Scorer for model output that preceded answers with ANSWER:.</p>
+<p>Some solvers including multiple_choice solicit answers from the model prefaced with “ANSWER:”. This scorer extracts answers of this form for comparison with the target.</p>
+<p>Note that you must specify a <code>type</code> for the answer scorer.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/a2a218ff03f0c62435779780d4efbe7a10ce3831/src/inspect_ai/scorer/_answer.py#L35">Source</a>
+</div>
+<div class="sourceCode" id="cb4"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="at">@scorer</span>(metrics<span class="op">=</span>[accuracy(), stderr()])</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> answer(<span class="bu">type</span>: Literal[<span class="st">"letter"</span>, <span class="st">"word"</span>, <span class="st">"line"</span>]) <span class="op">-&gt;</span> Scorer</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 75%">
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">Argument</th>
+<th style="text-align: left;">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;"><code>type</code><br>
+<span class="argument-type">Literal['letter', 'word', 'line']</span></td>
+<td style="text-align: left;"><p>Type of answer to extract. “letter” is used with multiple choice and extracts a single letter; “word” will extract the next word (often used for yes/no answers); “line” will take the rest of the line (used for more more complex answers that may have embedded spaces). Note that when using “line” your prompt should instruct the model to answer with a separate line at the end.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="choice" class="level3">
+<h3 class="anchored" data-anchor-id="choice">choice</h3>
+<p>Scorer for multiple choice answers, required by the <code>multiple_choice</code> solver.</p>
+<p>This assumes that the model was called using a template ordered with letters corresponding to the answers, so something like:</p>
+<pre><code>What is the capital of France?
+
+A) Paris
+B) Berlin
+C) London</code></pre>
+<p>The target for the dataset will then have a letter corresponding to the correct answer, e.g.&nbsp;the <code>Target</code> would be <code>"A"</code> for the above question. If multiple choices are correct, the <code>Target</code> can be an array of these letters.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/a2a218ff03f0c62435779780d4efbe7a10ce3831/src/inspect_ai/scorer/_choice.py#L41">Source</a>
+</div>
+<div class="sourceCode" id="cb6"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="at">@scorer</span>(metrics<span class="op">=</span>[accuracy(), stderr()])</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> choice() <span class="op">-&gt;</span> Scorer</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
+<section id="f1" class="level3">
+<h3 class="anchored" data-anchor-id="f1">f1</h3>
+<p>Scorer which produces an F1 score</p>
+<p>Computes the <code>F1</code> score for the answer (which balances recall precision by taking the harmonic mean between recall and precision).</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/a2a218ff03f0c62435779780d4efbe7a10ce3831/src/inspect_ai/scorer/_classification.py#L13">Source</a>
+</div>
+<div class="sourceCode" id="cb7"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="at">@scorer</span>(metrics<span class="op">=</span>[mean(), stderr()])</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> f1(</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>    answer_fn: Callable[[<span class="bu">str</span>], <span class="bu">str</span>] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>, stop_words: <span class="bu">list</span>[<span class="bu">str</span>] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> Scorer</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 75%">
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">Argument</th>
+<th style="text-align: left;">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;"><code>answer_fn</code><br>
+<span class="argument-type">Callable[[str], str] | None</span></td>
+<td style="text-align: left;"><p>Custom function to extract the answer from the completion (defaults to using the completion).</p></td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><code>stop_words</code><br>
+<span class="argument-type">list[str] | None</span></td>
+<td style="text-align: left;"><p>Stop words to include in answer tokenization.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="exact" class="level3">
+<h3 class="anchored" data-anchor-id="exact">exact</h3>
+<p>Scorer which produces an exact match score</p>
+<p>Normalizes the text of the answer and target(s) and performs an exact matching comparison of the text. This scorer will return <code>CORRECT</code> when the answer is an exact match to one or more targets.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/a2a218ff03f0c62435779780d4efbe7a10ce3831/src/inspect_ai/scorer/_classification.py#L42">Source</a>
+</div>
+<div class="sourceCode" id="cb8"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="at">@scorer</span>(metrics<span class="op">=</span>[mean(), stderr()])</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> exact() <span class="op">-&gt;</span> Scorer</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
+<section id="model_graded_qa" class="level3">
+<h3 class="anchored" data-anchor-id="model_graded_qa">model_graded_qa</h3>
+<p>Score a question/answer task using a model.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/a2a218ff03f0c62435779780d4efbe7a10ce3831/src/inspect_ai/scorer/_model.py#L74">Source</a>
+</div>
+<div class="sourceCode" id="cb9"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="at">@scorer</span>(metrics<span class="op">=</span>[accuracy(), stderr()])</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> model_graded_qa(</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>    template: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>    instructions: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>    grade_pattern: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>    include_history: <span class="bu">bool</span> <span class="op">|</span> Callable[[TaskState], <span class="bu">str</span>] <span class="op">=</span> <span class="va">False</span>,</span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>    partial_credit: <span class="bu">bool</span> <span class="op">=</span> <span class="va">False</span>,</span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>    model: <span class="bu">list</span>[<span class="bu">str</span> <span class="op">|</span> Model] <span class="op">|</span> <span class="bu">str</span> <span class="op">|</span> Model <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> Scorer</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 75%">
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">Argument</th>
+<th style="text-align: left;">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;"><code>template</code><br>
+<span class="argument-type">str | None</span></td>
+<td style="text-align: left;"><p>Template for grading prompt. This template has four variables: - <code>question</code>, <code>criterion</code>, <code>answer</code>, and <code>instructions</code> (which is fed from the <code>instructions</code> parameter). Variables from sample <code>metadata</code> are also available in the template.</p></td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><code>instructions</code><br>
+<span class="argument-type">str | None</span></td>
+<td style="text-align: left;"><p>Grading instructions. This should include a prompt for the model to answer (e.g.&nbsp;with with chain of thought reasoning) in a way that matches the specified <code>grade_pattern</code>, for example, the default <code>grade_pattern</code> looks for one of GRADE: C, GRADE: P, or GRADE: I.</p></td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;"><code>grade_pattern</code><br>
+<span class="argument-type">str | None</span></td>
+<td style="text-align: left;"><p>Regex to extract the grade from the model response. Defaults to looking for e.g.&nbsp;GRADE: C The regex should have a single capture group that extracts exactly the letter C, P, I.</p></td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><code>include_history</code><br>
+<span class="argument-type">bool | Callable[[TaskState], str]</span></td>
+<td style="text-align: left;"><p>Whether to include the full chat history in the presented question. Defaults to <code>False</code>, which presents only the original sample input. Optionally provide a function to customise how the chat history is presented.</p></td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;"><code>partial_credit</code><br>
+<span class="argument-type">bool</span></td>
+<td style="text-align: left;"><p>Whether to allow for “partial” credit for answers (by default assigned a score of 0.5). Defaults to <code>False</code>. Note that this parameter is only used with the default <code>instructions</code> (as custom instructions provide their own prompts for grades).</p></td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><code>model</code><br>
+<span class="argument-type">list[str | Model] | str | Model | None</span></td>
+<td style="text-align: left;"><p>Model or Models to use for grading. If multiple models are passed, a majority vote of their grade will be returned. By default the model being evaluated is used.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="model_graded_fact" class="level3">
+<h3 class="anchored" data-anchor-id="model_graded_fact">model_graded_fact</h3>
+<p>Score a question/answer task with a fact response using a model.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/a2a218ff03f0c62435779780d4efbe7a10ce3831/src/inspect_ai/scorer/_model.py#L26">Source</a>
+</div>
+<div class="sourceCode" id="cb10"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="at">@scorer</span>(metrics<span class="op">=</span>[accuracy(), stderr()])</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> model_graded_fact(</span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>    template: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>    instructions: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>    grade_pattern: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>    include_history: <span class="bu">bool</span> <span class="op">|</span> Callable[[TaskState], <span class="bu">str</span>] <span class="op">=</span> <span class="va">False</span>,</span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a>    partial_credit: <span class="bu">bool</span> <span class="op">=</span> <span class="va">False</span>,</span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a>    model: <span class="bu">list</span>[<span class="bu">str</span> <span class="op">|</span> Model] <span class="op">|</span> <span class="bu">str</span> <span class="op">|</span> Model <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> Scorer</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 75%">
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">Argument</th>
+<th style="text-align: left;">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;"><code>template</code><br>
+<span class="argument-type">str | None</span></td>
+<td style="text-align: left;"><p>Template for grading prompt. This template uses four variables: <code>question</code>, <code>criterion</code>, <code>answer</code>, and <code>instructions</code> (which is fed from the <code>instructions</code> parameter). Variables from sample <code>metadata</code> are also available in the template.</p></td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><code>instructions</code><br>
+<span class="argument-type">str | None</span></td>
+<td style="text-align: left;"><p>Grading instructions. This should include a prompt for the model to answer (e.g.&nbsp;with with chain of thought reasoning) in a way that matches the specified <code>grade_pattern</code>, for example, the default <code>grade_pattern</code> looks for one of GRADE: C, GRADE: P, or GRADE: I).</p></td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;"><code>grade_pattern</code><br>
+<span class="argument-type">str | None</span></td>
+<td style="text-align: left;"><p>Regex to extract the grade from the model response. Defaults to looking for e.g.&nbsp;GRADE: C The regex should have a single capture group that extracts exactly the letter C, P, or I.</p></td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><code>include_history</code><br>
+<span class="argument-type">bool | Callable[[TaskState], str]</span></td>
+<td style="text-align: left;"><p>Whether to include the full chat history in the presented question. Defaults to <code>False</code>, which presents only the original sample input. Optionally provide a function to customise how the chat history is presented.</p></td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;"><code>partial_credit</code><br>
+<span class="argument-type">bool</span></td>
+<td style="text-align: left;"><p>Whether to allow for “partial” credit for answers (by default assigned a score of 0.5). Defaults to <code>False</code>. Note that this parameter is only used with the default <code>instructions</code> (as custom instructions provide their own prompts for grades).</p></td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><code>model</code><br>
+<span class="argument-type">list[str | Model] | str | Model | None</span></td>
+<td style="text-align: left;"><p>Model or Models to use for grading. If multiple models are passed, a majority vote of their grade will be returned. By default the model being evaluated is used.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="multi_scorer" class="level3">
+<h3 class="anchored" data-anchor-id="multi_scorer">multi_scorer</h3>
+<p>Returns a Scorer that runs multiple Scorers in parallel and aggregates their results into a single Score using the provided reducer function.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/a2a218ff03f0c62435779780d4efbe7a10ce3831/src/inspect_ai/scorer/_multi.py#L12">Source</a>
+</div>
+<div class="sourceCode" id="cb11"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> multi_scorer(scorers: <span class="bu">list</span>[Scorer], reducer: <span class="bu">str</span> <span class="op">|</span> ScoreReducer) <span class="op">-&gt;</span> Scorer</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 75%">
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">Argument</th>
+<th style="text-align: left;">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;"><code>scorers</code><br>
+<span class="argument-type">list[Scorer]</span></td>
+<td style="text-align: left;"><p>a list of Scorers.</p></td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><code>reducer</code><br>
+<span class="argument-type">str | ScoreReducer</span></td>
+<td style="text-align: left;"><p>a function which takes in a list of Scores and returns a single Score.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
 <section id="metrics" class="level2">
 <h2 class="anchored" data-anchor-id="metrics">Metrics</h2>
 <section id="accuracy" class="level3">
 <h3 class="anchored" data-anchor-id="accuracy">accuracy</h3>
 <p>Compute proportion of total answers which are correct.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/5f01e6e8179caf5a80795fedc590fdf40ac5dcdd/src/inspect_ai/scorer/_metrics/accuracy.py#L14">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/a2a218ff03f0c62435779780d4efbe7a10ce3831/src/inspect_ai/scorer/_metrics/accuracy.py#L14">Source</a>
 </div>
-<div class="sourceCode" id="cb1"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="at">@metric</span></span>
-<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> accuracy(to_float: ValueToFloat <span class="op">=</span> value_to_float()) <span class="op">-&gt;</span> Metric</span></code></pre></div>
+<div class="sourceCode" id="cb12"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="at">@metric</span></span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> accuracy(to_float: ValueToFloat <span class="op">=</span> value_to_float()) <span class="op">-&gt;</span> Metric</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <table class="caption-top table">
 <colgroup>
 <col style="width: 25%">
@@ -334,7 +959,44 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <tr class="odd">
 <td style="text-align: left;"><code>to_float</code><br>
 <span class="argument-type">ValueToFloat</span></td>
-<td style="text-align: left;">Function for mapping <code>Value</code> to float for computing metrics. The default <code>value_to_float()</code> maps CORRECT (“C”) to 1.0, INCORRECT (“I”) to 0, PARTIAL (“P”) to 0.5, and NOANSWER (“N”) to 0, casts numeric values to float directly, and prints a warning and returns 0 if the Value is a complex object (list or dict).</td>
+<td style="text-align: left;"><p>Function for mapping <code>Value</code> to float for computing metrics. The default <code>value_to_float()</code> maps CORRECT (“C”) to 1.0, INCORRECT (“I”) to 0, PARTIAL (“P”) to 0.5, and NOANSWER (“N”) to 0, casts numeric values to float directly, and prints a warning and returns 0 if the Value is a complex object (list or dict).</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="mean" class="level3">
+<h3 class="anchored" data-anchor-id="mean">mean</h3>
+<p>Compute mean of all scores.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/a2a218ff03f0c62435779780d4efbe7a10ce3831/src/inspect_ai/scorer/_metrics/mean.py#L6">Source</a>
+</div>
+<div class="sourceCode" id="cb13"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="at">@metric</span></span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> mean() <span class="op">-&gt;</span> Metric</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
+<section id="std" class="level3">
+<h3 class="anchored" data-anchor-id="std">std</h3>
+<p>Calculates the sample standard deviation of a list of scores.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/a2a218ff03f0c62435779780d4efbe7a10ce3831/src/inspect_ai/scorer/_metrics/std.py#L86">Source</a>
+</div>
+<div class="sourceCode" id="cb14"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="at">@metric</span></span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> std(to_float: ValueToFloat <span class="op">=</span> value_to_float()) <span class="op">-&gt;</span> Metric</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 75%">
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">Argument</th>
+<th style="text-align: left;">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;"><code>to_float</code><br>
+<span class="argument-type">ValueToFloat</span></td>
+<td style="text-align: left;"><p>Function for mapping <code>Value</code> to float for computing metrics. The default <code>value_to_float()</code> maps CORRECT (“C”) to 1.0, INCORRECT (“I”) to 0, PARTIAL (“P”) to 0.5, and NOANSWER (“N”) to 0, casts numeric values to float directly, and prints a warning and returns 0 if the Value is a complex object (list or dict).</p></td>
 </tr>
 </tbody>
 </table>
@@ -343,10 +1005,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="stderr">stderr</h3>
 <p>Standard error of the mean using Central Limit Theorem.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/5f01e6e8179caf5a80795fedc590fdf40ac5dcdd/src/inspect_ai/scorer/_metrics/std.py#L50">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/a2a218ff03f0c62435779780d4efbe7a10ce3831/src/inspect_ai/scorer/_metrics/std.py#L50">Source</a>
 </div>
-<div class="sourceCode" id="cb2"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="at">@metric</span></span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> stderr(to_float: ValueToFloat <span class="op">=</span> value_to_float()) <span class="op">-&gt;</span> Metric</span></code></pre></div>
+<div class="sourceCode" id="cb15"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="at">@metric</span></span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> stderr(to_float: ValueToFloat <span class="op">=</span> value_to_float()) <span class="op">-&gt;</span> Metric</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <table class="caption-top table">
 <colgroup>
 <col style="width: 25%">
@@ -362,19 +1024,21 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <tr class="odd">
 <td style="text-align: left;"><code>to_float</code><br>
 <span class="argument-type">ValueToFloat</span></td>
-<td style="text-align: left;">Function for mapping <code>Value</code> to float for computing metrics. The default <code>value_to_float()</code> maps CORRECT (“C”) to 1.0, INCORRECT (“I”) to 0, PARTIAL (“P”) to 0.5, and NOANSWER (“N”) to 0, casts numeric values to float directly, and prints a warning and returns 0 if the Value is a complex object (list or dict).</td>
+<td style="text-align: left;"><p>Function for mapping <code>Value</code> to float for computing metrics. The default <code>value_to_float()</code> maps CORRECT (“C”) to 1.0, INCORRECT (“I”) to 0, PARTIAL (“P”) to 0.5, and NOANSWER (“N”) to 0, casts numeric values to float directly, and prints a warning and returns 0 if the Value is a complex object (list or dict).</p></td>
 </tr>
 </tbody>
 </table>
 </section>
-<section id="std" class="level3">
-<h3 class="anchored" data-anchor-id="std">std</h3>
-<p>Calculates the sample standard deviation of a list of scores.</p>
+<section id="bootstrap_stderr" class="level3">
+<h3 class="anchored" data-anchor-id="bootstrap_stderr">bootstrap_stderr</h3>
+<p>Standard error of the mean using bootstrap.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/5f01e6e8179caf5a80795fedc590fdf40ac5dcdd/src/inspect_ai/scorer/_metrics/std.py#L86">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/a2a218ff03f0c62435779780d4efbe7a10ce3831/src/inspect_ai/scorer/_metrics/std.py#L17">Source</a>
 </div>
-<div class="sourceCode" id="cb3"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="at">@metric</span></span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> std(to_float: ValueToFloat <span class="op">=</span> value_to_float()) <span class="op">-&gt;</span> Metric</span></code></pre></div>
+<div class="sourceCode" id="cb16"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="at">@metric</span></span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> bootstrap_stderr(</span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a>    num_samples: <span class="bu">int</span> <span class="op">=</span> <span class="dv">1000</span>, to_float: ValueToFloat <span class="op">=</span> value_to_float()</span>
+<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> Metric</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <table class="caption-top table">
 <colgroup>
 <col style="width: 25%">
@@ -388,9 +1052,565 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </thead>
 <tbody>
 <tr class="odd">
+<td style="text-align: left;"><code>num_samples</code><br>
+<span class="argument-type">int</span></td>
+<td style="text-align: left;"><p>Number of bootstrap samples to take.</p></td>
+</tr>
+<tr class="even">
 <td style="text-align: left;"><code>to_float</code><br>
 <span class="argument-type">ValueToFloat</span></td>
-<td style="text-align: left;">Function for mapping <code>Value</code> to float for computing metrics. The default <code>value_to_float()</code> maps CORRECT (“C”) to 1.0, INCORRECT (“I”) to 0, PARTIAL (“P”) to 0.5, and NOANSWER (“N”) to 0, casts numeric values to float directly, and prints a warning and returns 0 if the Value is a complex object (list or dict).</td>
+<td style="text-align: left;"><p>Function for mapping Value to float for computing metrics. The default <code>value_to_float()</code> maps CORRECT (“C”) to 1.0, INCORRECT (“I”) to 0, PARTIAL (“P”) to 0.5, and NOANSWER (“N”) to 0, casts numeric values to float directly, and prints a warning and returns 0 if the Value is a complex object (list or dict).</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
+<section id="reducers" class="level2">
+<h2 class="anchored" data-anchor-id="reducers">Reducers</h2>
+<section id="at_least" class="level3">
+<h3 class="anchored" data-anchor-id="at_least">at_least</h3>
+<p>Score correct if there are at least k score values greater than or equal to the value.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/a2a218ff03f0c62435779780d4efbe7a10ce3831/src/inspect_ai/scorer/_reducer/reducer.py#L77">Source</a>
+</div>
+<div class="sourceCode" id="cb17"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="at">@score_reducer</span></span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> at_least(</span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a>    k: <span class="bu">int</span>, value: <span class="bu">float</span> <span class="op">=</span> <span class="fl">1.0</span>, value_to_float: ValueToFloat <span class="op">=</span> value_to_float()</span>
+<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> ScoreReducer</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 75%">
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">Argument</th>
+<th style="text-align: left;">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;"><code>k</code><br>
+<span class="argument-type">int</span></td>
+<td style="text-align: left;"><p>Number of score values that must exceed <code>value</code>.</p></td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><code>value</code><br>
+<span class="argument-type">float</span></td>
+<td style="text-align: left;"><p>Score value threshold.</p></td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;"><code>value_to_float</code><br>
+<span class="argument-type">ValueToFloat</span></td>
+<td style="text-align: left;"><p>Function to convert score values to float.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="pass_at" class="level3">
+<h3 class="anchored" data-anchor-id="pass_at">pass_at</h3>
+<p>Probability of at least 1 correct sample given <code>k</code> epochs (<a href="https://arxiv.org/pdf/2107.03374" class="uri">https://arxiv.org/pdf/2107.03374</a>).</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/a2a218ff03f0c62435779780d4efbe7a10ce3831/src/inspect_ai/scorer/_reducer/reducer.py#L109">Source</a>
+</div>
+<div class="sourceCode" id="cb18"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="at">@score_reducer</span></span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> pass_at(</span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a>    k: <span class="bu">int</span>, value: <span class="bu">float</span> <span class="op">=</span> <span class="fl">1.0</span>, value_to_float: ValueToFloat <span class="op">=</span> value_to_float()</span>
+<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> ScoreReducer</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 75%">
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">Argument</th>
+<th style="text-align: left;">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;"><code>k</code><br>
+<span class="argument-type">int</span></td>
+<td style="text-align: left;"><p>Epochs to compute probability for.</p></td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><code>value</code><br>
+<span class="argument-type">float</span></td>
+<td style="text-align: left;"><p>Score value threshold.</p></td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;"><code>value_to_float</code><br>
+<span class="argument-type">ValueToFloat</span></td>
+<td style="text-align: left;"><p>Function to convert score values to float.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="max_score" class="level3">
+<h3 class="anchored" data-anchor-id="max_score">max_score</h3>
+<p>Take the maximum value from a list of scores.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/a2a218ff03f0c62435779780d4efbe7a10ce3831/src/inspect_ai/scorer/_reducer/reducer.py#L144">Source</a>
+</div>
+<div class="sourceCode" id="cb19"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="at">@score_reducer</span>(name<span class="op">=</span><span class="st">"max"</span>)</span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> max_score(value_to_float: ValueToFloat <span class="op">=</span> value_to_float()) <span class="op">-&gt;</span> ScoreReducer</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 75%">
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">Argument</th>
+<th style="text-align: left;">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;"><code>value_to_float</code><br>
+<span class="argument-type">ValueToFloat</span></td>
+<td style="text-align: left;"><p>Function to convert the value to a float</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="mean_score" class="level3">
+<h3 class="anchored" data-anchor-id="mean_score">mean_score</h3>
+<p>Take the mean of a list of scores.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/a2a218ff03f0c62435779780d4efbe7a10ce3831/src/inspect_ai/scorer/_reducer/reducer.py#L39">Source</a>
+</div>
+<div class="sourceCode" id="cb20"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="at">@score_reducer</span>(name<span class="op">=</span><span class="st">"mean"</span>)</span>
+<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> mean_score(value_to_float: ValueToFloat <span class="op">=</span> value_to_float()) <span class="op">-&gt;</span> ScoreReducer</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 75%">
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">Argument</th>
+<th style="text-align: left;">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;"><code>value_to_float</code><br>
+<span class="argument-type">ValueToFloat</span></td>
+<td style="text-align: left;"><p>Function to convert the value to a float</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="median_score" class="level3">
+<h3 class="anchored" data-anchor-id="median_score">median_score</h3>
+<p>Take the median value from a list of scores.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/a2a218ff03f0c62435779780d4efbe7a10ce3831/src/inspect_ai/scorer/_reducer/reducer.py#L58">Source</a>
+</div>
+<div class="sourceCode" id="cb21"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="at">@score_reducer</span>(name<span class="op">=</span><span class="st">"median"</span>)</span>
+<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> median_score(value_to_float: ValueToFloat <span class="op">=</span> value_to_float()) <span class="op">-&gt;</span> ScoreReducer</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 75%">
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">Argument</th>
+<th style="text-align: left;">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;"><code>value_to_float</code><br>
+<span class="argument-type">ValueToFloat</span></td>
+<td style="text-align: left;"><p>Function to convert the value to a float</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="mode_score" class="level3">
+<h3 class="anchored" data-anchor-id="mode_score">mode_score</h3>
+<p>Take the mode from a list of scores.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/a2a218ff03f0c62435779780d4efbe7a10ce3831/src/inspect_ai/scorer/_reducer/reducer.py#L13">Source</a>
+</div>
+<div class="sourceCode" id="cb22"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="at">@score_reducer</span>(name<span class="op">=</span><span class="st">"mode"</span>)</span>
+<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> mode_score() <span class="op">-&gt;</span> ScoreReducer</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
+</section>
+<section id="types" class="level2">
+<h2 class="anchored" data-anchor-id="types">Types</h2>
+<section id="scorer" class="level3">
+<h3 class="anchored" data-anchor-id="scorer">Scorer</h3>
+<p>Score model outputs.</p>
+<p>Evaluate the passed outputs and targets and return a dictionary with scoring outcomes and context.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/a2a218ff03f0c62435779780d4efbe7a10ce3831/src/inspect_ai/scorer/_scorer.py#L29">Source</a>
+</div>
+<div class="sourceCode" id="cb23"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Scorer(Protocol):</span>
+<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> <span class="fu">__call__</span>(</span>
+<span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>,</span>
+<span id="cb23-4"><a href="#cb23-4" aria-hidden="true" tabindex="-1"></a>        state: TaskState,</span>
+<span id="cb23-5"><a href="#cb23-5" aria-hidden="true" tabindex="-1"></a>        target: Target,</span>
+<span id="cb23-6"><a href="#cb23-6" aria-hidden="true" tabindex="-1"></a>    ) <span class="op">-&gt;</span> Score</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 75%">
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">Argument</th>
+<th style="text-align: left;">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;"><code>state</code><br>
+<span class="argument-type">TaskState</span></td>
+<td style="text-align: left;"><p>Task state</p></td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><code>target</code><br>
+<span class="argument-type">Target</span></td>
+<td style="text-align: left;"><p>Ideal target for the output.</p></td>
+</tr>
+</tbody>
+</table>
+<section class="level4">
+<h4 class="anchored" data-anchor-id="">Examples</h4>
+<div class="sourceCode" id="cb24"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="at">@scorer</span></span>
+<span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> custom_scorer() <span class="op">-&gt;</span> Scorer:</span>
+<span id="cb24-3"><a href="#cb24-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> score(state: TaskState, target: Target) <span class="op">-&gt;</span> Score:</span>
+<span id="cb24-4"><a href="#cb24-4" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Compare state / model output with target</span></span>
+<span id="cb24-5"><a href="#cb24-5" aria-hidden="true" tabindex="-1"></a>        <span class="co"># to yield a score</span></span>
+<span id="cb24-6"><a href="#cb24-6" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> Score(value<span class="op">=</span>...)</span>
+<span id="cb24-7"><a href="#cb24-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-8"><a href="#cb24-8" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> score</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
+</section>
+<section id="metric" class="level3">
+<h3 class="anchored" data-anchor-id="metric">Metric</h3>
+<p>Compute a metric on a list of scores.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/a2a218ff03f0c62435779780d4efbe7a10ce3831/src/inspect_ai/scorer/_metric.py#L185">Source</a>
+</div>
+<div class="sourceCode" id="cb25"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Metric(Protocol):</span>
+<span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__call__</span>(<span class="va">self</span>, scores: <span class="bu">list</span>[Score]) <span class="op">-&gt;</span> Value</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 75%">
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">Argument</th>
+<th style="text-align: left;">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;"><code>scores</code><br>
+<span class="argument-type">list[Score]</span></td>
+<td style="text-align: left;"><p>List of scores.</p></td>
+</tr>
+</tbody>
+</table>
+<section class="level4">
+<h4 class="anchored" data-anchor-id="">Examples</h4>
+<div class="sourceCode" id="cb26"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="at">@metric</span></span>
+<span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> mean() <span class="op">-&gt;</span> Metric:</span>
+<span id="cb26-3"><a href="#cb26-3" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> metric(scores: <span class="bu">list</span>[Score]) <span class="op">-&gt;</span> Value:</span>
+<span id="cb26-4"><a href="#cb26-4" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> np.mean([score.as_float() <span class="cf">for</span> score <span class="kw">in</span> scores]).item()</span>
+<span id="cb26-5"><a href="#cb26-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-6"><a href="#cb26-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> metric</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
+</section>
+<section id="scorereducer" class="level3">
+<h3 class="anchored" data-anchor-id="scorereducer">ScoreReducer</h3>
+<p>Reduce a set of scores to a single score.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/a2a218ff03f0c62435779780d4efbe7a10ce3831/src/inspect_ai/scorer/_reducer/types.py#L8">Source</a>
+</div>
+<div class="sourceCode" id="cb27"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ScoreReducer(Protocol):</span>
+<span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__call__</span>(<span class="va">self</span>, scores: <span class="bu">list</span>[Score]) <span class="op">-&gt;</span> Score</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 75%">
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">Argument</th>
+<th style="text-align: left;">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;"><code>scores</code><br>
+<span class="argument-type">list[Score]</span></td>
+<td style="text-align: left;"><p>List of scores.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="target" class="level3">
+<h3 class="anchored" data-anchor-id="target">Target</h3>
+<p>Target for scoring against the current TaskState.</p>
+<p>Target is a sequence of one or more strings. Use the <code>text</code> property to access the value as a single string.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/a2a218ff03f0c62435779780d4efbe7a10ce3831/src/inspect_ai/scorer/_target.py#L4">Source</a>
+</div>
+<div class="sourceCode" id="cb28"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Target(Sequence[<span class="bu">str</span>])</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
+<section id="score" class="level3">
+<h3 class="anchored" data-anchor-id="score">Score</h3>
+<p>Score generated by a scorer.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/a2a218ff03f0c62435779780d4efbe7a10ce3831/src/inspect_ai/scorer/_metric.py#L50">Source</a>
+</div>
+<div class="sourceCode" id="cb29"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Score(BaseModel)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<section class="level4">
+<h4 class="anchored" data-anchor-id="">Attributes</h4>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 75%">
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">Attribute</th>
+<th style="text-align: left;">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;"><code>value</code><br>
+<span class="argument-type">Value</span></td>
+<td style="text-align: left;"><p>Score value.</p></td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><code>answer</code><br>
+<span class="argument-type">str | None</span></td>
+<td style="text-align: left;"><p>Answer extracted from model output (optional)</p></td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;"><code>explanation</code><br>
+<span class="argument-type">str | None</span></td>
+<td style="text-align: left;"><p>Explanation of score (optional).</p></td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><code>metadata</code><br>
+<span class="argument-type">dict[str, Any] | None</span></td>
+<td style="text-align: left;"><p>Additional metadata related to the score</p></td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;"><code>text</code><br>
+<span class="argument-type">str</span></td>
+<td style="text-align: left;"><p>Read the score as text.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section class="level4">
+<h4 class="anchored" data-anchor-id="">Methods</h4>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 75%">
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">Method</th>
+<th style="text-align: left;">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;"><code>as_str</code></td>
+<td style="text-align: left;"><div>
+<p>Read the score as a string.</p>
+<div class="sourceCode" id="cb30"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> as_str(<span class="va">self</span>) <span class="op">-&gt;</span> <span class="bu">str</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div></td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><code>as_int</code></td>
+<td style="text-align: left;"><div>
+<p>Read the score as an integer.</p>
+<div class="sourceCode" id="cb31"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> as_int(<span class="va">self</span>) <span class="op">-&gt;</span> <span class="bu">int</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div></td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;"><code>as_float</code></td>
+<td style="text-align: left;"><div>
+<p>Read the score as a float.</p>
+<div class="sourceCode" id="cb32"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> as_float(<span class="va">self</span>) <span class="op">-&gt;</span> <span class="bu">float</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div></td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><code>as_bool</code></td>
+<td style="text-align: left;"><div>
+<p>Read the score as a boolean.</p>
+<div class="sourceCode" id="cb33"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> as_bool(<span class="va">self</span>) <span class="op">-&gt;</span> <span class="bu">bool</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div></td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;"><code>as_list</code></td>
+<td style="text-align: left;"><div>
+<p>Read the score as a list.</p>
+<div class="sourceCode" id="cb34"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> as_list(<span class="va">self</span>) <span class="op">-&gt;</span> <span class="bu">list</span>[<span class="bu">str</span> <span class="op">|</span> <span class="bu">int</span> <span class="op">|</span> <span class="bu">float</span> <span class="op">|</span> <span class="bu">bool</span>]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div></td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><code>as_dict</code></td>
+<td style="text-align: left;"><div>
+<p>Read the score as a dictionary.</p>
+<div class="sourceCode" id="cb35"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb35-1"><a href="#cb35-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> as_dict(<span class="va">self</span>) <span class="op">-&gt;</span> <span class="bu">dict</span>[<span class="bu">str</span>, <span class="bu">str</span> <span class="op">|</span> <span class="bu">int</span> <span class="op">|</span> <span class="bu">float</span> <span class="op">|</span> <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span>]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div></td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
+<section id="value" class="level3">
+<h3 class="anchored" data-anchor-id="value">Value</h3>
+<p>Value provided by a score.</p>
+<p>Use the methods of <code>Score</code> to easily treat the Value as a simple scalar of various types.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/a2a218ff03f0c62435779780d4efbe7a10ce3831/src/inspect_ai/scorer/_metric.py#L38">Source</a>
+</div>
+<div class="sourceCode" id="cb36"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a>Value <span class="op">=</span> Union[</span>
+<span id="cb36-2"><a href="#cb36-2" aria-hidden="true" tabindex="-1"></a>    <span class="bu">str</span> <span class="op">|</span> <span class="bu">int</span> <span class="op">|</span> <span class="bu">float</span> <span class="op">|</span> <span class="bu">bool</span>,</span>
+<span id="cb36-3"><a href="#cb36-3" aria-hidden="true" tabindex="-1"></a>    <span class="bu">list</span>[<span class="bu">str</span> <span class="op">|</span> <span class="bu">int</span> <span class="op">|</span> <span class="bu">float</span> <span class="op">|</span> <span class="bu">bool</span>],</span>
+<span id="cb36-4"><a href="#cb36-4" aria-hidden="true" tabindex="-1"></a>    <span class="bu">dict</span>[<span class="bu">str</span>, <span class="bu">str</span> <span class="op">|</span> <span class="bu">int</span> <span class="op">|</span> <span class="bu">float</span> <span class="op">|</span> <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span>],</span>
+<span id="cb36-5"><a href="#cb36-5" aria-hidden="true" tabindex="-1"></a>]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
+</section>
+<section id="decorators" class="level2">
+<h2 class="anchored" data-anchor-id="decorators">Decorators</h2>
+<section id="scorer-1" class="level3">
+<h3 class="anchored" data-anchor-id="scorer-1">scorer</h3>
+<p>Decorator for registering scorers.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/a2a218ff03f0c62435779780d4efbe7a10ce3831/src/inspect_ai/scorer/_scorer.py#L97">Source</a>
+</div>
+<div class="sourceCode" id="cb37"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb37-1"><a href="#cb37-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> scorer(</span>
+<span id="cb37-2"><a href="#cb37-2" aria-hidden="true" tabindex="-1"></a>    metrics: <span class="bu">list</span>[Metric <span class="op">|</span> <span class="bu">dict</span>[<span class="bu">str</span>, <span class="bu">list</span>[Metric]]] <span class="op">|</span> <span class="bu">dict</span>[<span class="bu">str</span>, <span class="bu">list</span>[Metric]],</span>
+<span id="cb37-3"><a href="#cb37-3" aria-hidden="true" tabindex="-1"></a>    name: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb37-4"><a href="#cb37-4" aria-hidden="true" tabindex="-1"></a>    <span class="op">**</span>metadata: Any,</span>
+<span id="cb37-5"><a href="#cb37-5" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> Callable[[Callable[P, Scorer]], Callable[P, Scorer]]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 75%">
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">Argument</th>
+<th style="text-align: left;">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;"><code>metrics</code><br>
+<span class="argument-type">list[Metric | dict[str, list[Metric]]] | dict[str, list[Metric]]</span></td>
+<td style="text-align: left;"><p>One or more metrics to calculate over the scores.</p></td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><code>name</code><br>
+<span class="argument-type">str | None</span></td>
+<td style="text-align: left;"><p>Optional name for scorer. If the decorator has no name argument then the name of the underlying ScorerType object will be used to automatically assign a name.</p></td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;"><code>**metadata</code><br>
+<span class="argument-type">Any</span></td>
+<td style="text-align: left;"><p>Additional values to serialize in metadata.</p></td>
+</tr>
+</tbody>
+</table>
+<section class="level4">
+<h4 class="anchored" data-anchor-id="">Examples</h4>
+<div class="sourceCode" id="cb38"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb38-1"><a href="#cb38-1" aria-hidden="true" tabindex="-1"></a><span class="at">@scorer</span></span>
+<span id="cb38-2"><a href="#cb38-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> custom_scorer() <span class="op">-&gt;</span> Scorer:</span>
+<span id="cb38-3"><a href="#cb38-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> score(state: TaskState, target: Target) <span class="op">-&gt;</span> Score:</span>
+<span id="cb38-4"><a href="#cb38-4" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Compare state / model output with target</span></span>
+<span id="cb38-5"><a href="#cb38-5" aria-hidden="true" tabindex="-1"></a>        <span class="co"># to yield a score</span></span>
+<span id="cb38-6"><a href="#cb38-6" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> Score(value<span class="op">=</span>...)</span>
+<span id="cb38-7"><a href="#cb38-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb38-8"><a href="#cb38-8" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> score</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
+</section>
+<section id="metric-1" class="level3">
+<h3 class="anchored" data-anchor-id="metric-1">metric</h3>
+<p>Decorator for registering metrics.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/a2a218ff03f0c62435779780d4efbe7a10ce3831/src/inspect_ai/scorer/_metric.py#L252">Source</a>
+</div>
+<div class="sourceCode" id="cb39"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb39-1"><a href="#cb39-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> metric(</span>
+<span id="cb39-2"><a href="#cb39-2" aria-hidden="true" tabindex="-1"></a>    name: <span class="bu">str</span> <span class="op">|</span> Callable[P, Metric],</span>
+<span id="cb39-3"><a href="#cb39-3" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> Callable[[Callable[P, Metric]], Callable[P, Metric]] <span class="op">|</span> Callable[P, Metric]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 75%">
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">Argument</th>
+<th style="text-align: left;">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;"><code>name</code><br>
+<span class="argument-type">str | Callable[P, Metric]</span></td>
+<td style="text-align: left;"><p>Optional name for metric. If the decorator has no name argument then the name of the underlying MetricType will be used to automatically assign a name.</p></td>
+</tr>
+</tbody>
+</table>
+<section class="level4">
+<h4 class="anchored" data-anchor-id="">Examples</h4>
+<div class="sourceCode" id="cb40"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb40-1"><a href="#cb40-1" aria-hidden="true" tabindex="-1"></a><span class="at">@metric</span></span>
+<span id="cb40-2"><a href="#cb40-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> mean() <span class="op">-&gt;</span> Metric:</span>
+<span id="cb40-3"><a href="#cb40-3" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> metric(scores: <span class="bu">list</span>[Score]) <span class="op">-&gt;</span> Value:</span>
+<span id="cb40-4"><a href="#cb40-4" aria-hidden="true" tabindex="-1"></a>      <span class="cf">return</span> np.mean([score.as_float() <span class="cf">for</span> score <span class="kw">in</span> scores]).item()</span>
+<span id="cb40-5"><a href="#cb40-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb40-6"><a href="#cb40-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> metric</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
+</section>
+<section id="score_reducer" class="level3">
+<h3 class="anchored" data-anchor-id="score_reducer">score_reducer</h3>
+<p>Decorator for registering Score Reducers.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/a2a218ff03f0c62435779780d4efbe7a10ce3831/src/inspect_ai/scorer/_reducer/registry.py#L37">Source</a>
+</div>
+<div class="sourceCode" id="cb41"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb41-1"><a href="#cb41-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> score_reducer(</span>
+<span id="cb41-2"><a href="#cb41-2" aria-hidden="true" tabindex="-1"></a>    func: ScoreReducerType <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>, <span class="op">*</span>, name: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span></span>
+<span id="cb41-3"><a href="#cb41-3" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> Callable[[ScoreReducerType], ScoreReducerType] <span class="op">|</span> ScoreReducerType</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 75%">
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">Argument</th>
+<th style="text-align: left;">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;"><code>func</code><br>
+<span class="argument-type">ScoreReducerType | None</span></td>
+<td style="text-align: left;"><p>Function returning <code>ScoreReducer</code> targeted by plain task decorator without attributes (e.g.&nbsp;<code>@score_reducer</code>)</p></td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><code>name</code><br>
+<span class="argument-type">str | None</span></td>
+<td style="text-align: left;"><p>Optional name for reducer. If the decorator has no name argument then the name of the function will be used to automatically assign a name.</p></td>
 </tr>
 </tbody>
 </table>
@@ -427,6 +1647,69 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
     icon: icon
   };
   anchorJS.add('.anchored');
+  const isCodeAnnotation = (el) => {
+    for (const clz of el.classList) {
+      if (clz.startsWith('code-annotation-')) {                     
+        return true;
+      }
+    }
+    return false;
+  }
+  const onCopySuccess = function(e) {
+    // button target
+    const button = e.trigger;
+    // don't keep focus
+    button.blur();
+    // flash "checked"
+    button.classList.add('code-copy-button-checked');
+    var currentTitle = button.getAttribute("title");
+    button.setAttribute("title", "Copied!");
+    let tooltip;
+    if (window.bootstrap) {
+      button.setAttribute("data-bs-toggle", "tooltip");
+      button.setAttribute("data-bs-placement", "left");
+      button.setAttribute("data-bs-title", "Copied!");
+      tooltip = new bootstrap.Tooltip(button, 
+        { trigger: "manual", 
+          customClass: "code-copy-button-tooltip",
+          offset: [0, -8]});
+      tooltip.show();    
+    }
+    setTimeout(function() {
+      if (tooltip) {
+        tooltip.hide();
+        button.removeAttribute("data-bs-title");
+        button.removeAttribute("data-bs-toggle");
+        button.removeAttribute("data-bs-placement");
+      }
+      button.setAttribute("title", currentTitle);
+      button.classList.remove('code-copy-button-checked');
+    }, 1000);
+    // clear code selection
+    e.clearSelection();
+  }
+  const getTextToCopy = function(trigger) {
+      const codeEl = trigger.previousElementSibling.cloneNode(true);
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+  }
+  const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+    text: getTextToCopy
+  });
+  clipboard.on('success', onCopySuccess);
+  if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+    // For code content inside modals, clipBoardJS needs to be initialized with a container option
+    // TODO: Check when it could be a function (https://github.com/zenorocha/clipboard.js/issues/860)
+    const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+      text: getTextToCopy,
+      container: window.document.getElementById('quarto-embedded-source-code-modal')
+    });
+    clipboardModal.on('success', onCopySuccess);
+  }
     var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
     var mailtoRegex = new RegExp(/^mailto:/);
       var filterRegex = new RegExp("https:\/\/inspect\.ai-safety-institute\.org\.uk\/");
@@ -800,13 +2083,13 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
 </script>
 <nav class="page-navigation">
   <div class="nav-page nav-page-previous">
-      <a href="../reference/inspect_ai.solver.html#human_agent" class="pagination-link" aria-label="human_agent">
-        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">human_agent</span>
+      <a href="../reference/inspect_ai.solver.html#solver" class="pagination-link" aria-label="solver">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">solver</span>
       </a>          
   </div>
   <div class="nav-page nav-page-next">
-      <a href="../reference/inspect_ai.scorer.html#accuracy" class="pagination-link" aria-label="accuracy">
-        <span class="nav-page-text">accuracy</span> <i class="bi bi-arrow-right-short"></i>
+      <a href="../reference/inspect_ai.scorer.html#match" class="pagination-link" aria-label="match">
+        <span class="nav-page-text">match</span> <i class="bi bi-arrow-right-short"></i>
       </a>
   </div>
 </nav>
