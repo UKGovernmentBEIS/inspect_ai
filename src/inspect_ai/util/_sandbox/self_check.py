@@ -262,12 +262,20 @@ async def test_exec_as_user(sandbox_env: SandboxEnvironment) -> None:
 
     # Neither adduser nor useradd are part of POSIX, so we need some brittle logic here
     adduser_help_exec_result = await sandbox_env.exec(["adduser", "--help"])
-    adduser_help_text = adduser_help_exec_result.stdout + adduser_help_exec_result.stderr
+    adduser_help_text = (
+        adduser_help_exec_result.stdout + adduser_help_exec_result.stderr
+    )
 
     if "BusyBox" in adduser_help_text:
-        adduser_command=["adduser", "-D", username]
+        adduser_command = ["adduser", "-D", username]
     else:
-        adduser_command=["adduser", "--comment", "self_check.py", "--disabled-password", username]
+        adduser_command = [
+            "adduser",
+            "--comment",
+            "self_check.py",
+            "--disabled-password",
+            username,
+        ]
 
     try:
         # Create a new user
