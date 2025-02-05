@@ -283,9 +283,20 @@ class DockerSandboxEnvironment(SandboxEnvironment):
 
         # write the file
         result = await self.exec(["tee", "--", file], input=contents)
-        if not result.success:
-            msg = f"Failed to write file '{file}' into container: {result.stderr}"
-            raise PermissionError(msg)
+        if result.returncode != 0:
+            if "permission denied" in result.stderr.casefold():
+                ls_result = await exec(["ls", "-la", "."])
+                error_string = f"Permission was denied. Error details: {result.stderr}; ls -la: {ls_result.stdout}; {self._docker_user=}"
+                raise PermissionError(error_string)
+            elif (
+                "cannot overwrite directory" in result.stderr.casefold()
+                or "is a directory" in result.stderr.casefold()
+            ):
+                raise IsADirectoryError(
+                    f"Failed to write file: {file} because it is a directory already"
+                )
+            else:
+                raise RuntimeError(f"failed to copy during write_file: {result}")
 
 
     @overload
