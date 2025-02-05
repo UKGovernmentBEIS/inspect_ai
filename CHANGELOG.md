@@ -6,6 +6,7 @@
 - Inspect View: Convert codebase from JS/Preact to Typescript/React
 - Add `stop_words` param to the `f1` scorer. `stop_words` will be removed from the target and answer during normalization.
 - Tools: Handle return of empty list from tool calls.
+- Sandboxes: Docker now uses `tee` for write_file operations.
 
 ## v0.3.62 (03 February 2025)
 

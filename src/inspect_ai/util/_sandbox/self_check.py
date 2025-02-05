@@ -32,6 +32,7 @@ async def self_check(sandbox_env: SandboxEnvironment) -> dict[str, bool | str]:
     for fn in [
         test_read_and_write_file_text,
         test_read_and_write_file_binary,
+        test_read_and_write_large_file_binary,
         test_write_file_text_utf,
         test_read_and_write_file_including_directory_absolute,
         test_read_and_write_file_including_directory_relative,
@@ -41,11 +42,16 @@ async def self_check(sandbox_env: SandboxEnvironment) -> dict[str, bool | str]:
         test_read_file_is_directory,
         test_read_file_nonsense_name,
         test_read_file_limit,
-        test_write_file_zero_length,
-        test_write_file_space,
-        test_write_file_is_directory,
-        test_write_file_without_permissions,
-        test_write_file_exists,
+        test_write_text_file_zero_length,
+        test_write_text_file_space,
+        test_write_text_file_is_directory,
+        test_write_text_file_without_permissions,
+        test_write_text_file_exists,
+        test_write_binary_file_zero_length,
+        test_write_binary_file_space,
+        test_write_binary_file_is_directory,
+        test_write_binary_file_without_permissions,
+        test_write_binary_file_exists,
         test_exec_output,
         test_exec_timeout,
         test_exec_permission_error,
@@ -97,6 +103,17 @@ async def test_read_and_write_file_binary(sandbox_env: SandboxEnvironment) -> No
 
     written_file_bytes = await sandbox_env.read_file(file_name, text=False)
     assert b"\xc3\x28" == written_file_bytes
+    await _cleanup_file(sandbox_env, file_name)
+
+
+async def test_read_and_write_large_file_binary(
+    sandbox_env: SandboxEnvironment,
+) -> None:
+    file_name = "test_read_and_write_large_file_binary.file"
+    long_bytes = b"\xc3" * 5_000_000
+    await sandbox_env.write_file(file_name, long_bytes)
+    written_file_bytes = await sandbox_env.read_file(file_name, text=False)
+    assert long_bytes == written_file_bytes
     await _cleanup_file(sandbox_env, file_name)
 
 
@@ -176,7 +193,7 @@ async def test_read_file_limit(sandbox_env: SandboxEnvironment) -> None:
     await _cleanup_file(sandbox_env, file_name)
 
 
-async def test_write_file_zero_length(sandbox_env: SandboxEnvironment) -> None:
+async def test_write_text_file_zero_length(sandbox_env: SandboxEnvironment) -> None:
     file_name = "zero_length_file.file"
     await sandbox_env.write_file(file_name, "")
     zero_length = await sandbox_env.read_file(file_name, text=True)
@@ -185,7 +202,7 @@ async def test_write_file_zero_length(sandbox_env: SandboxEnvironment) -> None:
     await _cleanup_file(sandbox_env, file_name)
 
 
-async def test_write_file_space(sandbox_env: SandboxEnvironment) -> None:
+async def test_write_text_file_space(sandbox_env: SandboxEnvironment) -> None:
     space = "to the moon"
     file_name = "file with space.file"
     await sandbox_env.write_file(file_name, space)
@@ -195,28 +212,28 @@ async def test_write_file_space(sandbox_env: SandboxEnvironment) -> None:
     await _cleanup_file(sandbox_env, file_name)
 
 
-async def test_write_file_is_directory(
+async def test_write_text_file_is_directory(
     sandbox_env: SandboxEnvironment,
 ) -> None:
     # ensure /tmp/directory exists
     await sandbox_env.write_file(
-        "/tmp/inspect_ai_test_write_file_is_directory/file", "unused content"
+        "/tmp/inspect_ai_test_write_text_file_is_directory/file", "unused content"
     )
     with Raises(IsADirectoryError) as e_info:
         await sandbox_env.write_file(
-            "/tmp/inspect_ai_test_write_file_is_directory",
+            "/tmp/inspect_ai_test_write_text_file_is_directory",
             "content cannot go in a directory, dummy",
         )
     assert "directory" in str(e_info.value)
     await sandbox_env.exec(
-        ["rm", "-rf", "/tmp/inspect_ai_test_write_file_is_directory"]
+        ["rm", "-rf", "/tmp/inspect_ai_test_write_text_file_is_directory"]
     )
 
 
-async def test_write_file_without_permissions(
+async def test_write_text_file_without_permissions(
     sandbox_env: SandboxEnvironment,
 ) -> None:
-    file_name = "test_write_file_without_permissions.file"
+    file_name = "test_write_text_file_without_permissions.file"
     await sandbox_env.write_file(file_name, "impervious #content")
     await sandbox_env.exec(["chmod", "-w", file_name])
     with Raises(PermissionError) as e_info:
@@ -226,7 +243,7 @@ async def test_write_file_without_permissions(
     await _cleanup_file(sandbox_env, file_name)
 
 
-async def test_write_file_exists(
+async def test_write_text_file_exists(
     sandbox_env: SandboxEnvironment,
 ) -> None:
     file_name = "file_exists.file"
@@ -234,6 +251,67 @@ async def test_write_file_exists(
     await sandbox_env.write_file(file_name, "altered content")
     altered_content = await sandbox_env.read_file(file_name, text=True)
     assert altered_content == "altered content"
+    await _cleanup_file(sandbox_env, file_name)
+
+
+async def test_write_binary_file_zero_length(sandbox_env: SandboxEnvironment) -> None:
+    file_name = "zero_length_file.file"
+    await sandbox_env.write_file(file_name, b"")
+    zero_length = await sandbox_env.read_file(file_name, text=False)
+    assert isinstance(zero_length, bytes)
+    assert zero_length == b""
+    await _cleanup_file(sandbox_env, file_name)
+
+
+async def test_write_binary_file_space(sandbox_env: SandboxEnvironment) -> None:
+    binary_content = b"\xc3\x28"
+    file_name = "file with space.file"
+    await sandbox_env.write_file(file_name, binary_content)
+    file_with_space = await sandbox_env.read_file(file_name, text=False)
+    assert isinstance(file_with_space, bytes)
+    assert file_with_space == binary_content
+    await _cleanup_file(sandbox_env, file_name)
+
+
+async def test_write_binary_file_is_directory(
+    sandbox_env: SandboxEnvironment,
+) -> None:
+    # ensure /tmp/directory exists
+    await sandbox_env.write_file(
+        "/tmp/inspect_ai_test_write_binary_file_is_directory/file", "unused content"
+    )
+    with Raises(IsADirectoryError) as e_info:
+        await sandbox_env.write_file(
+            "/tmp/inspect_ai_test_write_binary_file_is_directory",
+            b"\xc3\x28",
+        )
+    assert "directory" in str(e_info.value)
+    await sandbox_env.exec(
+        ["rm", "-rf", "/tmp/inspect_ai_test_write_binary_file_is_directory"]
+    )
+
+
+async def test_write_binary_file_without_permissions(
+    sandbox_env: SandboxEnvironment,
+) -> None:
+    file_name = "test_write_binary_file_without_permissions.file"
+    await sandbox_env.write_file(file_name, "impervious #content")
+    await sandbox_env.exec(["chmod", "-w", file_name])
+    with Raises(PermissionError) as e_info:
+        await sandbox_env.write_file(file_name, b"\xc3\x28")
+    assert file_name in str(e_info.value)
+    await sandbox_env.exec(["chmod", "+w", file_name])
+    await _cleanup_file(sandbox_env, file_name)
+
+
+async def test_write_binary_file_exists(
+    sandbox_env: SandboxEnvironment,
+) -> None:
+    file_name = "file_exists.file"
+    await sandbox_env.write_file(file_name, b"\xc3\x28")
+    await sandbox_env.write_file(file_name, b"\xc3\x29")
+    altered_content = await sandbox_env.read_file(file_name, text=False)
+    assert altered_content == b"\xc3\x29"
     await _cleanup_file(sandbox_env, file_name)
 
 
