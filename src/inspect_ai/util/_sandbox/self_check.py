@@ -248,7 +248,7 @@ async def test_exec_output(sandbox_env: SandboxEnvironment) -> None:
 
 async def test_exec_timeout(sandbox_env: SandboxEnvironment) -> None:
     with Raises(TimeoutError):
-        await sandbox_env.exec(["sleep", "2"], timeout=1)
+        await sandbox_env.exec(["sleep", "4"], timeout=2)
 
 
 async def test_exec_permission_error(sandbox_env: SandboxEnvironment) -> None:
