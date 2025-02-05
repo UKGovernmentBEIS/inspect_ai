@@ -90,3 +90,19 @@ website:
         href: reference/inspect_ai.scorer.qmd#median_score
       - text: mode_score
         href: reference/inspect_ai.scorer.qmd#mode_score
+      - text: Scorer
+        href: reference/inspect_ai.scorer.qmd#Scorer
+      - text: Metric
+        href: reference/inspect_ai.scorer.qmd#Metric
+      - text: ScoreReducer
+        href: reference/inspect_ai.scorer.qmd#ScoreReducer
+      - text: Target
+        href: reference/inspect_ai.scorer.qmd#Target
+      - text: Score
+        href: reference/inspect_ai.scorer.qmd#Score
+      - text: scorer
+        href: reference/inspect_ai.scorer.qmd#scorer
+      - text: metric
+        href: reference/inspect_ai.scorer.qmd#metric
+      - text: score_reducer
+        href: reference/inspect_ai.scorer.qmd#score_reducer

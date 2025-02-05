@@ -32,5 +32,20 @@ title: "inspect_ai.scorer"
 ### median_score
 ### mode_score
 
+## Types
+
+### Scorer
+### Metric
+### ScoreReducer
+### Target
+### Score
+
+<!-- ### Value  -->
+
+## Decorators
+
+### scorer
+### metric
+### score_reducer
 
 

@@ -189,16 +189,26 @@ def value_to_float(
 
 @runtime_checkable
 class Metric(Protocol):
-    r"""Evaluate scores using a metric.
+    def __call__(self, scores: list[Score]) -> Value:
+        r"""Compute a metric on a list of scores.
 
-    Args:
-        scores (list[Score]): List of scores.
+        Args:
+          scores: List of scores.
 
-    Returns:
-        Metric value
-    """
+        Returns:
+          Metric value
 
-    def __call__(self, scores: list[Score]) -> Value: ...
+        Examples:
+          ```python
+          @metric
+          def mean() -> Metric:
+              def metric(scores: list[Score]) -> Value:
+                  return np.mean([score.as_float() for score in scores]).item()
+
+              return metric
+          ```
+        """
+        ...
 
 
 P = ParamSpec("P")
@@ -252,10 +262,19 @@ def metric(
     r"""Decorator for registering metrics.
 
     Args:
-        name: (str | MetricType):
-            Optional name for metric. If the decorator has no name
-            argument then the name of the underlying MetricType
-            will be used to automatically assign a name.
+      name: Optional name for metric. If the decorator has no name
+        argument then the name of the underlying MetricType
+        will be used to automatically assign a name.
+
+    Examples:
+      ```python
+      @metric
+      def mean() -> Metric:
+          def metric(scores: list[Score]) -> Value:
+            return np.mean([score.as_float() for score in scores]).item()
+
+          return metric
+      ```
     """
 
     # create_metric_wrapper:
