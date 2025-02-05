@@ -29,36 +29,32 @@ from ._task_state import TaskState, set_sample_state
 
 @runtime_checkable
 class Generate(Protocol):
-    """Generate using the model and add the assistant message to the task state.
-
-    Args:
-       state (TaskState): Beginning task state.
-
-       tool_calls (Literal["loop", "single", "none"]): Resolve tool calls:
-          - `"loop"` resolves tools calls and then invokes `generate()`,
-             proceeding in a loop which terminates when there are no more
-             tool calls, or `message_limit` or `token_limit` is exceeded.
-             This is the default behavior.
-          - `"single"` resolves at most a single set of tool calls and then returns.
-          - `"none"` does not resolve tool calls at all (in this
-             case you will need to invoke `call_tools()` directly).
-
-       cache: (bool | CachePolicy):
-          Caching behaviour for generate responses (defaults to no caching).
-
-       **kwargs: Optional generation config arguments.
-
-    Returns:
-       Updated TaskState.
-    """
-
     async def __call__(
         self,
         state: TaskState,
         tool_calls: Literal["loop", "single", "none"] = "loop",
         cache: bool | CachePolicy = False,
         **kwargs: Unpack[GenerateConfigArgs],
-    ) -> TaskState: ...
+    ) -> TaskState:
+        """Generate using the model and add the assistant message to the task state.
+
+        Args:
+            state: Beginning task state.
+            tool_calls:
+                - `"loop"` resolves tools calls and then invokes `generate()`,
+                    proceeding in a loop which terminates when there are no more
+                    tool calls, or `message_limit` or `token_limit` is exceeded.
+                    This is the default behavior.
+                - `"single"` resolves at most a single set of tool calls and then returns.
+                - `"none"` does not resolve tool calls at all (in this
+                    case you will need to invoke `call_tools()` directly).
+            cache: Caching behaviour for generate responses (defaults to no caching).
+            **kwargs: Optional generation config arguments.
+
+        Returns:
+            Updated TaskState.
+        """
+        ...
 
 
 @dataclass(frozen=True)

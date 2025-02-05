@@ -3,7 +3,7 @@ from itertools import islice
 from pathlib import Path
 import sys
 from typing import Any, NamedTuple, cast
-from griffe import Alias, Class, DocstringSection, DocstringSectionExamples, DocstringSectionParameters, Function, Module, Object, ParameterKind
+from griffe import Alias, Attribute, Class, DocstringSection, DocstringSectionExamples, DocstringSectionParameters, Expr, Function, Module, Object, ParameterKind
 
 @dataclass
 class DocParseOptions:
@@ -16,6 +16,12 @@ class DocParameter:
     type: str
     required: bool
     default: Any
+    description: str
+
+@dataclass
+class DocAttribute:
+    name: str
+    type: str
     description: str
 
 @dataclass
@@ -33,7 +39,7 @@ class DocFunction(DocObject):
 
 @dataclass
 class DocClass(DocObject):
-    pass
+    attributes: list[DocAttribute]
 
 def parse_docs(path: str, options: DocParseOptions) -> DocObject:
     # lookup object
@@ -71,6 +77,22 @@ def parse_class_docs(clz: Class, options: DocParseOptions) -> DocObject:
         # read source
         source, declaration, docstrings = read_source(clz, options)
  
+        # if its a dataclass then declaration should be the entire class
+        if declaration.startswith("@dataclass"):
+            declaration = read_declaration(clz)
+           
+        # read fields
+        attributes: list[DocAttribute] = []
+        for member in clz.members.values():
+            if isinstance(member, Attribute):
+                if isinstance(member.annotation, Expr) and member.docstring:
+                    if "deprecated" not in member.docstring.value.lower():
+                        attributes.append(DocAttribute(
+                            name=member.name,
+                            type=str(member.annotation.modernize()),
+                            description=member.docstring.value
+                        ))
+
         # return as a class
         return DocClass(
             name=clz.name,
@@ -78,7 +100,8 @@ def parse_class_docs(clz: Class, options: DocParseOptions) -> DocObject:
             source=source,
             declaration=declaration,
             examples=None,
-            text_sections=[]
+            text_sections=[],
+            attributes=attributes
         )
 
 

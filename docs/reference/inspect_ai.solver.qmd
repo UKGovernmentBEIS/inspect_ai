@@ -27,9 +27,12 @@ title: "inspect_ai.solver"
 ### fork
 ### bridge
 
-## Solver
+## Types
 
 ### Solver
+### SolverSpec
+### TaskState
+### Generate
 ### solver
 
 

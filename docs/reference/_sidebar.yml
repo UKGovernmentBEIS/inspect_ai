@@ -37,6 +37,12 @@ website:
         href: reference/inspect_ai.solver.qmd#bridge
       - text: Solver
         href: reference/inspect_ai.solver.qmd#Solver
+      - text: SolverSpec
+        href: reference/inspect_ai.solver.qmd#SolverSpec
+      - text: TaskState
+        href: reference/inspect_ai.solver.qmd#TaskState
+      - text: Generate
+        href: reference/inspect_ai.solver.qmd#Generate
       - text: solver
         href: reference/inspect_ai.solver.qmd#solver
     - section: inspect_ai.scorer
