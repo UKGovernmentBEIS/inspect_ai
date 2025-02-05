@@ -8,7 +8,7 @@ from inspect_ai._util.pattern import (
 )
 
 from ._metrics import accuracy, stderr
-from ._pattern import pattern
+from ._pattern import pattern as make_pattern
 from ._scorer import Scorer, scorer
 
 
@@ -33,7 +33,7 @@ class AnswerPattern(str, Enum):
 
 
 @scorer(metrics=[accuracy(), stderr()])
-def answer(type: Literal["letter", "word", "line"]) -> Scorer:
+def answer(pattern: Literal["letter", "word", "line"]) -> Scorer:
     """Scorer for model output that preceded answers with ANSWER:.
 
     Some solvers including multiple_choice solicit answers from
@@ -43,7 +43,7 @@ def answer(type: Literal["letter", "word", "line"]) -> Scorer:
     Note that you must specify a `type` for the answer scorer.
 
     Args:
-      type: (Literal["letter", "word", "line"]): Type of answer
+      pattern: (Literal["letter", "word", "line"]): Type of answer
         to extract. "letter" is used with multiple choice and
         extracts a single letter; "word" will extract the next
         word (often used for yes/no answers); "line" will take
@@ -53,10 +53,10 @@ def answer(type: Literal["letter", "word", "line"]) -> Scorer:
         with a separate line at the end.
 
     """
-    match type:
+    match pattern:
         case "letter":
-            return pattern(AnswerPattern.LETTER)
+            return make_pattern(AnswerPattern.LETTER)
         case "word":
-            return pattern(AnswerPattern.WORD)
+            return make_pattern(AnswerPattern.WORD)
         case "line":
-            return pattern(AnswerPattern.LINE)
+            return make_pattern(AnswerPattern.LINE)
