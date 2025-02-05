@@ -100,6 +100,8 @@ website:
         href: reference/inspect_ai.scorer.qmd#Target
       - text: Score
         href: reference/inspect_ai.scorer.qmd#Score
+      - text: Value
+        href: reference/inspect_ai.scorer.qmd#Value
       - text: scorer
         href: reference/inspect_ai.scorer.qmd#scorer
       - text: metric

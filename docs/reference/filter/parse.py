@@ -57,11 +57,23 @@ def parse_docs(path: str, options: DocParseOptions) -> DocObject:
         return parse_function_docs(object, options)
     elif isinstance(object, Class):
         return parse_class_docs(object, options)
+    elif isinstance(object, Attribute):
+        return parse_attribute_docs(object, options)
     else:
         raise ValueError(f"Reference object type ({type(object)}) for {path} is unsupported.")
   
 
+def parse_attribute_docs(attrib: Attribute, options: DocParseOptions) -> DocObject:
+    source, declaration, docstrings = read_source(attrib, options)
 
+    return DocObject(
+        name=attrib.name,
+        description=docstrings[0].value,
+        source=source,
+        declaration=declaration,
+        examples=None,
+        text_sections=[]
+    ) 
 
 def parse_class_docs(clz: Class, options: DocParseOptions) -> DocObject:
     

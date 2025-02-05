@@ -27,6 +27,8 @@ def render_docs(elem: pf.Element, docs: DocObject) -> list[pf.Element]:
         if docs.methods:
             elements.append(pf.Header(pf.Str("Methods"), level=4))
             elements.append(render_methods(docs.methods))
+    
+
 
     
     
