@@ -149,7 +149,7 @@ Inspect has a number of built-in solvers, each of which can be customised in som
 
 -   `multiple_choice()`
 
-    A solver which presents A,B,C,D style `choices` from input samples and calls `generate()` to yield model output. This solver should nearly always paired with the `choices()` scorer. Learn more about [Multiple Choice](#sec-multiple-choice) in the section below.
+    A solver which presents A,B,C,D style `choices` from input samples and calls `generate()` to yield model output. Pair this solver with the choices() scorer. For custom answer parsing or scoring needs (like handling complex outputs), use a custom scorer instead. Learn more about [Multiple Choice](#sec-multiple-choice) in the section below.
 
 ## Multiple Choice {#sec-multiple-choice}
 
@@ -161,7 +161,6 @@ def multiple_choice(
     *,
     template: str | None = None,
     cot: bool = False,
-    shuffle: bool | Random = False,
     multiple_correct: bool = False,
     
 ) -> Solver:
@@ -171,7 +170,7 @@ We'll present an example and then discuss the various options below (in most cas
 
 1.  The `Sample` must include the available `choices`. Choices should not include letters (as they are automatically included when presenting the choices to the model).
 2.  The `Sample` `target` should be a capital letter (e.g. A, B, C, D, etc.)
-3.  You should always pair it with the `choice()` scorer in your task definition.
+3.  You should always pair it with the `choice()` scorer in your task definition. For custom answer parsing or scoring needs (like handling complex model outputs), implement a custom scorer.
 4.  It calls `generate()` internally, so you do need to separately include the `generate()` solver.
 
 ### Example
@@ -227,11 +226,14 @@ The following options are available for further customisation of the multiple ch
 | `template`         | Use `template` to provide an alternate prompt template (note that if you do this your template should handle prompting for `multiple_correct` directly if required). You can access the built in templates using the `MultipleChoiceTemplate` enum.                                                                                                                                                       |
 | `cot`              | Whether the solver should perform chain-of-thought reasoning before answering (defaults to `False`). NOTE: this has no effect if you provide a custom template.                                                                                                                                                                                                                                           |
 | `multiple_correct` | By default, multiple choice questions have a single correct answer. Set `multiple_correct=True` if your target has defined multiple correct answers (for example, a `target` of `["B", "C"]`). In this case the model is prompted to provide one or more answers, and the sample is scored correct only if each of these answers are provided. NOTE: this has no effect if you provide a custom template. |
-| `shuffle`          | If you specify `shuffle=True`, then the order of the answers presented to the model will be randomised (this may or may not affect results, depending on the nature of the questions and the model being evaluated).                                                                                                                                                                                      |
-
+                                                                                        
 : {tbl-colwidths=\[35,65\]}
 
-### Self Critique
+### Shuffling
+
+{{< include _shuffling-choices.md >}}
+
+## Self Critique
 
 Here is the declaration for the `self_critique()` solver:
 
