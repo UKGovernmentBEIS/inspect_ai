@@ -1,3 +1,4 @@
+import base64
 import errno
 import json
 import os
@@ -5,7 +6,6 @@ import tempfile
 from logging import getLogger
 from pathlib import Path, PurePosixPath
 from typing import Literal, Union, cast, overload
-import base64
 
 from typing_extensions import override
 
@@ -35,7 +35,6 @@ from .compose import (
     compose_build,
     compose_check_running,
     compose_cleanup_images,
-    compose_command,
     compose_cp,
     compose_exec,
     compose_ps,
@@ -284,10 +283,23 @@ class DockerSandboxEnvironment(SandboxEnvironment):
 
         # write the file
         if isinstance(contents, str):
-            result = await self.exec(["sh", "-e", '-c', 'tee -- "$1"', "write_file_script", file], input=contents)
+            result = await self.exec(
+                ["sh", "-e", "-c", 'tee -- "$1"', "write_file_script", file],
+                input=contents,
+            )
         else:
             base64_contents = base64.b64encode(contents).decode("US-ASCII")
-            result = await self.exec(["sh", "-e", '-c', 'base64 -d | tee -- "$1" > /dev/null', "write_file_script", file], input=base64_contents)
+            result = await self.exec(
+                [
+                    "sh",
+                    "-e",
+                    "-c",
+                    'base64 -d | tee -- "$1" > /dev/null',
+                    "write_file_script",
+                    file,
+                ],
+                input=base64_contents,
+            )
         if result.returncode != 0:
             if "permission denied" in result.stderr.casefold():
                 ls_result = await self.exec(["ls", "-la", "."])
@@ -302,7 +314,6 @@ class DockerSandboxEnvironment(SandboxEnvironment):
                 )
             else:
                 raise RuntimeError(f"failed to copy during write_file: {result}")
-
 
     @overload
     async def read_file(self, file: str, text: Literal[True] = True) -> str: ...

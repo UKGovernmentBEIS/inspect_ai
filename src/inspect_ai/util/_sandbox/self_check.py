@@ -105,12 +105,13 @@ async def test_read_and_write_file_binary(sandbox_env: SandboxEnvironment) -> No
     assert b"\xc3\x28" == written_file_bytes
     await _cleanup_file(sandbox_env, file_name)
 
-async def test_read_and_write_large_file_binary(sandbox_env: SandboxEnvironment) -> None:
+
+async def test_read_and_write_large_file_binary(
+    sandbox_env: SandboxEnvironment,
+) -> None:
     file_name = "test_read_and_write_large_file_binary.file"
     long_bytes = b"\xc3" * 5_000_000
-    await sandbox_env.write_file(
-        file_name, long_bytes
-    )
+    await sandbox_env.write_file(file_name, long_bytes)
     written_file_bytes = await sandbox_env.read_file(file_name, text=False)
     assert long_bytes == written_file_bytes
     await _cleanup_file(sandbox_env, file_name)
@@ -253,7 +254,6 @@ async def test_write_text_file_exists(
     await _cleanup_file(sandbox_env, file_name)
 
 
-
 async def test_write_binary_file_zero_length(sandbox_env: SandboxEnvironment) -> None:
     file_name = "zero_length_file.file"
     await sandbox_env.write_file(file_name, b"")
@@ -313,7 +313,6 @@ async def test_write_binary_file_exists(
     altered_content = await sandbox_env.read_file(file_name, text=False)
     assert altered_content == b"\xc3\x29"
     await _cleanup_file(sandbox_env, file_name)
-
 
 
 async def test_exec_output(sandbox_env: SandboxEnvironment) -> None:
