@@ -74,8 +74,39 @@ def python(timeout: int | None = None, user: str | None = None) -> Tool:
         """
         Use the python function to execute Python code.
 
-        The python function will only return you the stdout of the script,
-        so make sure to use print to see the output.
+        The Python tool executes single-run Python scripts. Important notes:
+        1. Each execution is independent - no state is preserved between runs
+        2. You must explicitly use print() statements to see any output
+        3. Simply writing expressions (like in notebooks) will not display results
+        4. The script cannot accept interactive input during execution
+        5. Return statements alone won't produce visible output
+        6. All variables and imports are cleared between executions
+        7. Standard output (via print()) is the only way to see results
+
+        Examples:
+          INCORRECT (notebook style):
+          x = 5
+          x * 2           # Won't show anything
+          return x * 2    # Won't show anything
+          [1, 2, 3]       # Won't show anything
+
+          CORRECT:
+          x = 5
+          print(x * 2)    # Will show: 10
+          result = x * 2
+          print(result)   # Will show: 10
+          print([1, 2, 3])  # Will show: [1, 2, 3]
+
+          INCORRECT (assuming previous imports persist):
+          # First run:
+          import numpy as np
+          # Second run:
+          arr = np.array([1, 2, 3])  # This will fail - numpy not imported in this run
+
+          CORRECT (each run is self-contained):
+          import numpy as np
+          arr = np.array([1, 2, 3])
+          print(arr)  # Will show: [1 2 3]
 
         Args:
           code (str): The python code to execute.
