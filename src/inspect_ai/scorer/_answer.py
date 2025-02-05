@@ -43,7 +43,7 @@ def answer(type: Literal["letter", "word", "line"]) -> Scorer:
     Note that you must specify a `type` for the answer scorer.
 
     Args:
-      type: (Literal["letter", "word", "line"]): Type of answer
+      type: Type of answer
         to extract. "letter" is used with multiple choice and
         extracts a single letter; "word" will extract the next
         word (often used for yes/no answers); "line" will take

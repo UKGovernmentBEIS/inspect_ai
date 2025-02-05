@@ -48,9 +48,45 @@ website:
     - section: inspect_ai.scorer
       href: reference/inspect_ai.scorer.qmd
       contents:
+      - text: match
+        href: reference/inspect_ai.scorer.qmd#match
+      - text: includes
+        href: reference/inspect_ai.scorer.qmd#includes
+      - text: pattern
+        href: reference/inspect_ai.scorer.qmd#pattern
+      - text: answer
+        href: reference/inspect_ai.scorer.qmd#answer
+      - text: choice
+        href: reference/inspect_ai.scorer.qmd#choice
+      - text: f1
+        href: reference/inspect_ai.scorer.qmd#f1
+      - text: exact
+        href: reference/inspect_ai.scorer.qmd#exact
+      - text: model_graded_qa
+        href: reference/inspect_ai.scorer.qmd#model_graded_qa
+      - text: model_graded_fact
+        href: reference/inspect_ai.scorer.qmd#model_graded_fact
+      - text: multi_scorer
+        href: reference/inspect_ai.scorer.qmd#multi_scorer
       - text: accuracy
         href: reference/inspect_ai.scorer.qmd#accuracy
-      - text: stderr
-        href: reference/inspect_ai.scorer.qmd#stderr
+      - text: mean
+        href: reference/inspect_ai.scorer.qmd#mean
       - text: std
         href: reference/inspect_ai.scorer.qmd#std
+      - text: stderr
+        href: reference/inspect_ai.scorer.qmd#stderr
+      - text: bootstrap_stderr
+        href: reference/inspect_ai.scorer.qmd#bootstrap_stderr
+      - text: at_least
+        href: reference/inspect_ai.scorer.qmd#at_least
+      - text: pass_at
+        href: reference/inspect_ai.scorer.qmd#pass_at
+      - text: max_score
+        href: reference/inspect_ai.scorer.qmd#max_score
+      - text: mean_score
+        href: reference/inspect_ai.scorer.qmd#mean_score
+      - text: median_score
+        href: reference/inspect_ai.scorer.qmd#median_score
+      - text: mode_score
+        href: reference/inspect_ai.scorer.qmd#mode_score

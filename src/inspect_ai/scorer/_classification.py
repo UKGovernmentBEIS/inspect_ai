@@ -17,6 +17,10 @@ def f1(
     """Scorer which produces an F1 score
 
     Computes the `F1` score for the answer (which balances recall precision by taking the harmonic mean between recall and precision).
+
+    Args:
+       answer_fn: Custom function to extract the answer from the completion (defaults to using the completion).
+       stop_words: Stop words to include in answer tokenization.
     """
 
     async def score(state: TaskState, target: Target) -> Score:

@@ -18,7 +18,8 @@ def render_docs(elem: pf.Element, docs: DocObject) -> list[pf.Element]:
 
     # type specific rendering
     if isinstance(docs, DocFunction):
-        elements.append(render_params(docs.parameters))
+        if docs.parameters:
+            elements.append(render_params(docs.parameters))
     elif isinstance(docs, DocClass):
         if docs.attributes:
             elements.append(pf.Header(pf.Str("Attributes"), level=4))

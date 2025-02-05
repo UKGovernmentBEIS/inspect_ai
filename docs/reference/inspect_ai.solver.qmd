@@ -33,6 +33,7 @@ title: "inspect_ai.solver"
 ### SolverSpec
 ### TaskState
 ### Generate
+
+## Decorators
+
 ### solver
-
-
