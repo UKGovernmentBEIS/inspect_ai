@@ -5,7 +5,7 @@ from typing import Any, Literal, Type, cast
 from pydantic import BaseModel, Field, model_validator
 
 LoggingLevel = Literal[
-    "debug", "http", "sandbox", "info", "warning", "error", "critical"
+    "debug", "trace", "http", "sandbox", "info", "warning", "error", "critical"
 ]
 """Logging level."""
 

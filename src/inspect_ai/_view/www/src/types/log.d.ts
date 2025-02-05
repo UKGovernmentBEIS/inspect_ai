@@ -324,6 +324,7 @@ export type Event10 = "logger";
 export type Name7 = string | null;
 export type Level =
   | "debug"
+  | "trace"
   | "http"
   | "sandbox"
   | "info"
