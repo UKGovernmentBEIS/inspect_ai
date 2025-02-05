@@ -9,6 +9,7 @@
 - Tools: Handle return of empty list from tool calls.
 - Sandboxes: Docker now uses `tee` for write_file operations.
 - Bugfix: Change `type` parameter of `answer()` to `pattern` to address registry serialisation error.
+- Bugfix: Restore printing of request payloads for 400 errors from Anthropic.
 
 ## v0.3.62 (03 February 2025)
 
