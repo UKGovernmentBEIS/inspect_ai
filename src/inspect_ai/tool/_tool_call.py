@@ -13,10 +13,10 @@ class ToolCallContent(BaseModel):
     """Optional (plain text) title for tool call content."""
 
     format: Literal["text", "markdown"]
-    """Format."""
+    """Format (text or markdown)."""
 
     content: str
-    """Content."""
+    """Text or markdown content."""
 
 
 class ToolCallView(BaseModel):

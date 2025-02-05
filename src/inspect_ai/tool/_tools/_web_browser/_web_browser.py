@@ -18,8 +18,8 @@ def web_browser(interactive: bool = True) -> list[Tool]:
 
     Args:
        interactive (bool): Provide interactive tools (enable
-         clicking, typing, and submitting forms). Defaults
-         to True.
+          clicking, typing, and submitting forms). Defaults
+          to True.
 
     Returns:
        List of tools used for web browser navigation.

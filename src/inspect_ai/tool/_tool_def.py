@@ -25,6 +25,8 @@ from ._tool_params import ToolParams
 
 
 class ToolDef:
+    """Tool definition."""
+
     def __init__(
         self,
         tool: Callable[..., Any],
@@ -35,7 +37,7 @@ class ToolDef:
         viewer: ToolCallViewer | None = None,
         model_input: ToolCallModelInput | None = None,
     ) -> None:
-        """Tool definition.
+        """Create a tool definition.
 
         Args:
           tool (Callable[..., Any]): Callable to execute tool.
