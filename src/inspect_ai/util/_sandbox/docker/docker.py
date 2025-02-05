@@ -5,6 +5,7 @@ import tempfile
 from logging import getLogger
 from pathlib import Path, PurePosixPath
 from typing import Literal, Union, cast, overload
+import base64
 
 from typing_extensions import override
 
@@ -282,7 +283,11 @@ class DockerSandboxEnvironment(SandboxEnvironment):
                 raise RuntimeError(msg)
 
         # write the file
-        result = await self.exec(["sh", "-e", '-c', 'tee -- "$1"', "write_file_script", file], input=contents)
+        if isinstance(contents, str):
+            result = await self.exec(["sh", "-e", '-c', 'tee -- "$1"', "write_file_script", file], input=contents)
+        else:
+            base64_contents = base64.b64encode(contents).decode("US-ASCII")
+            result = await self.exec(["sh", "-e", '-c', 'base64 -d | tee -- "$1" > /dev/null', "write_file_script", file], input=base64_contents)
         if result.returncode != 0:
             if "permission denied" in result.stderr.casefold():
                 ls_result = await exec(["ls", "-la", "."])
