@@ -83,31 +83,6 @@ def python(timeout: int | None = None, user: str | None = None) -> Tool:
         6. All variables and imports are cleared between executions
         7. Standard output (via print()) is the only way to see results
 
-        Examples:
-          INCORRECT (notebook style):
-          x = 5
-          x * 2           # Won't show anything
-          return x * 2    # Won't show anything
-          [1, 2, 3]       # Won't show anything
-
-          CORRECT:
-          x = 5
-          print(x * 2)    # Will show: 10
-          result = x * 2
-          print(result)   # Will show: 10
-          print([1, 2, 3])  # Will show: [1, 2, 3]
-
-          INCORRECT (assuming previous imports persist):
-          # First run:
-          import numpy as np
-          # Second run:
-          arr = np.array([1, 2, 3])  # This will fail - numpy not imported in this run
-
-          CORRECT (each run is self-contained):
-          import numpy as np
-          arr = np.array([1, 2, 3])
-          print(arr)  # Will show: [1 2 3]
-
         Args:
           code (str): The python code to execute.
 
