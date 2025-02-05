@@ -7,6 +7,7 @@
 - Add `stop_words` param to the `f1` scorer. `stop_words` will be removed from the target and answer during normalization.
 - Tools: Handle return of empty list from tool calls.
 - Sandboxes: Docker now uses `tee` for write_file operations.
+- Bugfix: Change `type` parameter of `answer()` to `pattern` to address registry serialisation error.
 
 ## v0.3.62 (03 February 2025)
 
