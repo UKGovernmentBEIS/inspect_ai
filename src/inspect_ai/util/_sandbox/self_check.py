@@ -259,10 +259,28 @@ async def test_exec_permission_error(sandbox_env: SandboxEnvironment) -> None:
 
 async def test_exec_as_user(sandbox_env: SandboxEnvironment) -> None:
     username = "inspect-ai-test-exec-as-user"
+
+    # Neither adduser nor useradd are part of POSIX, so we need some brittle logic here
+    adduser_help_exec_result = await sandbox_env.exec(["adduser", "--help"])
+    adduser_help_text = (
+        adduser_help_exec_result.stdout + adduser_help_exec_result.stderr
+    )
+
+    if "BusyBox" in adduser_help_text:
+        adduser_command = ["adduser", "-D", username]
+    else:
+        adduser_command = [
+            "adduser",
+            "--comment",
+            "self_check.py",
+            "--disabled-password",
+            username,
+        ]
+
     try:
         # Create a new user
         add_user_result = await sandbox_env.exec(
-            ["adduser", "--comment", "self_check.py", "--disabled-password", username],
+            adduser_command,
             user="root",
             timeout=10,  # in one case adduser decided to ask for input which caused the test to hang indefinitely
         )
