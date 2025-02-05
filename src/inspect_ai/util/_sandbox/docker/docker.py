@@ -282,7 +282,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
                 raise RuntimeError(msg)
 
         # write the file
-        result = await self.exec(["tee", "--", file], input=contents)
+        result = await self.exec(["sh", "-e", '-c', 'tee -- "$1"', "write_file_script", file], input=contents)
         if result.returncode != 0:
             if "permission denied" in result.stderr.casefold():
                 ls_result = await exec(["ls", "-la", "."])
