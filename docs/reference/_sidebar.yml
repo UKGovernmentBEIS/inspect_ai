@@ -135,3 +135,12 @@ website:
         href: reference/inspect_ai.tool.qmd#ToolChoice
       - text: tool
         href: reference/inspect_ai.tool.qmd#tool
+    - section: inspect_ai.dataset
+      href: reference/inspect_ai.dataset.qmd
+      contents:
+      - text: csv_dataset
+        href: reference/inspect_ai.dataset.qmd#csv_dataset
+      - text: json_dataset
+        href: reference/inspect_ai.dataset.qmd#json_dataset
+      - text: hf_dataset
+        href: reference/inspect_ai.dataset.qmd#hf_dataset

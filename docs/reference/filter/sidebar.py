@@ -13,7 +13,8 @@ if "reference/inspect_ai" not in input_files:
 reference_docs = [f"reference/inspect_ai.{doc}" for doc in [
     "solver.qmd",
     "scorer.qmd",
-    "tool.qmd"
+    "tool.qmd",
+    "dataset.qmd"
 ]]
 
 # build sidebar yaml
