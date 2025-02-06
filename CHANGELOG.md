@@ -10,6 +10,7 @@
 - Sandboxes: Docker now uses `tee` for write_file operations.
 - Bugfix: Change `type` parameter of `answer()` to `pattern` to address registry serialisation error.
 - Bugfix: Restore printing of request payloads for 400 errors from Anthropic.
+- Bugfix: Log transcript event for solver provided scores (improves log viewer display of solver scoring)
 
 ## v0.3.62 (03 February 2025)
 
