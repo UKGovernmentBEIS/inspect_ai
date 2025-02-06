@@ -342,7 +342,7 @@ services:
     init: true
 ```
 
-Rather than using the `aisiuk/inspect-web-browser-tool` image, you can also just include the web browser service components in a custom image (see [Custom Images](#sec-custom-images) below for details).
+Rather than using the `aisiuk/inspect-web-browser-tool` image, you can also just include the web browser service components in a custom image (see [Custom Images](#sec-custom-image) below for details).
 
 ### Task Setup
 
