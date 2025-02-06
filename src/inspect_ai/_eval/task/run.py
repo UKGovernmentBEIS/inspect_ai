@@ -711,6 +711,9 @@ async def task_run_sample(
                                     results[name] = SampleScore(
                                         score=score, sample_id=state.sample_id
                                     )
+                                    transcript()._event(
+                                        ScoreEvent(score=score, target=sample.target)
+                                    )
 
                             # propagate results into scores
                             state.scores = {k: v.score for k, v in results.items()}
