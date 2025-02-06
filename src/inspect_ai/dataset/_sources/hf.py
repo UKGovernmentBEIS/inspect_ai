@@ -29,6 +29,7 @@ def hf_dataset(
     auto_id: bool = False,
     shuffle: bool = False,
     seed: int | None = None,
+    shuffle_choices: bool | int | None = None,
     limit: int | None = None,
     trust: bool = False,
     cached: bool = True,
@@ -59,6 +60,7 @@ def hf_dataset(
         auto_id (bool): Assign an auto-incrementing ID for each sample.
         shuffle (bool): Randomly shuffle the dataset order.
         seed: (int | None): Seed used for random shuffle.
+        shuffle_choices: (bool | int | None): Whether to shuffle the choices. If an int is passed, this will be used as the seed when shuffling.
         limit (int | None): Limit the number of records to read.
         trust (bool): Whether or not to allow for datasets defined on the Hub
           using a dataset script. This option should only be set to True for
@@ -117,8 +119,16 @@ def hf_dataset(
         dataset = dataset.select(range(limit))
 
     # return the dataset
-    return MemoryDataset(
+    memory_dataset = MemoryDataset(
         samples=data_to_samples(dataset.to_list(), data_to_sample, auto_id),
         name=Path(path).stem if Path(path).exists() else path,
         location=path,
     )
+
+    # maybe shuffle the choices
+    if isinstance(shuffle_choices, int):
+        memory_dataset.shuffle_choices(seed=shuffle_choices)
+    elif shuffle_choices is True:
+        memory_dataset.shuffle_choices()
+
+    return memory_dataset

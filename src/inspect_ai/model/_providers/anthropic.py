@@ -12,6 +12,7 @@ else:
 
 from anthropic import (
     APIConnectionError,
+    APIStatusError,
     AsyncAnthropic,
     AsyncAnthropicBedrock,
     AsyncAnthropicVertex,
@@ -217,6 +218,17 @@ class AnthropicAPI(ModelAPI):
 
         except BadRequestError as ex:
             return self.handle_bad_request(ex), model_call()
+
+        except APIStatusError as ex:
+            if ex.status_code == 413:
+                return ModelOutput.from_content(
+                    model=self.model_name,
+                    content=ex.message,
+                    stop_reason="model_length",
+                    error=ex.message,
+                ), model_call()
+            else:
+                raise ex
 
     def completion_params(self, config: GenerateConfig) -> dict[str, Any]:
         params = dict(model=self.model_name, max_tokens=cast(int, config.max_tokens))

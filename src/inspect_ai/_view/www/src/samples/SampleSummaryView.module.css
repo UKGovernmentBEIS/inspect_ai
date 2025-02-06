@@ -1,0 +1,24 @@
+.target {
+  padding-left: 0;
+}
+
+.answer {
+  padding-left: 0;
+}
+
+.grid {
+  display: grid;
+  grid-column-gap: 0.5em;
+  border-bottom: solid var(--bs-border-color) 1px;
+  margin-bottom: 1em;
+  padding: 0em 1em 1em 1em;
+}
+
+.centerLabel {
+  display: flex;
+  justify-content: center;
+}
+
+.wrap {
+  word-wrap: anywhere;
+}

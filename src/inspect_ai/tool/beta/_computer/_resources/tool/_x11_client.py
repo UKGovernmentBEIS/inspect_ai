@@ -138,7 +138,7 @@ class X11Client:
             if coordinate is not None:
                 raise ToolError(f"coordinate is not accepted for {action}")
             if not isinstance(text, str):
-                raise ToolError(output=f"{text} must be a string")
+                raise ToolError(f"{text} must be a string")
 
             if action == "key":
                 return await self.shell(

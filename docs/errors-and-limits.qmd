@@ -170,7 +170,7 @@ It's important to note that the `token_limit` is for all tokens used within the 
 When limits are exceeded, a `SampleLimitExceededError` is raised and caught by the main Inspect sample execution logic. If you want to create custom limit types, you can enforce them by raising a `SampleLimitExceededError` as follows:
 
 ```python
-from inspect_ai.util import SampleLimitExceededError
+from inspect_ai.solver import SampleLimitExceededError
 
 raise SampleLimitExceededError(
     "custom", 

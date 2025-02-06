@@ -1,10 +1,24 @@
 {
-    "compilerOptions": {
-      "checkJs": true,
-      "target": "es5", // or a different target that suits your needs
-      "downlevelIteration": true,
-      "lib": ["es2019", "dom"], // Add "es2017" or later
-      "esModuleInterop": true
-    },
-    "exclude": ["**/*.mjs"]
+  "compilerOptions": {
+    "target": "ESNext",
+    "lib": ["DOM", "DOM.Iterable", "ESNext"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "allowJs": true,
+    "checkJs": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true
+  },
+  "include": ["src"],
+  "exclude": ["node_modules"]
 }

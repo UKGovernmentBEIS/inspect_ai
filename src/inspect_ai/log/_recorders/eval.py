@@ -203,7 +203,7 @@ class EvalRecorder(FileRecorder):
         # of small fetches from the zip file streams)
         temp_log: str | None = None
         fs = filesystem(location)
-        if not fs.is_local():
+        if not fs.is_local() and header_only is False:
             with tempfile.NamedTemporaryFile(delete=False) as temp:
                 temp_log = temp.name
                 fs.get_file(location, temp_log)

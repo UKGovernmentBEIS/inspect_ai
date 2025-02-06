@@ -2,10 +2,7 @@ from typing import Awaitable, Callable
 
 from inspect_ai._util.content import Content, ContentImage, ContentText
 from inspect_ai.tool import Tool, ToolResult, tool
-from inspect_ai.tool._tool import (
-    TOOL_INIT_MODEL_INPUT,
-    ToolParsingError,
-)
+from inspect_ai.tool._tool import TOOL_INIT_MODEL_INPUT, ToolParsingError
 from inspect_ai.tool._tool_call import ToolCallModelInput
 
 from . import _common as common
@@ -84,7 +81,7 @@ def computer(max_screenshots: int | None = 1, timeout: int | None = 180) -> Tool
             if coordinate is not None:
                 raise ToolParsingError(f"coordinate is not accepted for {action}")
             if not isinstance(text, str):
-                raise ToolParsingError(output=f"{text} must be a string")
+                raise ToolParsingError(f"{text} must be a string")
 
             if action == "key":
                 return await common.press_key(text, timeout=timeout)

@@ -109,11 +109,13 @@ def anomolies_command(trace_file: str | None, filter: str | None, all: bool) -> 
     canceled_actions: dict[str, ActionTraceRecord] = {}
     error_actions: dict[str, ActionTraceRecord] = {}
     timeout_actions: dict[str, ActionTraceRecord] = {}
+    start_trace: ActionTraceRecord | None = None
 
     def action_started(trace: ActionTraceRecord) -> None:
         running_actions[trace.trace_id] = trace
 
     def action_completed(trace: ActionTraceRecord) -> ActionTraceRecord:
+        nonlocal start_trace
         start_trace = running_actions.get(trace.trace_id)
         if start_trace:
             del running_actions[trace.trace_id]
@@ -122,14 +124,20 @@ def anomolies_command(trace_file: str | None, filter: str | None, all: bool) -> 
             raise RuntimeError(f"Expected {trace.trace_id} in action dictionary.")
 
     def action_failed(trace: ActionTraceRecord) -> None:
+        nonlocal start_trace
         if all:
+            assert start_trace
             error_actions[start_trace.trace_id] = trace
 
     def action_canceled(trace: ActionTraceRecord) -> None:
+        nonlocal start_trace
+        assert start_trace
         canceled_actions[start_trace.trace_id] = trace
 
     def action_timeout(trace: ActionTraceRecord) -> None:
+        nonlocal start_trace
         if all:
+            assert start_trace
             timeout_actions[start_trace.trace_id] = trace
 
     for trace in traces:

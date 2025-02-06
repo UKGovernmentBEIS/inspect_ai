@@ -22,7 +22,6 @@ from inspect_ai.scorer._metric import Score
 from inspect_ai.scorer._target import Target
 from inspect_ai.tool import Tool, ToolChoice
 from inspect_ai.tool._tool_def import ToolDef
-from inspect_ai.util._limit import SampleLimitExceededError
 from inspect_ai.util._store import Store, store_jsonable
 from inspect_ai.util._store_model import SMT
 
@@ -173,7 +172,7 @@ class TaskState:
         self.metadata = metadata
         """Metadata from the `Sample` for this `TaskState`"""
 
-        self._messages: list[ChatMessage] = ChatMessageList(messages)
+        self._messages: list[ChatMessage] = ChatMessageList(messages, self)
         """
         Chat conversation history for sample.
 
@@ -272,7 +271,7 @@ class TaskState:
     @messages.setter
     def messages(self, messages: list[ChatMessage]) -> None:
         """Set messages in chat history."""
-        self._messages = ChatMessageList(messages)
+        self._messages = ChatMessageList(messages, self)
 
     @property
     def max_messages(self) -> int | None:
@@ -319,8 +318,32 @@ class TaskState:
 
     @property
     def completed(self) -> bool:
-        """Is the task completed."""
-        return self._completed
+        """Is the task completed.
+
+        Additionally, checks message and token limits and raises if they are exceeded.
+        """
+        from inspect_ai.log._samples import set_active_sample_total_messages
+
+        from ._limit import SampleLimitExceededError
+
+        # update messages
+        set_active_sample_total_messages(len(self.messages))
+
+        if self._completed:
+            return True
+        elif self.message_limit and len(self.messages) >= self.message_limit:
+            raise SampleLimitExceededError(
+                "message",
+                value=len(self.messages),
+                limit=self.message_limit,
+                state=self,
+            )
+        elif self.token_limit and self.token_usage >= self.token_limit:
+            raise SampleLimitExceededError(
+                "token", value=self.token_usage, limit=self.token_limit, state=self
+            )
+        else:
+            return self._completed
 
     @completed.setter
     def completed(self, completed: bool) -> None:
@@ -403,7 +426,8 @@ def sample_jsonable(sample: Sample) -> dict[str, Any]:
 
 
 class ChatMessageList(list[ChatMessage]):
-    def __init__(self, iterable: Iterable[ChatMessage]):
+    def __init__(self, iterable: Iterable[ChatMessage], parent_state: TaskState):
+        self.parent_state = parent_state
         items, length = self._iterable_length(iterable)
         self._check_size(length)
         super().__init__(items)
@@ -411,12 +435,18 @@ class ChatMessageList(list[ChatMessage]):
     def _check_size(self, additional_items: int = 1) -> None:
         from inspect_ai.log._samples import active_sample_message_limit
 
+        from ._limit import SampleLimitExceededError
+
         messages_limit = active_sample_message_limit()
         if messages_limit is not None:
             messages = len(self) + additional_items
             if messages > messages_limit:
                 raise SampleLimitExceededError(
-                    "message", value=messages, limit=messages_limit
+                    "message",
+                    value=messages,
+                    limit=messages_limit,
+                    message=None,
+                    state=self.parent_state,
                 )
 
     def append(self, item: ChatMessage) -> None:

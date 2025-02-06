@@ -8,6 +8,7 @@
   "scripts": {
     "build": "vite build",
     "watch": "vite build --watch",
+    "dev-watch": "vite build --mode development --watch",
     "dev": "vite",
     "prettier:check": "prettier --check src",
     "prettier:write": "prettier --write src",
@@ -18,18 +19,34 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.5.0",
+    "@types/bootstrap": "^5.2.10",
+    "@types/clipboard": "^2.0.10",
+    "@types/codemirror": "^5.60.15",
+    "@types/css-modules": "^1.0.5",
+    "@types/markdown-it": "^14.1.2",
+    "@types/prismjs": "^1.26.5",
+    "@types/react": "^19.0.7",
+    "@types/react-dom": "^19.0.3",
+    "@vitejs/plugin-react": "^4.3.4",
     "eslint": "9.x",
     "globals": "^15.6.0",
     "prettier": "^3.3.3",
-    "vite": "^5.3.2",
-    "vite-plugin-prismjs": "^0.0.11"
+    "typescript": "^5.7.3",
+    "vite": "^5.3.2"
   },
   "dependencies": {
+    "@codemirror/autocomplete": "^6.18.4",
+    "@codemirror/language": "^6.10.8",
+    "@codemirror/lint": "^6.8.4",
+    "@codemirror/state": "^6.5.1",
+    "@lezer/highlight": "^1.2.1",
     "@popperjs/core": "^2.11.8",
     "asciinema-player": "^3.8.2",
+    "ansi-output": "^0.0.9",
     "bootstrap": "^5.3.3",
     "bootstrap-icons": "^1.11.3",
     "clipboard": "^2.0.11",
+    "clsx": "^2.1.1",
     "codemirror": "^6.0.1",
     "fast-json-patch": "^3.1.1",
     "fflate": "^0.8.2",
@@ -41,7 +58,8 @@
     "markdown-it": "^14.1.0",
     "murmurhash": "^2.0.1",
     "postcss-url": "^10.1.3",
-    "preact": "^10.24.3",
-    "prismjs": "^1.29.0"
+    "prismjs": "^1.29.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
   }
 }

@@ -260,13 +260,26 @@
           ],
           "default": null,
           "title": "Tool Calls"
+        },
+        "reasoning": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reasoning"
         }
       },
       "required": [
         "content",
         "source",
         "role",
-        "tool_calls"
+        "tool_calls",
+        "reasoning"
       ],
       "title": "ChatMessageAssistant",
       "type": "object",
@@ -486,7 +499,10 @@
         "tool_call_id": {
           "anyOf": [
             {
-              "type": "string"
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
             },
             {
               "type": "null"
@@ -1131,7 +1147,6 @@
             "presence_penalty": null,
             "logit_bias": null,
             "seed": null,
-            "suffix": null,
             "top_k": null,
             "num_choices": null,
             "logprobs": null,
@@ -1140,7 +1155,8 @@
             "internal_tools": null,
             "max_tool_output": null,
             "cache_prompt": null,
-            "reasoning_effort": null
+            "reasoning_effort": null,
+            "reasoning_history": null
           }
         }
       },
@@ -2120,18 +2136,6 @@
           "default": null,
           "title": "Seed"
         },
-        "suffix": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Suffix"
-        },
         "top_k": {
           "anyOf": [
             {
@@ -2248,6 +2252,18 @@
           ],
           "default": null,
           "title": "Reasoning Effort"
+        },
+        "reasoning_history": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reasoning History"
         }
       },
       "title": "GenerateConfig",
@@ -2266,7 +2282,6 @@
         "presence_penalty",
         "logit_bias",
         "seed",
-        "suffix",
         "top_k",
         "num_choices",
         "logprobs",
@@ -2275,7 +2290,8 @@
         "internal_tools",
         "max_tool_output",
         "cache_prompt",
-        "reasoning_effort"
+        "reasoning_effort",
+        "reasoning_history"
       ],
       "additionalProperties": false
     },
@@ -2474,6 +2490,7 @@
         "level": {
           "enum": [
             "debug",
+            "trace",
             "http",
             "sandbox",
             "info",
@@ -4247,9 +4264,9 @@
           "parallel_tool_calls": null,
           "presence_penalty": null,
           "reasoning_effort": null,
+          "reasoning_history": null,
           "seed": null,
           "stop_seqs": null,
-          "suffix": null,
           "system_message": null,
           "temperature": null,
           "timeout": null,
