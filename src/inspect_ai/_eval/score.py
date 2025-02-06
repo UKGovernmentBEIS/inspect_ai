@@ -9,6 +9,7 @@ from inspect_ai.log import (
     EvalLog,
     EvalMetric,
 )
+from inspect_ai.log._log import EvalMetricDefinition
 from inspect_ai.model import ModelName
 from inspect_ai.scorer import Metric, Scorer, Target
 from inspect_ai.scorer._metric import SampleScore
@@ -196,20 +197,23 @@ async def run_score_task(
     return results
 
 
-def metrics_from_log(log: EvalLog) -> list[Metric]:
-    return (
-        [
-            metric_from_log(metric)
-            for score in log.results.scores
-            for metric in score.metrics.values()
-        ]
-        if log.results
-        else []
+def metrics_from_log(log: EvalLog) -> list[Metric] | dict[str, list[Metric]] | None:
+    # See if we have metrics in the eval itself
+    if log.eval.metrics:
+        if isinstance(log.eval.metrics, list):
+            return [metric_from_log(metric) for metric in log.eval.metrics]
+        else:
+            return {
+                key: [metric_from_log(metric) for metric in metrics]
+                for key, metrics in log.eval.metrics.items()
+            }
+    return None
+
+
+def metric_from_log(metric: EvalMetricDefinition) -> Metric:
+    return cast(
+        Metric, registry_create("metric", metric.name, **(metric.options or {}))
     )
-
-
-def metric_from_log(metric: EvalMetric) -> Metric:
-    return cast(Metric, registry_create("metric", metric.name, **metric.params))
 
 
 def reducers_from_log(log: EvalLog) -> list[ScoreReducer] | None:
@@ -217,6 +221,18 @@ def reducers_from_log(log: EvalLog) -> list[ScoreReducer] | None:
 
 
 def scorers_from_log(log: EvalLog) -> list[Scorer]:
+    # See if we can create scorers from the eval itself
+    if log.eval.scorers is not None:
+        return (
+            [
+                scorer_from_log(score.name, **(score.options or {}))
+                for score in log.eval.scorers
+            ]
+            if log.results
+            else []
+        )
+
+    # Otherwise, perhaps we can re-create them from the results
     return (
         [scorer_from_log(score.scorer, **score.params) for score in log.results.scores]
         if log.results
