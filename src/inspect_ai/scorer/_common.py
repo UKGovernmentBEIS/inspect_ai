@@ -25,11 +25,6 @@ def str_match_scorer(match: Callable[[str, str], tuple[str, bool]]) -> Scorer:
         for value in target:
             answer, matched = match(state.output.completion, value)
             if matched:
-                explanation = (
-                    state.output.completion
-                    if state.output.completion != answer
-                    else None
-                )
                 return Score(
                     value=CORRECT, answer=answer, explanation=state.output.completion
                 )
