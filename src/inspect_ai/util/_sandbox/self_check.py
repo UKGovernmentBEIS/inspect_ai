@@ -324,6 +324,16 @@ async def test_exec_output(sandbox_env: SandboxEnvironment) -> None:
     )
 
 
+async def test_exec_stderr(sandbox_env: SandboxEnvironment) -> None:
+    exec_result = await sandbox_env.exec(["sh", "-c", "echo boof; echo baz >&2"])
+    assert exec_result.stderr == "baz\n"
+
+
+async def test_exec_returncode(sandbox_env: SandboxEnvironment) -> None:
+    exec_result = await sandbox_env.exec(["sh", "-c", "echo foo; exit 70"])
+    assert exec_result.returncode == 70
+
+
 async def test_exec_timeout(sandbox_env: SandboxEnvironment) -> None:
     with Raises(TimeoutError):
         await sandbox_env.exec(["sleep", "4"], timeout=2)
