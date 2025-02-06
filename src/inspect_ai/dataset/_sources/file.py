@@ -16,6 +16,7 @@ def file_dataset(
     auto_id: bool = False,
     shuffle: bool = False,
     seed: int | None = None,
+    shuffle_choices: bool | int | None = None,
     limit: int | None = None,
     dialect: str = "unix",
     encoding: str = "utf-8",
@@ -40,6 +41,7 @@ def file_dataset(
         auto_id (bool): Assign an auto-incrementing ID for each sample.
         shuffle (bool): Randomly shuffle the dataset order.
         seed: (int | None): Seed used for random shuffle.
+        shuffle_choices: (bool | int | None): Whether to shuffle the choices. If an int is passed, this will be used as the seed when shuffling.
         limit (int | None): Limit the number of records to read.
         dialect (str): CSV dialect ("unix" or "excel", defaults to "unix"). Only
             applies to reading CSV files.
@@ -66,6 +68,7 @@ def file_dataset(
                 auto_id=auto_id,
                 shuffle=shuffle,
                 seed=seed,
+                shuffle_choices=shuffle_choices,
                 limit=limit,
                 encoding=encoding,
                 name=name,
@@ -78,6 +81,7 @@ def file_dataset(
                 auto_id=auto_id,
                 shuffle=shuffle,
                 seed=seed,
+                shuffle_choices=shuffle_choices,
                 limit=limit,
                 dialect=dialect,
                 encoding=encoding,

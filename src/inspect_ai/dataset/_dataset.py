@@ -144,6 +144,14 @@ class Dataset(Sequence[Sample], abc.ABC):
     @abc.abstractmethod
     def shuffled(self) -> bool: ...
 
+    @abc.abstractmethod
+    def shuffle_choices(self, seed: int | None = None) -> None:
+        """Shuffle the order of the choices with each sample.
+
+        Args:
+           seed: (int | None): Random seed for shuffling (optional).
+        """
+
     @overload
     def __getitem__(self, index: int) -> Sample: ...
 
@@ -314,6 +322,34 @@ class MemoryDataset(Dataset):
         else:
             random.shuffle(self.samples)
         self._shuffled = True
+
+    @override
+    def shuffle_choices(self, seed: int | None = None) -> None:
+        rand = random.Random(seed)
+        for sample in self.samples:
+            if not sample.choices:
+                continue
+            # The original positions
+            positions = list(range(len(sample.choices)))
+
+            # Shuffle the choices
+            rand.shuffle(positions)
+            shuffled_choices = [sample.choices[i] for i in positions]
+
+            # Map of original position / target letter
+            position_map = {i: chr(65 + new_i) for new_i, i in enumerate(positions)}
+
+            # Update to the shuffled choices and target
+            sample.choices = shuffled_choices
+            sample.target = self._remap_target(sample.target, position_map=position_map)
+
+    def _remap_target(
+        self, target: str | list[str], position_map: dict[int, str]
+    ) -> str | list[str]:
+        if isinstance(target, list):
+            return [position_map[ord(t) - 65] for t in target]
+        else:
+            return position_map[ord(target) - 65]
 
     @override
     def sort(

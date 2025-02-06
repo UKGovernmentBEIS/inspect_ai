@@ -9,12 +9,7 @@ from typing_extensions import override
 
 from inspect_ai._util.constants import LOG_SCHEMA_VERSION
 from inspect_ai._util.error import EvalError
-from inspect_ai._util.file import (
-    absolute_file_path,
-    async_fileystem,
-    file,
-    filesystem,
-)
+from inspect_ai._util.file import absolute_file_path, async_fileystem, file, filesystem
 from inspect_ai._util.trace import trace_action
 
 from .._log import (
@@ -236,12 +231,13 @@ def _read_header_streaming(log_file: str) -> EvalLog:
         f.seek(0)
 
         # Parse the log file, stopping before parsing samples
+        status: Literal["started", "success", "cancelled", "error"] | None = None
         for k, v in ijson.kvitems(f, ""):
             if k == "status":
                 assert v in get_args(
                     Literal["started", "success", "cancelled", "error"]
                 )
-                status: Literal["started", "success", "cancelled", "error"] = v
+                status = v
             if k == "eval":
                 eval = EvalSpec(**v)
             elif k == "plan":
@@ -256,6 +252,8 @@ def _read_header_streaming(log_file: str) -> EvalLog:
             elif k == "error":
                 error = EvalError(**v)
                 break
+
+    assert status, "Must encounter a 'status'"
 
     return EvalLog(
         eval=eval,

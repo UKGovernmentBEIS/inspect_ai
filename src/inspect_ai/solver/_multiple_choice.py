@@ -1,12 +1,18 @@
+import logging
 import re
 from enum import Enum
 from random import Random
-from typing import Match
+from typing import Match, TypedDict
 
+from typing_extensions import Unpack
+
+from inspect_ai._util.logger import warn_once
 from inspect_ai.util import resource
 
 from ._solver import Generate, Solver, solver
 from ._task_state import Choices, TaskState
+
+logger = logging.getLogger(__name__)
 
 SINGLE_ANSWER_TEMPLATE = r"""
 Answer the following multiple choice question. The entire content of your response should be of the following format: 'ANSWER: $LETTER' (without quotes) where LETTER is one of {letters}.
@@ -201,13 +207,17 @@ class MultipleChoiceTemplate(str, Enum):
     MULTIPLE_ANSWER_COT = MULTIPLE_ANSWER_TEMPLATE_COT
 
 
+class DeprecatedArgs(TypedDict, total=False):
+    shuffle: bool | Random
+
+
 @solver
 def multiple_choice(
     *,
     template: str | None = None,
     cot: bool = False,
     multiple_correct: bool = False,
-    shuffle: bool | Random = False,
+    **kwargs: Unpack[DeprecatedArgs],
 ) -> Solver:
     """Multiple choice question solver.
 
@@ -223,10 +233,7 @@ def multiple_choice(
 
     ### Shuffling
 
-    If the choices are shuffled, we will unshuffle them in the message history
-    after the model has been called, essentially rewriting history. It is
-    something to be aware of if writing custom scorers or solvers that interact
-    with this scorer.
+    You can shuffle choices when you load your dataset by using the `shuffle_choices` method or parameter of the datasets API.
 
     Args:
       template (str | None): Template to use for the multiple choice question.
@@ -243,10 +250,18 @@ def multiple_choice(
         squares? A) 3, B) 4, C) 9" has multiple correct answers, B and C. Leave
         as `False` if there's exactly one correct answer from the choices
         available. NOTE: this has no effect if you provide a custom template.
-      shuffle (bool | Random): Default `False`. Whether to shuffle the choices
-        in the multiple.  Passing a `Random` instance will use that for shuffling,
-        if `True` a new `Random` instance will be created.
+      **kwargs (Any): Deprecated arguments for backward compatibility.
     """
+    shuffle: bool | Random = False
+    if "shuffle" in kwargs:
+        shuffle = kwargs["shuffle"]
+
+        if shuffle:
+            warn_once(
+                logger,
+                "The multiple choice shuffle parameter is deprecated. Please shuffle choices at the time your dataset is read by using the shuffle_choices method/parameter of the datasets API.",
+            )
+
     if template and not valid_template(template):
         raise ValueError(
             "The template must contain '{question}' and '{choices}' placeholders for string substitution."

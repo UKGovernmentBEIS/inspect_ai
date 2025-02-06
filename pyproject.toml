@@ -125,6 +125,7 @@ dev = [
     "nbformat",
     "openai",
     "pre-commit",
+    "pylint",
     "pytest",
     "pytest-asyncio",
     "pytest-cov",
