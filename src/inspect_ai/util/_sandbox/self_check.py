@@ -53,6 +53,8 @@ async def self_check(sandbox_env: SandboxEnvironment) -> dict[str, bool | str]:
         test_write_binary_file_without_permissions,
         test_write_binary_file_exists,
         test_exec_output,
+        test_exec_stderr,
+        test_exec_returncode,
         test_exec_timeout,
         test_exec_permission_error,
         test_exec_as_user,
