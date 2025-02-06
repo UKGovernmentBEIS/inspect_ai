@@ -54,17 +54,18 @@ def render_attributes(attribs: list[DocAttribute]) -> pf.Table:
     return render_element_table(render_header("Attribute", "Description"), attribs)
 
 def render_methods(methods: list[DocFunction]) -> pf.Table:
-    return pf.Table(
-        pf.TableBody(*[render_method_table_row(method) for method in methods]),
-        head=render_header("Method", "Description"),
-        colspec=[("AlignLeft", 0.25), ("AlignLeft", 0.75)]
+    return pf.DefinitionList(
+        *[render_method_definition_item(method) for method in methods]
     )
 
-def render_method_table_row(method: DocFunction) -> pf.TableRow:
-    return pf.TableRow(
-        pf.TableCell(pf.Plain(pf.Code(method.name))),
-        pf.TableCell(pf.Div(pf.RawBlock(method.description, format="markdown"), pf.CodeBlock(dedent(method.declaration), classes=["python"])))
-    )
+def render_method_definition_item(method: DocFunction) -> pf.DefinitionItem:
+    return pf.DefinitionItem(
+        [pf.Code(method.name)], 
+        [pf.Definition(
+            pf.RawBlock(method.description, format="markdown"), 
+            pf.CodeBlock(dedent(method.declaration), classes=["python"])
+        )]
+    ) 
 
 
 

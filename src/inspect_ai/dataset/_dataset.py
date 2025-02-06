@@ -171,8 +171,8 @@ class Dataset(Sequence[Sample], abc.ABC):
         The key function defaults to measuring the length of the sample's input field.
 
         Args:
-            reverse (bool): if true, sort in descending order. Defaults to False.
-            key (Callable[[Any], Any]): a callable mapping each item to a numeric value (optional, defaults to sample_input_len).
+            reverse: If `Treu`, sort in descending order. Defaults to False.
+            key: a callable mapping each item to a numeric value (optional, defaults to sample_input_len).
         """
 
     @abc.abstractmethod
@@ -182,8 +182,8 @@ class Dataset(Sequence[Sample], abc.ABC):
         """Filter the dataset using a predicate.
 
         Args:
-          predicate (Callable[[Sample], bool]): Filtering function.
-          name (str | None): Name for filtered dataset (optional).
+          predicate: Filtering function.
+          name: Name for filtered dataset (optional).
 
         Returns:
           Filtered dataset.
@@ -194,7 +194,7 @@ class Dataset(Sequence[Sample], abc.ABC):
         """Shuffle the order of the dataset (in place).
 
         Args:
-           seed: (int | None): Random seed for shuffling (optional).
+           seed: Random seed for shuffling (optional).
         """
 
     @abc.abstractmethod
@@ -202,7 +202,7 @@ class Dataset(Sequence[Sample], abc.ABC):
         """Shuffle the order of the choices with each sample.
 
         Args:
-           seed: (int | None): Random seed for shuffling (optional).
+           seed: Random seed for shuffling (optional).
         """
 
 
