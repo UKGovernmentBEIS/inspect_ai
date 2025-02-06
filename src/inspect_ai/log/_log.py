@@ -17,12 +17,7 @@ from inspect_ai._util.error import EvalError, exception_message
 from inspect_ai._util.logger import warn_once
 from inspect_ai.approval._policy import ApprovalPolicyConfig
 from inspect_ai.dataset._dataset import MT, metadata_as
-from inspect_ai.model import (
-    ChatMessage,
-    GenerateConfig,
-    ModelOutput,
-    ModelUsage,
-)
+from inspect_ai.model import ChatMessage, GenerateConfig, ModelOutput, ModelUsage
 from inspect_ai.scorer import Score
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
 from inspect_ai.util._store import Store
@@ -404,6 +399,8 @@ class EvalResults(BaseModel):
             if "metrics" in values:
                 metrics = values["metrics"]
                 del values["metrics"]
+            else:
+                metrics = None
             # Convert the scorer to the new schema
             score = values["scorer"]
             if metrics:

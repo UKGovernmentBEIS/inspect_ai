@@ -10,6 +10,8 @@ from ..rich.display import RichDisplay
 from ..textual.display import TextualDisplay
 from .display import Display, TaskScreen
 
+_active_display: Display | None = None
+
 
 def display() -> Display:
     global _active_display
@@ -26,9 +28,6 @@ def display() -> Display:
             _active_display = RichDisplay()
 
     return _active_display
-
-
-_active_display: Display | None = None
 
 
 def task_screen() -> TaskScreen:

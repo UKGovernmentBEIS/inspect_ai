@@ -43,6 +43,12 @@ from .task.task import PreviousTask, Task
 logger = logging.getLogger(__name__)
 
 
+class Log(NamedTuple):
+    info: EvalLogInfo
+    header: EvalLog
+    task_identifier: str
+
+
 def eval_set(
     tasks: Tasks,
     log_dir: str,
@@ -450,12 +456,6 @@ def return_last_value(retry_state: RetryCallState) -> list[EvalLog]:
         return cast(list[EvalLog], retry_state.outcome.result())
     else:
         return []
-
-
-class Log(NamedTuple):
-    info: EvalLogInfo
-    header: EvalLog
-    task_identifier: str
 
 
 # list all eval logs
