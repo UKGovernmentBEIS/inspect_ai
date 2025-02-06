@@ -3,7 +3,7 @@ from itertools import islice
 from pathlib import Path
 import sys
 from typing import Any, NamedTuple, cast
-from griffe import Alias, Attribute, Class, DocstringSection, DocstringSectionExamples, DocstringSectionParameters, Expr, Function, Module, Object, ParameterKind
+from griffe import Alias, Attribute, Class, DocstringSection, DocstringSectionExamples, DocstringSectionParameters, DocstringSectionRaises, Expr, Function, Module, Object, ParameterKind
 
 @dataclass
 class DocParseOptions:
@@ -16,6 +16,11 @@ class DocParameter:
     type: str
     required: bool
     default: Any
+    description: str
+
+@dataclass
+class DocRaises:
+    type: str
     description: str
 
 @dataclass
@@ -33,9 +38,12 @@ class DocObject:
     examples: str | None
     text_sections: list[str]
 
+
+
 @dataclass
 class DocFunction(DocObject):
     parameters: list[DocParameter]
+    raises: list[DocRaises]
 
 @dataclass
 class DocClass(DocObject):
@@ -122,11 +130,10 @@ def parse_class_docs(clz: Class, options: DocParseOptions) -> DocObject:
             methods=methods
         )
 
-
-
 class DocstringContent(NamedTuple):
     description: str
     parameter_descriptions: dict[str,str]
+    raises: dict[str,str]
     examples: str | None
     text_sections: list[str]
 
@@ -141,6 +148,9 @@ def parse_function_docs(function: Function, options: DocParseOptions) -> DocFunc
     # extract params
     params = read_params(function, docstring_content.parameter_descriptions)
    
+    # extract raises
+    raises = [DocRaises(type=k,description=v) for k,v in docstring_content.raises.items()]
+
     # return function
     return DocFunction(
         name=function.name,
@@ -149,7 +159,8 @@ def parse_function_docs(function: Function, options: DocParseOptions) -> DocFunc
         declaration=declaration,
         examples=docstring_content.examples,
         text_sections=docstring_content.text_sections,
-        parameters=params
+        parameters=params,
+        raises=raises
     )
 
 def read_params(function: Function, parameter_descriptions: dict[str, str]) -> list[DocParameter]:
@@ -157,7 +168,7 @@ def read_params(function: Function, parameter_descriptions: dict[str, str]) -> l
     params: list[DocParameter] = []
     for p in function.parameters:
         # skip self
-        if p.name == "self":
+        if p.name == "self" or p.name=="cls":
             continue
 
         # param name w/ varargs prefix
@@ -170,7 +181,7 @@ def read_params(function: Function, parameter_descriptions: dict[str, str]) -> l
         params.append(
             DocParameter(
                 name=name, 
-                type=str(p.annotation.modernize()), 
+                type=str(p.annotation.modernize()) if isinstance(p.annotation, Expr) else str(p.annotation), 
                 required=p.required,
                 default=str(p.default) if p.required else "", 
                 description=parameter_descriptions[name])
@@ -185,6 +196,7 @@ def read_docstring_sections(docstrings: list[DocstringSection]) -> DocstringCont
     examples: str | None = None
     text_sections: list[str] = []
     parameter_descriptions: dict[str,str] = {}
+    raises: dict[str,str] = {}
     for doc_section in docstrings[1:]:
         if isinstance(doc_section, DocstringSectionParameters):
             for p in docstrings[1].value:
@@ -192,11 +204,14 @@ def read_docstring_sections(docstrings: list[DocstringSection]) -> DocstringCont
                 parameter_descriptions[p.name] = desc
         elif isinstance(doc_section, DocstringSectionExamples):
             examples = "\n\n".join(value[1] for value in doc_section.value)
-
-
+        elif isinstance(doc_section, DocstringSectionRaises):
+            for r in doc_section.value:
+                raises[str(r.annotation)] = r.description
+            
     return DocstringContent(
         description=description,
         parameter_descriptions=parameter_descriptions,
+        raises=raises,
         examples=examples,
         text_sections=text_sections
     )

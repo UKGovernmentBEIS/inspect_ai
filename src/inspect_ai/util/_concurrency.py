@@ -23,12 +23,12 @@ def concurrency(
     for launching subprocesses is handled via the `subprocess` function.
 
     Args:
-      name (str): Name for concurrency context. This serves as the
+      name: Name for concurrency context. This serves as the
          display name for the context, and also the unique context
          key (if the `key` parameter is omitted)
-      concurrency (int): Maximum number of coroutines that can
+      concurrency: Maximum number of coroutines that can
          enter the context.
-      key (str | None): Unique context key for this context. Optional.
+      key: Unique context key for this context. Optional.
          Used if the unique key isn't human readable -- e.g. includes
          api tokens or account ids so that the more readable `name`
          can be presented to users e.g in console UI>

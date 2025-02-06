@@ -15,7 +15,8 @@ reference_docs = [f"reference/inspect_ai.{doc}" for doc in [
     "scorer.qmd",
     "tool.qmd",
     "dataset.qmd",
-    "approval.qmd"
+    "approval.qmd",
+    "util.qmd"
 ]]
 
 # build sidebar yaml

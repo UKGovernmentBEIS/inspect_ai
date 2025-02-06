@@ -173,3 +173,48 @@ website:
         href: reference/inspect_ai.approval.qmd#approvalpolicy
       - text: approver
         href: reference/inspect_ai.approval.qmd#approver
+    - section: inspect_ai.util
+      href: reference/inspect_ai.util.qmd
+      contents:
+      - text: Store
+        href: reference/inspect_ai.util.qmd#store
+      - text: store
+        href: reference/inspect_ai.util.qmd#store
+      - text: store_as
+        href: reference/inspect_ai.util.qmd#store_as
+      - text: StoreModel
+        href: reference/inspect_ai.util.qmd#storemodel
+      - text: concurrency
+        href: reference/inspect_ai.util.qmd#concurrency
+      - text: subprocess
+        href: reference/inspect_ai.util.qmd#subprocess
+      - text: ExecResult
+        href: reference/inspect_ai.util.qmd#execresult
+      - text: display_type
+        href: reference/inspect_ai.util.qmd#display_type
+      - text: DisplayType
+        href: reference/inspect_ai.util.qmd#displaytype
+      - text: input_screen
+        href: reference/inspect_ai.util.qmd#input_screen
+      - text: subtask
+        href: reference/inspect_ai.util.qmd#subtask
+      - text: Subtask
+        href: reference/inspect_ai.util.qmd#subtask
+      - text: resource
+        href: reference/inspect_ai.util.qmd#resource
+      - text: throttle
+        href: reference/inspect_ai.util.qmd#throttle
+      - text: trace_action
+        href: reference/inspect_ai.util.qmd#trace_action
+      - text: trace_message
+        href: reference/inspect_ai.util.qmd#trace_message
+      - text: sandbox
+        href: reference/inspect_ai.util.qmd#sandbox
+      - text: sandbox_with
+        href: reference/inspect_ai.util.qmd#sandbox_with
+      - text: SandboxEnvironment
+        href: reference/inspect_ai.util.qmd#sandboxenvironment
+      - text: SandboxConnection
+        href: reference/inspect_ai.util.qmd#sandboxconnection
+      - text: sandboxenv
+        href: reference/inspect_ai.util.qmd#sandboxenv
