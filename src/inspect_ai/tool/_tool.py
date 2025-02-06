@@ -40,10 +40,25 @@ ToolResult = (
     | ContentVideo
     | list[ContentText | ContentImage | ContentAudio | ContentVideo]
 )
+"""Valid types for results from tool calls."""
 
 
 class ToolError(Exception):
+    """Exception thrown from tool call.
+
+    If you throw a `ToolError` form within a tool call,
+    the error will be reported to the model for further
+    processing (rather than ending the sample). If you want
+    to raise a fatal error from a tool call use an appropriate
+    standard exception type (e.g. `RuntimeError`, `ValueError`, etc.)
+    """
+
     def __init__(self, message: str) -> None:
+        """Create a ToolError.
+
+        Args:
+          message: Error message to report to the model.
+        """
         super().__init__(message)
         self.message = message
 
@@ -68,11 +83,21 @@ class Tool(Protocol):
         r"""Additional tool that an agent can use to solve a task.
 
         Args:
-            *args (Any): Arguments for the tool.
-            **kwargs (Any): Keyword arguments for the tool.
+          *args: Arguments for the tool.
+          **kwargs: Keyword arguments for the tool.
 
         Returns:
             Result of tool call.
+
+        Examples:
+          ```python
+          @tool
+          def add() -> Tool:
+              async def execute(x: int, y: int) -> int:
+                  return x + y
+
+              return execute
+          ```
         """
         ...
 
@@ -149,6 +174,16 @@ def tool(
 
     Returns:
         Tool with registry attributes.
+
+    Examples:
+        ```python
+        @tool
+        def add() -> Tool:
+            async def execute(x: int, y: int) -> int:
+                return x + y
+
+            return execute
+        ```
     """
     if prompt:
         from inspect_ai._util.logger import warn_once

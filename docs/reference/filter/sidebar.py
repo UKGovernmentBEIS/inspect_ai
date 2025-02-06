@@ -12,7 +12,8 @@ if "reference/inspect_ai" not in input_files:
 # register reference docs (this defines their sidebar order)
 reference_docs = [f"reference/inspect_ai.{doc}" for doc in [
     "solver.qmd",
-    "scorer.qmd"
+    "scorer.qmd",
+    "tool.qmd"
 ]]
 
 # build sidebar yaml
@@ -34,7 +35,9 @@ def parse_reference_objects(markdown: str) -> list[str]:
     objects: list[str] = []
     for line in markdown.splitlines():
         if line.startswith("### "):
+            line = line.removeprefix('### ').removeprefix("beta.")
             objects.append(line.removeprefix('### '))
+
     return objects
 
 # build for each reference doc

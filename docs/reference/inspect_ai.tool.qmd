@@ -8,6 +8,7 @@ title: "inspect_ai.tool"
 ### python
 ### web_search
 ### web_browser
+### beta.computer
 
 ## Dynamic 
 
@@ -16,14 +17,12 @@ title: "inspect_ai.tool"
 
 ## Types
 
-### ToolInfo
-
+### Tool
+### ToolResult
+### ToolError
+### ToolChoice
 
 ## Decorator
 
 ### tool
-### ToolCallViewer
-### ToolCallView
-### ToolCallContent
-### ToolCallModelInput
 

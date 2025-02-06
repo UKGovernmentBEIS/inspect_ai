@@ -108,3 +108,30 @@ website:
         href: reference/inspect_ai.scorer.qmd#metric
       - text: score_reducer
         href: reference/inspect_ai.scorer.qmd#score_reducer
+    - section: inspect_ai.tool
+      href: reference/inspect_ai.tool.qmd
+      contents:
+      - text: bash
+        href: reference/inspect_ai.tool.qmd#bash
+      - text: python
+        href: reference/inspect_ai.tool.qmd#python
+      - text: web_search
+        href: reference/inspect_ai.tool.qmd#web_search
+      - text: web_browser
+        href: reference/inspect_ai.tool.qmd#web_browser
+      - text: computer
+        href: reference/inspect_ai.tool.qmd#computer
+      - text: tool_with
+        href: reference/inspect_ai.tool.qmd#tool_with
+      - text: ToolDef
+        href: reference/inspect_ai.tool.qmd#ToolDef
+      - text: Tool
+        href: reference/inspect_ai.tool.qmd#Tool
+      - text: ToolResult
+        href: reference/inspect_ai.tool.qmd#ToolResult
+      - text: ToolError
+        href: reference/inspect_ai.tool.qmd#ToolError
+      - text: ToolChoice
+        href: reference/inspect_ai.tool.qmd#ToolChoice
+      - text: tool
+        href: reference/inspect_ai.tool.qmd#tool

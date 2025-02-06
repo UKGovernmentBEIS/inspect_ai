@@ -5,8 +5,14 @@ import panflute as pf # type: ignore
 from parse import DocAttribute, DocClass, DocFunction, DocObject, DocParameter
 
 # render reference elements
-def render_docs(elem: pf.Element, docs: DocObject) -> list[pf.Element]:
+def render_docs(elem: pf.Header, docs: DocObject) -> list[pf.Element]:
    
+    # remove 'beta'
+    title = pf.stringify(elem)
+    if title.startswith("beta."):
+        title = title.removeprefix("beta.")
+        elem.content = [pf.Str(title)]
+
     elements: list[pf.Element] = [elem]
     elements.append(pf.RawBlock(docs.description, "markdown"))
 

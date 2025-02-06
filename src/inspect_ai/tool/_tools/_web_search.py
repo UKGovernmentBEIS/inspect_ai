@@ -41,6 +41,8 @@ def web_search(
     A web search is conducted using the specified provider, the results are parsed for relevance
     using the specified model, and the top 'num_results' relevant pages are returned.
 
+    See further documentation at <https://inspect.ai-safety-institute.org.uk/tools.html#sec-web-search>.
+
     Args:
       provider (Literal["google"]): Search provider (defaults to "google", currently
         the only provider). Possible future providers include "brave" and "bing".
