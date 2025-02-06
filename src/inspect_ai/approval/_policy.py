@@ -20,8 +20,13 @@ from ._call import call_approver, record_approval
 
 @dataclass
 class ApprovalPolicy:
+    """Policy mapping approvers to tools."""
+
     approver: Approver
+    """Approver for policy."""
+
     tools: str | list[str]
+    """Tools to use this approver for (can be full tool names or globs)."""
 
 
 def policy_approver(policies: str | list[ApprovalPolicy]) -> Approver:

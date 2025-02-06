@@ -156,3 +156,20 @@ website:
         href: reference/inspect_ai.dataset.qmd#dataset
       - text: MemoryDataset
         href: reference/inspect_ai.dataset.qmd#memorydataset
+    - section: inspect_ai.approval
+      href: reference/inspect_ai.approval.qmd
+      contents:
+      - text: auto_approver
+        href: reference/inspect_ai.approval.qmd#auto_approver
+      - text: human_approver
+        href: reference/inspect_ai.approval.qmd#human_approver
+      - text: Approver
+        href: reference/inspect_ai.approval.qmd#approver
+      - text: Approval
+        href: reference/inspect_ai.approval.qmd#approval
+      - text: ApprovalDecision
+        href: reference/inspect_ai.approval.qmd#approvaldecision
+      - text: ApprovalPolicy
+        href: reference/inspect_ai.approval.qmd#approvalpolicy
+      - text: approver
+        href: reference/inspect_ai.approval.qmd#approver

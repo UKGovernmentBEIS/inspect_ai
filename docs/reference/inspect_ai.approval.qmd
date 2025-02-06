@@ -1,0 +1,20 @@
+---
+title: "inspect_ai.approval"
+---
+
+## Approvers
+
+### auto_approver
+### human_approver
+
+## Types
+
+### Approver
+### Approval
+### ApprovalDecision
+### ApprovalPolicy
+
+## Decorator
+
+### approver
+
