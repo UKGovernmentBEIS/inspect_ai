@@ -29,10 +29,7 @@ def str_match_scorer(match: Callable[[str, str], tuple[str, bool]]) -> Scorer:
                     value=CORRECT, answer=answer, explanation=state.output.completion
                 )
 
-        explanation = (
-            state.output.completion if state.output.completion != answer else None
-        )
-        return Score(value=INCORRECT, answer=answer, explanation=explanation)
+        return Score(value=INCORRECT, answer=answer, explanation=state.output.completion)
 
     return score
 
