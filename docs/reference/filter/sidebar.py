@@ -48,7 +48,7 @@ for doc in reference_docs:
 
     with open(doc, "r") as f:
         objects = parse_reference_objects(f.read())
-        refs = [dict(text=o, href=f"{doc}#{o}") for o in objects]
+        refs = [dict(text=o, href=f"{doc}#{o.lower()}") for o in objects]
 
     # add section to sidebar
     record = dict(

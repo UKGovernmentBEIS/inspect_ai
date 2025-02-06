@@ -3,8 +3,7 @@ title: "inspect_ai.dataset"
 ---
 
 <!--
-TODO: lowercase sidebar entries
-TODO: consider if we have exported enough from inspect_ai.tool
+TODO: Methods table no good?
 
 -->
 
@@ -13,3 +12,12 @@ TODO: consider if we have exported enough from inspect_ai.tool
 ### csv_dataset
 ### json_dataset
 ### hf_dataset
+
+## Types
+
+### Sample
+### FieldSpec
+### RecordToSample
+### Dataset
+### MemoryDataset
+

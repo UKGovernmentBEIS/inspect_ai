@@ -36,13 +36,13 @@ website:
       - text: bridge
         href: reference/inspect_ai.solver.qmd#bridge
       - text: Solver
-        href: reference/inspect_ai.solver.qmd#Solver
+        href: reference/inspect_ai.solver.qmd#solver
       - text: SolverSpec
-        href: reference/inspect_ai.solver.qmd#SolverSpec
+        href: reference/inspect_ai.solver.qmd#solverspec
       - text: TaskState
-        href: reference/inspect_ai.solver.qmd#TaskState
+        href: reference/inspect_ai.solver.qmd#taskstate
       - text: Generate
-        href: reference/inspect_ai.solver.qmd#Generate
+        href: reference/inspect_ai.solver.qmd#generate
       - text: solver
         href: reference/inspect_ai.solver.qmd#solver
     - section: inspect_ai.scorer
@@ -91,17 +91,17 @@ website:
       - text: mode_score
         href: reference/inspect_ai.scorer.qmd#mode_score
       - text: Scorer
-        href: reference/inspect_ai.scorer.qmd#Scorer
+        href: reference/inspect_ai.scorer.qmd#scorer
       - text: Metric
-        href: reference/inspect_ai.scorer.qmd#Metric
+        href: reference/inspect_ai.scorer.qmd#metric
       - text: ScoreReducer
-        href: reference/inspect_ai.scorer.qmd#ScoreReducer
+        href: reference/inspect_ai.scorer.qmd#scorereducer
       - text: Target
-        href: reference/inspect_ai.scorer.qmd#Target
+        href: reference/inspect_ai.scorer.qmd#target
       - text: Score
-        href: reference/inspect_ai.scorer.qmd#Score
+        href: reference/inspect_ai.scorer.qmd#score
       - text: Value
-        href: reference/inspect_ai.scorer.qmd#Value
+        href: reference/inspect_ai.scorer.qmd#value
       - text: scorer
         href: reference/inspect_ai.scorer.qmd#scorer
       - text: metric
@@ -124,17 +124,17 @@ website:
       - text: tool_with
         href: reference/inspect_ai.tool.qmd#tool_with
       - text: ToolDef
-        href: reference/inspect_ai.tool.qmd#ToolDef
+        href: reference/inspect_ai.tool.qmd#tooldef
       - text: Tool
-        href: reference/inspect_ai.tool.qmd#Tool
+        href: reference/inspect_ai.tool.qmd#tool
       - text: ToolResult
-        href: reference/inspect_ai.tool.qmd#ToolResult
+        href: reference/inspect_ai.tool.qmd#toolresult
       - text: ToolError
-        href: reference/inspect_ai.tool.qmd#ToolError
+        href: reference/inspect_ai.tool.qmd#toolerror
       - text: ToolChoice
-        href: reference/inspect_ai.tool.qmd#ToolChoice
+        href: reference/inspect_ai.tool.qmd#toolchoice
       - text: ToolFunction
-        href: reference/inspect_ai.tool.qmd#ToolFunction
+        href: reference/inspect_ai.tool.qmd#toolfunction
       - text: tool
         href: reference/inspect_ai.tool.qmd#tool
     - section: inspect_ai.dataset
@@ -146,3 +146,13 @@ website:
         href: reference/inspect_ai.dataset.qmd#json_dataset
       - text: hf_dataset
         href: reference/inspect_ai.dataset.qmd#hf_dataset
+      - text: Sample
+        href: reference/inspect_ai.dataset.qmd#sample
+      - text: FieldSpec
+        href: reference/inspect_ai.dataset.qmd#fieldspec
+      - text: RecordToSample
+        href: reference/inspect_ai.dataset.qmd#recordtosample
+      - text: Dataset
+        href: reference/inspect_ai.dataset.qmd#dataset
+      - text: MemoryDataset
+        href: reference/inspect_ai.dataset.qmd#memorydataset

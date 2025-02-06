@@ -89,11 +89,7 @@ def parse_class_docs(clz: Class, options: DocParseOptions) -> DocObject:
     else:
         # read source
         source, declaration, docstrings = read_source(clz, options)
- 
-        # if its a dataclass then declaration should be the entire class
-        if declaration.startswith("@dataclass"):
-            declaration = read_declaration(clz)
-           
+       
         # read attributes and methods
         attributes: list[DocAttribute] = []
         methods: list[DocFunction] = []
