@@ -398,7 +398,7 @@ use_tools(web_browser(interactive=False))
 
 In this mode, the interactive tools (`web_browser_click()`, `web_browser_type()`, and `web_browser_type_submit()`) are not made available to the model.
 
-### Custom Images {#sec-custom-image}
+### Custom Images {#sec-custom-images}
 
 Above we demonstrated how to use the pre-configured Inspect web browser container. If you prefer to incorporate the headless web browser and its dependencies into another container that is also supported.
 
