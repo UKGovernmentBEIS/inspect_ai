@@ -1,8 +1,12 @@
 import asyncio
 from copy import deepcopy
+from pathlib import Path
 from typing import Any, Callable, cast
 
 from inspect_ai._display import display
+from inspect_ai._eval.loader import load_module
+from inspect_ai._util.decorator import parse_decorators
+from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.platform import platform_init
 from inspect_ai._util.registry import registry_create, registry_unqualified_name
 from inspect_ai.log import (
@@ -225,7 +229,7 @@ def scorers_from_log(log: EvalLog) -> list[Scorer]:
     if log.eval.scorers is not None:
         return (
             [
-                scorer_from_log(score.name, **(score.options or {}))
+                scorer_from_log(log, score.name, **(score.options or {}))
                 for score in log.eval.scorers
             ]
             if log.results
@@ -234,11 +238,33 @@ def scorers_from_log(log: EvalLog) -> list[Scorer]:
 
     # Otherwise, perhaps we can re-create them from the results
     return (
-        [scorer_from_log(score.scorer, **score.params) for score in log.results.scores]
+        [
+            scorer_from_log(log, score.scorer, **score.params)
+            for score in log.results.scores
+        ]
         if log.results
         else []
     )
 
 
-def scorer_from_log(scorer: str, **kwargs: Any) -> Scorer:
-    return scorer_create(scorer, **kwargs)
+def scorer_from_log(log: EvalLog, scorer: str, **kwargs: Any) -> Scorer:
+    try:
+        # try loading directly from the registry
+        return scorer_create(scorer, **kwargs)
+    except ValueError:
+        # the load fails, now see if we can deduce the task, load it
+        # and then retrive the scorer from the registry
+        if log.eval.task_file:
+            task_rel_path = Path(log.eval.task_file)
+            if task_rel_path.exists():
+                try:
+                    load_module(task_rel_path)
+                    return scorer_create(scorer, **kwargs)
+                except ValueError:
+                    # we still couldn't load this, request the user provide a path
+                    raise PrerequisiteError(
+                        f"The scorer {scorer} couldn't be loaded. Please provide a path to the file containing the scorer using --scorer"
+                    )
+    raise PrerequisiteError(
+        f"The scorer {scorer} couldn't be loaded. Please provide a path to the file containing the scorer using --scorer"
+    )
