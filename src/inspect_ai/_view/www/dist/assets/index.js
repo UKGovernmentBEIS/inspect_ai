@@ -60086,11 +60086,14 @@ ${events}
         };
       }
       if (packages) {
-        taskInformation["Inspect"] = {
-          _html: Object.keys(packages).map((key2) => {
-            return `${key2} ${packages[key2]}`;
-          }).join("<br/>\n")
-        };
+        const names = Object.keys(packages).map((key2) => {
+          return `${key2} ${packages[key2]}`;
+        });
+        if (names.length === 1) {
+          taskInformation["Inspect"] = names[0];
+        } else {
+          taskInformation["Inspect"] = names;
+        }
       }
       if (evaluation.tags) {
         taskInformation["Tags"] = evaluation.tags.join(", ");
@@ -60115,7 +60118,7 @@ ${events}
       });
       if (steps) {
         taskColumns.push({
-          title: "Plan",
+          title: "Solvers",
           className: styles$9.wideCol,
           contents: /* @__PURE__ */ jsxRuntimeExports.jsx(SolversDetailView, { steps })
         });
