@@ -19,7 +19,7 @@ def web_browser(interactive: bool = True) -> list[Tool]:
      See documentation at <https://inspect.ai-safety-institute.org.uk/tools.html#sec-web-browser>.
 
     Args:
-       interactive (bool): Provide interactive tools (enable
+       interactive: Provide interactive tools (enable
           clicking, typing, and submitting forms). Defaults
           to True.
 

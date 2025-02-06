@@ -2,6 +2,11 @@
 title: "inspect_ai.dataset"
 ---
 
+<!--
+TODO: lowercase sidebar entries
+TODO: consider if we have exported enough from inspect_ai.tool
+
+-->
 
 ## Readers
 

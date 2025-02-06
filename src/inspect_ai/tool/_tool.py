@@ -155,20 +155,14 @@ def tool(
     r"""Decorator for registering tools.
 
     Args:
-        func (ToolType | None): Tool function
-        name (str | None):
-            Optional name for tool. If the decorator has no name
+        func: Tool function
+        name: Optional name for tool. If the decorator has no name
             argument then the name of the tool creation function
             will be used as the name of the tool.
-        viewer (ToolCallViewer | None): Provide a custom view
-            of tool call and context.
-        model_input (ToolCallModelInput | None): Provide a custom
-            function for playing back tool results as model input.
-        parallel (bool):
-            Does this tool support parallel execution?
-            (defaults to True).
-        prompt (str):
-            Deprecated (provide all descriptive information about
+        viewer: Provide a custom view of tool call and context.
+        model_input: Provide a custom function for playing back tool results as model input.
+        parallel: Does this tool support parallel execution? (defaults to `True`).
+        prompt: Deprecated (provide all descriptive information about
             the tool within the tool function's doc comment)
 
 

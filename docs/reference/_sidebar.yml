@@ -133,6 +133,8 @@ website:
         href: reference/inspect_ai.tool.qmd#ToolError
       - text: ToolChoice
         href: reference/inspect_ai.tool.qmd#ToolChoice
+      - text: ToolFunction
+        href: reference/inspect_ai.tool.qmd#ToolFunction
       - text: tool
         href: reference/inspect_ai.tool.qmd#tool
     - section: inspect_ai.dataset

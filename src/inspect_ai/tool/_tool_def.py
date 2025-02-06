@@ -40,16 +40,16 @@ class ToolDef:
         """Create a tool definition.
 
         Args:
-          tool (Callable[..., Any]): Callable to execute tool.
-          name (str | None): Name of tool. Discovered automatically if not specified.
-          description (str | None): Description of tool. Discovered automatically
+          tool: Callable to execute tool.
+          name: Name of tool. Discovered automatically if not specified.
+          description: Description of tool. Discovered automatically
             by parsing doc comments if not specified.
-          parameters (dict[str,str] | ToolParams | None): Tool parameter descriptions and types.
+          parameters: Tool parameter descriptions and types.
              Discovered automatically by parsing doc comments if not specified.
-          parallel (bool | None): Does the tool support parallel execution
+          parallel: Does the tool support parallel execution
              (defaults to True if not specified)
-          viewer (ToolCallViewer | None): Optional tool call viewer implementation.
-          model_input (ToolCallModelInput | None): Optional function that determines how
+          viewer: Optional tool call viewer implementation.
+          model_input: Optional function that determines how
               tool call results are played back as model input.
 
         Returns:
