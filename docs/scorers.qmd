@@ -534,7 +534,7 @@ Inspect includes some simple built in metrics for calculating accuracy, mean, et
 
 -   `stderr()`
 
-    Standard error of the mean.
+    Standard error of the mean. Use the `cluster` parameter to define a key from metadata to use to compute clustered standard.
 
 -   `bootstrap_stderr()`
 
