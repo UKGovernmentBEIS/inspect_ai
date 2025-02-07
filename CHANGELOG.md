@@ -7,6 +7,7 @@
 - Add `shuffle_choices` to dataset and dataset loading funtions. Deprecate `shuffle` parameter to the `multiple_choice` solver.
 - Add `stop_words` param to the `f1` scorer. `stop_words` will be removed from the target and answer during normalization.
 - Tools: Handle return of empty list from tool calls.
+- Computer: Moved out of beta (i.e. from `inspect_ai.tool.beta` into `inspect_ai.tool`).
 - Sandboxes: Docker now uses `tee` for write_file operations.
 - Inspect View: Handle Zip64 zip files (for log files greater than 4GB)
 - Bugfix: Change `type` parameter of `answer()` to `pattern` to address registry serialisation error.

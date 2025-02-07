@@ -14,8 +14,7 @@ from inspect_ai.solver import (
     use_tools,
 )
 from inspect_ai.solver._chain import chain
-from inspect_ai.tool import bash, python
-from inspect_ai.tool.beta import computer
+from inspect_ai.tool import bash, computer, python
 from inspect_ai.util import input_screen
 
 Mode = Literal["shell", "computer"]
