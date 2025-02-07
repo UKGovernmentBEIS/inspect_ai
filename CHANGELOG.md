@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Add support for [clustered standard errors](https://inspect.ai-safety-institute.org.uk/scorers.html#clustered-standard-error) via a new `cluster` parameter for the `stderr()` metric.
+- Add support for [clustered standard errors](https://inspect.ai-safety-institute.org.uk/scorers.html#clustered-standard-errors) via a new `cluster` parameter for the `stderr()` metric.
 - Metrics now take `list[SampleScore]` rather than `list[Score]` (previous signature is deprecated but still works with a warning).
 
 ## v0.3.63 (07 February 2025)
