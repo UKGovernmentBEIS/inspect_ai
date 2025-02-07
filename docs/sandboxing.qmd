@@ -336,3 +336,8 @@ services:
 To diagnose sandbox execution issues (e.g. commands that don't terminate properly, contianer lifecylce issues, etc.) you should use Inspect's [Tracing](tracing.qmd) facility. 
 
 Trace logs record the beginning and end of calls to `subprocess()` (e.g. tool calls that run commands in sandboxes) as well as control commands sent to Docker Compose. The `inspect trace anomalies` subcommand then enables you to query for commands that don't terminate, timeout, or have errors. See the article on [Tracing](tracing.qmd) for additional details.
+
+### Sandbox container startup wait time
+For complicated sandboxes that take multiple minutes to fully spin up, you may run into an error of the form "One or more docker containers failed to start from [...]". This error occurs because by default, Inspect will only wait 120 seconds for all sandbox containers to start.
+
+To override this 120 second default wait time, you can set the environment variable `INSPECT_EVAL_COMPOSE_UP_WAIT` which specifies in seconds how long inspect should wait for sandbox containers to spin up.
