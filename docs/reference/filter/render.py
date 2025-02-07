@@ -51,9 +51,9 @@ def render_docs(elem: pf.Header, docs: DocObject) -> list[pf.Element]:
     return elements
 
 def render_attributes(attribs: list[DocAttribute]) -> pf.Table:
-    return render_element_table(None, attribs)
+    return render_element_list(attribs)
 
-def render_methods(methods: list[DocFunction]) -> pf.Table:
+def render_methods(methods: list[DocFunction]) -> pf.DefinitionList:
     return pf.DefinitionList(
         *[render_method_definition_item(method) for method in methods]
     )
@@ -73,11 +73,28 @@ def render_method_definition_item(method: DocFunction) -> pf.DefinitionItem:
 
 def render_params(params: list[DocParameter]) -> pf.Table | pf.Div:
     if len(params) > 0:
-        return render_element_table(None, params)
+        return render_element_list(params)
     else:
         return pf.Div()
   
-   
+def render_element_list(elements: list[DocAttribute] | list[DocParameter]) ->  pf.DefinitionList:
+    return pf.DefinitionList(
+        *[render_element_definition_item(element) for element in elements]
+    )
+
+def render_element_definition_item(element: DocAttribute | DocParameter) -> pf.DefinitionItem:
+    return pf.DefinitionItem(
+        [
+            pf.Code(element.name), 
+            pf.Space(), 
+            pf.Span(pf.Str(element.type), classes=["argument-type"])
+        ], 
+        [pf.Definition(
+            pf.RawBlock(element.description, format="markdown")
+        )]
+    )     
+
+
 def render_element_table(head: pf.TableHead | None, elements: list[DocAttribute] | list[DocParameter]) -> pf.Table:
     return pf.Table(
         pf.TableBody(*[render_table_row(el) for el in elements]),

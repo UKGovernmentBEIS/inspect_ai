@@ -102,12 +102,13 @@ img.navbar-logo {
 
 .argument-type {
     font-size: 0.8em;
+    font-weight: 400;
 }
 
 .doc-declaration .code-copy-button {
     display: none;
 }
 
-.class-methods dl dt {
+.class-methods > dl > dt {
     font-size: 1.3em;
 }
