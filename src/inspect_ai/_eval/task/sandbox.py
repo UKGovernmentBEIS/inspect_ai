@@ -196,7 +196,9 @@ async def _retrying_httpx_get(
         before_sleep=log_retry_attempt(url),
     )
     async def do_get() -> bytes:
-        response = await client.get(url=url, follow_redirects=True, timeout=timeout)
+        response = await client.get(
+            url=url, follow_redirects=True, timeout=(timeout, timeout)
+        )
         response.raise_for_status()
         return response.content
 
