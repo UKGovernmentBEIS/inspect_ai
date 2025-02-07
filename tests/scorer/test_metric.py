@@ -16,6 +16,7 @@ from inspect_ai.scorer import (
     metric,
     scorer,
     std,
+    var,
 )
 from inspect_ai.scorer._metric import (
     MetricDeprecated,
@@ -359,6 +360,13 @@ def test_nested_list_metrics() -> None:
     check_log(log)
 
 
+def test_variance() -> None:
+    metric = var()
+    result = metric([Score(value=i) for i in range(10)])
+    assert round(result, 3) == 9.167
+    assert metric([Score(value=4)]) == 0.0
+
+    
 def test_stderr():
     metric = stderr()
     se = metric([SampleScore(score=Score(value=i)) for i in range(10)])
@@ -374,3 +382,4 @@ def test_clustered_stderr():
         ]
     )
     assert round(se, 3) == 0.645
+

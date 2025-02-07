@@ -526,7 +526,7 @@ Inspect includes some simple built in metrics for calculating accuracy, mean, et
 
 -   `var()`
 
-    Variance over all scores.
+    Sample variance over all scores.
 
 -   `std()`
 
@@ -572,7 +572,7 @@ The `metrics` passed to the `Task` override the default metrics of the `choice()
 
 ### Custom Metrics
 
-You can also add your own metrics with `@metric` decorated functions. For example, here is the implementation of the variance metric:
+You can also add your own metrics with `@metric` decorated functions. For example, here is the implementation of the mean metric:
 
 ``` python
 import numpy as np
@@ -580,11 +580,15 @@ import numpy as np
 from inspect_ai.scorer import Metric, Score, metric
 
 @metric
-def var() -> Metric:
-    """Compute variance over all scores."""
+def mean() -> Metric:
+    """Compute mean of all scores.
+
+    Returns:
+       mean metric
+    """
 
     def metric(scores: list[Score]) -> float:
-        return np.var([score.as_float() for score in scores]).item()
+        return np.mean([score.as_float() for score in scores]).item()
 
     return metric
 ```
