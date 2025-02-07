@@ -15,6 +15,7 @@ from inspect_ai._util.transcript import (
     set_transcript_markdown_options,
     transcript_function,
     transcript_markdown,
+    transcript_reasoning,
     transcript_separator,
 )
 from inspect_ai.log._samples import ActiveSample
@@ -33,7 +34,11 @@ from inspect_ai.log._transcript import (
     SubtaskEvent,
     ToolEvent,
 )
-from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
+from inspect_ai.model._chat_message import (
+    ChatMessage,
+    ChatMessageAssistant,
+    ChatMessageUser,
+)
 from inspect_ai.model._render import messages_preceding_assistant
 from inspect_ai.tool._tool import ToolResult
 from inspect_ai.tool._tool_transcript import transcript_tool_call
@@ -171,8 +176,8 @@ def render_model_event(event: ModelEvent) -> EventDisplay:
     # content
     content: list[RenderableType] = []
 
-    def append_message(message: ChatMessage, text: str | None = None) -> None:
-        content.extend(render_message(message, text))
+    def append_message(message: ChatMessage) -> None:
+        content.extend(render_message(message))
 
     # render preceding messages
     preceding = messages_preceding_assistant(event.input)
@@ -309,16 +314,17 @@ def render_as_json(json: Any) -> RenderableType:
     )
 
 
-def render_message(
-    message: ChatMessage, text: str | None = None
-) -> list[RenderableType]:
+def render_message(message: ChatMessage) -> list[RenderableType]:
     content: list[RenderableType] = [
         Text(message.role.capitalize(), style="bold"),
         Text(),
     ]
-    text = text or message.text
-    if text:
-        content.extend([transcript_markdown(text.strip(), escape=True)])
+
+    if isinstance(message, ChatMessageAssistant) and message.reasoning:
+        content.extend(transcript_reasoning(message.reasoning))
+
+    if message.text:
+        content.extend([transcript_markdown(message.text.strip(), escape=True)])
     return content
 
 

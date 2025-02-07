@@ -1,0 +1,11 @@
+.list {
+  flex: 1;
+  overflow-y: auto;
+  outline: none;
+}
+
+.mainLayout {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}

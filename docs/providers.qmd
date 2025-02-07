@@ -1,0 +1,512 @@
+---
+title: Model Providers
+---
+
+## Overview
+
+Inspect has support for a wide variety of language model APIs and can be extended to support arbitrary additional ones. Support for the following providers is built in to Inspect:
+
+{{< include _model-providers.md >}}
+
+
+## OpenAI {#openai}
+
+To use the [OpenAI](https://platform.openai.com/) provider, install the `openai` package, set your credentials, and specify a model using the `--model` option:
+
+``` bash
+pip install openai
+export OPENAI_API_KEY=your-openai-api-key
+inspect eval arc.py --model openai/gpt-4o-mini
+```
+
+For the `openai` provider, custom model args (`-M`) are forwarded to the constructor of the `AsyncOpenAI` class.
+
+The following environment variables are supported by the OpenAI provider
+
+| Variable | Description |
+|----------------------------|--------------------------------------------|
+| `OPENAI_API_KEY` | API key credentials (required). |
+| `OPENAI_BASE_URL` | Base URL for requests (optional, defaults to `https://api.openai.com/v1`) |
+| `OPENAI_ORG_ID` | OpenAI organization ID (optional) |
+| `OPENAI_PROJECT_ID` | OpenAI project ID (optional) |
+
+### OpenAI on Azure {#openai-on-azure}
+
+To use OpenAI models on Azure AI, specify an `AZUREAI_OPENAI_API_KEY` along with an `AZUREAI_OPENAI_BASE_URL`. You can then use the normal `openai` provider with the `azure` qualifier, specifying a model name that corresponds to the [Azure Deployment Name](https://learn.microsoft.com/en-us/azure/ai-services/openai/how-to/create-resource?pivots=web-portal#deploy-a-model) of your model. For example, if your deployed model name was `gpt4-1106-preview-ythre:`
+
+``` bash
+export AZUREAI_OPENAI_API_KEY=key
+export AZUREAI_OPENAI_BASE_URL=https://your-url-at.azure.com
+inspect eval --model openai/azure/gpt4-1106-preview-ythre
+```
+
+In addition to these variables, you can also set the `OPENAI_API_VERSION` environment variable to specify a specific version of the OpenAI interface on Azure.
+
+## Anthropic {#anthropic}
+
+To use the [Anthropic](https://www.anthropic.com/api) provider, install the `anthropic` package, set your credentials, and specify a model using the `--model` option:
+
+``` bash
+pip install anthropic
+export ANTHROPIC_API_KEY=your-anthropic-api-key
+inspect eval arc.py --model anthropic/claude-3-5-sonnet-latest
+```
+
+For the `anthropic` provider, custom model args (`-M`) are forwarded to the constructor of the `AsyncAnthropic` class.
+
+The following environment variables are supported by the Anthropic provider
+
+| Variable | Description |
+|----------------------------|--------------------------------------------|
+| `ANTHROPIC_API_KEY` | API key credentials (required). |
+| `ANTHROPIC_BASE_URL` | Base URL for requests (optional, defaults to `https://api.anthropic.com`) |
+
+### Anthropic on AWS Bedrock {#anthropic-on-aws-bedrock}
+
+To use Anthropic models on Bedrock, use the normal `anthropic` provider with the `bedrock` qualifier, specifying a model name that corresponds to a model you have access to on Bedrock. For Bedrock, authentication is not handled using an API key but rather your standard AWS credentials (e.g. `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`). You should also be sure to have specified an AWS region. For example:
+
+``` bash
+export AWS_ACCESS_KEY_ID=your-aws-access-key-id
+export AWS_SECRET_ACCESS_KEY=your-aws-secret-access-key
+export AWS_DEFAULT_REGION=us-east-1
+inspect eval arc.py --model anthropic/bedrock/anthropic.claude-3-5-sonnet-20241022-v2:0
+```
+
+You can also optionally set the `ANTHROPIC_BEDROCK_BASE_URL` environment variable to set a custom base URL for Bedrock API requests.
+
+### Anthropic on Vertex AI {#anthropic-on-vertex-ai}
+
+To use Anthropic models on Vertex, you can use the standard `anthropic` model provider with the `vertex` qualifier (e.g. `anthropic/vertex/claude-3-5-sonnet-v2@20241022`). You should also set two environment variables indicating your project ID and region. Here is a complete example:
+
+``` bash
+export ANTHROPIC_VERTEX_PROJECT_ID=project-12345
+export ANTHROPIC_VERTEX_REGION=us-east5
+inspect eval ctf.py --model anthropic/vertex/claude-3-5-sonnet-v2@20241022
+```
+
+Authentication is doing using the standard Google Cloud CLI (i.e. if you have authorised the CLI then no additional auth is needed for the model API).
+
+## Google {#google-gemini}
+
+To use the [Google](https://ai.google.dev/) provider, install the `google-generativeai` package, set your credentials, and specify a model using the `--model` option:
+
+``` bash
+pip install google-generativeai
+export GOOGLE_API_KEY=your-google-api-key
+inspect eval arc.py --model google/gemini-1.5-pro
+```
+
+For the `google` provider, custom model args (`-M`) are forwarded to the `genai.configure` function.
+
+The following environment variables are supported by the Google provider
+
+| Variable          | Description                      |
+|-------------------|----------------------------------|
+| `GOOGLE_API_KEY`  | API key credentials (required).  |
+| `GOOGLE_BASE_URL` | Base URL for requests (optional) |
+
+### Safety Settings {#safety-settings}
+
+Google models make available [safety settings](https://ai.google.dev/gemini-api/docs/safety-settings) that you can adjust to determine what sorts of requests will be handled (or refused) by the model. The four categories of safety settings are as follows:
+
+| Category | Description |
+|-----------------------|------------------------------------------------|
+| `sexually_explicit` | Contains references to sexual acts or other lewd content. |
+| `hate_speech` | Content that is rude, disrespectful, or profane. |
+| `harassment` | Negative or harmful comments targeting identity and/or protected attributes. |
+| `dangerous_content` | Promotes, facilitates, or encourages harmful acts. |
+
+: {tbl-colwidths="\[35,65\]"}
+
+For each category, the following block thresholds are available:
+
+| Block Threshold | Description |
+|------------------------|------------------------------------------------|
+| `none` | Always show regardless of probability of unsafe content |
+| `only_high` | Block when high probability of unsafe content |
+| `medium_and_above` | Block when medium or high probability of unsafe content |
+| `low_and_above` | Block when low, medium or high probability of unsafe content |
+
+: {tbl-colwidths="\[35,65\]"}
+
+By default, Inspect sets all four categories to `none` (enabling all content). You can override these defaults by using the `safety_settings` model argument. For example:
+
+``` python
+safety_settings = dict(
+  dangerous_content = "medium_and_above",
+  hate_speech = "low_and_above"
+)
+eval(
+  "eval.py",
+  model_args=dict(safety_settings=safety_settings)
+)
+```
+
+This also can be done from the command line:
+
+``` bash
+inspect eval eval.py -M "safety_settings={'hate_speech': 'low_and_above'}"
+```
+
+## Mistral {#mistral}
+
+To use the [Mistral](https://mistral.ai/) provider, install the `mistral` package, set your credentials, and specify a model using the `--model` option:
+
+``` bash
+pip install mistral
+export MISTRAL_API_KEY=your-mistral-api-key
+inspect eval arc.py --model mistral/mistral-large-latest
+```
+
+For the `mistral` provider, custom model args (`-M`) are forwarded to the constructor of the `Mistral` class.
+
+The following environment variables are supported by the Mistral provider
+
+| Variable | Description |
+|----------------------------|--------------------------------------------|
+| `MISTRAL_API_KEY` | API key credentials (required). |
+| `MISTRAL_BASE_URL` | Base URL for requests (optional, defaults to `https://api.mistral.ai`) |
+
+### Mistral on Azure AI {#mistral-on-azure-ai}
+
+To use Mistral models on Azure AI, specify an `AZURE_MISTRAL_API_KEY` along with an `AZUREAI_MISTRAL_BASE_URL`. You can then use the normal `mistral` provider, but you'll need to specify a model name that corresponds to the [Azure Deployment Name](https://learn.microsoft.com/en-us/azure/ai-services/openai/how-to/create-resource?pivots=web-portal#deploy-a-model) of your model. For example, if your deployment model name was `mistral-large-ctwi:`
+
+``` bash
+export AZUREAI_MISTRAL_API_KEY=key
+export AZUREAI_MISTRAL_BASE_URL=https://your-url-at.azure.com
+inspect eval --model mistral/mistral-large-ctwi
+```
+
+## Grok {#grok}
+
+To use the [Grok](https://x.ai/) provider, install the `openai` package (which the Grok service provides a compatible backend for), set your credentials, and specify a model using the `--model` option:
+
+``` bash
+pip install openai
+export GROK_API_KEY=your-grok-api-key
+inspect eval arc.py --model grok/grok-beta
+```
+
+For the `grok` provider, custom model args (`-M`) are forwarded to the constructor of the `AsyncOpenAI` class.
+
+The following environment variables are supported by the Grok provider
+
+| Variable | Description |
+|----------------------------|--------------------------------------------|
+| `GROK_API_KEY` | API key credentials (required). |
+| `GROK_BASE_URL` | Base URL for requests (optional, defaults to `https://api.x.ai/v1`) |
+
+## AWS Bedrock {#aws-bedrock}
+
+To use the [AWS Bedrock](https://aws.amazon.com/bedrock/) provider, install the `aioboto3` package, set your credentials, and specify a model using the `--model` option:
+
+``` bash
+export AWS_ACCESS_KEY_ID=access-key-id
+export AWS_SECRET_ACCESS_KEY=secret-access-key
+export AWS_DEFAULT_REGION=us-east-1
+inspect eval bedrock/meta.llama2-70b-chat-v1
+```
+
+For the `bedrock` provider, custom model args (`-M`) are forwarded to the `client` method of the `aioboto3.Session` class.
+
+Note that all models on AWS Bedrock require that you [request model access](https://docs.aws.amazon.com/bedrock/latest/userguide/model-access.html) before using them in a deployment (in some cases access is granted immediately, in other cases it could one or more days).
+
+You should be also sure that you have the appropriate AWS credentials before accessing models on Bedrock. You aren't likely to need to, but you can also specify a custom base URL for AWS Bedrock using the `BEDROCK_BASE_URL` environment variable.
+
+If you are using Anthropic models on Bedrock, you can alternatively use the [Anthropic provider](#anthropic-on-aws-bedrock) as your means of access.
+
+## Azure AI {#azure-ai}
+
+To use the [Azure AI](https://azure.microsoft.com/en-us/solutions/ai) provider, install the `azure-ai-inference` package, set your credentials and base URL, and specify an [Azure Deployment Name](https://learn.microsoft.com/en-us/azure/ai-services/openai/how-to/create-resource?pivots=web-portal#deploy-a-model) as the model name:
+
+``` bash
+pip install azure-ai-inference
+export AZUREAI_API_KEY=api-key
+export AZUREAI_BASE_URL=https://your-url-at.azure.com
+$ inspect eval --model azureai/llama-2-70b-chat-wnsnw
+```
+
+For the `azureai` provider, custom model args (`-M`) are forwarded to the constructor of the `ChatCompletionsClient` class.
+
+The following environment variables are supported by the Azure AI provider
+
+| Variable           | Description                      |
+|--------------------|----------------------------------|
+| `AZUREAI_API_KEY`  | API key credentials (required).  |
+| `AZUREAI_BASE_URL` | Base URL for requests (required) |
+
+If you are using Open AI or Mistral on Azure AI, you can alternatively use the [OpenAI provider](#openai-on-azure) or [Mistral provider](#mistral-on-azure-ai) as your means of access.
+
+### Tool Emulation
+
+When using the `azureai` model provider, tool calling support can be 'emulated' for models that Azure AI has not yet implemented tool calling for. This occurs by default for Llama models. For other models, use the `emulate_tools` model arg to force tool emulation:
+
+``` bash
+inspect eval ctf.py -M emulate_tools=true
+```
+
+You can also use this option to disable tool emulation for Llama models with `emulate_tools=false`.
+
+## Vertex AI {#vertex-ai}
+
+::: {.callout-note appearance="simple"}
+Vertex AI is a distinct service from Google AI, see a comparison matrix [here](https://cloud.google.com/vertex-ai/generative-ai/docs/migrate/migrate-google-ai#google-ai). Make sure you are using the appropriate model provider.
+:::
+
+To use the [Vertex AI](https://cloud.google.com/vertex-ai) provider, install the `google-cloud-aiplatform` package, [configure your environment](https://cloud.google.com/vertex-ai/generative-ai/docs/start/quickstarts/quickstart-multimodal#expandable-1) for Vertex API access, and specify a model using the `--model` option:
+
+``` bash
+inspect eval eval.py --model vertex/gemini-1.5-flash
+```
+
+The core libraries for Vertex AI interact directly with Google Cloud Platform so this provider doesn't use the standard `BASE_URL`/`API_KEY` approach that others do. Consequently you don't need to set these environment variables.
+
+Vertex AI also provides the same `safety_settings` outlined in the [Google](#safety-settings) provider.
+
+If you are using Anthropic on Vertex AI, you can alternatively use the [Anthropic provider](#anthropic-on-vertex-ai) as your means of access.
+
+## Together AI {#together-ai}
+
+To use the [Together AI](https://www.together.ai/) provider, install the `openai` package (which the Together AI service provides a compatible backend for), set your credentials, and specify a model using the `--model` option:
+
+``` bash
+pip install openai
+export TOGETHER_API_KEY=your-together-api-key
+inspect eval arc.py --model together/meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo
+```
+
+For the `together` provider, custom model args (`-M`) are forwarded to the constructor of the `AsyncOpenAI` class.
+
+The following environment variables are supported by the Together AI provider
+
+| Variable | Description |
+|----------------------------|--------------------------------------------|
+| `TOGETHER_API_KEY` | API key credentials (required). |
+| `TOGETHER_BASE_URL` | Base URL for requests (optional, defaults to `https://api.together.xyz/v1`) |
+
+## Groq {#groq}
+
+To use the [Groq](https://groq.com/) provider, install the `groq` package, set your credentials, and specify a model using the `--model` option:
+
+``` bash
+pip install groq
+export GROQ_API_KEY=your-groq-api-key
+inspect eval arc.py --model groq/llama-3.1-70b-versatile
+```
+
+For the `groq` provider, custom model args (`-M`) are forwarded to the constructor of the `AsyncGroq` class.
+
+The following environment variables are supported by the Groq provider
+
+| Variable | Description |
+|----------------------------|--------------------------------------------|
+| `GROQ_API_KEY` | API key credentials (required). |
+| `GROQ_BASE_URL` | Base URL for requests (optional, defaults to `https://api.groq.com`) |
+
+## Cloudflare {#cloudflare}
+
+To use the [Cloudflare](https://developers.cloudflare.com/workers-ai/) provider, set your account id and access token, and specify a model using the `--model` option:
+
+``` bash
+export CLOUDFLARE_ACCOUNT_ID=account-id
+export CLOUDFLARE_API_TOKEN=api-token
+inspect eval arc.py --model cf/meta/llama-3.1-70b-instruct
+```
+
+For the `cloudflare` provider, custom model args (`-M`) are included as fields in the post body of the chat request.
+
+The following environment variables are supported by the Cloudflare provider:
+
+| Variable | Description |
+|----------------------------|--------------------------------------------|
+| `CLOUDFLARE_ACCOUNT_ID` | Account id (required). |
+| `CLOUDFLARE_API_TOKEN` | API key credentials (required). |
+| `CLOUDFLARE_BASE_URL` | Base URL for requests (optional, defaults to `https://api.cloudflare.com/client/v4/accounts`) |
+
+## Goodfire {#goodfire}
+
+To use the [Goodfire](https://platform.goodfire.ai/) provider, install the `goodfire` package, set your credentials, and specify a model using the `--model` option:
+
+``` bash
+pip install goodfire
+export GOODFIRE_API_KEY=your-goodfire-api-key
+inspect eval arc.py --model goodfire/meta-llama/Meta-Llama-3.1-8B-Instruct
+```
+
+For the `goodfire` provider, custom model args (`-M`) are forwarded to `chat.completions.create` method of the `AsyncClient` class.
+
+The following environment variables are supported by the Goodfire provider
+
+| Variable | Description |
+|----------------------------|--------------------------------------------|
+| `GOODFIRE_API_KEY` | API key credentials (required). |
+| `GOODFIRE_BASE_URL` | Base URL for requests (optional, defaults to `https://api.goodfire.ai`) |
+
+## Hugging Face {#hugging-face}
+
+The [Hugging Face](https://huggingface.co/models) provider implements support for local models using the [transformers](https://pypi.org/project/transformers/) package. To use the Hugging Face provider, install the `torch`, `transformers`, and `accelerate` packages and specify a model using the `--model` option:
+
+``` bash
+pip install torch transformers accelerate
+inspect eval arc.py --model hf/openai-community/gpt2
+```
+
+### Batching
+
+Concurrency for REST API based models is managed using the `max_connections` option. The same option is used for `transformers` inference---up to `max_connections` calls to `generate()` will be batched together (note that batches will proceed at a smaller size if no new calls to `generate()` have occurred in the last 2 seconds).
+
+The default batch size for Hugging Face is 32, but you should tune your `max_connections` to maximise performance and ensure that batches don't exceed available GPU memory. The [Pipeline Batching](https://huggingface.co/docs/transformers/main_classes/pipelines#pipeline-batching) section of the transformers documentation is a helpful guide to the ways batch size and performance interact.
+
+### Device
+
+The PyTorch `cuda` device will be used automatically if CUDA is available (as will the Mac OS `mps` device). If you want to override the device used, use the `device` model argument. For example:
+
+``` bash
+$ inspect eval arc.py --model hf/openai-community/gpt2 -M device=cuda:0
+```
+
+This also works in calls to `eval()`:
+
+``` python
+eval("arc.py", model="hf/openai-community/gpt2", model_args=dict(device="cuda:0"))
+```
+
+Or in a call to `get_model()`
+
+``` python
+model = get_model("hf/openai-community/gpt2", device="cuda:0")
+```
+
+### Local Models
+
+In addition to using models from the Hugging Face Hub, the Hugging Face provider can also use local model weights and tokenizers (e.g. for a locally fine tuned model). Use `hf/local` along with the `model_path`, and (optionally) `tokenizer_path` arguments to select a local model. For example, from the command line, use the `-M` flag to pass the model arguments:
+
+``` bash
+$ inspect eval arc.py --model hf/local -M model_path=./my-model
+```
+
+Or using the `eval()` function:
+
+``` python
+eval("arc.py", model="hf/local", model_args=dict(model_path="./my-model"))
+```
+
+Or in a call to `get_model()`
+
+``` python
+model = get_model("hf/local", model_path="./my-model")
+```
+
+## vLLM {#vllm}
+
+The [vLLM](https://docs.vllm.ai/) provider also implements support for Hugging Face models using the [vllm](https://github.com/vllm-project/vllm/) package. To use the vLLM provider, install the `vllm` package and specify a model using the `--model` option:
+
+``` bash
+pip install vllm
+inspect eval arc.py --model vllm/openai-community/gpt2
+```
+
+You can also access models from ModelScope rather than Hugging Face, see the [vLLM documentation](https://docs.vllm.ai/en/latest/getting_started/quickstart.html) for details on this.
+
+vLLM is generally much faster than the Hugging Face provider as the library is designed entirely for inference speed whereas the Hugging Face library is more general purpose.
+
+::: {.callout-tip appearance="simple"}
+Rather than doing inference locally, you can also connect to a remote vLLM server. See the section below on [vLLM Server](#sec-vllm-server) for details).
+:::
+
+### Batching
+
+vLLM automatically handles batching, so you generally don't have to worry about selecting the optimal batch size. However, you can still use the `max_connections` option to control the number of concurrent requests which defaults to 32.
+
+### Device
+
+The `device` option is also available for vLLM models, and you can use it to specify the device(s) to run the model on. For example:
+
+``` bash
+$ inspect eval arc.py --model vllm/meta-llama/Meta-Llama-3-8B-Instruct -M device='0,1,2,3'
+```
+
+### Local Models
+
+Similar to the Hugging Face provider, you can also use local models with the vLLM provider. Use `vllm/local` along with the `model_path`, and (optionally) `tokenizer_path` arguments to select a local model. For example, from the command line, use the `-M` flag to pass the model arguments:
+
+``` bash
+$ inspect eval arc.py --model vllm/local -M model_path=./my-model
+```
+
+### vLLM Server
+
+vLLM provides an HTTP server that implements OpenAI’s Chat API. To use this with Inspect, use the `openai` provider rather than the `vllm` provider, setting the model base URL to point to the vLLM server rather than OpenAI. For example:
+
+``` bash
+$ export OPENAI_BASE_URL=http://localhost:8080/v1
+$ export OPENAI_API_KEY=<your-server-api-key>
+$ inspect eval arc.py --model openai/meta-llama/Meta-Llama-3-8B-Instruct
+```
+
+See the vLLM documentation on [Server Mode](https://docs.vllm.ai/en/latest/serving/openai_compatible_server.html) for additional details.
+
+## Ollama {#ollama}
+
+To use the [Ollama](https://ollama.com/) provider, install the `openai` package (which Ollama provides a compatible backend for) and specify a model using the `--model` option:
+
+``` bash
+pip install openai
+inspect eval arc.py --model ollama/llama3.1
+```
+
+Note that you should be sure that Ollama is running on your system berore using it with Inspect.
+
+The following environment variables are supported by the Ollma provider
+
+| Variable | Description |
+|----------------------------|--------------------------------------------|
+| `OLLAMA_BASE_URL` | Base URL for requests (optional, defaults to `http://localhost:11434/v1`) |
+
+## Llama-cpp-python {#llama-cpp-python}
+
+To use the [Llama-cpp-python](https://llama-cpp-python.readthedocs.io/en/latest/) provider, install the `openai` package (which llama-cpp-python provides a compatible backend for) and specify a model using the `--model` option:
+
+``` bash
+pip install openai
+inspect eval arc.py --model llama-cpp-python/llama3
+```
+
+Note that you should be sure that the [llama-cpp-python server](https://llama-cpp-python.readthedocs.io/en/latest/server/) is running on your system before using it with Inspect.
+
+The following environment variables are supported by the llama-cpp-python provider
+
+| Variable | Description |
+|----------------------------|--------------------------------------------|
+| `LLAMA_CPP_PYTHON_BASE_URL` | Base URL for requests (optional, defaults to `http://localhost:8000/v1`) |
+
+## OpenRouter
+
+To use the [OpenRouter](https://openrouter.ai/) provider, install the `openai` package (which the OpenRouter service provides a compatible backend for), set your credentials, and specify a model using the `--model` option:
+
+``` bash
+pip install openai
+export OPENROUTER_API_KEY=your-openrouter-api-key
+inspect eval arc.py --model openrouter/gryphe/mythomax-l2-13b
+```
+
+For the `openrouter` provider, the following custom model args (`-M`) are supported (click the argument name to see its docs on the OpenRouter site):
+
+| Argument | Example |
+|------------------------------------|------------------------------------|
+| [`models`](https://openrouter.ai/docs/features/model-routing#the-models-parameter) | `-M "models=anthropic/claude-3.5-sonnet, gryphe/mythomax-l2-13b"` |
+| [`provider`](https://openrouter.ai/docs/features/provider-routing) | `-M "provider={ 'quantizations': ['int8'] }"` |
+| [`transforms`](https://openrouter.ai/docs/features/message-transforms) | `-M "transforms=['middle-out']"` |
+
+: {tbl-colwidths=\[20,85\]}
+
+The following environment variables are supported by the OpenRouter AI provider
+
+| Variable | Description |
+|----------------------------|--------------------------------------------|
+| `OPENROUTER_API_KEY` | API key credentials (required). |
+| `OPENROUTER_BASE_URL` | Base URL for requests (optional, defaults to `https://openrouter.ai/api/v1`) |
+
+## Custom Models
+
+If you want to support another model hosting service or local model source, you can add a custom model API. See the documentation on [Model API Extensions](extensions.qmd#sec-model-api-extensions) for additional details.

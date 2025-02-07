@@ -1,0 +1,49 @@
+.darkenedBg {
+  background-color: var(--bs-light-bg-subtle);
+}
+
+.normalBg {
+  background-color: var(--bs-body-bg);
+}
+
+.node.first {
+  padding-top: 0.5em;
+}
+
+.node {
+  padding-top: 0;
+  padding-bottom: 0.5em;
+}
+
+.nodes {
+  width: 100%;
+  margin-top: 1em;
+}
+
+.transcriptComponent {
+  display: grid;
+  margin: 0.5em 0 0 0;
+  width: 100%;
+}
+
+.eventNode {
+  background-color: var(--bs-body-bg);
+  margin-bottom: 1.5em;
+  padding-bottom: 0.5em;
+}
+
+.eventNode.darkenBg {
+  background-color: var(--bs-light-bg-subtle);
+}
+
+.eventNode.lastNode {
+  margin-bottom: 0;
+}
+
+.eventNodeContainer {
+  padding-bottom: 0.5em;
+}
+
+.eventNodeContainer.noBottom {
+  padding-bottom: 0;
+}

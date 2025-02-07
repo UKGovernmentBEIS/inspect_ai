@@ -1,0 +1,15 @@
+.wrapper {
+  padding-top: 0;
+  padding-bottom: 1em;
+  margin-left: 0.5em;
+  display: flex;
+}
+
+.col1 {
+  flex: 1 1 40%;
+  margin-right: 1em;
+}
+
+.col2 {
+  flex: 1 1 60%;
+}

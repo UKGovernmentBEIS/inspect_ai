@@ -33,7 +33,6 @@ from inspect_ai._util.trace import trace_action
 from inspect_ai.tool import Tool, ToolChoice, ToolFunction, ToolInfo
 from inspect_ai.tool._tool_def import ToolDef, tool_defs
 from inspect_ai.util import concurrency
-from inspect_ai.util._limit import SampleLimitExceededError
 
 from ._cache import CacheEntry, CachePolicy, cache_fetch, cache_store
 from ._call_tools import disable_parallel_tools, tool_call_view, tools_info
@@ -169,6 +168,10 @@ class ModelAPI(abc.ABC):
         """Tool results can contain images"""
         return False
 
+    def has_reasoning_history(self) -> bool:
+        """Chat message assistant messages can include reasoning."""
+        return False
+
 
 class Model:
     """Model interface."""
@@ -302,6 +305,11 @@ class Model:
             if not self.api.tools_required():
                 tools = []
             tool_choice = "none"
+
+        # handle reasoning history
+        input = resolve_reasoning_history(
+            input, config, self.api.has_reasoning_history()
+        )
 
         # apply any tool model_input handlers
         input = resolve_tool_model_input(tdefs, input)
@@ -727,6 +735,71 @@ def simple_input_messages(
     return messages
 
 
+def resolve_reasoning_history(
+    messages: list[ChatMessage], config: GenerateConfig, api_has_reasoning_history: bool
+) -> list[ChatMessage]:
+    # determine if we are including reasoning history
+    reasoning_history = config.reasoning_history is not False
+
+    # determine up front if we have any reasoning content
+    have_reasoning = any(
+        [
+            isinstance(m, ChatMessageAssistant) and m.reasoning is not None
+            for m in messages
+        ]
+    )
+    if not have_reasoning:
+        return messages
+
+    # API asssistant message format directly supports reasoning history so we will:
+    #   (a) Remove reasoning content entirely if config says not to include it; or
+    #   (b) Leave the messages alone if config says to include it
+    if api_has_reasoning_history:
+        # remove reasoning history as per config
+        if not reasoning_history:
+            resolved_messages: list[ChatMessage] = []
+            for message in messages:
+                if isinstance(message, ChatMessageAssistant):
+                    resolved_messages.append(
+                        message.model_copy(update={"reasoning": None})
+                    )
+                else:
+                    resolved_messages.append(message)
+
+            return resolved_messages
+
+        # include reasoning history as per config
+        else:
+            return messages
+
+    # API can't represent reasoning natively so include <think> tags
+    elif reasoning_history:
+        resolved_messages = []
+        for message in messages:
+            if (
+                isinstance(message, ChatMessageAssistant)
+                and message.reasoning is not None
+            ):
+                message = deepcopy(message)
+                if isinstance(message.content, str):
+                    message.content = (
+                        f"<think>\n{message.reasoning}\n</think>\n\n{message.content}"
+                    )
+                else:
+                    message.content.insert(
+                        0, ContentText(text=f"<think>\n{message.reasoning}\n</think>\n")
+                    )
+                message.reasoning = None
+
+            resolved_messages.append(message)
+
+        return resolved_messages
+
+    # api doesn't handle reasoning and config says no reasoning_history, nothing to do
+    else:
+        return messages
+
+
 def resolve_tool_model_input(
     tdefs: list[ToolDef], messages: list[ChatMessage]
 ) -> list[ChatMessage]:
@@ -764,40 +837,104 @@ def resolve_tool_model_input(
 def tool_result_images_as_user_message(
     messages: list[ChatMessage],
 ) -> list[ChatMessage]:
-    return functools.reduce(tool_result_images_reducer, messages, [])
+    """
+    To conform to models lacking support for images in tool responses, create an alternate message history that moves images into a fabricated user message.
+
+    Tool responses will have images replaced with "Image content is included below.", and the new user message will contain the images.
+    """
+    init_accum: ImagesAccumulator = ([], [], [])
+    chat_messages, user_message_content, tool_call_ids = functools.reduce(
+        tool_result_images_reducer, messages, init_accum
+    )
+    # if the last message was a tool result, we may need to flush the pending stuff here
+    return maybe_adding_user_message(chat_messages, user_message_content, tool_call_ids)
+
+
+ImagesAccumulator = tuple[list[ChatMessage], list[Content], list[str]]
+"""
+ImagesAccumulator is a tuple containing three lists:
+- The first list contains ChatMessages that are the result of processing.
+- The second list contains ContentImages that need to be inserted into a fabricated user message.
+- The third list contains the tool_call_id's associated with the tool responses.
+"""
 
 
 def tool_result_images_reducer(
-    messages: list[ChatMessage],
+    accum: ImagesAccumulator,
     message: ChatMessage,
-) -> list[ChatMessage]:
+) -> ImagesAccumulator:
+    messages, pending_content, tool_call_ids = accum
     # if there are tool result images, pull them out into a ChatUserMessage
-    if isinstance(message, ChatMessageTool) and isinstance(message.content, list):
-        tool_message = ChatMessageTool(
-            content=message.content.copy(),
-            tool_call_id=message.tool_call_id,
-            function=message.function,
+    if (
+        isinstance(message, ChatMessageTool)
+        and isinstance(message.content, list)
+        and any([isinstance(c, ContentImage) for c in message.content])
+    ):
+        init_accum: ImageContentAccumulator = ([], [])
+        new_user_message_content, edited_tool_message_content = functools.reduce(
+            tool_result_image_content_reducer, message.content, init_accum
         )
-        assert isinstance(tool_message.content, list)
-        messages.append(tool_message)
 
-        user_content: list[Content] = []
-        for i in range(0, len(tool_message.content)):
-            if isinstance(tool_message.content[i], ContentImage):
-                user_content.append(message.content[i])
-                tool_message.content[i] = ContentText(
-                    text="Image content is in the message below."
+        return (
+            messages
+            + [
+                ChatMessageTool(
+                    content=edited_tool_message_content,
+                    tool_call_id=message.tool_call_id,
+                    function=message.function,
                 )
-        if len(user_content) > 0:
-            messages.append(
-                ChatMessageUser(content=user_content, tool_call_id=message.tool_call_id)
-            )
+            ],
+            pending_content + new_user_message_content,
+            tool_call_ids + ([message.tool_call_id] if message.tool_call_id else []),
+        )
 
     else:
-        messages.append(message)
+        return (
+            maybe_adding_user_message(messages, pending_content, tool_call_ids)
+            + [message],
+            [],
+            [],
+        )
 
-    # return messages
-    return messages
+
+ImageContentAccumulator = tuple[list[Content], list[Content]]
+"""
+ImageContentAccumulator is a tuple containing two lists of Content objects:
+- The first list contains ContentImages that will be included in a fabricated user message.
+- The second list contains modified content for the tool message with images replaced with text.
+"""
+
+
+def tool_result_image_content_reducer(
+    acc: ImageContentAccumulator, content: Content
+) -> ImageContentAccumulator:
+    """
+    Reduces the messages Content into two separate lists: one for a fabricated user message that will contain the images and one for modified tool message with the images replaced with text.
+
+    Returns:
+      ImageContentReducer: A tuple containing two lists of Content objects.
+        - The first list contains the images that will be included in a fabricated user message.
+        - The second list contains modified content for the tool message with images replaced with text.
+    """
+    new_user_message_content, edited_tool_message_content = acc
+    if isinstance(content, ContentImage):
+        return new_user_message_content + [content], edited_tool_message_content + [
+            ContentText(text="Image content is included below.")
+        ]
+
+    else:
+        return new_user_message_content, edited_tool_message_content + [content]
+
+
+def maybe_adding_user_message(
+    messages: list[ChatMessage], content: list[Content], tool_call_ids: list[str]
+) -> list[ChatMessage]:
+    """If content is empty, return messages, otherwise, create a new ChatMessageUser with it and return a new messages list with that message added."""
+    return (
+        messages + [ChatMessageUser(content=content, tool_call_id=tool_call_ids)]
+        if content
+        else messages
+    )
 
 
 # Functions to reduce consecutive user messages to a single user message -> required for some models
@@ -884,6 +1021,7 @@ def handle_sample_message_limit(input: str | list[ChatMessage]) -> None:
         active_sample_message_limit,
         set_active_sample_total_messages,
     )
+    from inspect_ai.solver._limit import SampleLimitExceededError
 
     total_messages = 1 if isinstance(input, str) else len(input)
     message_limit = active_sample_message_limit()
@@ -910,6 +1048,7 @@ def record_model_usage(model: str, usage: ModelUsage) -> None:
         active_sample_token_limit,
         set_active_sample_total_tokens,
     )
+    from inspect_ai.solver._limit import SampleLimitExceededError
 
     # record usage
     set_model_usage(model, usage, sample_model_usage_context_var.get(None))

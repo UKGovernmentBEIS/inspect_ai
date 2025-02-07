@@ -1,0 +1,9 @@
+.flex {
+  display: flex;
+}
+
+.label {
+  align-self: center;
+  margin-right: 0.3em;
+  margin-left: 0.2em;
+}

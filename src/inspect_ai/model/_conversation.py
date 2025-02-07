@@ -2,7 +2,7 @@ from rich.console import RenderableType
 from rich.text import Text
 
 from inspect_ai._util.rich import lines_display
-from inspect_ai._util.transcript import transcript_markdown
+from inspect_ai._util.transcript import transcript_markdown, transcript_reasoning
 from inspect_ai.util._conversation import conversation_panel
 from inspect_ai.util._display import display_type
 
@@ -38,8 +38,15 @@ def conversation_assistant_message(
                 content=transcript_markdown(m.text, escape=True),
             )
 
-        # start with assistant content
-        content: list[RenderableType] = (
+        # build content
+        content: list[RenderableType] = []
+
+        # reasoning
+        if message.reasoning:
+            content.extend(transcript_reasoning(message.reasoning))
+
+        # message text
+        content.extend(
             [transcript_markdown(message.text, escape=True)] if message.text else []
         )
 

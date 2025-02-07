@@ -32,6 +32,8 @@ async def self_check(sandbox_env: SandboxEnvironment) -> dict[str, bool | str]:
     for fn in [
         test_read_and_write_file_text,
         test_read_and_write_file_binary,
+        test_read_and_write_large_file_binary,
+        test_write_file_text_utf,
         test_read_and_write_file_including_directory_absolute,
         test_read_and_write_file_including_directory_relative,
         test_read_file_zero_length,
@@ -40,12 +42,19 @@ async def self_check(sandbox_env: SandboxEnvironment) -> dict[str, bool | str]:
         test_read_file_is_directory,
         test_read_file_nonsense_name,
         test_read_file_limit,
-        test_write_file_zero_length,
-        test_write_file_space,
-        test_write_file_is_directory,
-        test_write_file_without_permissions,
-        test_write_file_exists,
+        test_write_text_file_zero_length,
+        test_write_text_file_space,
+        test_write_text_file_is_directory,
+        test_write_text_file_without_permissions,
+        test_write_text_file_exists,
+        test_write_binary_file_zero_length,
+        test_write_binary_file_space,
+        test_write_binary_file_is_directory,
+        test_write_binary_file_without_permissions,
+        test_write_binary_file_exists,
         test_exec_output,
+        test_exec_stderr,
+        test_exec_returncode,
         test_exec_timeout,
         test_exec_permission_error,
         test_exec_as_user,
@@ -64,33 +73,50 @@ async def self_check(sandbox_env: SandboxEnvironment) -> dict[str, bool | str]:
 
 
 async def _cleanup_file(sandbox_env: SandboxEnvironment, filename: str) -> None:
-    res = await sandbox_env.exec(["rm", filename])
+    res = await sandbox_env.exec(["rm", "-f", "--", filename])
     assert res.success
 
 
 async def test_read_and_write_file_text(sandbox_env: SandboxEnvironment) -> None:
-    await sandbox_env.write_file(
-        "test_read_and_write_file_text.file", "great #content\nincluding newlines"
-    )
-    written_file_string = await sandbox_env.read_file(
-        "test_read_and_write_file_text.file", text=True
-    )
+    file_name = "test_read_and_write_file_text.file"
+    await sandbox_env.write_file(file_name, "great #content\nincluding newlines")
+    written_file_string = await sandbox_env.read_file(file_name, text=True)
     assert "great #content\nincluding newlines" == written_file_string, (
         f"unexpected content: [{written_file_string}]"
     )
-    await _cleanup_file(sandbox_env, "test_read_and_write_file_text.file")
+    await _cleanup_file(sandbox_env, file_name)
+
+
+async def test_write_file_text_utf(sandbox_env: SandboxEnvironment) -> None:
+    utf_content = "✨☽︎✨🌞︎︎✨🚀✨"
+    file_name = "test_write_file_text_utf.file"
+    await sandbox_env.write_file(file_name, utf_content)
+    file_with_utf_content = await sandbox_env.read_file(file_name, text=True)
+    assert isinstance(file_with_utf_content, str)
+    assert file_with_utf_content == utf_content
+    await _cleanup_file(sandbox_env, file_name)
 
 
 async def test_read_and_write_file_binary(sandbox_env: SandboxEnvironment) -> None:
+    file_name = "test_read_and_write_file_binary.file"
     await sandbox_env.write_file(
-        "test_read_and_write_file_binary.file", b"\xc3\x28"
+        file_name, b"\xc3\x28"
     )  # invalid UTF-8 from https://stackoverflow.com/a/17199164/116509
 
-    written_file_bytes = await sandbox_env.read_file(
-        "test_read_and_write_file_binary.file", text=False
-    )
+    written_file_bytes = await sandbox_env.read_file(file_name, text=False)
     assert b"\xc3\x28" == written_file_bytes
-    await _cleanup_file(sandbox_env, "test_read_and_write_file_binary.file")
+    await _cleanup_file(sandbox_env, file_name)
+
+
+async def test_read_and_write_large_file_binary(
+    sandbox_env: SandboxEnvironment,
+) -> None:
+    file_name = "test_read_and_write_large_file_binary.file"
+    long_bytes = b"\xc3" * 5_000_000
+    await sandbox_env.write_file(file_name, long_bytes)
+    written_file_bytes = await sandbox_env.read_file(file_name, text=False)
+    assert long_bytes == written_file_bytes
+    await _cleanup_file(sandbox_env, file_name)
 
 
 async def test_read_and_write_file_including_directory_absolute(
@@ -101,6 +127,7 @@ async def test_read_and_write_file_including_directory_absolute(
     written_file_string = await sandbox_env.read_file(file_name, text=True)
     assert "absolutely enjoying being in a directory" == written_file_string
     await _cleanup_file(sandbox_env, file_name)
+    await sandbox_env.exec(["rmdir", "/tmp/test_rw_including_directory_absolute"])
 
 
 async def test_read_and_write_file_including_directory_relative(
@@ -111,20 +138,23 @@ async def test_read_and_write_file_including_directory_relative(
     written_file_string = await sandbox_env.read_file(file_name, text=True)
     assert "relatively enjoying being in a directory" == written_file_string
     await _cleanup_file(sandbox_env, file_name)
+    await sandbox_env.exec(["rmdir", "test_rw_including_directory_relative"])
 
 
 async def test_read_file_zero_length(sandbox_env: SandboxEnvironment) -> None:
-    await sandbox_env.exec(["touch", "zero_length_file.file"])
-    zero_length = await sandbox_env.read_file("zero_length_file.file", text=True)
+    file_name = "zero_length_file.file"
+    await sandbox_env.exec(["touch", file_name])
+    zero_length = await sandbox_env.read_file(file_name, text=True)
     assert isinstance(zero_length, str)
     assert zero_length == ""
+    await _cleanup_file(sandbox_env, file_name)
 
 
 async def test_read_file_not_found(sandbox_env: SandboxEnvironment) -> None:
-    file = "nonexistent"
+    file_name = "nonexistent"
     with Raises(FileNotFoundError) as e_info:
-        await sandbox_env.read_file(file, text=True)
-    assert file in str(e_info.value)
+        await sandbox_env.read_file(file_name, text=True)
+    assert file_name in str(e_info.value)
 
 
 async def test_read_file_not_allowed(sandbox_env: SandboxEnvironment) -> None:
@@ -134,22 +164,23 @@ async def test_read_file_not_allowed(sandbox_env: SandboxEnvironment) -> None:
     with Raises(PermissionError) as e_info:
         await sandbox_env.read_file(file_name, text=True)
     assert file_name in str(e_info.value)
+    await sandbox_env.exec(["chmod", "+r", file_name])
     await _cleanup_file(sandbox_env, file_name)
 
 
 async def test_read_file_is_directory(sandbox_env: SandboxEnvironment) -> None:
-    file = "/etc"
+    file_name = "/etc"
     with Raises(IsADirectoryError) as e_info:
-        await sandbox_env.read_file(file, text=True)
+        await sandbox_env.read_file(file_name, text=True)
     assert "directory" in str(e_info.value)
 
 
 async def test_read_file_nonsense_name(
     sandbox_env: SandboxEnvironment,
 ) -> None:
-    file = "https:/en.wikipedia.org/wiki/Bart%C5%82omiej_Kasprzykowski"
+    file_name = "https:/en.wikipedia.org/wiki/Bart%C5%82omiej_Kasprzykowski"
     with Raises(FileNotFoundError) as e_info:
-        await sandbox_env.read_file(file, text=True)
+        await sandbox_env.read_file(file_name, text=True)
     assert "wikipedia" in str(e_info.value)
 
 
@@ -159,53 +190,62 @@ async def test_read_file_limit(sandbox_env: SandboxEnvironment) -> None:
     # Patch limit down to 1KiB for the test to save us from writing a 100 MiB file.
     with mock.patch.object(SandboxEnvironmentLimits, "MAX_READ_FILE_SIZE", 1024):
         with Raises(OutputLimitExceededError) as e_info:
-            await sandbox_env.read_file("large.file", text=True)
+            await sandbox_env.read_file(file_name, text=True)
         assert "limit of 100 MiB was exceeded" in str(e_info.value)
     await _cleanup_file(sandbox_env, file_name)
 
 
-async def test_write_file_zero_length(sandbox_env: SandboxEnvironment) -> None:
-    await sandbox_env.write_file("zero_length_file.file", "")
-    zero_length = await sandbox_env.read_file("zero_length_file.file", text=True)
+async def test_write_text_file_zero_length(sandbox_env: SandboxEnvironment) -> None:
+    file_name = "zero_length_file.file"
+    await sandbox_env.write_file(file_name, "")
+    zero_length = await sandbox_env.read_file(file_name, text=True)
     assert isinstance(zero_length, str)
     assert zero_length == ""
+    await _cleanup_file(sandbox_env, file_name)
 
 
-async def test_write_file_space(sandbox_env: SandboxEnvironment) -> None:
-    space = "✨☽︎✨🌞︎︎✨🚀✨"
-    await sandbox_env.write_file("file with space.file", space)
-    file_with_space = await sandbox_env.read_file("file with space.file", text=True)
+async def test_write_text_file_space(sandbox_env: SandboxEnvironment) -> None:
+    space = "to the moon"
+    file_name = "file with space.file"
+    await sandbox_env.write_file(file_name, space)
+    file_with_space = await sandbox_env.read_file(file_name, text=True)
     assert isinstance(file_with_space, str)
     assert file_with_space == space
+    await _cleanup_file(sandbox_env, file_name)
 
 
-async def test_write_file_is_directory(
+async def test_write_text_file_is_directory(
     sandbox_env: SandboxEnvironment,
 ) -> None:
     # ensure /tmp/directory exists
     await sandbox_env.write_file(
-        "/tmp/inspect_ai_test_write_file_is_directory/file", "unused content"
+        "/tmp/inspect_ai_test_write_text_file_is_directory/file", "unused content"
     )
     with Raises(IsADirectoryError) as e_info:
         await sandbox_env.write_file(
-            "/tmp/inspect_ai_test_write_file_is_directory",
+            "/tmp/inspect_ai_test_write_text_file_is_directory",
             "content cannot go in a directory, dummy",
         )
     assert "directory" in str(e_info.value)
+    await sandbox_env.exec(
+        ["rm", "-rf", "/tmp/inspect_ai_test_write_text_file_is_directory"]
+    )
 
 
-async def test_write_file_without_permissions(
+async def test_write_text_file_without_permissions(
     sandbox_env: SandboxEnvironment,
 ) -> None:
-    file_name = "test_write_file_without_permissions.file"
+    file_name = "test_write_text_file_without_permissions.file"
     await sandbox_env.write_file(file_name, "impervious #content")
     await sandbox_env.exec(["chmod", "-w", file_name])
     with Raises(PermissionError) as e_info:
         await sandbox_env.write_file(file_name, "this won't stick")
     assert file_name in str(e_info.value)
+    await sandbox_env.exec(["chmod", "+w", file_name])
+    await _cleanup_file(sandbox_env, file_name)
 
 
-async def test_write_file_exists(
+async def test_write_text_file_exists(
     sandbox_env: SandboxEnvironment,
 ) -> None:
     file_name = "file_exists.file"
@@ -213,6 +253,68 @@ async def test_write_file_exists(
     await sandbox_env.write_file(file_name, "altered content")
     altered_content = await sandbox_env.read_file(file_name, text=True)
     assert altered_content == "altered content"
+    await _cleanup_file(sandbox_env, file_name)
+
+
+async def test_write_binary_file_zero_length(sandbox_env: SandboxEnvironment) -> None:
+    file_name = "zero_length_file.file"
+    await sandbox_env.write_file(file_name, b"")
+    zero_length = await sandbox_env.read_file(file_name, text=False)
+    assert isinstance(zero_length, bytes)
+    assert zero_length == b""
+    await _cleanup_file(sandbox_env, file_name)
+
+
+async def test_write_binary_file_space(sandbox_env: SandboxEnvironment) -> None:
+    binary_content = b"\xc3\x28"
+    file_name = "file with space.file"
+    await sandbox_env.write_file(file_name, binary_content)
+    file_with_space = await sandbox_env.read_file(file_name, text=False)
+    assert isinstance(file_with_space, bytes)
+    assert file_with_space == binary_content
+    await _cleanup_file(sandbox_env, file_name)
+
+
+async def test_write_binary_file_is_directory(
+    sandbox_env: SandboxEnvironment,
+) -> None:
+    # ensure /tmp/directory exists
+    await sandbox_env.write_file(
+        "/tmp/inspect_ai_test_write_binary_file_is_directory/file", "unused content"
+    )
+    with Raises(IsADirectoryError) as e_info:
+        await sandbox_env.write_file(
+            "/tmp/inspect_ai_test_write_binary_file_is_directory",
+            b"\xc3\x28",
+        )
+    assert "directory" in str(e_info.value)
+    await sandbox_env.exec(
+        ["rm", "-rf", "/tmp/inspect_ai_test_write_binary_file_is_directory"]
+    )
+
+
+async def test_write_binary_file_without_permissions(
+    sandbox_env: SandboxEnvironment,
+) -> None:
+    file_name = "test_write_binary_file_without_permissions.file"
+    await sandbox_env.write_file(file_name, "impervious #content")
+    await sandbox_env.exec(["chmod", "-w", file_name])
+    with Raises(PermissionError) as e_info:
+        await sandbox_env.write_file(file_name, b"\xc3\x28")
+    assert file_name in str(e_info.value)
+    await sandbox_env.exec(["chmod", "+w", file_name])
+    await _cleanup_file(sandbox_env, file_name)
+
+
+async def test_write_binary_file_exists(
+    sandbox_env: SandboxEnvironment,
+) -> None:
+    file_name = "file_exists.file"
+    await sandbox_env.write_file(file_name, b"\xc3\x28")
+    await sandbox_env.write_file(file_name, b"\xc3\x29")
+    altered_content = await sandbox_env.read_file(file_name, text=False)
+    assert altered_content == b"\xc3\x29"
+    await _cleanup_file(sandbox_env, file_name)
 
 
 async def test_exec_output(sandbox_env: SandboxEnvironment) -> None:
@@ -224,9 +326,19 @@ async def test_exec_output(sandbox_env: SandboxEnvironment) -> None:
     )
 
 
+async def test_exec_stderr(sandbox_env: SandboxEnvironment) -> None:
+    exec_result = await sandbox_env.exec(["sh", "-c", "echo boof; echo baz >&2"])
+    assert exec_result.stderr == "baz\n"
+
+
+async def test_exec_returncode(sandbox_env: SandboxEnvironment) -> None:
+    exec_result = await sandbox_env.exec(["sh", "-c", "echo foo; exit 70"])
+    assert exec_result.returncode == 70
+
+
 async def test_exec_timeout(sandbox_env: SandboxEnvironment) -> None:
     with Raises(TimeoutError):
-        await sandbox_env.exec(["sleep", "2"], timeout=1)
+        await sandbox_env.exec(["sleep", "4"], timeout=2)
 
 
 async def test_exec_permission_error(sandbox_env: SandboxEnvironment) -> None:
@@ -237,10 +349,28 @@ async def test_exec_permission_error(sandbox_env: SandboxEnvironment) -> None:
 
 async def test_exec_as_user(sandbox_env: SandboxEnvironment) -> None:
     username = "inspect-ai-test-exec-as-user"
+
+    # Neither adduser nor useradd are part of POSIX, so we need some brittle logic here
+    adduser_help_exec_result = await sandbox_env.exec(["adduser", "--help"])
+    adduser_help_text = (
+        adduser_help_exec_result.stdout + adduser_help_exec_result.stderr
+    )
+
+    if "BusyBox" in adduser_help_text:
+        adduser_command = ["adduser", "-D", username]
+    else:
+        adduser_command = [
+            "adduser",
+            "--comment",
+            "self_check.py",
+            "--disabled-password",
+            username,
+        ]
+
     try:
         # Create a new user
         add_user_result = await sandbox_env.exec(
-            ["adduser", "--comment", "self_check.py", "--disabled-password", username],
+            adduser_command,
             user="root",
             timeout=10,  # in one case adduser decided to ask for input which caused the test to hang indefinitely
         )
@@ -305,6 +435,7 @@ async def test_cwd_absolute(sandbox_env: SandboxEnvironment) -> None:
     current_dir_contents = (await sandbox_env.exec(["ls"], cwd=cwd_directory)).stdout
     assert "test_cwd_absolute.file" in current_dir_contents
     await _cleanup_file(sandbox_env, file_name)
+    await sandbox_env.exec(["rmdir", cwd_directory])
 
 
 async def test_exec_stdout_is_limited(sandbox_env: SandboxEnvironment) -> None:

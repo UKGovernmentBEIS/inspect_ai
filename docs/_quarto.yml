@@ -36,19 +36,29 @@ website:
         - section: "Basics"
           contents:
             - tutorial.qmd
-            - workflow.qmd
-            - examples/index.qmd
+            - options.qmd
+            - text: "Evals"
+              href: evals/index.qmd
             - log-viewer.qmd
             - text: "VS Code"
               href: vscode.qmd
 
         - section: "Components"
           contents: 
+            - tasks.qmd
+            - datasets.qmd
             - solvers.qmd
             - tools.qmd
             - scorers.qmd
-            - datasets.qmd
+
+        - section: "Models"
+          contents:
             - models.qmd
+            - text: "Providers"
+              href: providers.qmd
+            - caching.qmd
+            - multimodal.qmd
+            - reasoning.qmd
 
         - section: "Agents"
           contents:
@@ -65,10 +75,8 @@ website:
             - eval-sets.qmd
             - text: "Errors & Limits"
               href: errors-and-limits.qmd
-            - multimodal.qmd
             - typing.qmd
             - tracing.qmd
-            - caching.qmd
             - parallelism.qmd
             - interactivity.qmd
             - extensions.qmd

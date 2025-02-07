@@ -345,7 +345,9 @@ async def web_browser_cmd(cmd: str, *args: str) -> str:
     if sandbox_env:
         store = store_as(WebBrowserStore)
         if not store.session_id:
-            result = await sandbox_env.exec(["python3", WEB_CLIENT_NEW_SESSION])
+            result = await sandbox_env.exec(
+                ["python3", WEB_CLIENT_NEW_SESSION], timeout=180
+            )
 
             if not result.success:
                 raise RuntimeError(

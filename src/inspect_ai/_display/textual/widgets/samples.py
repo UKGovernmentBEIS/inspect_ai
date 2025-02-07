@@ -413,7 +413,7 @@ class SampleToolbar(Horizontal):
         grid-columns: auto auto 1fr auto auto;
     }}
     SampleToolbar #{STATUS_GROUP} {{
-        min-width: 20;
+        width: 22;
     }}
     SampleToolbar Button {{
         margin-bottom: 1;
