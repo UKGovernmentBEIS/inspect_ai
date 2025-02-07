@@ -47323,6 +47323,7 @@ self.onmessage = function (e) {
         data
       };
     };
+    const kFileHeaderSize = 46;
     const parseCentralDirectory = (buffer2) => {
       let offset = 0;
       const view = new DataView(buffer2.buffer);
@@ -47333,17 +47334,33 @@ self.onmessage = function (e) {
         const extraFieldLength = view.getUint16(offset + 30, true);
         const fileCommentLength = view.getUint16(offset + 32, true);
         const filename2 = new TextDecoder().decode(
-          buffer2.subarray(offset + 46, offset + 46 + filenameLength)
+          buffer2.subarray(
+            offset + kFileHeaderSize,
+            offset + kFileHeaderSize + filenameLength
+          )
         );
+        let fileOffset = view.getUint32(offset + 42, true);
+        if (fileOffset === 4294967295) {
+          let extraOffset = offset + kFileHeaderSize + filenameLength;
+          while (extraOffset < offset + kFileHeaderSize + filenameLength + extraFieldLength) {
+            const tag = view.getUint16(extraOffset, true);
+            const size = view.getUint16(extraOffset + 2, true);
+            if (tag === 1) {
+              fileOffset = Number(view.getBigUint64(extraOffset + 4, true));
+              break;
+            }
+            extraOffset += 4 + size;
+          }
+        }
         const entry2 = {
           filename: filename2,
           compressionMethod: view.getUint16(offset + 10, true),
           compressedSize: view.getUint32(offset + 20, true),
           uncompressedSize: view.getUint32(offset + 24, true),
-          fileOffset: view.getUint32(offset + 42, true)
+          fileOffset
         };
         entries.set(filename2, entry2);
-        offset += 46 + filenameLength + extraFieldLength + fileCommentLength;
+        offset += kFileHeaderSize + filenameLength + extraFieldLength + fileCommentLength;
       }
       return entries;
     };
