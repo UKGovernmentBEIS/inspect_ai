@@ -63,8 +63,8 @@ def stderr(
             0 if the Value is a complex object (list or dict).
 
         cluster (str | None): The key from the Sample metadata
-            corresponding to a cluster identifier, if clustered
-            standard errors are to be computed.
+            corresponding to a cluster identifier for computing
+            [clustered standard errors](https://en.wikipedia.org/wiki/Clustered_standard_errors).
 
     Returns:
         stderr metric
