@@ -56,13 +56,15 @@ export const PlanDetailView: React.FC<PlanDetailViewProps> = ({
     };
   }
   if (packages) {
-    taskInformation["Inspect"] = {
-      _html: Object.keys(packages)
-        .map((key) => {
-          return `${key} ${packages[key]}`;
-        })
-        .join("<br/>\n"),
-    };
+    const names = Object.keys(packages).map((key) => {
+      return `${key} ${packages[key]}`;
+    });
+
+    if (names.length === 1) {
+      taskInformation["Inspect"] = names[0];
+    } else {
+      taskInformation["Inspect"] = names;
+    }
   }
   if (evaluation.tags) {
     taskInformation["Tags"] = evaluation.tags.join(", ");
@@ -96,7 +98,7 @@ export const PlanDetailView: React.FC<PlanDetailViewProps> = ({
 
   if (steps) {
     taskColumns.push({
-      title: "Plan",
+      title: "Solvers",
       className: styles.wideCol,
       contents: <SolversDetailView steps={steps} />,
     });

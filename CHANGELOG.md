@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.3.63 (07 February 2025)
 
 - Add [OpenRouter](https://inspect.ai-safety-institute.org.uk/providers.html#openrouter) model provider.
 - Inspect View: Convert codebase from JS/Preact to Typescript/React
@@ -9,9 +9,12 @@
 - Add support for clustered standard error in `stderr` using the `cluster` parameter.
 - Metrics now take `list[SampleScore]` rather than `list[Score]`. Custom metrics now print a deprecation warning advising the adoption of the new signature.
 - Tools: Handle return of empty list from tool calls.
+- Computer: Moved out of beta (i.e. from `inspect_ai.tool.beta` into `inspect_ai.tool`).
 - Sandboxes: Docker now uses `tee` for write_file operations.
+- Inspect View: Handle Zip64 zip files (for log files greater than 4GB)
 - Bugfix: Change `type` parameter of `answer()` to `pattern` to address registry serialisation error.
 - Bugfix: Restore printing of request payloads for 400 errors from Anthropic.
+- Bugfix: Log transcript event for solver provided scores (improves log viewer display of solver scoring)
 
 ## v0.3.62 (03 February 2025)
 

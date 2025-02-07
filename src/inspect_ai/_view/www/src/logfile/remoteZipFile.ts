@@ -219,18 +219,17 @@ const parseZipFileEntry = async (
   };
 };
 
+const kFileHeaderSize = 46;
 /**
  * Parses the central directory of a ZIP file from the provided buffer and returns a map of entries.
  */
-const parseCentralDirectory = (
-  buffer: Uint8Array,
-): Map<string, CentralDirectoryEntry> => {
+const parseCentralDirectory = (buffer: Uint8Array<ArrayBufferLike>) => {
   let offset = 0;
   const view = new DataView(buffer.buffer);
-
   const entries = new Map();
+
   while (offset < buffer.length) {
-    // Make sure there is a central directory signature
+    // Central Directory signature
     if (view.getUint32(offset, true) !== 0x02014b50) break;
 
     const filenameLength = view.getUint16(offset + 28, true);
@@ -238,20 +237,47 @@ const parseCentralDirectory = (
     const fileCommentLength = view.getUint16(offset + 32, true);
 
     const filename = new TextDecoder().decode(
-      buffer.subarray(offset + 46, offset + 46 + filenameLength),
+      buffer.subarray(
+        offset + kFileHeaderSize,
+        offset + kFileHeaderSize + filenameLength,
+      ),
     );
+
+    // Read 32-bit file offset
+    let fileOffset = view.getUint32(offset + 42, true);
+
+    // If fileOffset is 0xFFFFFFFF, use the ZIP64 extended offset instead
+    if (fileOffset === 0xffffffff) {
+      // Move to extra field
+      let extraOffset = offset + kFileHeaderSize + filenameLength;
+      // Look through extra fields until we find zip64 extra field
+      while (
+        extraOffset <
+        offset + kFileHeaderSize + filenameLength + extraFieldLength
+      ) {
+        const tag = view.getUint16(extraOffset, true);
+        const size = view.getUint16(extraOffset + 2, true);
+        if (tag === 0x0001) {
+          // ZIP64 Extra Field - Read 64-bit offset
+          fileOffset = Number(view.getBigUint64(extraOffset + 4, true));
+          break;
+        }
+        extraOffset += 4 + size; // Move to next extra field
+      }
+    }
 
     const entry = {
       filename,
       compressionMethod: view.getUint16(offset + 10, true),
       compressedSize: view.getUint32(offset + 20, true),
       uncompressedSize: view.getUint32(offset + 24, true),
-      fileOffset: view.getUint32(offset + 42, true),
+      fileOffset,
     };
 
     entries.set(filename, entry);
-
-    offset += 46 + filenameLength + extraFieldLength + fileCommentLength;
+    offset +=
+      kFileHeaderSize + filenameLength + extraFieldLength + fileCommentLength;
   }
+
   return entries;
 };
