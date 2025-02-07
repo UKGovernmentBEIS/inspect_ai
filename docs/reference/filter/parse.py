@@ -108,6 +108,8 @@ def parse_class_docs(clz: Class, options: DocParseOptions) -> DocObject:
             if isinstance(member, Attribute):
                 if not isinstance(member.annotation, Expr):
                     continue
+                if member.name.startswith("_"):
+                    continue
                 if "deprecated" in member.docstring.value.lower():
                     continue
                 attributes.append(DocAttribute(
@@ -115,7 +117,7 @@ def parse_class_docs(clz: Class, options: DocParseOptions) -> DocObject:
                     type=str(member.annotation.modernize()),
                     description=member.docstring.value
                 ))
-            elif isinstance(member, Function) and not member.name.startswith("_"):
+            elif isinstance(member, Function) and include_function(member):
                 methods.append(parse_function_docs(member, options))
 
         # return as a class
@@ -129,6 +131,19 @@ def parse_class_docs(clz: Class, options: DocParseOptions) -> DocObject:
             attributes=attributes,
             methods=methods
         )
+    
+def include_function(function: Function) -> bool:
+    # skip private
+    if function.name.startswith("_"):
+        return False
+    
+    # skip pydantic validators
+    if "classmethod" in function.labels:
+        if any(["model_" in str(dec.value) for dec in function.decorators]):
+            return False
+        
+    return True
+
 
 class DocstringContent(NamedTuple):
     description: str

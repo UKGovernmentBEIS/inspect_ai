@@ -36,6 +36,8 @@ SCORER_PLACEHOLDER = "88F74D2C"
 
 
 class EvalConfig(BaseModel):
+    """Configuration used for evaluation."""
+
     limit: int | tuple[int, int] | None = Field(default=None)
     """Sample limit (number of samples or range of samples)."""
 
@@ -114,6 +116,8 @@ class EvalConfig(BaseModel):
 
 
 class EvalSampleLimit(BaseModel):
+    """Limit encontered by sample."""
+
     type: Literal["context", "time", "message", "token", "operator", "custom"]
     """The type of limit"""
 
@@ -122,6 +126,8 @@ class EvalSampleLimit(BaseModel):
 
 
 class EvalSample(BaseModel):
+    """Sample from evaluation task."""
+
     id: int | str
     """Unique id for sample."""
 
@@ -196,7 +202,7 @@ class EvalSample(BaseModel):
     """Attachments referenced from messages and events.
 
     Resolve attachments for a sample (replacing attachment://* references with
-    attachment content) with the resolve_sample_attachments() function.
+    attachment content) by passing `resolve_attachments=True` to log reading functions.
     """
 
     limit: EvalSampleLimit | None = Field(default=None)
@@ -267,6 +273,8 @@ class EvalEvents(BaseModel):
 
 
 class EvalPlanStep(BaseModel):
+    """Solver step."""
+
     solver: str
     """Name of solver."""
 
@@ -275,6 +283,8 @@ class EvalPlanStep(BaseModel):
 
 
 class EvalPlan(BaseModel):
+    """Plan (solvers) used in evaluation."""
+
     name: str = Field(default="plan")
     """Plan name."""
 
@@ -289,6 +299,8 @@ class EvalPlan(BaseModel):
 
 
 class EvalMetric(BaseModel):
+    """Metric for evaluation score."""
+
     name: str
     """Metric name."""
 
@@ -303,6 +315,8 @@ class EvalMetric(BaseModel):
 
 
 class EvalScore(BaseModel):
+    """Score for evaluation task."""
+
     name: str
     """Score name."""
 
@@ -323,10 +337,14 @@ class EvalScore(BaseModel):
 
 
 class EvalSampleScore(Score):
+    """Score and sample_id scored."""
+
     sample_id: str | int | None = Field(default=None)
 
 
 class EvalSampleReductions(BaseModel):
+    """Score reductions."""
+
     scorer: str
     """Name the of scorer"""
 
@@ -338,6 +356,8 @@ class EvalSampleReductions(BaseModel):
 
 
 class EvalResults(BaseModel):
+    """Scoring results from evaluation."""
+
     total_samples: int = Field(default=0)
     """Total samples in eval (dataset samples * epochs)"""
 
@@ -418,6 +438,8 @@ class EvalResults(BaseModel):
 
 
 class EvalDataset(BaseModel):
+    """Dataset used for evaluation."""
+
     name: str | None = Field(default=None)
     """Dataset name."""
 
@@ -435,6 +457,8 @@ class EvalDataset(BaseModel):
 
 
 class EvalRevision(BaseModel):
+    """Git revision for evaluation."""
+
     type: Literal["git"]
     """Type of revision (currently only "git")"""
 
@@ -446,6 +470,8 @@ class EvalRevision(BaseModel):
 
 
 class EvalSpec(BaseModel):
+    """Eval target and configuration."""
+
     run_id: str = Field(default_factory=str)
     """Unique run id"""
 
@@ -549,6 +575,8 @@ def rich_traceback(
 
 
 class EvalStats(BaseModel):
+    """Timing and usage statistics."""
+
     started_at: str = Field(default_factory=str)
     """Evaluation start time."""
 
@@ -563,6 +591,8 @@ class EvalStats(BaseModel):
 
 
 class EvalLog(BaseModel):
+    """Evaluation log."""
+
     # WARNING: The order of these fields is important for the log file format.
     # Do not change the order of these fields without incrementing the version number,
     # updating the log file read/write functionality (such as read_eval_log),
@@ -578,13 +608,13 @@ class EvalLog(BaseModel):
     eval: EvalSpec
     """Eval identity and configuration."""
 
-    plan: EvalPlan = Field(default=EvalPlan())
+    plan: EvalPlan = Field(default_factory=EvalPlan)
     """Eval plan (solvers and config)"""
 
     results: EvalResults | None = None
     """Eval results (scores and metrics)."""
 
-    stats: EvalStats = Field(default=EvalStats())
+    stats: EvalStats = Field(default_factory=EvalStats)
     """Eval stats (runtime, model usage)"""
 
     error: EvalError | None = Field(default=None)

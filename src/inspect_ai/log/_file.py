@@ -23,6 +23,8 @@ logger = getLogger(__name__)
 
 
 class EvalLogInfo(FileInfo):
+    """File and task identifiers for eval log."""
+
     task: str
     """Task name."""
 
@@ -241,7 +243,7 @@ def read_eval_log(
     Args:
        log_file (str | FileInfo): Log file to read.
        header_only (bool): Read only the header (i.e. exclude
-         the "samples" and "logging" fields). Defaults to False.
+          the "samples" and "logging" fields). Defaults to False.
        resolve_attachments (bool): Resolve attachments (e.g. images)
           to their full content.
        format (Literal["eval", "json", "auto"]): Read from format

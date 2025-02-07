@@ -12,11 +12,12 @@ if "reference/inspect_ai" not in input_files:
 # register reference docs (this defines their sidebar order)
 reference_docs = [f"reference/inspect_ai.{doc}" for doc in [
     "solver.qmd",
-    "scorer.qmd",
     "tool.qmd",
+    "scorer.qmd",
     "model.qmd",
     "dataset.qmd",
     "approval.qmd",
+    "log.qmd",
     "util.qmd"
 ]]
 
