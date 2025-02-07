@@ -1,13 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- Add support for clustered standard error in `stderr` using the `cluster` parameter.
+- Metrics now take `list[SampleScore]` rather than `list[Score]` (previous signature is deprecated but still works with a warning).
+
 ## v0.3.63 (07 February 2025)
 
 - Add [OpenRouter](https://inspect.ai-safety-institute.org.uk/providers.html#openrouter) model provider.
 - Inspect View: Convert codebase from JS/Preact to Typescript/React
 - Add `shuffle_choices` to dataset and dataset loading funtions. Deprecate `shuffle` parameter to the `multiple_choice` solver.
 - Add `stop_words` param to the `f1` scorer. `stop_words` will be removed from the target and answer during normalization.
-- Add support for clustered standard error in `stderr` using the `cluster` parameter.
-- Metrics now take `list[SampleScore]` rather than `list[Score]`. Custom metrics now print a deprecation warning advising the adoption of the new signature.
 - Tools: Handle return of empty list from tool calls.
 - Computer: Moved out of beta (i.e. from `inspect_ai.tool.beta` into `inspect_ai.tool`).
 - Sandboxes: Docker now uses `tee` for write_file operations.
