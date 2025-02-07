@@ -1,0 +1,40 @@
+.tabs {
+  align-items: space-between;
+}
+
+.tabContents {
+  flex: 1;
+  overflow-y: hidden;
+}
+
+.tabContents.scrollable {
+  overflow-y: auto;
+}
+
+.tab {
+  color: "var(--bs-body-color)";
+  padding: 0.25rem 0.5rem;
+  border-top-left-radius: var(--bs-border-radius);
+  border-top-right-radius: var(--bs-border-radius);
+  font-weight: 500;
+  margin-top: 2px;
+  margin-bottom: -1px;
+}
+
+.tabItem {
+  align-self: end;
+}
+
+.tabIcon {
+  margin-right: 0.5em;
+}
+
+.tabTools {
+  flex-basis: auto;
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  justify-content: end;
+  flex-wrap: wrap;
+  row-gap: 0.3rem;
+}

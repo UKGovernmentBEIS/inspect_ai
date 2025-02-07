@@ -7,6 +7,8 @@ from inspect_ai._util.content import Content, ContentText
 from inspect_ai.tool import ToolCall
 from inspect_ai.tool._tool_call import ToolCallError
 
+from ._reasoning import parse_content_with_reasoning
+
 logger = getLogger(__name__)
 
 
@@ -82,6 +84,31 @@ class ChatMessageAssistant(ChatMessageBase):
 
     tool_calls: list[ToolCall] | None = Field(default=None)
     """Tool calls made by the model."""
+
+    reasoning: str | None = Field(default=None)
+    """Reasoning content."""
+
+    # Some OpenAI compatible REST endpoints include reasoning as a field alongside
+    # content, however since this field doesn't exist in the OpenAI interface,
+    # hosting providers (so far we've seen this with Together and Groq) may
+    # include the reasoning in a <think></think> tag before the main response.
+    # We expect this pattern to be repeated elsewhere, so include this hook to
+    # automatically extract the reasoning content when the response is prefaced
+    # with a <think> block. If this ends up being an overeach we can fall back
+    # to each provider manually parsing out <think> using a helper function.
+    # The implementation isn't important here, the critical thing to establish
+    # is that Inspect makes reasoning content available separately.
+    @model_validator(mode="before")
+    @classmethod
+    def extract_reasoning(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            content = data.get("content", None)
+            if isinstance(content, str):
+                parsed = parse_content_with_reasoning(content)
+                if parsed:
+                    data["reasoning"] = parsed.reasoning
+                    data["content"] = parsed.content
+        return data
 
 
 class ChatMessageTool(ChatMessageBase):

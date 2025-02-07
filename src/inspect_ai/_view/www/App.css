@@ -9,12 +9,27 @@
   --inspect-input-border: var(--bs-light-border-subtle);
   --inspect-diff-add-color: #dafbe1;
   --inspect-diff-remove-color: #ffebe9;
-  --inspect-inactive-selection-background: var(--vscode-editor-inactiveSelectionBackground, #d9d9d9);
-  --inspect-active-selection-background: var(--vscode-editor-selectionBackground, #d7d4f0);
+  --inspect-inactive-selection-background: var(
+    --vscode-editor-inactiveSelectionBackground,
+    #d9d9d9
+  );
+  --inspect-active-selection-background: var(
+    --vscode-editor-selectionBackground,
+    #d7d4f0
+  );
   --inspect-focus-border-color: #86b7fe;
   --inspect-focus-border-shadow: 0 0 0 0.25rem rgba(var(--bs-primary-rgb), 0.25);
   --inspect-focus-border-gray-color: #808080;
   --inspect-focus-border-gray-shadow: 0 0 0 0.25rem rgba(48, 48, 48, 0.25);
+
+  /* Inspect Font Sizes */
+  --inspect-font-size-title: 1.5rem;
+  --inspect-font-size-title-secondary: 1.3rem;
+  --inspect-font-size-larger: 1.1rem;
+  --inspect-font-size-large: 1rem;
+  --inspect-font-size-base: 0.9rem;
+  --inspect-font-size-small: 0.8rem;
+  --inspect-font-size-smaller: 0.8rem;
 }
 
 body:not([class^="vscode-"]) button {
@@ -45,6 +60,61 @@ body:not([class^="vscode-"]) button {
 
 body[class^="vscode-"] .app-main-grid {
   grid-template-rows: max-content max-content 1fr;
+}
+
+/* Inspect Text Styles */
+.text-style-label {
+  text-transform: uppercase;
+}
+
+.text-style-secondary {
+  color: var(--bs-secondary);
+}
+
+.text-style-tertiary {
+  color: var(--bs-tertiary-color);
+}
+
+/* Inspect Font Size Styles */
+.text-size-title {
+  font-size: var(--inspect-font-size-title);
+}
+
+.text-size-title-secondary {
+  font-size: var(--inspect-font-size-title-secondary);
+}
+
+.text-size-larger {
+  font-size: var(--inspect-font-size-larger);
+}
+
+.text-size-large {
+  font-size: var(--inspect-font-size-large);
+}
+
+.text-size-base {
+  font-size: var(--inspect-font-size-base);
+}
+
+.text-size-small {
+  font-size: var(--inspect-font-size-small);
+}
+
+.text-size-smaller {
+  font-size: var(--inspect-font-size-smaller);
+}
+
+.text-truncate {
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+}
+
+.three-line-clamp {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 body[class^="vscode-"] {
@@ -87,7 +157,7 @@ html.vscode {
 
 html.vscode .sample-input {
   line-height: 1.3em;
-  -webkit-line-clamp: 4 !important
+  -webkit-line-clamp: 4 !important;
 }
 
 body[class^="vscode-"] .modal-backdrop {
@@ -276,7 +346,7 @@ body {
 }
 
 @media (max-width: 575px) {
-  .tab-tools  select {
+  .tab-tools select {
     width: 50px;
   }
 }
@@ -310,12 +380,6 @@ body {
 
 #sidebarToggle > i.bi {
   font-size: 1.5em;
-}
-
-.sidebar {
-  --bs-offcanvas-width: var(--sidebar-width);
-  width: var(--sidebar-width);
-  overflow-y: auto;
 }
 
 .nav-link.active {
@@ -644,7 +708,7 @@ table.table.table-sm td {
 
 .tab-tools .btn {
   font-size: 0.7rem;
-  padding: 0.4em 0.8em;
+  padding: 0.2em 0.8em;
 }
 
 .tab-tools {
@@ -724,7 +788,7 @@ table.table.table-sm td {
 }
 
 @keyframes moveLeftToRight {
-from {
+  from {
     margin-left: 0;
   }
   to {
@@ -759,7 +823,6 @@ pre[class*="language-"].tool-output {
 }
 
 /* lightbox styles */
-
 
 .lightbox-overlay .close-button,
 .lightbox-overlay .nav-button {
@@ -868,38 +931,38 @@ ul.jsondiffpatch-delta {
   vertical-align: top;
 }
 .jsondiffpatch-property-name:after {
-  content: ': ';
+  content: ": ";
 }
 .jsondiffpatch-child-node-type-array > .jsondiffpatch-property-name:after {
-  content: ': [';
+  content: ": [";
 }
 .jsondiffpatch-child-node-type-array:after {
-  content: '],';
+  content: "],";
 }
 div.jsondiffpatch-child-node-type-array:before {
-  content: '[';
+  content: "[";
 }
 div.jsondiffpatch-child-node-type-array:after {
-  content: ']';
+  content: "]";
 }
 .jsondiffpatch-child-node-type-object > .jsondiffpatch-property-name:after {
-  content: ': {';
+  content: ": {";
 }
 .jsondiffpatch-child-node-type-object:after {
-  content: '},';
+  content: "},";
 }
 div.jsondiffpatch-child-node-type-object:before {
-  content: '{';
+  content: "{";
 }
 div.jsondiffpatch-child-node-type-object:after {
-  content: '}';
+  content: "}";
 }
 .jsondiffpatch-value pre:after {
-  content: ',';
+  content: ",";
 }
 li:last-child > .jsondiffpatch-value pre:after,
 .jsondiffpatch-modified > .jsondiffpatch-left-value pre:after {
-  content: '';
+  content: "";
 }
 .jsondiffpatch-modified .jsondiffpatch-value {
   display: inline-block;
@@ -916,7 +979,7 @@ li:last-child > .jsondiffpatch-value pre:after,
   color: #888;
 }
 .jsondiffpatch-moved .jsondiffpatch-moved-destination:before {
-  content: ' => ';
+  content: " => ";
 }
 ul.jsondiffpatch-textdiff {
   padding: 0;
@@ -930,7 +993,7 @@ ul.jsondiffpatch-textdiff {
   display: inline-block;
 }
 .jsondiffpatch-textdiff-line-number:after {
-  content: ',';
+  content: ",";
 }
 .jsondiffpatch-error {
   background: red;
@@ -976,14 +1039,14 @@ ul.jsondiffpatch-textdiff {
   padding: 1em;
   margin: 0.5em 0;
   overflow: auto;
-  border: 0.3em solid #7a6651;
+  /* border: 0.3em solid #7a6651; */
   border-radius: 0.5em;
   box-shadow: 1px 1px 0.5em #000 inset;
 }
 .vscode-dark :not(pre) > code[class*="language-"] {
   padding: 0.15em 0.2em 0.05em;
   border-radius: 0.3em;
-  border: 0.13em solid #7a6651;
+  /* border: 0.13em solid #7a6651; */
   box-shadow: 1px 1px 0.3em -0.1em #000 inset;
   white-space: normal;
 }

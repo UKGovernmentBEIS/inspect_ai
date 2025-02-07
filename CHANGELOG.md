@@ -2,10 +2,42 @@
 
 ## Unreleased
 
+- Add support for [clustered standard errors](https://inspect.ai-safety-institute.org.uk/scorers.html#clustered-standard-errors) via a new `cluster` parameter for the `stderr()` metric.
+- Metrics now take `list[SampleScore]` rather than `list[Score]` (previous signature is deprecated but still works with a warning).
+
+## v0.3.63 (07 February 2025)
+
+- Add [OpenRouter](https://inspect.ai-safety-institute.org.uk/providers.html#openrouter) model provider.
+- Inspect View: Convert codebase from JS/Preact to Typescript/React
+- Add `shuffle_choices` to dataset and dataset loading funtions. Deprecate `shuffle` parameter to the `multiple_choice` solver.
+- Add `stop_words` param to the `f1` scorer. `stop_words` will be removed from the target and answer during normalization.
+- Tools: Handle return of empty list from tool calls.
+- Computer: Moved out of beta (i.e. from `inspect_ai.tool.beta` into `inspect_ai.tool`).
+- Sandboxes: Docker now uses `tee` for write_file operations.
+- Inspect View: Handle Zip64 zip files (for log files greater than 4GB)
+- Bugfix: Change `type` parameter of `answer()` to `pattern` to address registry serialisation error.
+- Bugfix: Restore printing of request payloads for 400 errors from Anthropic.
+- Bugfix: Log transcript event for solver provided scores (improves log viewer display of solver scoring)
+
+## v0.3.62 (03 February 2025)
+
+- Various improvements for [reasoning models](https://github.com/UKGovernmentBEIS/inspect_ai/pull/1229) including extracting reasoning content from assistant messages.
+- OpenAI: Handle `reasoning_effort`, `max_tokens`, `temperature`, and `parallel_tool_calls` correctly for o3 models.
+- OpenAI: Map some additional 400 status codes to `content_filter` stop reason.
+- Anthropic: Handle 413 status code (Payload Too Large) and map to `model_length` StopReason.
+- Tasks: Log sample with error prior to raising task-ending exception.
+- Python: Enhance prompt to emphasise that it is a script rather than a notebook.
+- Computer: Various improvements to image including desktop, python, and VS Code configuration.
+- Bugfix: Don't download full log from S3 for header_only reads.
+
+## v0.3.61 (31 January 2025)
+
 - Computer: Enable viewing computer tool's remote mouse cursor via VNC.
 - Computer: Disable lock screen on from computer tool reference image.
+- Limits: Amend `SampleLimitExceededError` with current `state` so that messages, etc. are preserved when limits are hit.
 - Tools: Properly handle image dispatching when multiple tool calls are made by assistant.
 - Anthropic: Raise error on 400 status not identified as model_length or content_filter.
+- Basic Agent: `incorrect_message` can now optionally be an async function.
 - Bugfix: Remove `suffix` from `eval-set` CLI args.
 - Bugfix: Only catch `Exception` from sandboxenv_init (allow cancelled to propagate)
 

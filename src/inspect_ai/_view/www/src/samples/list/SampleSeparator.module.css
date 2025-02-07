@@ -1,0 +1,6 @@
+.row {
+  padding: 0.25em 1em 0.25em 1em;
+  text-transform: uppercase;
+  font-weight: 600;
+  border-bottom: solid 1px var(--bs-border-color);
+}

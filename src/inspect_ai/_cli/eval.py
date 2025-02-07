@@ -386,6 +386,14 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         envvar="INSPECT_EVAL_REASONING_EFFORT",
     )
     @click.option(
+        "--reasoning-history/--no-reasoning-history",
+        type=bool,
+        is_flag=True,
+        default=True,
+        help="Include reasoning in chat message history sent to generate.",
+        envvar="INSPECT_EVAL_REASONING_HISTORY",
+    )
+    @click.option(
         "--log-format",
         type=click.Choice(["eval", "json"], case_sensitive=False),
         envvar=["INSPECT_LOG_FORMAT", "INSPECT_EVAL_LOG_FORMAT"],
@@ -444,6 +452,7 @@ def eval_command(
     max_tool_output: int | None,
     cache_prompt: str | None,
     reasoning_effort: str | None,
+    reasoning_history: bool | None,
     message_limit: int | None,
     token_limit: int | None,
     time_limit: int | None,
@@ -603,6 +612,7 @@ def eval_set_command(
     max_tool_output: int | None,
     cache_prompt: str | None,
     reasoning_effort: str | None,
+    reasoning_history: bool | None,
     message_limit: int | None,
     token_limit: int | None,
     time_limit: int | None,
@@ -839,6 +849,9 @@ def config_from_locals(locals: dict[str, Any]) -> GenerateConfigArgs:
                 if value is not False:
                     value = None
             if key == "internal_tools":
+                if value is not False:
+                    value = None
+            if key == "reasoning_history":
                 if value is not False:
                     value = None
             config[key] = value  # type: ignore

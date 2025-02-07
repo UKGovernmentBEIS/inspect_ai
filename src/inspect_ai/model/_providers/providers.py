@@ -16,7 +16,7 @@ from .._registry import modelapi
 def groq() -> type[ModelAPI]:
     FEATURE = "Groq API"
     PACKAGE = "groq"
-    MIN_VERSION = "0.11.0"
+    MIN_VERSION = "0.16.0"
 
     # verify we have the package
     try:
@@ -196,6 +196,17 @@ def ollama() -> type[ModelAPI]:
     from .ollama import OllamaAPI
 
     return OllamaAPI
+
+
+@modelapi(name="openrouter")
+def openrouter() -> type[ModelAPI]:
+    # validate
+    validate_openai_client("OpenRouter API")
+
+    # in the clear
+    from .openrouter import OpenRouterAPI
+
+    return OpenRouterAPI
 
 
 @modelapi(name="llama-cpp-python")

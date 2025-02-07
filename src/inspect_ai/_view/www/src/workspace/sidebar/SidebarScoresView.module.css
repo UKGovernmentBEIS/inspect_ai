@@ -1,0 +1,35 @@
+.container {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  row-gap: 1em;
+}
+
+.scoreWrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-left: 1em;
+}
+
+.metricName {
+  width: 100%;
+  font-weight: 300;
+  border-bottom: solid var(--bs-border-color) 1px;
+}
+
+.metricReducer {
+  width: 100%;
+  font-weight: 300;
+}
+
+.metricValues {
+  display: grid;
+  grid-template-columns: max-content max-content;
+  grid-gap: 0 0.3rem;
+}
+
+.metricValue {
+  font-weight: 600;
+}

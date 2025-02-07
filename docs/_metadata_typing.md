@@ -22,7 +22,7 @@ dataset = json_dataset(
 )
 ```
 
-To read metadata in a typesafe fashion, us the `metadata_as()` method on `Sample` or `TaskState`:
+To read metadata in a typesafe fashion, use the `metadata_as()` method on `Sample` or `TaskState`:
 
 ```python
 metadata = state.metadata_as(PopularityMetadata)

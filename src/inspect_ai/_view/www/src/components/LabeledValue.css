@@ -1,0 +1,20 @@
+.labeled-value-label {
+  font-size: var(--inspect-font-size-smaller);
+  margin-bottom: -0.2rem;
+}
+
+.labeled-value-value {
+  font-size: var(--inspect-font-size-base);
+}
+
+.labeled-value {
+  display: "flex";
+}
+
+.labeled-value .row {
+  flex-direction: row;
+}
+
+.labeled-value .column {
+  flex-direction: column;
+}

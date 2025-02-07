@@ -1,0 +1,95 @@
+.carousel-thumbs {
+  display: grid;
+  grid-template-columns: auto auto auto auto;
+}
+
+.carousel-thumb {
+  background: black;
+  color: white;
+  padding: 4em 0;
+  border: 0;
+  margin: 5px;
+  cursor: pointer;
+  text-align: center;
+}
+
+.carousel-play-icon {
+  font-size: 4em;
+}
+
+.lightbox-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9998;
+}
+
+.lightbox-content.open,
+.lightbox-overlay.open {
+  opacity: 1;
+  visibility: visible;
+}
+
+.lightbox-content.closed,
+.lightbox-overlay.closed {
+  opacity: 0;
+  visibility: hidden;
+}
+
+.lightbox-button-close-wrapper {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+}
+
+.lightbox-button-close {
+  border: none;
+  background: none;
+  color: #fff;
+  font-size: 3em;
+  font-weight: 500;
+  cursor: pointer;
+  padding-left: 1em;
+  padding-bottom: 1em;
+  z-index: 10000;
+}
+
+.lightbox-preview-button {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  color: #fff;
+  border: none;
+  padding: 0.5em;
+  font-size: 3em;
+  cursor: pointer;
+  z-index: 9999;
+}
+
+.lightbox-preview-button.next {
+  left: 10px;
+}
+
+.lightbox-preview-button.prev {
+  right: 10px;
+}
+
+.lightbox-content {
+  max-width: 90%;
+  max-height: 90%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  transition:
+    opacity 0.3s ease,
+    visibility 0.3s ease;
+  z-index: 9999;
+}

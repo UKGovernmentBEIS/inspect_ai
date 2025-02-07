@@ -75,9 +75,9 @@ from inspect_ai.scorer._scorer import unique_scorer_name
 from inspect_ai.solver import Generate, Plan, TaskState
 from inspect_ai.solver._chain import Chain, unroll
 from inspect_ai.solver._fork import set_task_generate
+from inspect_ai.solver._limit import SampleLimitExceededError
 from inspect_ai.solver._solver import Solver
 from inspect_ai.solver._task_state import sample_state, set_sample_state, state_jsonable
-from inspect_ai.util._limit import SampleLimitExceededError
 from inspect_ai.util._sandbox.context import sandbox_connections
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
 from inspect_ai.util._subtask import init_subtask
@@ -496,7 +496,7 @@ async def task_run_sample(
     logger: TaskLogger | None,
     log_images: bool,
     sample_source: EvalSampleSource | None,
-    sample_error: Callable[[BaseException], EvalError],
+    sample_error: SampleErrorHandler,
     sample_complete: Callable[[dict[str, SampleScore]], None],
     fails_on_error: bool,
     time_limit: int | None,
@@ -519,6 +519,7 @@ async def task_run_sample(
                     key: SampleScore(
                         score=score,
                         sample_id=previous_sample.id,
+                        sample_metadata=previous_sample.metadata,
                     )
                     for key, score in previous_sample.scores.items()
                 }
@@ -548,12 +549,12 @@ async def task_run_sample(
     )
 
     # helper to handle exceptions (will throw if we've exceeded the limit)
-    def handle_error(ex: BaseException) -> EvalError:
+    def handle_error(ex: BaseException) -> tuple[EvalError, BaseException | None]:
         err = sample_error(ex)
         py_logger.warning(
             f"Sample error (id: {sample.id}, epoch: {state.epoch}): {exception_message(ex)})"
         )
-        transcript()._event(ErrorEvent(error=err))
+        transcript()._event(ErrorEvent(error=err[0]))
         return err
 
     # solver loop
@@ -572,6 +573,7 @@ async def task_run_sample(
         ) as active,
     ):
         error: EvalError | None = None
+        raise_error: BaseException | None = None
         results: dict[str, SampleScore] = {}
         try:
             async with sandboxenv_cm:
@@ -640,7 +642,7 @@ async def task_run_sample(
                                 state = sample_state() or state
                             case "error":
                                 # default error handling
-                                error = handle_error(ex)
+                                error, raise_error = handle_error(ex)
 
                     else:
                         raise
@@ -656,11 +658,11 @@ async def task_run_sample(
                     )
 
                     # capture most recent state for scoring
-                    state = sample_state() or state
+                    state = ex.state or sample_state() or state
                     state.completed = True
 
                 except BaseException as ex:
-                    error = handle_error(ex)
+                    error, raise_error = handle_error(ex)
 
                 # set timeout for scoring. if the original timeout was hit we still
                 # want to provide opportunity for scoring, but we don't necessarily
@@ -695,6 +697,7 @@ async def task_run_sample(
                                         sample_score = SampleScore(
                                             score=score_result,
                                             sample_id=sample.id,
+                                            sample_metadata=sample.metadata,
                                             scorer=registry_unqualified_name(scorer),
                                         )
                                         transcript()._event(
@@ -708,7 +711,12 @@ async def task_run_sample(
                             if state.scores is not None:
                                 for name, score in state.scores.items():
                                     results[name] = SampleScore(
-                                        score=score, sample_id=state.sample_id
+                                        score=score,
+                                        sample_id=state.sample_id,
+                                        sample_metadata=state.metadata,
+                                    )
+                                    transcript()._event(
+                                        ScoreEvent(score=score, target=sample.target)
                                     )
 
                             # propagate results into scores
@@ -737,11 +745,10 @@ async def task_run_sample(
                         )
 
                     # handle error (this will throw if we've exceeded the limit)
-                    error = handle_error(ex)
+                    error, raise_error = handle_error(ex)
 
-        # handle sandboxenv init errors
         except Exception as ex:
-            error = handle_error(ex)
+            error, raise_error = handle_error(ex)
 
         # complete the sample
         progress(SAMPLE_TOTAL_PROGRESS_UNITS)
@@ -772,6 +779,8 @@ async def task_run_sample(
             if results is not None:
                 sample_complete(results)
             return results
+        elif raise_error:
+            raise raise_error
         else:
             return None
 

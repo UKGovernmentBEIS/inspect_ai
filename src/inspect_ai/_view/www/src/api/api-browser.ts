@@ -1,7 +1,7 @@
-import { Capabilities } from "../Types.mjs";
+import { Capabilities } from "../types";
 import { asyncJsonParse } from "../utils/json-worker";
 import { download_file } from "./api-shared";
-import { LogContents, LogViewAPI } from "./Types";
+import { LogContents, LogViewAPI } from "./types";
 
 const loaded_time = Date.now();
 let last_eval_time = 0;

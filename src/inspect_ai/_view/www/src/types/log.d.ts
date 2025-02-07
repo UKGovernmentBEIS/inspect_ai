@@ -70,7 +70,6 @@ export type LogitBias = {
   [k: string]: number;
 } | null;
 export type Seed = number | null;
-export type Suffix = string | null;
 export type TopK = number | null;
 export type NumChoices = number | null;
 export type Logprobs = boolean | null;
@@ -80,6 +79,7 @@ export type InternalTools = boolean | null;
 export type MaxToolOutput = number | null;
 export type CachePrompt = "auto" | boolean | null;
 export type ReasoningEffort = ("low" | "medium" | "high") | null;
+export type ReasoningHistory = boolean | null;
 export type TotalSamples = number;
 export type CompletedSamples = number;
 export type Name3 = string;
@@ -133,7 +133,7 @@ export type Content1 =
   | (ContentText | ContentImage | ContentAudio | ContentVideo)[];
 export type Source1 = ("input" | "generate") | null;
 export type Role1 = "user";
-export type ToolCallId = string | null;
+export type ToolCallId = string[] | null;
 export type Content2 =
   | string
   | (ContentText | ContentImage | ContentAudio | ContentVideo)[];
@@ -147,6 +147,7 @@ export type ParseError = string | null;
 export type Title = string | null;
 export type Format2 = "text" | "markdown";
 export type Content3 = string;
+export type Reasoning = string | null;
 export type Content4 =
   | string
   | (ContentText | ContentImage | ContentAudio | ContentVideo)[];
@@ -323,6 +324,7 @@ export type Event10 = "logger";
 export type Name7 = string | null;
 export type Level =
   | "debug"
+  | "trace"
   | "http"
   | "sandbox"
   | "info"
@@ -547,7 +549,6 @@ export interface GenerateConfig {
   presence_penalty: PresencePenalty;
   logit_bias: LogitBias;
   seed: Seed;
-  suffix: Suffix;
   top_k: TopK;
   num_choices: NumChoices;
   logprobs: Logprobs;
@@ -557,6 +558,7 @@ export interface GenerateConfig {
   max_tool_output: MaxToolOutput;
   cache_prompt: CachePrompt;
   reasoning_effort: ReasoningEffort;
+  reasoning_history: ReasoningHistory;
 }
 export interface EvalResults {
   total_samples: TotalSamples;
@@ -658,6 +660,7 @@ export interface ChatMessageAssistant {
   source: Source2;
   role: Role2;
   tool_calls: ToolCalls;
+  reasoning: Reasoning;
 }
 export interface ToolCall {
   id: Id1;
@@ -901,7 +904,6 @@ export interface GenerateConfig1 {
   presence_penalty: PresencePenalty;
   logit_bias: LogitBias;
   seed: Seed;
-  suffix: Suffix;
   top_k: TopK;
   num_choices: NumChoices;
   logprobs: Logprobs;
@@ -911,6 +913,7 @@ export interface GenerateConfig1 {
   max_tool_output: MaxToolOutput;
   cache_prompt: CachePrompt;
   reasoning_effort: ReasoningEffort;
+  reasoning_history: ReasoningHistory;
 }
 /**
  * Model call (raw request/response data).
