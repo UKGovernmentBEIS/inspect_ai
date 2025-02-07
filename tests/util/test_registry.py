@@ -7,7 +7,8 @@ from inspect_ai._util.registry import (
     registry_lookup,
     registry_value,
 )
-from inspect_ai.scorer import Metric, Score, metric
+from inspect_ai.scorer import Metric, metric
+from inspect_ai.scorer._metric import SampleScore
 from inspect_ai.solver import Plan, Solver, solver, use_tools
 from inspect_ai.tool import Tool, bash
 
@@ -16,7 +17,7 @@ def test_registry_namespaces() -> None:
     # define a local metric which we can lookup by simple name
     @metric(name="local_accuracy")
     def accuracy1(correct: str = "C") -> Metric:
-        def metric(scores: list[Score]) -> int | float:
+        def metric(scores: list[SampleScore]) -> int | float:
             return 1
 
         return metric
