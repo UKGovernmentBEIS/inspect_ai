@@ -1,12 +1,4 @@
 
-::: {.callout-note appearance="simple"}
-The choice shuffling features below is currently available only in the development version of Inspect. To install the development version from GitHub:
-
-``` bash
-pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-```
-:::
-
 
 When working with datasets that contain multiple-choice options, you can randomize the order of these choices during data loading. The shuffling operation automatically updates any corresponding target values to maintain correct answer mappings.
 

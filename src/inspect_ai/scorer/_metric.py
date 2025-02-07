@@ -125,6 +125,9 @@ class SampleScore(BaseModel):
     sample_id: str | int | None = Field(default=None)
     """A sample id"""
 
+    sample_metadata: dict[str, Any] | None = Field(default=None)
+    """Metadata from the sample"""
+
     scorer: str | None = Field(default=None)
     """Registry name of scorer that created this score."""
 
@@ -188,17 +191,34 @@ def value_to_float(
 
 
 @runtime_checkable
-class Metric(Protocol):
+class MetricDeprecated(Protocol):
     r"""Evaluate scores using a metric.
 
     Args:
-        scores (list[Score]): List of scores.
+        scores (list[SampleScore]): List of sample scores.
 
     Returns:
         Metric value
     """
 
     def __call__(self, scores: list[Score]) -> Value: ...
+
+
+@runtime_checkable
+class MetricProtocol(Protocol):
+    r"""Evaluate sample scores using a metric.
+
+    Args:
+        scores (list[SampleScore]): List of scores.
+
+    Returns:
+        Metric value
+    """
+
+    def __call__(self, scores: list[SampleScore]) -> Value: ...
+
+
+Metric = MetricDeprecated | MetricProtocol
 
 
 P = ParamSpec("P")
