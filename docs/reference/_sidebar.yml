@@ -137,6 +137,65 @@ website:
         href: reference/inspect_ai.tool.qmd#toolfunction
       - text: tool
         href: reference/inspect_ai.tool.qmd#tool
+    - section: inspect_ai.model
+      href: reference/inspect_ai.model.qmd
+      contents:
+      - text: get_model
+        href: reference/inspect_ai.model.qmd#get_model
+      - text: Model
+        href: reference/inspect_ai.model.qmd#model
+      - text: GenerateConfig
+        href: reference/inspect_ai.model.qmd#generateconfig
+      - text: ModelOutput
+        href: reference/inspect_ai.model.qmd#modeloutput
+      - text: ModelUsage
+        href: reference/inspect_ai.model.qmd#modelusage
+      - text: StopReason
+        href: reference/inspect_ai.model.qmd#stopreason
+      - text: ChatCompletionChoice
+        href: reference/inspect_ai.model.qmd#chatcompletionchoice
+      - text: ChatMessage
+        href: reference/inspect_ai.model.qmd#chatmessage
+      - text: ChatMessageSystem
+        href: reference/inspect_ai.model.qmd#chatmessagesystem
+      - text: ChatMessageUser
+        href: reference/inspect_ai.model.qmd#chatmessageuser
+      - text: ChatMessageAssistant
+        href: reference/inspect_ai.model.qmd#chatmessageassistant
+      - text: ChatMessageTool
+        href: reference/inspect_ai.model.qmd#chatmessagetool
+      - text: Content
+        href: reference/inspect_ai.model.qmd#content
+      - text: ContentText
+        href: reference/inspect_ai.model.qmd#contenttext
+      - text: ContentImage
+        href: reference/inspect_ai.model.qmd#contentimage
+      - text: ContentAudio
+        href: reference/inspect_ai.model.qmd#contentaudio
+      - text: ContentVideo
+        href: reference/inspect_ai.model.qmd#contentvideo
+      - text: Logprob
+        href: reference/inspect_ai.model.qmd#logprob
+      - text: Logprobs
+        href: reference/inspect_ai.model.qmd#logprobs
+      - text: TopLogprob
+        href: reference/inspect_ai.model.qmd#toplogprob
+      - text: CachePolicy
+        href: reference/inspect_ai.model.qmd#cachepolicy
+      - text: cache_size
+        href: reference/inspect_ai.model.qmd#cache_size
+      - text: cache_clear
+        href: reference/inspect_ai.model.qmd#cache_clear
+      - text: cache_list_expired
+        href: reference/inspect_ai.model.qmd#cache_list_expired
+      - text: cache_prune
+        href: reference/inspect_ai.model.qmd#cache_prune
+      - text: cache_path
+        href: reference/inspect_ai.model.qmd#cache_path
+      - text: modelapi
+        href: reference/inspect_ai.model.qmd#modelapi
+      - text: ModelAPI
+        href: reference/inspect_ai.model.qmd#modelapi
     - section: inspect_ai.dataset
       href: reference/inspect_ai.dataset.qmd
       contents:

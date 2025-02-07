@@ -115,7 +115,7 @@ def parse_class_docs(clz: Class, options: DocParseOptions) -> DocObject:
                     type=str(member.annotation.modernize()),
                     description=member.docstring.value
                 ))
-            elif isinstance(member, Function):
+            elif isinstance(member, Function) and not member.name.startswith("_"):
                 methods.append(parse_function_docs(member, options))
 
         # return as a class

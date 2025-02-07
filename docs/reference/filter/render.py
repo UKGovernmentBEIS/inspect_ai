@@ -59,18 +59,24 @@ def render_methods(methods: list[DocFunction]) -> pf.Table:
     )
 
 def render_method_definition_item(method: DocFunction) -> pf.DefinitionItem:
+    
     return pf.DefinitionItem(
         [pf.Code(method.name)], 
         [pf.Definition(
             pf.RawBlock(method.description, format="markdown"), 
-            pf.CodeBlock(dedent(method.declaration), classes=["python"])
+            pf.CodeBlock(dedent(method.declaration), classes=["python"]),
+            render_params(method.parameters)
         )]
     ) 
 
 
 
-def render_params(params: list[DocParameter]) -> pf.Table:
-    return render_element_table(render_header("Argument", "Description"), params)
+def render_params(params: list[DocParameter]) -> pf.Table | pf.Div:
+    if len(params) > 0:
+        return render_element_table(render_header("Argument", "Description"), params)
+    else:
+        return pf.Div()
+  
    
 def render_element_table(head: pf.TableHead, elements: list[DocAttribute] | list[DocParameter]) -> pf.Table:
     return pf.Table(

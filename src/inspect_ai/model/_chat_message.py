@@ -66,11 +66,15 @@ class ChatMessageBase(BaseModel):
 
 
 class ChatMessageSystem(ChatMessageBase):
+    """System chat message."""
+
     role: Literal["system"] = Field(default="system")
     """Conversation role."""
 
 
 class ChatMessageUser(ChatMessageBase):
+    """User chat message."""
+
     role: Literal["user"] = Field(default="user")
     """Conversation role."""
 
@@ -79,6 +83,8 @@ class ChatMessageUser(ChatMessageBase):
 
 
 class ChatMessageAssistant(ChatMessageBase):
+    """Assistant chat message."""
+
     role: Literal["assistant"] = Field(default="assistant")
     """Conversation role."""
 
@@ -112,6 +118,8 @@ class ChatMessageAssistant(ChatMessageBase):
 
 
 class ChatMessageTool(ChatMessageBase):
+    """Tool chat message."""
+
     role: Literal["tool"] = Field(default="tool")
     """Conversation role."""
 

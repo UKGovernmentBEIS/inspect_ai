@@ -14,6 +14,7 @@ reference_docs = [f"reference/inspect_ai.{doc}" for doc in [
     "solver.qmd",
     "scorer.qmd",
     "tool.qmd",
+    "model.qmd",
     "dataset.qmd",
     "approval.qmd",
     "util.qmd"
