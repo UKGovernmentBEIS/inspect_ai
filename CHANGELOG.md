@@ -8,6 +8,7 @@
 - Add `stop_words` param to the `f1` scorer. `stop_words` will be removed from the target and answer during normalization.
 - Tools: Handle return of empty list from tool calls.
 - Sandboxes: Docker now uses `tee` for write_file operations.
+- Inspect View: Handle Zip64 zip files (for log files greater than 4GB)
 - Bugfix: Change `type` parameter of `answer()` to `pattern` to address registry serialisation error.
 - Bugfix: Restore printing of request payloads for 400 errors from Anthropic.
 - Bugfix: Log transcript event for solver provided scores (improves log viewer display of solver scoring)
