@@ -24,10 +24,13 @@ def main():
     def reference(elem: pf.Element, doc: pf.Doc):
         if isinstance(elem, pf.Header) and elem.level == 3:
             title = pf.stringify(doc.metadata["title"])
-            if title.startswith("inspect_ai."):
-                # get target object
-                module = title.removeprefix("inspect_ai.")
-                object = f"{module}.{pf.stringify(elem.content)}"
+            if title.startswith("inspect_ai"):
+                if title.startswith("inspect_ai."):
+                    # get target object
+                    module = title.removeprefix("inspect_ai.")
+                    object = f"{module}.{pf.stringify(elem.content)}"
+                else:
+                    object = pf.stringify(elem.content)
 
                 # parse docs
                 docs = parse_docs(object, parse_options)

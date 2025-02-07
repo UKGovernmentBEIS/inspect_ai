@@ -134,7 +134,7 @@ def parse_class_docs(clz: Class, options: DocParseOptions) -> DocObject:
     
 def include_function(function: Function) -> bool:
     # skip private
-    if function.name.startswith("_"):
+    if function.name.startswith("_") and not function.name.startswith("__init__"):
         return False
     
     # skip pydantic validators

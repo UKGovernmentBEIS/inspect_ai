@@ -4,8 +4,29 @@ website:
     style: docked
     collapse-level: 1
     contents:
-    - text: Reference
-      href: reference/index.qmd
+    - section: inspect_ai
+      href: reference/inspect_ai.qmd
+      contents:
+      - text: eval
+        href: reference/inspect_ai.qmd#eval
+      - text: eval_set
+        href: reference/inspect_ai.qmd#eval_set
+      - text: eval_retry
+        href: reference/inspect_ai.qmd#eval_retry
+      - text: score
+        href: reference/inspect_ai.qmd#score
+      - text: Task
+        href: reference/inspect_ai.qmd#task
+      - text: task_with
+        href: reference/inspect_ai.qmd#task_with
+      - text: Epochs
+        href: reference/inspect_ai.qmd#epochs
+      - text: TaskInfo
+        href: reference/inspect_ai.qmd#taskinfo
+      - text: Tasks
+        href: reference/inspect_ai.qmd#tasks
+      - text: task
+        href: reference/inspect_ai.qmd#task
     - section: inspect_ai.solver
       href: reference/inspect_ai.solver.qmd
       contents:

@@ -10,7 +10,7 @@ if "reference/inspect_ai" not in input_files:
     exit(0) 
 
 # register reference docs (this defines their sidebar order)
-reference_docs = [f"reference/inspect_ai.{doc}" for doc in [
+reference_docs = ["reference/inspect_ai.qmd"] + [f"reference/inspect_ai.{doc}" for doc in [
     "solver.qmd",
     "tool.qmd",
     "scorer.qmd",
@@ -28,9 +28,7 @@ website:
     - title: Reference
       style: docked
       collapse-level: 1
-      contents:
-        - text: Reference
-          href: reference/index.qmd
+      contents: []
 """)
 contents = sidebar["website"]["sidebar"][0]["contents"]
 
