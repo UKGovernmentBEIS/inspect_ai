@@ -16,6 +16,7 @@ from inspect_ai.scorer import (
     metric,
     scorer,
     std,
+    var,
 )
 from inspect_ai.scorer._metric import (
     MetricDeprecated,
@@ -357,6 +358,13 @@ def test_nested_list_metrics() -> None:
     # normal eval
     log = eval(tasks=task, model="mockllm/model")[0]
     check_log(log)
+
+
+def test_variance():
+    metric = var()
+    result = metric(scores=[SampleScore(score=Score(value=i)) for i in range(10)])
+    assert round(result, 3) == 9.167
+    assert metric([SampleScore(score=Score(value=4))]) == 0.0
 
 
 def test_stderr():

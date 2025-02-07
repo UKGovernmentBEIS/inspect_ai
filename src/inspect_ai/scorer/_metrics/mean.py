@@ -15,17 +15,3 @@ def mean() -> Metric:
         return np.mean([score.score.as_float() for score in scores]).item()
 
     return metric
-
-
-@metric
-def var() -> Metric:
-    """Compute variance over all scores.
-
-    Returns:
-       var metric
-    """
-
-    def metric(scores: list[SampleScore]) -> float:
-        return np.var([score.score.as_float() for score in scores]).item()
-
-    return metric

@@ -169,3 +169,35 @@ def std(to_float: ValueToFloat = value_to_float()) -> Metric:
         return cast(float, sample_std)
 
     return metric
+
+
+@metric
+def var(to_float: ValueToFloat = value_to_float()) -> Metric:
+    """Compute the sample variance of a list of scores.
+
+    Args:
+        to_float (ValueToFloat): Function for mapping
+            Value to float for computing metrics. The default
+            `value_to_float()` maps CORRECT ("C") to 1.0,
+            INCORRECT ("I") to 0, PARTIAL ("P") to 0.5, and
+            NOANSWER ("N") to 0, casts numeric values to
+            float directly, and prints a warning and returns
+            0 if the Value is a complex object (list or dict).
+
+    Returns:
+       var metric
+    """
+
+    def metric(scores: list[SampleScore]) -> float:
+        values = [to_float(score.score.value) for score in scores]
+        n = len(values)
+        # variance is calculated by dividing by n-ddof so ensure
+        # that we won't divide by zero
+        if (n - 1) < 1:
+            return 0
+
+        variance = np.var(values, ddof=1)
+
+        return cast(float, variance)
+
+    return metric
