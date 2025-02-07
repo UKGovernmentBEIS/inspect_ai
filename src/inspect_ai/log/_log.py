@@ -497,8 +497,8 @@ class EvalScorer(BaseModel):
     """Scorer arguments"""
 
     metrics: (
-        list[EvalMetricDefinition, dict[str, EvalMetricDefinition]]
-        | dict[str, EvalMetricDefinition]
+        list[EvalMetricDefinition | dict[str, list[EvalMetricDefinition]]]
+        | dict[str, list[EvalMetricDefinition]]
         | None
     ) = Field(default=None)
 

@@ -110,9 +110,7 @@ async def eval_run(
     )
 
     # resolve task metrics
-    eval_metrics = (
-        to_metric_specs(task.metrics) if task.metrics is not None else None
-    )
+    eval_metrics = to_metric_specs(task.metrics) if task.metrics is not None else None
 
     try:
         # create run tasks

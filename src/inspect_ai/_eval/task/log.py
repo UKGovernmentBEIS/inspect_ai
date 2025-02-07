@@ -257,33 +257,47 @@ def resolve_eval_scorers(scorers: list[ScorerSpec] | None) -> list[EvalScorer] |
 
 
 def resolve_scorer_metrics(
-    metrics: list[MetricSpec | dict[str, MetricSpec]] | dict[str, MetricSpec] | None,
+    metrics: list[MetricSpec | dict[str, list[MetricSpec]]]
+    | dict[str, list[MetricSpec]]
+    | None,
 ) -> (
-    list[EvalMetricDefinition | dict[str, EvalMetricDefinition]]
-    | dict[str, EvalMetricDefinition]
+    list[EvalMetricDefinition | dict[str, list[EvalMetricDefinition]]]
+    | dict[str, list[EvalMetricDefinition]]
     | None
 ):
     if metrics is None:
         return None
     elif isinstance(metrics, list):
-        results: list[EvalMetricDefinition | dict[str, EvalMetricDefinition]] = []
-        for item in metrics:
-            if isinstance(item, MetricSpec):
-                results.append(
-                    EvalMetricDefinition(name=item.metric, options=item.args)
+        resolved_metrics: list[
+            EvalMetricDefinition | dict[str, list[EvalMetricDefinition]]
+        ] = []
+        for metric_item in metrics:
+            if isinstance(metric_item, MetricSpec):
+                resolved_metrics.append(
+                    EvalMetricDefinition(
+                        name=metric_item.metric, options=metric_item.args
+                    )
                 )
-            elif isinstance(item, dict):
-                results.append(
+            elif isinstance(metric_item, dict):
+                resolved_metrics.append(
                     {
-                        k: EvalMetricDefinition(name=v.metric, options=v.args)
-                        for k, v in item.items()
+                        metric_group: [
+                            EvalMetricDefinition(
+                                name=metric_spec.metric, options=metric_spec.args
+                            )
+                            for metric_spec in metric_specs
+                        ]
+                        for metric_group, metric_specs in metric_item.items()
                     }
                 )
             else:
-                raise TypeError(f"Unexpected item in list: {item}")
-        return results
+                raise TypeError(f"Unexpected item in list: {metric_item}")
+        return resolved_metrics
     else:
         return {
-            k: EvalMetricDefinition(name=v.metric, options=v.args)
-            for k, v in metrics.items()
+            metric_group: [
+                EvalMetricDefinition(name=metric_spec.metric, options=metric_spec.args)
+                for metric_spec in metric_specs
+            ]
+            for metric_group, metric_specs in metrics.items()
         }

@@ -73,9 +73,11 @@ class ScorerSpec:
     metadata: dict[str, Any] | None = field(default=None)
     """Scorer metadata"""
 
-    metrics: list[MetricSpec | dict[str, MetricSpec]] | dict[str, MetricSpec] | None = (
-        field(default=None)
-    )
+    metrics: (
+        list[MetricSpec | dict[str, list[MetricSpec]]]
+        | dict[str, list[MetricSpec]]
+        | None
+    ) = field(default=None)
     """Scorer metrics"""
 
 
@@ -196,24 +198,7 @@ def as_scorer_spec(scorer: Scorer) -> ScorerSpec:
         )
     name = registry_unqualified_name(scorer)
     metrics = scorer_metrics(scorer)
-    if isinstance(metrics, list):
-        resolved_metrics = []
-        for metric in metrics:
-            if isinstance(metric, Metric):
-                resolved_metrics.append(as_metric_spec(metric))
-            else:
-                resolved_metrics.append(
-                    resolved_metrics={
-                        k: [as_metric_spec(v) for v in metric]
-                        for k, metric_list in metrics.items()
-                    }
-                )
-
-    else:
-        resolved_metrics = {
-            k: [as_metric_spec(v) for v in metric_list]
-            for k, metric_list in metrics.items()
-        }
+    resolved_metrics = resolve_metrics(metrics)
 
     args = registry_params(scorer)
     metadata = deepcopy(registry_info(scorer).metadata)
@@ -222,6 +207,33 @@ def as_scorer_spec(scorer: Scorer) -> ScorerSpec:
     return ScorerSpec(
         scorer=name, args=args, metadata=metadata, metrics=resolved_metrics
     )
+
+
+def resolve_metrics(
+    metrics: list[Metric | dict[str, list[Metric]]] | dict[str, list[Metric]],
+) -> (
+    list[MetricSpec | dict[str, list[MetricSpec]]] | dict[str, list[MetricSpec]] | None
+):
+    if isinstance(metrics, list):
+        resolved_metrics: list[MetricSpec | dict[str, list[MetricSpec]]] = []
+        for metric_item in metrics:
+            if isinstance(metric_item, Metric):
+                resolved_metrics.append(as_metric_spec(metric_item))
+            else:
+                resolved_metrics.append(
+                    {
+                        metric_group: [
+                            as_metric_spec(metric) for metric in metrics_list
+                        ]
+                        for metric_group, metrics_list in metric_item.items()
+                    }
+                )
+        return resolved_metrics
+    else:
+        return {
+            metric_group: [as_metric_spec(metric) for metric in metrics_list]
+            for metric_group, metrics_list in metrics.items()
+        }
 
 
 def scorer_metrics(
