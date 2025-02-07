@@ -15,4 +15,3 @@ def mean() -> Metric:
         return np.mean([score.score.as_float() for score in scores]).item()
 
     return metric
-

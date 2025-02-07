@@ -188,8 +188,8 @@ def var(to_float: ValueToFloat = value_to_float()) -> Metric:
        var metric
     """
 
-    def metric(scores: list[Score]) -> float:
-        values = [to_float(score.value) for score in scores]
+    def metric(scores: list[SampleScore]) -> float:
+        values = [to_float(score.score.value) for score in scores]
         n = len(values)
         # variance is calculated by dividing by n-ddof so ensure
         # that we won't divide by zero

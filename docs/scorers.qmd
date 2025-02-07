@@ -407,11 +407,11 @@ def letter_count():
 
 @metric
 def total_count() -> Metric:
-    def metric(scores: list[Score]) -> int | float:
+    def metric(scores: list[SampleScore]) -> int | float:
         total = 0.0
         for score in scores:
-            total = score.value["a_count"] # <3>
-                + score.value["e_count"]   # <3>
+            total = score.score.value["a_count"] # <3>
+                + score.score.value["e_count"]   # <3>
         return total
     return metric
 
@@ -587,8 +587,8 @@ def mean() -> Metric:
        mean metric
     """
 
-    def metric(scores: list[Score]) -> float:
-        return np.mean([score.as_float() for score in scores]).item()
+    def metric(scores: list[SampleScore]) -> float:
+        return np.mean([score.score.as_float() for score in scores]).item()
 
     return metric
 ```
@@ -659,10 +659,10 @@ from inspect_ai.scorer import Score, ScoreReducer, score_reducer
 
 @score_reducer(name="mean")
 def mean_score() -> ScoreReducer:
-    def reduce(scores: list[Score]) -> Score:
+    def reduce(scores: list[SampleScore]) -> Score:
         """Compute a mean value of all scores."""
 
-        values = [float(score.value) for score in scores]
+        values = [float(score.score.value) for score in scores]
         mean_value = statistics.mean(values)
 
         return Score(value=mean_value)
