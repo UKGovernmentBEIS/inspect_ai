@@ -64,6 +64,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="../site_libs/quarto-search/fuse.min.js"></script>
 <script src="../site_libs/quarto-search/quarto-search.js"></script>
 <meta name="quarto:offset" content="../">
+<link href="../reference/inspect_ai.tool.qmd#bash" rel="next">
+<link href="../reference/inspect_ai.scorer.qmd#score_reducer" rel="prev">
 <script src="../site_libs/quarto-html/quarto.js"></script>
 <script src="../site_libs/quarto-html/popper.min.js"></script>
 <script src="../site_libs/quarto-html/tippy.umd.min.js"></script>
@@ -116,7 +118,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <meta name="twitter:image-width" content="2400">
 </head>
 
-<body class="nav-fixed">
+<body class="nav-sidebar docked nav-fixed">
 
 <div id="quarto-search-results"></div>
   <header id="quarto-header" class="headroom fixed-top">
@@ -141,7 +143,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span class="menu-text">User Guide</span></a>
   </li>  
   <li class="nav-item">
-    <a class="nav-link" href="../reference/index.html"> 
+    <a class="nav-link active" href="../reference/index.html" aria-current="page"> 
 <span class="menu-text">Reference</span></a>
   </li>  
   <li class="nav-item">
@@ -161,10 +163,860 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </div>
       </div> <!-- /container-fluid -->
     </nav>
+  <nav class="quarto-secondary-nav">
+    <div class="container-fluid d-flex">
+      <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+        <i class="bi bi-layout-text-sidebar-reverse"></i>
+      </button>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="../reference/inspect_ai.tool.html">inspect_ai.tool</a></li></ol></nav>
+        <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
+        </a>
+    </div>
+  </nav>
 </header>
 <!-- content -->
 <div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article page-navbar">
 <!-- sidebar -->
+  <nav id="quarto-sidebar" class="sidebar collapse collapse-horizontal quarto-sidebar-collapse-item sidebar-navigation docked overflow-auto">
+    <div class="sidebar-menu-container"> 
+    <ul class="list-unstyled mt-1">
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Reference</span></a>
+  </div>
+</li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a href="../reference/inspect_ai.solver.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">inspect_ai.solver</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-1" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.solver.html#generate" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">generate</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.solver.html#use_tools" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">use_tools</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.solver.html#prompt_template" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">prompt_template</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.solver.html#system_message" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">system_message</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.solver.html#user_message" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">user_message</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.solver.html#chain_of_thought" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">chain_of_thought</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.solver.html#self_critique" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">self_critique</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.solver.html#multiple_choice" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">multiple_choice</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.solver.html#basic_agent" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">basic_agent</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.solver.html#human_agent" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">human_agent</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.solver.html#chain" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">chain</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.solver.html#fork" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">fork</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.solver.html#bridge" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">bridge</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.solver.html#solver" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Solver</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.solver.html#solverspec" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">SolverSpec</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.solver.html#taskstate" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">TaskState</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.solver.html#generate" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Generate</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.solver.html#solver" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">solver</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a href="../reference/inspect_ai.scorer.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">inspect_ai.scorer</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-2" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#match" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">match</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#includes" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">includes</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#pattern" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">pattern</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#answer" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">answer</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#choice" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">choice</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#f1" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">f1</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#exact" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">exact</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#model_graded_qa" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">model_graded_qa</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#model_graded_fact" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">model_graded_fact</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#multi_scorer" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">multi_scorer</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#accuracy" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">accuracy</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#mean" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">mean</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#std" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">std</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#stderr" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">stderr</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#bootstrap_stderr" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">bootstrap_stderr</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#at_least" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">at_least</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#pass_at" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">pass_at</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#max_score" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">max_score</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#mean_score" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">mean_score</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#median_score" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">median_score</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#mode_score" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">mode_score</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#scorer" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Scorer</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#metric" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Metric</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#scorereducer" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ScoreReducer</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#target" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Target</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#score" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Score</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#value" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Value</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#scorer" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">scorer</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#metric" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">metric</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#score_reducer" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">score_reducer</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a href="../reference/inspect_ai.tool.html" class="sidebar-item-text sidebar-link active">
+ <span class="menu-text">inspect_ai.tool</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-3" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.tool.html#bash" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">bash</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.tool.html#python" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">python</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.tool.html#web_search" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">web_search</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.tool.html#web_browser" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">web_browser</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.tool.html#computer" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">computer</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.tool.html#tool_with" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">tool_with</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.tool.html#tooldef" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ToolDef</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.tool.html#tool" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Tool</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.tool.html#toolresult" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ToolResult</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.tool.html#toolerror" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ToolError</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.tool.html#toolchoice" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ToolChoice</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.tool.html#toolfunction" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ToolFunction</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.tool.html#tool" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">tool</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a href="../reference/inspect_ai.model.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">inspect_ai.model</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-4" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#get_model" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">get_model</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#model" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Model</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#generateconfig" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">GenerateConfig</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#modeloutput" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ModelOutput</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#modelusage" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ModelUsage</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#stopreason" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">StopReason</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#chatcompletionchoice" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ChatCompletionChoice</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#chatmessage" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ChatMessage</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#chatmessagesystem" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ChatMessageSystem</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#chatmessageuser" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ChatMessageUser</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#chatmessageassistant" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ChatMessageAssistant</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#chatmessagetool" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ChatMessageTool</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#content" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Content</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#contenttext" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ContentText</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#contentimage" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ContentImage</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#contentaudio" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ContentAudio</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#contentvideo" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ContentVideo</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#logprob" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Logprob</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#logprobs" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Logprobs</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#toplogprob" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">TopLogprob</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#cachepolicy" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">CachePolicy</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#cache_size" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">cache_size</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#cache_clear" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">cache_clear</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#cache_list_expired" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">cache_list_expired</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#cache_prune" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">cache_prune</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#cache_path" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">cache_path</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#modelapi" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">modelapi</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#modelapi" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ModelAPI</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a href="../reference/inspect_ai.dataset.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">inspect_ai.dataset</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-5" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.dataset.html#csv_dataset" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">csv_dataset</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.dataset.html#json_dataset" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">json_dataset</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.dataset.html#hf_dataset" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">hf_dataset</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.dataset.html#sample" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Sample</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.dataset.html#fieldspec" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">FieldSpec</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.dataset.html#recordtosample" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">RecordToSample</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.dataset.html#dataset" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Dataset</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.dataset.html#memorydataset" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">MemoryDataset</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a href="../reference/inspect_ai.approval.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">inspect_ai.approval</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-6" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-6" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.approval.html#auto_approver" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">auto_approver</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.approval.html#human_approver" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">human_approver</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.approval.html#approver" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Approver</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.approval.html#approval" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Approval</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.approval.html#approvaldecision" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ApprovalDecision</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.approval.html#approvalpolicy" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ApprovalPolicy</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.approval.html#approver" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">approver</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a href="../reference/inspect_ai.util.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">inspect_ai.util</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-7" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-7" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#store" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Store</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#store" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">store</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#store_as" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">store_as</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#storemodel" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">StoreModel</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#concurrency" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">concurrency</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#subprocess" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">subprocess</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#execresult" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ExecResult</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#display_type" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">display_type</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#displaytype" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">DisplayType</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#input_screen" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">input_screen</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#subtask" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">subtask</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#subtask" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Subtask</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#resource" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">resource</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#throttle" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">throttle</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#trace_action" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">trace_action</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#trace_message" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">trace_message</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#sandbox" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">sandbox</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#sandbox_with" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">sandbox_with</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#sandboxenvironment" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">SandboxEnvironment</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#sandboxconnection" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">SandboxConnection</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#sandboxenv" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">sandboxenv</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+    </ul>
+    </div>
+</nav>
+<div id="quarto-sidebar-glass" class="quarto-sidebar-collapse-item" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item"></div>
 <!-- margin-sidebar -->
     <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
         <nav id="TOC" role="doc-toc" class="toc-active" data-toc-expanded="99">
@@ -177,6 +1029,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#python" id="toc-python" class="nav-link" data-scroll-target="#python">python</a></li>
   <li><a href="#web_search" id="toc-web_search" class="nav-link" data-scroll-target="#web_search">web_search</a></li>
   <li><a href="#web_browser" id="toc-web_browser" class="nav-link" data-scroll-target="#web_browser">web_browser</a></li>
+  <li><a href="#beta.computer" id="toc-beta.computer" class="nav-link" data-scroll-target="#beta.computer">computer</a></li>
   </ul></li>
   <li><a href="#dynamic" id="toc-dynamic" class="nav-link" data-scroll-target="#dynamic">Dynamic</a>
   <ul class="collapse">
@@ -185,15 +1038,15 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   </ul></li>
   <li><a href="#types" id="toc-types" class="nav-link" data-scroll-target="#types">Types</a>
   <ul class="collapse">
-  <li><a href="#toolinfo" id="toc-toolinfo" class="nav-link" data-scroll-target="#toolinfo">ToolInfo</a></li>
+  <li><a href="#tool" id="toc-tool" class="nav-link" data-scroll-target="#tool">Tool</a></li>
+  <li><a href="#toolresult" id="toc-toolresult" class="nav-link" data-scroll-target="#toolresult">ToolResult</a></li>
+  <li><a href="#toolerror" id="toc-toolerror" class="nav-link" data-scroll-target="#toolerror">ToolError</a></li>
+  <li><a href="#toolchoice" id="toc-toolchoice" class="nav-link" data-scroll-target="#toolchoice">ToolChoice</a></li>
+  <li><a href="#toolfunction" id="toc-toolfunction" class="nav-link" data-scroll-target="#toolfunction">ToolFunction</a></li>
   </ul></li>
   <li><a href="#decorator" id="toc-decorator" class="nav-link" data-scroll-target="#decorator">Decorator</a>
   <ul class="collapse">
-  <li><a href="#tool" id="toc-tool" class="nav-link" data-scroll-target="#tool">tool</a></li>
-  <li><a href="#toolcallviewer" id="toc-toolcallviewer" class="nav-link" data-scroll-target="#toolcallviewer">ToolCallViewer</a></li>
-  <li><a href="#toolcallview" id="toc-toolcallview" class="nav-link" data-scroll-target="#toolcallview">ToolCallView</a></li>
-  <li><a href="#toolcallcontent" id="toc-toolcallcontent" class="nav-link" data-scroll-target="#toolcallcontent">ToolCallContent</a></li>
-  <li><a href="#toolcallmodelinput" id="toc-toolcallmodelinput" class="nav-link" data-scroll-target="#toolcallmodelinput">ToolCallModelInput</a></li>
+  <li><a href="#tool-1" id="toc-tool-1" class="nav-link" data-scroll-target="#tool-1">tool</a></li>
   </ul></li>
   </ul>
 <div class="toc-actions"><ul><li><a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div></nav>
@@ -227,7 +1080,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Bash shell command execution tool.</p>
 <p>Execute bash shell commands using a sandbox environment (e.g.&nbsp;“docker”).</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/a0b2c47403bee377a93288e8aa1a0cbd90781f74/src/inspect_ai/tool/_tools/_execute.py#L22">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/c1a6d2078d0276c6cd4b955783d2aece00b4516d/src/inspect_ai/tool/_tools/_execute.py#L22">Source</a>
 </div>
 <div class="sourceCode" id="cb1"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="at">@tool</span>(viewer<span class="op">=</span>code_viewer(<span class="st">"bash"</span>, <span class="st">"cmd"</span>))</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> bash(timeout: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>, user: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>) <span class="op">-&gt;</span> Tool</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
@@ -261,7 +1114,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Python code execution tool.</p>
 <p>Execute Python code using a sandbox environment (e.g.&nbsp;“docker”).</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/a0b2c47403bee377a93288e8aa1a0cbd90781f74/src/inspect_ai/tool/_tools/_execute.py#L59">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/c1a6d2078d0276c6cd4b955783d2aece00b4516d/src/inspect_ai/tool/_tools/_execute.py#L59">Source</a>
 </div>
 <div class="sourceCode" id="cb2"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="at">@tool</span>(viewer<span class="op">=</span>code_viewer(<span class="st">"python"</span>, <span class="st">"code"</span>))</span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> python(timeout: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>, user: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>) <span class="op">-&gt;</span> Tool</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
@@ -295,8 +1148,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Web search tool.</p>
 <p>A tool that can be registered for use by models to search the web. Use the <code>use_tools()</code> solver to make the tool available (e.g.&nbsp;<code>use_tools(web_search())</code>))</p>
 <p>A web search is conducted using the specified provider, the results are parsed for relevance using the specified model, and the top ‘num_results’ relevant pages are returned.</p>
+<p>See further documentation at <a href="https://inspect.ai-safety-institute.org.uk/tools.html#sec-web-search" class="uri">https://inspect.ai-safety-institute.org.uk/tools.html#sec-web-search</a>.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/a0b2c47403bee377a93288e8aa1a0cbd90781f74/src/inspect_ai/tool/_tools/_web_search.py#L28">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/c1a6d2078d0276c6cd4b955783d2aece00b4516d/src/inspect_ai/tool/_tools/_web_search.py#L28">Source</a>
 </div>
 <div class="sourceCode" id="cb3"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="at">@tool</span></span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> web_search(</span>
@@ -349,8 +1203,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="web_browser" class="level3">
 <h3 class="anchored" data-anchor-id="web_browser">web_browser</h3>
 <p>Tools used for web browser navigation.</p>
+<p>See documentation at <a href="https://inspect.ai-safety-institute.org.uk/tools.html#sec-web-browser" class="uri">https://inspect.ai-safety-institute.org.uk/tools.html#sec-web-browser</a>.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/a0b2c47403bee377a93288e8aa1a0cbd90781f74/src/inspect_ai/tool/_tools/_web_browser/_web_browser.py#L16">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/c1a6d2078d0276c6cd4b955783d2aece00b4516d/src/inspect_ai/tool/_tools/_web_browser/_web_browser.py#L16">Source</a>
 </div>
 <div class="sourceCode" id="cb4"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> web_browser(interactive: <span class="bu">bool</span> <span class="op">=</span> <span class="va">True</span>) <span class="op">-&gt;</span> <span class="bu">list</span>[Tool]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <table class="caption-top table">
@@ -373,6 +1228,40 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </tbody>
 </table>
 </section>
+<section id="beta.computer" class="level3">
+<h3 class="anchored" data-anchor-id="beta.computer">computer</h3>
+<p>Desktop computer tool.</p>
+<p>See documentation at <a href="https://inspect.ai-safety-institute.org.uk/tools.html#sec-computer" class="uri">https://inspect.ai-safety-institute.org.uk/tools.html#sec-computer</a>.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/c1a6d2078d0276c6cd4b955783d2aece00b4516d/src/inspect_ai/tool/beta/_computer/_computer.py#L17">Source</a>
+</div>
+<div class="sourceCode" id="cb5"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="at">@tool</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> computer(max_screenshots: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="dv">1</span>, timeout: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="dv">180</span>) <span class="op">-&gt;</span> Tool</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 75%">
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">Argument</th>
+<th style="text-align: left;">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;"><code>max_screenshots</code><br>
+<span class="argument-type">int | None</span></td>
+<td style="text-align: left;"><p>The maximum number of screenshots to play back to the model as input. Defaults to 1 (set to <code>None</code> to have no limit).</p></td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><code>timeout</code><br>
+<span class="argument-type">int | None</span></td>
+<td style="text-align: left;"><p>Timeout in seconds for computer tool actions. Defaults to 180 (set to <code>None</code> for no timeout).</p></td>
+</tr>
+</tbody>
+</table>
+</section>
 </section>
 <section id="dynamic" class="level2">
 <h2 class="anchored" data-anchor-id="dynamic">Dynamic</h2>
@@ -380,17 +1269,17 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="tool_with">tool_with</h3>
 <p>Tool with modifications to name and descriptions.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/a0b2c47403bee377a93288e8aa1a0cbd90781f74/src/inspect_ai/tool/_tool_with.py#L16">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/c1a6d2078d0276c6cd4b955783d2aece00b4516d/src/inspect_ai/tool/_tool_with.py#L16">Source</a>
 </div>
-<div class="sourceCode" id="cb5"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> tool_with(</span>
-<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>    tool: Tool,</span>
-<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>    name: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>    description: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>    parameters: <span class="bu">dict</span>[<span class="bu">str</span>, <span class="bu">str</span>] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>    parallel: <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>    viewer: ToolCallViewer <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>    model_input: ToolCallModelInput <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> Tool</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb6"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> tool_with(</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>    tool: Tool,</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>    name: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>    description: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>    parameters: <span class="bu">dict</span>[<span class="bu">str</span>, <span class="bu">str</span>] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>    parallel: <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>    viewer: ToolCallViewer <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>    model_input: ToolCallModelInput <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> Tool</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <table class="caption-top table">
 <colgroup>
 <col style="width: 25%">
@@ -445,9 +1334,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="tooldef">ToolDef</h3>
 <p>Tool definition.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/a0b2c47403bee377a93288e8aa1a0cbd90781f74/src/inspect_ai/tool/_tool_def.py#L27">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/c1a6d2078d0276c6cd4b955783d2aece00b4516d/src/inspect_ai/tool/_tool_def.py#L27">Source</a>
 </div>
-<div class="sourceCode" id="cb6"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ToolDef</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb7"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ToolDef</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
 <h4 class="anchored" data-anchor-id="">Attributes</h4>
 <table class="caption-top table">
@@ -502,6 +1391,33 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section class="level4">
 <h4 class="anchored" data-anchor-id="">Methods</h4>
+<dl>
+<dt><code>as_tool</code></dt>
+<dd>
+<p>Convert a ToolDef to a Tool.</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> as_tool(<span class="va">self</span>) <span class="op">-&gt;</span> Tool</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div>
+
+</div>
+</dd>
+</dl>
+</section>
+</section>
+</section>
+<section id="types" class="level2">
+<h2 class="anchored" data-anchor-id="types">Types</h2>
+<section id="tool" class="level3">
+<h3 class="anchored" data-anchor-id="tool">Tool</h3>
+<p>Additional tool that an agent can use to solve a task.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/c1a6d2078d0276c6cd4b955783d2aece00b4516d/src/inspect_ai/tool/_tool.py#L78">Source</a>
+</div>
+<div class="sourceCode" id="cb9"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Tool(Protocol):</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> <span class="fu">__call__</span>(</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>,</span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>        <span class="op">*</span>args: Any,</span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>        <span class="op">**</span>kwargs: Any,</span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>    ) <span class="op">-&gt;</span> ToolResult</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <table class="caption-top table">
 <colgroup>
 <col style="width: 25%">
@@ -509,59 +1425,77 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </colgroup>
 <thead>
 <tr class="header">
-<th style="text-align: left;">Method</th>
+<th style="text-align: left;">Argument</th>
 <th style="text-align: left;">Description</th>
 </tr>
 </thead>
 <tbody>
 <tr class="odd">
-<td style="text-align: left;"><code>__init__</code></td>
-<td style="text-align: left;"><div>
-<p>Create a tool definition.</p>
-<div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> <span class="fu">__init__</span>(</span>
-<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>    <span class="va">self</span>,</span>
-<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>    tool: Callable[..., Any],</span>
-<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>    name: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>    description: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>    parameters: <span class="bu">dict</span>[<span class="bu">str</span>, <span class="bu">str</span>] <span class="op">|</span> ToolParams <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>    parallel: <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>    viewer: ToolCallViewer <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>    model_input: ToolCallModelInput <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="va">None</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</div></td>
+<td style="text-align: left;"><code>*args</code><br>
+<span class="argument-type">Any</span></td>
+<td style="text-align: left;"><p>Arguments for the tool.</p></td>
 </tr>
 <tr class="even">
-<td style="text-align: left;"><code>as_tool</code></td>
-<td style="text-align: left;"><div>
-<p>Convert a ToolDef to a Tool.</p>
-<div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> as_tool(<span class="va">self</span>) <span class="op">-&gt;</span> Tool</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</div></td>
+<td style="text-align: left;"><code>**kwargs</code><br>
+<span class="argument-type">Any</span></td>
+<td style="text-align: left;"><p>Keyword arguments for the tool.</p></td>
 </tr>
 </tbody>
 </table>
+<section class="level4">
+<h4 class="anchored" data-anchor-id="">Examples</h4>
+<div class="sourceCode" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="at">@tool</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> add() <span class="op">-&gt;</span> Tool:</span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> execute(x: <span class="bu">int</span>, y: <span class="bu">int</span>) <span class="op">-&gt;</span> <span class="bu">int</span>:</span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> x <span class="op">+</span> y</span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> execute</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
 </section>
-</section>
-<section id="types" class="level2">
-<h2 class="anchored" data-anchor-id="types">Types</h2>
-<section id="toolinfo" class="level3">
-<h3 class="anchored" data-anchor-id="toolinfo">ToolInfo</h3>
-<p>Specification of a tool (JSON Schema compatible)</p>
-<p>If you are implementing a ModelAPI, most LLM libraries can be passed this object (dumped to a dict) directly as a function specification. For example, in the OpenAI provider:</p>
-<div class="sourceCode" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>ChatCompletionToolParam(</span>
-<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>    <span class="bu">type</span><span class="op">=</span><span class="st">"function"</span>,</span>
-<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>    function<span class="op">=</span>tool.model_dump(exclude_none<span class="op">=</span><span class="va">True</span>),</span>
-<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>In some cases the field names don’t match up exactly. In that case call <code>model_dump()</code> on the <code>parameters</code> field. For example, in the Anthropic provider:</p>
-<div class="sourceCode" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>ToolParam(</span>
-<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>    name<span class="op">=</span>tool.name,</span>
-<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>    description<span class="op">=</span>tool.description,</span>
-<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>    input_schema<span class="op">=</span>tool.parameters.model_dump(exclude_none<span class="op">=</span><span class="va">True</span>),</span>
-<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<section id="toolresult" class="level3">
+<h3 class="anchored" data-anchor-id="toolresult">ToolResult</h3>
+<p>Valid types for results from tool calls.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/a0b2c47403bee377a93288e8aa1a0cbd90781f74/src/inspect_ai/tool/_tool_info.py#L27">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/c1a6d2078d0276c6cd4b955783d2aece00b4516d/src/inspect_ai/tool/_tool.py#L32">Source</a>
 </div>
-<div class="sourceCode" id="cb11"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ToolInfo(BaseModel)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb11"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>ToolResult <span class="op">=</span> (</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>    <span class="bu">str</span></span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>    <span class="op">|</span> <span class="bu">int</span></span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>    <span class="op">|</span> <span class="bu">float</span></span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>    <span class="op">|</span> <span class="bu">bool</span></span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a>    <span class="op">|</span> ContentText</span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a>    <span class="op">|</span> ContentImage</span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a>    <span class="op">|</span> ContentAudio</span>
+<span id="cb11-9"><a href="#cb11-9" aria-hidden="true" tabindex="-1"></a>    <span class="op">|</span> ContentVideo</span>
+<span id="cb11-10"><a href="#cb11-10" aria-hidden="true" tabindex="-1"></a>    <span class="op">|</span> <span class="bu">list</span>[ContentText <span class="op">|</span> ContentImage <span class="op">|</span> ContentAudio <span class="op">|</span> ContentVideo]</span>
+<span id="cb11-11"><a href="#cb11-11" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
+<section id="toolerror" class="level3">
+<h3 class="anchored" data-anchor-id="toolerror">ToolError</h3>
+<p>Exception thrown from tool call.</p>
+<p>If you throw a <code>ToolError</code> form within a tool call, the error will be reported to the model for further processing (rather than ending the sample). If you want to raise a fatal error from a tool call use an appropriate standard exception type (e.g.&nbsp;<code>RuntimeError</code>, <code>ValueError</code>, etc.)</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/c1a6d2078d0276c6cd4b955783d2aece00b4516d/src/inspect_ai/tool/_tool.py#L46">Source</a>
+</div>
+<div class="sourceCode" id="cb12"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ToolError(<span class="pp">Exception</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
+<section id="toolchoice" class="level3">
+<h3 class="anchored" data-anchor-id="toolchoice">ToolChoice</h3>
+<p>Specify which tool to call.</p>
+<p>“auto” means the model decides; “any” means use at least one tool, “none” means never call a tool; ToolFunction instructs the model to call a specific function.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/c1a6d2078d0276c6cd4b955783d2aece00b4516d/src/inspect_ai/tool/_tool_choice.py#L13">Source</a>
+</div>
+<div class="sourceCode" id="cb13"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a>ToolChoice <span class="op">=</span> Union[Literal[<span class="st">"auto"</span>, <span class="st">"any"</span>, <span class="st">"none"</span>], ToolFunction]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
+<section id="toolfunction" class="level3">
+<h3 class="anchored" data-anchor-id="toolfunction">ToolFunction</h3>
+<p>Indicate that a specific tool function should be called.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/c1a6d2078d0276c6cd4b955783d2aece00b4516d/src/inspect_ai/tool/_tool_choice.py#L5">Source</a>
+</div>
+<div class="sourceCode" id="cb14"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span></span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ToolFunction</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
 <h4 class="anchored" data-anchor-id="">Attributes</h4>
 <table class="caption-top table">
@@ -579,17 +1513,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <tr class="odd">
 <td style="text-align: left;"><code>name</code><br>
 <span class="argument-type">str</span></td>
-<td style="text-align: left;"><p>Name of tool.</p></td>
-</tr>
-<tr class="even">
-<td style="text-align: left;"><code>description</code><br>
-<span class="argument-type">str</span></td>
-<td style="text-align: left;"><p>Short description of tool.</p></td>
-</tr>
-<tr class="odd">
-<td style="text-align: left;"><code>parameters</code><br>
-<span class="argument-type">ToolParams</span></td>
-<td style="text-align: left;"><p>JSON Schema of tool parameters object.</p></td>
+<td style="text-align: left;"><p>The name of the tool function to call.</p></td>
 </tr>
 </tbody>
 </table>
@@ -598,21 +1522,21 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="decorator" class="level2">
 <h2 class="anchored" data-anchor-id="decorator">Decorator</h2>
-<section id="tool" class="level3">
-<h3 class="anchored" data-anchor-id="tool">tool</h3>
+<section id="tool-1" class="level3">
+<h3 class="anchored" data-anchor-id="tool-1">tool</h3>
 <p>Decorator for registering tools.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/a0b2c47403bee377a93288e8aa1a0cbd90781f74/src/inspect_ai/tool/_tool.py#L121">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/c1a6d2078d0276c6cd4b955783d2aece00b4516d/src/inspect_ai/tool/_tool.py#L146">Source</a>
 </div>
-<div class="sourceCode" id="cb12"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> tool(</span>
-<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>    func: Callable[P, Tool] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>    <span class="op">*</span>,</span>
-<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>    name: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>    viewer: ToolCallViewer <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a>    model_input: ToolCallModelInput <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a>    parallel: <span class="bu">bool</span> <span class="op">=</span> <span class="va">True</span>,</span>
-<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a>    prompt: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> Callable[P, Tool] <span class="op">|</span> Callable[[Callable[P, Tool]], Callable[P, Tool]]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb15"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> tool(</span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>    func: Callable[P, Tool] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a>    <span class="op">*</span>,</span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a>    name: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a>    viewer: ToolCallViewer <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a>    model_input: ToolCallModelInput <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb15-7"><a href="#cb15-7" aria-hidden="true" tabindex="-1"></a>    parallel: <span class="bu">bool</span> <span class="op">=</span> <span class="va">True</span>,</span>
+<span id="cb15-8"><a href="#cb15-8" aria-hidden="true" tabindex="-1"></a>    prompt: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb15-9"><a href="#cb15-9" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> Callable[P, Tool] <span class="op">|</span> Callable[[Callable[P, Tool]], Callable[P, Tool]]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <table class="caption-top table">
 <colgroup>
 <col style="width: 25%">
@@ -648,7 +1572,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <tr class="odd">
 <td style="text-align: left;"><code>parallel</code><br>
 <span class="argument-type">bool</span></td>
-<td style="text-align: left;"><p>Does this tool support parallel execution? (defaults to True).</p></td>
+<td style="text-align: left;"><p>Does this tool support parallel execution? (defaults to <code>True</code>).</p></td>
 </tr>
 <tr class="even">
 <td style="text-align: left;"><code>prompt</code><br>
@@ -657,101 +1581,17 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </tr>
 </tbody>
 </table>
-</section>
-<section id="toolcallviewer" class="level3">
-<h3 class="anchored" data-anchor-id="toolcallviewer">ToolCallViewer</h3>
-<p>Custom view renderer for tool calls.</p>
-<div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/a0b2c47403bee377a93288e8aa1a0cbd90781f74/src/inspect_ai/tool/_tool_call.py#L74">Source</a>
-</div>
-<div class="sourceCode" id="cb13"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a>ToolCallViewer <span class="op">=</span> Callable[[ToolCall], ToolCallView]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</section>
-<section id="toolcallview" class="level3">
-<h3 class="anchored" data-anchor-id="toolcallview">ToolCallView</h3>
-<p>Custom view of a tool call.</p>
-<p>Both <code>context</code> and <code>call</code> are optional. If <code>call</code> is not specified then the view will default to a syntax highlighted Python function call.</p>
-<div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/a0b2c47403bee377a93288e8aa1a0cbd90781f74/src/inspect_ai/tool/_tool_call.py#L22">Source</a>
-</div>
-<div class="sourceCode" id="cb14"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ToolCallView(BaseModel)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
-<h4 class="anchored" data-anchor-id="">Attributes</h4>
-<table class="caption-top table">
-<colgroup>
-<col style="width: 25%">
-<col style="width: 75%">
-</colgroup>
-<thead>
-<tr class="header">
-<th style="text-align: left;">Attribute</th>
-<th style="text-align: left;">Description</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td style="text-align: left;"><code>context</code><br>
-<span class="argument-type">ToolCallContent | None</span></td>
-<td style="text-align: left;"><p>Context for the tool call (i.e.&nbsp;current tool state).</p></td>
-</tr>
-<tr class="even">
-<td style="text-align: left;"><code>call</code><br>
-<span class="argument-type">ToolCallContent | None</span></td>
-<td style="text-align: left;"><p>Custom representation of tool call.</p></td>
-</tr>
-</tbody>
-</table>
-</section>
-</section>
-<section id="toolcallcontent" class="level3">
-<h3 class="anchored" data-anchor-id="toolcallcontent">ToolCallContent</h3>
-<p>Content to include in tool call view.</p>
-<div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/a0b2c47403bee377a93288e8aa1a0cbd90781f74/src/inspect_ai/tool/_tool_call.py#L9">Source</a>
-</div>
-<div class="sourceCode" id="cb15"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ToolCallContent(BaseModel)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<section class="level4">
-<h4 class="anchored" data-anchor-id="">Attributes</h4>
-<table class="caption-top table">
-<colgroup>
-<col style="width: 25%">
-<col style="width: 75%">
-</colgroup>
-<thead>
-<tr class="header">
-<th style="text-align: left;">Attribute</th>
-<th style="text-align: left;">Description</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td style="text-align: left;"><code>title</code><br>
-<span class="argument-type">str | None</span></td>
-<td style="text-align: left;"><p>Optional (plain text) title for tool call content.</p></td>
-</tr>
-<tr class="even">
-<td style="text-align: left;"><code>format</code><br>
-<span class="argument-type">Literal['text', 'markdown']</span></td>
-<td style="text-align: left;"><p>Format (text or markdown).</p></td>
-</tr>
-<tr class="odd">
-<td style="text-align: left;"><code>content</code><br>
-<span class="argument-type">str</span></td>
-<td style="text-align: left;"><p>Text or markdown content.</p></td>
-</tr>
-</tbody>
-</table>
-</section>
-</section>
-<section id="toolcallmodelinput" class="level3">
-<h3 class="anchored" data-anchor-id="toolcallmodelinput">ToolCallModelInput</h3>
-<p>Determine how tool call results are played back as model input.</p>
-<p>The first argument is an index into the total number of tool results for this tool in the message history, the second is the total number.</p>
-<div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/a0b2c47403bee377a93288e8aa1a0cbd90781f74/src/inspect_ai/tool/_tool_call.py#L78">Source</a>
-</div>
-<div class="sourceCode" id="cb16"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a>ToolCallModelInput <span class="op">=</span> Callable[[<span class="bu">int</span>, <span class="bu">int</span>, <span class="bu">str</span> <span class="op">|</span> <span class="bu">list</span>[Content]], <span class="bu">str</span> <span class="op">|</span> <span class="bu">list</span>[Content]]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<h4 class="anchored" data-anchor-id="">Examples</h4>
+<div class="sourceCode" id="cb16"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="at">@tool</span></span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> add() <span class="op">-&gt;</span> Tool:</span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> execute(x: <span class="bu">int</span>, y: <span class="bu">int</span>) <span class="op">-&gt;</span> <span class="bu">int</span>:</span>
+<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> x <span class="op">+</span> y</span>
+<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-6"><a href="#cb16-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> execute</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 
 
+</section>
 </section>
 </section>
 
@@ -1217,6 +2057,18 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
   }
 });
 </script>
+<nav class="page-navigation">
+  <div class="nav-page nav-page-previous">
+      <a href="../reference/inspect_ai.scorer.html#score_reducer" class="pagination-link" aria-label="score_reducer">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">score_reducer</span>
+      </a>          
+  </div>
+  <div class="nav-page nav-page-next">
+      <a href="../reference/inspect_ai.tool.html#bash" class="pagination-link" aria-label="bash">
+        <span class="nav-page-text">bash</span> <i class="bi bi-arrow-right-short"></i>
+      </a>
+  </div>
+</nav>
 </div> <!-- /content -->
 <footer class="footer">
   <div class="nav-footer">

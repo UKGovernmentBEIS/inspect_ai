@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 
-<title>Reference – Inspect</title>
+<title>inspect_ai.dataset – Inspect</title>
 <style>
 code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
@@ -20,6 +20,40 @@ ul.task-list li input[type="checkbox"] {
   margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
   vertical-align: middle;
 }
+/* CSS for syntax highlighting */
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { display: inline-block; text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
 </style>
 
 
@@ -30,7 +64,8 @@ ul.task-list li input[type="checkbox"] {
 <script src="../site_libs/quarto-search/fuse.min.js"></script>
 <script src="../site_libs/quarto-search/quarto-search.js"></script>
 <meta name="quarto:offset" content="../">
-<link href="../reference/inspect_ai.solver.html" rel="next">
+<link href="../reference/inspect_ai.dataset.qmd#csv_dataset" rel="next">
+<link href="../reference/inspect_ai.tool.qmd#toolfunction" rel="prev">
 <script src="../site_libs/quarto-html/quarto.js"></script>
 <script src="../site_libs/quarto-html/popper.min.js"></script>
 <script src="../site_libs/quarto-html/tippy.umd.min.js"></script>
@@ -133,7 +168,7 @@ ul.task-list li input[type="checkbox"] {
       <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
         <i class="bi bi-layout-text-sidebar-reverse"></i>
       </button>
-        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="../reference/index.html">Reference</a></li></ol></nav>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="../reference/inspect_ai.dataset.html">inspect_ai.dataset</a></li></ol></nav>
         <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
         </a>
     </div>
@@ -147,7 +182,7 @@ ul.task-list li input[type="checkbox"] {
     <ul class="list-unstyled mt-1">
         <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/index.html" class="sidebar-item-text sidebar-link active">
+  <a href="../reference/index.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Reference</span></a>
   </div>
 </li>
@@ -552,13 +587,13 @@ ul.task-list li input[type="checkbox"] {
   </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a href="../reference/inspect_ai.dataset.html" class="sidebar-item-text sidebar-link">
+            <a href="../reference/inspect_ai.dataset.html" class="sidebar-item-text sidebar-link active">
  <span class="menu-text">inspect_ai.dataset</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="false" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-4" class="collapse list-unstyled sidebar-section depth1 ">  
+      <ul id="quarto-sidebar-section-4" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.dataset.html#csv_dataset" class="sidebar-item-text sidebar-link">
@@ -804,15 +839,34 @@ ul.task-list li input[type="checkbox"] {
 </nav>
 <div id="quarto-sidebar-glass" class="quarto-sidebar-collapse-item" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item"></div>
 <!-- margin-sidebar -->
-    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar zindex-bottom">
-        
+    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+        <nav id="TOC" role="doc-toc" class="toc-active" data-toc-expanded="99">
+    <h2 id="toc-title">On this page</h2>
+   
+  <ul>
+  <li><a href="#readers" id="toc-readers" class="nav-link active" data-scroll-target="#readers">Readers</a>
+  <ul class="collapse">
+  <li><a href="#csv_dataset" id="toc-csv_dataset" class="nav-link" data-scroll-target="#csv_dataset">csv_dataset</a></li>
+  <li><a href="#json_dataset" id="toc-json_dataset" class="nav-link" data-scroll-target="#json_dataset">json_dataset</a></li>
+  <li><a href="#hf_dataset" id="toc-hf_dataset" class="nav-link" data-scroll-target="#hf_dataset">hf_dataset</a></li>
+  </ul></li>
+  <li><a href="#types" id="toc-types" class="nav-link" data-scroll-target="#types">Types</a>
+  <ul class="collapse">
+  <li><a href="#sample" id="toc-sample" class="nav-link" data-scroll-target="#sample">Sample</a></li>
+  <li><a href="#fieldspec" id="toc-fieldspec" class="nav-link" data-scroll-target="#fieldspec">FieldSpec</a></li>
+  <li><a href="#recordtosample" id="toc-recordtosample" class="nav-link" data-scroll-target="#recordtosample">RecordToSample</a></li>
+  <li><a href="#dataset" id="toc-dataset" class="nav-link" data-scroll-target="#dataset">Dataset</a></li>
+  <li><a href="#memorydataset" id="toc-memorydataset" class="nav-link" data-scroll-target="#memorydataset">MemoryDataset</a></li>
+  </ul></li>
+  </ul>
+<div class="toc-actions"><ul><li><a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div></nav>
     </div>
 <!-- main -->
 <main class="content" id="quarto-document-content">
 
 <header id="title-block-header" class="quarto-title-block default">
 <div class="quarto-title">
-<h1 class="title">Reference</h1>
+<h1 class="title">inspect_ai.dataset</h1>
 </div>
 
 
@@ -829,8 +883,574 @@ ul.task-list li input[type="checkbox"] {
 </header>
 
 
+<section id="readers" class="level2">
+<h2 class="anchored" data-anchor-id="readers">Readers</h2>
+<section id="csv_dataset" class="level3">
+<h3 class="anchored" data-anchor-id="csv_dataset">csv_dataset</h3>
+<p>Read dataset from CSV file.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/206b9528a0c9b893faded1a8c7e182b162ad850d/src/inspect_ai/dataset/_sources/csv.py#L20">Source</a>
+</div>
+<div class="sourceCode" id="cb1"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> csv_dataset(</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    csv_file: <span class="bu">str</span>,</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    sample_fields: FieldSpec <span class="op">|</span> RecordToSample <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>    auto_id: <span class="bu">bool</span> <span class="op">=</span> <span class="va">False</span>,</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    shuffle: <span class="bu">bool</span> <span class="op">=</span> <span class="va">False</span>,</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>    seed: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>    shuffle_choices: <span class="bu">bool</span> <span class="op">|</span> <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>    limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>    dialect: <span class="bu">str</span> <span class="op">=</span> <span class="st">"unix"</span>,</span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>    encoding: <span class="bu">str</span> <span class="op">=</span> <span class="st">"utf-8"</span>,</span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>    name: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>    fs_options: <span class="bu">dict</span>[<span class="bu">str</span>, Any] <span class="op">=</span> {},</span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a>    fieldnames: <span class="bu">list</span>[<span class="bu">str</span>] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a>    delimiter: <span class="bu">str</span> <span class="op">=</span> <span class="st">","</span>,</span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> Dataset</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 75%">
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">Argument</th>
+<th style="text-align: left;">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;"><code>csv_file</code><br>
+<span class="argument-type">str</span></td>
+<td style="text-align: left;"><p>Path to CSV file. Can be a local filesystem path, a path to an S3 bucket (e.g.&nbsp;“s3://my-bucket”), or an HTTPS URL. Use <code>fs_options</code> to pass arguments through to the <code>S3FileSystem</code> constructor.</p></td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><code>sample_fields</code><br>
+<span class="argument-type">FieldSpec | RecordToSample | None</span></td>
+<td style="text-align: left;"><p>Method of mapping underlying fields in the data source to Sample objects. Pass <code>None</code> if the data is already stored in <code>Sample</code> form (i.e.&nbsp;has “input” and “target” columns.); Pass a <code>FieldSpec</code> to specify mapping fields by name; Pass a <code>RecordToSample</code> to handle mapping with a custom function that returns one or more samples.</p></td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;"><code>auto_id</code><br>
+<span class="argument-type">bool</span></td>
+<td style="text-align: left;"><p>Assign an auto-incrementing ID for each sample.</p></td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><code>shuffle</code><br>
+<span class="argument-type">bool</span></td>
+<td style="text-align: left;"><p>Randomly shuffle the dataset order.</p></td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;"><code>seed</code><br>
+<span class="argument-type">int | None</span></td>
+<td style="text-align: left;"><p>Seed used for random shuffle.</p></td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><code>shuffle_choices</code><br>
+<span class="argument-type">bool | int | None</span></td>
+<td style="text-align: left;"><p>Whether to shuffle the choices. If an int is passed, this will be used as the seed when shuffling.</p></td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;"><code>limit</code><br>
+<span class="argument-type">int | None</span></td>
+<td style="text-align: left;"><p>Limit the number of records to read.</p></td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><code>dialect</code><br>
+<span class="argument-type">str</span></td>
+<td style="text-align: left;"><p>CSV dialect (“unix”, “excel” or”excel-tab”). Defaults to “unix”. See https://docs.python.org/3/library/csv.html#dialects-and-formatting-parameters for more details</p></td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;"><code>encoding</code><br>
+<span class="argument-type">str</span></td>
+<td style="text-align: left;"><p>Text encoding for file (defaults to “utf-8”).</p></td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><code>name</code><br>
+<span class="argument-type">str | None</span></td>
+<td style="text-align: left;"><p>Optional name for dataset (for logging). If not specified, defaults to the stem of the filename</p></td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;"><code>fs_options</code><br>
+<span class="argument-type">dict[str, Any]</span></td>
+<td style="text-align: left;"><p>Optional. Additional arguments to pass through to the filesystem provider (e.g.&nbsp;<code>S3FileSystem</code>). Use <code>{"anon": True }</code> if you are accessing a public S3 bucket with no credentials.</p></td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><code>fieldnames</code><br>
+<span class="argument-type">list[str] | None</span></td>
+<td style="text-align: left;"><p>Optional. A list of fieldnames to use for the CSV. If None, the values in the first row of the file will be used as the fieldnames. Useful for files without a header.</p></td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;"><code>delimiter</code><br>
+<span class="argument-type">str</span></td>
+<td style="text-align: left;"><p>Optional. The delimiter to use when parsing the file. Defaults to “,”.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="json_dataset" class="level3">
+<h3 class="anchored" data-anchor-id="json_dataset">json_dataset</h3>
+<p>Read dataset from a JSON file.</p>
+<p>Read a dataset from a JSON file containing an array of objects, or from a JSON Lines file containing one object per line. These objects may already be formatted as <code>Sample</code> instances, or may require some mapping using the <code>sample_fields</code> argument.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/206b9528a0c9b893faded1a8c7e182b162ad850d/src/inspect_ai/dataset/_sources/json.py#L22">Source</a>
+</div>
+<div class="sourceCode" id="cb2"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> json_dataset(</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>    json_file: <span class="bu">str</span>,</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>    sample_fields: FieldSpec <span class="op">|</span> RecordToSample <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>    auto_id: <span class="bu">bool</span> <span class="op">=</span> <span class="va">False</span>,</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>    shuffle: <span class="bu">bool</span> <span class="op">=</span> <span class="va">False</span>,</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>    seed: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>    shuffle_choices: <span class="bu">bool</span> <span class="op">|</span> <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>    limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>    encoding: <span class="bu">str</span> <span class="op">=</span> <span class="st">"utf-8"</span>,</span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>    name: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>    fs_options: <span class="bu">dict</span>[<span class="bu">str</span>, Any] <span class="op">=</span> {},</span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> Dataset</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 75%">
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">Argument</th>
+<th style="text-align: left;">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;"><code>json_file</code><br>
+<span class="argument-type">str</span></td>
+<td style="text-align: left;"><p>Path to JSON file. Can be a local filesystem path or a path to an S3 bucket (e.g.&nbsp;“s3://my-bucket”). Use <code>fs_options</code> to pass arguments through to the <code>S3FileSystem</code> constructor.</p></td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><code>sample_fields</code><br>
+<span class="argument-type">FieldSpec | RecordToSample | None</span></td>
+<td style="text-align: left;"><p>Method of mapping underlying fields in the data source to <code>Sample</code> objects. Pass <code>None</code> if the data is already stored in <code>Sample</code> form (i.e.&nbsp;object with “input” and “target” fields); Pass a <code>FieldSpec</code> to specify mapping fields by name; Pass a <code>RecordToSample</code> to handle mapping with a custom function that returns one or more samples.</p></td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;"><code>auto_id</code><br>
+<span class="argument-type">bool</span></td>
+<td style="text-align: left;"><p>Assign an auto-incrementing ID for each sample.</p></td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><code>shuffle</code><br>
+<span class="argument-type">bool</span></td>
+<td style="text-align: left;"><p>Randomly shuffle the dataset order.</p></td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;"><code>seed</code><br>
+<span class="argument-type">int | None</span></td>
+<td style="text-align: left;"><p>Seed used for random shuffle.</p></td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><code>shuffle_choices</code><br>
+<span class="argument-type">bool | int | None</span></td>
+<td style="text-align: left;"><p>Whether to shuffle the choices. If an int is passed, this will be used as the seed when shuffling.</p></td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;"><code>limit</code><br>
+<span class="argument-type">int | None</span></td>
+<td style="text-align: left;"><p>Limit the number of records to read.</p></td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><code>encoding</code><br>
+<span class="argument-type">str</span></td>
+<td style="text-align: left;"><p>Text encoding for file (defaults to “utf-8”).</p></td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;"><code>name</code><br>
+<span class="argument-type">str | None</span></td>
+<td style="text-align: left;"><p>Optional name for dataset (for logging). If not specified, defaults to the stem of the filename.</p></td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><code>fs_options</code><br>
+<span class="argument-type">dict[str, Any]</span></td>
+<td style="text-align: left;"><p>Optional. Additional arguments to pass through to the filesystem provider (e.g.&nbsp;<code>S3FileSystem</code>). Use <code>{"anon": True }</code> if you are accessing a public S3 bucket with no credentials.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="hf_dataset" class="level3">
+<h3 class="anchored" data-anchor-id="hf_dataset">hf_dataset</h3>
+<p>Datasets read using the Hugging Face <code>datasets</code> package.</p>
+<p>The <code>hf_dataset</code> function supports reading datasets using the Hugging Face <code>datasets</code> package, including remote datasets on Hugging Face Hub.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/206b9528a0c9b893faded1a8c7e182b162ad850d/src/inspect_ai/dataset/_sources/hf.py#L22">Source</a>
+</div>
+<div class="sourceCode" id="cb3"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> hf_dataset(</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    path: <span class="bu">str</span>,</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>    split: <span class="bu">str</span>,</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>    name: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>    data_dir: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>    revision: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>    sample_fields: FieldSpec <span class="op">|</span> RecordToSample <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>    auto_id: <span class="bu">bool</span> <span class="op">=</span> <span class="va">False</span>,</span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>    shuffle: <span class="bu">bool</span> <span class="op">=</span> <span class="va">False</span>,</span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>    seed: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>    shuffle_choices: <span class="bu">bool</span> <span class="op">|</span> <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a>    limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a>    trust: <span class="bu">bool</span> <span class="op">=</span> <span class="va">False</span>,</span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a>    cached: <span class="bu">bool</span> <span class="op">=</span> <span class="va">True</span>,</span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a>    <span class="op">**</span>kwargs: Any,</span>
+<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> Dataset</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 75%">
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">Argument</th>
+<th style="text-align: left;">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;"><code>path</code><br>
+<span class="argument-type">str</span></td>
+<td style="text-align: left;"><p>Path or name of the dataset. Depending on path, the dataset builder that is used comes from a generic dataset script (JSON, CSV, Parquet, text etc.) or from the dataset script (a python file) inside the dataset directory.</p></td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><code>split</code><br>
+<span class="argument-type">str</span></td>
+<td style="text-align: left;"><p>Which split of the data to load.</p></td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;"><code>name</code><br>
+<span class="argument-type">str | None</span></td>
+<td style="text-align: left;"><p>Name of the dataset configuration.</p></td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><code>data_dir</code><br>
+<span class="argument-type">str | None</span></td>
+<td style="text-align: left;"><p>data_dir of the dataset configuration to read data from.</p></td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;"><code>revision</code><br>
+<span class="argument-type">str | None</span></td>
+<td style="text-align: left;"><p>Specific revision to load (e.g.&nbsp;“main”, a branch name, or a specific commit SHA). When using <code>revision</code> the <code>cached</code> option is ignored and datasets are revalidated on Hugging Face before loading.</p></td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><code>sample_fields</code><br>
+<span class="argument-type">FieldSpec | RecordToSample | None</span></td>
+<td style="text-align: left;"><p>Method of mapping underlying fields in the data source to Sample objects. Pass <code>None</code> if the data is already stored in <code>Sample</code> form (i.e.&nbsp;has “input” and “target” columns.); Pass a <code>FieldSpec</code> to specify mapping fields by name; Pass a <code>RecordToSample</code> to handle mapping with a custom function that returns one or more samples.</p></td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;"><code>auto_id</code><br>
+<span class="argument-type">bool</span></td>
+<td style="text-align: left;"><p>Assign an auto-incrementing ID for each sample.</p></td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><code>shuffle</code><br>
+<span class="argument-type">bool</span></td>
+<td style="text-align: left;"><p>Randomly shuffle the dataset order.</p></td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;"><code>seed</code><br>
+<span class="argument-type">int | None</span></td>
+<td style="text-align: left;"><p>Seed used for random shuffle.</p></td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><code>shuffle_choices</code><br>
+<span class="argument-type">bool | int | None</span></td>
+<td style="text-align: left;"><p>Whether to shuffle the choices. If an int is passed, this will be used as the seed when shuffling.</p></td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;"><code>limit</code><br>
+<span class="argument-type">int | None</span></td>
+<td style="text-align: left;"><p>Limit the number of records to read.</p></td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><code>trust</code><br>
+<span class="argument-type">bool</span></td>
+<td style="text-align: left;"><p>Whether or not to allow for datasets defined on the Hub using a dataset script. This option should only be set to True for repositories you trust and in which you have read the code, as it will execute code present on the Hub on your local machine.</p></td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;"><code>cached</code><br>
+<span class="argument-type">bool</span></td>
+<td style="text-align: left;"><p>By default, datasets are read once from HuggingFace Hub and then cached for future reads. Pass <code>cached=False</code> to force re-reading the dataset from Hugging Face. Ignored when the <code>revision</code> option is specified.</p></td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><code>**kwargs</code><br>
+<span class="argument-type">Any</span></td>
+<td style="text-align: left;"><p>Additional arguments to pass through to the <code>load_dataset</code> function of the <code>datasets</code> package.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
+<section id="types" class="level2">
+<h2 class="anchored" data-anchor-id="types">Types</h2>
+<section id="sample" class="level3">
+<h3 class="anchored" data-anchor-id="sample">Sample</h3>
+<p>Sample for an evaluation task.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/206b9528a0c9b893faded1a8c7e182b162ad850d/src/inspect_ai/dataset/_dataset.py#L29">Source</a>
+</div>
+<div class="sourceCode" id="cb4"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Sample(BaseModel)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<section class="level4">
+<h4 class="anchored" data-anchor-id="">Attributes</h4>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 75%">
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">Attribute</th>
+<th style="text-align: left;">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;"><code>input</code><br>
+<span class="argument-type">str | list[ChatMessage]</span></td>
+<td style="text-align: left;"><p>The input to be submitted to the model.</p></td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><code>choices</code><br>
+<span class="argument-type">list[str] | None</span></td>
+<td style="text-align: left;"><p>List of available answer choices (used only for multiple-choice evals).</p></td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;"><code>target</code><br>
+<span class="argument-type">str | list[str]</span></td>
+<td style="text-align: left;"><p>Ideal target output. May be a literal value or narrative text to be used by a model grader.</p></td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><code>id</code><br>
+<span class="argument-type">int | str | None</span></td>
+<td style="text-align: left;"><p>Unique identifier for sample.</p></td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;"><code>metadata</code><br>
+<span class="argument-type">dict[str, Any] | None</span></td>
+<td style="text-align: left;"><p>Arbitrary metadata associated with the sample.</p></td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><code>sandbox</code><br>
+<span class="argument-type">SandboxEnvironmentSpec | None</span></td>
+<td style="text-align: left;"><p>Sandbox environment type and optional config file.</p></td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;"><code>files</code><br>
+<span class="argument-type">dict[str, str] | None</span></td>
+<td style="text-align: left;"><p>Files that go along with the sample (copied to SandboxEnvironment)</p></td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><code>setup</code><br>
+<span class="argument-type">str | None</span></td>
+<td style="text-align: left;"><p>Setup script to run for sample (run within default SandboxEnvironment).</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section class="level4">
+<h4 class="anchored" data-anchor-id="">Methods</h4>
+<dl>
+<dt><code>__init__</code></dt>
+<dd>
+<p>Create a Sample.</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> <span class="fu">__init__</span>(</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>    <span class="va">self</span>,</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>    <span class="bu">input</span>: <span class="bu">str</span> <span class="op">|</span> <span class="bu">list</span>[ChatMessage],</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>    choices: <span class="bu">list</span>[<span class="bu">str</span>] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>    target: <span class="bu">str</span> <span class="op">|</span> <span class="bu">list</span>[<span class="bu">str</span>] <span class="op">=</span> <span class="st">""</span>,</span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>    <span class="bu">id</span>: <span class="bu">int</span> <span class="op">|</span> <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>    metadata: <span class="bu">dict</span>[<span class="bu">str</span>, Any] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>    sandbox: SandboxEnvironmentType <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>    files: <span class="bu">dict</span>[<span class="bu">str</span>, <span class="bu">str</span>] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>    setup: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="va">None</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</dd>
+<dt><code>metadata_as</code></dt>
+<dd>
+<p>Metadata as a Pydantic model.</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> metadata_as(<span class="va">self</span>, metadata_cls: Type[MT]) <span class="op">-&gt;</span> MT</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</dd>
+</dl>
+</section>
+</section>
+<section id="fieldspec" class="level3">
+<h3 class="anchored" data-anchor-id="fieldspec">FieldSpec</h3>
+<p>Specification for mapping data source fields to sample fields.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/206b9528a0c9b893faded1a8c7e182b162ad850d/src/inspect_ai/dataset/_dataset.py#L209">Source</a>
+</div>
+<div class="sourceCode" id="cb7"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> FieldSpec</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<section class="level4">
+<h4 class="anchored" data-anchor-id="">Attributes</h4>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 75%">
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">Attribute</th>
+<th style="text-align: left;">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;"><code>input</code><br>
+<span class="argument-type">str</span></td>
+<td style="text-align: left;"><p>Name of the field containing the sample input.</p></td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><code>target</code><br>
+<span class="argument-type">str</span></td>
+<td style="text-align: left;"><p>Name of the field containing the sample target.</p></td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;"><code>choices</code><br>
+<span class="argument-type">str</span></td>
+<td style="text-align: left;"><p>Name of field containing the list of answer choices.</p></td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><code>id</code><br>
+<span class="argument-type">str</span></td>
+<td style="text-align: left;"><p>Unique identifier for the sample.</p></td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;"><code>metadata</code><br>
+<span class="argument-type">list[str] | Type[BaseModel] | None</span></td>
+<td style="text-align: left;"><p>List of additional field names that should be read as metadata.</p></td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><code>sandbox</code><br>
+<span class="argument-type">str</span></td>
+<td style="text-align: left;"><p>Sandbox type along with optional config file.</p></td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;"><code>files</code><br>
+<span class="argument-type">str</span></td>
+<td style="text-align: left;"><p>Files that go along wtih the sample.</p></td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><code>setup</code><br>
+<span class="argument-type">str</span></td>
+<td style="text-align: left;"><p>Setup script to run for sample (run within default SandboxEnvironment).</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
+<section id="recordtosample" class="level3">
+<h3 class="anchored" data-anchor-id="recordtosample">RecordToSample</h3>
+<p>Callable that maps raw dictionary record to a Sample.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/206b9528a0c9b893faded1a8c7e182b162ad850d/src/inspect_ai/dataset/_dataset.py#L238">Source</a>
+</div>
+<div class="sourceCode" id="cb8"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>RecordToSample <span class="op">=</span> Callable[[DatasetRecord], Sample <span class="op">|</span> <span class="bu">list</span>[Sample]]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
+<section id="dataset" class="level3">
+<h3 class="anchored" data-anchor-id="dataset">Dataset</h3>
+<p>A sequence of Sample objects.</p>
+<p>Datasets provide sequential access (via conventional indexes or slicing) to a collection of Sample objects.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/206b9528a0c9b893faded1a8c7e182b162ad850d/src/inspect_ai/dataset/_dataset.py#L130">Source</a>
+</div>
+<div class="sourceCode" id="cb9"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Dataset(Sequence[Sample], abc.ABC)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<section class="level4">
+<h4 class="anchored" data-anchor-id="">Methods</h4>
+<dl>
+<dt><code>sort</code></dt>
+<dd>
+<p>Sort the dataset (in place) in ascending order and return None.</p>
+<p>If a key function is given, apply it once to each list item and sort them, ascending or descending, according to their function values.</p>
+<p>The key function defaults to measuring the length of the sample’s input field.</p>
+<div class="sourceCode" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="at">@abc.abstractmethod</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> sort(</span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>    <span class="va">self</span>,</span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>    reverse: <span class="bu">bool</span> <span class="op">=</span> <span class="va">False</span>,</span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>    key: Callable[[Sample], <span class="st">"SupportsRichComparison"</span>] <span class="op">=</span> sample_input_len,</span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="va">None</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</dd>
+<dt><code>filter</code></dt>
+<dd>
+<p>Filter the dataset using a predicate.</p>
+<div class="sourceCode" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="at">@abc.abstractmethod</span></span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> <span class="bu">filter</span>(</span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>    <span class="va">self</span>, predicate: Callable[[Sample], <span class="bu">bool</span>], name: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span></span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="st">"Dataset"</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</dd>
+<dt><code>shuffle</code></dt>
+<dd>
+<p>Shuffle the order of the dataset (in place).</p>
+<div class="sourceCode" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="at">@abc.abstractmethod</span></span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> shuffle(<span class="va">self</span>, seed: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>) <span class="op">-&gt;</span> <span class="va">None</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</dd>
+<dt><code>shuffle_choices</code></dt>
+<dd>
+<p>Shuffle the order of the choices with each sample.</p>
+<div class="sourceCode" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="at">@abc.abstractmethod</span></span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> shuffle_choices(<span class="va">self</span>, seed: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>) <span class="op">-&gt;</span> <span class="va">None</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</dd>
+</dl>
+</section>
+</section>
+<section id="memorydataset" class="level3">
+<h3 class="anchored" data-anchor-id="memorydataset">MemoryDataset</h3>
+<p>A Dataset stored in memory.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/206b9528a0c9b893faded1a8c7e182b162ad850d/src/inspect_ai/dataset/_dataset.py#L242">Source</a>
+</div>
+<div class="sourceCode" id="cb14"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> MemoryDataset(Dataset)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<section class="level4">
+<h4 class="anchored" data-anchor-id="">Attributes</h4>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 75%">
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">Attribute</th>
+<th style="text-align: left;">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;"><code>name</code><br>
+<span class="argument-type">str | None</span></td>
+<td style="text-align: left;"><p>Dataset name.</p></td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><code>location</code><br>
+<span class="argument-type">str | None</span></td>
+<td style="text-align: left;"><p>Dataset location.</p></td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;"><code>shuffled</code><br>
+<span class="argument-type">bool</span></td>
+<td style="text-align: left;"><p>Was the dataset shuffled.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section class="level4">
+<h4 class="anchored" data-anchor-id="">Methods</h4>
+<dl>
+<dt><code>__init__</code></dt>
+<dd>
+<p>A dataset of samples held in an in-memory list.</p>
+<p>Datasets provide sequential access (via conventional indexes or slicing) to a collection of Sample objects. The ListDataset is explicitly initialized with a list that is held in memory.</p>
+<div class="sourceCode" id="cb15"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> <span class="fu">__init__</span>(</span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>    <span class="va">self</span>,</span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a>    samples: <span class="bu">list</span>[Sample],</span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a>    name: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a>    location: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a>    shuffled: <span class="bu">bool</span> <span class="op">=</span> <span class="va">False</span>,</span>
+<span id="cb15-7"><a href="#cb15-7" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="va">None</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</dd>
+</dl>
 
 
+</section>
+</section>
+</section>
 
 </main> <!-- /main -->
 <script id="quarto-html-after-body" type="application/javascript">
@@ -1296,10 +1916,13 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
 </script>
 <nav class="page-navigation">
   <div class="nav-page nav-page-previous">
+      <a href="../reference/inspect_ai.tool.html#toolfunction" class="pagination-link" aria-label="ToolFunction">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">ToolFunction</span>
+      </a>          
   </div>
   <div class="nav-page nav-page-next">
-      <a href="../reference/inspect_ai.solver.html" class="pagination-link" aria-label="inspect_ai.solver">
-        <span class="nav-page-text">inspect_ai.solver</span> <i class="bi bi-arrow-right-short"></i>
+      <a href="../reference/inspect_ai.dataset.html#csv_dataset" class="pagination-link" aria-label="csv_dataset">
+        <span class="nav-page-text">csv_dataset</span> <i class="bi bi-arrow-right-short"></i>
       </a>
   </div>
 </nav>
@@ -1338,7 +1961,7 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
 </a>
   </li>  
 </ul>
-    <div class="toc-actions"><ul><li><a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div></div>
+    <div class="toc-actions d-sm-block d-md-none"><ul><li><a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div></div>
     <div class="nav-footer-right">
       <ul class="footer-items list-unstyled">
     <li class="nav-item compact">

@@ -694,7 +694,8 @@ Definition** command in your source editor.
 
 - `std()`
 
-  Sample standard deviation of all scores.
+  Standard deviation over all scores (see below for details on computing
+  clustered standard errors).
 
 - `stderr()`
 
@@ -705,6 +706,45 @@ Definition** command in your source editor.
   Standard deviation of a bootstrapped estimate of the mean. 1000
   samples are taken by default (modify this using the `num_samples`
   option).
+
+#### Clustered Standard Errors
+
+> [!NOTE]
+>
+> The clustered standard errors feature described below is currently
+> available only in the development version of Inspect. To install the
+> development version from GitHub:
+>
+> ``` bash
+> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+> ```
+
+The `stderr()` metric supports computing [clustered standard
+errors](https://en.wikipedia.org/wiki/Clustered_standard_errors) via the
+`cluster` parameter. Most scorers already include `stderr()` as a
+built-in metric, so to compute clustered standard errors you’ll want to
+specify custom `metrics` for your task (which will override the scorer’s
+built in metrics).
+
+For example, let’s say you wanted to cluster on a “category” variable
+defined in `Sample` metadata:
+
+``` python
+@task
+def gpqa():
+    return Task(
+        dataset=read_gpqa_dataset("gpqa_main.csv"),
+        solver=[
+            system_message(SYSTEM_MESSAGE),
+            multiple_choice(),
+        ],
+        scorer=choice(),
+        metrics=[accuracy(), stderr(cluster="category")]
+    )
+```
+
+The `metrics` passed to the `Task` override the default metrics of the
+`choice()` scorer.
 
 ### Custom Metrics
 

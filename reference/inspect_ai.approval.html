@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 
-<title>Reference – Inspect</title>
+<title>inspect_ai.approval – Inspect</title>
 <style>
 code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
@@ -20,6 +20,40 @@ ul.task-list li input[type="checkbox"] {
   margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
   vertical-align: middle;
 }
+/* CSS for syntax highlighting */
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { display: inline-block; text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
 </style>
 
 
@@ -30,7 +64,8 @@ ul.task-list li input[type="checkbox"] {
 <script src="../site_libs/quarto-search/fuse.min.js"></script>
 <script src="../site_libs/quarto-search/quarto-search.js"></script>
 <meta name="quarto:offset" content="../">
-<link href="../reference/inspect_ai.solver.html" rel="next">
+<link href="../reference/inspect_ai.approval.qmd#auto_approver" rel="next">
+<link href="../reference/inspect_ai.dataset.qmd#memorydataset" rel="prev">
 <script src="../site_libs/quarto-html/quarto.js"></script>
 <script src="../site_libs/quarto-html/popper.min.js"></script>
 <script src="../site_libs/quarto-html/tippy.umd.min.js"></script>
@@ -133,7 +168,7 @@ ul.task-list li input[type="checkbox"] {
       <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
         <i class="bi bi-layout-text-sidebar-reverse"></i>
       </button>
-        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="../reference/index.html">Reference</a></li></ol></nav>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="../reference/inspect_ai.approval.html">inspect_ai.approval</a></li></ol></nav>
         <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
         </a>
     </div>
@@ -147,7 +182,7 @@ ul.task-list li input[type="checkbox"] {
     <ul class="list-unstyled mt-1">
         <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/index.html" class="sidebar-item-text sidebar-link active">
+  <a href="../reference/index.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Reference</span></a>
   </div>
 </li>
@@ -611,13 +646,13 @@ ul.task-list li input[type="checkbox"] {
   </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a href="../reference/inspect_ai.approval.html" class="sidebar-item-text sidebar-link">
+            <a href="../reference/inspect_ai.approval.html" class="sidebar-item-text sidebar-link active">
  <span class="menu-text">inspect_ai.approval</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" role="navigation" aria-expanded="false" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-5" class="collapse list-unstyled sidebar-section depth1 ">  
+      <ul id="quarto-sidebar-section-5" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.approval.html#auto_approver" class="sidebar-item-text sidebar-link">
@@ -804,15 +839,36 @@ ul.task-list li input[type="checkbox"] {
 </nav>
 <div id="quarto-sidebar-glass" class="quarto-sidebar-collapse-item" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item"></div>
 <!-- margin-sidebar -->
-    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar zindex-bottom">
-        
+    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+        <nav id="TOC" role="doc-toc" class="toc-active" data-toc-expanded="99">
+    <h2 id="toc-title">On this page</h2>
+   
+  <ul>
+  <li><a href="#approvers" id="toc-approvers" class="nav-link active" data-scroll-target="#approvers">Approvers</a>
+  <ul class="collapse">
+  <li><a href="#auto_approver" id="toc-auto_approver" class="nav-link" data-scroll-target="#auto_approver">auto_approver</a></li>
+  <li><a href="#human_approver" id="toc-human_approver" class="nav-link" data-scroll-target="#human_approver">human_approver</a></li>
+  </ul></li>
+  <li><a href="#types" id="toc-types" class="nav-link" data-scroll-target="#types">Types</a>
+  <ul class="collapse">
+  <li><a href="#approver" id="toc-approver" class="nav-link" data-scroll-target="#approver">Approver</a></li>
+  <li><a href="#approval" id="toc-approval" class="nav-link" data-scroll-target="#approval">Approval</a></li>
+  <li><a href="#approvaldecision" id="toc-approvaldecision" class="nav-link" data-scroll-target="#approvaldecision">ApprovalDecision</a></li>
+  <li><a href="#approvalpolicy" id="toc-approvalpolicy" class="nav-link" data-scroll-target="#approvalpolicy">ApprovalPolicy</a></li>
+  </ul></li>
+  <li><a href="#decorator" id="toc-decorator" class="nav-link" data-scroll-target="#decorator">Decorator</a>
+  <ul class="collapse">
+  <li><a href="#approver-1" id="toc-approver-1" class="nav-link" data-scroll-target="#approver-1">approver</a></li>
+  </ul></li>
+  </ul>
+<div class="toc-actions"><ul><li><a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div></nav>
     </div>
 <!-- main -->
 <main class="content" id="quarto-document-content">
 
 <header id="title-block-header" class="quarto-title-block default">
 <div class="quarto-title">
-<h1 class="title">Reference</h1>
+<h1 class="title">inspect_ai.approval</h1>
 </div>
 
 
@@ -829,8 +885,245 @@ ul.task-list li input[type="checkbox"] {
 </header>
 
 
+<section id="approvers" class="level2">
+<h2 class="anchored" data-anchor-id="approvers">Approvers</h2>
+<section id="auto_approver" class="level3">
+<h3 class="anchored" data-anchor-id="auto_approver">auto_approver</h3>
+<p>Automatically apply a decision to tool calls.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/206b9528a0c9b893faded1a8c7e182b162ad850d/src/inspect_ai/approval/_auto.py#L9">Source</a>
+</div>
+<div class="sourceCode" id="cb1"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="at">@approver</span>(name<span class="op">=</span><span class="st">"auto"</span>)</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> auto_approver(decision: ApprovalDecision <span class="op">=</span> <span class="st">"approve"</span>) <span class="op">-&gt;</span> Approver</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 75%">
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">Argument</th>
+<th style="text-align: left;">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;"><code>decision</code><br>
+<span class="argument-type">ApprovalDecision</span></td>
+<td style="text-align: left;"><p>Decision to apply.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="human_approver" class="level3">
+<h3 class="anchored" data-anchor-id="human_approver">human_approver</h3>
+<p>Interactive human approver.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/206b9528a0c9b893faded1a8c7e182b162ad850d/src/inspect_ai/approval/_human/approver.py#L11">Source</a>
+</div>
+<div class="sourceCode" id="cb2"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="at">@approver</span>(name<span class="op">=</span><span class="st">"human"</span>)</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> human_approver(</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>    choices: <span class="bu">list</span>[ApprovalDecision] <span class="op">=</span> [<span class="st">"approve"</span>, <span class="st">"reject"</span>, <span class="st">"terminate"</span>],</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> Approver</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 75%">
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">Argument</th>
+<th style="text-align: left;">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;"><code>choices</code><br>
+<span class="argument-type">list[ApprovalDecision]</span></td>
+<td style="text-align: left;"><p>Choices to present to human.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
+<section id="types" class="level2">
+<h2 class="anchored" data-anchor-id="types">Types</h2>
+<section id="approver" class="level3">
+<h3 class="anchored" data-anchor-id="approver">Approver</h3>
+<p>Approve or reject a tool call.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/206b9528a0c9b893faded1a8c7e182b162ad850d/src/inspect_ai/approval/_approver.py#L12">Source</a>
+</div>
+<div class="sourceCode" id="cb3"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Approver(Protocol):</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> <span class="fu">__call__</span>(</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>,</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>        message: <span class="bu">str</span>,</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>        call: ToolCall,</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>        view: ToolCallView,</span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>        state: TaskState <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>    ) <span class="op">-&gt;</span> Approval</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 75%">
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">Argument</th>
+<th style="text-align: left;">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;"><code>message</code><br>
+<span class="argument-type">str</span></td>
+<td style="text-align: left;"><p>Message genreated by the model along with the tool call.</p></td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><code>call</code><br>
+<span class="argument-type">ToolCall</span></td>
+<td style="text-align: left;"><p>The tool call to be approved.</p></td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;"><code>view</code><br>
+<span class="argument-type">ToolCallView</span></td>
+<td style="text-align: left;"><p>Custom rendering of tool context and call.</p></td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><code>state</code><br>
+<span class="argument-type">TaskState | None</span></td>
+<td style="text-align: left;"><p>The current task state, if available.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="approval" class="level3">
+<h3 class="anchored" data-anchor-id="approval">Approval</h3>
+<p>Approval details (decision, explanation, etc.)</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/206b9528a0c9b893faded1a8c7e182b162ad850d/src/inspect_ai/approval/_approval.py#L19">Source</a>
+</div>
+<div class="sourceCode" id="cb4"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Approval(BaseModel)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<section class="level4">
+<h4 class="anchored" data-anchor-id="">Attributes</h4>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 75%">
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">Attribute</th>
+<th style="text-align: left;">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;"><code>decision</code><br>
+<span class="argument-type">ApprovalDecision</span></td>
+<td style="text-align: left;"><p>Approval decision.</p></td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><code>modified</code><br>
+<span class="argument-type">ToolCall | None</span></td>
+<td style="text-align: left;"><p>Modified tool call for decision ‘modify’.</p></td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;"><code>explanation</code><br>
+<span class="argument-type">str | None</span></td>
+<td style="text-align: left;"><p>Explanation for decision.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
+<section id="approvaldecision" class="level3">
+<h3 class="anchored" data-anchor-id="approvaldecision">ApprovalDecision</h3>
+<p>Represents the possible decisions in an approval.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/206b9528a0c9b893faded1a8c7e182b162ad850d/src/inspect_ai/approval/_approval.py#L7">Source</a>
+</div>
+<div class="sourceCode" id="cb5"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>ApprovalDecision <span class="op">=</span> Literal[<span class="st">"approve"</span>, <span class="st">"modify"</span>, <span class="st">"reject"</span>, <span class="st">"terminate"</span>, <span class="st">"escalate"</span>]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
+<section id="approvalpolicy" class="level3">
+<h3 class="anchored" data-anchor-id="approvalpolicy">ApprovalPolicy</h3>
+<p>Policy mapping approvers to tools.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/206b9528a0c9b893faded1a8c7e182b162ad850d/src/inspect_ai/approval/_policy.py#L21">Source</a>
+</div>
+<div class="sourceCode" id="cb6"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ApprovalPolicy</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<section class="level4">
+<h4 class="anchored" data-anchor-id="">Attributes</h4>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 75%">
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">Attribute</th>
+<th style="text-align: left;">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;"><code>approver</code><br>
+<span class="argument-type">Approver</span></td>
+<td style="text-align: left;"><p>Approver for policy.</p></td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><code>tools</code><br>
+<span class="argument-type">str | list[str]</span></td>
+<td style="text-align: left;"><p>Tools to use this approver for (can be full tool names or globs).</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
+</section>
+<section id="decorator" class="level2">
+<h2 class="anchored" data-anchor-id="decorator">Decorator</h2>
+<section id="approver-1" class="level3">
+<h3 class="anchored" data-anchor-id="approver-1">approver</h3>
+<p>Decorator for registering approvers.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/206b9528a0c9b893faded1a8c7e182b162ad850d/src/inspect_ai/approval/_registry.py#L28">Source</a>
+</div>
+<div class="sourceCode" id="cb7"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> approver(<span class="op">*</span>args: Any, name: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>, <span class="op">**</span>attribs: Any) <span class="op">-&gt;</span> Any</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 75%">
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">Argument</th>
+<th style="text-align: left;">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;"><code>*args</code><br>
+<span class="argument-type">Any</span></td>
+<td style="text-align: left;"><p>Function returning <code>Approver</code> targeted by plain approver decorator without attributes (e.g.&nbsp;<code>@approver</code>)</p></td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><code>name</code><br>
+<span class="argument-type">str | None</span></td>
+<td style="text-align: left;"><p>Optional name for approver. If the decorator has no name argument then the name of the function will be used to automatically assign a name.</p></td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;"><code>**attribs</code><br>
+<span class="argument-type">Any</span></td>
+<td style="text-align: left;"><p>Additional approver attributes.</p></td>
+</tr>
+</tbody>
+</table>
 
 
+</section>
+</section>
 
 </main> <!-- /main -->
 <script id="quarto-html-after-body" type="application/javascript">
@@ -1296,10 +1589,13 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
 </script>
 <nav class="page-navigation">
   <div class="nav-page nav-page-previous">
+      <a href="../reference/inspect_ai.dataset.html#memorydataset" class="pagination-link" aria-label="MemoryDataset">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">MemoryDataset</span>
+      </a>          
   </div>
   <div class="nav-page nav-page-next">
-      <a href="../reference/inspect_ai.solver.html" class="pagination-link" aria-label="inspect_ai.solver">
-        <span class="nav-page-text">inspect_ai.solver</span> <i class="bi bi-arrow-right-short"></i>
+      <a href="../reference/inspect_ai.approval.html#auto_approver" class="pagination-link" aria-label="auto_approver">
+        <span class="nav-page-text">auto_approver</span> <i class="bi bi-arrow-right-short"></i>
       </a>
   </div>
 </nav>
@@ -1338,7 +1634,7 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
 </a>
   </li>  
 </ul>
-    <div class="toc-actions"><ul><li><a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div></div>
+    <div class="toc-actions d-sm-block d-md-none"><ul><li><a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div></div>
     <div class="nav-footer-right">
       <ul class="footer-items list-unstyled">
     <li class="nav-item compact">

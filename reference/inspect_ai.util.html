@@ -1,0 +1,2273 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.5.57">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>inspect_ai.util – Inspect</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { display: inline-block; text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="../site_libs/quarto-nav/quarto-nav.js"></script>
+<script src="../site_libs/quarto-nav/headroom.min.js"></script>
+<script src="../site_libs/clipboard/clipboard.min.js"></script>
+<script src="../site_libs/quarto-search/autocomplete.umd.js"></script>
+<script src="../site_libs/quarto-search/fuse.min.js"></script>
+<script src="../site_libs/quarto-search/quarto-search.js"></script>
+<meta name="quarto:offset" content="../">
+<link href="../reference/inspect_ai.util.qmd#store" rel="next">
+<link href="../reference/inspect_ai.approval.qmd#approvalpolicy" rel="prev">
+<script src="../site_libs/quarto-html/quarto.js"></script>
+<script src="../site_libs/quarto-html/popper.min.js"></script>
+<script src="../site_libs/quarto-html/tippy.umd.min.js"></script>
+<script src="../site_libs/quarto-html/anchor.min.js"></script>
+<link href="../site_libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="../site_libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="../site_libs/bootstrap/bootstrap.min.js"></script>
+<link href="../site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="../site_libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
+<script id="quarto-search-options" type="application/json">{
+  "location": "navbar",
+  "copy-button": false,
+  "collapse-after": 3,
+  "panel-placement": "end",
+  "type": "overlay",
+  "limit": 50,
+  "keyboard-shortcut": [
+    "f",
+    "/",
+    "s"
+  ],
+  "show-item-context": false,
+  "language": {
+    "search-no-results-text": "No results",
+    "search-matching-documents-text": "matching documents",
+    "search-copy-link-title": "Copy link to search",
+    "search-hide-matches-text": "Hide additional matches",
+    "search-more-match-text": "more match in this document",
+    "search-more-matches-text": "more matches in this document",
+    "search-clear-button-title": "Clear",
+    "search-text-placeholder": "",
+    "search-detached-cancel-button-title": "Cancel",
+    "search-submit-button-title": "Submit",
+    "search-label": "Search"
+  }
+}</script>
+
+
+<meta property="og:title" content="Inspect">
+<meta property="og:description" content="Open-source framework for large language model evaluations">
+<meta property="og:image" content="https://inspect.ai-safety-institute.org.uk//images/inspect.png">
+<meta property="og:site_name" content="Inspect">
+<meta property="og:image:height" content="1258">
+<meta property="og:image:width" content="2400">
+<meta name="twitter:title" content="Inspect">
+<meta name="twitter:description" content="Open-source framework for large language model evaluations">
+<meta name="twitter:image" content="https://inspect.ai-safety-institute.org.uk//images/inspect.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image-height" content="1258">
+<meta name="twitter:image-width" content="2400">
+</head>
+
+<body class="nav-sidebar docked nav-fixed">
+
+<div id="quarto-search-results"></div>
+  <header id="quarto-header" class="headroom fixed-top">
+    <nav class="navbar navbar-expand-lg " data-bs-theme="dark">
+      <div class="navbar-container container-fluid">
+      <div class="navbar-brand-container mx-auto">
+    <a href="https://www.aisi.gov.uk/" class="navbar-brand navbar-brand-logo">
+    <img src="../images/aisi-logo.png" alt="" class="navbar-logo">
+    </a>
+    <a class="navbar-brand" href="https://www.aisi.gov.uk/">
+    <span class="navbar-title">Inspect AI</span>
+    </a>
+  </div>
+            <div id="quarto-search" class="" title="Search"></div>
+          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse" aria-controls="navbarCollapse" role="menu" aria-expanded="false" aria-label="Toggle navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+  <span class="navbar-toggler-icon"></span>
+</button>
+          <div class="collapse navbar-collapse" id="navbarCollapse">
+            <ul class="navbar-nav navbar-nav-scroll me-auto">
+  <li class="nav-item">
+    <a class="nav-link" href="../index.html"> 
+<span class="menu-text">User Guide</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link active" href="../reference/index.html" aria-current="page"> 
+<span class="menu-text">Reference</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="../evals/index.html"> 
+<span class="menu-text">Evals</span></a>
+  </li>  
+</ul>
+            <ul class="navbar-nav navbar-nav-scroll ms-auto">
+  <li class="nav-item compact">
+    <a class="nav-link" href="https://github.com/UKGovernmentBEIS/inspect_ai"> <i class="bi bi-github" role="img">
+</i> 
+<span class="menu-text"></span></a>
+  </li>  
+</ul>
+          </div> <!-- /navcollapse -->
+            <div class="quarto-navbar-tools">
+</div>
+      </div> <!-- /container-fluid -->
+    </nav>
+  <nav class="quarto-secondary-nav">
+    <div class="container-fluid d-flex">
+      <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+        <i class="bi bi-layout-text-sidebar-reverse"></i>
+      </button>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="../reference/inspect_ai.util.html">inspect_ai.util</a></li></ol></nav>
+        <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
+        </a>
+    </div>
+  </nav>
+</header>
+<!-- content -->
+<div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article page-navbar">
+<!-- sidebar -->
+  <nav id="quarto-sidebar" class="sidebar collapse collapse-horizontal quarto-sidebar-collapse-item sidebar-navigation docked overflow-auto">
+    <div class="sidebar-menu-container"> 
+    <ul class="list-unstyled mt-1">
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Reference</span></a>
+  </div>
+</li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a href="../reference/inspect_ai.solver.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">inspect_ai.solver</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-1" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.solver.html#generate" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">generate</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.solver.html#use_tools" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">use_tools</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.solver.html#prompt_template" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">prompt_template</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.solver.html#system_message" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">system_message</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.solver.html#user_message" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">user_message</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.solver.html#chain_of_thought" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">chain_of_thought</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.solver.html#self_critique" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">self_critique</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.solver.html#multiple_choice" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">multiple_choice</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.solver.html#basic_agent" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">basic_agent</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.solver.html#human_agent" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">human_agent</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.solver.html#chain" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">chain</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.solver.html#fork" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">fork</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.solver.html#bridge" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">bridge</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.solver.html#solver" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Solver</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.solver.html#solverspec" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">SolverSpec</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.solver.html#taskstate" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">TaskState</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.solver.html#generate" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Generate</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.solver.html#solver" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">solver</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a href="../reference/inspect_ai.scorer.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">inspect_ai.scorer</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-2" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#match" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">match</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#includes" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">includes</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#pattern" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">pattern</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#answer" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">answer</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#choice" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">choice</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#f1" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">f1</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#exact" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">exact</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#model_graded_qa" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">model_graded_qa</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#model_graded_fact" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">model_graded_fact</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#multi_scorer" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">multi_scorer</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#accuracy" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">accuracy</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#mean" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">mean</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#std" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">std</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#stderr" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">stderr</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#bootstrap_stderr" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">bootstrap_stderr</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#at_least" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">at_least</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#pass_at" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">pass_at</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#max_score" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">max_score</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#mean_score" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">mean_score</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#median_score" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">median_score</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#mode_score" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">mode_score</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#scorer" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Scorer</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#metric" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Metric</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#scorereducer" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ScoreReducer</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#target" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Target</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#score" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Score</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#value" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Value</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#scorer" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">scorer</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#metric" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">metric</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#score_reducer" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">score_reducer</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a href="../reference/inspect_ai.tool.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">inspect_ai.tool</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-3" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.tool.html#bash" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">bash</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.tool.html#python" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">python</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.tool.html#web_search" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">web_search</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.tool.html#web_browser" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">web_browser</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.tool.html#computer" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">computer</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.tool.html#tool_with" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">tool_with</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.tool.html#tooldef" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ToolDef</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.tool.html#tool" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Tool</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.tool.html#toolresult" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ToolResult</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.tool.html#toolerror" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ToolError</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.tool.html#toolchoice" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ToolChoice</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.tool.html#toolfunction" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ToolFunction</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.tool.html#tool" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">tool</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a href="../reference/inspect_ai.dataset.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">inspect_ai.dataset</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-4" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.dataset.html#csv_dataset" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">csv_dataset</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.dataset.html#json_dataset" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">json_dataset</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.dataset.html#hf_dataset" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">hf_dataset</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.dataset.html#sample" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Sample</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.dataset.html#fieldspec" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">FieldSpec</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.dataset.html#recordtosample" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">RecordToSample</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.dataset.html#dataset" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Dataset</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.dataset.html#memorydataset" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">MemoryDataset</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a href="../reference/inspect_ai.approval.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">inspect_ai.approval</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-5" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.approval.html#auto_approver" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">auto_approver</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.approval.html#human_approver" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">human_approver</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.approval.html#approver" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Approver</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.approval.html#approval" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Approval</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.approval.html#approvaldecision" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ApprovalDecision</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.approval.html#approvalpolicy" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ApprovalPolicy</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.approval.html#approver" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">approver</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a href="../reference/inspect_ai.util.html" class="sidebar-item-text sidebar-link active">
+ <span class="menu-text">inspect_ai.util</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-6" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-6" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#store" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Store</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#store" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">store</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#store_as" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">store_as</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#storemodel" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">StoreModel</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#concurrency" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">concurrency</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#subprocess" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">subprocess</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#execresult" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ExecResult</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#display_type" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">display_type</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#displaytype" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">DisplayType</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#input_screen" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">input_screen</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#subtask" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">subtask</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#subtask" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Subtask</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#resource" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">resource</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#throttle" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">throttle</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#trace_action" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">trace_action</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#trace_message" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">trace_message</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#sandbox" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">sandbox</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#sandbox_with" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">sandbox_with</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#sandboxenvironment" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">SandboxEnvironment</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#sandboxconnection" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">SandboxConnection</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#sandboxenv" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">sandboxenv</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+    </ul>
+    </div>
+</nav>
+<div id="quarto-sidebar-glass" class="quarto-sidebar-collapse-item" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item"></div>
+<!-- margin-sidebar -->
+    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+        <nav id="TOC" role="doc-toc" class="toc-active" data-toc-expanded="99">
+    <h2 id="toc-title">On this page</h2>
+   
+  <ul>
+  <li><a href="#store" id="toc-store" class="nav-link active" data-scroll-target="#store">Store</a>
+  <ul class="collapse">
+  <li><a href="#store-1" id="toc-store-1" class="nav-link" data-scroll-target="#store-1">Store</a></li>
+  <li><a href="#store-2" id="toc-store-2" class="nav-link" data-scroll-target="#store-2">store</a></li>
+  <li><a href="#store_as" id="toc-store_as" class="nav-link" data-scroll-target="#store_as">store_as</a></li>
+  <li><a href="#storemodel" id="toc-storemodel" class="nav-link" data-scroll-target="#storemodel">StoreModel</a></li>
+  </ul></li>
+  <li><a href="#concurrency" id="toc-concurrency" class="nav-link" data-scroll-target="#concurrency">Concurrency</a>
+  <ul class="collapse">
+  <li><a href="#concurrency-1" id="toc-concurrency-1" class="nav-link" data-scroll-target="#concurrency-1">concurrency</a></li>
+  <li><a href="#subprocess" id="toc-subprocess" class="nav-link" data-scroll-target="#subprocess">subprocess</a></li>
+  <li><a href="#execresult" id="toc-execresult" class="nav-link" data-scroll-target="#execresult">ExecResult</a></li>
+  </ul></li>
+  <li><a href="#display" id="toc-display" class="nav-link" data-scroll-target="#display">Display</a>
+  <ul class="collapse">
+  <li><a href="#display_type" id="toc-display_type" class="nav-link" data-scroll-target="#display_type">display_type</a></li>
+  <li><a href="#displaytype" id="toc-displaytype" class="nav-link" data-scroll-target="#displaytype">DisplayType</a></li>
+  <li><a href="#input_screen" id="toc-input_screen" class="nav-link" data-scroll-target="#input_screen">input_screen</a></li>
+  </ul></li>
+  <li><a href="#subtasks" id="toc-subtasks" class="nav-link" data-scroll-target="#subtasks">Subtasks</a>
+  <ul class="collapse">
+  <li><a href="#subtask" id="toc-subtask" class="nav-link" data-scroll-target="#subtask">subtask</a></li>
+  <li><a href="#subtask-1" id="toc-subtask-1" class="nav-link" data-scroll-target="#subtask-1">Subtask</a></li>
+  </ul></li>
+  <li><a href="#utilities" id="toc-utilities" class="nav-link" data-scroll-target="#utilities">Utilities</a>
+  <ul class="collapse">
+  <li><a href="#resource" id="toc-resource" class="nav-link" data-scroll-target="#resource">resource</a></li>
+  <li><a href="#throttle" id="toc-throttle" class="nav-link" data-scroll-target="#throttle">throttle</a></li>
+  <li><a href="#trace_action" id="toc-trace_action" class="nav-link" data-scroll-target="#trace_action">trace_action</a></li>
+  <li><a href="#trace_message" id="toc-trace_message" class="nav-link" data-scroll-target="#trace_message">trace_message</a></li>
+  </ul></li>
+  <li><a href="#sandbox" id="toc-sandbox" class="nav-link" data-scroll-target="#sandbox">Sandbox</a>
+  <ul class="collapse">
+  <li><a href="#sandbox-1" id="toc-sandbox-1" class="nav-link" data-scroll-target="#sandbox-1">sandbox</a></li>
+  <li><a href="#sandbox_with" id="toc-sandbox_with" class="nav-link" data-scroll-target="#sandbox_with">sandbox_with</a></li>
+  <li><a href="#sandboxenvironment" id="toc-sandboxenvironment" class="nav-link" data-scroll-target="#sandboxenvironment">SandboxEnvironment</a></li>
+  <li><a href="#sandboxconnection" id="toc-sandboxconnection" class="nav-link" data-scroll-target="#sandboxconnection">SandboxConnection</a></li>
+  <li><a href="#sandboxenv" id="toc-sandboxenv" class="nav-link" data-scroll-target="#sandboxenv">sandboxenv</a></li>
+  </ul></li>
+  </ul>
+<div class="toc-actions"><ul><li><a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div></nav>
+    </div>
+<!-- main -->
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">inspect_ai.util</h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<section id="store" class="level2">
+<h2 class="anchored" data-anchor-id="store">Store</h2>
+<section id="store-1" class="level3">
+<h3 class="anchored" data-anchor-id="store-1">Store</h3>
+<p>The <code>Store</code> is used to record state and state changes.</p>
+<p>The <code>TaskState</code> for each sample has a <code>Store</code> which can be used when solvers and/or tools need to coordinate changes to shared state. The <code>Store</code> can be accessed directly from the <code>TaskState</code> via <code>state.store</code> or can be accessed using the <code>store()</code> global function.</p>
+<p>Note that changes to the store that occur are automatically recorded to transcript as a <code>StoreEvent</code>. In order to be serialised to the transcript, values and objects must be JSON serialisable (you can make objects with several fields serialisable using the <code>@dataclass</code> decorator or by inheriting from Pydantic <code>BaseModel</code>)</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/206b9528a0c9b893faded1a8c7e182b162ad850d/src/inspect_ai/util/_store.py#L20">Source</a>
+</div>
+<div class="sourceCode" id="cb1"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Store</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<section class="level4">
+<h4 class="anchored" data-anchor-id="">Methods</h4>
+<dl>
+<dt><code>get</code></dt>
+<dd>
+<p>Get a value from the store.</p>
+<p>Provide a <code>default</code> to automatically initialise a named store value with the default when it does not yet exist.</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> get(<span class="va">self</span>, key: <span class="bu">str</span>, default: VT <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>) <span class="op">-&gt;</span> VT <span class="op">|</span> Any</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</dd>
+<dt><code>set</code></dt>
+<dd>
+<p>Set a value into the store.</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> <span class="bu">set</span>(<span class="va">self</span>, key: <span class="bu">str</span>, value: Any) <span class="op">-&gt;</span> <span class="va">None</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</dd>
+<dt><code>delete</code></dt>
+<dd>
+<p>Remove a value from the store.</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> delete(<span class="va">self</span>, key: <span class="bu">str</span>) <span class="op">-&gt;</span> <span class="va">None</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</dd>
+<dt><code>keys</code></dt>
+<dd>
+<p>View of keys within the store.</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> keys(<span class="va">self</span>) <span class="op">-&gt;</span> KeysView[<span class="bu">str</span>]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</dd>
+<dt><code>values</code></dt>
+<dd>
+<p>View of values within the store.</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> values(<span class="va">self</span>) <span class="op">-&gt;</span> ValuesView[Any]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</dd>
+<dt><code>items</code></dt>
+<dd>
+<p>View of items within the store.</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> items(<span class="va">self</span>) <span class="op">-&gt;</span> ItemsView[<span class="bu">str</span>, Any]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</dd>
+</dl>
+</section>
+</section>
+<section id="store-2" class="level3">
+<h3 class="anchored" data-anchor-id="store-2">store</h3>
+<p>Get the currently active <code>Store</code>.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/206b9528a0c9b893faded1a8c7e182b162ad850d/src/inspect_ai/util/_store.py#L103">Source</a>
+</div>
+<div class="sourceCode" id="cb8"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> store() <span class="op">-&gt;</span> Store</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
+<section id="store_as" class="level3">
+<h3 class="anchored" data-anchor-id="store_as">store_as</h3>
+<p>Get a Pydantic model interface to the store.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/206b9528a0c9b893faded1a8c7e182b162ad850d/src/inspect_ai/util/_store_model.py#L101">Source</a>
+</div>
+<div class="sourceCode" id="cb9"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> store_as(model_cls: Type[SMT]) <span class="op">-&gt;</span> SMT</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 75%">
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">Argument</th>
+<th style="text-align: left;">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;"><code>model_cls</code><br>
+<span class="argument-type">Type[SMT]</span></td>
+<td style="text-align: left;"><p>Pydantic model type (must derive from StoreModel)</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="storemodel" class="level3">
+<h3 class="anchored" data-anchor-id="storemodel">StoreModel</h3>
+<p>Store backed Pydandic BaseModel.</p>
+<p>The model is initialised from a Store, so that Store should either already satisfy the validation constraints of the model OR you should provide Field(default=) annotations for all of your model fields (the latter approach is recommended).</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/206b9528a0c9b893faded1a8c7e182b162ad850d/src/inspect_ai/util/_store_model.py#L8">Source</a>
+</div>
+<div class="sourceCode" id="cb10"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> StoreModel(BaseModel)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
+</section>
+<section id="concurrency" class="level2">
+<h2 class="anchored" data-anchor-id="concurrency">Concurrency</h2>
+<section id="concurrency-1" class="level3">
+<h3 class="anchored" data-anchor-id="concurrency-1">concurrency</h3>
+<p>Obtain a concurrency context.</p>
+<p>A concurrency context can be used to limit the number of coroutines executing a block of code (e.g calling an API). For example, here we limit concurrent calls to an api (‘api-name’) to 10:</p>
+<div class="sourceCode" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="cf">with</span> concurrency(<span class="st">"api-name"</span>, <span class="dv">10</span>):</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>    <span class="co"># call the api</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Note that concurrency for model API access is handled internally via the <code>max_connections</code> generation config option. Concurrency for launching subprocesses is handled via the <code>subprocess</code> function.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/206b9528a0c9b893faded1a8c7e182b162ad850d/src/inspect_ai/util/_concurrency.py#L5">Source</a>
+</div>
+<div class="sourceCode" id="cb12"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> concurrency(</span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>    name: <span class="bu">str</span>,</span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>    concurrency: <span class="bu">int</span>,</span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>    key: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> asyncio.Semaphore</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 75%">
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">Argument</th>
+<th style="text-align: left;">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;"><code>name</code><br>
+<span class="argument-type">str</span></td>
+<td style="text-align: left;"><p>Name for concurrency context. This serves as the display name for the context, and also the unique context key (if the <code>key</code> parameter is omitted)</p></td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><code>concurrency</code><br>
+<span class="argument-type">int</span></td>
+<td style="text-align: left;"><p>Maximum number of coroutines that can enter the context.</p></td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;"><code>key</code><br>
+<span class="argument-type">str | None</span></td>
+<td style="text-align: left;"><p>Unique context key for this context. Optional. Used if the unique key isn’t human readable – e.g.&nbsp;includes api tokens or account ids so that the more readable <code>name</code> can be presented to users e.g in console UI&gt;</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="subprocess" class="level3">
+<h3 class="anchored" data-anchor-id="subprocess">subprocess</h3>
+<p>Execute and wait for a subprocess.</p>
+<p>Convenience method for solvers, scorers, and tools to launch subprocesses. Automatically enforces a limit on concurrent subprocesses (defaulting to os.cpu_count() but controllable via the <code>max_subprocesses</code> eval config option).</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/206b9528a0c9b893faded1a8c7e182b162ad850d/src/inspect_ai/util/_subprocess.py#L65">Source</a>
+</div>
+<div class="sourceCode" id="cb13"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> subprocess(</span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>    args: <span class="bu">str</span> <span class="op">|</span> <span class="bu">list</span>[<span class="bu">str</span>],</span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>    text: <span class="bu">bool</span> <span class="op">=</span> <span class="va">True</span>,</span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>    <span class="bu">input</span>: <span class="bu">str</span> <span class="op">|</span> <span class="bu">bytes</span> <span class="op">|</span> <span class="bu">memoryview</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>    cwd: <span class="bu">str</span> <span class="op">|</span> Path <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a>    env: <span class="bu">dict</span>[<span class="bu">str</span>, <span class="bu">str</span>] <span class="op">=</span> {},</span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a>    capture_output: <span class="bu">bool</span> <span class="op">=</span> <span class="va">True</span>,</span>
+<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a>    output_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a>    timeout: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb13-10"><a href="#cb13-10" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> Union[ExecResult[<span class="bu">str</span>], ExecResult[<span class="bu">bytes</span>]]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 75%">
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">Argument</th>
+<th style="text-align: left;">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;"><code>args</code><br>
+<span class="argument-type">str | list[str]</span></td>
+<td style="text-align: left;"><p>Command and arguments to execute.</p></td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><code>text</code><br>
+<span class="argument-type">bool</span></td>
+<td style="text-align: left;"><p>Return stdout and stderr as text (defaults to True)</p></td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;"><code>input</code><br>
+<span class="argument-type">str | bytes | memoryview | None</span></td>
+<td style="text-align: left;"><p>Optional stdin for subprocess.</p></td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><code>cwd</code><br>
+<span class="argument-type">str | Path | None</span></td>
+<td style="text-align: left;"><p>Switch to directory for execution.</p></td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;"><code>env</code><br>
+<span class="argument-type">dict[str, str]</span></td>
+<td style="text-align: left;"><p>Additional environment variables.</p></td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><code>capture_output</code><br>
+<span class="argument-type">bool</span></td>
+<td style="text-align: left;"><p>Capture stderr and stdout into ExecResult (if False, then output is redirected to parent stderr/stdout)</p></td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;"><code>output_limit</code><br>
+<span class="argument-type">int | None</span></td>
+<td style="text-align: left;"><p>Stop reading output if it exceeds the specified limit (in bytes).</p></td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><code>timeout</code><br>
+<span class="argument-type">int | None</span></td>
+<td style="text-align: left;"><p>Timeout. If the timeout expires then a <code>TimeoutError</code> will be raised.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="execresult" class="level3">
+<h3 class="anchored" data-anchor-id="execresult">ExecResult</h3>
+<p>Execution result from call to <code>subprocess()</code>.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/206b9528a0c9b893faded1a8c7e182b162ad850d/src/inspect_ai/util/_subprocess.py#L21">Source</a>
+</div>
+<div class="sourceCode" id="cb14"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span></span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ExecResult(Generic[T])</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<section class="level4">
+<h4 class="anchored" data-anchor-id="">Attributes</h4>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 75%">
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">Attribute</th>
+<th style="text-align: left;">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;"><code>success</code><br>
+<span class="argument-type">bool</span></td>
+<td style="text-align: left;"><p>Did the process exit with success.</p></td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><code>returncode</code><br>
+<span class="argument-type">int</span></td>
+<td style="text-align: left;"><p>Return code from process exit.</p></td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;"><code>stdout</code><br>
+<span class="argument-type">T</span></td>
+<td style="text-align: left;"><p>Contents of stdout.</p></td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><code>stderr</code><br>
+<span class="argument-type">T</span></td>
+<td style="text-align: left;"><p>Contents of stderr.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
+</section>
+<section id="display" class="level2">
+<h2 class="anchored" data-anchor-id="display">Display</h2>
+<section id="display_type" class="level3">
+<h3 class="anchored" data-anchor-id="display_type">display_type</h3>
+<p>Get the current console display type.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/206b9528a0c9b893faded1a8c7e182b162ad850d/src/inspect_ai/util/_display.py#L41">Source</a>
+</div>
+<div class="sourceCode" id="cb15"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> display_type() <span class="op">-&gt;</span> DisplayType</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
+<section id="displaytype" class="level3">
+<h3 class="anchored" data-anchor-id="displaytype">DisplayType</h3>
+<p>Console display type.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/206b9528a0c9b893faded1a8c7e182b162ad850d/src/inspect_ai/util/_display.py#L10">Source</a>
+</div>
+<div class="sourceCode" id="cb16"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a>DisplayType <span class="op">=</span> Literal[<span class="st">"full"</span>, <span class="st">"conversation"</span>, <span class="st">"rich"</span>, <span class="st">"plain"</span>, <span class="st">"none"</span>]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
+<section id="input_screen" class="level3">
+<h3 class="anchored" data-anchor-id="input_screen">input_screen</h3>
+<p>Input screen for receiving user input.</p>
+<p>Context manager that clears the task display and provides a screen for receiving console input.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/206b9528a0c9b893faded1a8c7e182b162ad850d/src/inspect_ai/util/_console.py#L13">Source</a>
+</div>
+<div class="sourceCode" id="cb17"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="at">@contextmanager</span></span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> input_screen(</span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a>    header: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a>    transient: <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a>    width: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb17-6"><a href="#cb17-6" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> Iterator[Console]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 75%">
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">Argument</th>
+<th style="text-align: left;">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;"><code>header</code><br>
+<span class="argument-type">str | None</span></td>
+<td style="text-align: left;"><p>Header line to print above console content (defaults to printing no header)</p></td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><code>transient</code><br>
+<span class="argument-type">bool | None</span></td>
+<td style="text-align: left;"><p>Return to task progress display after the user completes input (defaults to <code>True</code> for normal sessions and <code>False</code> when trace mode is enabled).</p></td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;"><code>width</code><br>
+<span class="argument-type">int | None</span></td>
+<td style="text-align: left;"><p>Input screen width in characters (defaults to full width)</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
+<section id="subtasks" class="level2">
+<h2 class="anchored" data-anchor-id="subtasks">Subtasks</h2>
+<section id="subtask" class="level3">
+<h3 class="anchored" data-anchor-id="subtask">subtask</h3>
+<p>Decorator for subtasks.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/206b9528a0c9b893faded1a8c7e182b162ad850d/src/inspect_ai/util/_subtask.py#L65">Source</a>
+</div>
+<div class="sourceCode" id="cb18"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> subtask(</span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a>    name: <span class="bu">str</span> <span class="op">|</span> Subtask,</span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a>    store: Store <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a>    <span class="bu">type</span>: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb18-5"><a href="#cb18-5" aria-hidden="true" tabindex="-1"></a>    <span class="bu">input</span>: <span class="bu">dict</span>[<span class="bu">str</span>, Any] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb18-6"><a href="#cb18-6" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> Callable[..., Subtask] <span class="op">|</span> Subtask</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 75%">
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">Argument</th>
+<th style="text-align: left;">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;"><code>name</code><br>
+<span class="argument-type">str | Subtask</span></td>
+<td style="text-align: left;"><p>Name for subtask (defaults to function name)</p></td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><code>store</code><br>
+<span class="argument-type">Store | None</span></td>
+<td style="text-align: left;"><p>Store to use for subtask</p></td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;"><code>type</code><br>
+<span class="argument-type">str | None</span></td>
+<td style="text-align: left;"><p>Type to use for subtask</p></td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><code>input</code><br>
+<span class="argument-type">dict[str, Any] | None</span></td>
+<td style="text-align: left;"><p>Input to log for subtask</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="subtask-1" class="level3">
+<h3 class="anchored" data-anchor-id="subtask-1">Subtask</h3>
+<p>Subtask with distinct <code>Store</code> and <code>Transcript</code>.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/206b9528a0c9b893faded1a8c7e182b162ad850d/src/inspect_ai/util/_subtask.py#L30">Source</a>
+</div>
+<div class="sourceCode" id="cb19"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Subtask(Protocol):</span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> <span class="fu">__call__</span>(</span>
+<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>,</span>
+<span id="cb19-4"><a href="#cb19-4" aria-hidden="true" tabindex="-1"></a>        <span class="op">*</span>args: Any,</span>
+<span id="cb19-5"><a href="#cb19-5" aria-hidden="true" tabindex="-1"></a>        <span class="op">**</span>kwargs: Any,</span>
+<span id="cb19-6"><a href="#cb19-6" aria-hidden="true" tabindex="-1"></a>    ) <span class="op">-&gt;</span> Any</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 75%">
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">Argument</th>
+<th style="text-align: left;">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;"><code>*args</code><br>
+<span class="argument-type">Any</span></td>
+<td style="text-align: left;"><p>Arguments for the subtask.</p></td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><code>**kwargs</code><br>
+<span class="argument-type">Any</span></td>
+<td style="text-align: left;"><p>Keyword arguments for the subtask.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
+<section id="utilities" class="level2">
+<h2 class="anchored" data-anchor-id="utilities">Utilities</h2>
+<section id="resource" class="level3">
+<h3 class="anchored" data-anchor-id="resource">resource</h3>
+<p>Read and resolve a resource to a string.</p>
+<p>Resources are often used for templates, configuration, etc. They are sometimes hard-coded strings, and sometimes paths to external resources (e.g.&nbsp;in the local filesystem or remote stores e.g.&nbsp;s3:// or https://).</p>
+<p>The <code>resource()</code> function will resolve its argument to a resource string. If a protocol-prefixed file name (e.g.&nbsp;s3://) or the path to a local file that exists is passed then it will be read and its contents returned. Otherwise, it will return the passed <code>str</code> directly This function is mostly intended as a helper for other functions that take either a string or a resource path as an argument, and want to easily resolve them to the underlying content.</p>
+<p>If you want to ensure that only local or remote files are consumed, specify <code>type="file"</code>. For example: <code>resource("templates/prompt.txt", type="file")</code></p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/206b9528a0c9b893faded1a8c7e182b162ad850d/src/inspect_ai/util/_resource.py#L9">Source</a>
+</div>
+<div class="sourceCode" id="cb20"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> resource(</span>
+<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a>    resource: <span class="bu">str</span>,</span>
+<span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a>    <span class="bu">type</span>: Literal[<span class="st">"auto"</span>, <span class="st">"file"</span>] <span class="op">=</span> <span class="st">"auto"</span>,</span>
+<span id="cb20-4"><a href="#cb20-4" aria-hidden="true" tabindex="-1"></a>    fs_options: <span class="bu">dict</span>[<span class="bu">str</span>, Any] <span class="op">=</span> {},</span>
+<span id="cb20-5"><a href="#cb20-5" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="bu">str</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 75%">
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">Argument</th>
+<th style="text-align: left;">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;"><code>resource</code><br>
+<span class="argument-type">str</span></td>
+<td style="text-align: left;"><p>Path to local or remote (e.g.&nbsp;s3://) resource, or for <code>type="auto"</code> (the default), a string containing the literal resource value.</p></td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><code>type</code><br>
+<span class="argument-type">Literal['auto', 'file']</span></td>
+<td style="text-align: left;"><p>For “auto” (the default), interpret the resource as a literal string if its not a valid path. For “file”, always interpret it as a file path.</p></td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;"><code>fs_options</code><br>
+<span class="argument-type">dict[str, Any]</span></td>
+<td style="text-align: left;"><p>Optional. Additional arguments to pass through to the <code>fsspec</code> filesystem provider (e.g.&nbsp;<code>S3FileSystem</code>). Use <code>{"anon": True }</code> if you are accessing a public S3 bucket with no credentials.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="throttle" class="level3">
+<h3 class="anchored" data-anchor-id="throttle">throttle</h3>
+<p>Throttle a function to ensure it is called no more than every n seconds.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/206b9528a0c9b893faded1a8c7e182b162ad850d/src/inspect_ai/util/_throttle.py#L6">Source</a>
+</div>
+<div class="sourceCode" id="cb21"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> throttle(seconds: <span class="bu">float</span>) <span class="op">-&gt;</span> Callable[..., Any]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 75%">
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">Argument</th>
+<th style="text-align: left;">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;"><code>seconds</code><br>
+<span class="argument-type">float</span></td>
+<td style="text-align: left;"><p>Throttle time.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="trace_action" class="level3">
+<h3 class="anchored" data-anchor-id="trace_action">trace_action</h3>
+<p>Trace a long running or poentially unreliable action.</p>
+<p>Trace actions for which you want to collect data on the resolution (e.g.&nbsp;succeeded, cancelled, failed, timed out, etc.) and duration of.</p>
+<p>Traces are written to the <code>TRACE</code> log level (which is just below <code>HTTP</code> and <code>INFO</code>). List and read trace logs with <code>inspect trace list</code> and related commands (see <code>inspect trace --help</code> for details).</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/206b9528a0c9b893faded1a8c7e182b162ad850d/src/inspect_ai/_util/trace.py#L32">Source</a>
+</div>
+<div class="sourceCode" id="cb22"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="at">@contextmanager</span></span>
+<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> trace_action(</span>
+<span id="cb22-3"><a href="#cb22-3" aria-hidden="true" tabindex="-1"></a>    logger: Logger, action: <span class="bu">str</span>, message: <span class="bu">str</span>, <span class="op">*</span>args: Any, <span class="op">**</span>kwargs: Any</span>
+<span id="cb22-4"><a href="#cb22-4" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> Generator[<span class="va">None</span>, <span class="va">None</span>, <span class="va">None</span>]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 75%">
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">Argument</th>
+<th style="text-align: left;">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;"><code>logger</code><br>
+<span class="argument-type">Logger</span></td>
+<td style="text-align: left;"><p>Logger to use for tracing (e.g.&nbsp;from <code>getLogger(__name__)</code>)</p></td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><code>action</code><br>
+<span class="argument-type">str</span></td>
+<td style="text-align: left;"><p>Name of action to trace (e.g.&nbsp;‘Model’, ‘Subprocess’, etc.)</p></td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;"><code>message</code><br>
+<span class="argument-type">str</span></td>
+<td style="text-align: left;"><p>Message describing action (can be a format string w/ args or kwargs)</p></td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><code>*args</code><br>
+<span class="argument-type">Any</span></td>
+<td style="text-align: left;"><p>Positional arguments for <code>message</code> format string.</p></td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;"><code>**kwargs</code><br>
+<span class="argument-type">Any</span></td>
+<td style="text-align: left;"><p>Named args for <code>message</code> format string.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="trace_message" class="level3">
+<h3 class="anchored" data-anchor-id="trace_message">trace_message</h3>
+<p>Log a message using the TRACE log level.</p>
+<p>The <code>TRACE</code> log level is just below <code>HTTP</code> and <code>INFO</code>). List and read trace logs with <code>inspect trace list</code> and related commands (see <code>inspect trace --help</code> for details).</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/206b9528a0c9b893faded1a8c7e182b162ad850d/src/inspect_ai/_util/trace.py#L133">Source</a>
+</div>
+<div class="sourceCode" id="cb23"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> trace_message(</span>
+<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a>    logger: Logger, category: <span class="bu">str</span>, message: <span class="bu">str</span>, <span class="op">*</span>args: Any, <span class="op">**</span>kwargs: Any</span>
+<span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="va">None</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 75%">
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">Argument</th>
+<th style="text-align: left;">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;"><code>logger</code><br>
+<span class="argument-type">Logger</span></td>
+<td style="text-align: left;"><p>Logger to use for tracing (e.g.&nbsp;from <code>getLogger(__name__)</code>)</p></td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><code>category</code><br>
+<span class="argument-type">str</span></td>
+<td style="text-align: left;"><p>Category of trace message.</p></td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;"><code>message</code><br>
+<span class="argument-type">str</span></td>
+<td style="text-align: left;"><p>Trace message (can be a format string w/ args or kwargs)</p></td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><code>*args</code><br>
+<span class="argument-type">Any</span></td>
+<td style="text-align: left;"><p>Positional arguments for <code>message</code> format string.</p></td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;"><code>**kwargs</code><br>
+<span class="argument-type">Any</span></td>
+<td style="text-align: left;"><p>Named args for <code>message</code> format string.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
+<section id="sandbox" class="level2">
+<h2 class="anchored" data-anchor-id="sandbox">Sandbox</h2>
+<section id="sandbox-1" class="level3">
+<h3 class="anchored" data-anchor-id="sandbox-1">sandbox</h3>
+<p>Get the SandboxEnvironment for the current sample.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/206b9528a0c9b893faded1a8c7e182b162ad850d/src/inspect_ai/util/_sandbox/context.py#L21">Source</a>
+</div>
+<div class="sourceCode" id="cb24"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> sandbox(name: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>) <span class="op">-&gt;</span> SandboxEnvironment</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 75%">
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">Argument</th>
+<th style="text-align: left;">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;"><code>name</code><br>
+<span class="argument-type">str | None</span></td>
+<td style="text-align: left;"><p>Optional sandbox environmnent name.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="sandbox_with" class="level3">
+<h3 class="anchored" data-anchor-id="sandbox_with">sandbox_with</h3>
+<p>Get the SandboxEnvironment for the current sample that has the specified file.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/206b9528a0c9b893faded1a8c7e182b162ad850d/src/inspect_ai/util/_sandbox/context.py#L51">Source</a>
+</div>
+<div class="sourceCode" id="cb25"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> sandbox_with(<span class="bu">file</span>: <span class="bu">str</span>) <span class="op">-&gt;</span> SandboxEnvironment <span class="op">|</span> <span class="va">None</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 75%">
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">Argument</th>
+<th style="text-align: left;">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;"><code>file</code><br>
+<span class="argument-type">str</span></td>
+<td style="text-align: left;"><p>Path to file to check for.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="sandboxenvironment" class="level3">
+<h3 class="anchored" data-anchor-id="sandboxenvironment">SandboxEnvironment</h3>
+<p>Environment for executing arbitrary code from tools.</p>
+<p>Sandbox environments provide both an execution environment as well as a per-sample filesystem context to copy samples files into and resolve relative paths to.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/206b9528a0c9b893faded1a8c7e182b162ad850d/src/inspect_ai/util/_sandbox/environment.py#L61">Source</a>
+</div>
+<div class="sourceCode" id="cb26"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> SandboxEnvironment(abc.ABC)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<section class="level4">
+<h4 class="anchored" data-anchor-id="">Methods</h4>
+<dl>
+<dt><code>exec</code></dt>
+<dd>
+<p>Execute a command within a sandbox environment.</p>
+<p>The current working directory for execution will be the per-sample filesystem context.</p>
+<p>Each output stream (stdout and stderr) is limited to 10 MiB. If exceeded, an <code>OutputLimitExceededError</code> will be raised.</p>
+<div class="sourceCode" id="cb27"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="at">@abc.abstractmethod</span></span>
+<span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> <span class="bu">exec</span>(</span>
+<span id="cb27-3"><a href="#cb27-3" aria-hidden="true" tabindex="-1"></a>    <span class="va">self</span>,</span>
+<span id="cb27-4"><a href="#cb27-4" aria-hidden="true" tabindex="-1"></a>    cmd: <span class="bu">list</span>[<span class="bu">str</span>],</span>
+<span id="cb27-5"><a href="#cb27-5" aria-hidden="true" tabindex="-1"></a>    <span class="bu">input</span>: <span class="bu">str</span> <span class="op">|</span> <span class="bu">bytes</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb27-6"><a href="#cb27-6" aria-hidden="true" tabindex="-1"></a>    cwd: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb27-7"><a href="#cb27-7" aria-hidden="true" tabindex="-1"></a>    env: <span class="bu">dict</span>[<span class="bu">str</span>, <span class="bu">str</span>] <span class="op">=</span> {},</span>
+<span id="cb27-8"><a href="#cb27-8" aria-hidden="true" tabindex="-1"></a>    user: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb27-9"><a href="#cb27-9" aria-hidden="true" tabindex="-1"></a>    timeout: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb27-10"><a href="#cb27-10" aria-hidden="true" tabindex="-1"></a>    timeout_retry: <span class="bu">bool</span> <span class="op">=</span> <span class="va">True</span>,</span>
+<span id="cb27-11"><a href="#cb27-11" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> ExecResult[<span class="bu">str</span>]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</dd>
+<dt><code>write_file</code></dt>
+<dd>
+<p>Write a file into the sandbox environment.</p>
+<p>If the parent directories of the file path do not exist they should be automatically created.</p>
+<div class="sourceCode" id="cb28"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="at">@abc.abstractmethod</span></span>
+<span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> write_file(<span class="va">self</span>, <span class="bu">file</span>: <span class="bu">str</span>, contents: <span class="bu">str</span> <span class="op">|</span> <span class="bu">bytes</span>) <span class="op">-&gt;</span> <span class="va">None</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</dd>
+<dt><code>read_file</code></dt>
+<dd>
+<p>Read a file from the sandbox environment.</p>
+<p>File size is limited to 100 MiB.</p>
+<p>When reading text files, implementations should preserve newline constructs (e.g.&nbsp;crlf should be preserved not converted to lf). This is equivalent to specifying <code>newline=""</code> in a call to the Python <code>open()</code> function.</p>
+<div class="sourceCode" id="cb29"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="at">@abc.abstractmethod</span></span>
+<span id="cb29-2"><a href="#cb29-2" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> read_file(<span class="va">self</span>, <span class="bu">file</span>: <span class="bu">str</span>, text: <span class="bu">bool</span> <span class="op">=</span> <span class="va">True</span>) <span class="op">-&gt;</span> Union[<span class="bu">str</span> <span class="op">|</span> <span class="bu">bytes</span>]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</dd>
+<dt><code>connection</code></dt>
+<dd>
+<p>Information required to connect to sandbox environment.</p>
+<div class="sourceCode" id="cb30"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> connection(<span class="va">self</span>) <span class="op">-&gt;</span> SandboxConnection</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</dd>
+<dt><code>config_files</code></dt>
+<dd>
+<p>Standard config files for this provider (used for automatic discovery)</p>
+<div class="sourceCode" id="cb31"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a><span class="at">@classmethod</span></span>
+<span id="cb31-2"><a href="#cb31-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> config_files(cls) <span class="op">-&gt;</span> <span class="bu">list</span>[<span class="bu">str</span>]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</dd>
+<dt><code>default_concurrency</code></dt>
+<dd>
+<p>Default max_sandboxes for this provider (<code>None</code> means no maximum)</p>
+<div class="sourceCode" id="cb32"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a><span class="at">@classmethod</span></span>
+<span id="cb32-2"><a href="#cb32-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> default_concurrency(cls) <span class="op">-&gt;</span> <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</dd>
+<dt><code>task_init</code></dt>
+<dd>
+<p>Called at task startup initialize resources.</p>
+<div class="sourceCode" id="cb33"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a><span class="at">@classmethod</span></span>
+<span id="cb33-2"><a href="#cb33-2" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> task_init(</span>
+<span id="cb33-3"><a href="#cb33-3" aria-hidden="true" tabindex="-1"></a>    cls, task_name: <span class="bu">str</span>, config: SandboxEnvironmentConfigType <span class="op">|</span> <span class="va">None</span></span>
+<span id="cb33-4"><a href="#cb33-4" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="va">None</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</dd>
+<dt><code>sample_init</code></dt>
+<dd>
+<p>Initialize sandbox environments for a sample.</p>
+<div class="sourceCode" id="cb34"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true" tabindex="-1"></a><span class="at">@classmethod</span></span>
+<span id="cb34-2"><a href="#cb34-2" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> sample_init(</span>
+<span id="cb34-3"><a href="#cb34-3" aria-hidden="true" tabindex="-1"></a>    cls,</span>
+<span id="cb34-4"><a href="#cb34-4" aria-hidden="true" tabindex="-1"></a>    task_name: <span class="bu">str</span>,</span>
+<span id="cb34-5"><a href="#cb34-5" aria-hidden="true" tabindex="-1"></a>    config: SandboxEnvironmentConfigType <span class="op">|</span> <span class="va">None</span>,</span>
+<span id="cb34-6"><a href="#cb34-6" aria-hidden="true" tabindex="-1"></a>    metadata: <span class="bu">dict</span>[<span class="bu">str</span>, <span class="bu">str</span>],</span>
+<span id="cb34-7"><a href="#cb34-7" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="bu">dict</span>[<span class="bu">str</span>, <span class="st">"SandboxEnvironment"</span>]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</dd>
+<dt><code>sample_cleanup</code></dt>
+<dd>
+<p>Cleanup sandbox environments.</p>
+<div class="sourceCode" id="cb35"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb35-1"><a href="#cb35-1" aria-hidden="true" tabindex="-1"></a><span class="at">@classmethod</span></span>
+<span id="cb35-2"><a href="#cb35-2" aria-hidden="true" tabindex="-1"></a><span class="at">@abc.abstractmethod</span></span>
+<span id="cb35-3"><a href="#cb35-3" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> sample_cleanup(</span>
+<span id="cb35-4"><a href="#cb35-4" aria-hidden="true" tabindex="-1"></a>    cls,</span>
+<span id="cb35-5"><a href="#cb35-5" aria-hidden="true" tabindex="-1"></a>    task_name: <span class="bu">str</span>,</span>
+<span id="cb35-6"><a href="#cb35-6" aria-hidden="true" tabindex="-1"></a>    config: SandboxEnvironmentConfigType <span class="op">|</span> <span class="va">None</span>,</span>
+<span id="cb35-7"><a href="#cb35-7" aria-hidden="true" tabindex="-1"></a>    environments: <span class="bu">dict</span>[<span class="bu">str</span>, <span class="st">"SandboxEnvironment"</span>],</span>
+<span id="cb35-8"><a href="#cb35-8" aria-hidden="true" tabindex="-1"></a>    interrupted: <span class="bu">bool</span>,</span>
+<span id="cb35-9"><a href="#cb35-9" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="va">None</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</dd>
+<dt><code>task_cleanup</code></dt>
+<dd>
+<p>Called at task exit as a last chance to cleanup resources.</p>
+<div class="sourceCode" id="cb36"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a><span class="at">@classmethod</span></span>
+<span id="cb36-2"><a href="#cb36-2" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> task_cleanup(</span>
+<span id="cb36-3"><a href="#cb36-3" aria-hidden="true" tabindex="-1"></a>    cls, task_name: <span class="bu">str</span>, config: SandboxEnvironmentConfigType <span class="op">|</span> <span class="va">None</span>, cleanup: <span class="bu">bool</span></span>
+<span id="cb36-4"><a href="#cb36-4" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="va">None</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</dd>
+<dt><code>cli_cleanup</code></dt>
+<dd>
+<p>Handle a cleanup invoked from the CLI (e.g.&nbsp;inspect sandbox cleanup).</p>
+<div class="sourceCode" id="cb37"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb37-1"><a href="#cb37-1" aria-hidden="true" tabindex="-1"></a><span class="at">@classmethod</span></span>
+<span id="cb37-2"><a href="#cb37-2" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> cli_cleanup(cls, <span class="bu">id</span>: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span>) <span class="op">-&gt;</span> <span class="va">None</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</dd>
+</dl>
+</section>
+</section>
+<section id="sandboxconnection" class="level3">
+<h3 class="anchored" data-anchor-id="sandboxconnection">SandboxConnection</h3>
+<p>Information required to connect to sandbox.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/206b9528a0c9b893faded1a8c7e182b162ad850d/src/inspect_ai/util/_sandbox/environment.py#L42">Source</a>
+</div>
+<div class="sourceCode" id="cb38"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb38-1"><a href="#cb38-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> SandboxConnection(BaseModel)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<section class="level4">
+<h4 class="anchored" data-anchor-id="">Attributes</h4>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 75%">
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">Attribute</th>
+<th style="text-align: left;">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;"><code>type</code><br>
+<span class="argument-type">str</span></td>
+<td style="text-align: left;"><p>Sandbox type name (e.g.&nbsp;‘docker’, ‘local’, etc.)</p></td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><code>command</code><br>
+<span class="argument-type">str</span></td>
+<td style="text-align: left;"><p>Shell command to connect to sandbox.</p></td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;"><code>vscode_command</code><br>
+<span class="argument-type">list[Any] | None</span></td>
+<td style="text-align: left;"><p>Optional vscode command (+args) to connect to sandbox.</p></td>
+</tr>
+<tr class="even">
+<td style="text-align: left;"><code>ports</code><br>
+<span class="argument-type">list[PortMapping] | None</span></td>
+<td style="text-align: left;"><p>Optional list of port mappings into container</p></td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;"><code>container</code><br>
+<span class="argument-type">str | None</span></td>
+<td style="text-align: left;"><p>Optional container name (does not apply to all sandboxes).</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
+<section id="sandboxenv" class="level3">
+<h3 class="anchored" data-anchor-id="sandboxenv">sandboxenv</h3>
+<p>Decorator for registering sandbox environments.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/206b9528a0c9b893faded1a8c7e182b162ad850d/src/inspect_ai/util/_sandbox/registry.py#L16">Source</a>
+</div>
+<div class="sourceCode" id="cb39"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb39-1"><a href="#cb39-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> sandboxenv(name: <span class="bu">str</span>) <span class="op">-&gt;</span> Callable[..., Type[T]]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 75%">
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">Argument</th>
+<th style="text-align: left;">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;"><code>name</code><br>
+<span class="argument-type">str</span></td>
+<td style="text-align: left;"><p>Name of SandboxEnvironment type</p></td>
+</tr>
+</tbody>
+</table>
+
+
+</section>
+</section>
+
+</main> <!-- /main -->
+<script id="quarto-html-after-body" type="application/javascript">
+window.document.addEventListener("DOMContentLoaded", function (event) {
+  const toggleBodyColorMode = (bsSheetEl) => {
+    const mode = bsSheetEl.getAttribute("data-mode");
+    const bodyEl = window.document.querySelector("body");
+    if (mode === "dark") {
+      bodyEl.classList.add("quarto-dark");
+      bodyEl.classList.remove("quarto-light");
+    } else {
+      bodyEl.classList.add("quarto-light");
+      bodyEl.classList.remove("quarto-dark");
+    }
+  }
+  const toggleBodyColorPrimary = () => {
+    const bsSheetEl = window.document.querySelector("link#quarto-bootstrap");
+    if (bsSheetEl) {
+      toggleBodyColorMode(bsSheetEl);
+    }
+  }
+  toggleBodyColorPrimary();  
+  const icon = "";
+  const anchorJS = new window.AnchorJS();
+  anchorJS.options = {
+    placement: 'right',
+    icon: icon
+  };
+  anchorJS.add('.anchored');
+  const isCodeAnnotation = (el) => {
+    for (const clz of el.classList) {
+      if (clz.startsWith('code-annotation-')) {                     
+        return true;
+      }
+    }
+    return false;
+  }
+  const onCopySuccess = function(e) {
+    // button target
+    const button = e.trigger;
+    // don't keep focus
+    button.blur();
+    // flash "checked"
+    button.classList.add('code-copy-button-checked');
+    var currentTitle = button.getAttribute("title");
+    button.setAttribute("title", "Copied!");
+    let tooltip;
+    if (window.bootstrap) {
+      button.setAttribute("data-bs-toggle", "tooltip");
+      button.setAttribute("data-bs-placement", "left");
+      button.setAttribute("data-bs-title", "Copied!");
+      tooltip = new bootstrap.Tooltip(button, 
+        { trigger: "manual", 
+          customClass: "code-copy-button-tooltip",
+          offset: [0, -8]});
+      tooltip.show();    
+    }
+    setTimeout(function() {
+      if (tooltip) {
+        tooltip.hide();
+        button.removeAttribute("data-bs-title");
+        button.removeAttribute("data-bs-toggle");
+        button.removeAttribute("data-bs-placement");
+      }
+      button.setAttribute("title", currentTitle);
+      button.classList.remove('code-copy-button-checked');
+    }, 1000);
+    // clear code selection
+    e.clearSelection();
+  }
+  const getTextToCopy = function(trigger) {
+      const codeEl = trigger.previousElementSibling.cloneNode(true);
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+  }
+  const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+    text: getTextToCopy
+  });
+  clipboard.on('success', onCopySuccess);
+  if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+    // For code content inside modals, clipBoardJS needs to be initialized with a container option
+    // TODO: Check when it could be a function (https://github.com/zenorocha/clipboard.js/issues/860)
+    const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+      text: getTextToCopy,
+      container: window.document.getElementById('quarto-embedded-source-code-modal')
+    });
+    clipboardModal.on('success', onCopySuccess);
+  }
+    var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+    var mailtoRegex = new RegExp(/^mailto:/);
+      var filterRegex = new RegExp("https:\/\/inspect\.ai-safety-institute\.org\.uk\/");
+    var isInternal = (href) => {
+        return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+    }
+    // Inspect non-navigation links and adorn them if external
+ 	var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+    for (var i=0; i<links.length; i++) {
+      const link = links[i];
+      if (!isInternal(link.href)) {
+        // undo the damage that might have been done by quarto-nav.js in the case of
+        // links that we want to consider external
+        if (link.dataset.originalHref !== undefined) {
+          link.href = link.dataset.originalHref;
+        }
+      }
+    }
+  function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+    const config = {
+      allowHTML: true,
+      maxWidth: 500,
+      delay: 100,
+      arrow: false,
+      appendTo: function(el) {
+          return el.parentElement;
+      },
+      interactive: true,
+      interactiveBorder: 10,
+      theme: 'quarto',
+      placement: 'bottom-start',
+    };
+    if (contentFn) {
+      config.content = contentFn;
+    }
+    if (onTriggerFn) {
+      config.onTrigger = onTriggerFn;
+    }
+    if (onUntriggerFn) {
+      config.onUntrigger = onUntriggerFn;
+    }
+    window.tippy(el, config); 
+  }
+  const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+  for (var i=0; i<noterefs.length; i++) {
+    const ref = noterefs[i];
+    tippyHover(ref, function() {
+      // use id or data attribute instead here
+      let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+      try { href = new URL(href).hash; } catch {}
+      const id = href.replace(/^#\/?/, "");
+      const note = window.document.getElementById(id);
+      if (note) {
+        return note.innerHTML;
+      } else {
+        return "";
+      }
+    });
+  }
+  const xrefs = window.document.querySelectorAll('a.quarto-xref');
+  const processXRef = (id, note) => {
+    // Strip column container classes
+    const stripColumnClz = (el) => {
+      el.classList.remove("page-full", "page-columns");
+      if (el.children) {
+        for (const child of el.children) {
+          stripColumnClz(child);
+        }
+      }
+    }
+    stripColumnClz(note)
+    if (id === null || id.startsWith('sec-')) {
+      // Special case sections, only their first couple elements
+      const container = document.createElement("div");
+      if (note.children && note.children.length > 2) {
+        container.appendChild(note.children[0].cloneNode(true));
+        for (let i = 1; i < note.children.length; i++) {
+          const child = note.children[i];
+          if (child.tagName === "P" && child.innerText === "") {
+            continue;
+          } else {
+            container.appendChild(child.cloneNode(true));
+            break;
+          }
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(container);
+        }
+        return container.innerHTML
+      } else {
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        return note.innerHTML;
+      }
+    } else {
+      // Remove any anchor links if they are present
+      const anchorLink = note.querySelector('a.anchorjs-link');
+      if (anchorLink) {
+        anchorLink.remove();
+      }
+      if (window.Quarto?.typesetMath) {
+        window.Quarto.typesetMath(note);
+      }
+      // TODO in 1.5, we should make sure this works without a callout special case
+      if (note.classList.contains("callout")) {
+        return note.outerHTML;
+      } else {
+        return note.innerHTML;
+      }
+    }
+  }
+  for (var i=0; i<xrefs.length; i++) {
+    const xref = xrefs[i];
+    tippyHover(xref, undefined, function(instance) {
+      instance.disable();
+      let url = xref.getAttribute('href');
+      let hash = undefined; 
+      if (url.startsWith('#')) {
+        hash = url;
+      } else {
+        try { hash = new URL(url).hash; } catch {}
+      }
+      if (hash) {
+        const id = hash.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note !== null) {
+          try {
+            const html = processXRef(id, note.cloneNode(true));
+            instance.setContent(html);
+          } finally {
+            instance.enable();
+            instance.show();
+          }
+        } else {
+          // See if we can fetch this
+          fetch(url.split('#')[0])
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.getElementById(id);
+            if (note !== null) {
+              const html = processXRef(id, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      } else {
+        // See if we can fetch a full url (with no hash to target)
+        // This is a special case and we should probably do some content thinning / targeting
+        fetch(url)
+        .then(res => res.text())
+        .then(html => {
+          const parser = new DOMParser();
+          const htmlDoc = parser.parseFromString(html, "text/html");
+          const note = htmlDoc.querySelector('main.content');
+          if (note !== null) {
+            // This should only happen for chapter cross references
+            // (since there is no id in the URL)
+            // remove the first header
+            if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+              note.children[0].remove();
+            }
+            const html = processXRef(null, note);
+            instance.setContent(html);
+          } 
+        }).finally(() => {
+          instance.enable();
+          instance.show();
+        });
+      }
+    }, function(instance) {
+    });
+  }
+      let selectedAnnoteEl;
+      const selectorForAnnotation = ( cell, annotation) => {
+        let cellAttr = 'data-code-cell="' + cell + '"';
+        let lineAttr = 'data-code-annotation="' +  annotation + '"';
+        const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+        return selector;
+      }
+      const selectCodeLines = (annoteEl) => {
+        const doc = window.document;
+        const targetCell = annoteEl.getAttribute("data-target-cell");
+        const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+        const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+        const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+        const lineIds = lines.map((line) => {
+          return targetCell + "-" + line;
+        })
+        let top = null;
+        let height = null;
+        let parent = null;
+        if (lineIds.length > 0) {
+            //compute the position of the single el (top and bottom and make a div)
+            const el = window.document.getElementById(lineIds[0]);
+            top = el.offsetTop;
+            height = el.offsetHeight;
+            parent = el.parentElement.parentElement;
+          if (lineIds.length > 1) {
+            const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+            const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+            height = bottom - top;
+          }
+          if (top !== null && height !== null && parent !== null) {
+            // cook up a div (if necessary) and position it 
+            let div = window.document.getElementById("code-annotation-line-highlight");
+            if (div === null) {
+              div = window.document.createElement("div");
+              div.setAttribute("id", "code-annotation-line-highlight");
+              div.style.position = 'absolute';
+              parent.appendChild(div);
+            }
+            div.style.top = top - 2 + "px";
+            div.style.height = height + 4 + "px";
+            div.style.left = 0;
+            let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+            if (gutterDiv === null) {
+              gutterDiv = window.document.createElement("div");
+              gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+              gutterDiv.style.position = 'absolute';
+              const codeCell = window.document.getElementById(targetCell);
+              const gutter = codeCell.querySelector('.code-annotation-gutter');
+              gutter.appendChild(gutterDiv);
+            }
+            gutterDiv.style.top = top - 2 + "px";
+            gutterDiv.style.height = height + 4 + "px";
+          }
+          selectedAnnoteEl = annoteEl;
+        }
+      };
+      const unselectCodeLines = () => {
+        const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+        elementsIds.forEach((elId) => {
+          const div = window.document.getElementById(elId);
+          if (div) {
+            div.remove();
+          }
+        });
+        selectedAnnoteEl = undefined;
+      };
+        // Handle positioning of the toggle
+    window.addEventListener(
+      "resize",
+      throttle(() => {
+        elRect = undefined;
+        if (selectedAnnoteEl) {
+          selectCodeLines(selectedAnnoteEl);
+        }
+      }, 10)
+    );
+    function throttle(fn, ms) {
+    let throttle = false;
+    let timer;
+      return (...args) => {
+        if(!throttle) { // first call gets through
+            fn.apply(this, args);
+            throttle = true;
+        } else { // all the others get throttled
+            if(timer) clearTimeout(timer); // cancel #2
+            timer = setTimeout(() => {
+              fn.apply(this, args);
+              timer = throttle = false;
+            }, ms);
+        }
+      };
+    }
+      const annoteTargets = window.document.querySelectorAll('.code-annotation-anchor');
+      for (let i=0; i<annoteTargets.length; i++) {
+        const annoteTarget = annoteTargets[i];
+        const targetCell = annoteTarget.getAttribute("data-target-cell");
+        const targetAnnotation = annoteTarget.getAttribute("data-target-annotation");
+        const contentFn = () => {
+          const content = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+          if (content) {
+            const tipContent = content.cloneNode(true);
+            tipContent.classList.add("code-annotation-tip-content");
+            return tipContent.outerHTML;
+          }
+        }
+        const config = {
+          allowHTML: true,
+          content: contentFn,
+          onShow: (instance) => {
+            selectCodeLines(instance.reference);
+            instance.reference.classList.add('code-annotation-active');
+            window.tippy.hideAll();
+          },
+          onHide: (instance) => {
+            unselectCodeLines();
+            instance.reference.classList.remove('code-annotation-active');
+          },
+          maxWidth: 300,
+          delay: [50, 0],
+          duration: [200, 0],
+          offset: [5, 10],
+          arrow: true,
+          trigger: 'click',
+          appendTo: function(el) {
+            return el.parentElement.parentElement.parentElement;
+          },
+          interactive: true,
+          interactiveBorder: 10,
+          theme: 'quarto',
+          placement: 'right',
+          positionFixed: true,
+          popperOptions: {
+            modifiers: [
+            {
+              name: 'flip',
+              options: {
+                flipVariations: false, // true by default
+                allowedAutoPlacements: ['right'],
+                fallbackPlacements: ['right', 'top', 'top-start', 'top-end', 'bottom', 'bottom-start', 'bottom-end', 'left'],
+              },
+            },
+            {
+              name: 'preventOverflow',
+              options: {
+                mainAxis: false,
+                altAxis: false
+              }
+            }
+            ]        
+          }      
+        };
+        window.tippy(annoteTarget, config); 
+      }
+  const findCites = (el) => {
+    const parentEl = el.parentElement;
+    if (parentEl) {
+      const cites = parentEl.dataset.cites;
+      if (cites) {
+        return {
+          el,
+          cites: cites.split(' ')
+        };
+      } else {
+        return findCites(el.parentElement)
+      }
+    } else {
+      return undefined;
+    }
+  };
+  var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+  for (var i=0; i<bibliorefs.length; i++) {
+    const ref = bibliorefs[i];
+    const citeInfo = findCites(ref);
+    if (citeInfo) {
+      tippyHover(citeInfo.el, function() {
+        var popup = window.document.createElement('div');
+        citeInfo.cites.forEach(function(cite) {
+          var citeDiv = window.document.createElement('div');
+          citeDiv.classList.add('hanging-indent');
+          citeDiv.classList.add('csl-entry');
+          var biblioDiv = window.document.getElementById('ref-' + cite);
+          if (biblioDiv) {
+            citeDiv.innerHTML = biblioDiv.innerHTML;
+          }
+          popup.appendChild(citeDiv);
+        });
+        return popup.innerHTML;
+      });
+    }
+  }
+});
+</script>
+<nav class="page-navigation">
+  <div class="nav-page nav-page-previous">
+      <a href="../reference/inspect_ai.approval.html#approvalpolicy" class="pagination-link" aria-label="ApprovalPolicy">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">ApprovalPolicy</span>
+      </a>          
+  </div>
+  <div class="nav-page nav-page-next">
+      <a href="../reference/inspect_ai.util.html#store" class="pagination-link" aria-label="Store">
+        <span class="nav-page-text">Store</span> <i class="bi bi-arrow-right-short"></i>
+      </a>
+  </div>
+</nav>
+</div> <!-- /content -->
+<footer class="footer">
+  <div class="nav-footer">
+    <div class="nav-footer-left">
+      <ul class="footer-items list-unstyled">
+    <li class="nav-item">
+    <a class="nav-link" href="https://aisi.gov.uk/">
+<p>UK AI Safety Institute</p>
+</a>
+  </li>  
+</ul>
+    </div>   
+    <div class="nav-footer-center">
+      <ul class="footer-items list-unstyled">
+    <li class="nav-item">
+    <a class="nav-link" href="https://github.com/UKGovernmentBEIS/inspect_ai">
+<p>Code</p>
+</a>
+  </li>  
+    <li class="nav-item">
+    <a class="nav-link" href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/CHANGELOG.md">
+<p>Changelog</p>
+</a>
+  </li>  
+    <li class="nav-item">
+    <a class="nav-link" href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/LICENSE">
+<p>License</p>
+</a>
+  </li>  
+    <li class="nav-item">
+    <a class="nav-link" href="https://github.com/UKGovernmentBEIS/inspect_ai/issues">
+<p>Issues</p>
+</a>
+  </li>  
+</ul>
+    <div class="toc-actions d-sm-block d-md-none"><ul><li><a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div></div>
+    <div class="nav-footer-right">
+      <ul class="footer-items list-unstyled">
+    <li class="nav-item compact">
+    <a class="nav-link" href="https://twitter.com/AISafetyInst">
+      <i class="bi bi-twitter" role="img" aria-label="UK AI Safety Institute Twitter">
+</i> 
+    </a>
+  </li>  
+    <li class="nav-item compact">
+    <a class="nav-link" href="https://github.com/UKGovernmentBEIS/inspect_ai/">
+      <i class="bi bi-github" role="img" aria-label="Inspect on GitHub">
+</i> 
+    </a>
+  </li>  
+</ul>
+    </div>
+  </div>
+</footer>
+
+
+
+
+</body></html>

@@ -683,7 +683,7 @@ Note that all of the Python files in the
 directory alongside the `Dockerfile` need to be available for copying
 when building the container.
 
-## Computer (Beta)
+## Computer
 
 The `computer()` tool provides models with a computer desktop
 environment along with the ability to view the screen and perform mouse
@@ -692,11 +692,6 @@ and keyboard gestures. The computer tool is based on the Anthropic
 Beta](https://docs.anthropic.com/en/docs/build-with-claude/computer-use)
 reference implementation and works with any model that supports image
 input.
-
-The current release of the computer tool is a beta version (exported
-from the `inspect_ai.tool.beta` module). We expect to finalise the
-interface and move it into the main `inspect_ai.tool` module over the
-next several weeks.
 
 ### Configuration
 
@@ -755,7 +750,7 @@ A task configured to use the computer tool might look like this:
 from inspect_ai import Task, task
 from inspect_ai.scorer import match
 from inspect_ai.solver import generate, use_tools
-from inspect_ai.tool.beta import computer
+from inspect_ai.tool import computer
 
 @task
 def computer_task():

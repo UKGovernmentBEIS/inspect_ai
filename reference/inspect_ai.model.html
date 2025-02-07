@@ -1,0 +1,2995 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.5.57">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>inspect_ai.model – Inspect</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { display: inline-block; text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="../site_libs/quarto-nav/quarto-nav.js"></script>
+<script src="../site_libs/quarto-nav/headroom.min.js"></script>
+<script src="../site_libs/clipboard/clipboard.min.js"></script>
+<script src="../site_libs/quarto-search/autocomplete.umd.js"></script>
+<script src="../site_libs/quarto-search/fuse.min.js"></script>
+<script src="../site_libs/quarto-search/quarto-search.js"></script>
+<meta name="quarto:offset" content="../">
+<link href="../reference/inspect_ai.model.qmd#get_model" rel="next">
+<link href="../reference/inspect_ai.scorer.qmd#score_reducer" rel="prev">
+<script src="../site_libs/quarto-html/quarto.js"></script>
+<script src="../site_libs/quarto-html/popper.min.js"></script>
+<script src="../site_libs/quarto-html/tippy.umd.min.js"></script>
+<script src="../site_libs/quarto-html/anchor.min.js"></script>
+<link href="../site_libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="../site_libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="../site_libs/bootstrap/bootstrap.min.js"></script>
+<link href="../site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="../site_libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
+<script id="quarto-search-options" type="application/json">{
+  "location": "navbar",
+  "copy-button": false,
+  "collapse-after": 3,
+  "panel-placement": "end",
+  "type": "overlay",
+  "limit": 50,
+  "keyboard-shortcut": [
+    "f",
+    "/",
+    "s"
+  ],
+  "show-item-context": false,
+  "language": {
+    "search-no-results-text": "No results",
+    "search-matching-documents-text": "matching documents",
+    "search-copy-link-title": "Copy link to search",
+    "search-hide-matches-text": "Hide additional matches",
+    "search-more-match-text": "more match in this document",
+    "search-more-matches-text": "more matches in this document",
+    "search-clear-button-title": "Clear",
+    "search-text-placeholder": "",
+    "search-detached-cancel-button-title": "Cancel",
+    "search-submit-button-title": "Submit",
+    "search-label": "Search"
+  }
+}</script>
+
+
+<meta property="og:title" content="Inspect">
+<meta property="og:description" content="Open-source framework for large language model evaluations">
+<meta property="og:image" content="https://inspect.ai-safety-institute.org.uk//images/inspect.png">
+<meta property="og:site_name" content="Inspect">
+<meta property="og:image:height" content="1258">
+<meta property="og:image:width" content="2400">
+<meta name="twitter:title" content="Inspect">
+<meta name="twitter:description" content="Open-source framework for large language model evaluations">
+<meta name="twitter:image" content="https://inspect.ai-safety-institute.org.uk//images/inspect.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image-height" content="1258">
+<meta name="twitter:image-width" content="2400">
+</head>
+
+<body class="nav-sidebar docked nav-fixed">
+
+<div id="quarto-search-results"></div>
+  <header id="quarto-header" class="headroom fixed-top">
+    <nav class="navbar navbar-expand-lg " data-bs-theme="dark">
+      <div class="navbar-container container-fluid">
+      <div class="navbar-brand-container mx-auto">
+    <a href="https://www.aisi.gov.uk/" class="navbar-brand navbar-brand-logo">
+    <img src="../images/aisi-logo.png" alt="" class="navbar-logo">
+    </a>
+    <a class="navbar-brand" href="https://www.aisi.gov.uk/">
+    <span class="navbar-title">Inspect AI</span>
+    </a>
+  </div>
+            <div id="quarto-search" class="" title="Search"></div>
+          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse" aria-controls="navbarCollapse" role="menu" aria-expanded="false" aria-label="Toggle navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+  <span class="navbar-toggler-icon"></span>
+</button>
+          <div class="collapse navbar-collapse" id="navbarCollapse">
+            <ul class="navbar-nav navbar-nav-scroll me-auto">
+  <li class="nav-item">
+    <a class="nav-link" href="../index.html"> 
+<span class="menu-text">User Guide</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link active" href="../reference/inspect_ai.html" aria-current="page"> 
+<span class="menu-text">Reference</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="../evals/index.html"> 
+<span class="menu-text">Evals</span></a>
+  </li>  
+</ul>
+            <ul class="navbar-nav navbar-nav-scroll ms-auto">
+  <li class="nav-item compact">
+    <a class="nav-link" href="https://github.com/UKGovernmentBEIS/inspect_ai"> <i class="bi bi-github" role="img">
+</i> 
+<span class="menu-text"></span></a>
+  </li>  
+</ul>
+          </div> <!-- /navcollapse -->
+            <div class="quarto-navbar-tools">
+</div>
+      </div> <!-- /container-fluid -->
+    </nav>
+  <nav class="quarto-secondary-nav">
+    <div class="container-fluid d-flex">
+      <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+        <i class="bi bi-layout-text-sidebar-reverse"></i>
+      </button>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="../reference/inspect_ai.model.html">inspect_ai.model</a></li></ol></nav>
+        <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
+        </a>
+    </div>
+  </nav>
+</header>
+<!-- content -->
+<div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article page-navbar">
+<!-- sidebar -->
+  <nav id="quarto-sidebar" class="sidebar collapse collapse-horizontal quarto-sidebar-collapse-item sidebar-navigation docked overflow-auto">
+    <div class="sidebar-menu-container"> 
+    <ul class="list-unstyled mt-1">
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a href="../reference/inspect_ai.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">inspect_ai</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-1" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.html#eval" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">eval</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.html#eval_set" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">eval_set</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.html#eval_retry" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">eval_retry</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.html#score" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">score</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.html#task" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Task</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.html#task_with" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">task_with</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.html#epochs" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Epochs</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.html#taskinfo" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">TaskInfo</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.html#tasks" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Tasks</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.html#task" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">task</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a href="../reference/inspect_ai.solver.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">inspect_ai.solver</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-2" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.solver.html#generate" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">generate</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.solver.html#use_tools" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">use_tools</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.solver.html#prompt_template" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">prompt_template</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.solver.html#system_message" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">system_message</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.solver.html#user_message" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">user_message</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.solver.html#chain_of_thought" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">chain_of_thought</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.solver.html#self_critique" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">self_critique</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.solver.html#multiple_choice" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">multiple_choice</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.solver.html#basic_agent" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">basic_agent</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.solver.html#human_agent" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">human_agent</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.solver.html#chain" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">chain</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.solver.html#fork" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">fork</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.solver.html#bridge" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">bridge</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.solver.html#solver" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Solver</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.solver.html#solverspec" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">SolverSpec</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.solver.html#taskstate" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">TaskState</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.solver.html#generate" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Generate</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.solver.html#solver" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">solver</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a href="../reference/inspect_ai.tool.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">inspect_ai.tool</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-3" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.tool.html#bash" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">bash</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.tool.html#python" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">python</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.tool.html#web_search" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">web_search</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.tool.html#web_browser" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">web_browser</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.tool.html#computer" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">computer</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.tool.html#tool_with" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">tool_with</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.tool.html#tooldef" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ToolDef</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.tool.html#tool" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Tool</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.tool.html#toolresult" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ToolResult</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.tool.html#toolerror" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ToolError</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.tool.html#toolchoice" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ToolChoice</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.tool.html#toolfunction" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ToolFunction</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.tool.html#tool" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">tool</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a href="../reference/inspect_ai.scorer.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">inspect_ai.scorer</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-4" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#match" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">match</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#includes" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">includes</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#pattern" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">pattern</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#answer" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">answer</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#choice" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">choice</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#f1" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">f1</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#exact" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">exact</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#model_graded_qa" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">model_graded_qa</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#model_graded_fact" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">model_graded_fact</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#multi_scorer" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">multi_scorer</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#accuracy" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">accuracy</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#mean" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">mean</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#std" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">std</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#stderr" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">stderr</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#bootstrap_stderr" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">bootstrap_stderr</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#at_least" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">at_least</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#pass_at" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">pass_at</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#max_score" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">max_score</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#mean_score" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">mean_score</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#median_score" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">median_score</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#mode_score" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">mode_score</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#scorer" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Scorer</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#metric" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Metric</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#scorereducer" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ScoreReducer</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#target" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Target</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#score" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Score</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#value" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Value</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#scorer" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">scorer</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#metric" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">metric</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#score_reducer" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">score_reducer</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a href="../reference/inspect_ai.model.html" class="sidebar-item-text sidebar-link active">
+ <span class="menu-text">inspect_ai.model</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-5" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#get_model" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">get_model</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#model" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Model</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#generateconfig" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">GenerateConfig</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#modeloutput" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ModelOutput</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#modelusage" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ModelUsage</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#stopreason" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">StopReason</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#chatcompletionchoice" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ChatCompletionChoice</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#chatmessage" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ChatMessage</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#chatmessagesystem" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ChatMessageSystem</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#chatmessageuser" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ChatMessageUser</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#chatmessageassistant" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ChatMessageAssistant</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#chatmessagetool" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ChatMessageTool</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#content" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Content</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#contenttext" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ContentText</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#contentimage" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ContentImage</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#contentaudio" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ContentAudio</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#contentvideo" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ContentVideo</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#logprob" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Logprob</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#logprobs" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Logprobs</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#toplogprob" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">TopLogprob</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#cachepolicy" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">CachePolicy</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#cache_size" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">cache_size</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#cache_clear" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">cache_clear</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#cache_list_expired" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">cache_list_expired</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#cache_prune" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">cache_prune</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#cache_path" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">cache_path</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#modelapi" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">modelapi</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#modelapi" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ModelAPI</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a href="../reference/inspect_ai.dataset.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">inspect_ai.dataset</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-6" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-6" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.dataset.html#csv_dataset" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">csv_dataset</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.dataset.html#json_dataset" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">json_dataset</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.dataset.html#hf_dataset" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">hf_dataset</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.dataset.html#sample" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Sample</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.dataset.html#fieldspec" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">FieldSpec</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.dataset.html#recordtosample" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">RecordToSample</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.dataset.html#dataset" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Dataset</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.dataset.html#memorydataset" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">MemoryDataset</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a href="../reference/inspect_ai.approval.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">inspect_ai.approval</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-7" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-7" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.approval.html#auto_approver" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">auto_approver</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.approval.html#human_approver" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">human_approver</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.approval.html#approver" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Approver</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.approval.html#approval" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Approval</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.approval.html#approvaldecision" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ApprovalDecision</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.approval.html#approvalpolicy" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ApprovalPolicy</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.approval.html#approver" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">approver</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a href="../reference/inspect_ai.log.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">inspect_ai.log</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-8" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-8" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#list_eval_logs" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">list_eval_logs</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#write_eval_log" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">write_eval_log</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#read_eval_log" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">read_eval_log</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#read_eval_log_sample" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">read_eval_log_sample</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#read_eval_log_samples" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">read_eval_log_samples</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#convert_eval_logs" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">convert_eval_logs</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#bundle_log_dir" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">bundle_log_dir</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#write_log_dir_manifest" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">write_log_dir_manifest</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#retryable_eval_logs" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">retryable_eval_logs</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#evalloginfo" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">EvalLogInfo</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#evallog" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">EvalLog</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#evalspec" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">EvalSpec</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#evaldataset" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">EvalDataset</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#evalconfig" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">EvalConfig</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#evalrevision" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">EvalRevision</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#evalplan" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">EvalPlan</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#evalplanstep" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">EvalPlanStep</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#evalresults" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">EvalResults</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#evalscore" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">EvalScore</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#evalmetric" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">EvalMetric</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#evalsamplereductions" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">EvalSampleReductions</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#evalstats" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">EvalStats</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#evalerror" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">EvalError</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#evalsample" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">EvalSample</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#evalsamplelimit" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">EvalSampleLimit</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#evalsamplereductions" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">EvalSampleReductions</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#evalsamplescore" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">EvalSampleScore</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#transcript" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">transcript</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#transcript" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Transcript</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#event" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Event</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#sampleinitevent" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">SampleInitEvent</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#samplelimitevent" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">SampleLimitEvent</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#stateevent" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">StateEvent</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#storeevent" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">StoreEvent</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#modelevent" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ModelEvent</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#toolevent" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ToolEvent</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#approvalevent" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ApprovalEvent</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#inputevent" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">InputEvent</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#storeevent" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">StoreEvent</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#errorevent" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ErrorEvent</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#loggerevent" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">LoggerEvent</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#logginglevel" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">LoggingLevel</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#loggingmessage" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">LoggingMessage</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#infoevent" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">InfoEvent</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#stepevent" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">StepEvent</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#subtaskevent" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">SubtaskEvent</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a href="../reference/inspect_ai.util.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">inspect_ai.util</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-9" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-9" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#store" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Store</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#store" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">store</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#store_as" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">store_as</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#storemodel" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">StoreModel</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#concurrency" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">concurrency</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#subprocess" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">subprocess</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#execresult" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ExecResult</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#display_type" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">display_type</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#displaytype" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">DisplayType</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#input_screen" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">input_screen</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#subtask" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">subtask</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#subtask" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Subtask</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#resource" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">resource</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#throttle" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">throttle</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#trace_action" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">trace_action</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#trace_message" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">trace_message</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#sandbox" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">sandbox</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#sandbox_with" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">sandbox_with</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#sandboxenvironment" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">SandboxEnvironment</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#sandboxconnection" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">SandboxConnection</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#sandboxenv" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">sandboxenv</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+    </ul>
+    </div>
+</nav>
+<div id="quarto-sidebar-glass" class="quarto-sidebar-collapse-item" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item"></div>
+<!-- margin-sidebar -->
+    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+        <nav id="TOC" role="doc-toc" class="toc-active" data-toc-expanded="99">
+    <h2 id="toc-title">On this page</h2>
+   
+  <ul>
+  <li><a href="#generation" id="toc-generation" class="nav-link active" data-scroll-target="#generation">Generation</a>
+  <ul class="collapse">
+  <li><a href="#get_model" id="toc-get_model" class="nav-link" data-scroll-target="#get_model">get_model</a></li>
+  <li><a href="#model" id="toc-model" class="nav-link" data-scroll-target="#model">Model</a></li>
+  <li><a href="#generateconfig" id="toc-generateconfig" class="nav-link" data-scroll-target="#generateconfig">GenerateConfig</a></li>
+  <li><a href="#modeloutput" id="toc-modeloutput" class="nav-link" data-scroll-target="#modeloutput">ModelOutput</a></li>
+  <li><a href="#modelusage" id="toc-modelusage" class="nav-link" data-scroll-target="#modelusage">ModelUsage</a></li>
+  <li><a href="#stopreason" id="toc-stopreason" class="nav-link" data-scroll-target="#stopreason">StopReason</a></li>
+  <li><a href="#chatcompletionchoice" id="toc-chatcompletionchoice" class="nav-link" data-scroll-target="#chatcompletionchoice">ChatCompletionChoice</a></li>
+  </ul></li>
+  <li><a href="#messages" id="toc-messages" class="nav-link" data-scroll-target="#messages">Messages</a>
+  <ul class="collapse">
+  <li><a href="#chatmessage" id="toc-chatmessage" class="nav-link" data-scroll-target="#chatmessage">ChatMessage</a></li>
+  <li><a href="#chatmessagesystem" id="toc-chatmessagesystem" class="nav-link" data-scroll-target="#chatmessagesystem">ChatMessageSystem</a></li>
+  <li><a href="#chatmessageuser" id="toc-chatmessageuser" class="nav-link" data-scroll-target="#chatmessageuser">ChatMessageUser</a></li>
+  <li><a href="#chatmessageassistant" id="toc-chatmessageassistant" class="nav-link" data-scroll-target="#chatmessageassistant">ChatMessageAssistant</a></li>
+  <li><a href="#chatmessagetool" id="toc-chatmessagetool" class="nav-link" data-scroll-target="#chatmessagetool">ChatMessageTool</a></li>
+  </ul></li>
+  <li><a href="#content" id="toc-content" class="nav-link" data-scroll-target="#content">Content</a>
+  <ul class="collapse">
+  <li><a href="#content-1" id="toc-content-1" class="nav-link" data-scroll-target="#content-1">Content</a></li>
+  <li><a href="#contenttext" id="toc-contenttext" class="nav-link" data-scroll-target="#contenttext">ContentText</a></li>
+  <li><a href="#contentimage" id="toc-contentimage" class="nav-link" data-scroll-target="#contentimage">ContentImage</a></li>
+  <li><a href="#contentaudio" id="toc-contentaudio" class="nav-link" data-scroll-target="#contentaudio">ContentAudio</a></li>
+  <li><a href="#contentvideo" id="toc-contentvideo" class="nav-link" data-scroll-target="#contentvideo">ContentVideo</a></li>
+  </ul></li>
+  <li><a href="#logprobs" id="toc-logprobs" class="nav-link" data-scroll-target="#logprobs">Logprobs</a>
+  <ul class="collapse">
+  <li><a href="#logprob" id="toc-logprob" class="nav-link" data-scroll-target="#logprob">Logprob</a></li>
+  <li><a href="#logprobs-1" id="toc-logprobs-1" class="nav-link" data-scroll-target="#logprobs-1">Logprobs</a></li>
+  <li><a href="#toplogprob" id="toc-toplogprob" class="nav-link" data-scroll-target="#toplogprob">TopLogprob</a></li>
+  </ul></li>
+  <li><a href="#caching" id="toc-caching" class="nav-link" data-scroll-target="#caching">Caching</a>
+  <ul class="collapse">
+  <li><a href="#cachepolicy" id="toc-cachepolicy" class="nav-link" data-scroll-target="#cachepolicy">CachePolicy</a></li>
+  <li><a href="#cache_size" id="toc-cache_size" class="nav-link" data-scroll-target="#cache_size">cache_size</a></li>
+  <li><a href="#cache_clear" id="toc-cache_clear" class="nav-link" data-scroll-target="#cache_clear">cache_clear</a></li>
+  <li><a href="#cache_list_expired" id="toc-cache_list_expired" class="nav-link" data-scroll-target="#cache_list_expired">cache_list_expired</a></li>
+  <li><a href="#cache_prune" id="toc-cache_prune" class="nav-link" data-scroll-target="#cache_prune">cache_prune</a></li>
+  <li><a href="#cache_path" id="toc-cache_path" class="nav-link" data-scroll-target="#cache_path">cache_path</a></li>
+  </ul></li>
+  <li><a href="#provider" id="toc-provider" class="nav-link" data-scroll-target="#provider">Provider</a>
+  <ul class="collapse">
+  <li><a href="#modelapi" id="toc-modelapi" class="nav-link" data-scroll-target="#modelapi">modelapi</a></li>
+  <li><a href="#modelapi-1" id="toc-modelapi-1" class="nav-link" data-scroll-target="#modelapi-1">ModelAPI</a></li>
+  </ul></li>
+  </ul>
+<div class="toc-actions"><ul><li><a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div></nav>
+    </div>
+<!-- main -->
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">inspect_ai.model</h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<section id="generation" class="level2">
+<h2 class="anchored" data-anchor-id="generation">Generation</h2>
+<section id="get_model" class="level3">
+<h3 class="anchored" data-anchor-id="get_model">get_model</h3>
+<p>Get an instance of a model.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/a66a27dbd7a8f7175a395fab241ca64152d88b77/src/inspect_ai/model/_model.py#L595">Source</a>
+</div>
+<div class="sourceCode" id="cb1"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> get_model(</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    model: <span class="bu">str</span> <span class="op">|</span> Model <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    config: GenerateConfig <span class="op">=</span> GenerateConfig(),</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>    base_url: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    api_key: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>    <span class="op">**</span>model_args: Any,</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> Model</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<dl>
+<dt><code>model</code> <span class="argument-type">str | Model | None</span></dt>
+<dd>
+<p>Model specification. If <code>Model</code> is passed it is returned unmodified, if <code>None</code> is passed then the model currently being evaluated is returned (or if there is no evaluation then the model referred to by <code>INSPECT_EVAL_MODEL</code>).</p>
+</dd>
+<dt><code>config</code> <span class="argument-type">GenerateConfig</span></dt>
+<dd>
+<p>Configuration for model.</p>
+</dd>
+<dt><code>base_url</code> <span class="argument-type">str | None</span></dt>
+<dd>
+<p>Optional. Alternate base URL for model.</p>
+</dd>
+<dt><code>api_key</code> <span class="argument-type">str | None</span></dt>
+<dd>
+<p>Optional. API key for model.</p>
+</dd>
+<dt><code>**model_args</code> <span class="argument-type">Any</span></dt>
+<dd>
+<p>Additional args to pass to model constructor.</p>
+</dd>
+</dl>
+</section>
+<section id="model" class="level3">
+<h3 class="anchored" data-anchor-id="model">Model</h3>
+<p>Model interface.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/a66a27dbd7a8f7175a395fab241ca64152d88b77/src/inspect_ai/model/_model.py#L180">Source</a>
+</div>
+<div class="sourceCode" id="cb2"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Model</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<section class="level4">
+<h4 class="anchored" data-anchor-id="">Attributes</h4>
+<dl>
+<dt><code>api</code> <span class="argument-type">ModelAPI</span></dt>
+<dd>
+<p>Model API.</p>
+</dd>
+<dt><code>config</code> <span class="argument-type">GenerateConfig</span></dt>
+<dd>
+<p>Generation config.</p>
+</dd>
+<dt><code>name</code> <span class="argument-type">str</span></dt>
+<dd>
+<p>Model name.</p>
+</dd>
+</dl>
+</section>
+<section class="level4 class-methods">
+<h4 class="class-methods anchored" data-anchor-id="">Methods</h4>
+<dl>
+<dt>__init__</dt>
+<dd>
+<p>Create a model.</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> <span class="fu">__init__</span>(<span class="va">self</span>, api: ModelAPI, config: GenerateConfig) <span class="op">-&gt;</span> <span class="va">None</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<dl>
+<dt><code>api</code> <span class="argument-type">ModelAPI</span></dt>
+<dd>
+<p>Model API provider.</p>
+</dd>
+<dt><code>config</code> <span class="argument-type">GenerateConfig</span></dt>
+<dd>
+<p>Model configuration.</p>
+</dd>
+</dl>
+</dd>
+<dt>generate</dt>
+<dd>
+<p>Generate output from the model.</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> generate(</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>    <span class="va">self</span>,</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>    <span class="bu">input</span>: <span class="bu">str</span> <span class="op">|</span> <span class="bu">list</span>[ChatMessage],</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>    tools: <span class="bu">list</span>[Tool]</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>    <span class="op">|</span> <span class="bu">list</span>[ToolDef]</span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>    <span class="op">|</span> <span class="bu">list</span>[ToolInfo]</span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>    <span class="op">|</span> <span class="bu">list</span>[Tool <span class="op">|</span> ToolDef <span class="op">|</span> ToolInfo] <span class="op">=</span> [],</span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>    tool_choice: ToolChoice <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>    config: GenerateConfig <span class="op">=</span> GenerateConfig(),</span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>    cache: <span class="bu">bool</span> <span class="op">|</span> CachePolicy <span class="op">=</span> <span class="va">False</span>,</span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> ModelOutput</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<dl>
+<dt><code>input</code> <span class="argument-type">str | list[ChatMessage]</span></dt>
+<dd>
+<p>Chat message input (if a <code>str</code> is passed it is converted to a <code>ChatMessageUser</code>).</p>
+</dd>
+<dt><code>tools</code> <span class="argument-type">list[Tool] | list[ToolDef] | list[ToolInfo] | list[Tool | ToolDef | ToolInfo]</span></dt>
+<dd>
+<p>Tools available for the model to call.</p>
+</dd>
+<dt><code>tool_choice</code> <span class="argument-type">ToolChoice | None</span></dt>
+<dd>
+<p>Directives to the model as to which tools to prefer.</p>
+</dd>
+<dt><code>config</code> <span class="argument-type">GenerateConfig</span></dt>
+<dd>
+<p>Model configuration.</p>
+</dd>
+<dt><code>cache</code> <span class="argument-type">bool | CachePolicy</span></dt>
+<dd>
+<p>Caching behavior for generate responses (defaults to no caching).</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</section>
+</section>
+<section id="generateconfig" class="level3">
+<h3 class="anchored" data-anchor-id="generateconfig">GenerateConfig</h3>
+<p>Model generation options.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/a66a27dbd7a8f7175a395fab241ca64152d88b77/src/inspect_ai/model/_generate_config.py#L82">Source</a>
+</div>
+<div class="sourceCode" id="cb5"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> GenerateConfig(BaseModel)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<section class="level4">
+<h4 class="anchored" data-anchor-id="">Attributes</h4>
+<dl>
+<dt><code>max_retries</code> <span class="argument-type">int | None</span></dt>
+<dd>
+<p>Maximum number of times to retry request (defaults to 5).</p>
+</dd>
+<dt><code>timeout</code> <span class="argument-type">int | None</span></dt>
+<dd>
+<p>Request timeout (in seconds).</p>
+</dd>
+<dt><code>max_connections</code> <span class="argument-type">int | None</span></dt>
+<dd>
+<p>Maximum number of concurrent connections to Model API (default is model specific).</p>
+</dd>
+<dt><code>system_message</code> <span class="argument-type">str | None</span></dt>
+<dd>
+<p>Override the default system message.</p>
+</dd>
+<dt><code>max_tokens</code> <span class="argument-type">int | None</span></dt>
+<dd>
+<p>The maximum number of tokens that can be generated in the completion (default is model specific).</p>
+</dd>
+<dt><code>top_p</code> <span class="argument-type">float | None</span></dt>
+<dd>
+<p>An alternative to sampling with temperature, called nucleus sampling, where the model considers the results of the tokens with top_p probability mass.</p>
+</dd>
+<dt><code>temperature</code> <span class="argument-type">float | None</span></dt>
+<dd>
+<p>What sampling temperature to use, between 0 and 2. Higher values like 0.8 will make the output more random, while lower values like 0.2 will make it more focused and deterministic.</p>
+</dd>
+<dt><code>stop_seqs</code> <span class="argument-type">list[str] | None</span></dt>
+<dd>
+<p>Sequences where the API will stop generating further tokens. The returned text will not contain the stop sequence.</p>
+</dd>
+<dt><code>best_of</code> <span class="argument-type">int | None</span></dt>
+<dd>
+<p>Generates best_of completions server-side and returns the ‘best’ (the one with the highest log probability per token). vLLM only.</p>
+</dd>
+<dt><code>frequency_penalty</code> <span class="argument-type">float | None</span></dt>
+<dd>
+<p>Number between -2.0 and 2.0. Positive values penalize new tokens based on their existing frequency in the text so far, decreasing the model’s likelihood to repeat the same line verbatim. OpenAI, Google, Grok, Groq, and vLLM only.</p>
+</dd>
+<dt><code>presence_penalty</code> <span class="argument-type">float | None</span></dt>
+<dd>
+<p>Number between -2.0 and 2.0. Positive values penalize new tokens based on whether they appear in the text so far, increasing the model’s likelihood to talk about new topics. OpenAI, Google, Grok, Groq, and vLLM only.</p>
+</dd>
+<dt><code>logit_bias</code> <span class="argument-type">dict[int, float] | None</span></dt>
+<dd>
+<p>Map token Ids to an associated bias value from -100 to 100 (e.g.&nbsp;“42=10,43=-10”). OpenAI, Grok, and Grok only.</p>
+</dd>
+<dt><code>seed</code> <span class="argument-type">int | None</span></dt>
+<dd>
+<p>Random seed. OpenAI, Google, Mistral, Groq, HuggingFace, and vLLM only.</p>
+</dd>
+<dt><code>top_k</code> <span class="argument-type">int | None</span></dt>
+<dd>
+<p>Randomly sample the next word from the top_k most likely next words. Anthropic, Google, HuggingFace, and vLLM only.</p>
+</dd>
+<dt><code>num_choices</code> <span class="argument-type">int | None</span></dt>
+<dd>
+<p>How many chat completion choices to generate for each input message. OpenAI, Grok, Google, TogetherAI, and vLLM only.</p>
+</dd>
+<dt><code>logprobs</code> <span class="argument-type">bool | None</span></dt>
+<dd>
+<p>Return log probabilities of the output tokens. OpenAI, Grok, TogetherAI, Huggingface, llama-cpp-python, and vLLM only.</p>
+</dd>
+<dt><code>top_logprobs</code> <span class="argument-type">int | None</span></dt>
+<dd>
+<p>Number of most likely tokens (0-20) to return at each token position, each with an associated log probability. OpenAI, Grok, Huggingface, and vLLM only.</p>
+</dd>
+<dt><code>parallel_tool_calls</code> <span class="argument-type">bool | None</span></dt>
+<dd>
+<p>Whether to enable parallel function calling during tool use (defaults to True). OpenAI and Groq only.</p>
+</dd>
+<dt><code>internal_tools</code> <span class="argument-type">bool | None</span></dt>
+<dd>
+<p>Whether to automatically map tools to model internal implementations (e.g.&nbsp;‘computer’ for anthropic).</p>
+</dd>
+<dt><code>max_tool_output</code> <span class="argument-type">int | None</span></dt>
+<dd>
+<p>Maximum tool output (in bytes). Defaults to 16 * 1024.</p>
+</dd>
+<dt><code>cache_prompt</code> <span class="argument-type">Literal['auto'] | bool | None</span></dt>
+<dd>
+<p>Whether to cache the prompt prefix. Defaults to “auto”, which will enable caching for requests with tools. Anthropic only.</p>
+</dd>
+<dt><code>reasoning_effort</code> <span class="argument-type">Literal['low', 'medium', 'high'] | None</span></dt>
+<dd>
+<p>Constrains effort on reasoning for reasoning models. Open AI o1 models only.</p>
+</dd>
+<dt><code>reasoning_history</code> <span class="argument-type">bool | None</span></dt>
+<dd>
+<p>Include reasoning in chat message history sent to generate.</p>
+</dd>
+</dl>
+</section>
+<section class="level4 class-methods">
+<h4 class="class-methods anchored" data-anchor-id="">Methods</h4>
+<dl>
+<dt>merge</dt>
+<dd>
+<p>Merge another model configuration into this one.</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> merge(</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>    <span class="va">self</span>, other: Union[<span class="st">"GenerateConfig"</span>, GenerateConfigArgs]</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="st">"GenerateConfig"</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<dl>
+<dt><code>other</code> <span class="argument-type">Union[GenerateConfig, GenerateConfigArgs]</span></dt>
+<dd>
+<p>Configuration to merge.</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</section>
+</section>
+<section id="modeloutput" class="level3">
+<h3 class="anchored" data-anchor-id="modeloutput">ModelOutput</h3>
+<p>Output from model generation.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/a66a27dbd7a8f7175a395fab241ca64152d88b77/src/inspect_ai/model/_model_output.py#L102">Source</a>
+</div>
+<div class="sourceCode" id="cb7"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ModelOutput(BaseModel)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<section class="level4">
+<h4 class="anchored" data-anchor-id="">Attributes</h4>
+<dl>
+<dt><code>model</code> <span class="argument-type">str</span></dt>
+<dd>
+<p>Model used for generation.</p>
+</dd>
+<dt><code>choices</code> <span class="argument-type">list[ChatCompletionChoice]</span></dt>
+<dd>
+<p>Completion choices.</p>
+</dd>
+<dt><code>usage</code> <span class="argument-type">ModelUsage | None</span></dt>
+<dd>
+<p>Model token usage</p>
+</dd>
+<dt><code>time</code> <span class="argument-type">float | None</span></dt>
+<dd>
+<p>Time elapsed (in seconds) for call to generate.</p>
+</dd>
+<dt><code>metadata</code> <span class="argument-type">dict[str, Any] | None</span></dt>
+<dd>
+<p>Additional metadata associated with model output.</p>
+</dd>
+<dt><code>error</code> <span class="argument-type">str | None</span></dt>
+<dd>
+<p>Error message in the case of content moderation refusals.</p>
+</dd>
+<dt><code>stop_reason</code> <span class="argument-type">StopReason</span></dt>
+<dd>
+<p>First message stop reason.</p>
+</dd>
+<dt><code>message</code> <span class="argument-type">ChatMessageAssistant</span></dt>
+<dd>
+<p>First message choice.</p>
+</dd>
+<dt><code>completion</code> <span class="argument-type">str</span></dt>
+<dd>
+<p>Text of first message choice text.</p>
+</dd>
+</dl>
+</section>
+<section class="level4 class-methods">
+<h4 class="class-methods anchored" data-anchor-id="">Methods</h4>
+<dl>
+<dt>from_content</dt>
+<dd>
+<p>Create ModelOutput from simple text content.</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="at">@staticmethod</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> from_content(</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>    model: <span class="bu">str</span>,</span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>    content: <span class="bu">str</span>,</span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>    stop_reason: StopReason <span class="op">=</span> <span class="st">"stop"</span>,</span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>    error: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="st">"ModelOutput"</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<dl>
+<dt><code>model</code> <span class="argument-type">str</span></dt>
+<dd>
+<p>Model name.</p>
+</dd>
+<dt><code>content</code> <span class="argument-type">str</span></dt>
+<dd>
+<p>Text content from generation.</p>
+</dd>
+<dt><code>stop_reason</code> <span class="argument-type">StopReason</span></dt>
+<dd>
+<p>Stop reason for generation.</p>
+</dd>
+<dt><code>error</code> <span class="argument-type">str | None</span></dt>
+<dd>
+<p>Error message.</p>
+</dd>
+</dl>
+</dd>
+<dt>for_tool_call</dt>
+<dd>
+<p>Returns a ModelOutput for requesting a tool call.</p>
+<div class="sourceCode" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="at">@staticmethod</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> for_tool_call(</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>    model: <span class="bu">str</span>,</span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>    tool_name: <span class="bu">str</span>,</span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>    tool_arguments: <span class="bu">dict</span>[<span class="bu">str</span>, Any],</span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>    tool_call_id: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>    content: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="st">"ModelOutput"</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<dl>
+<dt><code>model</code> <span class="argument-type">str</span></dt>
+<dd>
+<p>model name</p>
+</dd>
+<dt><code>tool_name</code> <span class="argument-type">str</span></dt>
+<dd>
+<p>The name of the tool.</p>
+</dd>
+<dt><code>tool_arguments</code> <span class="argument-type">dict[str, Any]</span></dt>
+<dd>
+<p>The arguments passed to the tool.</p>
+</dd>
+<dt><code>tool_call_id</code> <span class="argument-type">str | None</span></dt>
+<dd>
+<p>Optional ID for the tool call. Defaults to a random UUID.</p>
+</dd>
+<dt><code>content</code> <span class="argument-type">str | None</span></dt>
+<dd>
+<p>Optional content to include in the message. Defaults to “tool call for tool {tool_name}”.</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</section>
+</section>
+<section id="modelusage" class="level3">
+<h3 class="anchored" data-anchor-id="modelusage">ModelUsage</h3>
+<p>Token usage for completion.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/a66a27dbd7a8f7175a395fab241ca64152d88b77/src/inspect_ai/model/_model_output.py#L11">Source</a>
+</div>
+<div class="sourceCode" id="cb10"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ModelUsage(BaseModel)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<section class="level4">
+<h4 class="anchored" data-anchor-id="">Attributes</h4>
+<dl>
+<dt><code>input_tokens</code> <span class="argument-type">int</span></dt>
+<dd>
+<p>Total input tokens used.</p>
+</dd>
+<dt><code>output_tokens</code> <span class="argument-type">int</span></dt>
+<dd>
+<p>Total output tokens used.</p>
+</dd>
+<dt><code>total_tokens</code> <span class="argument-type">int</span></dt>
+<dd>
+<p>Total tokens used.</p>
+</dd>
+<dt><code>input_tokens_cache_write</code> <span class="argument-type">int | None</span></dt>
+<dd>
+<p>Number of tokens written to the cache.</p>
+</dd>
+<dt><code>input_tokens_cache_read</code> <span class="argument-type">int | None</span></dt>
+<dd>
+<p>Number of tokens retrieved from the cache.</p>
+</dd>
+</dl>
+</section>
+</section>
+<section id="stopreason" class="level3">
+<h3 class="anchored" data-anchor-id="stopreason">StopReason</h3>
+<p>Reason that the model stopped or failed to generate.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/a66a27dbd7a8f7175a395fab241ca64152d88b77/src/inspect_ai/model/_model_output.py#L30">Source</a>
+</div>
+<div class="sourceCode" id="cb11"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>StopReason <span class="op">=</span> Literal[</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>    <span class="st">"stop"</span>,</span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">"max_tokens"</span>,</span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">"model_length"</span>,</span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>    <span class="st">"tool_calls"</span>,</span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a>    <span class="st">"content_filter"</span>,</span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a>    <span class="st">"unknown"</span>,</span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a>]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
+<section id="chatcompletionchoice" class="level3">
+<h3 class="anchored" data-anchor-id="chatcompletionchoice">ChatCompletionChoice</h3>
+<p>Choice generated for completion.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/a66a27dbd7a8f7175a395fab241ca64152d88b77/src/inspect_ai/model/_model_output.py#L77">Source</a>
+</div>
+<div class="sourceCode" id="cb12"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ChatCompletionChoice(BaseModel)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<section class="level4">
+<h4 class="anchored" data-anchor-id="">Attributes</h4>
+<dl>
+<dt><code>message</code> <span class="argument-type">ChatMessageAssistant</span></dt>
+<dd>
+<p>Assistant message.</p>
+</dd>
+<dt><code>stop_reason</code> <span class="argument-type">StopReason</span></dt>
+<dd>
+<p>Reason that the model stopped generating.</p>
+</dd>
+<dt><code>logprobs</code> <span class="argument-type">Logprobs | None</span></dt>
+<dd>
+<p>Logprobs.</p>
+</dd>
+</dl>
+</section>
+</section>
+</section>
+<section id="messages" class="level2">
+<h2 class="anchored" data-anchor-id="messages">Messages</h2>
+<section id="chatmessage" class="level3">
+<h3 class="anchored" data-anchor-id="chatmessage">ChatMessage</h3>
+<p>Message in a chat conversation</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/a66a27dbd7a8f7175a395fab241ca64152d88b77/src/inspect_ai/model/_chat_message.py#L160">Source</a>
+</div>
+<div class="sourceCode" id="cb13"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a>ChatMessage <span class="op">=</span> Union[</span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>    ChatMessageSystem, ChatMessageUser, ChatMessageAssistant, ChatMessageTool</span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
+<section id="chatmessagesystem" class="level3">
+<h3 class="anchored" data-anchor-id="chatmessagesystem">ChatMessageSystem</h3>
+<p>System chat message.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/a66a27dbd7a8f7175a395fab241ca64152d88b77/src/inspect_ai/model/_chat_message.py#L68">Source</a>
+</div>
+<div class="sourceCode" id="cb14"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ChatMessageSystem(ChatMessageBase)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<section class="level4">
+<h4 class="anchored" data-anchor-id="">Attributes</h4>
+<dl>
+<dt><code>role</code> <span class="argument-type">Literal['system']</span></dt>
+<dd>
+<p>Conversation role.</p>
+</dd>
+</dl>
+</section>
+</section>
+<section id="chatmessageuser" class="level3">
+<h3 class="anchored" data-anchor-id="chatmessageuser">ChatMessageUser</h3>
+<p>User chat message.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/a66a27dbd7a8f7175a395fab241ca64152d88b77/src/inspect_ai/model/_chat_message.py#L75">Source</a>
+</div>
+<div class="sourceCode" id="cb15"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ChatMessageUser(ChatMessageBase)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<section class="level4">
+<h4 class="anchored" data-anchor-id="">Attributes</h4>
+<dl>
+<dt><code>role</code> <span class="argument-type">Literal['user']</span></dt>
+<dd>
+<p>Conversation role.</p>
+</dd>
+<dt><code>tool_call_id</code> <span class="argument-type">list[str] | None</span></dt>
+<dd>
+<p>ID(s) of tool call(s) this message has the content payload for.</p>
+</dd>
+</dl>
+</section>
+</section>
+<section id="chatmessageassistant" class="level3">
+<h3 class="anchored" data-anchor-id="chatmessageassistant">ChatMessageAssistant</h3>
+<p>Assistant chat message.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/a66a27dbd7a8f7175a395fab241ca64152d88b77/src/inspect_ai/model/_chat_message.py#L85">Source</a>
+</div>
+<div class="sourceCode" id="cb16"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ChatMessageAssistant(ChatMessageBase)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<section class="level4">
+<h4 class="anchored" data-anchor-id="">Attributes</h4>
+<dl>
+<dt><code>role</code> <span class="argument-type">Literal['assistant']</span></dt>
+<dd>
+<p>Conversation role.</p>
+</dd>
+<dt><code>tool_calls</code> <span class="argument-type">list[ToolCall] | None</span></dt>
+<dd>
+<p>Tool calls made by the model.</p>
+</dd>
+<dt><code>reasoning</code> <span class="argument-type">str | None</span></dt>
+<dd>
+<p>Reasoning content.</p>
+</dd>
+</dl>
+</section>
+</section>
+<section id="chatmessagetool" class="level3">
+<h3 class="anchored" data-anchor-id="chatmessagetool">ChatMessageTool</h3>
+<p>Tool chat message.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/a66a27dbd7a8f7175a395fab241ca64152d88b77/src/inspect_ai/model/_chat_message.py#L120">Source</a>
+</div>
+<div class="sourceCode" id="cb17"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ChatMessageTool(ChatMessageBase)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<section class="level4">
+<h4 class="anchored" data-anchor-id="">Attributes</h4>
+<dl>
+<dt><code>role</code> <span class="argument-type">Literal['tool']</span></dt>
+<dd>
+<p>Conversation role.</p>
+</dd>
+<dt><code>tool_call_id</code> <span class="argument-type">str | None</span></dt>
+<dd>
+<p>ID of tool call.</p>
+</dd>
+<dt><code>function</code> <span class="argument-type">str | None</span></dt>
+<dd>
+<p>Name of function called.</p>
+</dd>
+<dt><code>error</code> <span class="argument-type">ToolCallError | None</span></dt>
+<dd>
+<p>Error which occurred during tool call.</p>
+</dd>
+</dl>
+</section>
+</section>
+</section>
+<section id="content" class="level2">
+<h2 class="anchored" data-anchor-id="content">Content</h2>
+<section id="content-1" class="level3">
+<h3 class="anchored" data-anchor-id="content-1">Content</h3>
+<p>Content sent to or received from a model.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/a66a27dbd7a8f7175a395fab241ca64152d88b77/src/inspect_ai/_util/content.py#L58">Source</a>
+</div>
+<div class="sourceCode" id="cb18"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a>Content <span class="op">=</span> Union[ContentText, ContentImage, ContentAudio, ContentVideo]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
+<section id="contenttext" class="level3">
+<h3 class="anchored" data-anchor-id="contenttext">ContentText</h3>
+<p>Text content.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/a66a27dbd7a8f7175a395fab241ca64152d88b77/src/inspect_ai/_util/content.py#L6">Source</a>
+</div>
+<div class="sourceCode" id="cb19"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ContentText(BaseModel)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<section class="level4">
+<h4 class="anchored" data-anchor-id="">Attributes</h4>
+<dl>
+<dt><code>type</code> <span class="argument-type">Literal['text']</span></dt>
+<dd>
+<p>Type.</p>
+</dd>
+<dt><code>text</code> <span class="argument-type">str</span></dt>
+<dd>
+<p>Text content.</p>
+</dd>
+</dl>
+</section>
+</section>
+<section id="contentimage" class="level3">
+<h3 class="anchored" data-anchor-id="contentimage">ContentImage</h3>
+<p>Image content.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/a66a27dbd7a8f7175a395fab241ca64152d88b77/src/inspect_ai/_util/content.py#L16">Source</a>
+</div>
+<div class="sourceCode" id="cb20"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ContentImage(BaseModel)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<section class="level4">
+<h4 class="anchored" data-anchor-id="">Attributes</h4>
+<dl>
+<dt><code>type</code> <span class="argument-type">Literal['image']</span></dt>
+<dd>
+<p>Type.</p>
+</dd>
+<dt><code>image</code> <span class="argument-type">str</span></dt>
+<dd>
+<p>Either a URL of the image or the base64 encoded image data.</p>
+</dd>
+<dt><code>detail</code> <span class="argument-type">Literal['auto', 'low', 'high']</span></dt>
+<dd>
+<p>Specifies the detail level of the image.</p>
+<p>Currently only supported for OpenAI. Learn more in the <a href="https://platform.openai.com/docs/guides/vision/low-or-high-fidelity-image-understanding">Vision guide</a>.</p>
+</dd>
+</dl>
+</section>
+</section>
+<section id="contentaudio" class="level3">
+<h3 class="anchored" data-anchor-id="contentaudio">ContentAudio</h3>
+<p>Audio content.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/a66a27dbd7a8f7175a395fab241ca64152d88b77/src/inspect_ai/_util/content.py#L32">Source</a>
+</div>
+<div class="sourceCode" id="cb21"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ContentAudio(BaseModel)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<section class="level4">
+<h4 class="anchored" data-anchor-id="">Attributes</h4>
+<dl>
+<dt><code>type</code> <span class="argument-type">Literal['audio']</span></dt>
+<dd>
+<p>Type.</p>
+</dd>
+<dt><code>audio</code> <span class="argument-type">str</span></dt>
+<dd>
+<p>Audio file path or base64 encoded data URL.</p>
+</dd>
+<dt><code>format</code> <span class="argument-type">Literal['wav', 'mp3']</span></dt>
+<dd>
+<p>Format of audio data (‘mp3’ or ‘wav’)</p>
+</dd>
+</dl>
+</section>
+</section>
+<section id="contentvideo" class="level3">
+<h3 class="anchored" data-anchor-id="contentvideo">ContentVideo</h3>
+<p>Video content.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/a66a27dbd7a8f7175a395fab241ca64152d88b77/src/inspect_ai/_util/content.py#L45">Source</a>
+</div>
+<div class="sourceCode" id="cb22"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ContentVideo(BaseModel)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<section class="level4">
+<h4 class="anchored" data-anchor-id="">Attributes</h4>
+<dl>
+<dt><code>type</code> <span class="argument-type">Literal['video']</span></dt>
+<dd>
+<p>Type.</p>
+</dd>
+<dt><code>video</code> <span class="argument-type">str</span></dt>
+<dd>
+<p>Audio file path or base64 encoded data URL.</p>
+</dd>
+<dt><code>format</code> <span class="argument-type">Literal['mp4', 'mpeg', 'mov']</span></dt>
+<dd>
+<p>Format of video data (‘mp4’, ‘mpeg’, or ‘mov’)</p>
+</dd>
+</dl>
+</section>
+</section>
+</section>
+<section id="logprobs" class="level2">
+<h2 class="anchored" data-anchor-id="logprobs">Logprobs</h2>
+<section id="logprob" class="level3">
+<h3 class="anchored" data-anchor-id="logprob">Logprob</h3>
+<p>Log probability for a token.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/a66a27dbd7a8f7175a395fab241ca64152d88b77/src/inspect_ai/model/_model_output.py#L54">Source</a>
+</div>
+<div class="sourceCode" id="cb23"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Logprob(BaseModel)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<section class="level4">
+<h4 class="anchored" data-anchor-id="">Attributes</h4>
+<dl>
+<dt><code>token</code> <span class="argument-type">str</span></dt>
+<dd>
+<p>The predicted token represented as a string.</p>
+</dd>
+<dt><code>logprob</code> <span class="argument-type">float</span></dt>
+<dd>
+<p>The log probability value of the model for the predicted token.</p>
+</dd>
+<dt><code>bytes</code> <span class="argument-type">list[int] | None</span></dt>
+<dd>
+<p>The predicted token represented as a byte array (a list of integers).</p>
+</dd>
+<dt><code>top_logprobs</code> <span class="argument-type">list[TopLogprob] | None</span></dt>
+<dd>
+<p>If the <code>top_logprobs</code> argument is greater than 0, this will contain an ordered list of the top K most likely tokens and their log probabilities.</p>
+</dd>
+</dl>
+</section>
+</section>
+<section id="logprobs-1" class="level3">
+<h3 class="anchored" data-anchor-id="logprobs-1">Logprobs</h3>
+<p>Log probability information for a completion choice.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/a66a27dbd7a8f7175a395fab241ca64152d88b77/src/inspect_ai/model/_model_output.py#L70">Source</a>
+</div>
+<div class="sourceCode" id="cb24"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Logprobs(BaseModel)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<section class="level4">
+<h4 class="anchored" data-anchor-id="">Attributes</h4>
+<dl>
+<dt><code>content</code> <span class="argument-type">list[Logprob]</span></dt>
+<dd>
+<p>a (num_generated_tokens,) length list containing the individual log probabilities for each generated token.</p>
+</dd>
+</dl>
+</section>
+</section>
+<section id="toplogprob" class="level3">
+<h3 class="anchored" data-anchor-id="toplogprob">TopLogprob</h3>
+<p>List of the most likely tokens and their log probability, at this token position.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/a66a27dbd7a8f7175a395fab241ca64152d88b77/src/inspect_ai/model/_model_output.py#L41">Source</a>
+</div>
+<div class="sourceCode" id="cb25"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> TopLogprob(BaseModel)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<section class="level4">
+<h4 class="anchored" data-anchor-id="">Attributes</h4>
+<dl>
+<dt><code>token</code> <span class="argument-type">str</span></dt>
+<dd>
+<p>The top-kth token represented as a string.</p>
+</dd>
+<dt><code>logprob</code> <span class="argument-type">float</span></dt>
+<dd>
+<p>The log probability value of the model for the top-kth token.</p>
+</dd>
+<dt><code>bytes</code> <span class="argument-type">list[int] | None</span></dt>
+<dd>
+<p>The top-kth token represented as a byte array (a list of integers).</p>
+</dd>
+</dl>
+</section>
+</section>
+</section>
+<section id="caching" class="level2">
+<h2 class="anchored" data-anchor-id="caching">Caching</h2>
+<section id="cachepolicy" class="level3">
+<h3 class="anchored" data-anchor-id="cachepolicy">CachePolicy</h3>
+<p>The <code>CachePolicy</code> is used to define various criteria that impact how model calls are cached.</p>
+<p><code>expiry</code>: Default “24h”. The expiry time for the cache entry. This is a string of the format “12h” for 12 hours or “1W” for a week, etc. This is how long we will keep the cache entry, if we access it after this point we’ll clear it. Setting to <code>None</code> will cache indefinitely.</p>
+<p><code>per_epoch</code>: Default True. By default we cache responses separately for different epochs. The general use case is that if there are multiple epochs, we should cache each response separately because scorers will aggregate across epochs. However, sometimes a response can be cached regardless of epoch if the call being made isn’t under test as part of the evaluation. If False, this option allows you to bypass that and cache independently of the epoch.</p>
+<p><code>scopes</code>: A dictionary of additional metadata that should be included in the cache key. This allows for more fine-grained control over the cache key generation.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/a66a27dbd7a8f7175a395fab241ca64152d88b77/src/inspect_ai/model/_cache.py#L58">Source</a>
+</div>
+<div class="sourceCode" id="cb26"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> CachePolicy</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<section class="level4 class-methods">
+<h4 class="class-methods anchored" data-anchor-id="">Methods</h4>
+<dl>
+<dt>__init__</dt>
+<dd>
+<p>Create a CachePolicy.</p>
+<div class="sourceCode" id="cb27"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> <span class="fu">__init__</span>(</span>
+<span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a>    <span class="va">self</span>,</span>
+<span id="cb27-3"><a href="#cb27-3" aria-hidden="true" tabindex="-1"></a>    expiry: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="st">"1W"</span>,</span>
+<span id="cb27-4"><a href="#cb27-4" aria-hidden="true" tabindex="-1"></a>    per_epoch: <span class="bu">bool</span> <span class="op">=</span> <span class="va">True</span>,</span>
+<span id="cb27-5"><a href="#cb27-5" aria-hidden="true" tabindex="-1"></a>    scopes: <span class="bu">dict</span>[<span class="bu">str</span>, <span class="bu">str</span>] <span class="op">=</span> {},</span>
+<span id="cb27-6"><a href="#cb27-6" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="va">None</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<dl>
+<dt><code>expiry</code> <span class="argument-type">str | None</span></dt>
+<dd>
+<p>Expiry.</p>
+</dd>
+<dt><code>per_epoch</code> <span class="argument-type">bool</span></dt>
+<dd>
+<p>Per epoch</p>
+</dd>
+<dt><code>scopes</code> <span class="argument-type">dict[str, str]</span></dt>
+<dd>
+<p>Scopes</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</section>
+</section>
+<section id="cache_size" class="level3">
+<h3 class="anchored" data-anchor-id="cache_size">cache_size</h3>
+<p>Calculate the size of various cached directories and files</p>
+<p>If neither <code>subdirs</code> nor <code>files</code> are provided, the entire cache directory will be calculated.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/a66a27dbd7a8f7175a395fab241ca64152d88b77/src/inspect_ai/model/_cache.py#L332">Source</a>
+</div>
+<div class="sourceCode" id="cb28"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> cache_size(</span>
+<span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a>    subdirs: <span class="bu">list</span>[<span class="bu">str</span>] <span class="op">=</span> [], files: <span class="bu">list</span>[Path] <span class="op">=</span> []</span>
+<span id="cb28-3"><a href="#cb28-3" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="bu">list</span>[<span class="bu">tuple</span>[<span class="bu">str</span>, <span class="bu">int</span>]]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<dl>
+<dt><code>subdirs</code> <span class="argument-type">list[str]</span></dt>
+<dd>
+<p>List of folders to filter by, which are generally model names. Empty directories will be ignored.</p>
+</dd>
+<dt><code>files</code> <span class="argument-type">list[Path]</span></dt>
+<dd>
+<p>List of files to filter by explicitly. Note that return value group these up by their parent directory</p>
+</dd>
+</dl>
+</section>
+<section id="cache_clear" class="level3">
+<h3 class="anchored" data-anchor-id="cache_clear">cache_clear</h3>
+<p>Clear the cache directory.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/a66a27dbd7a8f7175a395fab241ca64152d88b77/src/inspect_ai/model/_cache.py#L247">Source</a>
+</div>
+<div class="sourceCode" id="cb29"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> cache_clear(model: <span class="bu">str</span> <span class="op">=</span> <span class="st">""</span>) <span class="op">-&gt;</span> <span class="bu">bool</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<dl>
+<dt><code>model</code> <span class="argument-type">str</span></dt>
+<dd>
+<p>Model to clear cache for.</p>
+</dd>
+</dl>
+</section>
+<section id="cache_list_expired" class="level3">
+<h3 class="anchored" data-anchor-id="cache_list_expired">cache_list_expired</h3>
+<p>Returns a list of all the cached files that have passed their expiry time.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/a66a27dbd7a8f7175a395fab241ca64152d88b77/src/inspect_ai/model/_cache.py#L361">Source</a>
+</div>
+<div class="sourceCode" id="cb30"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> cache_list_expired(filter_by: <span class="bu">list</span>[<span class="bu">str</span>] <span class="op">=</span> []) <span class="op">-&gt;</span> <span class="bu">list</span>[Path]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<dl>
+<dt><code>filter_by</code> <span class="argument-type">list[str]</span></dt>
+<dd>
+<p>Default []. List of model names to filter by. If an empty list, this will search the entire cache.</p>
+</dd>
+</dl>
+</section>
+<section id="cache_prune" class="level3">
+<h3 class="anchored" data-anchor-id="cache_prune">cache_prune</h3>
+<p>Delete all expired cache entries.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/a66a27dbd7a8f7175a395fab241ca64152d88b77/src/inspect_ai/model/_cache.py#L401">Source</a>
+</div>
+<div class="sourceCode" id="cb31"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> cache_prune(files: <span class="bu">list</span>[Path] <span class="op">=</span> []) <span class="op">-&gt;</span> <span class="va">None</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<dl>
+<dt><code>files</code> <span class="argument-type">list[Path]</span></dt>
+<dd>
+<p>List of files to prune. If empty, this will search the entire cache.</p>
+</dd>
+</dl>
+</section>
+<section id="cache_path" class="level3">
+<h3 class="anchored" data-anchor-id="cache_path">cache_path</h3>
+<p>Path to cache directory.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/a66a27dbd7a8f7175a395fab241ca64152d88b77/src/inspect_ai/model/_cache.py#L267">Source</a>
+</div>
+<div class="sourceCode" id="cb32"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> cache_path(model: <span class="bu">str</span> <span class="op">=</span> <span class="st">""</span>) <span class="op">-&gt;</span> Path</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<dl>
+<dt><code>model</code> <span class="argument-type">str</span></dt>
+<dd>
+<p>Path to cache directory for specific model.</p>
+</dd>
+</dl>
+</section>
+</section>
+<section id="provider" class="level2">
+<h2 class="anchored" data-anchor-id="provider">Provider</h2>
+<section id="modelapi" class="level3">
+<h3 class="anchored" data-anchor-id="modelapi">modelapi</h3>
+<p>Decorator for registering model APIs.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/a66a27dbd7a8f7175a395fab241ca64152d88b77/src/inspect_ai/model/_registry.py#L30">Source</a>
+</div>
+<div class="sourceCode" id="cb33"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> modelapi(name: <span class="bu">str</span>) <span class="op">-&gt;</span> Callable[..., <span class="bu">type</span>[ModelAPI]]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<dl>
+<dt><code>name</code> <span class="argument-type">str</span></dt>
+<dd>
+<p>Name of API</p>
+</dd>
+</dl>
+</section>
+<section id="modelapi-1" class="level3">
+<h3 class="anchored" data-anchor-id="modelapi-1">ModelAPI</h3>
+<p>Model API provider.</p>
+<p>If you are implementing a custom ModelAPI provider your <code>__init__()</code> method will also receive a <code>**model_args</code> parameter that will carry any custom <code>model_args</code> (or <code>-M</code> arguments from the CLI) specified by the user. You can then pass these on to the approriate place in your model initialisation code (for example, here is what many of the built-in providers do with the <code>model_args</code> passed to them: https://inspect.ai-safety-institute.org.uk/models.html#model-args)</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/a66a27dbd7a8f7175a395fab241ca64152d88b77/src/inspect_ai/model/_model.py#L58">Source</a>
+</div>
+<div class="sourceCode" id="cb34"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ModelAPI(abc.ABC)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<section class="level4 class-methods">
+<h4 class="class-methods anchored" data-anchor-id="">Methods</h4>
+<dl>
+<dt>__init__</dt>
+<dd>
+<p>Create a model API provider.</p>
+<div class="sourceCode" id="cb35"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb35-1"><a href="#cb35-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> <span class="fu">__init__</span>(</span>
+<span id="cb35-2"><a href="#cb35-2" aria-hidden="true" tabindex="-1"></a>    <span class="va">self</span>,</span>
+<span id="cb35-3"><a href="#cb35-3" aria-hidden="true" tabindex="-1"></a>    model_name: <span class="bu">str</span>,</span>
+<span id="cb35-4"><a href="#cb35-4" aria-hidden="true" tabindex="-1"></a>    base_url: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb35-5"><a href="#cb35-5" aria-hidden="true" tabindex="-1"></a>    api_key: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb35-6"><a href="#cb35-6" aria-hidden="true" tabindex="-1"></a>    api_key_vars: <span class="bu">list</span>[<span class="bu">str</span>] <span class="op">=</span> [],</span>
+<span id="cb35-7"><a href="#cb35-7" aria-hidden="true" tabindex="-1"></a>    config: GenerateConfig <span class="op">=</span> GenerateConfig(),</span>
+<span id="cb35-8"><a href="#cb35-8" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="va">None</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<dl>
+<dt><code>model_name</code> <span class="argument-type">str</span></dt>
+<dd>
+<p>Model name.</p>
+</dd>
+<dt><code>base_url</code> <span class="argument-type">str | None</span></dt>
+<dd>
+<p>Alternate base URL for model.</p>
+</dd>
+<dt><code>api_key</code> <span class="argument-type">str | None</span></dt>
+<dd>
+<p>API key for model.</p>
+</dd>
+<dt><code>api_key_vars</code> <span class="argument-type">list[str]</span></dt>
+<dd>
+<p>Environment variables that may contain keys for this provider (used for override)</p>
+</dd>
+<dt><code>config</code> <span class="argument-type">GenerateConfig</span></dt>
+<dd>
+<p>Model configuration.</p>
+</dd>
+</dl>
+</dd>
+<dt>generate</dt>
+<dd>
+<p>Generate output from the model.</p>
+<div class="sourceCode" id="cb36"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a><span class="at">@abc.abstractmethod</span></span>
+<span id="cb36-2"><a href="#cb36-2" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> generate(</span>
+<span id="cb36-3"><a href="#cb36-3" aria-hidden="true" tabindex="-1"></a>    <span class="va">self</span>,</span>
+<span id="cb36-4"><a href="#cb36-4" aria-hidden="true" tabindex="-1"></a>    <span class="bu">input</span>: <span class="bu">list</span>[ChatMessage],</span>
+<span id="cb36-5"><a href="#cb36-5" aria-hidden="true" tabindex="-1"></a>    tools: <span class="bu">list</span>[ToolInfo],</span>
+<span id="cb36-6"><a href="#cb36-6" aria-hidden="true" tabindex="-1"></a>    tool_choice: ToolChoice,</span>
+<span id="cb36-7"><a href="#cb36-7" aria-hidden="true" tabindex="-1"></a>    config: GenerateConfig,</span>
+<span id="cb36-8"><a href="#cb36-8" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> ModelOutput <span class="op">|</span> <span class="bu">tuple</span>[ModelOutput <span class="op">|</span> <span class="pp">Exception</span>, ModelCall]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<dl>
+<dt><code>input</code> <span class="argument-type">list[ChatMessage]</span></dt>
+<dd>
+<p>Chat message input (if a <code>str</code> is passed it is converted to a <code>ChatUserMessage</code>).</p>
+</dd>
+<dt><code>tools</code> <span class="argument-type">list[ToolInfo]</span></dt>
+<dd>
+<p>Tools available for the model to call.</p>
+</dd>
+<dt><code>tool_choice</code> <span class="argument-type">ToolChoice</span></dt>
+<dd>
+<p>Directives to the model as to which tools to prefer.</p>
+</dd>
+<dt><code>config</code> <span class="argument-type">GenerateConfig</span></dt>
+<dd>
+<p>Model configuration.</p>
+</dd>
+</dl>
+</dd>
+<dt>max_tokens</dt>
+<dd>
+<p>Default max_tokens.</p>
+<div class="sourceCode" id="cb37"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb37-1"><a href="#cb37-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> max_tokens(<span class="va">self</span>) <span class="op">-&gt;</span> <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div>
+
+</div>
+</dd>
+<dt>max_connections</dt>
+<dd>
+<p>Default max_connections.</p>
+<div class="sourceCode" id="cb38"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb38-1"><a href="#cb38-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> max_connections(<span class="va">self</span>) <span class="op">-&gt;</span> <span class="bu">int</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div>
+
+</div>
+</dd>
+<dt>connection_key</dt>
+<dd>
+<p>Scope for enforcement of max_connections.</p>
+<div class="sourceCode" id="cb39"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb39-1"><a href="#cb39-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> connection_key(<span class="va">self</span>) <span class="op">-&gt;</span> <span class="bu">str</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div>
+
+</div>
+</dd>
+<dt>is_rate_limit</dt>
+<dd>
+<p>Is this exception a rate limit error.</p>
+<div class="sourceCode" id="cb40"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb40-1"><a href="#cb40-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> is_rate_limit(<span class="va">self</span>, ex: <span class="pp">BaseException</span>) <span class="op">-&gt;</span> <span class="bu">bool</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<dl>
+<dt><code>ex</code> <span class="argument-type">BaseException</span></dt>
+<dd>
+<p>Exception to check for rate limit.</p>
+</dd>
+</dl>
+</dd>
+<dt>collapse_user_messages</dt>
+<dd>
+<p>Collapse consecutive user messages into a single message.</p>
+<div class="sourceCode" id="cb41"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb41-1"><a href="#cb41-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> collapse_user_messages(<span class="va">self</span>) <span class="op">-&gt;</span> <span class="bu">bool</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div>
+
+</div>
+</dd>
+<dt>collapse_assistant_messages</dt>
+<dd>
+<p>Collapse consecutive assistant messages into a single message.</p>
+<div class="sourceCode" id="cb42"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb42-1"><a href="#cb42-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> collapse_assistant_messages(<span class="va">self</span>) <span class="op">-&gt;</span> <span class="bu">bool</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div>
+
+</div>
+</dd>
+<dt>tools_required</dt>
+<dd>
+<p>Any tool use in a message stream means that tools must be passed.</p>
+<div class="sourceCode" id="cb43"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb43-1"><a href="#cb43-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> tools_required(<span class="va">self</span>) <span class="op">-&gt;</span> <span class="bu">bool</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div>
+
+</div>
+</dd>
+<dt>tool_result_images</dt>
+<dd>
+<p>Tool results can contain images</p>
+<div class="sourceCode" id="cb44"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb44-1"><a href="#cb44-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> tool_result_images(<span class="va">self</span>) <span class="op">-&gt;</span> <span class="bu">bool</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div>
+
+</div>
+</dd>
+<dt>has_reasoning_history</dt>
+<dd>
+<p>Chat message assistant messages can include reasoning.</p>
+<div class="sourceCode" id="cb45"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb45-1"><a href="#cb45-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> has_reasoning_history(<span class="va">self</span>) <span class="op">-&gt;</span> <span class="bu">bool</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div>
+
+</div>
+</dd>
+</dl>
+
+
+</section>
+</section>
+</section>
+
+</main> <!-- /main -->
+<script id="quarto-html-after-body" type="application/javascript">
+window.document.addEventListener("DOMContentLoaded", function (event) {
+  const toggleBodyColorMode = (bsSheetEl) => {
+    const mode = bsSheetEl.getAttribute("data-mode");
+    const bodyEl = window.document.querySelector("body");
+    if (mode === "dark") {
+      bodyEl.classList.add("quarto-dark");
+      bodyEl.classList.remove("quarto-light");
+    } else {
+      bodyEl.classList.add("quarto-light");
+      bodyEl.classList.remove("quarto-dark");
+    }
+  }
+  const toggleBodyColorPrimary = () => {
+    const bsSheetEl = window.document.querySelector("link#quarto-bootstrap");
+    if (bsSheetEl) {
+      toggleBodyColorMode(bsSheetEl);
+    }
+  }
+  toggleBodyColorPrimary();  
+  const icon = "";
+  const anchorJS = new window.AnchorJS();
+  anchorJS.options = {
+    placement: 'right',
+    icon: icon
+  };
+  anchorJS.add('.anchored');
+  const isCodeAnnotation = (el) => {
+    for (const clz of el.classList) {
+      if (clz.startsWith('code-annotation-')) {                     
+        return true;
+      }
+    }
+    return false;
+  }
+  const onCopySuccess = function(e) {
+    // button target
+    const button = e.trigger;
+    // don't keep focus
+    button.blur();
+    // flash "checked"
+    button.classList.add('code-copy-button-checked');
+    var currentTitle = button.getAttribute("title");
+    button.setAttribute("title", "Copied!");
+    let tooltip;
+    if (window.bootstrap) {
+      button.setAttribute("data-bs-toggle", "tooltip");
+      button.setAttribute("data-bs-placement", "left");
+      button.setAttribute("data-bs-title", "Copied!");
+      tooltip = new bootstrap.Tooltip(button, 
+        { trigger: "manual", 
+          customClass: "code-copy-button-tooltip",
+          offset: [0, -8]});
+      tooltip.show();    
+    }
+    setTimeout(function() {
+      if (tooltip) {
+        tooltip.hide();
+        button.removeAttribute("data-bs-title");
+        button.removeAttribute("data-bs-toggle");
+        button.removeAttribute("data-bs-placement");
+      }
+      button.setAttribute("title", currentTitle);
+      button.classList.remove('code-copy-button-checked');
+    }, 1000);
+    // clear code selection
+    e.clearSelection();
+  }
+  const getTextToCopy = function(trigger) {
+      const codeEl = trigger.previousElementSibling.cloneNode(true);
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+  }
+  const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+    text: getTextToCopy
+  });
+  clipboard.on('success', onCopySuccess);
+  if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+    // For code content inside modals, clipBoardJS needs to be initialized with a container option
+    // TODO: Check when it could be a function (https://github.com/zenorocha/clipboard.js/issues/860)
+    const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+      text: getTextToCopy,
+      container: window.document.getElementById('quarto-embedded-source-code-modal')
+    });
+    clipboardModal.on('success', onCopySuccess);
+  }
+    var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+    var mailtoRegex = new RegExp(/^mailto:/);
+      var filterRegex = new RegExp("https:\/\/inspect\.ai-safety-institute\.org\.uk\/");
+    var isInternal = (href) => {
+        return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+    }
+    // Inspect non-navigation links and adorn them if external
+ 	var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+    for (var i=0; i<links.length; i++) {
+      const link = links[i];
+      if (!isInternal(link.href)) {
+        // undo the damage that might have been done by quarto-nav.js in the case of
+        // links that we want to consider external
+        if (link.dataset.originalHref !== undefined) {
+          link.href = link.dataset.originalHref;
+        }
+      }
+    }
+  function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+    const config = {
+      allowHTML: true,
+      maxWidth: 500,
+      delay: 100,
+      arrow: false,
+      appendTo: function(el) {
+          return el.parentElement;
+      },
+      interactive: true,
+      interactiveBorder: 10,
+      theme: 'quarto',
+      placement: 'bottom-start',
+    };
+    if (contentFn) {
+      config.content = contentFn;
+    }
+    if (onTriggerFn) {
+      config.onTrigger = onTriggerFn;
+    }
+    if (onUntriggerFn) {
+      config.onUntrigger = onUntriggerFn;
+    }
+    window.tippy(el, config); 
+  }
+  const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+  for (var i=0; i<noterefs.length; i++) {
+    const ref = noterefs[i];
+    tippyHover(ref, function() {
+      // use id or data attribute instead here
+      let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+      try { href = new URL(href).hash; } catch {}
+      const id = href.replace(/^#\/?/, "");
+      const note = window.document.getElementById(id);
+      if (note) {
+        return note.innerHTML;
+      } else {
+        return "";
+      }
+    });
+  }
+  const xrefs = window.document.querySelectorAll('a.quarto-xref');
+  const processXRef = (id, note) => {
+    // Strip column container classes
+    const stripColumnClz = (el) => {
+      el.classList.remove("page-full", "page-columns");
+      if (el.children) {
+        for (const child of el.children) {
+          stripColumnClz(child);
+        }
+      }
+    }
+    stripColumnClz(note)
+    if (id === null || id.startsWith('sec-')) {
+      // Special case sections, only their first couple elements
+      const container = document.createElement("div");
+      if (note.children && note.children.length > 2) {
+        container.appendChild(note.children[0].cloneNode(true));
+        for (let i = 1; i < note.children.length; i++) {
+          const child = note.children[i];
+          if (child.tagName === "P" && child.innerText === "") {
+            continue;
+          } else {
+            container.appendChild(child.cloneNode(true));
+            break;
+          }
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(container);
+        }
+        return container.innerHTML
+      } else {
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        return note.innerHTML;
+      }
+    } else {
+      // Remove any anchor links if they are present
+      const anchorLink = note.querySelector('a.anchorjs-link');
+      if (anchorLink) {
+        anchorLink.remove();
+      }
+      if (window.Quarto?.typesetMath) {
+        window.Quarto.typesetMath(note);
+      }
+      // TODO in 1.5, we should make sure this works without a callout special case
+      if (note.classList.contains("callout")) {
+        return note.outerHTML;
+      } else {
+        return note.innerHTML;
+      }
+    }
+  }
+  for (var i=0; i<xrefs.length; i++) {
+    const xref = xrefs[i];
+    tippyHover(xref, undefined, function(instance) {
+      instance.disable();
+      let url = xref.getAttribute('href');
+      let hash = undefined; 
+      if (url.startsWith('#')) {
+        hash = url;
+      } else {
+        try { hash = new URL(url).hash; } catch {}
+      }
+      if (hash) {
+        const id = hash.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note !== null) {
+          try {
+            const html = processXRef(id, note.cloneNode(true));
+            instance.setContent(html);
+          } finally {
+            instance.enable();
+            instance.show();
+          }
+        } else {
+          // See if we can fetch this
+          fetch(url.split('#')[0])
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.getElementById(id);
+            if (note !== null) {
+              const html = processXRef(id, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      } else {
+        // See if we can fetch a full url (with no hash to target)
+        // This is a special case and we should probably do some content thinning / targeting
+        fetch(url)
+        .then(res => res.text())
+        .then(html => {
+          const parser = new DOMParser();
+          const htmlDoc = parser.parseFromString(html, "text/html");
+          const note = htmlDoc.querySelector('main.content');
+          if (note !== null) {
+            // This should only happen for chapter cross references
+            // (since there is no id in the URL)
+            // remove the first header
+            if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+              note.children[0].remove();
+            }
+            const html = processXRef(null, note);
+            instance.setContent(html);
+          } 
+        }).finally(() => {
+          instance.enable();
+          instance.show();
+        });
+      }
+    }, function(instance) {
+    });
+  }
+      let selectedAnnoteEl;
+      const selectorForAnnotation = ( cell, annotation) => {
+        let cellAttr = 'data-code-cell="' + cell + '"';
+        let lineAttr = 'data-code-annotation="' +  annotation + '"';
+        const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+        return selector;
+      }
+      const selectCodeLines = (annoteEl) => {
+        const doc = window.document;
+        const targetCell = annoteEl.getAttribute("data-target-cell");
+        const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+        const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+        const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+        const lineIds = lines.map((line) => {
+          return targetCell + "-" + line;
+        })
+        let top = null;
+        let height = null;
+        let parent = null;
+        if (lineIds.length > 0) {
+            //compute the position of the single el (top and bottom and make a div)
+            const el = window.document.getElementById(lineIds[0]);
+            top = el.offsetTop;
+            height = el.offsetHeight;
+            parent = el.parentElement.parentElement;
+          if (lineIds.length > 1) {
+            const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+            const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+            height = bottom - top;
+          }
+          if (top !== null && height !== null && parent !== null) {
+            // cook up a div (if necessary) and position it 
+            let div = window.document.getElementById("code-annotation-line-highlight");
+            if (div === null) {
+              div = window.document.createElement("div");
+              div.setAttribute("id", "code-annotation-line-highlight");
+              div.style.position = 'absolute';
+              parent.appendChild(div);
+            }
+            div.style.top = top - 2 + "px";
+            div.style.height = height + 4 + "px";
+            div.style.left = 0;
+            let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+            if (gutterDiv === null) {
+              gutterDiv = window.document.createElement("div");
+              gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+              gutterDiv.style.position = 'absolute';
+              const codeCell = window.document.getElementById(targetCell);
+              const gutter = codeCell.querySelector('.code-annotation-gutter');
+              gutter.appendChild(gutterDiv);
+            }
+            gutterDiv.style.top = top - 2 + "px";
+            gutterDiv.style.height = height + 4 + "px";
+          }
+          selectedAnnoteEl = annoteEl;
+        }
+      };
+      const unselectCodeLines = () => {
+        const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+        elementsIds.forEach((elId) => {
+          const div = window.document.getElementById(elId);
+          if (div) {
+            div.remove();
+          }
+        });
+        selectedAnnoteEl = undefined;
+      };
+        // Handle positioning of the toggle
+    window.addEventListener(
+      "resize",
+      throttle(() => {
+        elRect = undefined;
+        if (selectedAnnoteEl) {
+          selectCodeLines(selectedAnnoteEl);
+        }
+      }, 10)
+    );
+    function throttle(fn, ms) {
+    let throttle = false;
+    let timer;
+      return (...args) => {
+        if(!throttle) { // first call gets through
+            fn.apply(this, args);
+            throttle = true;
+        } else { // all the others get throttled
+            if(timer) clearTimeout(timer); // cancel #2
+            timer = setTimeout(() => {
+              fn.apply(this, args);
+              timer = throttle = false;
+            }, ms);
+        }
+      };
+    }
+      const annoteTargets = window.document.querySelectorAll('.code-annotation-anchor');
+      for (let i=0; i<annoteTargets.length; i++) {
+        const annoteTarget = annoteTargets[i];
+        const targetCell = annoteTarget.getAttribute("data-target-cell");
+        const targetAnnotation = annoteTarget.getAttribute("data-target-annotation");
+        const contentFn = () => {
+          const content = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+          if (content) {
+            const tipContent = content.cloneNode(true);
+            tipContent.classList.add("code-annotation-tip-content");
+            return tipContent.outerHTML;
+          }
+        }
+        const config = {
+          allowHTML: true,
+          content: contentFn,
+          onShow: (instance) => {
+            selectCodeLines(instance.reference);
+            instance.reference.classList.add('code-annotation-active');
+            window.tippy.hideAll();
+          },
+          onHide: (instance) => {
+            unselectCodeLines();
+            instance.reference.classList.remove('code-annotation-active');
+          },
+          maxWidth: 300,
+          delay: [50, 0],
+          duration: [200, 0],
+          offset: [5, 10],
+          arrow: true,
+          trigger: 'click',
+          appendTo: function(el) {
+            return el.parentElement.parentElement.parentElement;
+          },
+          interactive: true,
+          interactiveBorder: 10,
+          theme: 'quarto',
+          placement: 'right',
+          positionFixed: true,
+          popperOptions: {
+            modifiers: [
+            {
+              name: 'flip',
+              options: {
+                flipVariations: false, // true by default
+                allowedAutoPlacements: ['right'],
+                fallbackPlacements: ['right', 'top', 'top-start', 'top-end', 'bottom', 'bottom-start', 'bottom-end', 'left'],
+              },
+            },
+            {
+              name: 'preventOverflow',
+              options: {
+                mainAxis: false,
+                altAxis: false
+              }
+            }
+            ]        
+          }      
+        };
+        window.tippy(annoteTarget, config); 
+      }
+  const findCites = (el) => {
+    const parentEl = el.parentElement;
+    if (parentEl) {
+      const cites = parentEl.dataset.cites;
+      if (cites) {
+        return {
+          el,
+          cites: cites.split(' ')
+        };
+      } else {
+        return findCites(el.parentElement)
+      }
+    } else {
+      return undefined;
+    }
+  };
+  var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+  for (var i=0; i<bibliorefs.length; i++) {
+    const ref = bibliorefs[i];
+    const citeInfo = findCites(ref);
+    if (citeInfo) {
+      tippyHover(citeInfo.el, function() {
+        var popup = window.document.createElement('div');
+        citeInfo.cites.forEach(function(cite) {
+          var citeDiv = window.document.createElement('div');
+          citeDiv.classList.add('hanging-indent');
+          citeDiv.classList.add('csl-entry');
+          var biblioDiv = window.document.getElementById('ref-' + cite);
+          if (biblioDiv) {
+            citeDiv.innerHTML = biblioDiv.innerHTML;
+          }
+          popup.appendChild(citeDiv);
+        });
+        return popup.innerHTML;
+      });
+    }
+  }
+});
+</script>
+<nav class="page-navigation">
+  <div class="nav-page nav-page-previous">
+      <a href="../reference/inspect_ai.scorer.html#score_reducer" class="pagination-link" aria-label="score_reducer">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">score_reducer</span>
+      </a>          
+  </div>
+  <div class="nav-page nav-page-next">
+      <a href="../reference/inspect_ai.model.html#get_model" class="pagination-link" aria-label="get_model">
+        <span class="nav-page-text">get_model</span> <i class="bi bi-arrow-right-short"></i>
+      </a>
+  </div>
+</nav>
+</div> <!-- /content -->
+<footer class="footer">
+  <div class="nav-footer">
+    <div class="nav-footer-left">
+      <ul class="footer-items list-unstyled">
+    <li class="nav-item">
+    <a class="nav-link" href="https://aisi.gov.uk/">
+<p>UK AI Safety Institute</p>
+</a>
+  </li>  
+</ul>
+    </div>   
+    <div class="nav-footer-center">
+      <ul class="footer-items list-unstyled">
+    <li class="nav-item">
+    <a class="nav-link" href="https://github.com/UKGovernmentBEIS/inspect_ai">
+<p>Code</p>
+</a>
+  </li>  
+    <li class="nav-item">
+    <a class="nav-link" href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/CHANGELOG.md">
+<p>Changelog</p>
+</a>
+  </li>  
+    <li class="nav-item">
+    <a class="nav-link" href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/LICENSE">
+<p>License</p>
+</a>
+  </li>  
+    <li class="nav-item">
+    <a class="nav-link" href="https://github.com/UKGovernmentBEIS/inspect_ai/issues">
+<p>Issues</p>
+</a>
+  </li>  
+</ul>
+    <div class="toc-actions d-sm-block d-md-none"><ul><li><a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div></div>
+    <div class="nav-footer-right">
+      <ul class="footer-items list-unstyled">
+    <li class="nav-item compact">
+    <a class="nav-link" href="https://twitter.com/AISafetyInst">
+      <i class="bi bi-twitter" role="img" aria-label="UK AI Safety Institute Twitter">
+</i> 
+    </a>
+  </li>  
+    <li class="nav-item compact">
+    <a class="nav-link" href="https://github.com/UKGovernmentBEIS/inspect_ai/">
+      <i class="bi bi-github" role="img" aria-label="Inspect on GitHub">
+</i> 
+    </a>
+  </li>  
+</ul>
+    </div>
+  </div>
+</footer>
+
+
+
+
+</body></html>

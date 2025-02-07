@@ -652,16 +652,6 @@ llama-cpp-python provider
 
 ## OpenRouter
 
-> [!NOTE]
->
-> The OpenRouter provider described below is currently available only in
-> the development version of Inspect. To install the development version
-> from GitHub:
->
-> ``` bash
-> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-> ```
-
 To use the [OpenRouter](https://openrouter.ai/) provider, install the
 `openai` package (which the OpenRouter service provides a compatible
 backend for), set your credentials, and specify a model using the

@@ -1,0 +1,2803 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.5.57">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>inspect_ai – Inspect</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { display: inline-block; text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="../site_libs/quarto-nav/quarto-nav.js"></script>
+<script src="../site_libs/quarto-nav/headroom.min.js"></script>
+<script src="../site_libs/clipboard/clipboard.min.js"></script>
+<script src="../site_libs/quarto-search/autocomplete.umd.js"></script>
+<script src="../site_libs/quarto-search/fuse.min.js"></script>
+<script src="../site_libs/quarto-search/quarto-search.js"></script>
+<meta name="quarto:offset" content="../">
+<link href="../reference/inspect_ai.qmd#eval" rel="next">
+<script src="../site_libs/quarto-html/quarto.js"></script>
+<script src="../site_libs/quarto-html/popper.min.js"></script>
+<script src="../site_libs/quarto-html/tippy.umd.min.js"></script>
+<script src="../site_libs/quarto-html/anchor.min.js"></script>
+<link href="../site_libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="../site_libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="../site_libs/bootstrap/bootstrap.min.js"></script>
+<link href="../site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="../site_libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
+<script id="quarto-search-options" type="application/json">{
+  "location": "navbar",
+  "copy-button": false,
+  "collapse-after": 3,
+  "panel-placement": "end",
+  "type": "overlay",
+  "limit": 50,
+  "keyboard-shortcut": [
+    "f",
+    "/",
+    "s"
+  ],
+  "show-item-context": false,
+  "language": {
+    "search-no-results-text": "No results",
+    "search-matching-documents-text": "matching documents",
+    "search-copy-link-title": "Copy link to search",
+    "search-hide-matches-text": "Hide additional matches",
+    "search-more-match-text": "more match in this document",
+    "search-more-matches-text": "more matches in this document",
+    "search-clear-button-title": "Clear",
+    "search-text-placeholder": "",
+    "search-detached-cancel-button-title": "Cancel",
+    "search-submit-button-title": "Submit",
+    "search-label": "Search"
+  }
+}</script>
+
+
+<meta property="og:title" content="Inspect">
+<meta property="og:description" content="Open-source framework for large language model evaluations">
+<meta property="og:image" content="https://inspect.ai-safety-institute.org.uk//images/inspect.png">
+<meta property="og:site_name" content="Inspect">
+<meta property="og:image:height" content="1258">
+<meta property="og:image:width" content="2400">
+<meta name="twitter:title" content="Inspect">
+<meta name="twitter:description" content="Open-source framework for large language model evaluations">
+<meta name="twitter:image" content="https://inspect.ai-safety-institute.org.uk//images/inspect.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image-height" content="1258">
+<meta name="twitter:image-width" content="2400">
+</head>
+
+<body class="nav-sidebar docked nav-fixed">
+
+<div id="quarto-search-results"></div>
+  <header id="quarto-header" class="headroom fixed-top">
+    <nav class="navbar navbar-expand-lg " data-bs-theme="dark">
+      <div class="navbar-container container-fluid">
+      <div class="navbar-brand-container mx-auto">
+    <a href="https://www.aisi.gov.uk/" class="navbar-brand navbar-brand-logo">
+    <img src="../images/aisi-logo.png" alt="" class="navbar-logo">
+    </a>
+    <a class="navbar-brand" href="https://www.aisi.gov.uk/">
+    <span class="navbar-title">Inspect AI</span>
+    </a>
+  </div>
+            <div id="quarto-search" class="" title="Search"></div>
+          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse" aria-controls="navbarCollapse" role="menu" aria-expanded="false" aria-label="Toggle navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+  <span class="navbar-toggler-icon"></span>
+</button>
+          <div class="collapse navbar-collapse" id="navbarCollapse">
+            <ul class="navbar-nav navbar-nav-scroll me-auto">
+  <li class="nav-item">
+    <a class="nav-link" href="../index.html"> 
+<span class="menu-text">User Guide</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link active" href="../reference/inspect_ai.html" aria-current="page"> 
+<span class="menu-text">Reference</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="../evals/index.html"> 
+<span class="menu-text">Evals</span></a>
+  </li>  
+</ul>
+            <ul class="navbar-nav navbar-nav-scroll ms-auto">
+  <li class="nav-item compact">
+    <a class="nav-link" href="https://github.com/UKGovernmentBEIS/inspect_ai"> <i class="bi bi-github" role="img">
+</i> 
+<span class="menu-text"></span></a>
+  </li>  
+</ul>
+          </div> <!-- /navcollapse -->
+            <div class="quarto-navbar-tools">
+</div>
+      </div> <!-- /container-fluid -->
+    </nav>
+  <nav class="quarto-secondary-nav">
+    <div class="container-fluid d-flex">
+      <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+        <i class="bi bi-layout-text-sidebar-reverse"></i>
+      </button>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="../reference/inspect_ai.html">inspect_ai</a></li></ol></nav>
+        <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
+        </a>
+    </div>
+  </nav>
+</header>
+<!-- content -->
+<div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article page-navbar">
+<!-- sidebar -->
+  <nav id="quarto-sidebar" class="sidebar collapse collapse-horizontal quarto-sidebar-collapse-item sidebar-navigation docked overflow-auto">
+    <div class="sidebar-menu-container"> 
+    <ul class="list-unstyled mt-1">
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a href="../reference/inspect_ai.html" class="sidebar-item-text sidebar-link active">
+ <span class="menu-text">inspect_ai</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-1" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.html#eval" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">eval</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.html#eval_set" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">eval_set</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.html#eval_retry" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">eval_retry</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.html#score" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">score</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.html#task" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Task</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.html#task_with" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">task_with</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.html#epochs" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Epochs</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.html#taskinfo" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">TaskInfo</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.html#tasks" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Tasks</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.html#task" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">task</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a href="../reference/inspect_ai.solver.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">inspect_ai.solver</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-2" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.solver.html#generate" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">generate</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.solver.html#use_tools" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">use_tools</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.solver.html#prompt_template" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">prompt_template</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.solver.html#system_message" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">system_message</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.solver.html#user_message" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">user_message</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.solver.html#chain_of_thought" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">chain_of_thought</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.solver.html#self_critique" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">self_critique</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.solver.html#multiple_choice" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">multiple_choice</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.solver.html#basic_agent" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">basic_agent</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.solver.html#human_agent" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">human_agent</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.solver.html#chain" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">chain</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.solver.html#fork" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">fork</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.solver.html#bridge" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">bridge</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.solver.html#solver" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Solver</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.solver.html#solverspec" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">SolverSpec</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.solver.html#taskstate" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">TaskState</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.solver.html#generate" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Generate</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.solver.html#solver" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">solver</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a href="../reference/inspect_ai.tool.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">inspect_ai.tool</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-3" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.tool.html#bash" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">bash</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.tool.html#python" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">python</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.tool.html#web_search" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">web_search</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.tool.html#web_browser" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">web_browser</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.tool.html#computer" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">computer</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.tool.html#tool_with" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">tool_with</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.tool.html#tooldef" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ToolDef</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.tool.html#tool" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Tool</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.tool.html#toolresult" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ToolResult</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.tool.html#toolerror" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ToolError</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.tool.html#toolchoice" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ToolChoice</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.tool.html#toolfunction" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ToolFunction</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.tool.html#tool" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">tool</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a href="../reference/inspect_ai.scorer.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">inspect_ai.scorer</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-4" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#match" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">match</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#includes" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">includes</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#pattern" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">pattern</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#answer" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">answer</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#choice" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">choice</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#f1" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">f1</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#exact" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">exact</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#model_graded_qa" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">model_graded_qa</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#model_graded_fact" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">model_graded_fact</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#multi_scorer" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">multi_scorer</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#accuracy" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">accuracy</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#mean" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">mean</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#std" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">std</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#stderr" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">stderr</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#bootstrap_stderr" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">bootstrap_stderr</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#at_least" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">at_least</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#pass_at" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">pass_at</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#max_score" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">max_score</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#mean_score" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">mean_score</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#median_score" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">median_score</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#mode_score" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">mode_score</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#scorer" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Scorer</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#metric" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Metric</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#scorereducer" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ScoreReducer</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#target" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Target</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#score" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Score</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#value" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Value</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#scorer" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">scorer</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#metric" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">metric</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#score_reducer" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">score_reducer</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a href="../reference/inspect_ai.model.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">inspect_ai.model</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-5" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#get_model" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">get_model</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#model" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Model</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#generateconfig" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">GenerateConfig</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#modeloutput" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ModelOutput</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#modelusage" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ModelUsage</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#stopreason" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">StopReason</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#chatcompletionchoice" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ChatCompletionChoice</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#chatmessage" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ChatMessage</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#chatmessagesystem" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ChatMessageSystem</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#chatmessageuser" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ChatMessageUser</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#chatmessageassistant" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ChatMessageAssistant</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#chatmessagetool" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ChatMessageTool</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#content" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Content</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#contenttext" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ContentText</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#contentimage" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ContentImage</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#contentaudio" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ContentAudio</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#contentvideo" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ContentVideo</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#logprob" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Logprob</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#logprobs" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Logprobs</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#toplogprob" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">TopLogprob</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#cachepolicy" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">CachePolicy</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#cache_size" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">cache_size</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#cache_clear" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">cache_clear</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#cache_list_expired" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">cache_list_expired</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#cache_prune" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">cache_prune</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#cache_path" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">cache_path</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#modelapi" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">modelapi</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#modelapi" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ModelAPI</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a href="../reference/inspect_ai.dataset.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">inspect_ai.dataset</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-6" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-6" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.dataset.html#csv_dataset" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">csv_dataset</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.dataset.html#json_dataset" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">json_dataset</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.dataset.html#hf_dataset" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">hf_dataset</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.dataset.html#sample" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Sample</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.dataset.html#fieldspec" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">FieldSpec</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.dataset.html#recordtosample" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">RecordToSample</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.dataset.html#dataset" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Dataset</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.dataset.html#memorydataset" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">MemoryDataset</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a href="../reference/inspect_ai.approval.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">inspect_ai.approval</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-7" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-7" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.approval.html#auto_approver" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">auto_approver</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.approval.html#human_approver" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">human_approver</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.approval.html#approver" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Approver</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.approval.html#approval" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Approval</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.approval.html#approvaldecision" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ApprovalDecision</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.approval.html#approvalpolicy" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ApprovalPolicy</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.approval.html#approver" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">approver</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a href="../reference/inspect_ai.log.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">inspect_ai.log</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-8" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-8" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#list_eval_logs" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">list_eval_logs</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#write_eval_log" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">write_eval_log</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#read_eval_log" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">read_eval_log</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#read_eval_log_sample" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">read_eval_log_sample</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#read_eval_log_samples" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">read_eval_log_samples</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#convert_eval_logs" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">convert_eval_logs</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#bundle_log_dir" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">bundle_log_dir</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#write_log_dir_manifest" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">write_log_dir_manifest</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#retryable_eval_logs" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">retryable_eval_logs</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#evalloginfo" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">EvalLogInfo</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#evallog" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">EvalLog</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#evalspec" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">EvalSpec</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#evaldataset" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">EvalDataset</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#evalconfig" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">EvalConfig</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#evalrevision" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">EvalRevision</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#evalplan" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">EvalPlan</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#evalplanstep" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">EvalPlanStep</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#evalresults" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">EvalResults</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#evalscore" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">EvalScore</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#evalmetric" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">EvalMetric</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#evalsamplereductions" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">EvalSampleReductions</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#evalstats" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">EvalStats</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#evalerror" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">EvalError</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#evalsample" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">EvalSample</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#evalsamplelimit" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">EvalSampleLimit</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#evalsamplereductions" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">EvalSampleReductions</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#evalsamplescore" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">EvalSampleScore</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#transcript" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">transcript</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#transcript" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Transcript</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#event" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Event</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#sampleinitevent" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">SampleInitEvent</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#samplelimitevent" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">SampleLimitEvent</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#stateevent" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">StateEvent</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#storeevent" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">StoreEvent</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#modelevent" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ModelEvent</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#toolevent" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ToolEvent</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#approvalevent" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ApprovalEvent</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#inputevent" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">InputEvent</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#storeevent" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">StoreEvent</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#errorevent" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ErrorEvent</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#loggerevent" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">LoggerEvent</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#logginglevel" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">LoggingLevel</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#loggingmessage" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">LoggingMessage</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#infoevent" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">InfoEvent</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#stepevent" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">StepEvent</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#subtaskevent" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">SubtaskEvent</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a href="../reference/inspect_ai.util.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">inspect_ai.util</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-9" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-9" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#store" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Store</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#store" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">store</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#store_as" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">store_as</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#storemodel" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">StoreModel</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#concurrency" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">concurrency</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#subprocess" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">subprocess</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#execresult" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ExecResult</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#display_type" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">display_type</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#displaytype" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">DisplayType</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#input_screen" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">input_screen</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#subtask" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">subtask</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#subtask" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Subtask</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#resource" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">resource</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#throttle" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">throttle</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#trace_action" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">trace_action</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#trace_message" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">trace_message</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#sandbox" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">sandbox</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#sandbox_with" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">sandbox_with</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#sandboxenvironment" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">SandboxEnvironment</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#sandboxconnection" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">SandboxConnection</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#sandboxenv" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">sandboxenv</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+    </ul>
+    </div>
+</nav>
+<div id="quarto-sidebar-glass" class="quarto-sidebar-collapse-item" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item"></div>
+<!-- margin-sidebar -->
+    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+        <nav id="TOC" role="doc-toc" class="toc-active" data-toc-expanded="99">
+    <h2 id="toc-title">On this page</h2>
+   
+  <ul>
+  <li><a href="#evaluation" id="toc-evaluation" class="nav-link active" data-scroll-target="#evaluation">Evaluation</a>
+  <ul class="collapse">
+  <li><a href="#eval" id="toc-eval" class="nav-link" data-scroll-target="#eval">eval</a></li>
+  <li><a href="#eval_set" id="toc-eval_set" class="nav-link" data-scroll-target="#eval_set">eval_set</a></li>
+  <li><a href="#eval_retry" id="toc-eval_retry" class="nav-link" data-scroll-target="#eval_retry">eval_retry</a></li>
+  <li><a href="#score" id="toc-score" class="nav-link" data-scroll-target="#score">score</a></li>
+  </ul></li>
+  <li><a href="#tasks" id="toc-tasks" class="nav-link" data-scroll-target="#tasks">Tasks</a>
+  <ul class="collapse">
+  <li><a href="#task" id="toc-task" class="nav-link" data-scroll-target="#task">Task</a></li>
+  <li><a href="#task_with" id="toc-task_with" class="nav-link" data-scroll-target="#task_with">task_with</a></li>
+  <li><a href="#epochs" id="toc-epochs" class="nav-link" data-scroll-target="#epochs">Epochs</a></li>
+  <li><a href="#taskinfo" id="toc-taskinfo" class="nav-link" data-scroll-target="#taskinfo">TaskInfo</a></li>
+  <li><a href="#tasks-1" id="toc-tasks-1" class="nav-link" data-scroll-target="#tasks-1">Tasks</a></li>
+  </ul></li>
+  <li><a href="#decorators" id="toc-decorators" class="nav-link" data-scroll-target="#decorators">Decorators</a>
+  <ul class="collapse">
+  <li><a href="#task-1" id="toc-task-1" class="nav-link" data-scroll-target="#task-1">task</a></li>
+  </ul></li>
+  </ul>
+<div class="toc-actions"><ul><li><a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div></nav>
+    </div>
+<!-- main -->
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">inspect_ai</h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<!-- TODO: Source link for methods -->
+<!-- TODO: Find propreties and methods in base classes (E.g. EvalLogInfo) -->
+<!-- TODO: Cross linking and cross referencing  -->
+<section id="evaluation" class="level2">
+<h2 class="anchored" data-anchor-id="evaluation">Evaluation</h2>
+<section id="eval" class="level3">
+<h3 class="anchored" data-anchor-id="eval">eval</h3>
+<p>Evaluate tasks using a Model.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/1fd1239eb85dea675cbf77e8caf5c5ade7092068/src/inspect_ai/_eval/eval.py#L53">Source</a>
+</div>
+<div class="sourceCode" id="cb1"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> <span class="bu">eval</span>(</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    tasks: Tasks,</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    model: <span class="bu">str</span> <span class="op">|</span> Model <span class="op">|</span> <span class="bu">list</span>[<span class="bu">str</span>] <span class="op">|</span> <span class="bu">list</span>[Model] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>    model_base_url: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    model_args: <span class="bu">dict</span>[<span class="bu">str</span>, Any] <span class="op">|</span> <span class="bu">str</span> <span class="op">=</span> <span class="bu">dict</span>(),</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>    task_args: <span class="bu">dict</span>[<span class="bu">str</span>, Any] <span class="op">|</span> <span class="bu">str</span> <span class="op">=</span> <span class="bu">dict</span>(),</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>    sandbox: SandboxEnvironmentType <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>    sandbox_cleanup: <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>    solver: Solver <span class="op">|</span> <span class="bu">list</span>[Solver] <span class="op">|</span> SolverSpec <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>    tags: <span class="bu">list</span>[<span class="bu">str</span>] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>    trace: <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>    display: DisplayType <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a>    approval: <span class="bu">str</span> <span class="op">|</span> <span class="bu">list</span>[ApprovalPolicy] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a>    log_level: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a>    log_level_transcript: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a>    log_dir: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a>    log_format: Literal[<span class="st">"eval"</span>, <span class="st">"json"</span>] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a>    limit: <span class="bu">int</span> <span class="op">|</span> <span class="bu">tuple</span>[<span class="bu">int</span>, <span class="bu">int</span>] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a>    sample_id: <span class="bu">str</span> <span class="op">|</span> <span class="bu">int</span> <span class="op">|</span> <span class="bu">list</span>[<span class="bu">str</span> <span class="op">|</span> <span class="bu">int</span>] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb1-20"><a href="#cb1-20" aria-hidden="true" tabindex="-1"></a>    epochs: <span class="bu">int</span> <span class="op">|</span> Epochs <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb1-21"><a href="#cb1-21" aria-hidden="true" tabindex="-1"></a>    fail_on_error: <span class="bu">bool</span> <span class="op">|</span> <span class="bu">float</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb1-22"><a href="#cb1-22" aria-hidden="true" tabindex="-1"></a>    debug_errors: <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb1-23"><a href="#cb1-23" aria-hidden="true" tabindex="-1"></a>    message_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb1-24"><a href="#cb1-24" aria-hidden="true" tabindex="-1"></a>    token_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb1-25"><a href="#cb1-25" aria-hidden="true" tabindex="-1"></a>    time_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb1-26"><a href="#cb1-26" aria-hidden="true" tabindex="-1"></a>    max_samples: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb1-27"><a href="#cb1-27" aria-hidden="true" tabindex="-1"></a>    max_tasks: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb1-28"><a href="#cb1-28" aria-hidden="true" tabindex="-1"></a>    max_subprocesses: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb1-29"><a href="#cb1-29" aria-hidden="true" tabindex="-1"></a>    max_sandboxes: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb1-30"><a href="#cb1-30" aria-hidden="true" tabindex="-1"></a>    log_samples: <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb1-31"><a href="#cb1-31" aria-hidden="true" tabindex="-1"></a>    log_images: <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb1-32"><a href="#cb1-32" aria-hidden="true" tabindex="-1"></a>    log_buffer: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb1-33"><a href="#cb1-33" aria-hidden="true" tabindex="-1"></a>    score: <span class="bu">bool</span> <span class="op">=</span> <span class="va">True</span>,</span>
+<span id="cb1-34"><a href="#cb1-34" aria-hidden="true" tabindex="-1"></a>    score_display: <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb1-35"><a href="#cb1-35" aria-hidden="true" tabindex="-1"></a>    <span class="op">**</span>kwargs: Unpack[GenerateConfigArgs],</span>
+<span id="cb1-36"><a href="#cb1-36" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="bu">list</span>[EvalLog]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<dl>
+<dt><code>tasks</code> <span class="argument-type">Tasks</span></dt>
+<dd>
+<p>Task(s) to evaluate. If None, attempt to evaluate a task in the current working directory</p>
+</dd>
+<dt><code>model</code> <span class="argument-type">str | Model | list[str] | list[Model] | None</span></dt>
+<dd>
+<p>Model(s) for evaluation. If not specified use the value of the INSPECT_EVAL_MODEL environment variable.</p>
+</dd>
+<dt><code>model_base_url</code> <span class="argument-type">str | None</span></dt>
+<dd>
+<p>Base URL for communicating with the model API.</p>
+</dd>
+<dt><code>model_args</code> <span class="argument-type">dict[str, Any] | str</span></dt>
+<dd>
+<p>Model creation args (as a dictionary or as a path to a JSON or YAML config file)</p>
+</dd>
+<dt><code>task_args</code> <span class="argument-type">dict[str, Any] | str</span></dt>
+<dd>
+<p>Task creation arguments (as a dictionary or as a path to a JSON or YAML config file)</p>
+</dd>
+<dt><code>sandbox</code> <span class="argument-type">SandboxEnvironmentType | None</span></dt>
+<dd>
+<p>Sandbox environment type (or optionally a str or tuple with a shorthand spec)</p>
+</dd>
+<dt><code>sandbox_cleanup</code> <span class="argument-type">bool | None</span></dt>
+<dd>
+<p>Cleanup sandbox environments after task completes (defaults to True)</p>
+</dd>
+<dt><code>solver</code> <span class="argument-type">Solver | list[Solver] | SolverSpec | None</span></dt>
+<dd>
+<p>Alternative solver for task(s). Optional (uses task solver by default).</p>
+</dd>
+<dt><code>tags</code> <span class="argument-type">list[str] | None</span></dt>
+<dd>
+<p>Tags to associate with this evaluation run.</p>
+</dd>
+<dt><code>trace</code> <span class="argument-type">bool | None</span></dt>
+<dd>
+<p>Trace message interactions with evaluated model to terminal.</p>
+</dd>
+<dt><code>display</code> <span class="argument-type">DisplayType | None</span></dt>
+<dd>
+<p>Task display type (defaults to ‘full’).</p>
+</dd>
+<dt><code>approval</code> <span class="argument-type">str | list[ApprovalPolicy] | None</span></dt>
+<dd>
+<p>Tool use approval policies. Either a path to an approval policy config file or a list of approval policies. Defaults to no approval policy.</p>
+</dd>
+<dt><code>log_level</code> <span class="argument-type">str | None</span></dt>
+<dd>
+<p>Level for logging to the console: “debug”, “http”, “sandbox”, “info”, “warning”, “error”, or “critical” (defaults to “warning”)</p>
+</dd>
+<dt><code>log_level_transcript</code> <span class="argument-type">str | None</span></dt>
+<dd>
+<p>Level for logging to the log file (defaults to “info”)</p>
+</dd>
+<dt><code>log_dir</code> <span class="argument-type">str | None</span></dt>
+<dd>
+<p>Output path for logging results (defaults to file log in ./logs directory).</p>
+</dd>
+<dt><code>log_format</code> <span class="argument-type">Literal['eval', 'json'] | None</span></dt>
+<dd>
+<p>Format for writing log files (defaults to “eval”, the native high-performance format).</p>
+</dd>
+<dt><code>limit</code> <span class="argument-type">int | tuple[int, int] | None</span></dt>
+<dd>
+<p>Limit evaluated samples (defaults to all samples).</p>
+</dd>
+<dt><code>sample_id</code> <span class="argument-type">str | int | list[str | int] | None</span></dt>
+<dd>
+<p>Evaluate specific sample(s) from the dataset.</p>
+</dd>
+<dt><code>epochs</code> <span class="argument-type">int | Epochs | None</span></dt>
+<dd>
+<p>Epochs to repeat samples for and optional score reducer function(s) used to combine sample scores (defaults to “mean”)</p>
+</dd>
+<dt><code>fail_on_error</code> <span class="argument-type">bool | float | None</span></dt>
+<dd>
+<p><code>True</code> to fail on first sample error (default); <code>False</code> to never fail on sample errors; Value between 0 and 1 to fail if a proportion of total samples fails. Value greater than 1 to fail eval if a count of samples fails.</p>
+</dd>
+<dt><code>debug_errors</code> <span class="argument-type">bool | None</span></dt>
+<dd>
+<p>Raise task errors (rather than logging them) so they can be debugged (defaults to False).</p>
+</dd>
+<dt><code>message_limit</code> <span class="argument-type">int | None</span></dt>
+<dd>
+<p>Limit on total messages used for each sample.</p>
+</dd>
+<dt><code>token_limit</code> <span class="argument-type">int | None</span></dt>
+<dd>
+<p>Limit on total tokens used for each sample.</p>
+</dd>
+<dt><code>time_limit</code> <span class="argument-type">int | None</span></dt>
+<dd>
+<p>Limit on time (in seconds) for execution of each sample.</p>
+</dd>
+<dt><code>max_samples</code> <span class="argument-type">int | None</span></dt>
+<dd>
+<p>Maximum number of samples to run in parallel (default is max_connections)</p>
+</dd>
+<dt><code>max_tasks</code> <span class="argument-type">int | None</span></dt>
+<dd>
+<p>Maximum number of tasks to run in parallel (default is 1)</p>
+</dd>
+<dt><code>max_subprocesses</code> <span class="argument-type">int | None</span></dt>
+<dd>
+<p>Maximum number of subprocesses to run in parallel (default is os.cpu_count())</p>
+</dd>
+<dt><code>max_sandboxes</code> <span class="argument-type">int | None</span></dt>
+<dd>
+<p>Maximum number of sandboxes (per-provider) to run in parallel.</p>
+</dd>
+<dt><code>log_samples</code> <span class="argument-type">bool | None</span></dt>
+<dd>
+<p>Log detailed samples and scores (defaults to True)</p>
+</dd>
+<dt><code>log_images</code> <span class="argument-type">bool | None</span></dt>
+<dd>
+<p>Log base64 encoded version of images, even if specified as a filename or URL (defaults to False)</p>
+</dd>
+<dt><code>log_buffer</code> <span class="argument-type">int | None</span></dt>
+<dd>
+<p>Number of samples to buffer before writing log file. If not specified, an appropriate default for the format and filesystem is chosen (10 for most all cases, 100 for JSON logs on remote filesystems).</p>
+</dd>
+<dt><code>score</code> <span class="argument-type">bool</span></dt>
+<dd>
+<p>Score output (defaults to True)</p>
+</dd>
+<dt><code>score_display</code> <span class="argument-type">bool | None</span></dt>
+<dd>
+<p>Show scoring metrics in realtime (defaults to True)</p>
+</dd>
+<dt><code>**kwargs</code> <span class="argument-type">Unpack[GenerateConfigArgs]</span></dt>
+<dd>
+<p>Model generation options.</p>
+</dd>
+</dl>
+</section>
+<section id="eval_set" class="level3">
+<h3 class="anchored" data-anchor-id="eval_set">eval_set</h3>
+<p>Evaluate a set of tasks.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/1fd1239eb85dea675cbf77e8caf5c5ade7092068/src/inspect_ai/_eval/evalset.py#L46">Source</a>
+</div>
+<div class="sourceCode" id="cb2"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> eval_set(</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>    tasks: Tasks,</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>    log_dir: <span class="bu">str</span>,</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>    retry_attempts: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>    retry_wait: <span class="bu">float</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>    retry_connections: <span class="bu">float</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>    retry_cleanup: <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>    model: <span class="bu">str</span> <span class="op">|</span> Model <span class="op">|</span> <span class="bu">list</span>[<span class="bu">str</span>] <span class="op">|</span> <span class="bu">list</span>[Model] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>    model_base_url: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>    model_args: <span class="bu">dict</span>[<span class="bu">str</span>, Any] <span class="op">|</span> <span class="bu">str</span> <span class="op">=</span> <span class="bu">dict</span>(),</span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>    task_args: <span class="bu">dict</span>[<span class="bu">str</span>, Any] <span class="op">|</span> <span class="bu">str</span> <span class="op">=</span> <span class="bu">dict</span>(),</span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>    sandbox: SandboxEnvironmentType <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a>    sandbox_cleanup: <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a>    solver: Solver <span class="op">|</span> <span class="bu">list</span>[Solver] <span class="op">|</span> SolverSpec <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a>    tags: <span class="bu">list</span>[<span class="bu">str</span>] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a>    trace: <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a>    display: DisplayType <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a>    approval: <span class="bu">str</span> <span class="op">|</span> <span class="bu">list</span>[ApprovalPolicy] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a>    score: <span class="bu">bool</span> <span class="op">=</span> <span class="va">True</span>,</span>
+<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a>    log_level: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a>    log_level_transcript: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a>    log_format: Literal[<span class="st">"eval"</span>, <span class="st">"json"</span>] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb2-23"><a href="#cb2-23" aria-hidden="true" tabindex="-1"></a>    limit: <span class="bu">int</span> <span class="op">|</span> <span class="bu">tuple</span>[<span class="bu">int</span>, <span class="bu">int</span>] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb2-24"><a href="#cb2-24" aria-hidden="true" tabindex="-1"></a>    sample_id: <span class="bu">str</span> <span class="op">|</span> <span class="bu">int</span> <span class="op">|</span> <span class="bu">list</span>[<span class="bu">str</span> <span class="op">|</span> <span class="bu">int</span>] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb2-25"><a href="#cb2-25" aria-hidden="true" tabindex="-1"></a>    epochs: <span class="bu">int</span> <span class="op">|</span> Epochs <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb2-26"><a href="#cb2-26" aria-hidden="true" tabindex="-1"></a>    fail_on_error: <span class="bu">bool</span> <span class="op">|</span> <span class="bu">float</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb2-27"><a href="#cb2-27" aria-hidden="true" tabindex="-1"></a>    debug_errors: <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb2-28"><a href="#cb2-28" aria-hidden="true" tabindex="-1"></a>    message_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb2-29"><a href="#cb2-29" aria-hidden="true" tabindex="-1"></a>    token_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb2-30"><a href="#cb2-30" aria-hidden="true" tabindex="-1"></a>    time_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb2-31"><a href="#cb2-31" aria-hidden="true" tabindex="-1"></a>    max_samples: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb2-32"><a href="#cb2-32" aria-hidden="true" tabindex="-1"></a>    max_tasks: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb2-33"><a href="#cb2-33" aria-hidden="true" tabindex="-1"></a>    max_subprocesses: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb2-34"><a href="#cb2-34" aria-hidden="true" tabindex="-1"></a>    max_sandboxes: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb2-35"><a href="#cb2-35" aria-hidden="true" tabindex="-1"></a>    log_samples: <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb2-36"><a href="#cb2-36" aria-hidden="true" tabindex="-1"></a>    log_images: <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb2-37"><a href="#cb2-37" aria-hidden="true" tabindex="-1"></a>    log_buffer: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb2-38"><a href="#cb2-38" aria-hidden="true" tabindex="-1"></a>    bundle_dir: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb2-39"><a href="#cb2-39" aria-hidden="true" tabindex="-1"></a>    bundle_overwrite: <span class="bu">bool</span> <span class="op">=</span> <span class="va">False</span>,</span>
+<span id="cb2-40"><a href="#cb2-40" aria-hidden="true" tabindex="-1"></a>    <span class="op">**</span>kwargs: Unpack[GenerateConfigArgs],</span>
+<span id="cb2-41"><a href="#cb2-41" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="bu">tuple</span>[<span class="bu">bool</span>, <span class="bu">list</span>[EvalLog]]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<dl>
+<dt><code>tasks</code> <span class="argument-type">Tasks</span></dt>
+<dd>
+<p>Task(s) to evaluate. If None, attempt to evaluate a task in the current working directory</p>
+</dd>
+<dt><code>log_dir</code> <span class="argument-type">str</span></dt>
+<dd>
+<p>Output path for logging results (required to ensure that a unique storage scope is assigned for the set).</p>
+</dd>
+<dt><code>retry_attempts</code> <span class="argument-type">int | None</span></dt>
+<dd>
+<p>Maximum number of retry attempts before giving up (defaults to 10).</p>
+</dd>
+<dt><code>retry_wait</code> <span class="argument-type">float | None</span></dt>
+<dd>
+<p>Time to wait between attempts, increased exponentially. (defaults to 30, resulting in waits of 30, 60, 120, 240, etc.). Wait time per-retry will in no case by longer than 1 hour.</p>
+</dd>
+<dt><code>retry_connections</code> <span class="argument-type">float | None</span></dt>
+<dd>
+<p>Reduce max_connections at this rate with each retry (defaults to 0.5)</p>
+</dd>
+<dt><code>retry_cleanup</code> <span class="argument-type">bool | None</span></dt>
+<dd>
+<p>Cleanup failed log files after retries (defaults to True)</p>
+</dd>
+<dt><code>model</code> <span class="argument-type">str | Model | list[str] | list[Model] | None</span></dt>
+<dd>
+<p>Model(s) for evaluation. If not specified use the value of the INSPECT_EVAL_MODEL environment variable.</p>
+</dd>
+<dt><code>model_base_url</code> <span class="argument-type">str | None</span></dt>
+<dd>
+<p>Base URL for communicating with the model API.</p>
+</dd>
+<dt><code>model_args</code> <span class="argument-type">dict[str, Any] | str</span></dt>
+<dd>
+<p>Model creation args (as a dictionary or as a path to a JSON or YAML config file)</p>
+</dd>
+<dt><code>task_args</code> <span class="argument-type">dict[str, Any] | str</span></dt>
+<dd>
+<p>Task creation arguments (as a dictionary or as a path to a JSON or YAML config file)</p>
+</dd>
+<dt><code>sandbox</code> <span class="argument-type">SandboxEnvironmentType | None</span></dt>
+<dd>
+<p>Sandbox environment type (or optionally a str or tuple with a shorthand spec)</p>
+</dd>
+<dt><code>sandbox_cleanup</code> <span class="argument-type">bool | None</span></dt>
+<dd>
+<p>Cleanup sandbox environments after task completes (defaults to True)</p>
+</dd>
+<dt><code>solver</code> <span class="argument-type">Solver | list[Solver] | SolverSpec | None</span></dt>
+<dd>
+<p>Alternative solver(s) for evaluating task(s). ptional (uses task solver by default).</p>
+</dd>
+<dt><code>tags</code> <span class="argument-type">list[str] | None</span></dt>
+<dd>
+<p>Tags to associate with this evaluation run.</p>
+</dd>
+<dt><code>trace</code> <span class="argument-type">bool | None</span></dt>
+<dd>
+<p>Trace message interactions with evaluated model to terminal.</p>
+</dd>
+<dt><code>display</code> <span class="argument-type">DisplayType | None</span></dt>
+<dd>
+<p>Task display type (defaults to ‘full’).</p>
+</dd>
+<dt><code>approval</code> <span class="argument-type">str | list[ApprovalPolicy] | None</span></dt>
+<dd>
+<p>Tool use approval policies. Either a path to an approval policy config file or a list of approval policies. Defaults to no approval policy.</p>
+</dd>
+<dt><code>score</code> <span class="argument-type">bool</span></dt>
+<dd>
+<p>Score output (defaults to True)</p>
+</dd>
+<dt><code>log_level</code> <span class="argument-type">str | None</span></dt>
+<dd>
+<p>Level for logging to the console: “debug”, “http”, “sandbox”, “info”, “warning”, “error”, or “critical” (defaults to “warning”)</p>
+</dd>
+<dt><code>log_level_transcript</code> <span class="argument-type">str | None</span></dt>
+<dd>
+<p>Level for logging to the log file (defaults to “info”)</p>
+</dd>
+<dt><code>log_format</code> <span class="argument-type">Literal['eval', 'json'] | None</span></dt>
+<dd>
+<p>Format for writing log files (defaults to “eval”, the native high-performance format).</p>
+</dd>
+<dt><code>limit</code> <span class="argument-type">int | tuple[int, int] | None</span></dt>
+<dd>
+<p>Limit evaluated samples (defaults to all samples).</p>
+</dd>
+<dt><code>sample_id</code> <span class="argument-type">str | int | list[str | int] | None</span></dt>
+<dd>
+<p>Evaluate specific sample(s) from the dataset.</p>
+</dd>
+<dt><code>epochs</code> <span class="argument-type">int | Epochs | None</span></dt>
+<dd>
+<p>Epochs to repeat samples for and optional score reducer function(s) used to combine sample scores (defaults to “mean”)</p>
+</dd>
+<dt><code>fail_on_error</code> <span class="argument-type">bool | float | None</span></dt>
+<dd>
+<p><code>True</code> to fail on first sample error (default); <code>False</code> to never fail on sample errors; Value between 0 and 1 to fail if a proportion of total samples fails. Value greater than 1 to fail eval if a count of samples fails.</p>
+</dd>
+<dt><code>debug_errors</code> <span class="argument-type">bool | None</span></dt>
+<dd>
+<p>Raise task errors (rather than logging them) so they can be debugged (defaults to False).</p>
+</dd>
+<dt><code>message_limit</code> <span class="argument-type">int | None</span></dt>
+<dd>
+<p>Limit on total messages used for each sample.</p>
+</dd>
+<dt><code>token_limit</code> <span class="argument-type">int | None</span></dt>
+<dd>
+<p>Limit on total tokens used for each sample.</p>
+</dd>
+<dt><code>time_limit</code> <span class="argument-type">int | None</span></dt>
+<dd>
+<p>Limit on time (in seconds) for execution of each sample.</p>
+</dd>
+<dt><code>max_samples</code> <span class="argument-type">int | None</span></dt>
+<dd>
+<p>Maximum number of samples to run in parallel (default is max_connections)</p>
+</dd>
+<dt><code>max_tasks</code> <span class="argument-type">int | None</span></dt>
+<dd>
+<p>Maximum number of tasks to run in parallel (default is 1)</p>
+</dd>
+<dt><code>max_subprocesses</code> <span class="argument-type">int | None</span></dt>
+<dd>
+<p>Maximum number of subprocesses to run in parallel (default is os.cpu_count())</p>
+</dd>
+<dt><code>max_sandboxes</code> <span class="argument-type">int | None</span></dt>
+<dd>
+<p>Maximum number of sandboxes (per-provider) to run in parallel.</p>
+</dd>
+<dt><code>log_samples</code> <span class="argument-type">bool | None</span></dt>
+<dd>
+<p>Log detailed samples and scores (defaults to True)</p>
+</dd>
+<dt><code>log_images</code> <span class="argument-type">bool | None</span></dt>
+<dd>
+<p>Log base64 encoded version of images, even if specified as a filename or URL (defaults to False)</p>
+</dd>
+<dt><code>log_buffer</code> <span class="argument-type">int | None</span></dt>
+<dd>
+<p>Number of samples to buffer before writing log file. If not specified, an appropriate default for the format and filesystem is chosen (10 for most all cases, 100 for JSON logs on remote filesystems).</p>
+</dd>
+<dt><code>bundle_dir</code> <span class="argument-type">str | None</span></dt>
+<dd>
+<p>If specified, the log viewer and logs generated by this eval set will be bundled into this directory.</p>
+</dd>
+<dt><code>bundle_overwrite</code> <span class="argument-type">bool</span></dt>
+<dd>
+<p>Whether to overwrite files in the bundle_dir. (defaults to False).</p>
+</dd>
+<dt><code>**kwargs</code> <span class="argument-type">Unpack[GenerateConfigArgs]</span></dt>
+<dd>
+<p>Model generation options.</p>
+</dd>
+</dl>
+</section>
+<section id="eval_retry" class="level3">
+<h3 class="anchored" data-anchor-id="eval_retry">eval_retry</h3>
+<p>Retry a previously failed evaluation task.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/1fd1239eb85dea675cbf77e8caf5c5ade7092068/src/inspect_ai/_eval/eval.py#L468">Source</a>
+</div>
+<div class="sourceCode" id="cb3"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> eval_retry(</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    tasks: <span class="bu">str</span> <span class="op">|</span> EvalLogInfo <span class="op">|</span> EvalLog <span class="op">|</span> <span class="bu">list</span>[<span class="bu">str</span>] <span class="op">|</span> <span class="bu">list</span>[EvalLogInfo] <span class="op">|</span> <span class="bu">list</span>[EvalLog],</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>    log_level: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>    log_level_transcript: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>    log_dir: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>    log_format: Literal[<span class="st">"eval"</span>, <span class="st">"json"</span>] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>    max_samples: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>    max_tasks: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>    max_subprocesses: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>    max_sandboxes: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>    sandbox_cleanup: <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a>    trace: <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a>    display: DisplayType <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a>    fail_on_error: <span class="bu">bool</span> <span class="op">|</span> <span class="bu">float</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a>    debug_errors: <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a>    log_samples: <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a>    log_images: <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a>    log_buffer: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb3-19"><a href="#cb3-19" aria-hidden="true" tabindex="-1"></a>    score: <span class="bu">bool</span> <span class="op">=</span> <span class="va">True</span>,</span>
+<span id="cb3-20"><a href="#cb3-20" aria-hidden="true" tabindex="-1"></a>    score_display: <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb3-21"><a href="#cb3-21" aria-hidden="true" tabindex="-1"></a>    max_retries: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb3-22"><a href="#cb3-22" aria-hidden="true" tabindex="-1"></a>    timeout: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb3-23"><a href="#cb3-23" aria-hidden="true" tabindex="-1"></a>    max_connections: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb3-24"><a href="#cb3-24" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="bu">list</span>[EvalLog]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<dl>
+<dt><code>tasks</code> <span class="argument-type">str | EvalLogInfo | EvalLog | list[str] | list[EvalLogInfo] | list[EvalLog]</span></dt>
+<dd>
+<p>Log files for task(s) to retry.</p>
+</dd>
+<dt><code>log_level</code> <span class="argument-type">str | None</span></dt>
+<dd>
+<p>Level for logging to the console: “debug”, “http”, “sandbox”, “info”, “warning”, “error”, or “critical” (defaults to “warning”)</p>
+</dd>
+<dt><code>log_level_transcript</code> <span class="argument-type">str | None</span></dt>
+<dd>
+<p>Level for logging to the log file (defaults to “info”)</p>
+</dd>
+<dt><code>log_dir</code> <span class="argument-type">str | None</span></dt>
+<dd>
+<p>Output path for logging results (defaults to file log in ./logs directory).</p>
+</dd>
+<dt><code>log_format</code> <span class="argument-type">Literal['eval', 'json'] | None</span></dt>
+<dd>
+<p>Format for writing log files (defaults to “eval”, the native high-performance format).</p>
+</dd>
+<dt><code>max_samples</code> <span class="argument-type">int | None</span></dt>
+<dd>
+<p>Maximum number of samples to run in parallel (default is max_connections)</p>
+</dd>
+<dt><code>max_tasks</code> <span class="argument-type">int | None</span></dt>
+<dd>
+<p>Maximum number of tasks to run in parallel (default is 1)</p>
+</dd>
+<dt><code>max_subprocesses</code> <span class="argument-type">int | None</span></dt>
+<dd>
+<p>Maximum number of subprocesses to run in parallel (default is os.cpu_count())</p>
+</dd>
+<dt><code>max_sandboxes</code> <span class="argument-type">int | None</span></dt>
+<dd>
+<p>Maximum number of sandboxes (per-provider) to run in parallel.</p>
+</dd>
+<dt><code>sandbox_cleanup</code> <span class="argument-type">bool | None</span></dt>
+<dd>
+<p>Cleanup sandbox environments after task completes (defaults to True)</p>
+</dd>
+<dt><code>trace</code> <span class="argument-type">bool | None</span></dt>
+<dd>
+<p>Trace message interactions with evaluated model to terminal.</p>
+</dd>
+<dt><code>display</code> <span class="argument-type">DisplayType | None</span></dt>
+<dd>
+<p>Task display type (defaults to ‘full’).</p>
+</dd>
+<dt><code>fail_on_error</code> <span class="argument-type">bool | float | None</span></dt>
+<dd>
+<p><code>True</code> to fail on first sample error (default); <code>False</code> to never fail on sample errors; Value between 0 and 1 to fail if a proportion of total samples fails. Value greater than 1 to fail eval if a count of samples fails.</p>
+</dd>
+<dt><code>debug_errors</code> <span class="argument-type">bool | None</span></dt>
+<dd>
+<p>Raise task errors (rather than logging them) so they can be debugged (defaults to False).</p>
+</dd>
+<dt><code>log_samples</code> <span class="argument-type">bool | None</span></dt>
+<dd>
+<p>Log detailed samples and scores (defaults to True)</p>
+</dd>
+<dt><code>log_images</code> <span class="argument-type">bool | None</span></dt>
+<dd>
+<p>Log base64 encoded version of images, even if specified as a filename or URL (defaults to False)</p>
+</dd>
+<dt><code>log_buffer</code> <span class="argument-type">int | None</span></dt>
+<dd>
+<p>Number of samples to buffer before writing log file. If not specified, an appropriate default for the format and filesystem is chosen (10 for most all cases, 100 for JSON logs on remote filesystems).</p>
+</dd>
+<dt><code>score</code> <span class="argument-type">bool</span></dt>
+<dd>
+<p>Score output (defaults to True)</p>
+</dd>
+<dt><code>score_display</code> <span class="argument-type">bool | None</span></dt>
+<dd>
+<p>Show scoring metrics in realtime (defaults to True)</p>
+</dd>
+<dt><code>max_retries</code> <span class="argument-type">int | None</span></dt>
+<dd>
+<p>Maximum number of times to retry request.</p>
+</dd>
+<dt><code>timeout</code> <span class="argument-type">int | None</span></dt>
+<dd>
+<p>Request timeout (in seconds)</p>
+</dd>
+<dt><code>max_connections</code> <span class="argument-type">int | None</span></dt>
+<dd>
+<p>Maximum number of concurrent connections to Model API (default is per Model API)</p>
+</dd>
+</dl>
+</section>
+<section id="score" class="level3">
+<h3 class="anchored" data-anchor-id="score">score</h3>
+<p>Score an evaluation log.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/1fd1239eb85dea675cbf77e8caf5c5ade7092068/src/inspect_ai/_eval/score.py#L30">Source</a>
+</div>
+<div class="sourceCode" id="cb4"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> score(</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>    log: EvalLog,</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>    scorers: Scorer <span class="op">|</span> <span class="bu">list</span>[Scorer],</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>    epochs_reducer: ScoreReducers <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> EvalLog</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<dl>
+<dt><code>log</code> <span class="argument-type">EvalLog</span></dt>
+<dd>
+<p>Evaluation log.</p>
+</dd>
+<dt><code>scorers</code> <span class="argument-type">Scorer | list[Scorer]</span></dt>
+<dd>
+<p>List of Scorers to apply to log</p>
+</dd>
+<dt><code>epochs_reducer</code> <span class="argument-type">ScoreReducers | None</span></dt>
+<dd>
+<p>Reducer function(s) for aggregating scores in each sample. Defaults to previously used reducer(s).</p>
+</dd>
+</dl>
+</section>
+</section>
+<section id="tasks" class="level2">
+<h2 class="anchored" data-anchor-id="tasks">Tasks</h2>
+<section id="task" class="level3">
+<h3 class="anchored" data-anchor-id="task">Task</h3>
+<p>Evaluation task.</p>
+<p>Tasks are the basis for defining and running evaluations.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/1fd1239eb85dea675cbf77e8caf5c5ade7092068/src/inspect_ai/_eval/task/task.py#L38">Source</a>
+</div>
+<div class="sourceCode" id="cb5"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Task</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<section class="level4 class-methods">
+<h4 class="class-methods anchored" data-anchor-id="">Methods</h4>
+<dl>
+<dt>__init__</dt>
+<dd>
+<p>Create a task.</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> <span class="fu">__init__</span>(</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>    <span class="va">self</span>,</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>    dataset: Dataset <span class="op">|</span> Sequence[Sample] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>    setup: Solver <span class="op">|</span> <span class="bu">list</span>[Solver] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>    solver: Solver <span class="op">|</span> <span class="bu">list</span>[Solver] <span class="op">=</span> generate(),</span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>    scorer: Scorer <span class="op">|</span> <span class="bu">list</span>[Scorer] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>    metrics: <span class="bu">list</span>[Metric] <span class="op">|</span> <span class="bu">dict</span>[<span class="bu">str</span>, <span class="bu">list</span>[Metric]] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>    config: GenerateConfig <span class="op">=</span> GenerateConfig(),</span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>    sandbox: SandboxEnvironmentType <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a>    approval: <span class="bu">str</span> <span class="op">|</span> <span class="bu">list</span>[ApprovalPolicy] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a>    epochs: <span class="bu">int</span> <span class="op">|</span> Epochs <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a>    fail_on_error: <span class="bu">bool</span> <span class="op">|</span> <span class="bu">float</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a>    message_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a>    token_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a>    time_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a>    name: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a>    version: <span class="bu">int</span> <span class="op">=</span> <span class="dv">0</span>,</span>
+<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a>    metadata: <span class="bu">dict</span>[<span class="bu">str</span>, Any] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a>    <span class="op">**</span>kwargs: Unpack[TaskDeprecatedArgs],</span>
+<span id="cb6-20"><a href="#cb6-20" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="va">None</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<dl>
+<dt><code>dataset</code> <span class="argument-type">Dataset | Sequence[Sample] | None</span></dt>
+<dd>
+<p>Dataset to evaluate</p>
+</dd>
+<dt><code>setup</code> <span class="argument-type">Solver | list[Solver] | None</span></dt>
+<dd>
+<p>(Solver | list[Solver] | None): Setup step (always run even when the main <code>solver</code> is replaced).</p>
+</dd>
+<dt><code>solver</code> <span class="argument-type">Solver | list[Solver]</span></dt>
+<dd>
+<p>(Solver | list[Solver]): Solver or list of solvers. Defaults to generate(), a normal call to the model.</p>
+</dd>
+<dt><code>scorer</code> <span class="argument-type">Scorer | list[Scorer] | None</span></dt>
+<dd>
+<p>(Scorer | list[Scorer] | None): Scorer used to evaluate model output.</p>
+</dd>
+<dt><code>metrics</code> <span class="argument-type">list[Metric] | dict[str, list[Metric]] | None</span></dt>
+<dd>
+<p>Alternative metrics (overrides the metrics provided by the specified scorer).</p>
+</dd>
+<dt><code>config</code> <span class="argument-type">GenerateConfig</span></dt>
+<dd>
+<p>Model generation config.</p>
+</dd>
+<dt><code>sandbox</code> <span class="argument-type">SandboxEnvironmentType | None</span></dt>
+<dd>
+<p>Sandbox environment type (or optionally a str or tuple with a shorthand spec)</p>
+</dd>
+<dt><code>approval</code> <span class="argument-type">str | list[ApprovalPolicy] | None</span></dt>
+<dd>
+<p>(str | list[ApprovalPolicy] | None): Tool use approval policies. Either a path to an approval policy config file or a list of approval policies. Defaults to no approval policy.</p>
+</dd>
+<dt><code>epochs</code> <span class="argument-type">int | Epochs | None</span></dt>
+<dd>
+<p>Epochs to repeat samples for and optional score reducer function(s) used to combine sample scores (defaults to “mean”)</p>
+</dd>
+<dt><code>fail_on_error</code> <span class="argument-type">bool | float | None</span></dt>
+<dd>
+<p><code>True</code> to fail on first sample error (default); <code>False</code> to never fail on sample errors; Value between 0 and 1 to fail if a proportion of total samples fails. Value greater than 1 to fail eval if a count of samples fails.</p>
+</dd>
+<dt><code>message_limit</code> <span class="argument-type">int | None</span></dt>
+<dd>
+<p>Limit on total messages used for each sample.</p>
+</dd>
+<dt><code>token_limit</code> <span class="argument-type">int | None</span></dt>
+<dd>
+<p>Limit on total tokens used for each sample.</p>
+</dd>
+<dt><code>time_limit</code> <span class="argument-type">int | None</span></dt>
+<dd>
+<p>Limit on time (in seconds) for execution of each sample.</p>
+</dd>
+<dt><code>name</code> <span class="argument-type">str | None</span></dt>
+<dd>
+<p>(str | None): Task name. If not specified is automatically determined based on the name of the task directory (or “task”) if its anonymous task (e.g.&nbsp;created in a notebook and passed to eval() directly)</p>
+</dd>
+<dt><code>version</code> <span class="argument-type">int</span></dt>
+<dd>
+<p>(int): Version of task (to distinguish evolutions of the task spec or breaking changes to it)</p>
+</dd>
+<dt><code>metadata</code> <span class="argument-type">dict[str, Any] | None</span></dt>
+<dd>
+<p>(dict[str, Any] | None): Additional metadata to associate with the task.</p>
+</dd>
+<dt><code>**kwargs</code> <span class="argument-type">Unpack[TaskDeprecatedArgs]</span></dt>
+<dd>
+<p>Deprecated arguments.</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</section>
+</section>
+<section id="task_with" class="level3">
+<h3 class="anchored" data-anchor-id="task_with">task_with</h3>
+<p>Task adapted with alternate values for one or more options.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/1fd1239eb85dea675cbf77e8caf5c5ade7092068/src/inspect_ai/_eval/task/task.py#L159">Source</a>
+</div>
+<div class="sourceCode" id="cb7"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> task_with(</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>    task: Task,</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>    <span class="op">*</span>,</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>    dataset: Dataset <span class="op">|</span> Sequence[Sample] <span class="op">|</span> <span class="va">None</span> <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>    setup: Solver <span class="op">|</span> <span class="bu">list</span>[Solver] <span class="op">|</span> <span class="va">None</span> <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>    solver: Solver <span class="op">|</span> <span class="bu">list</span>[Solver] <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>    scorer: Scorer <span class="op">|</span> <span class="bu">list</span>[Scorer] <span class="op">|</span> <span class="va">None</span> <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>    metrics: <span class="bu">list</span>[Metric] <span class="op">|</span> <span class="bu">dict</span>[<span class="bu">str</span>, <span class="bu">list</span>[Metric]] <span class="op">|</span> <span class="va">None</span> <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>    config: GenerateConfig <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a>    sandbox: SandboxEnvironmentType <span class="op">|</span> <span class="va">None</span> <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a>    approval: <span class="bu">str</span> <span class="op">|</span> <span class="bu">list</span>[ApprovalPolicy] <span class="op">|</span> <span class="va">None</span> <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a>    epochs: <span class="bu">int</span> <span class="op">|</span> Epochs <span class="op">|</span> <span class="va">None</span> <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a>    fail_on_error: <span class="bu">bool</span> <span class="op">|</span> <span class="bu">float</span> <span class="op">|</span> <span class="va">None</span> <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a>    message_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
+<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a>    token_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
+<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a>    time_limit: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
+<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a>    name: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
+<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a>    version: <span class="bu">int</span> <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
+<span id="cb7-19"><a href="#cb7-19" aria-hidden="true" tabindex="-1"></a>    metadata: <span class="bu">dict</span>[<span class="bu">str</span>, Any] <span class="op">|</span> <span class="va">None</span> <span class="op">|</span> NotGiven <span class="op">=</span> NOT_GIVEN,</span>
+<span id="cb7-20"><a href="#cb7-20" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> Task</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<dl>
+<dt><code>task</code> <span class="argument-type">Task</span></dt>
+<dd>
+<p>Task to adapt (it is deep copied prior to mutating options)</p>
+</dd>
+<dt><code>dataset</code> <span class="argument-type">Dataset | Sequence[Sample] | None | NotGiven</span></dt>
+<dd>
+<p>Dataset to evaluate</p>
+</dd>
+<dt><code>setup</code> <span class="argument-type">Solver | list[Solver] | None | NotGiven</span></dt>
+<dd>
+<p>(Solver | list[Solver] | None): Setup step (always run even when the main <code>solver</code> is replaced).</p>
+</dd>
+<dt><code>solver</code> <span class="argument-type">Solver | list[Solver] | NotGiven</span></dt>
+<dd>
+<p>(Solver | list[Solver]): Solver or list of solvers. Defaults to generate(), a normal call to the model.</p>
+</dd>
+<dt><code>scorer</code> <span class="argument-type">Scorer | list[Scorer] | None | NotGiven</span></dt>
+<dd>
+<p>(Scorer | list[Scorer] | None): Scorer used to evaluate model output.</p>
+</dd>
+<dt><code>metrics</code> <span class="argument-type">list[Metric] | dict[str, list[Metric]] | None | NotGiven</span></dt>
+<dd>
+<p>Alternative metrics (overrides the metrics provided by the specified scorer).</p>
+</dd>
+<dt><code>config</code> <span class="argument-type">GenerateConfig | NotGiven</span></dt>
+<dd>
+<p>Model generation config.</p>
+</dd>
+<dt><code>sandbox</code> <span class="argument-type">SandboxEnvironmentType | None | NotGiven</span></dt>
+<dd>
+<p>Sandbox environment type (or optionally a str or tuple with a shorthand spec)</p>
+</dd>
+<dt><code>approval</code> <span class="argument-type">str | list[ApprovalPolicy] | None | NotGiven</span></dt>
+<dd>
+<p>(str | list[ApprovalPolicy] | None): Tool use approval policies. Either a path to an approval policy config file or a list of approval policies. Defaults to no approval policy.</p>
+</dd>
+<dt><code>epochs</code> <span class="argument-type">int | Epochs | None | NotGiven</span></dt>
+<dd>
+<p>Epochs to repeat samples for and optional score reducer function(s) used to combine sample scores (defaults to “mean”)</p>
+</dd>
+<dt><code>fail_on_error</code> <span class="argument-type">bool | float | None | NotGiven</span></dt>
+<dd>
+<p><code>True</code> to fail on first sample error (default); <code>False</code> to never fail on sample errors; Value between 0 and 1 to fail if a proportion of total samples fails. Value greater than 1 to fail eval if a count of samples fails.</p>
+</dd>
+<dt><code>message_limit</code> <span class="argument-type">int | None | NotGiven</span></dt>
+<dd>
+<p>Limit on total messages used for each sample.</p>
+</dd>
+<dt><code>token_limit</code> <span class="argument-type">int | None | NotGiven</span></dt>
+<dd>
+<p>Limit on total tokens used for each sample.</p>
+</dd>
+<dt><code>time_limit</code> <span class="argument-type">int | None | NotGiven</span></dt>
+<dd>
+<p>Limit on time (in seconds) for execution of each sample.</p>
+</dd>
+<dt><code>name</code> <span class="argument-type">str | None | NotGiven</span></dt>
+<dd>
+<p>(str | None): Task name. If not specified is automatically determined based on the name of the task directory (or “task”) if its anonymous task (e.g.&nbsp;created in a notebook and passed to eval() directly)</p>
+</dd>
+<dt><code>version</code> <span class="argument-type">int | NotGiven</span></dt>
+<dd>
+<p>(int): Version of task (to distinguish evolutions of the task spec or breaking changes to it)</p>
+</dd>
+<dt><code>metadata</code> <span class="argument-type">dict[str, Any] | None | NotGiven</span></dt>
+<dd>
+<p>(dict[str, Any] | None): Additional metadata to associate with the task.</p>
+</dd>
+</dl>
+</section>
+<section id="epochs" class="level3">
+<h3 class="anchored" data-anchor-id="epochs">Epochs</h3>
+<p>Task epochs.</p>
+<p>Number of epochs to repeat samples over and optionally one or more reducers used to combine scores from samples across epochs. If not specified the “mean” score reducer is used.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/1fd1239eb85dea675cbf77e8caf5c5ade7092068/src/inspect_ai/_eval/task/epochs.py#L4">Source</a>
+</div>
+<div class="sourceCode" id="cb8"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Epochs</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<section class="level4 class-methods">
+<h4 class="class-methods anchored" data-anchor-id="">Methods</h4>
+<dl>
+<dt>__init__</dt>
+<dd>
+<p>Task epochs.</p>
+<div class="sourceCode" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> <span class="fu">__init__</span>(<span class="va">self</span>, epochs: <span class="bu">int</span>, reducer: ScoreReducers <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>) <span class="op">-&gt;</span> <span class="va">None</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<dl>
+<dt><code>epochs</code> <span class="argument-type">int</span></dt>
+<dd>
+<p>Number of epochs</p>
+</dd>
+<dt><code>reducer</code> <span class="argument-type">ScoreReducers | None</span></dt>
+<dd>
+<p>One or more reducers used to combine scores from samples across epochs (defaults to “mean)</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</section>
+</section>
+<section id="taskinfo" class="level3">
+<h3 class="anchored" data-anchor-id="taskinfo">TaskInfo</h3>
+<p>Task information (file, name, and attributes).</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/1fd1239eb85dea675cbf77e8caf5c5ade7092068/src/inspect_ai/_eval/task/task.py#L259">Source</a>
+</div>
+<div class="sourceCode" id="cb10"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> TaskInfo(BaseModel)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<section class="level4">
+<h4 class="anchored" data-anchor-id="">Attributes</h4>
+<dl>
+<dt><code>file</code> <span class="argument-type">str</span></dt>
+<dd>
+<p>File path where task was loaded from.</p>
+</dd>
+<dt><code>name</code> <span class="argument-type">str</span></dt>
+<dd>
+<p>Task name (defaults to function name)</p>
+</dd>
+<dt><code>attribs</code> <span class="argument-type">dict[str, Any]</span></dt>
+<dd>
+<p>Task attributes (arguments passed to <code>@task</code>)</p>
+</dd>
+</dl>
+</section>
+</section>
+<section id="tasks-1" class="level3">
+<h3 class="anchored" data-anchor-id="tasks-1">Tasks</h3>
+<p>One or more tasks.</p>
+<p>Tasks to be evaluated. Many forms of task specification are supported including directory names, task functions, task classes, and task instances (a single task or list of tasks can be specified). None is a request to read a task out of the current working directory.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/1fd1239eb85dea675cbf77e8caf5c5ade7092068/src/inspect_ai/_eval/task/task.py#L290">Source</a>
+</div>
+<div class="sourceCode" id="cb11"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>Tasks <span class="op">=</span> (</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>    <span class="bu">str</span></span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>    <span class="op">|</span> PreviousTask</span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>    <span class="op">|</span> TaskInfo</span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>    <span class="op">|</span> Task</span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a>    <span class="op">|</span> Callable[..., Task]</span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a>    <span class="op">|</span> <span class="bu">type</span>[Task]</span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a>    <span class="op">|</span> <span class="bu">list</span>[<span class="bu">str</span>]</span>
+<span id="cb11-9"><a href="#cb11-9" aria-hidden="true" tabindex="-1"></a>    <span class="op">|</span> <span class="bu">list</span>[PreviousTask]</span>
+<span id="cb11-10"><a href="#cb11-10" aria-hidden="true" tabindex="-1"></a>    <span class="op">|</span> <span class="bu">list</span>[TaskInfo]</span>
+<span id="cb11-11"><a href="#cb11-11" aria-hidden="true" tabindex="-1"></a>    <span class="op">|</span> <span class="bu">list</span>[Task]</span>
+<span id="cb11-12"><a href="#cb11-12" aria-hidden="true" tabindex="-1"></a>    <span class="op">|</span> <span class="bu">list</span>[Callable[..., Task]]</span>
+<span id="cb11-13"><a href="#cb11-13" aria-hidden="true" tabindex="-1"></a>    <span class="op">|</span> <span class="bu">list</span>[<span class="bu">type</span>[Task]]</span>
+<span id="cb11-14"><a href="#cb11-14" aria-hidden="true" tabindex="-1"></a>    <span class="op">|</span> <span class="va">None</span></span>
+<span id="cb11-15"><a href="#cb11-15" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
+</section>
+<section id="decorators" class="level2">
+<h2 class="anchored" data-anchor-id="decorators">Decorators</h2>
+<section id="task-1" class="level3">
+<h3 class="anchored" data-anchor-id="task-1">task</h3>
+<p>Decorator for registering tasks.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/1fd1239eb85dea675cbf77e8caf5c5ade7092068/src/inspect_ai/_eval/registry.py#L107">Source</a>
+</div>
+<div class="sourceCode" id="cb12"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> task(<span class="op">*</span>args: Any, name: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>, <span class="op">**</span>attribs: Any) <span class="op">-&gt;</span> Any</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<dl>
+<dt><code>*args</code> <span class="argument-type">Any</span></dt>
+<dd>
+<p>Function returning <code>Task</code> targeted by plain task decorator without attributes (e.g.&nbsp;<code>@task</code>)</p>
+</dd>
+<dt><code>name</code> <span class="argument-type">str | None</span></dt>
+<dd>
+<p>Optional name for task. If the decorator has no name argument then the name of the function will be used to automatically assign a name.</p>
+</dd>
+<dt><code>**attribs</code> <span class="argument-type">Any</span></dt>
+<dd>
+<p>(dict[str,Any]): Additional task attributes.</p>
+</dd>
+</dl>
+
+
+</section>
+</section>
+
+</main> <!-- /main -->
+<script id="quarto-html-after-body" type="application/javascript">
+window.document.addEventListener("DOMContentLoaded", function (event) {
+  const toggleBodyColorMode = (bsSheetEl) => {
+    const mode = bsSheetEl.getAttribute("data-mode");
+    const bodyEl = window.document.querySelector("body");
+    if (mode === "dark") {
+      bodyEl.classList.add("quarto-dark");
+      bodyEl.classList.remove("quarto-light");
+    } else {
+      bodyEl.classList.add("quarto-light");
+      bodyEl.classList.remove("quarto-dark");
+    }
+  }
+  const toggleBodyColorPrimary = () => {
+    const bsSheetEl = window.document.querySelector("link#quarto-bootstrap");
+    if (bsSheetEl) {
+      toggleBodyColorMode(bsSheetEl);
+    }
+  }
+  toggleBodyColorPrimary();  
+  const icon = "";
+  const anchorJS = new window.AnchorJS();
+  anchorJS.options = {
+    placement: 'right',
+    icon: icon
+  };
+  anchorJS.add('.anchored');
+  const isCodeAnnotation = (el) => {
+    for (const clz of el.classList) {
+      if (clz.startsWith('code-annotation-')) {                     
+        return true;
+      }
+    }
+    return false;
+  }
+  const onCopySuccess = function(e) {
+    // button target
+    const button = e.trigger;
+    // don't keep focus
+    button.blur();
+    // flash "checked"
+    button.classList.add('code-copy-button-checked');
+    var currentTitle = button.getAttribute("title");
+    button.setAttribute("title", "Copied!");
+    let tooltip;
+    if (window.bootstrap) {
+      button.setAttribute("data-bs-toggle", "tooltip");
+      button.setAttribute("data-bs-placement", "left");
+      button.setAttribute("data-bs-title", "Copied!");
+      tooltip = new bootstrap.Tooltip(button, 
+        { trigger: "manual", 
+          customClass: "code-copy-button-tooltip",
+          offset: [0, -8]});
+      tooltip.show();    
+    }
+    setTimeout(function() {
+      if (tooltip) {
+        tooltip.hide();
+        button.removeAttribute("data-bs-title");
+        button.removeAttribute("data-bs-toggle");
+        button.removeAttribute("data-bs-placement");
+      }
+      button.setAttribute("title", currentTitle);
+      button.classList.remove('code-copy-button-checked');
+    }, 1000);
+    // clear code selection
+    e.clearSelection();
+  }
+  const getTextToCopy = function(trigger) {
+      const codeEl = trigger.previousElementSibling.cloneNode(true);
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+  }
+  const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+    text: getTextToCopy
+  });
+  clipboard.on('success', onCopySuccess);
+  if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+    // For code content inside modals, clipBoardJS needs to be initialized with a container option
+    // TODO: Check when it could be a function (https://github.com/zenorocha/clipboard.js/issues/860)
+    const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+      text: getTextToCopy,
+      container: window.document.getElementById('quarto-embedded-source-code-modal')
+    });
+    clipboardModal.on('success', onCopySuccess);
+  }
+    var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+    var mailtoRegex = new RegExp(/^mailto:/);
+      var filterRegex = new RegExp("https:\/\/inspect\.ai-safety-institute\.org\.uk\/");
+    var isInternal = (href) => {
+        return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+    }
+    // Inspect non-navigation links and adorn them if external
+ 	var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+    for (var i=0; i<links.length; i++) {
+      const link = links[i];
+      if (!isInternal(link.href)) {
+        // undo the damage that might have been done by quarto-nav.js in the case of
+        // links that we want to consider external
+        if (link.dataset.originalHref !== undefined) {
+          link.href = link.dataset.originalHref;
+        }
+      }
+    }
+  function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+    const config = {
+      allowHTML: true,
+      maxWidth: 500,
+      delay: 100,
+      arrow: false,
+      appendTo: function(el) {
+          return el.parentElement;
+      },
+      interactive: true,
+      interactiveBorder: 10,
+      theme: 'quarto',
+      placement: 'bottom-start',
+    };
+    if (contentFn) {
+      config.content = contentFn;
+    }
+    if (onTriggerFn) {
+      config.onTrigger = onTriggerFn;
+    }
+    if (onUntriggerFn) {
+      config.onUntrigger = onUntriggerFn;
+    }
+    window.tippy(el, config); 
+  }
+  const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+  for (var i=0; i<noterefs.length; i++) {
+    const ref = noterefs[i];
+    tippyHover(ref, function() {
+      // use id or data attribute instead here
+      let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+      try { href = new URL(href).hash; } catch {}
+      const id = href.replace(/^#\/?/, "");
+      const note = window.document.getElementById(id);
+      if (note) {
+        return note.innerHTML;
+      } else {
+        return "";
+      }
+    });
+  }
+  const xrefs = window.document.querySelectorAll('a.quarto-xref');
+  const processXRef = (id, note) => {
+    // Strip column container classes
+    const stripColumnClz = (el) => {
+      el.classList.remove("page-full", "page-columns");
+      if (el.children) {
+        for (const child of el.children) {
+          stripColumnClz(child);
+        }
+      }
+    }
+    stripColumnClz(note)
+    if (id === null || id.startsWith('sec-')) {
+      // Special case sections, only their first couple elements
+      const container = document.createElement("div");
+      if (note.children && note.children.length > 2) {
+        container.appendChild(note.children[0].cloneNode(true));
+        for (let i = 1; i < note.children.length; i++) {
+          const child = note.children[i];
+          if (child.tagName === "P" && child.innerText === "") {
+            continue;
+          } else {
+            container.appendChild(child.cloneNode(true));
+            break;
+          }
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(container);
+        }
+        return container.innerHTML
+      } else {
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        return note.innerHTML;
+      }
+    } else {
+      // Remove any anchor links if they are present
+      const anchorLink = note.querySelector('a.anchorjs-link');
+      if (anchorLink) {
+        anchorLink.remove();
+      }
+      if (window.Quarto?.typesetMath) {
+        window.Quarto.typesetMath(note);
+      }
+      // TODO in 1.5, we should make sure this works without a callout special case
+      if (note.classList.contains("callout")) {
+        return note.outerHTML;
+      } else {
+        return note.innerHTML;
+      }
+    }
+  }
+  for (var i=0; i<xrefs.length; i++) {
+    const xref = xrefs[i];
+    tippyHover(xref, undefined, function(instance) {
+      instance.disable();
+      let url = xref.getAttribute('href');
+      let hash = undefined; 
+      if (url.startsWith('#')) {
+        hash = url;
+      } else {
+        try { hash = new URL(url).hash; } catch {}
+      }
+      if (hash) {
+        const id = hash.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note !== null) {
+          try {
+            const html = processXRef(id, note.cloneNode(true));
+            instance.setContent(html);
+          } finally {
+            instance.enable();
+            instance.show();
+          }
+        } else {
+          // See if we can fetch this
+          fetch(url.split('#')[0])
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.getElementById(id);
+            if (note !== null) {
+              const html = processXRef(id, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      } else {
+        // See if we can fetch a full url (with no hash to target)
+        // This is a special case and we should probably do some content thinning / targeting
+        fetch(url)
+        .then(res => res.text())
+        .then(html => {
+          const parser = new DOMParser();
+          const htmlDoc = parser.parseFromString(html, "text/html");
+          const note = htmlDoc.querySelector('main.content');
+          if (note !== null) {
+            // This should only happen for chapter cross references
+            // (since there is no id in the URL)
+            // remove the first header
+            if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+              note.children[0].remove();
+            }
+            const html = processXRef(null, note);
+            instance.setContent(html);
+          } 
+        }).finally(() => {
+          instance.enable();
+          instance.show();
+        });
+      }
+    }, function(instance) {
+    });
+  }
+      let selectedAnnoteEl;
+      const selectorForAnnotation = ( cell, annotation) => {
+        let cellAttr = 'data-code-cell="' + cell + '"';
+        let lineAttr = 'data-code-annotation="' +  annotation + '"';
+        const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+        return selector;
+      }
+      const selectCodeLines = (annoteEl) => {
+        const doc = window.document;
+        const targetCell = annoteEl.getAttribute("data-target-cell");
+        const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+        const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+        const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+        const lineIds = lines.map((line) => {
+          return targetCell + "-" + line;
+        })
+        let top = null;
+        let height = null;
+        let parent = null;
+        if (lineIds.length > 0) {
+            //compute the position of the single el (top and bottom and make a div)
+            const el = window.document.getElementById(lineIds[0]);
+            top = el.offsetTop;
+            height = el.offsetHeight;
+            parent = el.parentElement.parentElement;
+          if (lineIds.length > 1) {
+            const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+            const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+            height = bottom - top;
+          }
+          if (top !== null && height !== null && parent !== null) {
+            // cook up a div (if necessary) and position it 
+            let div = window.document.getElementById("code-annotation-line-highlight");
+            if (div === null) {
+              div = window.document.createElement("div");
+              div.setAttribute("id", "code-annotation-line-highlight");
+              div.style.position = 'absolute';
+              parent.appendChild(div);
+            }
+            div.style.top = top - 2 + "px";
+            div.style.height = height + 4 + "px";
+            div.style.left = 0;
+            let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+            if (gutterDiv === null) {
+              gutterDiv = window.document.createElement("div");
+              gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+              gutterDiv.style.position = 'absolute';
+              const codeCell = window.document.getElementById(targetCell);
+              const gutter = codeCell.querySelector('.code-annotation-gutter');
+              gutter.appendChild(gutterDiv);
+            }
+            gutterDiv.style.top = top - 2 + "px";
+            gutterDiv.style.height = height + 4 + "px";
+          }
+          selectedAnnoteEl = annoteEl;
+        }
+      };
+      const unselectCodeLines = () => {
+        const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+        elementsIds.forEach((elId) => {
+          const div = window.document.getElementById(elId);
+          if (div) {
+            div.remove();
+          }
+        });
+        selectedAnnoteEl = undefined;
+      };
+        // Handle positioning of the toggle
+    window.addEventListener(
+      "resize",
+      throttle(() => {
+        elRect = undefined;
+        if (selectedAnnoteEl) {
+          selectCodeLines(selectedAnnoteEl);
+        }
+      }, 10)
+    );
+    function throttle(fn, ms) {
+    let throttle = false;
+    let timer;
+      return (...args) => {
+        if(!throttle) { // first call gets through
+            fn.apply(this, args);
+            throttle = true;
+        } else { // all the others get throttled
+            if(timer) clearTimeout(timer); // cancel #2
+            timer = setTimeout(() => {
+              fn.apply(this, args);
+              timer = throttle = false;
+            }, ms);
+        }
+      };
+    }
+      const annoteTargets = window.document.querySelectorAll('.code-annotation-anchor');
+      for (let i=0; i<annoteTargets.length; i++) {
+        const annoteTarget = annoteTargets[i];
+        const targetCell = annoteTarget.getAttribute("data-target-cell");
+        const targetAnnotation = annoteTarget.getAttribute("data-target-annotation");
+        const contentFn = () => {
+          const content = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+          if (content) {
+            const tipContent = content.cloneNode(true);
+            tipContent.classList.add("code-annotation-tip-content");
+            return tipContent.outerHTML;
+          }
+        }
+        const config = {
+          allowHTML: true,
+          content: contentFn,
+          onShow: (instance) => {
+            selectCodeLines(instance.reference);
+            instance.reference.classList.add('code-annotation-active');
+            window.tippy.hideAll();
+          },
+          onHide: (instance) => {
+            unselectCodeLines();
+            instance.reference.classList.remove('code-annotation-active');
+          },
+          maxWidth: 300,
+          delay: [50, 0],
+          duration: [200, 0],
+          offset: [5, 10],
+          arrow: true,
+          trigger: 'click',
+          appendTo: function(el) {
+            return el.parentElement.parentElement.parentElement;
+          },
+          interactive: true,
+          interactiveBorder: 10,
+          theme: 'quarto',
+          placement: 'right',
+          positionFixed: true,
+          popperOptions: {
+            modifiers: [
+            {
+              name: 'flip',
+              options: {
+                flipVariations: false, // true by default
+                allowedAutoPlacements: ['right'],
+                fallbackPlacements: ['right', 'top', 'top-start', 'top-end', 'bottom', 'bottom-start', 'bottom-end', 'left'],
+              },
+            },
+            {
+              name: 'preventOverflow',
+              options: {
+                mainAxis: false,
+                altAxis: false
+              }
+            }
+            ]        
+          }      
+        };
+        window.tippy(annoteTarget, config); 
+      }
+  const findCites = (el) => {
+    const parentEl = el.parentElement;
+    if (parentEl) {
+      const cites = parentEl.dataset.cites;
+      if (cites) {
+        return {
+          el,
+          cites: cites.split(' ')
+        };
+      } else {
+        return findCites(el.parentElement)
+      }
+    } else {
+      return undefined;
+    }
+  };
+  var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+  for (var i=0; i<bibliorefs.length; i++) {
+    const ref = bibliorefs[i];
+    const citeInfo = findCites(ref);
+    if (citeInfo) {
+      tippyHover(citeInfo.el, function() {
+        var popup = window.document.createElement('div');
+        citeInfo.cites.forEach(function(cite) {
+          var citeDiv = window.document.createElement('div');
+          citeDiv.classList.add('hanging-indent');
+          citeDiv.classList.add('csl-entry');
+          var biblioDiv = window.document.getElementById('ref-' + cite);
+          if (biblioDiv) {
+            citeDiv.innerHTML = biblioDiv.innerHTML;
+          }
+          popup.appendChild(citeDiv);
+        });
+        return popup.innerHTML;
+      });
+    }
+  }
+});
+</script>
+<nav class="page-navigation">
+  <div class="nav-page nav-page-previous">
+  </div>
+  <div class="nav-page nav-page-next">
+      <a href="../reference/inspect_ai.html#eval" class="pagination-link" aria-label="eval">
+        <span class="nav-page-text">eval</span> <i class="bi bi-arrow-right-short"></i>
+      </a>
+  </div>
+</nav>
+</div> <!-- /content -->
+<footer class="footer">
+  <div class="nav-footer">
+    <div class="nav-footer-left">
+      <ul class="footer-items list-unstyled">
+    <li class="nav-item">
+    <a class="nav-link" href="https://aisi.gov.uk/">
+<p>UK AI Safety Institute</p>
+</a>
+  </li>  
+</ul>
+    </div>   
+    <div class="nav-footer-center">
+      <ul class="footer-items list-unstyled">
+    <li class="nav-item">
+    <a class="nav-link" href="https://github.com/UKGovernmentBEIS/inspect_ai">
+<p>Code</p>
+</a>
+  </li>  
+    <li class="nav-item">
+    <a class="nav-link" href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/CHANGELOG.md">
+<p>Changelog</p>
+</a>
+  </li>  
+    <li class="nav-item">
+    <a class="nav-link" href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/LICENSE">
+<p>License</p>
+</a>
+  </li>  
+    <li class="nav-item">
+    <a class="nav-link" href="https://github.com/UKGovernmentBEIS/inspect_ai/issues">
+<p>Issues</p>
+</a>
+  </li>  
+</ul>
+    <div class="toc-actions d-sm-block d-md-none"><ul><li><a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div></div>
+    <div class="nav-footer-right">
+      <ul class="footer-items list-unstyled">
+    <li class="nav-item compact">
+    <a class="nav-link" href="https://twitter.com/AISafetyInst">
+      <i class="bi bi-twitter" role="img" aria-label="UK AI Safety Institute Twitter">
+</i> 
+    </a>
+  </li>  
+    <li class="nav-item compact">
+    <a class="nav-link" href="https://github.com/UKGovernmentBEIS/inspect_ai/">
+      <i class="bi bi-github" role="img" aria-label="Inspect on GitHub">
+</i> 
+    </a>
+  </li>  
+</ul>
+    </div>
+  </div>
+</footer>
+
+
+
+
+</body></html>

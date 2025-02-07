@@ -429,9 +429,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#task-setup" id="toc-task-setup" class="nav-link" data-scroll-target="#task-setup">Task Setup</a></li>
   <li><a href="#browsing" id="toc-browsing" class="nav-link" data-scroll-target="#browsing">Browsing</a></li>
   <li><a href="#disabling-interactions" id="toc-disabling-interactions" class="nav-link" data-scroll-target="#disabling-interactions">Disabling Interactions</a></li>
-  <li><a href="#sec-custom-image" id="toc-sec-custom-image" class="nav-link" data-scroll-target="#sec-custom-image">Custom Images</a></li>
+  <li><a href="#sec-custom-images" id="toc-sec-custom-images" class="nav-link" data-scroll-target="#sec-custom-images">Custom Images</a></li>
   </ul></li>
-  <li><a href="#sec-computer" id="toc-sec-computer" class="nav-link" data-scroll-target="#sec-computer">Computer (Beta)</a>
+  <li><a href="#sec-computer" id="toc-sec-computer" class="nav-link" data-scroll-target="#sec-computer">Computer</a>
   <ul class="collapse">
   <li><a href="#configuration-1" id="toc-configuration-1" class="nav-link" data-scroll-target="#configuration-1">Configuration</a></li>
   <li><a href="#task-setup-1" id="toc-task-setup-1" class="nav-link" data-scroll-target="#task-setup-1">Task Setup</a></li>
@@ -906,8 +906,8 @@ Tools and Agents
 <div class="sourceCode" id="cb20"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a>use_tools(web_browser(interactive<span class="op">=</span><span class="va">False</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>In this mode, the interactive tools (<code>web_browser_click()</code>, <code>web_browser_type()</code>, and <code>web_browser_type_submit()</code>) are not made available to the model.</p>
 </section>
-<section id="sec-custom-image" class="level3">
-<h3 class="anchored" data-anchor-id="sec-custom-image">Custom Images</h3>
+<section id="sec-custom-images" class="level3">
+<h3 class="anchored" data-anchor-id="sec-custom-images">Custom Images</h3>
 <p>Above we demonstrated how to use the pre-configured Inspect web browser container. If you prefer to incorporate the headless web browser and its dependencies into another container that is also supported.</p>
 <p>To do this, reference the <a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/tool/_tools/_web_browser/_resources/Dockerfile">Dockerfile</a> used in the built-in web browser container and ensure that the dependencies, application files, and server run command it uses are also in your container definition:</p>
 <div class="sourceCode" id="cb21"><pre class="sourceCode dockerfile code-with-copy"><code class="sourceCode dockerfile"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Install playwright</span></span>
@@ -927,9 +927,8 @@ Tools and Agents
 </section>
 </section>
 <section id="sec-computer" class="level2">
-<h2 class="anchored" data-anchor-id="sec-computer">Computer (Beta)</h2>
+<h2 class="anchored" data-anchor-id="sec-computer">Computer</h2>
 <p>The <code>computer()</code> tool provides models with a computer desktop environment along with the ability to view the screen and perform mouse and keyboard gestures. The computer tool is based on the Anthropic <a href="https://docs.anthropic.com/en/docs/build-with-claude/computer-use">Computer Use Beta</a> reference implementation and works with any model that supports image input.</p>
-<p>The current release of the computer tool is a beta version (exported from the <code>inspect_ai.tool.beta</code> module). We expect to finalise the interface and move it into the main <code>inspect_ai.tool</code> module over the next several weeks.</p>
 <section id="configuration-1" class="level3">
 <h3 class="anchored" data-anchor-id="configuration-1">Configuration</h3>
 <p>The <code>computer()</code> tool runs within a Docker container. To use it with a task you need to reference the <code>aisiuk/inspect-computer-tool:latest-beta</code> image in your Docker compose file. For example:</p>
@@ -967,7 +966,7 @@ Tools and Agents
 <div class="sourceCode" id="cb24"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> Task, task</span>
 <span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.scorer <span class="im">import</span> match</span>
 <span id="cb24-3"><a href="#cb24-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.solver <span class="im">import</span> generate, use_tools</span>
-<span id="cb24-4"><a href="#cb24-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.tool.beta <span class="im">import</span> computer</span>
+<span id="cb24-4"><a href="#cb24-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.tool <span class="im">import</span> computer</span>
 <span id="cb24-5"><a href="#cb24-5" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb24-6"><a href="#cb24-6" aria-hidden="true" tabindex="-1"></a><span class="at">@task</span></span>
 <span id="cb24-7"><a href="#cb24-7" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> computer_task():</span>
@@ -1651,7 +1650,7 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
     </div>
   </div>
 </footer>
-<script>var lightboxQuarto = GLightbox({"openEffect":"zoom","closeEffect":"zoom","selector":".lightbox","descPosition":"bottom","loop":false});
+<script>var lightboxQuarto = GLightbox({"loop":false,"selector":".lightbox","openEffect":"zoom","closeEffect":"zoom","descPosition":"bottom"});
 (function() {
   let previousOnload = window.onload;
   window.onload = () => {
