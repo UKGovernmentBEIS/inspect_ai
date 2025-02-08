@@ -42,7 +42,8 @@ def find_compose_file(parent: str = "") -> str | None:
 
 
 def is_dockerfile(file: str) -> bool:
-    return os.path.basename(file) == DOCKERFILE
+    path = Path(file)
+    return path.name == DOCKERFILE or path.suffix == f".{DOCKERFILE}"
 
 
 def has_dockerfile(parent: str = "") -> bool:
