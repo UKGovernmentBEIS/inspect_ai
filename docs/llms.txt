@@ -33,4 +33,15 @@
 - [Interactivity](https://inspect.ai-safety-institute.org.uk/interactivity.html.md): Covers various ways to introduce user interaction into the implementation of tasks (for example, confirming consequential actions or prompting the model dynamically based on the trajectory of the evaluation).
 - [Extensions](https://inspect.ai-safety-institute.org.uk/extensions.html.md) describes the various ways you can extend Inspect, including adding support for new Model APIs, tool execution environments, and storage platforms (for datasets, prompts, and logs).
 
+## Reference
+
+- [inspect_ai](https://inspect.ai-safety-institute.org.uk/reference/inspect_ai.html.md) describes the core types used to create tasks and run evaluations.
+- [inspect_ai.solver](https://inspect.ai-safety-institute.org.uk/reference/inspect_ai.solver.html.md) describes built in solvers as well as the types used to create custom solvers.
+- [inspect_ai.tool](https://inspect.ai-safety-institute.org.uk/reference/inspect_ai.tool.html.md) describes built in tools as well as the types used to create custom tools.
+- [inspect_ai.scorer](https://inspect.ai-safety-institute.org.uk/reference/inspect_ai.scorer.html.md) describes built in scorers as well as the types used to create custom scorers.
+- [inspect_ai.model](https://inspect.ai-safety-institute.org.uk/reference/inspect_ai.model.html.md) covers using the Inspect model API for accessing various language models.
+- [inspect_ai.dataset](https://inspect.ai-safety-institute.org.uk/reference/inspect_ai.dataset.html.md) describes the types used to read and manipulate datasets and samples.
+- [inspect_ai.approval](https://inspect.ai-safety-institute.org.uk/reference/inspect_ai.approval.html.md) covers using built in approvers as well as the types used to create custom approvers and approval policies.
+- [inspect_ai.log](https://inspect.ai-safety-institute.org.uk/reference/inspect_ai.log.html.md) describes the types used to list, read, write, and traverse the contents of eval log files.
+- [inspect_ai.util](https://inspect.ai-safety-institute.org.uk/reference/inspect_ai.util.html.md) covers various utility functions for concurrency, sandboxes, the store, and more.
 
