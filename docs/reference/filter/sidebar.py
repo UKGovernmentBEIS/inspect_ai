@@ -1,25 +1,27 @@
 import json
 import os
-from typing import Any
 import yaml
 
 
 # only execute if a reference doc is in the inputs
 input_files = os.getenv("QUARTO_PROJECT_INPUT_FILES", "")
 if "reference/inspect_ai" not in input_files:
-    exit(0) 
+    exit(0)
 
 # register reference docs (this defines their sidebar order)
-reference_docs = ["reference/inspect_ai.qmd"] + [f"reference/inspect_ai.{doc}" for doc in [
-    "solver.qmd",
-    "tool.qmd",
-    "scorer.qmd",
-    "model.qmd",
-    "dataset.qmd",
-    "approval.qmd",
-    "log.qmd",
-    "util.qmd"
-]]
+reference_docs = ["reference/inspect_ai.qmd"] + [
+    f"reference/inspect_ai.{doc}"
+    for doc in [
+        "solver.qmd",
+        "tool.qmd",
+        "scorer.qmd",
+        "model.qmd",
+        "dataset.qmd",
+        "approval.qmd",
+        "log.qmd",
+        "util.qmd",
+    ]
+]
 
 # build sidebar yaml
 sidebar = yaml.safe_load("""
@@ -35,20 +37,20 @@ contents_yaml = sidebar["website"]["sidebar"][0]["contents"]
 # build index (for cross linking)
 index_json: dict[str, str] = {}
 
+
 # helper to parse reference objects from qmd
 def parse_reference_objects(markdown: str) -> list[str]:
-
     objects: list[str] = []
     for line in markdown.splitlines():
         if line.startswith("### "):
-            line = line.removeprefix('### ').removeprefix("beta.")
-            objects.append(line.removeprefix('### '))
+            line = line.removeprefix("### ").removeprefix("beta.")
+            objects.append(line.removeprefix("### "))
 
     return objects
 
+
 # build for each reference doc
 for doc in reference_docs:
-
     with open(doc, "r") as f:
         objects = parse_reference_objects(f.read())
         refs = [dict(text=o, href=f"{doc}#{o.lower()}") for o in objects]
@@ -56,15 +58,11 @@ for doc in reference_docs:
             index_json[ref["text"]] = ref["href"].removeprefix("reference/")
 
     # add section to sidebar
-    section=doc.removeprefix("reference/").removesuffix(".qmd")
-    record = dict(
-        section=section,
-        href=doc,
-        contents=refs
-    )
+    section = doc.removeprefix("reference/").removesuffix(".qmd")
+    record = dict(section=section, href=doc, contents=refs)
     contents_yaml.append(record)
 
-    
+
 # write ref index
 index_file = "reference/refs.json"
 with open(index_file, "w") as f:
@@ -86,6 +84,3 @@ else:
 if sidebar_yaml != previous_sidebar_yaml:
     with open(sidebar_file, "w") as f:
         f.write(sidebar_yaml)
-    
-
-
