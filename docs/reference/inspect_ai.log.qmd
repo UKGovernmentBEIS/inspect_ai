@@ -2,9 +2,6 @@
 title: "inspect_ai.log"
 ---
 
-<!-- TODO: attributes as list rather than table -->
-<!-- TODO: parmaeters as list rather than table? -->
-
 ## Eval Log Files
 
 ### list_eval_logs

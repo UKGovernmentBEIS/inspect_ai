@@ -21,6 +21,7 @@ from ._call_tools import call_tools
 from ._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
+    ChatMessageBase,
     ChatMessageSystem,
     ChatMessageTool,
     ChatMessageUser,
@@ -54,6 +55,7 @@ __all__ = [
     "ContentVideo",
     "Content",
     "ChatMessage",
+    "ChatMessageBase",
     "ChatMessageSystem",
     "ChatMessageUser",
     "ChatMessageAssistant",

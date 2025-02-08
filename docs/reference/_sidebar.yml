@@ -177,6 +177,8 @@ website:
         href: reference/inspect_ai.model.qmd#chatcompletionchoice
       - text: ChatMessage
         href: reference/inspect_ai.model.qmd#chatmessage
+      - text: ChatMessageBase
+        href: reference/inspect_ai.model.qmd#chatmessagebase
       - text: ChatMessageSystem
         href: reference/inspect_ai.model.qmd#chatmessagesystem
       - text: ChatMessageUser
