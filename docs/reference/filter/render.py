@@ -17,8 +17,8 @@ def render_docs(elem: pf.Header, docs: DocObject) -> list[pf.Element]:
     elements.append(pf.RawBlock(docs.description, "markdown"))
 
     # source link
-    elements.append(pf.Div(pf.Plain(pf.Link(pf.Str("Source"), url=docs.source)), classes=["source-link"]))
-
+    elements.append(render_source_link(docs))
+   
     # declaration
     elements.append(pf.CodeBlock(docs.declaration, classes = ["python", "doc-declaration"]))
 
@@ -33,10 +33,6 @@ def render_docs(elem: pf.Header, docs: DocObject) -> list[pf.Element]:
         if docs.methods:
             elements.append(pf.Header(pf.Str("Methods"), level=4, classes=["class-methods"]))
             elements.append(render_methods(docs.methods))
-    
-
-
-    
     
     # other sections
     for section in docs.text_sections:
@@ -58,12 +54,16 @@ def render_methods(methods: list[DocFunction]) -> pf.DefinitionList:
         *[render_method_definition_item(method) for method in methods]
     )
 
+def render_source_link(object: DocObject) -> pf.Div:
+     return pf.Div(pf.Plain(pf.Link(pf.Str("Source"), url=object.source)), classes=["source-link"])
+
 def render_method_definition_item(method: DocFunction) -> pf.DefinitionItem:
     
     return pf.DefinitionItem(
         [pf.Str(method.name)], 
         [pf.Definition(
             pf.RawBlock(method.description, format="markdown"), 
+            render_source_link(method),
             pf.CodeBlock(dedent(method.declaration), classes=["python"]),
             render_params(method.parameters)
         )]
