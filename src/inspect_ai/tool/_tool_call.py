@@ -56,6 +56,8 @@ class ToolCall:
 
 @dataclass
 class ToolCallError:
+    """Error raised by a tool call."""
+
     type: Literal[
         "parsing",
         "timeout",
@@ -67,8 +69,10 @@ class ToolCallError:
         "approval",
         "unknown",
     ]
+    """Error type."""
 
     message: str
+    """Error message."""
 
 
 ToolCallViewer = Callable[[ToolCall], ToolCallView]

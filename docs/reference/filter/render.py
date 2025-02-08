@@ -92,15 +92,13 @@ def render_element_definition_item(element: DocAttribute | DocParameter) -> pf.D
     )     
 
 def render_element_type(type: str) -> pf.Span:
-    types = type.split("|")
-    type_names = [pf.Span(pf.Str(t.strip()), classes=["element-type-name"]) for t in types]
+
     element_type: list[pf.Inline] = []
-    for index, type_name in enumerate(type_names):
-        element_type.append(type_name)
-        if index < (len(type_names)-1):
-            element_type.append(pf.Space())
-            element_type.append(pf.Str("|"))
-            element_type.append(pf.Space())
+    for token, token_type in tokenize_type_declaration(type):
+        if token_type == "text":
+            element_type.append(pf.Str(token))
+        else:
+            element_type.append(pf.Span(pf.Str(token), classes=["element-type-name"]))
 
     return pf.Span(*element_type, classes=["element-type"])
 
@@ -120,3 +118,58 @@ def render_header(col1: str, col2: str) -> pf.TableHead:
         )
     )
 
+
+def tokenize_type_declaration(type_str: str) -> list[tuple[str, str]]:
+    common_types = {
+        'Any', 'Dict', 'List', 'Set', 'Tuple', 'Optional', 'Union', 'Callable',
+        'Iterator', 'Iterable', 'Generator', 'Type', 'TypeVar', 'Generic',
+        'Protocol', 'NamedTuple', 'TypedDict', 'Literal', 'Final', 'ClassVar',
+        'NoReturn', 'Never', 'Self', 'int', 'str', 'float', 'bool', 'bytes',
+        'object', 'None', 'Sequence', 'Mapping', 'MutableMapping', 'Awaitable',
+        'Coroutine', 'AsyncIterator', 'AsyncIterable', 'ContextManager',
+        'AsyncContextManager', 'Pattern', 'Match'
+    }
+    
+    tokens = []
+    current_token = ''
+    
+    def add_token(token: str, force_type: str | None = None) -> None:
+        """Helper function to add a token with its classified type."""
+        if not token:
+            return
+        
+        if force_type:
+            token_type = force_type
+        elif token in common_types or (token[0].isupper() and token.isalnum()):
+            token_type = 'type'
+        else:
+            token_type = 'text'
+            
+        tokens.append((token, token_type))
+    
+    i = 0
+    while i < len(type_str):
+        char = type_str[i]
+        
+        # Handle whitespace
+        if char.isspace():
+            add_token(current_token)
+            add_token(char, 'text')
+            current_token = ''
+            
+        # Handle special characters
+        elif char in '[](),|':
+            add_token(current_token)
+            add_token(char, 'text')
+            current_token = ''
+            
+        # Build up identifier
+        else:
+            current_token += char
+            
+        i += 1
+    
+    # Add any remaining token
+    add_token(current_token)
+    
+    return tokens

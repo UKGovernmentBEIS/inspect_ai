@@ -89,10 +89,20 @@ website:
         href: reference/inspect_ai.tool.qmd#toolresult
       - text: ToolError
         href: reference/inspect_ai.tool.qmd#toolerror
+      - text: ToolCallError
+        href: reference/inspect_ai.tool.qmd#toolcallerror
       - text: ToolChoice
         href: reference/inspect_ai.tool.qmd#toolchoice
       - text: ToolFunction
         href: reference/inspect_ai.tool.qmd#toolfunction
+      - text: ToolInfo
+        href: reference/inspect_ai.tool.qmd#toolinfo
+      - text: ToolParams
+        href: reference/inspect_ai.tool.qmd#toolparams
+      - text: ToolParam
+        href: reference/inspect_ai.tool.qmd#toolparam
+      - text: JSONType
+        href: reference/inspect_ai.tool.qmd#jsontype
       - text: tool
         href: reference/inspect_ai.tool.qmd#tool
     - section: inspect_ai.scorer
@@ -167,6 +177,8 @@ website:
         href: reference/inspect_ai.model.qmd#model
       - text: GenerateConfig
         href: reference/inspect_ai.model.qmd#generateconfig
+      - text: GenerateConfigArgs
+        href: reference/inspect_ai.model.qmd#generateconfigargs
       - text: ModelOutput
         href: reference/inspect_ai.model.qmd#modeloutput
       - text: ModelUsage

@@ -20,8 +20,13 @@ title: "inspect_ai.tool"
 ### Tool
 ### ToolResult
 ### ToolError
+### ToolCallError
 ### ToolChoice
 ### ToolFunction
+### ToolInfo
+### ToolParams
+### ToolParam
+### JSONType
 
 ## Decorator
 
