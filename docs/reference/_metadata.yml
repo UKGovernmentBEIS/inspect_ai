@@ -1,6 +1,9 @@
 toc-depth: 3
 toc-expand: true
 filters: 
-   - filter/filter.py
-   - filter/post.lua
+   - at: pre-ast
+     type: json
+     path: filter/filter.py
+   - at: pre-ast
+     path: filter/post.lua
 

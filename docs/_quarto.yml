@@ -12,8 +12,9 @@ metadata-files:
   - reference/_sidebar.yml  
 
 filters:
-  - reference/filter/interlink.lua
-
+  - at: post-quarto
+    path: reference/filter/interlink.lua
+ 
 website:
    title: "Inspect"
    bread-crumbs: true
