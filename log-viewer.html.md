@@ -8,8 +8,7 @@ including drilling into message histories, scoring decisions, and
 additional metadata written to the log. Here’s what the main view of an
 evaluation log looks like:
 
-<img src="images/inspect-view-main.png" class="border lightbox"
-data-fig-alt="The Inspect log viewer, displaying a summary of results for the task as well as 8 individual samples." />
+![](images/inspect-view-main.png)
 
 Below we’ll describe how to get the most out of using Inspect View.
 
@@ -52,8 +51,7 @@ run).
 You can view and navigate between a history of all evals in the log
 directory using the menu at the top right:
 
-<img src="images/inspect-view-history.png" class="border lightbox"
-data-fig-alt="The Inspect log viewer, with the history panel displayed on the left overlaying the main interface. Several log files are displayed in the log history, each of which includes a summary of the results." />
+![](images/inspect-view-history.png)
 
 ## Sample Details
 
@@ -65,8 +63,7 @@ The messages tab displays the message history. In this example we see
 that the model make two tool calls before answering (the final assistant
 message is not fully displayed for brevity):
 
-<img src="images/inspect-view-messages.png" class="border lightbox"
-data-fig-alt="The Inspect log viewer showing a sample expanded, with details on the user, assistant, and tool messages for the sample." />
+![](images/inspect-view-messages.png)
 
 Looking carefully at the message history (especially for agents or
 multi-turn solvers) is critically important for understanding how well
@@ -77,8 +74,7 @@ your evaluation is constructed.
 The scoring tab shows additional details including the full input and
 full model explanation for answers:
 
-<img src="images/inspect-view-scoring.png" class="border lightbox"
-data-fig-alt="The Inspect log viewer showing a sample expanded, with details on the scoring of the sample, including the input, target, answer, and explanation." />
+![](images/inspect-view-scoring.png)
 
 ### Metadata
 
@@ -86,8 +82,7 @@ The metadata tab shows additional data made available by solvers, tools,
 an scorers (in this case the `web_search()` tool records which URLs it
 visited to retrieve additional context):
 
-<img src="images/inspect-view-metadata.png" class="border lightbox"
-data-fig-alt="The Inspect log viewer showing a sample expanded, with details on the metadata recorded by the web search tool during the evaluation (specifically, the URLs queried by the web search tool for the sample)." />
+![](images/inspect-view-metadata.png)
 
 ## Scores and Answers
 
@@ -113,8 +108,7 @@ You can use the log viewer to catch and evaluate these sorts of issues.
 For example, here we can see that we were unable to extract answers for
 a couple of questions that were scored incorrect:
 
-<img src="images/inspect-view-answers.png" class="border lightbox"
-data-fig-alt="The Inspect log viewer with several 5 samples displayed, 3 of which are incorrect. The Answer column displays the answer extracted from the model output for each sample." />
+![](images/inspect-view-answers.png)
 
 It’s possible that these answers are legitimately incorrect. However
 it’s also possible that the correct answer is in the model’s output but
@@ -147,16 +141,14 @@ It’s often useful to filter log entries by score (for example, to
 investigate whether incorrect answers are due to scorer issues or are
 true negatives). Use the **Scores** picker to filter by specific scores:
 
-<img src="images/inspect-view-filter.png" class="border lightbox"
-data-fig-alt="The Inspect log view, with 4 samples displayed, each of which are marked incorrect. The Scores picker is focused, and has selected &#39;Incorrect&#39;, indicating that only incorrect scores should be displayed." />
+![](images/inspect-view-filter.png)
 
 By default, samples are ordered (with all samples for an epoch presented
 in sequence). However you can also order by score, or order by samples
 (so you see all of the results for a given sample across all epochs
 presented together). Use the **Sort** picker to control this:
 
-<img src="images/inspect-view-sort.png" class="border lightbox"
-data-fig-alt="The Inspect log view, with the results of a single sample for each of the 4 epochs of the evaluation." />
+![](images/inspect-view-sort.png)
 
 Viewing by sample can be especially valuable for diagnosing the sources
 of inconsistency (and determining whether they are inherent or an
@@ -217,8 +209,7 @@ If you’d like to see ‘info’ messages in the console as well, use the
 $ inspect eval biology_qa.py --log-level info
 ```
 
-<img src="images/inspect-view-logging-console.png" class="lightbox"
-data-fig-alt="This Inspect task display in the terminal, with several info log messages from the web search tool printed above the task display." />
+![](images/inspect-view-logging-console.png)
 
 You can use the `--log-level-transcript` option to control what level is
 written to the sample transcript:
@@ -266,8 +257,7 @@ The **Info** panel of the log viewer provides additional
 meta-information about evaluation tasks, including dataset, solver, and
 scorer details, git revision, and model token usage:
 
-<img src="images/inspect-view-info.png" class="border lightbox"
-data-fig-alt="The Info panel of the Inspect log viewer, displaying various details about the evaluation including dataset, solver, and scorer details, git revision, and model token usage." />
+![](images/inspect-view-info.png)
 
 ## Publishing
 

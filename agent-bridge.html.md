@@ -34,8 +34,6 @@ where an enclosing function returns the function that handles the sample
 (this enables you to share initialisation code and pass options to
 configure the behaviour of the agent):
 
-<div class="code-with-filename">
-
 **agent.py**
 
 ``` python
@@ -56,8 +54,6 @@ def my_agent():
     return run
 ```
 
-</div>
-
 We use the OpenAI API with `model="inspect"`, which enables Inspect to
 intercept the request and send it to the Inspect model being evaluated
 for the task.
@@ -67,8 +63,6 @@ messages) and return `output` as a string in the result `dict`.
 
 Here is how you can use the `bridge()` function to use this agent as a
 solver:
-
-<div class="code-with-filename">
 
 **task.py**
 
@@ -88,8 +82,6 @@ def hello():
         scorer=includes(),
     )
 ```
-
-</div>
 
 Line 6  
 Import custom agent from `agent.py` file (shown above)
@@ -116,8 +108,6 @@ notice that it is structured similar to an Inspect `Solver` where an
 enclosing function returns the function which handles the sample (this
 enables you to share initialisation code and pass options to configure
 the behaviour of the agent):
-
-<div class="code-with-filename">
 
 **agent.py**
 
@@ -170,8 +160,6 @@ def web_surfer_agent():
     return run
 ```
 
-</div>
-
 Lines 14-18  
 Use the OpenAI API with `model="inspect"` to interface with the model
 for the running Inspect task.
@@ -195,8 +183,6 @@ Extract content from final assistant message and return it as `output`.
 To use this agent in an Inspect `Task`, import it and use the `bridge()`
 function:
 
-<div class="code-with-filename">
-
 **task.py**
 
 ``` python
@@ -215,8 +201,6 @@ def research() -> Task:
         scorer=model_graded_fact(),
     )
 ```
-
-</div>
 
 Line 6  
 Import custom agent from `agent.py` file (shown above)

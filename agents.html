@@ -76,11 +76,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
 <link href="site_libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
 <script id="quarto-search-options" type="application/json">{
-  "location": "sidebar",
+  "location": "navbar",
   "copy-button": false,
   "collapse-after": 3,
-  "panel-placement": "start",
-  "type": "textbox",
+  "panel-placement": "end",
+  "type": "overlay",
   "limit": 50,
   "keyboard-shortcut": [
     "f",
@@ -118,10 +118,51 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <meta name="twitter:image-width" content="2400">
 </head>
 
-<body class="nav-sidebar floating">
+<body class="nav-sidebar docked nav-fixed">
 
 <div id="quarto-search-results"></div>
   <header id="quarto-header" class="headroom fixed-top">
+    <nav class="navbar navbar-expand-lg " data-bs-theme="dark">
+      <div class="navbar-container container-fluid">
+      <div class="navbar-brand-container mx-auto">
+    <a href="https://www.aisi.gov.uk/" class="navbar-brand navbar-brand-logo">
+    <img src="./images/aisi-logo.png" alt="" class="navbar-logo">
+    </a>
+    <a class="navbar-brand" href="https://www.aisi.gov.uk/">
+    <span class="navbar-title">Inspect AI</span>
+    </a>
+  </div>
+            <div id="quarto-search" class="" title="Search"></div>
+          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse" aria-controls="navbarCollapse" role="menu" aria-expanded="false" aria-label="Toggle navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+  <span class="navbar-toggler-icon"></span>
+</button>
+          <div class="collapse navbar-collapse" id="navbarCollapse">
+            <ul class="navbar-nav navbar-nav-scroll me-auto">
+  <li class="nav-item">
+    <a class="nav-link active" href="./index.html" aria-current="page"> 
+<span class="menu-text">User Guide</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="./reference/inspect_ai.html"> 
+<span class="menu-text">Reference</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="./evals/index.html"> 
+<span class="menu-text">Evals</span></a>
+  </li>  
+</ul>
+            <ul class="navbar-nav navbar-nav-scroll ms-auto">
+  <li class="nav-item compact">
+    <a class="nav-link" href="https://github.com/UKGovernmentBEIS/inspect_ai"> <i class="bi bi-github" role="img">
+</i> 
+<span class="menu-text"></span></a>
+  </li>  
+</ul>
+          </div> <!-- /navcollapse -->
+            <div class="quarto-navbar-tools">
+</div>
+      </div> <!-- /container-fluid -->
+    </nav>
   <nav class="quarto-secondary-nav">
     <div class="container-fluid d-flex">
       <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
@@ -130,39 +171,15 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
         <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./agents.html">Agents</a></li><li class="breadcrumb-item"><a href="./agents.html">Agent Basics</a></li></ol></nav>
         <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
         </a>
-      <button type="button" class="btn quarto-search-button" aria-label="Search" onclick="window.quartoOpenSearch();">
-        <i class="bi bi-search"></i>
-      </button>
     </div>
   </nav>
 </header>
 <!-- content -->
-<div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article">
+<div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article page-navbar">
 <!-- sidebar -->
-  <nav id="quarto-sidebar" class="sidebar collapse collapse-horizontal quarto-sidebar-collapse-item sidebar-navigation floating overflow-auto"><div class="quarto-sidebar-header"><div class="sidebar-header-item">
-<p><a href="https://aisi.gov.uk/"><img src="./images/aisi-logo.png" class="img-fluid" alt="UK AI Safety Institute Website"></a></p>
-</div></div>
-    <div class="pt-lg-2 mt-2 text-left sidebar-header">
-    <div class="sidebar-title mb-0 py-0">
-      <a href="./">Inspect</a> 
-        <div class="sidebar-tools-main">
-    <a href="https://github.com/UKGovernmentBEIS/inspect_ai" title="Source Code" class="quarto-navigation-tool px-1" aria-label="Source Code"><i class="bi bi-github"></i></a>
-</div>
-    </div>
-      </div>
-        <div class="mt-2 flex-shrink-0 align-items-center">
-        <div class="sidebar-search">
-        <div id="quarto-search" class="" title="Search"></div>
-        </div>
-        </div>
+  <nav id="quarto-sidebar" class="sidebar collapse collapse-horizontal quarto-sidebar-collapse-item sidebar-navigation docked overflow-auto">
     <div class="sidebar-menu-container"> 
     <ul class="list-unstyled mt-1">
-        <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="./index.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Welcome</span></a>
-  </div>
-</li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="true">
@@ -174,6 +191,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
       <ul id="quarto-sidebar-section-1" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Welcome</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./tutorial.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Tutorial</span></a>
   </div>
@@ -182,12 +205,6 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <div class="sidebar-item-container"> 
   <a href="./options.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Options</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="./evals/index.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Evals</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -445,10 +462,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="overview" class="level2">
 <h2 class="anchored" data-anchor-id="overview">Overview</h2>
 <p>Agents combine planning, memory, and tool usage to pursue more complex, longer horizon tasks (e.g.&nbsp;a <a href="https://en.wikipedia.org/wiki/Capture_the_flag_(cybersecurity)">Capture the Flag</a> challenge). Agents are an area of active research, and many schemes for implementing them have been developed, including <a href="https://arxiv.org/abs/2306.02224">AutoGPT</a>, <a href="https://arxiv.org/pdf/2303.11366.pdf">ReAct</a>, and <a href="https://arxiv.org/pdf/2303.11366.pdf">Reflexion</a>.</p>
-<p>An agent isn’t a special construct within Inspect, it’s merely a solver that includes tool use and calls <code>generate()</code> internally to interact with the model.</p>
+<p>An agent isn’t a special construct within Inspect, it’s merely a solver that includes tool use and calls <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#generate">generate()</a></span> internally to interact with the model.</p>
 <p>Inspect supports a variety of approaches to agent evaluations, including:</p>
 <ol type="1">
-<li><p>Using Inspect’s built-in <code>basic_agent()</code>.</p></li>
+<li><p>Using Inspect’s built-in <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#basic_agent">basic_agent()</a></span>.</p></li>
 <li><p>Implementing a fully custom agent scaffold (i.e.&nbsp;taking full control of generation, tool calling, reasoning steps, etc.) using the <a href="./agents-api.html">Agent API</a>.</p></li>
 <li><p>Integrating external agent frameworks like <a href="https://microsoft.github.io/autogen/stable/">AutoGen</a> or <a href="https://python.langchain.com/docs/introduction/">LangChain</a> via the Inspect <a href="./agent-bridge.html">Agent Bridge</a>.</p></li>
 <li><p>A <a href="./human-agent.html">Human Agent</a> for creating human baselines on computing tasks.</p></li>
@@ -457,7 +474,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="sec-basic-agent" class="level2">
 <h2 class="anchored" data-anchor-id="sec-basic-agent">Basic Agent</h2>
-<p>The <code>basic_agent()</code>provides a ReAct tool loop with support for retries and encouraging the model to continue if its gives up or gets stuck. The basic agent serves a number of important purposes:</p>
+<p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#basic_agent">basic_agent()</a></span>provides a ReAct tool loop with support for retries and encouraging the model to continue if its gives up or gets stuck. The basic agent serves a number of important purposes:</p>
 <ol type="1">
 <li><p>When developing tasks and datasets it’s convenient to have a ready made agent that you know that will competently navigate your task.</p></li>
 <li><p>When developing custom agents, it’s a good idea to start out with an idea of how the model performs using its native planning and tool use capabilities. The basic agent is a good way to establish this baseline.</p></li>
@@ -467,7 +484,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Note that when using the basic agent you should <em>always</em> set a <code>message_limit</code>, <code>token_limit</code>, or <code>time_limit</code> so that there is some termination point if the model gets off track or stuck in a loop (see <a href="./errors-and-limits.html#sample-limits">Sample Limits</a> for additional details).</p>
 <section id="example" class="level3">
 <h3 class="anchored" data-anchor-id="example">Example</h3>
-<p>Here is an example use of <code>basic_agent()</code> as the <code>solver</code> for a CTF evaluation:</p>
+<p>Here is an example use of <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#basic_agent">basic_agent()</a></span> as the <code>solver</code> for a CTF evaluation:</p>
 <div class="sourceCode" id="annotated-cell-1"><pre class="sourceCode python code-annotation-code code-with-copy code-annotated"><code class="sourceCode python"><span id="annotated-cell-1-1"><a href="#annotated-cell-1-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> Task, task</span>
 <span id="annotated-cell-1-2"><a href="#annotated-cell-1-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.dataset <span class="im">import</span> json_dataset</span>
 <span id="annotated-cell-1-3"><a href="#annotated-cell-1-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.scorer <span class="im">import</span> includes</span>
@@ -503,7 +520,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </dd>
 <dt data-target-cell="annotated-cell-1" data-target-annotation="2">2</dt>
 <dd>
-<span data-code-cell="annotated-cell-1" data-code-lines="22" data-code-annotation="2">Make the <code>bash()</code> and <code>python()</code> tools available (with a timeout to ensure they don’t perform extremely long running operations). Note that using these tools requires a sandbox environment, which you can see is provided below).</span>
+<span data-code-cell="annotated-cell-1" data-code-lines="22" data-code-annotation="2">Make the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#bash">bash()</a></span> and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#python">python()</a></span> tools available (with a timeout to ensure they don’t perform extremely long running operations). Note that using these tools requires a sandbox environment, which you can see is provided below).</span>
 </dd>
 <dt data-target-cell="annotated-cell-1" data-target-annotation="3">3</dt>
 <dd>
@@ -540,7 +557,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <tr class="odd">
 <td><code>init</code></td>
 <td><code>Solver | list[Solver]</code></td>
-<td>Agent initialisation (e.g.&nbsp;<code>system_message()</code>).</td>
+<td>Agent initialisation (e.g.&nbsp;<span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#system_message">system_message()</a></span>).</td>
 </tr>
 <tr class="even">
 <td><code>tools</code></td>
@@ -598,12 +615,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <ol type="1">
 <li>Redirect the model to another trajectory if its not on a productive course.</li>
 <li>Exercise more fine grained control over which, when, and how many tool calls are made, and how tool calling errors are handled.</li>
-<li>Have multiple <code>generate()</code> passes each with a distinct set of tools.</li>
+<li>Have multiple <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#generate">generate()</a></span> passes each with a distinct set of tools.</li>
 </ol>
 <p>To do this, create a solver that emulates the default tool use loop and provides additional customisation as required.</p>
 <section id="example-1" class="level3">
 <h3 class="anchored" data-anchor-id="example-1">Example</h3>
-<p>For example, here is a complete solver agent that has essentially the same implementation as the default <code>generate()</code> function:</p>
+<p>For example, here is a complete solver agent that has essentially the same implementation as the default <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#generate">generate()</a></span> function:</p>
 <div class="sourceCode" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="at">@solver</span></span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> agent_loop(message_limit: <span class="bu">int</span> <span class="op">=</span> <span class="dv">50</span>):</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> solve(state: TaskState, generate: Generate):</span>
@@ -639,12 +656,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <li>Urging the model to keep going after it decides to stop calling tools.</li>
 <li>Examining and possibly filtering the tool calls before invoking <code>call_tools()</code></li>
 <li>Adding a critique / reflection step between tool calling and generate.</li>
-<li><a href="./agents-api.html#sec-forking">Forking</a> the <code>TaskState</code> and exploring several trajectories.</li>
+<li><a href="./agents-api.html#sec-forking">Forking</a> the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#taskstate">TaskState</a></span> and exploring several trajectories.</li>
 </ol>
 </section>
 <section id="sec-stop-reasons" class="level3">
 <h3 class="anchored" data-anchor-id="sec-stop-reasons">Stop Reasons</h3>
-<p>One thing that a custom scaffold may do is try to recover from various conditions that cause the model to stop generating. You can find the reason that generation stopped in the <code>stop_reason</code> field of <code>ModelOutput</code>.</p>
+<p>One thing that a custom scaffold may do is try to recover from various conditions that cause the model to stop generating. You can find the reason that generation stopped in the <code>stop_reason</code> field of <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#modeloutput">ModelOutput</a></span>.</p>
 <p>For example:, if you have written a scaffold loop that continues calling the model even after it stops calling tools, there may be values of <code>stop_reason</code> that indicate that the loop should terminate anyway (because the error will just keep repeating on subsequent calls to the model). For example, the <a href="./agents.html#sec-basic-agent">basic agent</a> checks for <code>stop_reason</code> and exits if there is a context window overflow:</p>
 <div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co"># check for stop reasons that indicate we should terminate</span></span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> state.output.stop_reason <span class="op">==</span> <span class="st">"model_length"</span>:</span>
@@ -652,7 +669,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>        <span class="ss">f"Agent terminated (reason: </span><span class="sc">{</span>state<span class="sc">.</span>output<span class="sc">.</span>stop_reason<span class="sc">}</span><span class="ss">)"</span></span>
 <span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>    )</span>
 <span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">break</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Here are the possible values for <code>StopReason</code> :</p>
+<p>Here are the possible values for <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#stopreason">StopReason</a></span> :</p>
 <table class="caption-top table">
 <colgroup>
 <col style="width: 35%">
@@ -1204,7 +1221,7 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
     <div class="nav-footer-left">
       <ul class="footer-items list-unstyled">
     <li class="nav-item">
-    <a class="nav-link active" href="https://aisi.gov.uk/" aria-current="page">
+    <a class="nav-link" href="https://aisi.gov.uk/">
 <p>UK AI Safety Institute</p>
 </a>
   </li>  

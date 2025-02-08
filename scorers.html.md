@@ -547,11 +547,11 @@ def letter_count():
 
 @metric
 def total_count() -> Metric:
-    def metric(scores: list[Score]) -> int | float:
+    def metric(scores: list[SampleScore]) -> int | float:
         total = 0.0
         for score in scores:
-            total = score.value["a_count"]
-                + score.value["e_count"]
+            total = score.score.value["a_count"]
+                + score.score.value["e_count"]
         return total
     return metric
 
@@ -690,7 +690,7 @@ Definition** command in your source editor.
 
 - `var()`
 
-  Variance over all scores.
+  Sample variance over all scores.
 
 - `std()`
 
@@ -749,7 +749,7 @@ The `metrics` passed to the `Task` override the default metrics of the
 ### Custom Metrics
 
 You can also add your own metrics with `@metric` decorated functions.
-For example, here is the implementation of the variance metric:
+For example, here is the implementation of the mean metric:
 
 ``` python
 import numpy as np
@@ -757,11 +757,15 @@ import numpy as np
 from inspect_ai.scorer import Metric, Score, metric
 
 @metric
-def var() -> Metric:
-    """Compute variance over all scores."""
+def mean() -> Metric:
+    """Compute mean of all scores.
 
-    def metric(scores: list[Score]) -> float:
-        return np.var([score.as_float() for score in scores]).item()
+    Returns:
+       mean metric
+    """
+
+    def metric(scores: list[SampleScore]) -> float:
+        return np.mean([score.score.as_float() for score in scores]).item()
 
     return metric
 ```
@@ -844,10 +848,10 @@ from inspect_ai.scorer import Score, ScoreReducer, score_reducer
 
 @score_reducer(name="mean")
 def mean_score() -> ScoreReducer:
-    def reduce(scores: list[Score]) -> Score:
+    def reduce(scores: list[SampleScore]) -> Score:
         """Compute a mean value of all scores."""
 
-        values = [float(score.value) for score in scores]
+        values = [float(score.score.value) for score in scores]
         mean_value = statistics.mean(values)
 
         return Score(value=mean_value)

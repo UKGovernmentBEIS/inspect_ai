@@ -549,8 +549,6 @@ Docker container. Therefore, to use the web_browser tool you should
 reference the `aisiuk/inspect-web-browser-tool` Docker image in your
 `compose.yaml`. For example, here we use it as our default image:
 
-<div class="code-with-filename">
-
 **compose.yaml**
 
 ``` yaml
@@ -560,11 +558,7 @@ services:
     init: true
 ```
 
-</div>
-
 Here, we add a dedicated `web_browser` service:
-
-<div class="code-with-filename">
 
 **compose.yaml**
 
@@ -578,8 +572,6 @@ services:
     image: aisiuk/inspect-web-browser-tool
     init: true
 ```
-
-</div>
 
 Rather than using the `aisiuk/inspect-web-browser-tool` image, you can
 also just include the web browser service components in a custom image
@@ -700,8 +692,6 @@ task you need to reference the
 `aisiuk/inspect-computer-tool:latest-beta` image in your Docker compose
 file. For example:
 
-<div class="code-with-filename">
-
 **compose.yaml**
 
 ``` yaml
@@ -710,11 +700,7 @@ services:
     image: aisiuk/inspect-computer-tool:latest-beta
 ```
 
-</div>
-
 You can configure the container to not have Internet access as follows:
-
-<div class="code-with-filename">
 
 **compose.yaml**
 
@@ -724,8 +710,6 @@ services:
     image: aisiuk/inspect-computer-tool:latest-beta
     network_mode: none
 ```
-
-</div>
 
 Note that if you’d like to be able to view the model’s interactions with
 the computer desktop in realtime, you will need to also do some port
@@ -810,8 +794,6 @@ additional port-mapping in the Docker compose file. You can define
 dynamic port ranges for VNC (5900) and a browser based noVNC client
 (6080) with the following `ports` entries:
 
-<div class="code-with-filename">
-
 **compose.yaml**
 
 ``` yaml
@@ -823,12 +805,10 @@ services:
       - "6080"
 ```
 
-</div>
-
 To connect to the container for a given sample, locate the sample in the
 **Running Samples** UI and expand the sample info panel at the top:
 
-<img src="images/vnc-port-info.png" class="lightbox" width="958" />
+![](images/vnc-port-info.png)
 
 Click on the link for the noVNC browser client, or use a native VNC
 client to connect to the VNC port. Note that the VNC server will take a
@@ -840,7 +820,7 @@ native VNC client you should also set it to “view only” so as to not
 interfere with the model’s use of the computer. For example, for Real
 VNC Viewer:
 
-<img src="images/vnc-view-only.png" width="549" />
+![](images/vnc-view-only.png)
 
 ### Approval
 
@@ -867,8 +847,6 @@ the `computer` tool):
 Here is an approval policy that requires approval for key combos
 (e.g. `Enter` or a shortcut) and mouse clicks:
 
-<div class="code-with-filename">
-
 **approval.yaml**
 
 ``` yaml
@@ -883,8 +861,6 @@ approvers:
   - name: auto
     tools: "*"
 ```
-
-</div>
 
 Note that since this is a prefix match and there could be other
 arguments, we don’t end the tool match pattern with a parentheses.

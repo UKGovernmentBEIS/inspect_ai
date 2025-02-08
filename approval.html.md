@@ -78,8 +78,6 @@ action types). For example, here is an approval policy for the [Computer
 Tool](tools.qmd#sec-computer) which allows typing and mouse movement but
 requires approval for key combos (e.g. Enter or a shortcut) and typing:
 
-<div class="code-with-filename">
-
 **approval.yaml**
 
 ``` yaml
@@ -94,8 +92,6 @@ approvers:
   - name: auto
     tools: "*"
 ```
-
-</div>
 
 Note that since this is a prefix match and there could be other
 arguments, we don’t end the tool match pattern with a parentheses.

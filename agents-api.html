@@ -76,11 +76,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
 <link href="site_libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
 <script id="quarto-search-options" type="application/json">{
-  "location": "sidebar",
+  "location": "navbar",
   "copy-button": false,
   "collapse-after": 3,
-  "panel-placement": "start",
-  "type": "textbox",
+  "panel-placement": "end",
+  "type": "overlay",
   "limit": 50,
   "keyboard-shortcut": [
     "f",
@@ -118,10 +118,51 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <meta name="twitter:image-width" content="2400">
 </head>
 
-<body class="nav-sidebar floating">
+<body class="nav-sidebar docked nav-fixed">
 
 <div id="quarto-search-results"></div>
   <header id="quarto-header" class="headroom fixed-top">
+    <nav class="navbar navbar-expand-lg " data-bs-theme="dark">
+      <div class="navbar-container container-fluid">
+      <div class="navbar-brand-container mx-auto">
+    <a href="https://www.aisi.gov.uk/" class="navbar-brand navbar-brand-logo">
+    <img src="./images/aisi-logo.png" alt="" class="navbar-logo">
+    </a>
+    <a class="navbar-brand" href="https://www.aisi.gov.uk/">
+    <span class="navbar-title">Inspect AI</span>
+    </a>
+  </div>
+            <div id="quarto-search" class="" title="Search"></div>
+          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse" aria-controls="navbarCollapse" role="menu" aria-expanded="false" aria-label="Toggle navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+  <span class="navbar-toggler-icon"></span>
+</button>
+          <div class="collapse navbar-collapse" id="navbarCollapse">
+            <ul class="navbar-nav navbar-nav-scroll me-auto">
+  <li class="nav-item">
+    <a class="nav-link active" href="./index.html" aria-current="page"> 
+<span class="menu-text">User Guide</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="./reference/inspect_ai.html"> 
+<span class="menu-text">Reference</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="./evals/index.html"> 
+<span class="menu-text">Evals</span></a>
+  </li>  
+</ul>
+            <ul class="navbar-nav navbar-nav-scroll ms-auto">
+  <li class="nav-item compact">
+    <a class="nav-link" href="https://github.com/UKGovernmentBEIS/inspect_ai"> <i class="bi bi-github" role="img">
+</i> 
+<span class="menu-text"></span></a>
+  </li>  
+</ul>
+          </div> <!-- /navcollapse -->
+            <div class="quarto-navbar-tools">
+</div>
+      </div> <!-- /container-fluid -->
+    </nav>
   <nav class="quarto-secondary-nav">
     <div class="container-fluid d-flex">
       <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
@@ -130,39 +171,15 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
         <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./agents.html">Agents</a></li><li class="breadcrumb-item"><a href="./agents-api.html">Agent API</a></li></ol></nav>
         <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
         </a>
-      <button type="button" class="btn quarto-search-button" aria-label="Search" onclick="window.quartoOpenSearch();">
-        <i class="bi bi-search"></i>
-      </button>
     </div>
   </nav>
 </header>
 <!-- content -->
-<div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article">
+<div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article page-navbar">
 <!-- sidebar -->
-  <nav id="quarto-sidebar" class="sidebar collapse collapse-horizontal quarto-sidebar-collapse-item sidebar-navigation floating overflow-auto"><div class="quarto-sidebar-header"><div class="sidebar-header-item">
-<p><a href="https://aisi.gov.uk/"><img src="./images/aisi-logo.png" class="img-fluid" alt="UK AI Safety Institute Website"></a></p>
-</div></div>
-    <div class="pt-lg-2 mt-2 text-left sidebar-header">
-    <div class="sidebar-title mb-0 py-0">
-      <a href="./">Inspect</a> 
-        <div class="sidebar-tools-main">
-    <a href="https://github.com/UKGovernmentBEIS/inspect_ai" title="Source Code" class="quarto-navigation-tool px-1" aria-label="Source Code"><i class="bi bi-github"></i></a>
-</div>
-    </div>
-      </div>
-        <div class="mt-2 flex-shrink-0 align-items-center">
-        <div class="sidebar-search">
-        <div id="quarto-search" class="" title="Search"></div>
-        </div>
-        </div>
+  <nav id="quarto-sidebar" class="sidebar collapse collapse-horizontal quarto-sidebar-collapse-item sidebar-navigation docked overflow-auto">
     <div class="sidebar-menu-container"> 
     <ul class="list-unstyled mt-1">
-        <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="./index.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Welcome</span></a>
-  </div>
-</li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="true">
@@ -174,6 +191,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
       <ul id="quarto-sidebar-section-1" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Welcome</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./tutorial.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Tutorial</span></a>
   </div>
@@ -182,12 +205,6 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <div class="sidebar-item-container"> 
   <a href="./options.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Options</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="./evals/index.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Evals</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -464,19 +481,19 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="sample-store" class="level2">
 <h2 class="anchored" data-anchor-id="sample-store">Sample Store</h2>
-<p>Sequences of solvers executing against a sample often need to store and manipulate shared state. Further, tools may often want their own persistent state (or groups of tools may want to share state). This can be accomplished in Inspect using the <code>Store</code>, which provides a sample-scoped scratchpad for arbitrary values.</p>
-<p>The core of the <code>Store</code> interface is:</p>
+<p>Sequences of solvers executing against a sample often need to store and manipulate shared state. Further, tools may often want their own persistent state (or groups of tools may want to share state). This can be accomplished in Inspect using the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#store">Store</a></span>, which provides a sample-scoped scratchpad for arbitrary values.</p>
+<p>The core of the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#store">Store</a></span> interface is:</p>
 <div class="sourceCode" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.util <span class="im">import</span> Store</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Store:</span>
 <span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> get(<span class="va">self</span>, key: <span class="bu">str</span>, default: VT) <span class="op">-&gt;</span> VT</span>
 <span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="bu">set</span>(<span class="va">self</span>, key: <span class="bu">str</span>, value: Any) <span class="op">-&gt;</span> <span class="va">None</span></span>
 <span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> delete(<span class="va">self</span>, key: <span class="bu">str</span>) <span class="op">-&gt;</span> <span class="va">None</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Note that the core <code>Store</code> interface is a property bag without strong typing. See the section below on <a href="#store-typing">typed store access</a> for details on how to interact with the store in a typesafe fashion.</p>
+<p>Note that the core <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#store">Store</a></span> interface is a property bag without strong typing. See the section below on <a href="#store-typing">typed store access</a> for details on how to interact with the store in a typesafe fashion.</p>
 <p>Basic views on the store’s collection (e.g.&nbsp;<code>items()</code>, <code>keys()</code>, <code>values()</code>) are also provided. Note that the <code>get()</code> method will automatically add the <code>default</code> to the store if it doesn’t exist.</p>
-<p>The <code>Store</code> can be accessed via <code>TaskState</code> as follows:</p>
+<p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#store">Store</a></span> can be accessed via <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#taskstate">TaskState</a></span> as follows:</p>
 <div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>history <span class="op">=</span> state.store.get(<span class="st">"history"</span>, [])</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>It is also possible the access the <code>Store</code> <em>for the current sample</em> using the <code>store()</code> function. This is the mechanism for tools to read and write the <code>Store</code>. For example:</p>
+<p>It is also possible the access the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#store">Store</a></span> <em>for the current sample</em> using the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#store">store()</a></span> function. This is the mechanism for tools to read and write the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#store">Store</a></span>. For example:</p>
 <div class="sourceCode" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.tool <span class="im">import</span> tool</span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.util <span class="im">import</span> store</span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a></span>
@@ -485,9 +502,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>   <span class="kw">def</span> execute() <span class="op">-&gt;</span> <span class="bu">str</span>:</span>
 <span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>       history <span class="op">=</span> store().get(<span class="st">"web_browser:history"</span>, [])</span>
 <span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>       <span class="cf">return</span> history.pop()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>While there is no formal namespacing mechanism for the <code>Store</code>, this can be informally achieved using key prefixes as demonstrated above.</p>
-<p>You should generally try to use JSON serialisable Python types in the <code>Store</code> (e.g.&nbsp;objects should be dataclasses or Pydantic BaseModel) so that they can be recorded in the <a href="#sec-transcripts">Transcript</a>.</p>
-<p>While the default <code>Store</code> for a sample is shared globally between solvers and tools, a more narrowly scoped <code>Store</code> is created automatically for <a href="#sec-subtasks">Subtasks</a>.</p>
+<p>While there is no formal namespacing mechanism for the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#store">Store</a></span>, this can be informally achieved using key prefixes as demonstrated above.</p>
+<p>You should generally try to use JSON serialisable Python types in the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#store">Store</a></span> (e.g.&nbsp;objects should be dataclasses or Pydantic BaseModel) so that they can be recorded in the <a href="#sec-transcripts">Transcript</a>.</p>
+<p>While the default <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#store">Store</a></span> for a sample is shared globally between solvers and tools, a more narrowly scoped <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#store">Store</a></span> is created automatically for <a href="#sec-subtasks">Subtasks</a>.</p>
 <section id="store-typing" class="level3">
 <h3 class="anchored" data-anchor-id="store-typing">Store Typing</h3>
 <p>If you prefer a typesafe interface to the sample store, you can define a <a href="https://docs.pydantic.dev/latest/concepts/models/">Pydantic model</a> which reads and writes values into the store. There are several benefits to using Pydantic models for store access:</p>
@@ -498,7 +515,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </ol>
 <section id="definition" class="level4">
 <h4 class="anchored" data-anchor-id="definition">Definition</h4>
-<p>First, derive a class from <code>StoreModel</code> (which in turn derives from Pydantic <code>BaseModel</code>):</p>
+<p>First, derive a class from <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#storemodel">StoreModel</a></span> (which in turn derives from Pydantic <code>BaseModel</code>):</p>
 <div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pydantic <span class="im">import</span> Field</span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.util <span class="im">import</span> StoreModel</span>
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a></span>
@@ -510,7 +527,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="usage" class="level4">
 <h4 class="anchored" data-anchor-id="usage">Usage</h4>
-<p>Use the <code>store_as()</code> function to get a typesafe interface to the store based on your model:</p>
+<p>Use the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#store_as">store_as()</a></span> function to get a typesafe interface to the store based on your model:</p>
 <div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co"># typed interface to store from state</span></span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>activity <span class="op">=</span> state.store_as(Activity)</span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>activity.active <span class="op">=</span> <span class="va">True</span></span>
@@ -519,12 +536,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a><span class="co"># global store_as() function (e.g. for use from tools)</span></span>
 <span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.util <span class="im">import</span> store_as</span>
 <span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>activity <span class="op">=</span> store_as(Activity)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Note that all instances of <code>Activity</code> created within a running sample share the same sample <code>Store</code> so can see each other’s changes. For example, you can call <code>state.store_as()</code> in multiple solvers and/or scorers and it will resolve to the same sample-scoped instance.</p>
-<p>The names used in the underlying <code>Store</code> are namespaced to prevent collisions with other <code>Store</code> accessors. For example, the <code>active</code> field in the <code>Activity</code> class is written to the store with the name <code>Activity:active</code>.</p>
+<p>Note that all instances of <code>Activity</code> created within a running sample share the same sample <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#store">Store</a></span> so can see each other’s changes. For example, you can call <code>state.store_as()</code> in multiple solvers and/or scorers and it will resolve to the same sample-scoped instance.</p>
+<p>The names used in the underlying <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#store">Store</a></span> are namespaced to prevent collisions with other <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#store">Store</a></span> accessors. For example, the <code>active</code> field in the <code>Activity</code> class is written to the store with the name <code>Activity:active</code>.</p>
 </section>
 <section id="explicit-store" class="level4">
 <h4 class="anchored" data-anchor-id="explicit-store">Explicit Store</h4>
-<p>The <code>store_as()</code> function automatically binds to the current sample <code>Store</code>. You can alternatively create an explicit <code>Store</code> and pass it directly to the model (e.g.&nbsp;for testing purposes):</p>
+<p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#store_as">store_as()</a></span> function automatically binds to the current sample <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#store">Store</a></span>. You can alternatively create an explicit <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#store">Store</a></span> and pass it directly to the model (e.g.&nbsp;for testing purposes):</p>
 <div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.util <span class="im">import</span> Store</span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>store <span class="op">=</span> Store()</span>
 <span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>activity <span class="op">=</span> Activity(store<span class="op">=</span>store)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
@@ -533,16 +550,16 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="tool-loop" class="level2">
 <h2 class="anchored" data-anchor-id="tool-loop">Tool Loop</h2>
-<p>The higher level <code>generate()</code> function passed to solvers includes a built-in tool use loop—when the model calls a tool, Inspect calls the underlying Python function and reports the result to the model, proceeding until the model stops calling tools. However, for more advanced agents you may want to intervene in the tool use loop in a variety of ways:</p>
+<p>The higher level <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#generate">generate()</a></span> function passed to solvers includes a built-in tool use loop—when the model calls a tool, Inspect calls the underlying Python function and reports the result to the model, proceeding until the model stops calling tools. However, for more advanced agents you may want to intervene in the tool use loop in a variety of ways:</p>
 <ol type="1">
 <li>Redirect the model to another trajectory if its not on a productive course.</li>
 <li>Exercise more fine grained control over which, when, and how many tool calls are made, and how tool calling errors are handled.</li>
-<li>Have multiple <code>generate()</code> passes each with a distinct set of tools.</li>
+<li>Have multiple <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#generate">generate()</a></span> passes each with a distinct set of tools.</li>
 </ol>
 <p>To do this, create a solver that emulates the default tool use loop and provides additional customisation as required.</p>
 <section id="example" class="level3">
 <h3 class="anchored" data-anchor-id="example">Example</h3>
-<p>For example, here is a complete solver agent that has essentially the same implementation as the default <code>generate()</code> function:</p>
+<p>For example, here is a complete solver agent that has essentially the same implementation as the default <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#generate">generate()</a></span> function:</p>
 <div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="at">@solver</span></span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> agent_loop(message_limit: <span class="bu">int</span> <span class="op">=</span> <span class="dv">50</span>):</span>
 <span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> solve(state: TaskState, generate: Generate):</span>
@@ -578,12 +595,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <li>Urging the model to keep going after it decides to stop calling tools.</li>
 <li>Examining and possibly filtering the tool calls before invoking <code>call_tools()</code></li>
 <li>Adding a critique / reflection step between tool calling and generate.</li>
-<li><a href="./agents-api.html#sec-forking">Forking</a> the <code>TaskState</code> and exploring several trajectories.</li>
+<li><a href="./agents-api.html#sec-forking">Forking</a> the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#taskstate">TaskState</a></span> and exploring several trajectories.</li>
 </ol>
 </section>
 <section id="sec-stop-reasons" class="level3">
 <h3 class="anchored" data-anchor-id="sec-stop-reasons">Stop Reasons</h3>
-<p>One thing that a custom scaffold may do is try to recover from various conditions that cause the model to stop generating. You can find the reason that generation stopped in the <code>stop_reason</code> field of <code>ModelOutput</code>.</p>
+<p>One thing that a custom scaffold may do is try to recover from various conditions that cause the model to stop generating. You can find the reason that generation stopped in the <code>stop_reason</code> field of <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#modeloutput">ModelOutput</a></span>.</p>
 <p>For example:, if you have written a scaffold loop that continues calling the model even after it stops calling tools, there may be values of <code>stop_reason</code> that indicate that the loop should terminate anyway (because the error will just keep repeating on subsequent calls to the model). For example, the <a href="./agents.html#sec-basic-agent">basic agent</a> checks for <code>stop_reason</code> and exits if there is a context window overflow:</p>
 <div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="co"># check for stop reasons that indicate we should terminate</span></span>
 <span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> state.output.stop_reason <span class="op">==</span> <span class="st">"model_length"</span>:</span>
@@ -591,7 +608,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>        <span class="ss">f"Agent terminated (reason: </span><span class="sc">{</span>state<span class="sc">.</span>output<span class="sc">.</span>stop_reason<span class="sc">}</span><span class="ss">)"</span></span>
 <span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>    )</span>
 <span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">break</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Here are the possible values for <code>StopReason</code> :</p>
+<p>Here are the possible values for <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#stopreason">StopReason</a></span> :</p>
 <table class="caption-top table">
 <colgroup>
 <col style="width: 35%">
@@ -642,7 +659,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <ul>
 <li>Model interactions (including the raw API call made to the provider).</li>
 <li>Tool calls (including a sub-transcript of activitywithin the tool)</li>
-<li>Changes (in <a href="https://jsonpatch.com/">JSON Patch</a> format) to the <code>TaskState</code> for the <code>Sample</code>.</li>
+<li>Changes (in <a href="https://jsonpatch.com/">JSON Patch</a> format) to the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#taskstate">TaskState</a></span> for the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.dataset.html#sample">Sample</a></span>.</li>
 <li>Scoring (including a sub-transcript of interactions within the scorer).</li>
 <li>Custom <code>info()</code> messages inserted explicitly into the transcript.</li>
 <li>Python logger calls (<code>info</code> level or designated custom <code>log-level</code>).</li>
@@ -650,7 +667,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>This information is provided within the Inspect log viewer in the <strong>Transcript</strong> tab (which sits alongside the Messages, Scoring, and Metadata tabs in the per-sample display).</p>
 <section id="custom-info" class="level3">
 <h3 class="anchored" data-anchor-id="custom-info">Custom Info</h3>
-<p>You can insert custom entries into the transcript via the Transcipt <code>info()</code> method (which creates an <code>InfoEvent</code>). Access the transcript for the current sample using the <code>transcript()</code> function, for example:</p>
+<p>You can insert custom entries into the transcript via the Transcipt <code>info()</code> method (which creates an <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#infoevent">InfoEvent</a></span>). Access the transcript for the current sample using the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#transcript">transcript()</a></span> function, for example:</p>
 <div class="sourceCode" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.log <span class="im">import</span> transcript</span>
 <span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>transcript().info(<span class="st">"here is some custom info"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
@@ -664,7 +681,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>    state.store.<span class="bu">set</span>(<span class="st">"next-action"</span>, next_action)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>There are two reasons that you might want to create steps:</p>
 <ol type="1">
-<li>Any changes to the store which occur during a step will be collected into a <code>StoreEvent</code> that records the changes (in <a href="https://jsonpatch.com/">JSON Patch</a> format) that occurred.</li>
+<li>Any changes to the store which occur during a step will be collected into a <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#storeevent">StoreEvent</a></span> that records the changes (in <a href="https://jsonpatch.com/">JSON Patch</a> format) that occurred.</li>
 <li>The Inspect log viewer will create a visual delineation for the step, which will make it easier to see the flow of activity within the transcript.</li>
 </ol>
 </section>
@@ -674,8 +691,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Subtasks provide a mechanism for creating isolated, re-usable units of execution. You might implement a complex tool using a subtask or might use them in a multi-agent evaluation. The main characteristics of sub-tasks are:</p>
 <ol type="1">
 <li>They run in their own async coroutine.</li>
-<li>They have their own isolated <code>Store</code> (no access to the sample <code>Store</code>).</li>
-<li>They have their own isolated <code>Transcript</code></li>
+<li>They have their own isolated <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#store">Store</a></span> (no access to the sample <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#store">Store</a></span>).</li>
+<li>They have their own isolated <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#transcript">Transcript</a></span></li>
 </ol>
 <p>To create a subtask, declare an async function with the <code>@subtask</code> decorator. The function can take any arguments and return a value of any type. For example:</p>
 <div class="sourceCode" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.util <span class="im">import</span> Store, subtask</span>
@@ -695,13 +712,13 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <div class="sourceCode" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>summary <span class="op">=</span> <span class="cf">await</span> web_search(keywords<span class="op">=</span><span class="st">"solar power"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>A few things will occur automatically when you run a subtask:</p>
 <ul>
-<li><p>New isolated <code>Store</code> and <code>Transcript</code> objects will be created for the subtask (accessible via the <code>store()</code> and <code>transcript()</code> functions). Changes to the <code>Store</code> that occur during execution will be recorded in a <code>StoreEvent</code>.</p></li>
-<li><p>A <code>SubtaskEvent</code> will be added to the current transcript. The event will include the name of the subtask, its input and results, and a transcript of all events that occur within the subtask.</p></li>
+<li><p>New isolated <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#store">Store</a></span> and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#transcript">Transcript</a></span> objects will be created for the subtask (accessible via the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#store">store()</a></span> and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#transcript">transcript()</a></span> functions). Changes to the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#store">Store</a></span> that occur during execution will be recorded in a <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#storeevent">StoreEvent</a></span>.</p></li>
+<li><p>A <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#subtaskevent">SubtaskEvent</a></span> will be added to the current transcript. The event will include the name of the subtask, its input and results, and a transcript of all events that occur within the subtask.</p></li>
 </ul>
 <p>You can also include one or more steps within a subtask.</p>
 <section id="parallel-execution" class="level3">
 <h3 class="anchored" data-anchor-id="parallel-execution">Parallel Execution</h3>
-<p>You can execute subtasks in parallel using <code>asyncio.gather()</code>. For example, to run 3 <code>web_search()</code> subtasks in parallel:</p>
+<p>You can execute subtasks in parallel using <code>asyncio.gather()</code>. For example, to run 3 <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#web_search">web_search()</a></span> subtasks in parallel:</p>
 <div class="sourceCode" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> asyncio</span>
 <span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>searches <span class="op">=</span> [</span>
@@ -715,7 +732,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="sec-forking" class="level3">
 <h3 class="anchored" data-anchor-id="sec-forking">Forking</h3>
-<p>Inspect’s <code>fork()</code> function provids a convenient wrapper around a very common use of subtasks: running a <code>TaskState</code> against a set of solvers in parallel to explore different trajectories.</p>
+<p>Inspect’s <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#fork">fork()</a></span> function provids a convenient wrapper around a very common use of subtasks: running a <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#taskstate">TaskState</a></span> against a set of solvers in parallel to explore different trajectories.</p>
 <p>For example, let’s say you have a solver named <code>explore()</code> that takes <code>temperature</code> as a parameter. You might want to try the solver out with multiple temperature values and then continue on with the best result:</p>
 <div class="sourceCode" id="cb14"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.solver <span class="im">import</span> fork</span>
 <span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a></span>
@@ -724,12 +741,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a>    explore(temperature <span class="op">=</span> <span class="fl">0.75</span>),</span>
 <span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a>    explore(temperature <span class="op">=</span> <span class="fl">1.0</span>)</span>
 <span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a>])</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>The <code>state</code> will be deep copied so that each <code>explore()</code> solver instance gets it own copy of the <code>state</code> to work on. The <code>results</code> contain a list of <code>TaskState</code> with the value returned from each of the solvers.</p>
+<p>The <code>state</code> will be deep copied so that each <code>explore()</code> solver instance gets it own copy of the <code>state</code> to work on. The <code>results</code> contain a list of <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#taskstate">TaskState</a></span> with the value returned from each of the solvers.</p>
 </section>
 </section>
 <section id="sandboxing" class="level2">
 <h2 class="anchored" data-anchor-id="sandboxing">Sandboxing</h2>
-<p>Many agents provide models with the ability to execute arbitrary code. It’s important that this code be sandboxed so that it executes in an isolated context. Inspect supports this through the <code>SandboxEnvironment</code> (which in turn may be implemented using Docker or various other schemes). Enable sandboxing for a task with the <code>sandbox</code> parameter. For example:</p>
+<p>Many agents provide models with the ability to execute arbitrary code. It’s important that this code be sandboxed so that it executes in an isolated context. Inspect supports this through the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#sandboxenvironment">SandboxEnvironment</a></span> (which in turn may be implemented using Docker or various other schemes). Enable sandboxing for a task with the <code>sandbox</code> parameter. For example:</p>
 <div class="sourceCode" id="cb15"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="at">@task</span></span>
 <span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> file_probe()</span>
 <span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> Task(</span>
@@ -742,7 +759,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb15-10"><a href="#cb15-10" aria-hidden="true" tabindex="-1"></a>        scorer<span class="op">=</span>includes(),</span>
 <span id="cb15-11"><a href="#cb15-11" aria-hidden="true" tabindex="-1"></a>    )</span>
 <span id="cb15-12"><a href="#cb15-12" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Use the <code>SandboxEnvironment</code> within a tool via the <code>sandbox()</code> function. For example, here’s an implementation of the <code>list_files()</code> tool referenced above:</p>
+<p>Use the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#sandboxenvironment">SandboxEnvironment</a></span> within a tool via the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#sandbox">sandbox()</a></span> function. For example, here’s an implementation of the <code>list_files()</code> tool referenced above:</p>
 <div class="sourceCode" id="cb16"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.tool <span class="im">import</span> ToolError, tool</span>
 <span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.util <span class="im">import</span> sandbox</span>
 <span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a></span>
@@ -1249,7 +1266,7 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
     <div class="nav-footer-left">
       <ul class="footer-items list-unstyled">
     <li class="nav-item">
-    <a class="nav-link active" href="https://aisi.gov.uk/" aria-current="page">
+    <a class="nav-link" href="https://aisi.gov.uk/">
 <p>UK AI Safety Institute</p>
 </a>
   </li>  

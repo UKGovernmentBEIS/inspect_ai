@@ -56,72 +56,7 @@ there are lots of other useful `Task` options. We won’t describe these
 options in depth here, but rather provide a list along with links to
 other sections of the documentation that cover their usage:
 
-<table>
-<colgroup>
-<col style="width: 25%" />
-<col style="width: 50%" />
-<col style="width: 25%" />
-</colgroup>
-<thead>
-<tr class="header">
-<th>Option</th>
-<th>Description</th>
-<th>Docs</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td><code>epochs</code></td>
-<td>Epochs to run for each dataset sample.</td>
-<td><a href="scorers.qmd#reducing-epochs">Epochs</a></td>
-</tr>
-<tr class="even">
-<td><code>config</code></td>
-<td>Config for model generation.</td>
-<td><a href="options.qmd#model-generation">Generate Config</a></td>
-</tr>
-<tr class="odd">
-<td><code>setup</code></td>
-<td>Setup solver(s) to run prior to the main solver.</td>
-<td><a href="#setup-parameter">Sample Setup</a></td>
-</tr>
-<tr class="even">
-<td><code>sandbox</code></td>
-<td>Sandbox configuration for un-trusted code execution.</td>
-<td><a href="sandboxing.qmd">Sandboxing</a></td>
-</tr>
-<tr class="odd">
-<td><code>approval</code></td>
-<td>Approval policy for tool calls.</td>
-<td><a href="approval.qmd">Tool Approval</a></td>
-</tr>
-<tr class="even">
-<td><code>metrics</code></td>
-<td>Metrics to use in place of scorer metrics.</td>
-<td><a href="scorers.qmd#scoring-metrics">Scoring Metrics</a></td>
-</tr>
-<tr class="odd">
-<td><code>fail_on_error</code></td>
-<td>Failure tolerance for samples.</td>
-<td><a href="errors-and-limits.qmd#failure-threshold">Sample
-Failure</a></td>
-</tr>
-<tr class="even">
-<td><code>message_limit</code><br />
-<code>token_limit</code><br />
-<code>time_limit</code></td>
-<td>Limits to apply to sample execution.</td>
-<td><a href="errors-and-limits.qmd#sample-limits">Sample Limits</a></td>
-</tr>
-<tr class="odd">
-<td><code>name</code><br />
-<code>version</code><br />
-<code>metadata</code></td>
-<td>Eval log attributes for task.</td>
-<td><a href="eval-logs.qmd">Eval Logs</a></td>
-</tr>
-</tbody>
-</table>
+[TABLE]
 
 You by and large don’t need to worry about these options until you want
 to use the features they are linked to.
@@ -133,8 +68,6 @@ changing its source code. Task parameters are simply the arguments to
 your `@task` decorated function. For example, here we provide parameters
 (and default values) for system and grader prompts, as well as the
 grader model:
-
-<div class="code-with-filename">
 
 **security.py**
 
@@ -159,8 +92,6 @@ def security_guide(
    )
 ```
 
-</div>
-
 Let’s say we had an alternate system prompt in a file named
 `"researcher.txt"`. We could run the task with this prompt as follows:
 
@@ -180,16 +111,12 @@ If you have several task paramaters you want to specify together, you
 can put them in a YAML or JSON file and use the `--task-config` CLI
 option. For example:
 
-<div class="code-with-filename">
-
 **config.yaml**
 
 ``` yaml
 system: "researcher.txt"
 grader: "hacker.txt"
 ```
-
-</div>
 
 Reference this file from the CLI with:
 

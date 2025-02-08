@@ -40,7 +40,7 @@ instructions for accessing the container. The user clicks the **VS Code
 Terminal** link and a terminal interface to the container is provided
 within VS Code:
 
-<img src="images/inspect-human-agent.png" class="lightbox" />
+![](images/inspect-human-agent.png)
 
 Note that while this example makes use of VS Code, it is in no way
 required. Baseliners can use their preferred editor and terminal
@@ -190,7 +190,7 @@ By default, human agent terminal sessions are recorded using the LInux
 Recorded sessions are saved in the sample store and available for
 playback within the Inspect View:
 
-<img src="images/inspect-terminal-transcript.png" class="lightbox" />
+![](images/inspect-terminal-transcript.png)
 
 You can disable session recording with the `record_session` option:
 

@@ -16,9 +16,7 @@ The Inspect VS Code Extension provides a variety of tools, including:
 To install, search for **“Inspect AI”** in the extensions marketplace
 panel within VS Code.
 
-<img src="images/inspect-vscode-install.png" class="border"
-style="width:100.0%"
-data-fig-alt="The VS Code Extension Marketplace panel is active with the search string &#39;Inspect AI&#39;. The Inspect extension is selected and an overview of it appears at right." />
+![](images/inspect-vscode-install.png)
 
 The Inspect extension will automatically bind to the Python interpreter
 associated with the current workspace, so you should be sure that the
@@ -32,21 +30,17 @@ The **Logs** pane of the Inspect Activity Bar (displayed below at bottom
 left of the IDE) provides a listing of log files. When you select a log
 it is displayed in an editor pane using the Inspect log viewer:
 
-<img src="images/logs.png" class="border" />
+![](images/logs.png)
 
 Click the open folder button at the top of the logs pane to browse any
 directory, local or remote (e.g. for logs on Amazon S3):
 
-<img src="images/logs-open-button.png" class="border"
-style="margin-right: 2%;;width:27.0%" />
-<img src="images/logs-drop-down.png" class="border"
-style="width:70.0%" />
+![](images/logs-open-button.png) ![](images/logs-drop-down.png)
 
 Links to evaluation logs are also displayed at the bottom of every task
 result:
 
-<img src="images/eval-log.png"
-data-fig-alt="The Inspect task results displayed in the terminal. A link to the evaluation log is at the bottom of the results display." />
+![](images/eval-log.png)
 
 If you prefer not to browse and view logs using the logs pane, you can
 also use the **Inspect: Inspect View…** command to open up a new pane
@@ -56,12 +50,8 @@ eval results.
 
 ## Run and Debug
 
-<div>
-
-</div>
-
 You can also run tasks in the VS Code debugger by using the **Debug
-Task** button or the <kbd>Cmd+Shift+T</kbd> keyboard shortcut.
+Task** button or the Cmd+Shift+T keyboard shortcut.
 
 > [!NOTE]
 >
@@ -78,8 +68,7 @@ interfaces for browsing tasks tuning configuration. Access the Activity
 Bar by clicking the Inspect icon on the left side of the VS Code
 workspace:
 
-<img src="images/inspect-activity-bar.png" class="border lightbox"
-data-fig-alt="Inspect Activity Bar with user interface for tuning global configuration and task CLI arguments." />
+![](images/inspect-activity-bar.png)
 
 The activity bar has four panels:
 
@@ -121,9 +110,7 @@ the **Output** panel (at the bottom of VS Code in the same panel as the
 Terminal) and select the **Inspect** output channel using the picker on
 the right side of the panel:
 
-<img src="images/inspect-vscode-output-channel.png"
-class="border lightbox"
-data-fig-alt="Inspect output channel, showing the versions of Python and Inspect discovered by the extension." />
+![](images/inspect-vscode-output-channel.png)
 
 Note that the Inspect extension will automatically bind to the Python
 interpreter associated with the current workspace, so you should be sure

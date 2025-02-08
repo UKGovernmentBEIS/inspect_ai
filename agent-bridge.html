@@ -76,11 +76,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
 <link href="site_libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
 <script id="quarto-search-options" type="application/json">{
-  "location": "sidebar",
+  "location": "navbar",
   "copy-button": false,
   "collapse-after": 3,
-  "panel-placement": "start",
-  "type": "textbox",
+  "panel-placement": "end",
+  "type": "overlay",
   "limit": 50,
   "keyboard-shortcut": [
     "f",
@@ -118,10 +118,51 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <meta name="twitter:image-width" content="2400">
 </head>
 
-<body class="nav-sidebar floating">
+<body class="nav-sidebar docked nav-fixed">
 
 <div id="quarto-search-results"></div>
   <header id="quarto-header" class="headroom fixed-top">
+    <nav class="navbar navbar-expand-lg " data-bs-theme="dark">
+      <div class="navbar-container container-fluid">
+      <div class="navbar-brand-container mx-auto">
+    <a href="https://www.aisi.gov.uk/" class="navbar-brand navbar-brand-logo">
+    <img src="./images/aisi-logo.png" alt="" class="navbar-logo">
+    </a>
+    <a class="navbar-brand" href="https://www.aisi.gov.uk/">
+    <span class="navbar-title">Inspect AI</span>
+    </a>
+  </div>
+            <div id="quarto-search" class="" title="Search"></div>
+          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse" aria-controls="navbarCollapse" role="menu" aria-expanded="false" aria-label="Toggle navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+  <span class="navbar-toggler-icon"></span>
+</button>
+          <div class="collapse navbar-collapse" id="navbarCollapse">
+            <ul class="navbar-nav navbar-nav-scroll me-auto">
+  <li class="nav-item">
+    <a class="nav-link active" href="./index.html" aria-current="page"> 
+<span class="menu-text">User Guide</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="./reference/inspect_ai.html"> 
+<span class="menu-text">Reference</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="./evals/index.html"> 
+<span class="menu-text">Evals</span></a>
+  </li>  
+</ul>
+            <ul class="navbar-nav navbar-nav-scroll ms-auto">
+  <li class="nav-item compact">
+    <a class="nav-link" href="https://github.com/UKGovernmentBEIS/inspect_ai"> <i class="bi bi-github" role="img">
+</i> 
+<span class="menu-text"></span></a>
+  </li>  
+</ul>
+          </div> <!-- /navcollapse -->
+            <div class="quarto-navbar-tools">
+</div>
+      </div> <!-- /container-fluid -->
+    </nav>
   <nav class="quarto-secondary-nav">
     <div class="container-fluid d-flex">
       <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
@@ -130,39 +171,15 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
         <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./agents.html">Agents</a></li><li class="breadcrumb-item"><a href="./agent-bridge.html">Agent Bridge</a></li></ol></nav>
         <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
         </a>
-      <button type="button" class="btn quarto-search-button" aria-label="Search" onclick="window.quartoOpenSearch();">
-        <i class="bi bi-search"></i>
-      </button>
     </div>
   </nav>
 </header>
 <!-- content -->
-<div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article">
+<div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article page-navbar">
 <!-- sidebar -->
-  <nav id="quarto-sidebar" class="sidebar collapse collapse-horizontal quarto-sidebar-collapse-item sidebar-navigation floating overflow-auto"><div class="quarto-sidebar-header"><div class="sidebar-header-item">
-<p><a href="https://aisi.gov.uk/"><img src="./images/aisi-logo.png" class="img-fluid" alt="UK AI Safety Institute Website"></a></p>
-</div></div>
-    <div class="pt-lg-2 mt-2 text-left sidebar-header">
-    <div class="sidebar-title mb-0 py-0">
-      <a href="./">Inspect</a> 
-        <div class="sidebar-tools-main">
-    <a href="https://github.com/UKGovernmentBEIS/inspect_ai" title="Source Code" class="quarto-navigation-tool px-1" aria-label="Source Code"><i class="bi bi-github"></i></a>
-</div>
-    </div>
-      </div>
-        <div class="mt-2 flex-shrink-0 align-items-center">
-        <div class="sidebar-search">
-        <div id="quarto-search" class="" title="Search"></div>
-        </div>
-        </div>
+  <nav id="quarto-sidebar" class="sidebar collapse collapse-horizontal quarto-sidebar-collapse-item sidebar-navigation docked overflow-auto">
     <div class="sidebar-menu-container"> 
     <ul class="list-unstyled mt-1">
-        <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="./index.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Welcome</span></a>
-  </div>
-</li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="true">
@@ -174,6 +191,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
       <ul id="quarto-sidebar-section-1" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Welcome</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./tutorial.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Tutorial</span></a>
   </div>
@@ -182,12 +205,6 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <div class="sidebar-item-container"> 
   <a href="./options.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Options</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="./evals/index.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Evals</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -446,13 +463,13 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <ol type="1">
 <li><p>Write an agent function that takes a sample <code>dict</code> as input and a returns a results <code>dict</code> with output. This function won’t have any dependencies on Inspect, rather it will depend on whatever agent framework or custom code you are using.</p></li>
 <li><p>This function should use the OpenAI API for model access, however calls to the OpenAI API will be <em>redirected</em> to Inspect (using whatever model is configured for the current task).</p></li>
-<li><p>Use the agent function with Inspect by passing it to the <code>bridge()</code> function, which will turn it into a standard Inspect <code>Solver</code>.</p></li>
+<li><p>Use the agent function with Inspect by passing it to the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#bridge">bridge()</a></span> function, which will turn it into a standard Inspect <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#solver">Solver</a></span>.</p></li>
 </ol>
 </section>
 <section id="agent-function" class="level2">
 <h2 class="anchored" data-anchor-id="agent-function">Agent Function</h2>
-<p>An external agent function is simillar to an Inspect <code>Solver</code> but without Inspect <code>TaskState</code>. Rather, it takes a sample <code>dict</code> as input and returns a result <code>dict</code> as output.</p>
-<p>Here is a very simple agent function definition (it just calls generate and returns the ouptut). It is structured similar to an Inspect <code>Solver</code> where an enclosing function returns the function that handles the sample (this enables you to share initialisation code and pass options to configure the behaviour of the agent):</p>
+<p>An external agent function is simillar to an Inspect <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#solver">Solver</a></span> but without Inspect <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#taskstate">TaskState</a></span>. Rather, it takes a sample <code>dict</code> as input and returns a result <code>dict</code> as output.</p>
+<p>Here is a very simple agent function definition (it just calls generate and returns the ouptut). It is structured similar to an Inspect <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#solver">Solver</a></span> where an enclosing function returns the function that handles the sample (this enables you to share initialisation code and pass options to configure the behaviour of the agent):</p>
 <div class="code-with-filename">
 <div class="code-with-filename-file">
 <pre><strong>agent.py</strong></pre>
@@ -475,7 +492,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </div>
 <p>We use the OpenAI API with <code>model="inspect"</code>, which enables Inspect to intercept the request and send it to the Inspect model being evaluated for the task.</p>
 <p>We read the input from <code>sample["input"]</code> (a list of OpenAI compatible messages) and return <code>output</code> as a string in the result <code>dict</code>.</p>
-<p>Here is how you can use the <code>bridge()</code> function to use this agent as a solver:</p>
+<p>Here is how you can use the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#bridge">bridge()</a></span> function to use this agent as a solver:</p>
 <div class="code-with-filename">
 <div class="code-with-filename-file">
 <pre><strong>task.py</strong></pre>
@@ -502,7 +519,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </dd>
 <dt data-target-cell="annotated-cell-2" data-target-annotation="2">2</dt>
 <dd>
-<span data-code-cell="annotated-cell-2" data-code-lines="12" data-code-annotation="2">Adapt custom agent into an Inspect solver with the <code>bridge()</code> function.</span>
+<span data-code-cell="annotated-cell-2" data-code-lines="12" data-code-annotation="2">Adapt custom agent into an Inspect solver with the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#bridge">bridge()</a></span> function.</span>
 </dd>
 </dl>
 <p>For more in-depth examples that make use of popular agent framworks, see:</p>
@@ -513,7 +530,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>We’ll walk through the AutoGen example in more depth below.</p>
 <section id="example-autogen" class="level3">
 <h3 class="anchored" data-anchor-id="example-autogen">Example: AutoGen</h3>
-<p>Here is an agent written with the <a href="https://microsoft.github.io/autogen/stable/">AutoGen</a> framework. You’ll notice that it is structured similar to an Inspect <code>Solver</code> where an enclosing function returns the function which handles the sample (this enables you to share initialisation code and pass options to configure the behaviour of the agent):</p>
+<p>Here is an agent written with the <a href="https://microsoft.github.io/autogen/stable/">AutoGen</a> framework. You’ll notice that it is structured similar to an Inspect <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#solver">Solver</a></span> where an enclosing function returns the function which handles the sample (this enables you to share initialisation code and pass options to configure the behaviour of the agent):</p>
 <div class="code-with-filename">
 <div class="code-with-filename-file">
 <pre><strong>agent.py</strong></pre>
@@ -587,7 +604,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span data-code-cell="annotated-cell-3" data-code-lines="43,44" data-code-annotation="5">Extract content from final assistant message and return it as <code>output</code>.</span>
 </dd>
 </dl>
-<p>To use this agent in an Inspect <code>Task</code>, import it and use the <code>bridge()</code> function:</p>
+<p>To use this agent in an Inspect <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#task">Task</a></span>, import it and use the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#bridge">bridge()</a></span> function:</p>
 <div class="code-with-filename">
 <div class="code-with-filename-file">
 <pre><strong>task.py</strong></pre>
@@ -614,10 +631,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </dd>
 <dt data-target-cell="annotated-cell-4" data-target-annotation="2">2</dt>
 <dd>
-<span data-code-cell="annotated-cell-4" data-code-lines="12" data-code-annotation="2">Adapt custom agent into an Inspect solver with the <code>bridge()</code> function.</span>
+<span data-code-cell="annotated-cell-4" data-code-lines="12" data-code-annotation="2">Adapt custom agent into an Inspect solver with the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#bridge">bridge()</a></span> function.</span>
 </dd>
 </dl>
-<p>The <code>bridge()</code> function takes the agent function and hooks it up to a standard Inspect <code>Solver</code>, updating the <code>TaskState</code> and providing the means of redirecting OpenAI calls to the current Inspect model.</p>
+<p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#bridge">bridge()</a></span> function takes the agent function and hooks it up to a standard Inspect <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#solver">Solver</a></span>, updating the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#taskstate">TaskState</a></span> and providing the means of redirecting OpenAI calls to the current Inspect model.</p>
 </section>
 </section>
 <section id="bridge-types" class="level2">
@@ -659,7 +676,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Returning <code>messages</code> is not required as messages are automatically synced to the task state during generate (return <code>messages</code> only if you want to customise the default behaviour).</p>
 <section id="scores" class="level3">
 <h3 class="anchored" data-anchor-id="scores">Scores</h3>
-<p>Returning <code>scores</code> is also optional as most agents will rely on native Inspect scoring (returning scores is an escape hatch for agents that want to do their own scoring). If you do return scores use this format (which is based on Inspect <code>Score</code> objects):</p>
+<p>Returning <code>scores</code> is also optional as most agents will rely on native Inspect scoring (returning scores is an escape hatch for agents that want to do their own scoring). If you do return scores use this format (which is based on Inspect <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#score">Score</a></span> objects):</p>
 <div class="sourceCode" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ScoreDict(TypedDict):</span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    value: (</span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>        <span class="bu">str</span></span>
@@ -691,12 +708,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="sandboxes" class="level2">
 <h2 class="anchored" data-anchor-id="sandboxes">Sandboxes</h2>
-<p>If you need to execute untrusted LLM generated code in your agent, you can still use the Inspect <a href="./sandboxing.html"><code>sandbox()</code></a> within bridged agent functions. Typically agent tools that can run code are customisable with an executor, and this is where you would plug in the Inspect <code>sandbox()</code>.</p>
+<p>If you need to execute untrusted LLM generated code in your agent, you can still use the Inspect <a href="./sandboxing.html"><span class="element-type-name ref-interlink"><span>sandbox()</span></span></a> within bridged agent functions. Typically agent tools that can run code are customisable with an executor, and this is where you would plug in the Inspect <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#sandbox">sandbox()</a></span>.</p>
 <p>For example, the AutoGen <a href="https://microsoft.github.io/autogen/stable/reference/python/autogen_ext.tools.code_execution.html#autogen_ext.tools.code_execution.PythonCodeExecutionTool"><code>PythonCodeExecutionTool</code></a> takes a <a href="https://microsoft.github.io/autogen/stable/reference/python/autogen_core.code_executor.html#autogen_core.code_executor.CodeExecutor"><code>CodeExecutor</code></a> in its constructor. AutoGen provides several built in code executors (e.g.&nbsp;local, docker, azure, etc.) and you can create custom ones. For example, you could create an <code>InspectSandboxCodeExecutor</code> which in turn delegates to the <code>sandbox().exec()</code> function.</p>
 </section>
 <section id="transcript" class="level2">
 <h2 class="anchored" data-anchor-id="transcript">Transcript</h2>
-<p>Custom agents run through the <code>bridge()</code> function still get most of the benefit of the Inspect transcript and log viewer. All model calls are captured and produce the same transcript output as when using conventional solvers. The message history is also automatically captured and logged.</p>
+<p>Custom agents run through the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#bridge">bridge()</a></span> function still get most of the benefit of the Inspect transcript and log viewer. All model calls are captured and produce the same transcript output as when using conventional solvers. The message history is also automatically captured and logged.</p>
 <p>Calls to the Python <code>logging</code> module for levels <code>info</code> and above are also handled as normal and show up within sample transcripts.</p>
 <p>If you want to use additional features of Inspect transcripts (e.g.&nbsp;steps, markdown output, etc.) you can still import and use the <code>transcript</code> function as normal. For example:</p>
 <div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.log <span class="im">import</span> transcript</span>
@@ -1187,7 +1204,7 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
     <div class="nav-footer-left">
       <ul class="footer-items list-unstyled">
     <li class="nav-item">
-    <a class="nav-link active" href="https://aisi.gov.uk/" aria-current="page">
+    <a class="nav-link" href="https://aisi.gov.uk/">
 <p>UK AI Safety Institute</p>
 </a>
   </li>  

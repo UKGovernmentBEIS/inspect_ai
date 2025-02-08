@@ -47,8 +47,7 @@ active connection usage as well as the number of HTTP rate limit errors
 that have been encountered (note that Inspect will automatically retry
 on rate limits and other errors likely to be transient):
 
-<img src="images/rate-limit.png"
-data-fig-alt="The Inspect task results displayed in the terminal. The number of HTTP rate limit errors that have occurred (25) is printed in the bottom right of the task results." />
+![](images/rate-limit.png)
 
 Here we’ve set a higher max connections than the default (30). While you
 might be tempted to set this very high to see how much concurrent
@@ -104,8 +103,7 @@ eval("mathematics.py", model=[
 ])
 ```
 
-<img src="images/inspect-multiple-models.png"
-data-fig-alt="An evaluation task display showing the progress for 3 different models." />
+![](images/inspect-multiple-models.png)
 
 Since each model provider has its own `max_connections` they don’t
 contend with each other for resources. If you need to evaluate multiple

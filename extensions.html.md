@@ -26,8 +26,6 @@ then creating a function decorated by `@modelapi` that returns the
 class. These are typically implemented in separate files (for reasons
 described below):
 
-<div class="code-with-filename">
-
 **custom.py**
 
 ``` python
@@ -53,10 +51,6 @@ class CustomModelAPI(ModelAPI):
         ...
 ```
 
-</div>
-
-<div class="code-with-filename">
-
 **providers.py**
 
 ``` python
@@ -66,8 +60,6 @@ def custom():
 
     return CustomModelAPI
 ```
-
-</div>
 
 The layer of indirection (creating a function that returns a ModelAPI
 class) is done so that you can separate the registration of models from
@@ -120,8 +112,6 @@ provider was exported from a source file named `_registry.py` at the
 root of your package, you would register it like this in
 `pyproject.toml`:
 
-<div class="panel-tabset" group="entry-points">
-
 ## Setuptools
 
 ``` toml
@@ -135,8 +125,6 @@ evaltools = "evaltools._registry"
 [tool.poetry.plugins.inspect_ai]
 evaltools = "evaltools._registry"
 ```
-
-</div>
 
 ### Model Usage
 
@@ -180,8 +168,6 @@ methods, and add the `@sandboxenv` decorator to it.
 
 The static class methods control the lifecycle of containers and other
 computing resources associated with the `SandboxEnvironment`:
-
-<div class="code-with-filename">
 
 **podman.py**
 
@@ -237,10 +223,6 @@ class PodmanSandboxEnvironment(SandboxEnvironment):
     # (instance methods shown below)
 ```
 
-</div>
-
-<div class="code-with-filename">
-
 **providers.py**
 
 ``` python
@@ -249,8 +231,6 @@ def podman():
 
     return PodmanSandboxEnvironment
 ```
-
-</div>
 
 The layer of indirection (creating a function that returns a
 SandboxEnvironment class) is done so that you can separate the
@@ -433,8 +413,6 @@ environment provider was exported from a source file named
 `_registry.py` at the root of your package, you would register it like
 this in `pyproject.toml`:
 
-<div class="panel-tabset" group="entry-points">
-
 ## Setuptools
 
 ``` toml
@@ -448,8 +426,6 @@ evaltools = "evaltools._registry"
 [tool.poetry.plugins.inspect_ai]
 evaltools = "evaltools._registry"
 ```
-
-</div>
 
 ### Environment Usage
 
@@ -510,8 +486,6 @@ package and name from approval policy config files. For example, here is
 a simple custom approver that just reflects back a decision passed to it
 at creation time:
 
-<div class="code-with-filename">
-
 **approvers.py**
 
 ``` python
@@ -532,8 +506,6 @@ def auto_approver(decision: ApprovalDecision = "approve") -> Approver:
     return approve
 ```
 
-</div>
-
 ### Approver Registration
 
 If you are publishing an approver within a Python package, you should
@@ -553,21 +525,15 @@ structure:
 The `_registry.py` file serves a place to import things that you wan’t
 registered with Inspect. For example:
 
-<div class="code-with-filename">
-
 **\_registry.py**
 
 ``` python
 from .approvers import auto_approver
 ```
 
-</div>
-
 You can then register your `auto_approver` Inspect extension (and
 anything else imported into `_registry.py`) like this in
 `pyproject.toml`:
-
-<div class="panel-tabset" group="entry-points">
 
 ## Setuptools
 
@@ -583,12 +549,8 @@ evaltools = "evaltools._registry"
 evaltools = "evaltools._registry"
 ```
 
-</div>
-
 Once you’ve done this, you can refer to the approver within an approval
 policy config using its package qualified name. For example:
-
-<div class="code-with-filename">
 
 **approval.yaml**
 
@@ -598,8 +560,6 @@ approvers:
     tools: "harmless*"
     decision: approve
 ```
-
-</div>
 
 ## Storage
 
@@ -684,8 +644,6 @@ implemented a `myfs://` filesystem using the `MyFs` class exported from
 the root of the package, you would register it like this in
 `pyproject.toml`:
 
-<div class="panel-tabset" group="entry-points">
-
 ## Setuptools
 
 ``` toml
@@ -699,8 +657,6 @@ myfs = "evaltools:MyFs"
 [tool.poetry.plugins."fsspec.specs"]
 myfs = "evaltools:MyFs"
 ```
-
-</div>
 
 Once this package is installed, you’ll be able to use `myfs://` with
 Inspect without any further registration.

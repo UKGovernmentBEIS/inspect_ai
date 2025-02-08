@@ -13,8 +13,7 @@ at the bottom of the results for each task:
 $ inspect eval security_guide.py --model openai/gpt-4
 ```
 
-<img src="images/eval-log.png"
-data-fig-alt="The Inspect task results displayed in the terminal. A link to the evaluation log is at the bottom of the results display." />
+![](images/eval-log.png)
 
 You can also use the Inspect log viewer for interactive exploration of
 logs. Run this command once at the beginning of a working session (the
@@ -24,8 +23,7 @@ view will update automatically when new evaluations are run):
 $ inspect view
 ```
 
-<img src="images/inspect-view-main.png" class="border lightbox"
-data-fig-alt="The Inspect log viewer, displaying a summary of results for the task as well as 8 individual samples." />
+![](images/inspect-view-main.png)
 
 This section won’t cover using `inspect view` though. Rather, it will
 cover the details of managing log usage from the CLI as well as the
@@ -100,15 +98,11 @@ Beginning with Inspect v0.3.46, `.eval` is the default log file format.
 You can explicitly control the global log format default in your `.env`
 file:
 
-<div class="code-with-filename">
-
 **.env**
 
 ``` bash
 INSPECT_LOG_FORMAT=eval
 ```
-
-</div>
 
 Or specify it per-evaluation with the `--log-format` option:
 

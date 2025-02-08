@@ -646,7 +646,7 @@ that do most of the heavy lifting:
     code](https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/gdm_capabilities/intercode_ctf)
     of this example for details.
 
-<!-- -->
+&nbsp;
 
 2.  `ctf_agent()`, which defines the agent’s solver. The solver consists
     principally of using `bash()` and `python()` tools in a loop until

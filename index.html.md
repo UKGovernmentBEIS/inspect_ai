@@ -11,8 +11,7 @@ prompt engineering, tool usage, multi-turn dialog, and model graded
 evaluations. Extensions to Inspect (e.g. to support new elicitation and
 scoring techniques) can be provided by other Python packages.
 
-<img src="images/inspect.png" class="lightbox border"
-data-fig-alt="Inspect running inside Visual Studio Code. The editor shows the ARC evaluation and the log viewer at right shows results from the evaluation." />
+![](images/inspect.png)
 
 We’ll walk through a fairly trivial “Hello, Inspect” example below. Read
 on to learn the basics, then read the documentation on
@@ -40,8 +39,6 @@ ensuring that the appropriate API key is available in the environment.
 Assuming you had written an evaluation in a script named `arc.py`,
 here’s how you would setup and run the eval for a few different model
 providers:
-
-<div class="panel-tabset code-tabset">
 
 #### OpenAI
 
@@ -91,8 +88,6 @@ export HF_TOKEN=your-hf-token
 inspect eval arc.py --model hf/meta-llama/Llama-2-7b-chat-hf
 ```
 
-</div>
-
 In addition to the model providers shown above, Inspect also supports
 models hosted on AWS Bedrock, Azure AI, Vertex AI, TogetherAI, Groq,
 Cloudflare, and Goodfire as well as local models with vLLM, Ollama or
@@ -129,8 +124,6 @@ others. Here are some samples from the dataset:
 
 Here’s the code for the evaluation:
 
-<div class="code-with-filename">
-
 **theory.py**
 
 ``` python
@@ -153,8 +146,6 @@ def theory_of_mind():
         scorer=model_graded_fact()
     )
 ```
-
-</div>
 
 Line 10  
 The `Task` object brings together the dataset, solvers, and scorer, and
@@ -180,8 +171,7 @@ passed to it. For example, here we run the eval against GPT-4:
 inspect eval theory.py --model openai/gpt-4
 ```
 
-<img src="images/running-theory.png"
-data-fig-alt="The Inspect task results displayed in the terminal. A progress bar indicates that the evaluation is about 60% complete." />
+![](images/running-theory.png)
 
 ## Evaluation Logs
 
@@ -201,8 +191,7 @@ automatically updated when new evals are run):
 inspect view
 ```
 
-<img src="images/inspect-view-home.png" class="border lightbox"
-data-fig-alt="The Inspect log viewer, displaying a summary of results for the task as well as 7 individual samples." />
+![](images/inspect-view-home.png)
 
 See the [Log Viewer](log-viewer.qmd) section for additional details on
 using Inspect View.

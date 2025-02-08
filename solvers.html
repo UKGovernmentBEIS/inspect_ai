@@ -76,11 +76,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
 <link href="site_libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
 <script id="quarto-search-options" type="application/json">{
-  "location": "sidebar",
+  "location": "navbar",
   "copy-button": false,
   "collapse-after": 3,
-  "panel-placement": "start",
-  "type": "textbox",
+  "panel-placement": "end",
+  "type": "overlay",
   "limit": 50,
   "keyboard-shortcut": [
     "f",
@@ -118,10 +118,51 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <meta name="twitter:image-width" content="2400">
 </head>
 
-<body class="nav-sidebar floating">
+<body class="nav-sidebar docked nav-fixed">
 
 <div id="quarto-search-results"></div>
   <header id="quarto-header" class="headroom fixed-top">
+    <nav class="navbar navbar-expand-lg " data-bs-theme="dark">
+      <div class="navbar-container container-fluid">
+      <div class="navbar-brand-container mx-auto">
+    <a href="https://www.aisi.gov.uk/" class="navbar-brand navbar-brand-logo">
+    <img src="./images/aisi-logo.png" alt="" class="navbar-logo">
+    </a>
+    <a class="navbar-brand" href="https://www.aisi.gov.uk/">
+    <span class="navbar-title">Inspect AI</span>
+    </a>
+  </div>
+            <div id="quarto-search" class="" title="Search"></div>
+          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse" aria-controls="navbarCollapse" role="menu" aria-expanded="false" aria-label="Toggle navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+  <span class="navbar-toggler-icon"></span>
+</button>
+          <div class="collapse navbar-collapse" id="navbarCollapse">
+            <ul class="navbar-nav navbar-nav-scroll me-auto">
+  <li class="nav-item">
+    <a class="nav-link active" href="./index.html" aria-current="page"> 
+<span class="menu-text">User Guide</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="./reference/inspect_ai.html"> 
+<span class="menu-text">Reference</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="./evals/index.html"> 
+<span class="menu-text">Evals</span></a>
+  </li>  
+</ul>
+            <ul class="navbar-nav navbar-nav-scroll ms-auto">
+  <li class="nav-item compact">
+    <a class="nav-link" href="https://github.com/UKGovernmentBEIS/inspect_ai"> <i class="bi bi-github" role="img">
+</i> 
+<span class="menu-text"></span></a>
+  </li>  
+</ul>
+          </div> <!-- /navcollapse -->
+            <div class="quarto-navbar-tools">
+</div>
+      </div> <!-- /container-fluid -->
+    </nav>
   <nav class="quarto-secondary-nav">
     <div class="container-fluid d-flex">
       <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
@@ -130,39 +171,15 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
         <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./tasks.html">Components</a></li><li class="breadcrumb-item"><a href="./solvers.html">Solvers</a></li></ol></nav>
         <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
         </a>
-      <button type="button" class="btn quarto-search-button" aria-label="Search" onclick="window.quartoOpenSearch();">
-        <i class="bi bi-search"></i>
-      </button>
     </div>
   </nav>
 </header>
 <!-- content -->
-<div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article">
+<div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article page-navbar">
 <!-- sidebar -->
-  <nav id="quarto-sidebar" class="sidebar collapse collapse-horizontal quarto-sidebar-collapse-item sidebar-navigation floating overflow-auto"><div class="quarto-sidebar-header"><div class="sidebar-header-item">
-<p><a href="https://aisi.gov.uk/"><img src="./images/aisi-logo.png" class="img-fluid" alt="UK AI Safety Institute Website"></a></p>
-</div></div>
-    <div class="pt-lg-2 mt-2 text-left sidebar-header">
-    <div class="sidebar-title mb-0 py-0">
-      <a href="./">Inspect</a> 
-        <div class="sidebar-tools-main">
-    <a href="https://github.com/UKGovernmentBEIS/inspect_ai" title="Source Code" class="quarto-navigation-tool px-1" aria-label="Source Code"><i class="bi bi-github"></i></a>
-</div>
-    </div>
-      </div>
-        <div class="mt-2 flex-shrink-0 align-items-center">
-        <div class="sidebar-search">
-        <div id="quarto-search" class="" title="Search"></div>
-        </div>
-        </div>
+  <nav id="quarto-sidebar" class="sidebar collapse collapse-horizontal quarto-sidebar-collapse-item sidebar-navigation docked overflow-auto">
     <div class="sidebar-menu-container"> 
     <ul class="list-unstyled mt-1">
-        <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="./index.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Welcome</span></a>
-  </div>
-</li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="true">
@@ -174,6 +191,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
       <ul id="quarto-sidebar-section-1" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Welcome</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./tutorial.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Tutorial</span></a>
   </div>
@@ -182,12 +205,6 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <div class="sidebar-item-container"> 
   <a href="./options.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Options</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="./evals/index.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Evals</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -483,7 +500,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>        ],</span>
 <span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>        scorer<span class="op">=</span>model_graded_fact(),</span>
 <span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>    )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>In this example we pass a list of solver components directly to the <code>Task</code>. More often, though we’ll wrap our solvers in an <code>@solver</code> decorated function to create a composite solver:</p>
+<p>In this example we pass a list of solver components directly to the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#task">Task</a></span>. More often, though we’ll wrap our solvers in an <code>@solver</code> decorated function to create a composite solver:</p>
 <div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="at">@solver</span></span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> critique(</span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>    system_prompt <span class="op">=</span> <span class="st">"system.txt"</span>,</span>
@@ -509,7 +526,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="task-states" class="level2">
 <h2 class="anchored" data-anchor-id="task-states">Task States</h2>
-<p>Before we get into the specifics of how solvers work, we should describe <code>TaskState</code>, which is the fundamental data structure they act upon. A <code>TaskState</code> consists principally of chat history (derived from <code>input</code> and then extended by model interactions) and model output:</p>
+<p>Before we get into the specifics of how solvers work, we should describe <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#taskstate">TaskState</a></span>, which is the fundamental data structure they act upon. A <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#taskstate">TaskState</a></span> consists principally of chat history (derived from <code>input</code> and then extended by model interactions) and model output:</p>
 <div class="sourceCode" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> TaskState:</span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    messages: <span class="bu">list</span>[ChatMessage],</span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>    output: ModelOutput</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
@@ -519,7 +536,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <i class="callout-icon"></i>
 </div>
 <div class="callout-body-container">
-<p>Note that the <code>TaskState</code> definition above is simplified: there are other fields in a <code>TaskState</code> but we’re excluding them here for clarity.</p>
+<p>Note that the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#taskstate">TaskState</a></span> definition above is simplified: there are other fields in a <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#taskstate">TaskState</a></span> but we’re excluding them here for clarity.</p>
 </div>
 </div>
 </div>
@@ -527,48 +544,48 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="solver-function" class="level2">
 <h2 class="anchored" data-anchor-id="solver-function">Solver Function</h2>
-<p>We’ve covered the role of solvers in the system, but what exactly are solvers technically? A solver is a Python function that takes a <code>TaskState</code> and <code>generate</code> function, and then transforms and returns the <code>TaskState</code> (the <code>generate</code> function may or may not be called depending on the solver).</p>
+<p>We’ve covered the role of solvers in the system, but what exactly are solvers technically? A solver is a Python function that takes a <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#taskstate">TaskState</a></span> and <code>generate</code> function, and then transforms and returns the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#taskstate">TaskState</a></span> (the <code>generate</code> function may or may not be called depending on the solver).</p>
 <div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> solve(state: TaskState, generate: Generate):</span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>    <span class="co"># do something useful with state (possibly</span></span>
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>    <span class="co"># calling generate for more advanced solvers)</span></span>
 <span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>    <span class="co"># then return the state</span></span>
 <span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> state</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>The <code>generate</code> function passed to solvers is a convenience function that takes a <code>TaskState</code>, calls the model with it, appends the assistant message, and sets the model output. This is never used by prompt engineering solvers and often used by more complex solvers that want to have multiple model interactions.</p>
-<p>Here are what some of the built-in solvers do with the <code>TaskState</code>:</p>
+<p>The <code>generate</code> function passed to solvers is a convenience function that takes a <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#taskstate">TaskState</a></span>, calls the model with it, appends the assistant message, and sets the model output. This is never used by prompt engineering solvers and often used by more complex solvers that want to have multiple model interactions.</p>
+<p>Here are what some of the built-in solvers do with the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#taskstate">TaskState</a></span>:</p>
 <ol type="1">
-<li><p>The <code>system_message()</code> and <code>user_message()</code> solvers insert messages into the chat history.</p></li>
-<li><p>The <code>chain_of_thought()</code> solver takes the original user prompt and re-writes it to ask the model to use chain of thought reasoning to come up with its answer.</p></li>
-<li><p>The <code>generate()</code> solver just calls the <code>generate</code> function on the <code>state</code>. In fact, this is the full source code for the <code>generate()</code> solver:</p>
+<li><p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#system_message">system_message()</a></span> and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#user_message">user_message()</a></span> solvers insert messages into the chat history.</p></li>
+<li><p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#chain_of_thought">chain_of_thought()</a></span> solver takes the original user prompt and re-writes it to ask the model to use chain of thought reasoning to come up with its answer.</p></li>
+<li><p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#generate">generate()</a></span> solver just calls the <code>generate</code> function on the <code>state</code>. In fact, this is the full source code for the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#generate">generate()</a></span> solver:</p>
 <div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> solve(state: TaskState, generate: Generate):</span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="cf">await</span> generate(state)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div></li>
-<li><p>The <code>self_critique()</code> solver takes the <code>ModelOutput</code> and then sends it to another model for critique. It then replays this critique back within the <code>messages</code> stream and re-calls <code>generate</code> to get a refined answer.</p></li>
+<li><p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#self_critique">self_critique()</a></span> solver takes the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#modeloutput">ModelOutput</a></span> and then sends it to another model for critique. It then replays this critique back within the <code>messages</code> stream and re-calls <code>generate</code> to get a refined answer.</p></li>
 </ol>
 <p>You can also imagine solvers that call other models to help come up with a better prompt, or solvers that implement a multi-turn dialog. Anything you can imagine is possible.</p>
 </section>
 <section id="built-in-solvers" class="level2">
 <h2 class="anchored" data-anchor-id="built-in-solvers">Built-In Solvers</h2>
-<p>Inspect has a number of built-in solvers, each of which can be customised in some fashion. Built in solvers can be imported from the <code>inspect_ai.solver</code> module. Below is a summary of these solvers. There is not (yet) reference documentation on these functions so the best way to learn about how they can be customised, etc. is to use the <strong>Go to Definition</strong> command in your source editor. - <code>prompt_template()</code></p>
+<p>Inspect has a number of built-in solvers, each of which can be customised in some fashion. Built in solvers can be imported from the <code>inspect_ai.solver</code> module. Below is a summary of these solvers. There is not (yet) reference documentation on these functions so the best way to learn about how they can be customised, etc. is to use the <strong>Go to Definition</strong> command in your source editor. - <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#prompt_template">prompt_template()</a></span></p>
 <pre><code>Modify the user prompt by substituting the current prompt into the `{prompt}` placeholder within the specified template. Also automatically substitutes any variables defined in sample `metadata` as well as any other custom named paramters passed in `params`.</code></pre>
 <ul>
-<li><p><code>system_message()</code></p>
+<li><p><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#system_message">system_message()</a></span></p>
 <p>Prepend role=“system” <code>message</code> to the list of messages (will follow any other system messages it finds in the message stream). Also automatically substitutes any variables defined in sample <code>metadata</code> and <code>store</code>, as well as any other custom named paramters passed in <code>params</code>.</p></li>
-<li><p><code>user_message()</code></p>
+<li><p><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#user_message">user_message()</a></span></p>
 <p>Append role=“user” <code>message</code> to the list of messages. Also automatically substitutes any variables defined in sample <code>metadata</code> and <code>store</code>, as well as any other custom named paramters passed in <code>params</code>.</p></li>
-<li><p><code>chain_of_thought()</code></p>
+<li><p><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#chain_of_thought">chain_of_thought()</a></span></p>
 <p>Standard chain of thought template with <code>{prompt}</code> substitution variable. Asks the model to provide the final answer on a line by itself at the end for easier scoring.</p></li>
-<li><p><code>use_tools()</code></p>
-<p>Define the set tools available for use by the model during <code>generate()</code>.</p></li>
-<li><p><code>generate()</code></p>
+<li><p><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#use_tools">use_tools()</a></span></p>
+<p>Define the set tools available for use by the model during <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#generate">generate()</a></span>.</p></li>
+<li><p><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#generate">generate()</a></span></p>
 <p>As illustrated above, just a simple call to <code>generate(state)</code>. This is the default solver if no <code>solver</code> is specified.</p></li>
-<li><p><code>self_critique()</code></p>
-<p>Prompts the model to critique the results of a previous call to <code>generate()</code> (note that this need not be the same model as they one you are evaluating—use the <code>model</code> parameter to choose another model). Makes use of <code>{question}</code> and <code>{completion}</code> template variables. Also automatically substitutes any variables defined in sample <code>metadata</code></p></li>
-<li><p><code>multiple_choice()</code></p>
-<p>A solver which presents A,B,C,D style <code>choices</code> from input samples and calls <code>generate()</code> to yield model output. Pair this solver with the choices() scorer. For custom answer parsing or scoring needs (like handling complex outputs), use a custom scorer instead. Learn more about <a href="#sec-multiple-choice">Multiple Choice</a> in the section below.</p></li>
+<li><p><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#self_critique">self_critique()</a></span></p>
+<p>Prompts the model to critique the results of a previous call to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#generate">generate()</a></span> (note that this need not be the same model as they one you are evaluating—use the <code>model</code> parameter to choose another model). Makes use of <code>{question}</code> and <code>{completion}</code> template variables. Also automatically substitutes any variables defined in sample <code>metadata</code></p></li>
+<li><p><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#multiple_choice">multiple_choice()</a></span></p>
+<p>A solver which presents A,B,C,D style <code>choices</code> from input samples and calls <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#generate">generate()</a></span> to yield model output. Pair this solver with the choices() scorer. For custom answer parsing or scoring needs (like handling complex outputs), use a custom scorer instead. Learn more about <a href="#sec-multiple-choice">Multiple Choice</a> in the section below.</p></li>
 </ul>
 </section>
 <section id="sec-multiple-choice" class="level2">
 <h2 class="anchored" data-anchor-id="sec-multiple-choice">Multiple Choice</h2>
-<p>Here is the declaration for the <code>multiple_choice()</code> solver:</p>
+<p>Here is the declaration for the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#multiple_choice">multiple_choice()</a></span> solver:</p>
 <div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="at">@solver</span></span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> multiple_choice(</span>
 <span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>    <span class="op">*</span>,</span>
@@ -577,12 +594,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>    multiple_correct: <span class="bu">bool</span> <span class="op">=</span> <span class="va">False</span>,</span>
 <span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>    </span>
 <span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> Solver:</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>We’ll present an example and then discuss the various options below (in most cases you won’t need to customise these). First though there are some special considerations to be aware of when using the <code>multiple_choice()</code> solver:</p>
+<p>We’ll present an example and then discuss the various options below (in most cases you won’t need to customise these). First though there are some special considerations to be aware of when using the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#multiple_choice">multiple_choice()</a></span> solver:</p>
 <ol type="1">
-<li>The <code>Sample</code> must include the available <code>choices</code>. Choices should not include letters (as they are automatically included when presenting the choices to the model).</li>
-<li>The <code>Sample</code> <code>target</code> should be a capital letter (e.g.&nbsp;A, B, C, D, etc.)</li>
-<li>You should always pair it with the <code>choice()</code> scorer in your task definition. For custom answer parsing or scoring needs (like handling complex model outputs), implement a custom scorer.</li>
-<li>It calls <code>generate()</code> internally, so you do need to separately include the <code>generate()</code> solver.</li>
+<li>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.dataset.html#sample">Sample</a></span> must include the available <code>choices</code>. Choices should not include letters (as they are automatically included when presenting the choices to the model).</li>
+<li>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.dataset.html#sample">Sample</a></span> <code>target</code> should be a capital letter (e.g.&nbsp;A, B, C, D, etc.)</li>
+<li>You should always pair it with the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#choice">choice()</a></span> scorer in your task definition. For custom answer parsing or scoring needs (like handling complex model outputs), implement a custom scorer.</li>
+<li>It calls <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#generate">generate()</a></span> internally, so you do need to separately include the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#generate">generate()</a></span> solver.</li>
 </ol>
 <section id="example-1" class="level3">
 <h3 class="anchored" data-anchor-id="example-1">Example</h3>
@@ -704,7 +721,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="self-critique" class="level2">
 <h2 class="anchored" data-anchor-id="self-critique">Self Critique</h2>
-<p>Here is the declaration for the <code>self_critique()</code> solver:</p>
+<p>Here is the declaration for the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#self_critique">self_critique()</a></span> solver:</p>
 <div class="sourceCode" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> self_critique(</span>
 <span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>    critique_template: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
 <span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>    completion_template: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
@@ -715,15 +732,15 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="custom-solvers" class="level2">
 <h2 class="anchored" data-anchor-id="custom-solvers">Custom Solvers</h2>
-<p>In this section we’ll take a look at the source code for a couple of the built in solvers as a jumping off point for implementing your own solvers. A solver is an implementation of the <code>Solver</code> protocol (a function that transforms a <code>TaskState</code>):</p>
+<p>In this section we’ll take a look at the source code for a couple of the built in solvers as a jumping off point for implementing your own solvers. A solver is an implementation of the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#solver">Solver</a></span> protocol (a function that transforms a <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#taskstate">TaskState</a></span>):</p>
 <div class="sourceCode" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> solve(state: TaskState, generate: Generate) <span class="op">-&gt;</span> TaskState:</span>
 <span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>    <span class="co"># do something useful with state, possibly calling generate()</span></span>
 <span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>    <span class="co"># for more advanced solvers</span></span>
 <span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> state</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Typically solvers can be customised with parameters (e.g.&nbsp;<code>template</code> for prompt engineering solvers). This means that a <code>Solver</code> is actually a function which returns the <code>solve()</code> function referenced above (this will become more clear in the examples below).</p>
+<p>Typically solvers can be customised with parameters (e.g.&nbsp;<code>template</code> for prompt engineering solvers). This means that a <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#solver">Solver</a></span> is actually a function which returns the <code>solve()</code> function referenced above (this will become more clear in the examples below).</p>
 <section id="task-states-1" class="level3">
 <h3 class="anchored" data-anchor-id="task-states-1">Task States</h3>
-<p>Before presenting the examples we’ll take a more in-depth look at the <code>TaskState</code> class. Task states consist of both lower level data members (e.g.&nbsp;<code>messages</code>, <code>output</code>) as well as a number of convenience properties. The core members of <code>TaskState</code> that are <em>modified</em> by solvers are <code>messages</code> / <code>user_prompt</code> and <code>output</code>:</p>
+<p>Before presenting the examples we’ll take a more in-depth look at the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#taskstate">TaskState</a></span> class. Task states consist of both lower level data members (e.g.&nbsp;<code>messages</code>, <code>output</code>) as well as a number of convenience properties. The core members of <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#taskstate">TaskState</a></span> that are <em>modified</em> by solvers are <code>messages</code> / <code>user_prompt</code> and <code>output</code>:</p>
 <table class="caption-top table">
 <colgroup>
 <col style="width: 20%">
@@ -741,7 +758,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <tr class="odd">
 <td><code>messages</code></td>
 <td>list[ChatMessage]</td>
-<td>Chat conversation history for sample. It is automatically appended to by the <code>generate()</code> solver, and is often manipulated by other solvers (e.g.&nbsp;for prompt engineering or elicitation).</td>
+<td>Chat conversation history for sample. It is automatically appended to by the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#generate">generate()</a></span> solver, and is often manipulated by other solvers (e.g.&nbsp;for prompt engineering or elicitation).</td>
 </tr>
 <tr class="even">
 <td><code>user_prompt</code></td>
@@ -751,7 +768,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <tr class="odd">
 <td><code>output</code></td>
 <td>ModelOutput</td>
-<td>The ‘final’ model output once we’ve completed all solving. This field is automatically updated with the last “assistant” message by the <code>generate()</code> solver.</td>
+<td>The ‘final’ model output once we’ve completed all solving. This field is automatically updated with the last “assistant” message by the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#generate">generate()</a></span> solver.</td>
 </tr>
 </tbody>
 </table>
@@ -761,7 +778,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <i class="callout-icon"></i>
 </div>
 <div class="callout-body-container">
-<p>Note that the <code>generate()</code> solver automatically updates both the <code>messages</code> and <code>output</code> fields. For very simple evaluations modifying the <code>user_prompt</code> and then calling <code>generate()</code> encompasses all of the required interaction with <code>TaskState</code>.</p>
+<p>Note that the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#generate">generate()</a></span> solver automatically updates both the <code>messages</code> and <code>output</code> fields. For very simple evaluations modifying the <code>user_prompt</code> and then calling <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#generate">generate()</a></span> encompasses all of the required interaction with <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#taskstate">TaskState</a></span>.</p>
 </div>
 </div>
 </div>
@@ -783,12 +800,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <tr class="odd">
 <td><code>input</code></td>
 <td>str | list[ChatMessage]</td>
-<td>Original <code>Sample</code> input.</td>
+<td>Original <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.dataset.html#sample">Sample</a></span> input.</td>
 </tr>
 <tr class="even">
 <td><code>input_text</code></td>
 <td>str</td>
-<td>Convenience function for accessing the initial input from the <code>Sample</code> as a string.</td>
+<td>Convenience function for accessing the initial input from the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.dataset.html#sample">Sample</a></span> as a string.</td>
 </tr>
 </tbody>
 </table>
@@ -820,7 +837,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <tr class="odd">
 <td><code>metadata</code></td>
 <td>dict</td>
-<td>Original metadata from <code>Sample</code></td>
+<td>Original metadata from <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.dataset.html#sample">Sample</a></span></td>
 </tr>
 <tr class="even">
 <td><code>choices</code></td>
@@ -861,11 +878,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </tr>
 </tbody>
 </table>
-<p>These fields are typically modified via the <code>use_tools()</code> solver, but they can also be modified directly for more advanced use cases.</p>
+<p>These fields are typically modified via the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#use_tools">use_tools()</a></span> solver, but they can also be modified directly for more advanced use cases.</p>
 </section>
 <section id="example-prompt-template" class="level3">
 <h3 class="anchored" data-anchor-id="example-prompt-template">Example: Prompt Template</h3>
-<p>Here’s the code for the <code>prompt_template()</code> solver:</p>
+<p>Here’s the code for the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#prompt_template">prompt_template()</a></span> solver:</p>
 <div class="sourceCode" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="at">@solver</span></span>
 <span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> prompt_template(template: <span class="bu">str</span>, <span class="op">**</span>params: <span class="bu">dict</span>[<span class="bu">str</span>, Any]):</span>
 <span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a></span>
@@ -881,16 +898,16 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb13-13"><a href="#cb13-13" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> solve</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>A few things to note about this implementation:</p>
 <ol type="1">
-<li><p>The function applies the <code>@solver</code> decorator—this registers the <code>Solver</code> with Inspect, making it possible to capture its name and parameters for logging, as well as make it callable from a configuration file (e.g.&nbsp;a YAML specification of an eval).</p></li>
-<li><p>The <code>solve()</code> function is declared as <code>async</code>. This is so that it can participate in Inspect’s optimised scheduling for expensive model generation calls (this solver doesn’t call <code>generate()</code> but others will).</p></li>
-<li><p>The <code>resource()</code> function is used to read the specified <code>template</code>. This function accepts a string, file, or URL as its argument, and then returns a string with the contents of the resource.</p></li>
-<li><p>We make use of the <code>user_prompt</code> property on the <code>TaskState</code>. This is a convenience property for locating the first <code>role="user"</code> message (otherwise you might need to skip over system messages, etc). Since this is a string templating solver, we use the <code>state.user_prompt.text</code> property (so we are dealing with prompt as a string, recall that it can also be a list of messages).</p></li>
+<li><p>The function applies the <code>@solver</code> decorator—this registers the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#solver">Solver</a></span> with Inspect, making it possible to capture its name and parameters for logging, as well as make it callable from a configuration file (e.g.&nbsp;a YAML specification of an eval).</p></li>
+<li><p>The <code>solve()</code> function is declared as <code>async</code>. This is so that it can participate in Inspect’s optimised scheduling for expensive model generation calls (this solver doesn’t call <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#generate">generate()</a></span> but others will).</p></li>
+<li><p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#resource">resource()</a></span> function is used to read the specified <code>template</code>. This function accepts a string, file, or URL as its argument, and then returns a string with the contents of the resource.</p></li>
+<li><p>We make use of the <code>user_prompt</code> property on the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#taskstate">TaskState</a></span>. This is a convenience property for locating the first <code>role="user"</code> message (otherwise you might need to skip over system messages, etc). Since this is a string templating solver, we use the <code>state.user_prompt.text</code> property (so we are dealing with prompt as a string, recall that it can also be a list of messages).</p></li>
 <li><p>We make sample <code>metadata</code> available to the template as well as any <code>params</code> passed to the function.</p></li>
 </ol>
 </section>
 <section id="example-self-critique" class="level3">
 <h3 class="anchored" data-anchor-id="example-self-critique">Example: Self Critique</h3>
-<p>Here’s the code for the <code>self_critique()</code> solver:</p>
+<p>Here’s the code for the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#self_critique">self_critique()</a></span> solver:</p>
 <div class="sourceCode" id="cb14"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a>DEFAULT_CRITIQUE_TEMPLATE <span class="op">=</span> <span class="vs">r"""</span></span>
 <span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a><span class="vs">Given the following question and answer, please critique the answer.</span></span>
 <span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a><span class="vs">A good answer comprehensively answers the question and NEVER refuses</span></span>
@@ -968,17 +985,17 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb14-75"><a href="#cb14-75" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="cf">await</span> generate(state)</span>
 <span id="cb14-76"><a href="#cb14-76" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb14-77"><a href="#cb14-77" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> solve</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Note that calls to <code>generate()</code> (for both the critique model and the model being evaluated) are called with <code>await</code>—this is critical to ensure that the solver participates correctly in the scheduling of generation work.</p>
+<p>Note that calls to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#generate">generate()</a></span> (for both the critique model and the model being evaluated) are called with <code>await</code>—this is critical to ensure that the solver participates correctly in the scheduling of generation work.</p>
 </section>
 <section id="models-in-solvers" class="level3">
 <h3 class="anchored" data-anchor-id="models-in-solvers">Models in Solvers</h3>
-<p>As illustrated above, often you’ll want to use models in the implementation of solvers. Use the <code>get_model()</code> function to get either the currently evaluated model or another model interface. For example:</p>
+<p>As illustrated above, often you’ll want to use models in the implementation of solvers. Use the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#get_model">get_model()</a></span> function to get either the currently evaluated model or another model interface. For example:</p>
 <div class="sourceCode" id="cb15"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="co"># use the model being evaluated for critique</span></span>
 <span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>critique_model <span class="op">=</span> get_model() </span>
 <span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a><span class="co"># use another model for critique</span></span>
 <span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a>critique_model <span class="op">=</span> get_model(<span class="st">"google/gemini-1.5-pro"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Use the <code>config</code> parameter of <code>get_model()</code> to override default generation options:</p>
+<p>Use the <code>config</code> parameter of <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#get_model">get_model()</a></span> to override default generation options:</p>
 <div class="sourceCode" id="cb16"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a>critique_model <span class="op">=</span> get_model(</span>
 <span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a>    <span class="st">"google/gemini-1.5-pro"</span>, </span>
 <span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a>    config <span class="op">=</span> GenerateConfig(temperature <span class="op">=</span> <span class="fl">0.9</span>, max_connections <span class="op">=</span> <span class="dv">10</span>)</span>
@@ -1004,7 +1021,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <tr class="odd">
 <td><code>target</code></td>
 <td>Target</td>
-<td>Scoring target from <code>Sample</code></td>
+<td>Scoring target from <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.dataset.html#sample">Sample</a></span></td>
 </tr>
 <tr class="even">
 <td><code>scores</code></td>
@@ -1021,11 +1038,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a>    correct <span class="op">=</span> state.output.completion <span class="op">==</span> state.target.text</span>
 <span id="cb17-6"><a href="#cb17-6" aria-hidden="true" tabindex="-1"></a>    state.scores <span class="op">=</span> { <span class="st">"correct"</span>: Score(value<span class="op">=</span>correct) }</span>
 <span id="cb17-7"><a href="#cb17-7" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> state</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Note that scores yielded by a <code>Solver</code> are combined with scores from the normal scoring provided by the scorer(s) defined for a <code>Task</code>.</p>
+<p>Note that scores yielded by a <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#solver">Solver</a></span> are combined with scores from the normal scoring provided by the scorer(s) defined for a <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#task">Task</a></span>.</p>
 </section>
 <section id="intermediate-scoring" class="level3">
 <h3 class="anchored" data-anchor-id="intermediate-scoring">Intermediate Scoring</h3>
-<p>In some cases it is useful for a solver to score a task directly to generate an intermediate score or assist in deciding whether or how to continue. You can do this using the <code>score()</code> function:</p>
+<p>In some cases it is useful for a solver to score a task directly to generate an intermediate score or assist in deciding whether or how to continue. You can do this using the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#score">score()</a></span> function:</p>
 <div class="sourceCode" id="cb18"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.scorer <span class="im">import</span> score</span>
 <span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> solver_that_scores() <span class="op">-&gt;</span> Solver:</span>
@@ -1037,7 +1054,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb18-9"><a href="#cb18-9" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> state</span>
 <span id="cb18-10"><a href="#cb18-10" aria-hidden="true" tabindex="-1"></a>    </span>
 <span id="cb18-11"><a href="#cb18-11" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> solver</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Note that the <code>score()</code> function returns a list of <code>Score</code> (as its possible that a task could have multiple scorers).</p>
+<p>Note that the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#score">score()</a></span> function returns a list of <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#score">Score</a></span> (as its possible that a task could have multiple scorers).</p>
 </section>
 <section id="concurrency" class="level3">
 <h3 class="anchored" data-anchor-id="concurrency">Concurrency</h3>
@@ -1541,7 +1558,7 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
     <div class="nav-footer-left">
       <ul class="footer-items list-unstyled">
     <li class="nav-item">
-    <a class="nav-link active" href="https://aisi.gov.uk/" aria-current="page">
+    <a class="nav-link" href="https://aisi.gov.uk/">
 <p>UK AI Safety Institute</p>
 </a>
   </li>  

@@ -302,8 +302,6 @@ Here’s an example of a `compose.yaml` file that sets container resource
 limits and isolates it from all network interactions including internet
 access:
 
-<div class="code-with-filename">
-
 **compose.yaml**
 
 ``` yaml
@@ -317,8 +315,6 @@ services:
     network_mode: none
 ```
 
-</div>
-
 The `init: true` entry enables the container to respond to shutdown
 requests. The `command` is provided to prevent the container from
 exiting after it starts.
@@ -326,8 +322,6 @@ exiting after it starts.
 Here is what a simple `compose.yaml` would look like for a local
 pre-built image named `ctf-agent-environment` (resource and network
 limits excluded for brevity):
-
-<div class="code-with-filename">
 
 **compose.yaml**
 
@@ -340,14 +334,10 @@ services:
     command: tail -f /dev/null
 ```
 
-</div>
-
 The `ctf-agent-environment` is not an image that exists on a remote
 registry, so we add the `x-local: true` to indicate that it should not
 be pulled. If local images are tagged, they also will not be pulled by
 default (so `x-local: true` is not required). For example:
-
-<div class="code-with-filename">
 
 **compose.yaml**
 
@@ -359,12 +349,8 @@ services:
     command: tail -f /dev/null
 ```
 
-</div>
-
 If we are using an image from a remote registry we similarly don’t need
 to include `x-local`:
-
-<div class="code-with-filename">
 
 **compose.yaml**
 
@@ -376,8 +362,6 @@ services:
     command: tail -f /dev/null
 ```
 
-</div>
-
 See the [Docker Compose](https://docs.docker.com/compose/compose-file/)
 documentation for information on all available container options.
 
@@ -387,8 +371,6 @@ In some cases you may want to create multiple sandbox environments
 (e.g. if one environment has complex dependencies that conflict with the
 dependencies of other environments). To do this specify multiple named
 services:
-
-<div class="code-with-filename">
 
 **compose.yaml**
 
@@ -407,8 +389,6 @@ services:
     cpus: 1.0
     mem_limit: 1gb
 ```
-
-</div>
 
 The first environment listed is the “default” environment, and can be
 accessed from within a tool with a normal call to `sandbox()`. Other
@@ -591,8 +571,6 @@ in very few recoverable samples in the case of an interruption.
 Use a `compose.yaml` file to limit the resources consumed by each
 running container. For example:
 
-<div class="code-with-filename">
-
 **compose.yaml**
 
 ``` yaml
@@ -604,8 +582,6 @@ services:
     cpus: 1.0
     mem_limit: 0.5gb
 ```
-
-</div>
 
 ## Troubleshooting
 

@@ -31,8 +31,6 @@ is not found in the working directory). This is done using the
 For example, here’s a `.env` file that makes available API keys for
 several providers and sets a bunch of defaults for a working session:
 
-<div class="code-with-filename">
-
 **.env**
 
 ``` makefile
@@ -47,8 +45,6 @@ INSPECT_EVAL_MAX_RETRIES=5
 INSPECT_EVAL_MAX_CONNECTIONS=20
 INSPECT_EVAL_MODEL=anthropic/claude-3-5-sonnet-20240620
 ```
-
-</div>
 
 All command line options can also be set via environment variable by
 using the `INSPECT_EVAL_` prefix.
