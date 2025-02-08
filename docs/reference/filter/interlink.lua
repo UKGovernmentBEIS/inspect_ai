@@ -3,7 +3,7 @@ local pandoc = require('pandoc')
 
 -- read the refs index
 refs = {}
-is_reference = string.find(PANDOC_STATE.input_files[1], "^reference/") ~= nil
+is_reference = string.find(quarto.doc.input_file, "reference/") ~= nil
 if is_reference then
     refs_path = "refs.json"
 else
@@ -11,12 +11,11 @@ else
 end
 
 local refs_file = io.open(refs_path, "r")
+
 if refs_file ~= nil then
     refs = pandoc.json.decode(refs_file:read("a"))
     refs_file:close()
 end
-
-
 
 local function is_class_name(str)
     -- ^[A-Z] checks for capital letter at start

@@ -12,7 +12,7 @@ metadata-files:
   - reference/_sidebar.yml  
 
 filters:
-  - at: post-quarto
+  - at: pre-quarto
     path: reference/filter/interlink.lua
  
 website:
