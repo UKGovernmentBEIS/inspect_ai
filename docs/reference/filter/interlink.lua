@@ -1,17 +1,21 @@
--- main interlink filter for user guide
-
+-- interlink filter for inline code
 local pandoc = require('pandoc')
 
+-- read the refs index
 refs = {}
-
--- read the refs if we aren't in the reference dir (it does its own interlinks)
-if string.find(PANDOC_STATE.input_files[1], "^reference/") == nil then
-    local refs_file = io.open("reference/refs.json", "r")
-    if refs_file ~= nil then
-        refs = pandoc.json.decode(refs_file:read("a"))
-        refs_file:close()
-    end
+is_reference = string.find(PANDOC_STATE.input_files[1], "^reference/") ~= nil
+if is_reference then
+    refs_path = "refs.json"
+else
+    refs_path = "reference/refs.json"
 end
+
+local refs_file = io.open(refs_path, "r")
+if refs_file ~= nil then
+    refs = pandoc.json.decode(refs_file:read("a"))
+    refs_file:close()
+end
+
 
 
 local function is_class_name(str)
@@ -28,7 +32,12 @@ local function is_function_call(str)
 end
 
 local function create_interlink(text, ref)
-    return pandoc.Span(pandoc.Link(pandoc.Str(text), "reference/" .. ref),
+    if is_reference then
+        prefix = ""
+    else
+        prefix = "reference/"
+    end
+    return pandoc.Span(pandoc.Link(pandoc.Str(text), prefix .. ref),
         { class = "element-type-name ref-interlink" })
 end
 

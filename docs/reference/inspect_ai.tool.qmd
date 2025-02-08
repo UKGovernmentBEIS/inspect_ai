@@ -8,7 +8,7 @@ title: "inspect_ai.tool"
 ### python
 ### web_search
 ### web_browser
-### beta.computer
+### computer
 
 ## Dynamic 
 

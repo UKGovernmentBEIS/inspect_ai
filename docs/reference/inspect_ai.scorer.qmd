@@ -35,12 +35,13 @@ title: "inspect_ai.scorer"
 ## Types
 
 ### Scorer
-### Metric
-### MetricProtocol
-### ScoreReducer
 ### Target
 ### Score
 ### Value
+### ScoreReducer
+### Metric
+### MetricProtocol
+### SampleScore
 
 ## Decorators
 

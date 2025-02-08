@@ -152,18 +152,20 @@ website:
         href: reference/inspect_ai.scorer.qmd#mode_score
       - text: Scorer
         href: reference/inspect_ai.scorer.qmd#scorer
-      - text: Metric
-        href: reference/inspect_ai.scorer.qmd#metric
-      - text: MetricProtocol
-        href: reference/inspect_ai.scorer.qmd#metricprotocol
-      - text: ScoreReducer
-        href: reference/inspect_ai.scorer.qmd#scorereducer
       - text: Target
         href: reference/inspect_ai.scorer.qmd#target
       - text: Score
         href: reference/inspect_ai.scorer.qmd#score
       - text: Value
         href: reference/inspect_ai.scorer.qmd#value
+      - text: ScoreReducer
+        href: reference/inspect_ai.scorer.qmd#scorereducer
+      - text: Metric
+        href: reference/inspect_ai.scorer.qmd#metric
+      - text: MetricProtocol
+        href: reference/inspect_ai.scorer.qmd#metricprotocol
+      - text: SampleScore
+        href: reference/inspect_ai.scorer.qmd#samplescore
       - text: scorer
         href: reference/inspect_ai.scorer.qmd#scorer
       - text: metric

@@ -105,12 +105,7 @@ class Score(BaseModel):
 
 
 class SampleScore(BaseModel):
-    """Score for a Sample
-
-    Args:
-       score: Score
-       sample_id: (str | int | None) Unique id of a sample
-    """
+    """Score for a Sample."""
 
     score: Score
     """A score"""

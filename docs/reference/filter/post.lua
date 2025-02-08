@@ -9,7 +9,7 @@ refs = pandoc.json.decode(refs_file:read("a"))
 refs_file:close()
 
 function Span(el)
-    if el.classes:includes("element-type-name") then
+    if el.classes:includes("element-type-name") and not el.classes:includes("ref-interlink") then
         type = pandoc.utils.stringify(el)
         type_ref = refs[type]
         if type_ref ~= nil then
