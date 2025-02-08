@@ -53,7 +53,7 @@ for doc in reference_docs:
         objects = parse_reference_objects(f.read())
         refs = [dict(text=o, href=f"{doc}#{o.lower()}") for o in objects]
         for ref in refs:
-            index_json[ref["text"]] = ref["href"]
+            index_json[ref["text"]] = ref["href"].removeprefix("reference/")
 
     # add section to sidebar
     section=doc.removeprefix("reference/").removesuffix(".qmd")

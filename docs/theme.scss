@@ -92,7 +92,6 @@ img.navbar-logo {
     right: 5px;
     top: 0;
     font-size: 0.8em;
-    // text-decoration: none;
     z-index: 1001;
 }
 
@@ -103,6 +102,18 @@ img.navbar-logo {
 .element-type {
     font-size: 0.8em;
     font-weight: 400;
+}
+
+.element-type-name > a {
+    border-bottom: 1px dotted currentcolor;
+    color: currentColor;
+    text-decoration: none;
+}
+
+.element-type-name > a:hover {
+    text-decoration: underline;
+    color: $link-color;
+    cursor: pointer;
 }
 
 .doc-declaration .code-copy-button {

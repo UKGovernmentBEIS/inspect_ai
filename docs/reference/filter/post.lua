@@ -1,5 +1,21 @@
-local text = require('text')
 local pandoc = require('pandoc')
+
+
+-- read refs index
+refs_file = io.open("refs.json", "r")
+refs = pandoc.json.decode(refs_file:read("a"))
+refs_file:close()
+
+function Span(el)
+    if el.classes:includes("element-type-name") then
+        type = pandoc.utils.stringify(el)
+        type_ref = refs[type]
+        if type_ref ~= nil then
+            el.content = pandoc.Link(el.content:clone(), type_ref)
+            return el
+        end
+    end
+end
 
 function RawBlock(raw)
     -- Only process markdown raw blocks

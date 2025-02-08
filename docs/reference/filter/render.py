@@ -1,3 +1,4 @@
+import sys
 from textwrap import dedent
 import panflute as pf # type: ignore
 from parse import DocAttribute, DocClass, DocFunction, DocObject, DocParameter
@@ -83,12 +84,25 @@ def render_element_definition_item(element: DocAttribute | DocParameter) -> pf.D
         [
             pf.Code(element.name), 
             pf.Space(), 
-            pf.Span(pf.Str(element.type), classes=["element-type"])
+            render_element_type(element.type)
         ], 
         [pf.Definition(
             pf.RawBlock(element.description, format="markdown")
         )]
     )     
+
+def render_element_type(type: str) -> pf.Span:
+    types = type.split("|")
+    type_names = [pf.Span(pf.Str(t.strip()), classes=["element-type-name"]) for t in types]
+    element_type: list[pf.Inline] = []
+    for index, type_name in enumerate(type_names):
+        element_type.append(type_name)
+        if index < (len(type_names)-1):
+            element_type.append(pf.Space())
+            element_type.append(pf.Str("|"))
+            element_type.append(pf.Space())
+
+    return pf.Span(*element_type, classes=["element-type"])
 
 def render_params_header() -> pf.TableHead:
     return pf.TableHead(
