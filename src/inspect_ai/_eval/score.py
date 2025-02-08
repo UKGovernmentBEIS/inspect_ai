@@ -154,6 +154,7 @@ async def task_score(task: Task, log: EvalLog) -> EvalLog:
                 score_key: SampleScore(
                     score=score,
                     sample_id=sample.id,
+                    sample_metadata=sample.metadata,
                 )
                 for score_key, score in sample.scores.items()
             }
@@ -185,6 +186,7 @@ async def run_score_task(
         results[scorer_name] = SampleScore(
             score=result,
             sample_id=state.sample_id,
+            sample_metadata=state.metadata,
             scorer=registry_unqualified_name(scorer),
         )
 
@@ -205,7 +207,7 @@ def metrics_from_log(log: EvalLog) -> list[Metric]:
 
 
 def metric_from_log(metric: EvalMetric) -> Metric:
-    return cast(Metric, registry_create("metric", metric.name, **metric.options))
+    return cast(Metric, registry_create("metric", metric.name, **metric.params))
 
 
 def reducers_from_log(log: EvalLog) -> list[ScoreReducer] | None:

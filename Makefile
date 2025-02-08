@@ -6,6 +6,7 @@ hooks:
 check:
 	ruff check --fix
 	ruff format
+	pylint src
 	mypy --exclude tests/test_package src tests
 
 .PHONY: test

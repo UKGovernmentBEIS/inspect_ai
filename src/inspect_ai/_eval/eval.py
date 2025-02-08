@@ -200,6 +200,10 @@ def eval(
     )
 
 
+# single call to eval_async at a time
+_eval_async_running = False
+
+
 async def eval_async(
     tasks: Tasks,
     model: str | Model | list[str] | list[Model] | None = None,
@@ -459,10 +463,6 @@ async def eval_async(
 
     # return logs
     return logs
-
-
-# single call to eval_async at a time
-_eval_async_running = False
 
 
 def eval_retry(

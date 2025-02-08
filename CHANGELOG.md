@@ -1,14 +1,25 @@
 
 ## Unreleased
 
+- Add support for [clustered standard errors](https://inspect.ai-safety-institute.org.uk/scorers.html#clustered-standard-errors) via a new `cluster` parameter for the `stderr()` metric.
+- Metrics now take `list[SampleScore]` rather than `list[Score]` (previous signature is deprecated but still works with a warning).
+- Use a sample adjustment for the `var()` metric.
+- Docker: Support Dockerfiles with `.Dockerfile` extension.
+- Bugfix: Always honor level-level-transcript setting for transcript logging.
+
+## v0.3.63 (07 February 2025)
+
 - Add [OpenRouter](https://inspect.ai-safety-institute.org.uk/providers.html#openrouter) model provider.
 - Inspect View: Convert codebase from JS/Preact to Typescript/React
 - Add `shuffle_choices` to dataset and dataset loading funtions. Deprecate `shuffle` parameter to the `multiple_choice` solver.
 - Add `stop_words` param to the `f1` scorer. `stop_words` will be removed from the target and answer during normalization.
 - Tools: Handle return of empty list from tool calls.
+- Computer: Moved out of beta (i.e. from `inspect_ai.tool.beta` into `inspect_ai.tool`).
 - Sandboxes: Docker now uses `tee` for write_file operations.
+- Inspect View: Handle Zip64 zip files (for log files greater than 4GB)
 - Bugfix: Change `type` parameter of `answer()` to `pattern` to address registry serialisation error.
 - Bugfix: Restore printing of request payloads for 400 errors from Anthropic.
+- Bugfix: Log transcript event for solver provided scores (improves log viewer display of solver scoring)
 
 ## v0.3.62 (03 February 2025)
 

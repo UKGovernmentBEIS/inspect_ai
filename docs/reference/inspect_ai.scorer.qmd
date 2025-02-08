@@ -36,6 +36,7 @@ title: "inspect_ai.scorer"
 
 ### Scorer
 ### Metric
+### MetricProtocol
 ### ScoreReducer
 ### Target
 ### Score

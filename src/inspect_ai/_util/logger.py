@@ -161,7 +161,7 @@ def init_logger(
         getLogger().addHandler(_logHandler)
 
     # establish default capture level
-    capture_level = min(TRACE, levelno)
+    capture_level = min(TRACE, levelno, transcript_levelno)
 
     # see all the messages (we won't actually display/write all of them)
     getLogger().setLevel(capture_level)

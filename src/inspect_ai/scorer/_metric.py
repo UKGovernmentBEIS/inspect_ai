@@ -118,6 +118,9 @@ class SampleScore(BaseModel):
     sample_id: str | int | None = Field(default=None)
     """A sample id"""
 
+    sample_metadata: dict[str, Any] | None = Field(default=None)
+    """Metadata from the sample"""
+
     scorer: str | None = Field(default=None)
     """Registry name of scorer that created this score."""
 
@@ -181,8 +184,13 @@ def value_to_float(
 
 
 @runtime_checkable
-class Metric(Protocol):
-    def __call__(self, scores: list[Score]) -> Value:
+class MetricDeprecated(Protocol):
+    def __call__(self, scores: list[Score]) -> Value: ...
+
+
+@runtime_checkable
+class MetricProtocol(Protocol):
+    def __call__(self, scores: list[SampleScore]) -> Value:
         r"""Compute a metric on a list of scores.
 
         Args:
@@ -195,13 +203,22 @@ class Metric(Protocol):
           ```python
           @metric
           def mean() -> Metric:
-              def metric(scores: list[Score]) -> Value:
-                  return np.mean([score.as_float() for score in scores]).item()
-
+              def metric(scores: list[SampleScore]) -> Value:
+                  return np.mean([score.score.as_float() for score in scores]).item()
               return metric
           ```
         """
         ...
+
+
+Metric = MetricProtocol | MetricDeprecated
+"""Metric protocol.
+
+The Metric signature changed in release v0.3.64. Both
+the previous and new signatures are supported -- you
+should use `MetricProtocol` for new code as the
+depreacated signature will eventually be removed.
+"""
 
 
 P = ParamSpec("P")
@@ -263,11 +280,10 @@ def metric(
       ```python
       @metric
       def mean() -> Metric:
-          def metric(scores: list[Score]) -> Value:
-            return np.mean([score.as_float() for score in scores]).item()
-
+          def metric(scores: list[SampleScore]) -> Value:
+              return np.mean([score.score.as_float() for score in scores]).item()
           return metric
-      ```
+    ```
     """
 
     # create_metric_wrapper:

@@ -154,6 +154,8 @@ website:
         href: reference/inspect_ai.scorer.qmd#scorer
       - text: Metric
         href: reference/inspect_ai.scorer.qmd#metric
+      - text: MetricProtocol
+        href: reference/inspect_ai.scorer.qmd#metricprotocol
       - text: ScoreReducer
         href: reference/inspect_ai.scorer.qmd#scorereducer
       - text: Target

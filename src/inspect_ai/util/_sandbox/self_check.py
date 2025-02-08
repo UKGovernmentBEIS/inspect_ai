@@ -53,6 +53,8 @@ async def self_check(sandbox_env: SandboxEnvironment) -> dict[str, bool | str]:
         test_write_binary_file_without_permissions,
         test_write_binary_file_exists,
         test_exec_output,
+        test_exec_stderr,
+        test_exec_returncode,
         test_exec_timeout,
         test_exec_permission_error,
         test_exec_as_user,
@@ -322,6 +324,16 @@ async def test_exec_output(sandbox_env: SandboxEnvironment) -> None:
     assert exec_result.stdout == expected, (
         f"Unexpected output:expected {expected.encode('UTF-8')!r}; got {exec_result.stdout.encode('UTF-8')!r}"
     )
+
+
+async def test_exec_stderr(sandbox_env: SandboxEnvironment) -> None:
+    exec_result = await sandbox_env.exec(["sh", "-c", "echo boof; echo baz >&2"])
+    assert exec_result.stderr == "baz\n"
+
+
+async def test_exec_returncode(sandbox_env: SandboxEnvironment) -> None:
+    exec_result = await sandbox_env.exec(["sh", "-c", "echo foo; exit 70"])
+    assert exec_result.returncode == 70
 
 
 async def test_exec_timeout(sandbox_env: SandboxEnvironment) -> None:
