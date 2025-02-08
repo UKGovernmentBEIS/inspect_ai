@@ -105,15 +105,21 @@ img.navbar-logo {
 }
 
 .element-type-name > a {
-    border-bottom: 1px dotted currentcolor;
+    border-bottom: 1px dotted currentcolor !important;
     color: currentColor;
     text-decoration: none;
 }
 
 .element-type-name > a:hover {
     text-decoration: underline;
-    color: $link-color;
     cursor: pointer;
+}
+
+.ref-interlink {
+    color: $code-color;
+    background-color: $code-bg;
+    font-family: $font-family-monospace;
+    font-size: 0.875em;
 }
 
 .doc-declaration .code-copy-button {

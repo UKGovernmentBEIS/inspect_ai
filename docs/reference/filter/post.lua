@@ -1,5 +1,7 @@
-local pandoc = require('pandoc')
+--- filter for post-processing the main ref generation filter (filter.py)
+--- does interlinks for reference links and renders raw markdown blocks
 
+local pandoc = require('pandoc')
 
 -- read refs index
 refs_file = io.open("refs.json", "r")
