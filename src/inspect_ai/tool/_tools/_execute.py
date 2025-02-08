@@ -26,8 +26,8 @@ def bash(timeout: int | None = None, user: str | None = None) -> Tool:
     Execute bash shell commands using a sandbox environment (e.g. "docker").
 
     Args:
-      timeout (int | None): Timeout (in seconds) for command.
-      user (str | None): User to execute commands as.
+      timeout: Timeout (in seconds) for command.
+      user: User to execute commands as.
 
     Returns:
       String with command output (stdout) or command error (stderr).
@@ -63,8 +63,8 @@ def python(timeout: int | None = None, user: str | None = None) -> Tool:
     Execute Python code using a sandbox environment (e.g. "docker").
 
     Args:
-      timeout (int | None): Timeout (in seconds) for command.
-      user (str | None): User to execute commands as.
+      timeout: Timeout (in seconds) for command.
+      user: User to execute commands as.
 
     Returns:
       String with command output (stdout) or command error (stderr).

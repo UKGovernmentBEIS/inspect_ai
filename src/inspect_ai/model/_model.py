@@ -149,7 +149,11 @@ class ModelAPI(abc.ABC):
         return "default"
 
     def is_rate_limit(self, ex: BaseException) -> bool:
-        """Is this exception a rate limit error."""
+        """Is this exception a rate limit error.
+
+        Args:
+           ex: Exception to check for rate limit.
+        """
         return False
 
     def collapse_user_messages(self) -> bool:
@@ -176,12 +180,18 @@ class ModelAPI(abc.ABC):
 class Model:
     """Model interface."""
 
+    api: ModelAPI
+    """Model API."""
+
+    config: GenerateConfig
+    """Generation config."""
+
     def __init__(self, api: ModelAPI, config: GenerateConfig) -> None:
         """Create a model.
 
         Args:
-           api (ModelAPI): Model API provider.
-           config (GenerateConfig): Model configuration.
+           api: Model API provider.
+           config: Model configuration.
         """
         self.api = api
         self.config = config
@@ -212,16 +222,12 @@ class Model:
         """Generate output from the model.
 
         Args:
-          input (str | list[ChatMessage]): Chat message
-            input (if a `str` is passed it is converted
+          input: Chat message input (if a `str` is passed it is converted
             to a `ChatMessageUser`).
-          tools (list[Tool] | list[ToolDef] | list[ToolInfo]): Tools available for the
-            model to call.
-          tool_choice (ToolChoice): Directives to the model
-            as to which tools to prefer.
-          cache (bool | CachePolicy): Caching behavior for
-            generate responses (defaults to no caching).
-          config (GenerateConfig): Model configuration.
+          tools: Tools available for the model to call.
+          tool_choice: Directives to the model as to which tools to prefer.
+          config: Model configuration.
+          cache: Caching behavior for generate responses (defaults to no caching).
 
         Returns:
            ModelOutput
@@ -550,7 +556,7 @@ class ModelName:
         """Create a ModelName.
 
         Args:
-           model: (str | Model): Model to create name for.
+           model: Model to create name for.
         """
         if isinstance(model, str):
             (api, name) = self._parse_model(model)
@@ -596,16 +602,16 @@ def get_model(
     """Get an instance of a model.
 
     Args:
-       model (str | Model | None): Model specification.
-         If `Model` is passed it is returned unmodified,
-         if `None` is passed then the model currently being
-         evaluated is returned (or if there is no evaluation
-         then the model referred to by `INSPECT_EVAL_MODEL`).
-       config (GenerateConfig): Configuration for model.
-       base_url (str | None): Optional. Alternate base URL for model.
-       api_key (str | None): Optional. API key for model.
-       **model_args (dict[str,Any]): Additional args to
-         pass to model constructor.
+       model: Model specification.
+          If `Model` is passed it is returned unmodified,
+          if `None` is passed then the model currently being
+          evaluated is returned (or if there is no evaluation
+          then the model referred to by `INSPECT_EVAL_MODEL`).
+       config: Configuration for model.
+       base_url: Optional. Alternate base URL for model.
+       api_key: Optional. API key for model.
+       **model_args: Additional args to
+          pass to model constructor.
 
     Returns:
         Model instance.

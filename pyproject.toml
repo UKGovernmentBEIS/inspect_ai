@@ -117,6 +117,7 @@ dev = [
     "google-cloud-aiplatform",
     "google-generativeai", 
     "goodfire",
+    "griffe",
     "groq", 
     "ipython",
     "mistralai",
@@ -144,5 +145,5 @@ dev = [
     "types-psutil",
     "types-python-dateutil"
 ]
-doc = ["quarto-cli", "jupyter"]
+doc = ["quarto-cli==1.5.57", "jupyter", "panflute"]
 dist = ["twine", "build"]

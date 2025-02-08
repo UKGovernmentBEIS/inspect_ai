@@ -5,6 +5,8 @@ from typing_extensions import Self
 
 
 class InputPanel(Container):
+    """Base class for for Inspect input panels."""
+
     DEFAULT_TITLE = "Panel"
 
     DEFAULT_CLASSES = "task-input-panel"

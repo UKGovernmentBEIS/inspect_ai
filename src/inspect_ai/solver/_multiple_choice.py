@@ -219,38 +219,35 @@ def multiple_choice(
     multiple_correct: bool = False,
     **kwargs: Unpack[DeprecatedArgs],
 ) -> Solver:
-    """Multiple choice question solver.
-
-    Formats a multiple choice question prompt, then calls `generate()`
-
-    ### Usage
+    """Multiple choice question solver. Formats a multiple choice question prompt, then calls `generate()`.
 
     Note that due to the way this solver works, it has some constraints:
 
-        1. The `Sample` must have the `choices` attribute set.
-        2. The only built-in compatible scorer is the `choice` scorer.
-        3. It calls `generate()` internally, so you don't need to call it again
-
-    ### Shuffling
-
-    You can shuffle choices when you load your dataset by using the `shuffle_choices` method or parameter of the datasets API.
+    1. The `Sample` must have the `choices` attribute set.
+    2. The only built-in compatible scorer is the `choice` scorer.
+    3. It calls `generate()` internally, so you don't need to call it again
 
     Args:
-      template (str | None): Template to use for the multiple choice question.
+      template: Template to use for the multiple choice question.
         The defaults vary based on the options and are taken from the `MultipleChoiceTemplate` enum. The template will have questions and possible answers substituted into it before being sent to the model. Consequently it requires three specific template variables:
-        - `{question}`: The question to be asked.
-        - `{choices}`: The choices available, which will be formatted as a
+
+          - `{question}`: The question to be asked.
+          - `{choices}`: The choices available, which will be formatted as a
             list of A) ... B) ... etc. before sending to the model.
-        - `{letters}`: (optional) A string of letters representing the choices, e.g.
+          - `{letters}`: (optional) A string of letters representing the choices, e.g.
             "A,B,C". Used to be explicit to the model about the possible answers.
-      cot (bool): Default `False`. Whether the solver should perform chain-of-thought
+      cot: Default `False`. Whether the solver should perform chain-of-thought
         reasoning before answering. NOTE: this has no effect if you provide a custom template.
-      multiple_correct (bool): Default `False`. Whether to allow multiple
+      multiple_correct: Default `False`. Whether to allow multiple
         answers to the multiple choice question. For example, "What numbers are
         squares? A) 3, B) 4, C) 9" has multiple correct answers, B and C. Leave
         as `False` if there's exactly one correct answer from the choices
         available. NOTE: this has no effect if you provide a custom template.
       **kwargs (Any): Deprecated arguments for backward compatibility.
+
+    #### Shuffling
+
+    You can shuffle choices when you load your dataset by using the `shuffle_choices` method or parameter of the datasets API.
     """
     shuffle: bool | Random = False
     if "shuffle" in kwargs:

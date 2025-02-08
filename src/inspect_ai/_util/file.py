@@ -354,7 +354,7 @@ def safe_filename(s: str, max_length: int = 255) -> str:
     Returns:
         str: A safe filename string
 
-    Example:
+    Examples:
         >>> safe_filename("Hello/World?.txt")
         'Hello_World.txt'
     """

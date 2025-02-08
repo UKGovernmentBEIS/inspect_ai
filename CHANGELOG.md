@@ -1,7 +1,7 @@
-# Changelog
 
 ## Unreleased
 
+- Docs: Provide reference for Python API.
 - Add support for [clustered standard errors](https://inspect.ai-safety-institute.org.uk/scorers.html#clustered-standard-errors) via a new `cluster` parameter for the `stderr()` metric.
 - Metrics now take `list[SampleScore]` rather than `list[Score]` (previous signature is deprecated but still works with a warning).
 - Use a sample adjustment for the `var()` metric.

@@ -20,8 +20,8 @@ def prompt_template(template: str, **params: Any) -> Solver:
     `params`.
 
     Args:
-      template: (str): Template for prompt.
-      **params (dict[str,Any]): Parameters to fill into the template.
+      template: Template for prompt.
+      **params: Parameters to fill into the template.
 
     Returns:
       A solver that uses the specified prompt template.
@@ -51,8 +51,8 @@ def system_message(template: str, **params: Any) -> Solver:
     are none it will be inserted at the beginning of the conversation).
 
     Args:
-      template (str): Template for system message.
-      **params (dict[str,Any]): Parameters to fill into the template.
+      template: Template for system message.
+      **params: Parameters to fill into the template.
 
     Returns:
       A solver that inserts the parameterised system message.
@@ -80,8 +80,8 @@ def user_message(template: str, **params: Any) -> Solver:
     included in the `params`.
 
     Args:
-      template (str): Template for user message.
-      **params (dict[str,Any]): Parameters to fill into the template.
+      template: Template for user message.
+      **params: Parameters to fill into the template.
 
     Returns:
       A solver that inserts the parameterised user message.
@@ -109,7 +109,7 @@ def chain_of_thought(template: str = DEFAULT_COT_TEMPLATE) -> Solver:
     """Solver which modifies the user prompt to encourage chain of thought.
 
     Args:
-       template (str): String or path to file containing CoT template.
+       template: String or path to file containing CoT template.
           The template uses a single variable: `prompt`.
     """
 

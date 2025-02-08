@@ -9,6 +9,8 @@ from ._chat_message import ChatMessageAssistant
 
 
 class ModelUsage(BaseModel):
+    """Token usage for completion."""
+
     input_tokens: int = Field(default=0)
     """Total input tokens used."""
 
@@ -73,6 +75,8 @@ class Logprobs(BaseModel):
 
 
 class ChatCompletionChoice(BaseModel):
+    """Choice generated for completion."""
+
     message: ChatMessageAssistant
     """Assistant message."""
 
@@ -96,6 +100,8 @@ class ChatCompletionChoice(BaseModel):
 
 
 class ModelOutput(BaseModel):
+    """Output from model generation."""
+
     model: str = Field(default_factory=str)
     """Model used for generation."""
 
@@ -155,7 +161,14 @@ class ModelOutput(BaseModel):
         stop_reason: StopReason = "stop",
         error: str | None = None,
     ) -> "ModelOutput":
-        """Convenient method to create ModelOutput from simple text content."""
+        """Create ModelOutput from simple text content.
+
+        Args:
+           model: Model name.
+           content: Text content from generation.
+           stop_reason: Stop reason for generation.
+           error: Error message.
+        """
         return ModelOutput(
             model=model,
             choices=[

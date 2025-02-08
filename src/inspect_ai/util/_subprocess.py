@@ -20,6 +20,8 @@ T = TypeVar("T", str, bytes)
 
 @dataclass
 class ExecResult(Generic[T]):
+    """Execution result from call to `subprocess()`."""
+
     success: bool
     """Did the process exit with success."""
 
@@ -85,11 +87,11 @@ async def subprocess(
        cwd (str | Path | None): Switch to directory for execution.
        env (dict[str, str]): Additional environment variables.
        capture_output (bool): Capture stderr and stdout into ExecResult
-         (if False, then output is redirected to parent stderr/stdout)
+          (if False, then output is redirected to parent stderr/stdout)
        output_limit (int | None): Stop reading output if it exceeds
-         the specified limit (in bytes).
+          the specified limit (in bytes).
        timeout (int | None): Timeout. If the timeout expires then
-         a `TimeoutError` will be raised.
+          a `TimeoutError` will be raised.
 
     Returns:
        Subprocess result (text or binary depending on `text` param)

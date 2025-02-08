@@ -4,6 +4,10 @@
     margin-top: 18px;
 }
 
+img.navbar-logo {
+    padding-right: 15px;
+}
+
 .level1 h1 {
     margin-top: 0;
 }
@@ -76,4 +80,52 @@
 
 .blockquote {
     color: #505a62;
+}
+
+.source-link {
+    position: relative;
+}
+
+.source-link > a {
+    color: $btn-code-copy-color;
+    position: absolute;
+    right: 5px;
+    top: 0;
+    font-size: 0.8em;
+    z-index: 1001;
+}
+
+.source-link a:hover {
+    color: $btn-code-copy-color-active;
+}
+
+.element-type {
+    font-size: 0.8em;
+    font-weight: 400;
+}
+
+.element-type-name > a {
+    border-bottom: 1px dotted currentcolor !important;
+    color: currentColor;
+    text-decoration: none;
+}
+
+.element-type-name > a:hover {
+    text-decoration: underline;
+    cursor: pointer;
+}
+
+.ref-interlink {
+    color: $code-color;
+    background-color: $code-bg;
+    font-family: $font-family-monospace;
+    font-size: 0.875em;
+}
+
+.doc-declaration .code-copy-button {
+    display: none;
+}
+
+.class-methods > dl > dt {
+    font-size: 1.3em;
 }

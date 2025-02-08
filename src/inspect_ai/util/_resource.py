@@ -33,18 +33,18 @@ def resource(
     `resource("templates/prompt.txt", type="file")`
 
     Args:
-        resource (str): Path to local or remote (e.g. s3://)
-          resource, or for `type="auto"` (the default),
-          a string containing the literal resource value.
-        type (Literal["auto", "file"]): For "auto" (the default),
-          interpret the resource as a literal string if its not
-          a valid path. For "file", always interpret it as
-          a file path.
-        fs_options (dict[str, Any]): Optional. Additional
-          arguments to pass through to the `fsspec` filesystem
-          provider (e.g. `S3FileSystem`). Use `{"anon": True }`
-          if you are accessing a public S3 bucket with no
-          credentials.
+        resource: Path to local or remote (e.g. s3://)
+            resource, or for `type="auto"` (the default),
+            a string containing the literal resource value.
+        type: For "auto" (the default),
+            interpret the resource as a literal string if its not
+            a valid path. For "file", always interpret it as
+            a file path.
+        fs_options: Optional. Additional
+            arguments to pass through to the `fsspec` filesystem
+            provider (e.g. `S3FileSystem`). Use `{"anon": True }`
+            if you are accessing a public S3 bucket with no
+            credentials.
 
     Returns:
        Text content of resource.

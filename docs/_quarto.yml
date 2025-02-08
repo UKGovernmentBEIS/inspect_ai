@@ -3,8 +3,18 @@ project:
    resources: 
       - CNAME
       - llms.txt
-   post-render: scripts/post-render.sh
-  
+   pre-render: 
+      - reference/filter/sidebar.py
+   post-render: 
+      - scripts/post-render.sh
+
+metadata-files: 
+  - reference/_sidebar.yml  
+
+filters:
+  - at: pre-quarto
+    path: reference/filter/interlink.lua
+ 
 website:
    title: "Inspect"
    bread-crumbs: true
@@ -21,66 +31,74 @@ website:
       title: "Inspect"
       description: "Open-source framework for large language model evaluations"
       image: /images/inspect.png
-   sidebar:
-      style: floating
+   navbar:
+      title: "Inspect AI"
+      background: light
       search: true
-      header: >
-         [![](/images/aisi-logo.png){fig-alt="UK AI Safety Institute Website"}](https://aisi.gov.uk/)
-      tools:
-        - icon: github
-          href: https://github.com/UKGovernmentBEIS/inspect_ai
-          text: "Source Code"
-      contents:
-        - text: Welcome
-          href: index.qmd   
-        - section: "Basics"
-          contents:
-            - tutorial.qmd
-            - options.qmd
-            - text: "Evals"
-              href: evals/index.qmd
-            - log-viewer.qmd
-            - text: "VS Code"
-              href: vscode.qmd
+      logo: images/aisi-logo.png
+      logo-href: https://www.aisi.gov.uk/     
+      left:      
+          - text: "User Guide"
+            href: index.qmd
+          - text: "Reference"
+            href: reference/inspect_ai.qmd
+          - text: "Evals"
+            href: evals/index.qmd
+      right: 
+          - icon: github
+            href: https://github.com/UKGovernmentBEIS/inspect_ai
+      
+   sidebar:
+      - title: Guide
+        style: docked
+        contents:
+         - section: "Basics"
+           contents:
+               - text: "Welcome"
+                 href: index.qmd
+               - tutorial.qmd
+               - options.qmd
+               - log-viewer.qmd
+               - text: "VS Code"
+                 href: vscode.qmd
 
-        - section: "Components"
-          contents: 
-            - tasks.qmd
-            - datasets.qmd
-            - solvers.qmd
-            - tools.qmd
-            - scorers.qmd
+         - section: "Components"
+           contents: 
+               - tasks.qmd
+               - datasets.qmd
+               - solvers.qmd
+               - tools.qmd
+               - scorers.qmd
 
-        - section: "Models"
-          contents:
-            - models.qmd
-            - text: "Providers"
-              href: providers.qmd
-            - caching.qmd
-            - multimodal.qmd
-            - reasoning.qmd
+         - section: "Models"
+           contents:
+               - models.qmd
+               - text: "Providers"
+                 href: providers.qmd
+               - caching.qmd
+               - multimodal.qmd
+               - reasoning.qmd
 
-        - section: "Agents"
-          contents:
-            - agents.qmd
-            - sandboxing.qmd
-            - agents-api.qmd
-            - agent-bridge.qmd
-            - human-agent.qmd
-            - approval.qmd
+         - section: "Agents"
+           contents:
+               - agents.qmd
+               - sandboxing.qmd
+               - agents-api.qmd
+               - agent-bridge.qmd
+               - human-agent.qmd
+               - approval.qmd
 
-        - section: "Advanced"
-          contents:
-            - eval-logs.qmd
-            - eval-sets.qmd
-            - text: "Errors & Limits"
-              href: errors-and-limits.qmd
-            - typing.qmd
-            - tracing.qmd
-            - parallelism.qmd
-            - interactivity.qmd
-            - extensions.qmd
-
+         - section: "Advanced"
+           contents:
+               - eval-logs.qmd
+               - eval-sets.qmd
+               - text: "Errors & Limits"
+                 href: errors-and-limits.qmd
+               - typing.qmd
+               - tracing.qmd
+               - parallelism.qmd
+               - interactivity.qmd
+               - extensions.qmd
 
    page-footer: 
       left: 

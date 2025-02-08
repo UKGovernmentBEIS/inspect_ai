@@ -55,11 +55,11 @@ def pattern(pattern: str, ignore_case: bool = True, match_all: bool = False) -> 
     to match either one or all of the extracted groups
 
     Args:
-       pattern (str): Regular expression for extracting the
+       pattern: Regular expression for extracting the
           answer from model output.
-       ignore_case (bool): Ignore case when comparing
+       ignore_case: Ignore case when comparing
           the extract answer to the targets. (Default: True)
-       match_all (bool): With multiple captures, do all captured
+       match_all: With multiple captures, do all captured
           values need to match the target? (Default: False)
     """
 

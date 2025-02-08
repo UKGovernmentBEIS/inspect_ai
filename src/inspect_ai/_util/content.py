@@ -4,6 +4,8 @@ from pydantic import BaseModel, Field
 
 
 class ContentText(BaseModel):
+    """Text content."""
+
     type: Literal["text"] = Field(default="text")
     """Type."""
 
@@ -12,6 +14,8 @@ class ContentText(BaseModel):
 
 
 class ContentImage(BaseModel):
+    """Image content."""
+
     type: Literal["image"] = Field(default="image")
     """Type."""
 
@@ -26,6 +30,8 @@ class ContentImage(BaseModel):
 
 
 class ContentAudio(BaseModel):
+    """Audio content."""
+
     type: Literal["audio"] = Field(default="audio")
     """Type."""
 
@@ -37,6 +43,8 @@ class ContentAudio(BaseModel):
 
 
 class ContentVideo(BaseModel):
+    """Video content."""
+
     type: Literal["video"] = Field(default="video")
     """Type."""
 
