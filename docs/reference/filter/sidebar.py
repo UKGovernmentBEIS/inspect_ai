@@ -1,5 +1,5 @@
+import json
 import os
-import re
 from typing import Any
 import yaml
 
@@ -30,7 +30,10 @@ website:
       collapse-level: 1
       contents: []
 """)
-contents = sidebar["website"]["sidebar"][0]["contents"]
+contents_yaml = sidebar["website"]["sidebar"][0]["contents"]
+
+# build index (for cross linking)
+index_json: dict[str, str] = {}
 
 # helper to parse reference objects from qmd
 def parse_reference_objects(markdown: str) -> list[str]:
@@ -46,20 +49,27 @@ def parse_reference_objects(markdown: str) -> list[str]:
 # build for each reference doc
 for doc in reference_docs:
 
-    section=doc.removeprefix("reference/").removesuffix(".qmd")
-
     with open(doc, "r") as f:
         objects = parse_reference_objects(f.read())
         refs = [dict(text=o, href=f"{doc}#{o.lower()}") for o in objects]
+        for ref in refs:
+            index_json[ref["text"]] = ref["href"]
 
     # add section to sidebar
+    section=doc.removeprefix("reference/").removesuffix(".qmd")
     record = dict(
         section=section,
         href=doc,
         contents=refs
     )
-    contents.append(record)
+    contents_yaml.append(record)
+
     
+# write ref index
+index_file = "reference/refs.json"
+with open(index_file, "w") as f:
+    json.dump(index_json, f, indent=2)
+
 # dump as yaml
 sidebar_yaml = yaml.dump(sidebar, sort_keys=False).strip()
 

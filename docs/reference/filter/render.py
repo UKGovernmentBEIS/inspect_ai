@@ -1,5 +1,3 @@
-
-
 from textwrap import dedent
 import panflute as pf # type: ignore
 from parse import DocAttribute, DocClass, DocFunction, DocObject, DocParameter
@@ -69,8 +67,6 @@ def render_method_definition_item(method: DocFunction) -> pf.DefinitionItem:
         )]
     ) 
 
-
-
 def render_params(params: list[DocParameter]) -> pf.Table | pf.Div:
     if len(params) > 0:
         return render_element_list(params)
@@ -87,20 +83,12 @@ def render_element_definition_item(element: DocAttribute | DocParameter) -> pf.D
         [
             pf.Code(element.name), 
             pf.Space(), 
-            pf.Span(pf.Str(element.type), classes=["argument-type"])
+            pf.Span(pf.Str(element.type), classes=["element-type"])
         ], 
         [pf.Definition(
             pf.RawBlock(element.description, format="markdown")
         )]
     )     
-
-
-def render_element_table(head: pf.TableHead | None, elements: list[DocAttribute] | list[DocParameter]) -> pf.Table:
-    return pf.Table(
-        pf.TableBody(*[render_table_row(el) for el in elements]),
-        head=head,
-        colspec=[("AlignLeft", 0.25), ("AlignLeft", 0.75)]
-    )
 
 def render_params_header() -> pf.TableHead:
     return pf.TableHead(
@@ -118,8 +106,3 @@ def render_header(col1: str, col2: str) -> pf.TableHead:
         )
     )
 
-def render_table_row(param: DocParameter | DocAttribute) -> pf.TableRow:
-    return pf.TableRow(
-        pf.TableCell(pf.Plain(pf.Code(param.name), pf.LineBreak(), pf.Span(pf.Str(param.type), classes=["argument-type"]))),
-        pf.TableCell(pf.RawBlock(param.description, format="markdown"))
-    )
