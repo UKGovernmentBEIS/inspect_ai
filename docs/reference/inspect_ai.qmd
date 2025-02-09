@@ -8,8 +8,8 @@ title: inspect_ai
 ## Evaluation
 
 ### eval
-### eval_set
 ### eval_retry
+### eval_set
 ### score
 
 ## Tasks

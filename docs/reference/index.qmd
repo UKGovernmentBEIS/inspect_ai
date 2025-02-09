@@ -1,9 +1,11 @@
 ---
 title: Reference
 tbl-colwidths: [35,66]
+toc-depth: 4
 ---
 
-### Python API
+
+#### Python API
 
 |  |  |
 |----|----|
@@ -19,7 +21,7 @@ tbl-colwidths: [35,66]
 
 : {.borderless}
 
-### Inspect CLI
+#### Inspect CLI
 
 |  |  |
 |------------------------------------|------------------------------------|
@@ -36,3 +38,18 @@ tbl-colwidths: [35,66]
 | [inspect info](inspect_info.qmd) | Read version and configuration. |
 
 : {.borderless}
+
+
+```{=html}
+<style>
+.table td {
+    padding-bottom: 0 !important;
+}
+a {
+    text-decoration: none;
+}
+a:hover {
+    text-decoration: underline;
+}
+</style>
+```
