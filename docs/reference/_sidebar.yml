@@ -420,10 +420,10 @@ website:
       contents:
       - text: inspect eval
         href: reference/inspect_eval.qmd
-      - text: inspect eval-set
-        href: reference/inspect_eval-set.qmd
       - text: inspect eval-retry
         href: reference/inspect_eval-retry.qmd
+      - text: inspect eval-set
+        href: reference/inspect_eval-set.qmd
       - text: inspect score
         href: reference/inspect_score.qmd
       - text: inspect view

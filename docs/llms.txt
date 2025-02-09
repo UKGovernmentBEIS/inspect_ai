@@ -48,8 +48,8 @@
 ## Reference: Command Line 
 
 - [inspect_eval](https://inspect.ai-safety-institute.org.uk/reference/inspect_eval.html.md): Evaluate one or more tasks.
-- [inspect_eval-set](https://inspect.ai-safety-institute.org.uk/reference/inspect_eval-set.html.md): Evaluate a set of tasks with retries.
 - [inspect_eval-retry](https://inspect.ai-safety-institute.org.uk/reference/inspect_eval-retry.html.md): Retry an evaluation task.
+- [inspect_eval-set](https://inspect.ai-safety-institute.org.uk/reference/inspect_eval-set.html.md): Evaluate a set of tasks with retries.
 - [inspect_score](https://inspect.ai-safety-institute.org.uk/reference/inspect_score.html.md): Score a previous evaluation run.
 - [inspect_view](https://inspect.ai-safety-institute.org.uk/reference/inspect_view.html.md): Inspect log viewer.
 - [inspect_log](https://inspect.ai-safety-institute.org.uk/reference/inspect_log.html.md): Query, read, write, and convert logs.
