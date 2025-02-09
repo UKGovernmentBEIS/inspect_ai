@@ -13,10 +13,10 @@ website:
         contents:
         - text: eval
           href: reference/inspect_ai.qmd#eval
-        - text: eval_set
-          href: reference/inspect_ai.qmd#eval_set
         - text: eval_retry
           href: reference/inspect_ai.qmd#eval_retry
+        - text: eval_set
+          href: reference/inspect_ai.qmd#eval_set
         - text: score
           href: reference/inspect_ai.qmd#score
         - text: Task
