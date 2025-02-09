@@ -31,16 +31,19 @@ website:
       style: docked
       collapse-level: 2
       contents:
+        - reference/index.qmd
         - section: Python API
           href: reference/inspect_ai.qmd
           contents: []
         - section: Inspect CLI
-          href: reference/cli-eval.qmd
+          href: reference/inspect_eval.qmd
           contents:
-             - reference/cli-eval.qmd
-             - reference/cli-view.qmd                                  
+             - text: inspect eval
+               href: reference/inspect_eval.qmd
+             - text: inspect view
+               href: reference/inspect_view.qmd                                  
 """)
-contents_yaml = sidebar["website"]["sidebar"][0]["contents"][0]["contents"]
+contents_yaml = sidebar["website"]["sidebar"][0]["contents"][1]["contents"]
 
 # build index (for cross linking)
 index_json: dict[str, str] = {}

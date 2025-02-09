@@ -4,6 +4,7 @@ website:
     style: docked
     collapse-level: 2
     contents:
+    - reference/index.qmd
     - section: Python API
       href: reference/inspect_ai.qmd
       contents:
@@ -415,7 +416,9 @@ website:
         - text: sandboxenv
           href: reference/inspect_ai.util.qmd#sandboxenv
     - section: Inspect CLI
-      href: reference/cli-eval.qmd
+      href: reference/inspect_eval.qmd
       contents:
-      - reference/cli-eval.qmd
-      - reference/cli-view.qmd
+      - text: inspect eval
+        href: reference/inspect_eval.qmd
+      - text: inspect view
+        href: reference/inspect_view.qmd
