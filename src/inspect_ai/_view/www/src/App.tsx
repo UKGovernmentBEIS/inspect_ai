@@ -990,6 +990,7 @@ const defaultScorers = (log: EvalSummary): Array<ScorerInfo> => {
       }, [] as Array<ScorerInfo>);
   } else if (log.sampleSummaries && log.sampleSummaries.length > 0) {
     const scores = log.sampleSummaries[0].scores;
+
     if (scores !== null) {
       return Object.keys(scores).map((key) => {
         return {
