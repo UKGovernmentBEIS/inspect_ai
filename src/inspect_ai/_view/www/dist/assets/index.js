@@ -25618,13 +25618,27 @@ categories: ${categories.join(" ")}`;
       cancelled
     };
     const metricDisplayName = (metric2) => {
-      const metricParamNames = Object.keys(metric2.params || {}).filter((key2) => {
-        return !!metric2.params[key2];
-      });
-      const metricsParams = metricParamNames.length === 1 ? metricParamNames[0] : `${metricParamNames[0]}, ...`;
-      const metricName2 = metricParamNames.length === 0 ? metric2.name : `${metric2.name} (${metricsParams})`;
+      let modifier = void 0;
+      for (const metricModifier of metricModifiers) {
+        modifier = metricModifier(metric2);
+        if (modifier) {
+          break;
+        }
+      }
+      const metricName2 = !modifier ? metric2.name : `${metric2.name}[${modifier}]`;
       return metricName2;
     };
+    const clusterMetricModifier = (metric2) => {
+      if (metric2.name !== "stderr") {
+        return void 0;
+      }
+      const clusterValue = (metric2.params || {})["cluster"];
+      if (clusterValue === void 0 || typeof clusterValue !== "string") {
+        return void 0;
+      }
+      return clusterValue;
+    };
+    const metricModifiers = [clusterMetricModifier];
     const container$c = "_container_1frsg_1";
     const metric = "_metric_1frsg_8";
     const metricName$1 = "_metricName_1frsg_17";
