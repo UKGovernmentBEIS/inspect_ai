@@ -7,7 +7,9 @@ from typing_extensions import Unpack
 from inspect_ai import Epochs, eval, eval_retry
 from inspect_ai._eval.evalset import eval_set
 from inspect_ai._util.constants import (
+    ALL_LOG_LEVELS,
     DEFAULT_EPOCHS,
+    DEFAULT_LOG_LEVEL_TRANSCRIPT,
     DEFAULT_MAX_CONNECTIONS,
     DEFAULT_MAX_RETRIES,
 )
@@ -399,6 +401,16 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         envvar=["INSPECT_LOG_FORMAT", "INSPECT_EVAL_LOG_FORMAT"],
         help="Format for writing log files.",
     )
+    @click.option(
+        "--log-level-transcript",
+        type=click.Choice(
+            [level.lower() for level in ALL_LOG_LEVELS],
+            case_sensitive=False,
+        ),
+        default=DEFAULT_LOG_LEVEL_TRANSCRIPT,
+        envvar="INSPECT_LOG_LEVEL_TRANSCRIPT",
+        help=f"Set the log level of the transcript (defaults to '{DEFAULT_LOG_LEVEL_TRANSCRIPT}')",
+    )
     @common_options
     @functools.wraps(func)
     def wrapper(*args: Any, **kwargs: Any) -> click.Context:
@@ -468,6 +480,7 @@ def eval_command(
     no_score: bool | None,
     no_score_display: bool | None,
     log_format: Literal["eval", "json"] | None,
+    log_level_transcript: str,
     **common: Unpack[CommonOptions],
 ) -> None:
     """Evaluate tasks."""
@@ -482,7 +495,7 @@ def eval_command(
         tasks=tasks,
         solver=solver,
         log_level=common["log_level"],
-        log_level_transcript=common["log_level_transcript"],
+        log_level_transcript=log_level_transcript,
         log_dir=common["log_dir"],
         log_format=log_format,
         model=model,
@@ -630,6 +643,7 @@ def eval_set_command(
     bundle_dir: str | None,
     bundle_overwrite: bool | None,
     log_format: Literal["eval", "json"] | None,
+    log_level_transcript: str,
     **common: Unpack[CommonOptions],
 ) -> int:
     """Evaluate a set of tasks."""
@@ -644,7 +658,7 @@ def eval_set_command(
         tasks=tasks,
         solver=solver,
         log_level=common["log_level"],
-        log_level_transcript=common["log_level_transcript"],
+        log_level_transcript=log_level_transcript,
         log_dir=common["log_dir"],
         log_format=log_format,
         model=model,
@@ -967,6 +981,16 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
     "--max-retries", type=int, help=MAX_RETRIES_HELP, envvar="INSPECT_EVAL_MAX_RETRIES"
 )
 @click.option("--timeout", type=int, help=TIMEOUT_HELP, envvar="INSPECT_EVAL_TIMEOUT")
+@click.option(
+    "--log-level-transcript",
+    type=click.Choice(
+        [level.lower() for level in ALL_LOG_LEVELS],
+        case_sensitive=False,
+    ),
+    default=DEFAULT_LOG_LEVEL_TRANSCRIPT,
+    envvar="INSPECT_LOG_LEVEL_TRANSCRIPT",
+    help=f"Set the log level of the transcript (defaults to '{DEFAULT_LOG_LEVEL_TRANSCRIPT}')",
+)
 @common_options
 def eval_retry_command(
     log_files: tuple[str],
@@ -986,6 +1010,7 @@ def eval_retry_command(
     max_connections: int | None,
     max_retries: int | None,
     timeout: int | None,
+    log_level_transcript: str,
     **common: Unpack[CommonOptions],
 ) -> None:
     """Retry failed evaluation(s)"""
@@ -1014,7 +1039,7 @@ def eval_retry_command(
     eval_retry(
         retry_log_files,
         log_level=common["log_level"],
-        log_level_transcript=common["log_level_transcript"],
+        log_level_transcript=log_level_transcript,
         log_dir=common["log_dir"],
         max_samples=max_samples,
         max_tasks=max_tasks,

@@ -17,7 +17,7 @@ from markdown.extensions.toc import slugify
 def make_command_docs(
     command: str,
     depth: int = 0,
-    style: str = "plain",
+    style: str = "table",
     remove_ascii_art: bool = False,
     show_hidden: bool = False,
     list_subcommands: bool = True,
@@ -189,7 +189,7 @@ def _make_usage(ctx: click.Context) -> Iterator[str]:
     formatter.write_usage(ctx.command_path, " ".join(pieces), prefix="")
     usage = formatter.getvalue().rstrip("\n")
 
-    yield "**Usage:**"
+    yield "#### Usage:"
     yield ""
     yield "```text"
     yield usage
@@ -246,7 +246,7 @@ def _make_plain_options(ctx: click.Context, show_hidden: bool = False) -> Iterat
             # We expect at least `--help` to be present.
             raise RuntimeError("Expected at least one option")
 
-        yield "**Options:**"
+        yield "#### Options:"
         yield ""
         yield "```text"
         yield from option_lines
@@ -326,11 +326,12 @@ def _make_table_options(ctx: click.Context, show_hidden: bool = False) -> Iterat
     options = [option for option in options if not option.hidden or show_hidden]
     option_rows = [_format_table_option_row(option) for option in options]
 
-    yield "**Options:**"
+    yield "#### Options"
     yield ""
     yield "| Name | Type | Description | Default |"
     yield "| ---- | ---- | ----------- | ------- |"
     yield from option_rows
+    yield ": {.sm .borderless tbl-colwidths=[25,15,50,10]}"
     yield ""
 
 
@@ -340,7 +341,7 @@ def _make_subcommands_links(
     has_attr_list: bool,
     show_hidden: bool,
 ) -> Iterator[str]:
-    yield "**Subcommands**"
+    yield "#### Subcommands"
     yield ""
     for command in subcommands:
         command_name = cast(str, command.name)
@@ -357,7 +358,7 @@ def _make_subcommands_links(
             help_string = help_string.splitlines()[0]
         else:
             help_string = "*No description was provided with this command.*"
-        yield f"- *{command_bullet}*: {help_string}"
+        yield f"- **{command_bullet}**: {help_string}"
     yield ""
 
 

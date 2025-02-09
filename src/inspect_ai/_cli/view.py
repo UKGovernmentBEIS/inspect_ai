@@ -78,7 +78,6 @@ def start(
         port=port,
         authorization=authorization,
         log_level=common["log_level"],
-        log_level_transcript=common["log_level_transcript"],
     )
 
 

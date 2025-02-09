@@ -62,11 +62,9 @@ def cache_command() -> None:
     type=str,
     help="Clear the cache for a specific model (e.g. --model=openai/gpt-4). Can be passed multiple times.",
 )
-def clear(
-    all: bool, model: tuple[str, ...], log_level: str, log_level_transcript: str
-) -> None:
+def clear(all: bool, model: tuple[str, ...], log_level: str) -> None:
     """Clear all cache files. Requires either --all or --model flags."""
-    init_logger(log_level, log_level_transcript)
+    init_logger(log_level)
 
     if model:
         _print_table(
@@ -119,14 +117,14 @@ def list_caches(pruneable: bool) -> None:
     type=str,
     help="Only prune a specific model (e.g. --model=openai/gpt-4). Can be passed multiple times.",
 )
-def prune(log_level: str, log_level_transcript: str, model: tuple[str, ...]) -> None:
+def prune(log_level: str, model: tuple[str, ...]) -> None:
     """Prune all expired cache entries
 
     Over time the cache directory can grow, but many cache entries will be
     expired. This command will remove all expired cache entries for ease of
     maintenance.
     """
-    init_logger(log_level, log_level_transcript)
+    init_logger(log_level)
 
     expired_cache_entries = cache_list_expired(list(model))
 
