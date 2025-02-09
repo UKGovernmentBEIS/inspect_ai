@@ -54,12 +54,12 @@ website:
           href: reference/inspect_ai.solver.qmd#basic_agent
         - text: human_agent
           href: reference/inspect_ai.solver.qmd#human_agent
+        - text: bridge
+          href: reference/inspect_ai.solver.qmd#bridge
         - text: chain
           href: reference/inspect_ai.solver.qmd#chain
         - text: fork
           href: reference/inspect_ai.solver.qmd#fork
-        - text: bridge
-          href: reference/inspect_ai.solver.qmd#bridge
         - text: Solver
           href: reference/inspect_ai.solver.qmd#solver
         - text: SolverSpec
