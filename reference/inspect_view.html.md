@@ -3,6 +3,9 @@
 
 Inspect log viewer.
 
+Learn more about using the log viewer at
+<https://inspect.ai-safety-institute.org.uk/log-viewer.html>.
+
 #### Usage
 
 ``` text

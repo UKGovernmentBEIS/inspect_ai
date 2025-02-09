@@ -1609,7 +1609,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="list_eval_logs">list_eval_logs</h3>
 <p>List all eval logs in a directory.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/6d7f690f1448a76633cbd04a8ccc54115d567e2b/src/inspect_ai/log/_file.py#L51">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f73c01239f047b6a94bb4b2e6ffc5040d0055b93/src/inspect_ai/log/_file.py#L51">Source</a>
 </div>
 <div class="sourceCode" id="cb1"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> list_eval_logs(</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    log_dir: <span class="bu">str</span> <span class="op">=</span> os.environ.get(<span class="st">"INSPECT_LOG_DIR"</span>, <span class="st">"./logs"</span>),</span>
@@ -1620,27 +1620,27 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>    fs_options: <span class="bu">dict</span>[<span class="bu">str</span>, Any] <span class="op">=</span> {},</span>
 <span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="bu">list</span>[EvalLogInfo]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <dl>
-<dt><code>log_dir</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
+<dt><code class="ref-definition">log_dir</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
 <dd>
 <p>Log directory (defaults to INSPECT_LOG_DIR)</p>
 </dd>
-<dt><code>formats</code> <span class="element-type">list[<span class="element-type-name">Literal</span>['eval', 'json']] | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">formats</code> <span class="element-type">list[<span class="element-type-name">Literal</span>['eval', 'json']] | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Formats to list (default to listing all formats)</p>
 </dd>
-<dt><code>filter</code> <span class="element-type"><span class="element-type-name">Callable</span>[[<span class="element-type-name"><a href="../reference/inspect_ai.log.html#evallog">EvalLog</a></span>], <span class="element-type-name">bool</span>] | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">filter</code> <span class="element-type"><span class="element-type-name">Callable</span>[[<span class="element-type-name"><a href="../reference/inspect_ai.log.html#evallog">EvalLog</a></span>], <span class="element-type-name">bool</span>] | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Filter to limit logs returned. Note that the EvalLog instance passed to the filter has only the EvalLog header (i.e.&nbsp;does not have the samples or logging output).</p>
 </dd>
-<dt><code>recursive</code> <span class="element-type"><span class="element-type-name">bool</span></span></dt>
+<dt><code class="ref-definition">recursive</code> <span class="element-type"><span class="element-type-name">bool</span></span></dt>
 <dd>
 <p>List log files recursively (defaults to True).</p>
 </dd>
-<dt><code>descending</code> <span class="element-type"><span class="element-type-name">bool</span></span></dt>
+<dt><code class="ref-definition">descending</code> <span class="element-type"><span class="element-type-name">bool</span></span></dt>
 <dd>
 <p>List in descending order.</p>
 </dd>
-<dt><code>fs_options</code> <span class="element-type">dict[<span class="element-type-name">str</span>, <span class="element-type-name">Any</span>]</span></dt>
+<dt><code class="ref-definition">fs_options</code> <span class="element-type">dict[<span class="element-type-name">str</span>, <span class="element-type-name">Any</span>]</span></dt>
 <dd>
 <p>Optional. Additional arguments to pass through to the filesystem provider (e.g.&nbsp;<code>S3FileSystem</code>).</p>
 </dd>
@@ -1650,7 +1650,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="write_eval_log">write_eval_log</h3>
 <p>Write an evaluation log.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/6d7f690f1448a76633cbd04a8ccc54115d567e2b/src/inspect_ai/log/_file.py#L155">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f73c01239f047b6a94bb4b2e6ffc5040d0055b93/src/inspect_ai/log/_file.py#L155">Source</a>
 </div>
 <div class="sourceCode" id="cb2"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> write_eval_log(</span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>    log: EvalLog,</span>
@@ -1658,15 +1658,15 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>    <span class="bu">format</span>: Literal[<span class="st">"eval"</span>, <span class="st">"json"</span>, <span class="st">"auto"</span>] <span class="op">=</span> <span class="st">"auto"</span>,</span>
 <span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="va">None</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <dl>
-<dt><code>log</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.log.html#evallog">EvalLog</a></span></span></dt>
+<dt><code class="ref-definition">log</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.log.html#evallog">EvalLog</a></span></span></dt>
 <dd>
 <p>Evaluation log to write.</p>
 </dd>
-<dt><code>location</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">FileInfo</span> | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">location</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">FileInfo</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Location to write log to.</p>
 </dd>
-<dt><code>format</code> <span class="element-type"><span class="element-type-name">Literal</span>['eval', 'json', 'auto']</span></dt>
+<dt><code class="ref-definition">format</code> <span class="element-type"><span class="element-type-name">Literal</span>['eval', 'json', 'auto']</span></dt>
 <dd>
 <p>Write to format (defaults to ‘auto’ based on <code>log_file</code> extension)</p>
 </dd>
@@ -1676,7 +1676,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="read_eval_log">read_eval_log</h3>
 <p>Read an evaluation log.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/6d7f690f1448a76633cbd04a8ccc54115d567e2b/src/inspect_ai/log/_file.py#L248">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f73c01239f047b6a94bb4b2e6ffc5040d0055b93/src/inspect_ai/log/_file.py#L248">Source</a>
 </div>
 <div class="sourceCode" id="cb3"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> read_eval_log(</span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    log_file: <span class="bu">str</span> <span class="op">|</span> EvalLogInfo,</span>
@@ -1685,19 +1685,19 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>    <span class="bu">format</span>: Literal[<span class="st">"eval"</span>, <span class="st">"json"</span>, <span class="st">"auto"</span>] <span class="op">=</span> <span class="st">"auto"</span>,</span>
 <span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> EvalLog</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <dl>
-<dt><code>log_file</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name"><a href="../reference/inspect_ai.log.html#evalloginfo">EvalLogInfo</a></span></span></dt>
+<dt><code class="ref-definition">log_file</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name"><a href="../reference/inspect_ai.log.html#evalloginfo">EvalLogInfo</a></span></span></dt>
 <dd>
 <p>Log file to read.</p>
 </dd>
-<dt><code>header_only</code> <span class="element-type"><span class="element-type-name">bool</span></span></dt>
+<dt><code class="ref-definition">header_only</code> <span class="element-type"><span class="element-type-name">bool</span></span></dt>
 <dd>
 <p>Read only the header (i.e.&nbsp;exclude the “samples” and “logging” fields). Defaults to False.</p>
 </dd>
-<dt><code>resolve_attachments</code> <span class="element-type"><span class="element-type-name">bool</span></span></dt>
+<dt><code class="ref-definition">resolve_attachments</code> <span class="element-type"><span class="element-type-name">bool</span></span></dt>
 <dd>
 <p>Resolve attachments (e.g.&nbsp;images) to their full content.</p>
 </dd>
-<dt><code>format</code> <span class="element-type"><span class="element-type-name">Literal</span>['eval', 'json', 'auto']</span></dt>
+<dt><code class="ref-definition">format</code> <span class="element-type"><span class="element-type-name">Literal</span>['eval', 'json', 'auto']</span></dt>
 <dd>
 <p>Read from format (defaults to ‘auto’ based on <code>log_file</code> extension)</p>
 </dd>
@@ -1707,7 +1707,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="read_eval_log_sample">read_eval_log_sample</h3>
 <p>Read a sample from an evaluation log.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/6d7f690f1448a76633cbd04a8ccc54115d567e2b/src/inspect_ai/log/_file.py#L335">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f73c01239f047b6a94bb4b2e6ffc5040d0055b93/src/inspect_ai/log/_file.py#L335">Source</a>
 </div>
 <div class="sourceCode" id="cb4"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> read_eval_log_sample(</span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>    log_file: <span class="bu">str</span> <span class="op">|</span> EvalLogInfo,</span>
@@ -1717,23 +1717,23 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>    <span class="bu">format</span>: Literal[<span class="st">"eval"</span>, <span class="st">"json"</span>, <span class="st">"auto"</span>] <span class="op">=</span> <span class="st">"auto"</span>,</span>
 <span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> EvalSample</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <dl>
-<dt><code>log_file</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name"><a href="../reference/inspect_ai.log.html#evalloginfo">EvalLogInfo</a></span></span></dt>
+<dt><code class="ref-definition">log_file</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name"><a href="../reference/inspect_ai.log.html#evalloginfo">EvalLogInfo</a></span></span></dt>
 <dd>
 <p>Log file to read.</p>
 </dd>
-<dt><code>id</code> <span class="element-type"><span class="element-type-name">int</span> | <span class="element-type-name">str</span></span></dt>
+<dt><code class="ref-definition">id</code> <span class="element-type"><span class="element-type-name">int</span> | <span class="element-type-name">str</span></span></dt>
 <dd>
 <p>Sample id to read.</p>
 </dd>
-<dt><code>epoch</code> <span class="element-type"><span class="element-type-name">int</span></span></dt>
+<dt><code class="ref-definition">epoch</code> <span class="element-type"><span class="element-type-name">int</span></span></dt>
 <dd>
 <p>Epoch for sample id (defaults to 1)</p>
 </dd>
-<dt><code>resolve_attachments</code> <span class="element-type"><span class="element-type-name">bool</span></span></dt>
+<dt><code class="ref-definition">resolve_attachments</code> <span class="element-type"><span class="element-type-name">bool</span></span></dt>
 <dd>
 <p>Resolve attachments (e.g.&nbsp;images) to their full content.</p>
 </dd>
-<dt><code>format</code> <span class="element-type"><span class="element-type-name">Literal</span>['eval', 'json', 'auto']</span></dt>
+<dt><code class="ref-definition">format</code> <span class="element-type"><span class="element-type-name">Literal</span>['eval', 'json', 'auto']</span></dt>
 <dd>
 <p>Read from format (defaults to ‘auto’ based on <code>log_file</code> extension)</p>
 </dd>
@@ -1744,7 +1744,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Read all samples from an evaluation log incrementally.</p>
 <p>Generator for samples in a log file. Only one sample at a time will be read into memory and yielded to the caller.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/6d7f690f1448a76633cbd04a8ccc54115d567e2b/src/inspect_ai/log/_file.py#L403">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f73c01239f047b6a94bb4b2e6ffc5040d0055b93/src/inspect_ai/log/_file.py#L403">Source</a>
 </div>
 <div class="sourceCode" id="cb5"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> read_eval_log_samples(</span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>    log_file: <span class="bu">str</span> <span class="op">|</span> EvalLogInfo,</span>
@@ -1753,19 +1753,19 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>    <span class="bu">format</span>: Literal[<span class="st">"eval"</span>, <span class="st">"json"</span>, <span class="st">"auto"</span>] <span class="op">=</span> <span class="st">"auto"</span>,</span>
 <span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> Generator[EvalSample, <span class="va">None</span>, <span class="va">None</span>]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <dl>
-<dt><code>log_file</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name"><a href="../reference/inspect_ai.log.html#evalloginfo">EvalLogInfo</a></span></span></dt>
+<dt><code class="ref-definition">log_file</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name"><a href="../reference/inspect_ai.log.html#evalloginfo">EvalLogInfo</a></span></span></dt>
 <dd>
 <p>Log file to read.</p>
 </dd>
-<dt><code>all_samples_required</code> <span class="element-type"><span class="element-type-name">bool</span></span></dt>
+<dt><code class="ref-definition">all_samples_required</code> <span class="element-type"><span class="element-type-name">bool</span></span></dt>
 <dd>
 <p>All samples must be included in the file or an IndexError is thrown.</p>
 </dd>
-<dt><code>resolve_attachments</code> <span class="element-type"><span class="element-type-name">bool</span></span></dt>
+<dt><code class="ref-definition">resolve_attachments</code> <span class="element-type"><span class="element-type-name">bool</span></span></dt>
 <dd>
 <p>Resolve attachments (e.g.&nbsp;images) to their full content.</p>
 </dd>
-<dt><code>format</code> <span class="element-type"><span class="element-type-name">Literal</span>['eval', 'json', 'auto']</span></dt>
+<dt><code class="ref-definition">format</code> <span class="element-type"><span class="element-type-name">Literal</span>['eval', 'json', 'auto']</span></dt>
 <dd>
 <p>Read from format (defaults to ‘auto’ based on <code>log_file</code> extension)</p>
 </dd>
@@ -1776,25 +1776,25 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Convert between log file formats.</p>
 <p>Convert log file(s) to a target format. If a file is already in the target format it will just be copied to the output dir.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/6d7f690f1448a76633cbd04a8ccc54115d567e2b/src/inspect_ai/log/_convert.py#L13">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f73c01239f047b6a94bb4b2e6ffc5040d0055b93/src/inspect_ai/log/_convert.py#L13">Source</a>
 </div>
 <div class="sourceCode" id="cb6"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> convert_eval_logs(</span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>    path: <span class="bu">str</span>, to: Literal[<span class="st">"eval"</span>, <span class="st">"json"</span>], output_dir: <span class="bu">str</span>, overwrite: <span class="bu">bool</span> <span class="op">=</span> <span class="va">False</span></span>
 <span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="va">None</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <dl>
-<dt><code>path</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
+<dt><code class="ref-definition">path</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
 <dd>
 <p>Path to source log file(s). Should be either a single log file or a directory containing log files.</p>
 </dd>
-<dt><code>to</code> <span class="element-type"><span class="element-type-name">Literal</span>['eval', 'json']</span></dt>
+<dt><code class="ref-definition">to</code> <span class="element-type"><span class="element-type-name">Literal</span>['eval', 'json']</span></dt>
 <dd>
 <p>Format to convert to. If a file is already in the target format it will just be copied to the output dir.</p>
 </dd>
-<dt><code>output_dir</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
+<dt><code class="ref-definition">output_dir</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
 <dd>
 <p>Output directory to write converted log file(s) to.</p>
 </dd>
-<dt><code>overwrite</code> <span class="element-type"><span class="element-type-name">bool</span></span></dt>
+<dt><code class="ref-definition">overwrite</code> <span class="element-type"><span class="element-type-name">bool</span></span></dt>
 <dd>
 <p>Overwrite existing log files (defaults to <code>False</code>, raising an error if the output file path already exists).</p>
 </dd>
@@ -1804,7 +1804,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="bundle_log_dir">bundle_log_dir</h3>
 <p>Bundle a log_dir into a statically deployable viewer</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/6d7f690f1448a76633cbd04a8ccc54115d567e2b/src/inspect_ai/log/_bundle.py#L23">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f73c01239f047b6a94bb4b2e6ffc5040d0055b93/src/inspect_ai/log/_bundle.py#L23">Source</a>
 </div>
 <div class="sourceCode" id="cb7"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> bundle_log_dir(</span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>    log_dir: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
@@ -1813,19 +1813,19 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>    fs_options: <span class="bu">dict</span>[<span class="bu">str</span>, Any] <span class="op">=</span> {},</span>
 <span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="va">None</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <dl>
-<dt><code>log_dir</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">log_dir</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>(str | None): The log_dir to bundle</p>
 </dd>
-<dt><code>output_dir</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">output_dir</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>(str | None): The directory to place bundled output. If no directory is specified, the env variable <code>INSPECT_VIEW_BUNDLE_OUTPUT_DIR</code> will be used.</p>
 </dd>
-<dt><code>overwrite</code> <span class="element-type"><span class="element-type-name">bool</span></span></dt>
+<dt><code class="ref-definition">overwrite</code> <span class="element-type"><span class="element-type-name">bool</span></span></dt>
 <dd>
 <p>(bool): Optional. Whether to overwrite files in the output directory. Defaults to False.</p>
 </dd>
-<dt><code>fs_options</code> <span class="element-type">dict[<span class="element-type-name">str</span>, <span class="element-type-name">Any</span>]</span></dt>
+<dt><code class="ref-definition">fs_options</code> <span class="element-type">dict[<span class="element-type-name">str</span>, <span class="element-type-name">Any</span>]</span></dt>
 <dd>
 <p>Optional. Additional arguments to pass through to the filesystem provider (e.g.&nbsp;<code>S3FileSystem</code>).</p>
 </dd>
@@ -1836,7 +1836,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Write a manifest for a log directory.</p>
 <p>A log directory manifest is a dictionary of EvalLog headers (EvalLog w/o samples) keyed by log file names (names are relative to the log directory)</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/6d7f690f1448a76633cbd04a8ccc54115d567e2b/src/inspect_ai/log/_file.py#L206">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f73c01239f047b6a94bb4b2e6ffc5040d0055b93/src/inspect_ai/log/_file.py#L206">Source</a>
 </div>
 <div class="sourceCode" id="cb8"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> write_log_dir_manifest(</span>
 <span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>    log_dir: <span class="bu">str</span>,</span>
@@ -1846,19 +1846,19 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>    fs_options: <span class="bu">dict</span>[<span class="bu">str</span>, Any] <span class="op">=</span> {},</span>
 <span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="va">None</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <dl>
-<dt><code>log_dir</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
+<dt><code class="ref-definition">log_dir</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
 <dd>
 <p>Log directory to write manifest for.</p>
 </dd>
-<dt><code>filename</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
+<dt><code class="ref-definition">filename</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
 <dd>
 <p>Manifest filename (defaults to “logs.json”)</p>
 </dd>
-<dt><code>output_dir</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">output_dir</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Output directory for manifest (defaults to log_dir)</p>
 </dd>
-<dt><code>fs_options</code> <span class="element-type">dict[<span class="element-type-name">str</span>, <span class="element-type-name">Any</span>]</span></dt>
+<dt><code class="ref-definition">fs_options</code> <span class="element-type">dict[<span class="element-type-name">str</span>, <span class="element-type-name">Any</span>]</span></dt>
 <dd>
 <p>Optional. Additional arguments to pass through to the filesystem provider (e.g.&nbsp;<code>S3FileSystem</code>).</p>
 </dd>
@@ -1869,11 +1869,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Extract the list of retryable logs from a list of logs.</p>
 <p>Retryable logs are logs with status “error” or “cancelled” that do not have a corresponding log with status “success” (indicating they were subsequently retried and completed)</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/6d7f690f1448a76633cbd04a8ccc54115d567e2b/src/inspect_ai/log/_retry.py#L10">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f73c01239f047b6a94bb4b2e6ffc5040d0055b93/src/inspect_ai/log/_retry.py#L10">Source</a>
 </div>
 <div class="sourceCode" id="cb9"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> retryable_eval_logs(logs: <span class="bu">list</span>[EvalLogInfo]) <span class="op">-&gt;</span> <span class="bu">list</span>[EvalLogInfo]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <dl>
-<dt><code>logs</code> <span class="element-type">list[<span class="element-type-name"><a href="../reference/inspect_ai.log.html#evalloginfo">EvalLogInfo</a></span>]</span></dt>
+<dt><code class="ref-definition">logs</code> <span class="element-type">list[<span class="element-type-name"><a href="../reference/inspect_ai.log.html#evalloginfo">EvalLogInfo</a></span>]</span></dt>
 <dd>
 <p>List of logs to examine.</p>
 </dd>
@@ -1883,37 +1883,37 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="evalloginfo">EvalLogInfo</h3>
 <p>File info and task identifiers for eval log.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/6d7f690f1448a76633cbd04a8ccc54115d567e2b/src/inspect_ai/log/_file.py#L26">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f73c01239f047b6a94bb4b2e6ffc5040d0055b93/src/inspect_ai/log/_file.py#L26">Source</a>
 </div>
 <div class="sourceCode" id="cb10"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> EvalLogInfo(BaseModel)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
 <h4 class="anchored" data-anchor-id="">Attributes</h4>
 <dl>
-<dt><code>name</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
+<dt><code class="ref-definition">name</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
 <dd>
 <p>Name of file.</p>
 </dd>
-<dt><code>type</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
+<dt><code class="ref-definition">type</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
 <dd>
 <p>Type of file (file or directory)</p>
 </dd>
-<dt><code>size</code> <span class="element-type"><span class="element-type-name">int</span></span></dt>
+<dt><code class="ref-definition">size</code> <span class="element-type"><span class="element-type-name">int</span></span></dt>
 <dd>
 <p>File size in bytes.</p>
 </dd>
-<dt><code>mtime</code> <span class="element-type"><span class="element-type-name">float</span> | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">mtime</code> <span class="element-type"><span class="element-type-name">float</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>File modification time (None if the file is a directory on S3).</p>
 </dd>
-<dt><code>task</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
+<dt><code class="ref-definition">task</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
 <dd>
 <p>Task name.</p>
 </dd>
-<dt><code>task_id</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
+<dt><code class="ref-definition">task_id</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
 <dd>
 <p>Task id.</p>
 </dd>
-<dt><code>suffix</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">suffix</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Log file suffix (e.g.&nbsp;“-scored”)</p>
 </dd>
@@ -1927,49 +1927,49 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="evallog">EvalLog</h3>
 <p>Evaluation log.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/6d7f690f1448a76633cbd04a8ccc54115d567e2b/src/inspect_ai/log/_log.py#L591">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f73c01239f047b6a94bb4b2e6ffc5040d0055b93/src/inspect_ai/log/_log.py#L591">Source</a>
 </div>
 <div class="sourceCode" id="cb11"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> EvalLog(BaseModel)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
 <h4 class="anchored" data-anchor-id="">Attributes</h4>
 <dl>
-<dt><code>version</code> <span class="element-type"><span class="element-type-name">int</span></span></dt>
+<dt><code class="ref-definition">version</code> <span class="element-type"><span class="element-type-name">int</span></span></dt>
 <dd>
 <p>Eval log file format version.</p>
 </dd>
-<dt><code>status</code> <span class="element-type"><span class="element-type-name">Literal</span>['started', 'success', 'cancelled', 'error']</span></dt>
+<dt><code class="ref-definition">status</code> <span class="element-type"><span class="element-type-name">Literal</span>['started', 'success', 'cancelled', 'error']</span></dt>
 <dd>
 <p>Status of evaluation (did it succeed or fail).</p>
 </dd>
-<dt><code>eval</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.log.html#evalspec">EvalSpec</a></span></span></dt>
+<dt><code class="ref-definition">eval</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.log.html#evalspec">EvalSpec</a></span></span></dt>
 <dd>
 <p>Eval identity and configuration.</p>
 </dd>
-<dt><code>plan</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.log.html#evalplan">EvalPlan</a></span></span></dt>
+<dt><code class="ref-definition">plan</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.log.html#evalplan">EvalPlan</a></span></span></dt>
 <dd>
 <p>Eval plan (solvers and config)</p>
 </dd>
-<dt><code>results</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.log.html#evalresults">EvalResults</a></span> | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">results</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.log.html#evalresults">EvalResults</a></span> | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Eval results (scores and metrics).</p>
 </dd>
-<dt><code>stats</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.log.html#evalstats">EvalStats</a></span></span></dt>
+<dt><code class="ref-definition">stats</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.log.html#evalstats">EvalStats</a></span></span></dt>
 <dd>
 <p>Eval stats (runtime, model usage)</p>
 </dd>
-<dt><code>error</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.log.html#evalerror">EvalError</a></span> | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">error</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.log.html#evalerror">EvalError</a></span> | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Error that halted eval (if status==“error”)</p>
 </dd>
-<dt><code>samples</code> <span class="element-type">list[<span class="element-type-name"><a href="../reference/inspect_ai.log.html#evalsample">EvalSample</a></span>] | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">samples</code> <span class="element-type">list[<span class="element-type-name"><a href="../reference/inspect_ai.log.html#evalsample">EvalSample</a></span>] | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Samples processed by eval.</p>
 </dd>
-<dt><code>reductions</code> <span class="element-type">list[<span class="element-type-name"><a href="../reference/inspect_ai.log.html#evalsamplereductions">EvalSampleReductions</a></span>] | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">reductions</code> <span class="element-type">list[<span class="element-type-name"><a href="../reference/inspect_ai.log.html#evalsamplereductions">EvalSampleReductions</a></span>] | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Reduced sample values</p>
 </dd>
-<dt><code>location</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
+<dt><code class="ref-definition">location</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
 <dd>
 <p>Location that the log file was read from.</p>
 </dd>
@@ -1980,89 +1980,89 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="evalspec">EvalSpec</h3>
 <p>Eval target and configuration.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/6d7f690f1448a76633cbd04a8ccc54115d567e2b/src/inspect_ai/log/_log.py#L470">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f73c01239f047b6a94bb4b2e6ffc5040d0055b93/src/inspect_ai/log/_log.py#L470">Source</a>
 </div>
 <div class="sourceCode" id="cb12"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> EvalSpec(BaseModel)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
 <h4 class="anchored" data-anchor-id="">Attributes</h4>
 <dl>
-<dt><code>run_id</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
+<dt><code class="ref-definition">run_id</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
 <dd>
 <p>Unique run id</p>
 </dd>
-<dt><code>created</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
+<dt><code class="ref-definition">created</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
 <dd>
 <p>Time created.</p>
 </dd>
-<dt><code>task</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
+<dt><code class="ref-definition">task</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
 <dd>
 <p>Task name.</p>
 </dd>
-<dt><code>task_id</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
+<dt><code class="ref-definition">task_id</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
 <dd>
 <p>Unique task id.</p>
 </dd>
-<dt><code>task_version</code> <span class="element-type"><span class="element-type-name">int</span></span></dt>
+<dt><code class="ref-definition">task_version</code> <span class="element-type"><span class="element-type-name">int</span></span></dt>
 <dd>
 <p>Task version.</p>
 </dd>
-<dt><code>task_file</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">task_file</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Task source file.</p>
 </dd>
-<dt><code>task_attribs</code> <span class="element-type">dict[<span class="element-type-name">str</span>, <span class="element-type-name">Any</span>]</span></dt>
+<dt><code class="ref-definition">task_attribs</code> <span class="element-type">dict[<span class="element-type-name">str</span>, <span class="element-type-name">Any</span>]</span></dt>
 <dd>
 <p>Attributes of the <span class="citation" data-cites="task">@task</span> decorator.</p>
 </dd>
-<dt><code>task_args</code> <span class="element-type">dict[<span class="element-type-name">str</span>, <span class="element-type-name">Any</span>]</span></dt>
+<dt><code class="ref-definition">task_args</code> <span class="element-type">dict[<span class="element-type-name">str</span>, <span class="element-type-name">Any</span>]</span></dt>
 <dd>
 <p>Arguments used for invoking the task.</p>
 </dd>
-<dt><code>solver</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">solver</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Solver name.</p>
 </dd>
-<dt><code>solver_args</code> <span class="element-type">dict[<span class="element-type-name">str</span>, <span class="element-type-name">Any</span>] | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">solver_args</code> <span class="element-type">dict[<span class="element-type-name">str</span>, <span class="element-type-name">Any</span>] | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Arguments used for invoking the solver.</p>
 </dd>
-<dt><code>tags</code> <span class="element-type">list[<span class="element-type-name">str</span>] | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">tags</code> <span class="element-type">list[<span class="element-type-name">str</span>] | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Tags associated with evaluation run.</p>
 </dd>
-<dt><code>dataset</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.log.html#evaldataset">EvalDataset</a></span></span></dt>
+<dt><code class="ref-definition">dataset</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.log.html#evaldataset">EvalDataset</a></span></span></dt>
 <dd>
 <p>Dataset used for eval.</p>
 </dd>
-<dt><code>sandbox</code> <span class="element-type"><span class="element-type-name">SandboxEnvironmentSpec</span> | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">sandbox</code> <span class="element-type"><span class="element-type-name">SandboxEnvironmentSpec</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Sandbox environment type and optional config file.</p>
 </dd>
-<dt><code>model</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
+<dt><code class="ref-definition">model</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
 <dd>
 <p>Model used for eval.</p>
 </dd>
-<dt><code>model_base_url</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">model_base_url</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Optional override of model base url</p>
 </dd>
-<dt><code>model_args</code> <span class="element-type">dict[<span class="element-type-name">str</span>, <span class="element-type-name">Any</span>]</span></dt>
+<dt><code class="ref-definition">model_args</code> <span class="element-type">dict[<span class="element-type-name">str</span>, <span class="element-type-name">Any</span>]</span></dt>
 <dd>
 <p>Model specific arguments.</p>
 </dd>
-<dt><code>config</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.log.html#evalconfig">EvalConfig</a></span></span></dt>
+<dt><code class="ref-definition">config</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.log.html#evalconfig">EvalConfig</a></span></span></dt>
 <dd>
 <p>Configuration values for eval.</p>
 </dd>
-<dt><code>revision</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.log.html#evalrevision">EvalRevision</a></span> | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">revision</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.log.html#evalrevision">EvalRevision</a></span> | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Source revision of eval.</p>
 </dd>
-<dt><code>packages</code> <span class="element-type">dict[<span class="element-type-name">str</span>, <span class="element-type-name">str</span>]</span></dt>
+<dt><code class="ref-definition">packages</code> <span class="element-type">dict[<span class="element-type-name">str</span>, <span class="element-type-name">str</span>]</span></dt>
 <dd>
 <p>Package versions for eval.</p>
 </dd>
-<dt><code>metadata</code> <span class="element-type">dict[<span class="element-type-name">str</span>, <span class="element-type-name">Any</span>] | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">metadata</code> <span class="element-type">dict[<span class="element-type-name">str</span>, <span class="element-type-name">Any</span>] | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Additional eval metadata.</p>
 </dd>
@@ -2073,29 +2073,29 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="evaldataset">EvalDataset</h3>
 <p>Dataset used for evaluation.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/6d7f690f1448a76633cbd04a8ccc54115d567e2b/src/inspect_ai/log/_log.py#L438">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f73c01239f047b6a94bb4b2e6ffc5040d0055b93/src/inspect_ai/log/_log.py#L438">Source</a>
 </div>
 <div class="sourceCode" id="cb13"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> EvalDataset(BaseModel)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
 <h4 class="anchored" data-anchor-id="">Attributes</h4>
 <dl>
-<dt><code>name</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">name</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Dataset name.</p>
 </dd>
-<dt><code>location</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">location</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Dataset location (file path or remote URL)</p>
 </dd>
-<dt><code>samples</code> <span class="element-type"><span class="element-type-name">int</span> | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">samples</code> <span class="element-type"><span class="element-type-name">int</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Number of samples in the dataset.</p>
 </dd>
-<dt><code>sample_ids</code> <span class="element-type">list[<span class="element-type-name">int</span> | <span class="element-type-name">str</span>] | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">sample_ids</code> <span class="element-type">list[<span class="element-type-name">int</span> | <span class="element-type-name">str</span>] | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>IDs of samples in the dataset.</p>
 </dd>
-<dt><code>shuffled</code> <span class="element-type"><span class="element-type-name">bool</span> | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">shuffled</code> <span class="element-type"><span class="element-type-name">bool</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Was the dataset shuffled after reading.</p>
 </dd>
@@ -2106,82 +2106,82 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="evalconfig">EvalConfig</h3>
 <p>Configuration used for evaluation.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/6d7f690f1448a76633cbd04a8ccc54115d567e2b/src/inspect_ai/log/_log.py#L33">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f73c01239f047b6a94bb4b2e6ffc5040d0055b93/src/inspect_ai/log/_log.py#L33">Source</a>
 </div>
 <div class="sourceCode" id="cb14"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> EvalConfig(BaseModel)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
 <h4 class="anchored" data-anchor-id="">Attributes</h4>
 <dl>
-<dt><code>limit</code> <span class="element-type"><span class="element-type-name">int</span> | tuple[<span class="element-type-name">int</span>, <span class="element-type-name">int</span>] | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">limit</code> <span class="element-type"><span class="element-type-name">int</span> | tuple[<span class="element-type-name">int</span>, <span class="element-type-name">int</span>] | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Sample limit (number of samples or range of samples).</p>
 </dd>
-<dt><code>sample_id</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">int</span> | list[<span class="element-type-name">str</span> | <span class="element-type-name">int</span>] | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">sample_id</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">int</span> | list[<span class="element-type-name">str</span> | <span class="element-type-name">int</span>] | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Evaluate specific sample(s).</p>
 </dd>
-<dt><code>epochs</code> <span class="element-type"><span class="element-type-name">int</span> | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">epochs</code> <span class="element-type"><span class="element-type-name">int</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Number of epochs to run samples over.</p>
 </dd>
-<dt><code>epochs_reducer</code> <span class="element-type">list[<span class="element-type-name">str</span>] | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">epochs_reducer</code> <span class="element-type">list[<span class="element-type-name">str</span>] | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Reducers for aggregating per-sample scores.</p>
 </dd>
-<dt><code>approval</code> <span class="element-type"><span class="element-type-name">ApprovalPolicyConfig</span> | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">approval</code> <span class="element-type"><span class="element-type-name">ApprovalPolicyConfig</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Approval policy for tool use.</p>
 </dd>
-<dt><code>fail_on_error</code> <span class="element-type"><span class="element-type-name">bool</span> | <span class="element-type-name">float</span> | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">fail_on_error</code> <span class="element-type"><span class="element-type-name">bool</span> | <span class="element-type-name">float</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Fail eval when sample errors occur.</p>
 <p><code>True</code> to fail on first sample error (default); <code>False</code> to never fail on sample errors; Value between 0 and 1 to fail if a proportion of total samples fails. Value greater than 1 to fail eval if a count of samples fails.</p>
 </dd>
-<dt><code>message_limit</code> <span class="element-type"><span class="element-type-name">int</span> | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">message_limit</code> <span class="element-type"><span class="element-type-name">int</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Maximum messages to allow in a chat conversation.</p>
 </dd>
-<dt><code>token_limit</code> <span class="element-type"><span class="element-type-name">int</span> | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">token_limit</code> <span class="element-type"><span class="element-type-name">int</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Maximum tokens to allow in a chat conversation.</p>
 </dd>
-<dt><code>time_limit</code> <span class="element-type"><span class="element-type-name">int</span> | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">time_limit</code> <span class="element-type"><span class="element-type-name">int</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Maximum seconds for chat conversation.</p>
 </dd>
-<dt><code>max_samples</code> <span class="element-type"><span class="element-type-name">int</span> | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">max_samples</code> <span class="element-type"><span class="element-type-name">int</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Maximum number of samples to run in parallel.</p>
 </dd>
-<dt><code>max_tasks</code> <span class="element-type"><span class="element-type-name">int</span> | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">max_tasks</code> <span class="element-type"><span class="element-type-name">int</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Maximum number of tasks to run in parallel.</p>
 </dd>
-<dt><code>max_subprocesses</code> <span class="element-type"><span class="element-type-name">int</span> | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">max_subprocesses</code> <span class="element-type"><span class="element-type-name">int</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Maximum number of subprocesses to run concurrently.</p>
 </dd>
-<dt><code>max_sandboxes</code> <span class="element-type"><span class="element-type-name">int</span> | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">max_sandboxes</code> <span class="element-type"><span class="element-type-name">int</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Maximum number of sandboxes to run concurrently.</p>
 </dd>
-<dt><code>sandbox_cleanup</code> <span class="element-type"><span class="element-type-name">bool</span> | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">sandbox_cleanup</code> <span class="element-type"><span class="element-type-name">bool</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Cleanup sandbox environments after task completes.</p>
 </dd>
-<dt><code>log_samples</code> <span class="element-type"><span class="element-type-name">bool</span> | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">log_samples</code> <span class="element-type"><span class="element-type-name">bool</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Log detailed information on each sample.</p>
 </dd>
-<dt><code>log_images</code> <span class="element-type"><span class="element-type-name">bool</span> | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">log_images</code> <span class="element-type"><span class="element-type-name">bool</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Log base64 encoded versions of images.</p>
 </dd>
-<dt><code>log_buffer</code> <span class="element-type"><span class="element-type-name">int</span> | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">log_buffer</code> <span class="element-type"><span class="element-type-name">int</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Number of samples to buffer before writing log file.</p>
 </dd>
-<dt><code>score_display</code> <span class="element-type"><span class="element-type-name">bool</span> | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">score_display</code> <span class="element-type"><span class="element-type-name">bool</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Display scoring metrics realtime.</p>
 </dd>
@@ -2192,21 +2192,21 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="evalrevision">EvalRevision</h3>
 <p>Git revision for evaluation.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/6d7f690f1448a76633cbd04a8ccc54115d567e2b/src/inspect_ai/log/_log.py#L457">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f73c01239f047b6a94bb4b2e6ffc5040d0055b93/src/inspect_ai/log/_log.py#L457">Source</a>
 </div>
 <div class="sourceCode" id="cb15"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> EvalRevision(BaseModel)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
 <h4 class="anchored" data-anchor-id="">Attributes</h4>
 <dl>
-<dt><code>type</code> <span class="element-type"><span class="element-type-name">Literal</span>['git']</span></dt>
+<dt><code class="ref-definition">type</code> <span class="element-type"><span class="element-type-name">Literal</span>['git']</span></dt>
 <dd>
 <p>Type of revision (currently only “git”)</p>
 </dd>
-<dt><code>origin</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
+<dt><code class="ref-definition">origin</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
 <dd>
 <p>Revision origin server</p>
 </dd>
-<dt><code>commit</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
+<dt><code class="ref-definition">commit</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
 <dd>
 <p>Revision commit.</p>
 </dd>
@@ -2217,25 +2217,25 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="evalplan">EvalPlan</h3>
 <p>Plan (solvers) used in evaluation.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/6d7f690f1448a76633cbd04a8ccc54115d567e2b/src/inspect_ai/log/_log.py#L280">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f73c01239f047b6a94bb4b2e6ffc5040d0055b93/src/inspect_ai/log/_log.py#L280">Source</a>
 </div>
 <div class="sourceCode" id="cb16"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> EvalPlan(BaseModel)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
 <h4 class="anchored" data-anchor-id="">Attributes</h4>
 <dl>
-<dt><code>name</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
+<dt><code class="ref-definition">name</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
 <dd>
 <p>Plan name.</p>
 </dd>
-<dt><code>steps</code> <span class="element-type">list[<span class="element-type-name"><a href="../reference/inspect_ai.log.html#evalplanstep">EvalPlanStep</a></span>]</span></dt>
+<dt><code class="ref-definition">steps</code> <span class="element-type">list[<span class="element-type-name"><a href="../reference/inspect_ai.log.html#evalplanstep">EvalPlanStep</a></span>]</span></dt>
 <dd>
 <p>Steps in plan.</p>
 </dd>
-<dt><code>finish</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.log.html#evalplanstep">EvalPlanStep</a></span> | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">finish</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.log.html#evalplanstep">EvalPlanStep</a></span> | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Step to always run at the end.</p>
 </dd>
-<dt><code>config</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.model.html#generateconfig">GenerateConfig</a></span></span></dt>
+<dt><code class="ref-definition">config</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.model.html#generateconfig">GenerateConfig</a></span></span></dt>
 <dd>
 <p>Generation config.</p>
 </dd>
@@ -2246,17 +2246,17 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="evalplanstep">EvalPlanStep</h3>
 <p>Solver step.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/6d7f690f1448a76633cbd04a8ccc54115d567e2b/src/inspect_ai/log/_log.py#L270">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f73c01239f047b6a94bb4b2e6ffc5040d0055b93/src/inspect_ai/log/_log.py#L270">Source</a>
 </div>
 <div class="sourceCode" id="cb17"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> EvalPlanStep(BaseModel)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
 <h4 class="anchored" data-anchor-id="">Attributes</h4>
 <dl>
-<dt><code>solver</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
+<dt><code class="ref-definition">solver</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
 <dd>
 <p>Name of solver.</p>
 </dd>
-<dt><code>params</code> <span class="element-type">dict[<span class="element-type-name">str</span>, <span class="element-type-name">Any</span>]</span></dt>
+<dt><code class="ref-definition">params</code> <span class="element-type">dict[<span class="element-type-name">str</span>, <span class="element-type-name">Any</span>]</span></dt>
 <dd>
 <p>Parameters used to instantiate solver.</p>
 </dd>
@@ -2267,30 +2267,30 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="evalresults">EvalResults</h3>
 <p>Scoring results from evaluation.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/6d7f690f1448a76633cbd04a8ccc54115d567e2b/src/inspect_ai/log/_log.py#L354">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f73c01239f047b6a94bb4b2e6ffc5040d0055b93/src/inspect_ai/log/_log.py#L354">Source</a>
 </div>
 <div class="sourceCode" id="cb18"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> EvalResults(BaseModel)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
 <h4 class="anchored" data-anchor-id="">Attributes</h4>
 <dl>
-<dt><code>total_samples</code> <span class="element-type"><span class="element-type-name">int</span></span></dt>
+<dt><code class="ref-definition">total_samples</code> <span class="element-type"><span class="element-type-name">int</span></span></dt>
 <dd>
 <p>Total samples in eval (dataset samples * epochs)</p>
 </dd>
-<dt><code>completed_samples</code> <span class="element-type"><span class="element-type-name">int</span></span></dt>
+<dt><code class="ref-definition">completed_samples</code> <span class="element-type"><span class="element-type-name">int</span></span></dt>
 <dd>
 <p>Samples completed without error.</p>
 <p>Will be equal to total_samples except when –fail-on-error is enabled.</p>
 </dd>
-<dt><code>scores</code> <span class="element-type">list[<span class="element-type-name"><a href="../reference/inspect_ai.log.html#evalscore">EvalScore</a></span>]</span></dt>
+<dt><code class="ref-definition">scores</code> <span class="element-type">list[<span class="element-type-name"><a href="../reference/inspect_ai.log.html#evalscore">EvalScore</a></span>]</span></dt>
 <dd>
 <p>Scorers used to compute results</p>
 </dd>
-<dt><code>metadata</code> <span class="element-type">dict[<span class="element-type-name">str</span>, <span class="element-type-name">Any</span>] | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">metadata</code> <span class="element-type">dict[<span class="element-type-name">str</span>, <span class="element-type-name">Any</span>] | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Additional results metadata.</p>
 </dd>
-<dt><code>sample_reductions</code> <span class="element-type">list[<span class="element-type-name"><a href="../reference/inspect_ai.log.html#evalsamplereductions">EvalSampleReductions</a></span>] | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">sample_reductions</code> <span class="element-type">list[<span class="element-type-name"><a href="../reference/inspect_ai.log.html#evalsamplereductions">EvalSampleReductions</a></span>] | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>List of per sample scores reduced across epochs</p>
 </dd>
@@ -2301,33 +2301,33 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="evalscore">EvalScore</h3>
 <p>Score for evaluation task.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/6d7f690f1448a76633cbd04a8ccc54115d567e2b/src/inspect_ai/log/_log.py#L312">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f73c01239f047b6a94bb4b2e6ffc5040d0055b93/src/inspect_ai/log/_log.py#L312">Source</a>
 </div>
 <div class="sourceCode" id="cb19"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> EvalScore(BaseModel)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
 <h4 class="anchored" data-anchor-id="">Attributes</h4>
 <dl>
-<dt><code>name</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
+<dt><code class="ref-definition">name</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
 <dd>
 <p>Score name.</p>
 </dd>
-<dt><code>scorer</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
+<dt><code class="ref-definition">scorer</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
 <dd>
 <p>Scorer name.</p>
 </dd>
-<dt><code>reducer</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">reducer</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Reducer name.</p>
 </dd>
-<dt><code>params</code> <span class="element-type">dict[<span class="element-type-name">str</span>, <span class="element-type-name">Any</span>]</span></dt>
+<dt><code class="ref-definition">params</code> <span class="element-type">dict[<span class="element-type-name">str</span>, <span class="element-type-name">Any</span>]</span></dt>
 <dd>
 <p>Parameters specified when creating scorer.</p>
 </dd>
-<dt><code>metrics</code> <span class="element-type">dict[<span class="element-type-name">str</span>, <span class="element-type-name"><a href="../reference/inspect_ai.log.html#evalmetric">EvalMetric</a></span>]</span></dt>
+<dt><code class="ref-definition">metrics</code> <span class="element-type">dict[<span class="element-type-name">str</span>, <span class="element-type-name"><a href="../reference/inspect_ai.log.html#evalmetric">EvalMetric</a></span>]</span></dt>
 <dd>
 <p>Metrics computed for this scorer.</p>
 </dd>
-<dt><code>metadata</code> <span class="element-type">dict[<span class="element-type-name">str</span>, <span class="element-type-name">Any</span>] | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">metadata</code> <span class="element-type">dict[<span class="element-type-name">str</span>, <span class="element-type-name">Any</span>] | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Additional scorer metadata.</p>
 </dd>
@@ -2338,25 +2338,25 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="evalmetric">EvalMetric</h3>
 <p>Metric for evaluation score.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/6d7f690f1448a76633cbd04a8ccc54115d567e2b/src/inspect_ai/log/_log.py#L296">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f73c01239f047b6a94bb4b2e6ffc5040d0055b93/src/inspect_ai/log/_log.py#L296">Source</a>
 </div>
 <div class="sourceCode" id="cb20"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> EvalMetric(BaseModel)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
 <h4 class="anchored" data-anchor-id="">Attributes</h4>
 <dl>
-<dt><code>name</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
+<dt><code class="ref-definition">name</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
 <dd>
 <p>Metric name.</p>
 </dd>
-<dt><code>value</code> <span class="element-type"><span class="element-type-name">int</span> | <span class="element-type-name">float</span></span></dt>
+<dt><code class="ref-definition">value</code> <span class="element-type"><span class="element-type-name">int</span> | <span class="element-type-name">float</span></span></dt>
 <dd>
 <p>Metric value.</p>
 </dd>
-<dt><code>params</code> <span class="element-type">dict[<span class="element-type-name">str</span>, <span class="element-type-name">Any</span>]</span></dt>
+<dt><code class="ref-definition">params</code> <span class="element-type">dict[<span class="element-type-name">str</span>, <span class="element-type-name">Any</span>]</span></dt>
 <dd>
 <p>Params specified when creating metric.</p>
 </dd>
-<dt><code>metadata</code> <span class="element-type">dict[<span class="element-type-name">str</span>, <span class="element-type-name">Any</span>] | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">metadata</code> <span class="element-type">dict[<span class="element-type-name">str</span>, <span class="element-type-name">Any</span>] | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Additional metadata associated with metric.</p>
 </dd>
@@ -2367,21 +2367,21 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="evalsamplereductions">EvalSampleReductions</h3>
 <p>Score reductions.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/6d7f690f1448a76633cbd04a8ccc54115d567e2b/src/inspect_ai/log/_log.py#L341">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f73c01239f047b6a94bb4b2e6ffc5040d0055b93/src/inspect_ai/log/_log.py#L341">Source</a>
 </div>
 <div class="sourceCode" id="cb21"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> EvalSampleReductions(BaseModel)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
 <h4 class="anchored" data-anchor-id="">Attributes</h4>
 <dl>
-<dt><code>scorer</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
+<dt><code class="ref-definition">scorer</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
 <dd>
 <p>Name the of scorer</p>
 </dd>
-<dt><code>reducer</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">reducer</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Name the of reducer</p>
 </dd>
-<dt><code>samples</code> <span class="element-type">list[<span class="element-type-name"><a href="../reference/inspect_ai.log.html#evalsamplescore">EvalSampleScore</a></span>]</span></dt>
+<dt><code class="ref-definition">samples</code> <span class="element-type">list[<span class="element-type-name"><a href="../reference/inspect_ai.log.html#evalsamplescore">EvalSampleScore</a></span>]</span></dt>
 <dd>
 <p>List of reduced scores</p>
 </dd>
@@ -2392,21 +2392,21 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="evalstats">EvalStats</h3>
 <p>Timing and usage statistics.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/6d7f690f1448a76633cbd04a8ccc54115d567e2b/src/inspect_ai/log/_log.py#L575">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f73c01239f047b6a94bb4b2e6ffc5040d0055b93/src/inspect_ai/log/_log.py#L575">Source</a>
 </div>
 <div class="sourceCode" id="cb22"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> EvalStats(BaseModel)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
 <h4 class="anchored" data-anchor-id="">Attributes</h4>
 <dl>
-<dt><code>started_at</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
+<dt><code class="ref-definition">started_at</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
 <dd>
 <p>Evaluation start time.</p>
 </dd>
-<dt><code>completed_at</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
+<dt><code class="ref-definition">completed_at</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
 <dd>
 <p>Evaluation completion time.</p>
 </dd>
-<dt><code>model_usage</code> <span class="element-type">dict[<span class="element-type-name">str</span>, <span class="element-type-name"><a href="../reference/inspect_ai.model.html#modelusage">ModelUsage</a></span>]</span></dt>
+<dt><code class="ref-definition">model_usage</code> <span class="element-type">dict[<span class="element-type-name">str</span>, <span class="element-type-name"><a href="../reference/inspect_ai.model.html#modelusage">ModelUsage</a></span>]</span></dt>
 <dd>
 <p>Model token usage for evaluation.</p>
 </dd>
@@ -2417,21 +2417,21 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="evalerror">EvalError</h3>
 <p>Eval error details.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/6d7f690f1448a76633cbd04a8ccc54115d567e2b/src/inspect_ai/_util/error.py#L11">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f73c01239f047b6a94bb4b2e6ffc5040d0055b93/src/inspect_ai/_util/error.py#L11">Source</a>
 </div>
 <div class="sourceCode" id="cb23"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> EvalError(BaseModel)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
 <h4 class="anchored" data-anchor-id="">Attributes</h4>
 <dl>
-<dt><code>message</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
+<dt><code class="ref-definition">message</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
 <dd>
 <p>Error message.</p>
 </dd>
-<dt><code>traceback</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
+<dt><code class="ref-definition">traceback</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
 <dd>
 <p>Error traceback.</p>
 </dd>
-<dt><code>traceback_ansi</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
+<dt><code class="ref-definition">traceback_ansi</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
 <dd>
 <p>Error traceback with ANSI color codes.</p>
 </dd>
@@ -2442,82 +2442,82 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="evalsample">EvalSample</h3>
 <p>Sample from evaluation task.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/6d7f690f1448a76633cbd04a8ccc54115d567e2b/src/inspect_ai/log/_log.py#L123">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f73c01239f047b6a94bb4b2e6ffc5040d0055b93/src/inspect_ai/log/_log.py#L123">Source</a>
 </div>
 <div class="sourceCode" id="cb24"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> EvalSample(BaseModel)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
 <h4 class="anchored" data-anchor-id="">Attributes</h4>
 <dl>
-<dt><code>id</code> <span class="element-type"><span class="element-type-name">int</span> | <span class="element-type-name">str</span></span></dt>
+<dt><code class="ref-definition">id</code> <span class="element-type"><span class="element-type-name">int</span> | <span class="element-type-name">str</span></span></dt>
 <dd>
 <p>Unique id for sample.</p>
 </dd>
-<dt><code>epoch</code> <span class="element-type"><span class="element-type-name">int</span></span></dt>
+<dt><code class="ref-definition">epoch</code> <span class="element-type"><span class="element-type-name">int</span></span></dt>
 <dd>
 <p>Epoch number for sample.</p>
 </dd>
-<dt><code>input</code> <span class="element-type"><span class="element-type-name">str</span> | list[<span class="element-type-name"><a href="../reference/inspect_ai.model.html#chatmessage">ChatMessage</a></span>]</span></dt>
+<dt><code class="ref-definition">input</code> <span class="element-type"><span class="element-type-name">str</span> | list[<span class="element-type-name"><a href="../reference/inspect_ai.model.html#chatmessage">ChatMessage</a></span>]</span></dt>
 <dd>
 <p>Sample input.</p>
 </dd>
-<dt><code>choices</code> <span class="element-type">list[<span class="element-type-name">str</span>] | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">choices</code> <span class="element-type">list[<span class="element-type-name">str</span>] | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Sample choices.</p>
 </dd>
-<dt><code>target</code> <span class="element-type"><span class="element-type-name">str</span> | list[<span class="element-type-name">str</span>]</span></dt>
+<dt><code class="ref-definition">target</code> <span class="element-type"><span class="element-type-name">str</span> | list[<span class="element-type-name">str</span>]</span></dt>
 <dd>
 <p>Sample target value(s)</p>
 </dd>
-<dt><code>sandbox</code> <span class="element-type"><span class="element-type-name">SandboxEnvironmentSpec</span> | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">sandbox</code> <span class="element-type"><span class="element-type-name">SandboxEnvironmentSpec</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Sandbox environment type and optional config file.</p>
 </dd>
-<dt><code>files</code> <span class="element-type">list[<span class="element-type-name">str</span>] | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">files</code> <span class="element-type">list[<span class="element-type-name">str</span>] | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Files that go along with the sample (copied to SandboxEnvironment)</p>
 </dd>
-<dt><code>setup</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">setup</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Setup script to run for sample (run within default SandboxEnvironment).</p>
 </dd>
-<dt><code>messages</code> <span class="element-type">list[<span class="element-type-name"><a href="../reference/inspect_ai.model.html#chatmessage">ChatMessage</a></span>]</span></dt>
+<dt><code class="ref-definition">messages</code> <span class="element-type">list[<span class="element-type-name"><a href="../reference/inspect_ai.model.html#chatmessage">ChatMessage</a></span>]</span></dt>
 <dd>
 <p>Chat conversation history for sample.</p>
 </dd>
-<dt><code>output</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.model.html#modeloutput">ModelOutput</a></span></span></dt>
+<dt><code class="ref-definition">output</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.model.html#modeloutput">ModelOutput</a></span></span></dt>
 <dd>
 <p>Model output from sample.</p>
 </dd>
-<dt><code>scores</code> <span class="element-type">dict[<span class="element-type-name">str</span>, <span class="element-type-name"><a href="../reference/inspect_ai.scorer.html#score">Score</a></span>] | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">scores</code> <span class="element-type">dict[<span class="element-type-name">str</span>, <span class="element-type-name"><a href="../reference/inspect_ai.scorer.html#score">Score</a></span>] | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Scores for sample.</p>
 </dd>
-<dt><code>metadata</code> <span class="element-type">dict[<span class="element-type-name">str</span>, <span class="element-type-name">Any</span>]</span></dt>
+<dt><code class="ref-definition">metadata</code> <span class="element-type">dict[<span class="element-type-name">str</span>, <span class="element-type-name">Any</span>]</span></dt>
 <dd>
 <p>Additional sample metadata.</p>
 </dd>
-<dt><code>store</code> <span class="element-type">dict[<span class="element-type-name">str</span>, <span class="element-type-name">Any</span>]</span></dt>
+<dt><code class="ref-definition">store</code> <span class="element-type">dict[<span class="element-type-name">str</span>, <span class="element-type-name">Any</span>]</span></dt>
 <dd>
 <p>State at end of sample execution.</p>
 </dd>
-<dt><code>events</code> <span class="element-type">list[<span class="element-type-name"><a href="../reference/inspect_ai.log.html#event">Event</a></span>]</span></dt>
+<dt><code class="ref-definition">events</code> <span class="element-type">list[<span class="element-type-name"><a href="../reference/inspect_ai.log.html#event">Event</a></span>]</span></dt>
 <dd>
 <p>Events that occurred during sample execution.</p>
 </dd>
-<dt><code>model_usage</code> <span class="element-type">dict[<span class="element-type-name">str</span>, <span class="element-type-name"><a href="../reference/inspect_ai.model.html#modelusage">ModelUsage</a></span>]</span></dt>
+<dt><code class="ref-definition">model_usage</code> <span class="element-type">dict[<span class="element-type-name">str</span>, <span class="element-type-name"><a href="../reference/inspect_ai.model.html#modelusage">ModelUsage</a></span>]</span></dt>
 <dd>
 <p>Model token usage for sample.</p>
 </dd>
-<dt><code>error</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.log.html#evalerror">EvalError</a></span> | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">error</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.log.html#evalerror">EvalError</a></span> | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Error that halted sample.</p>
 </dd>
-<dt><code>attachments</code> <span class="element-type">dict[<span class="element-type-name">str</span>, <span class="element-type-name">str</span>]</span></dt>
+<dt><code class="ref-definition">attachments</code> <span class="element-type">dict[<span class="element-type-name">str</span>, <span class="element-type-name">str</span>]</span></dt>
 <dd>
 <p>Attachments referenced from messages and events.</p>
-<p>Resolve attachments for a sample (replacing attachment://* references with attachment content) by passing <code>resolve_attachments=True</code> to log reading functions.</p>
+<p>Resolve attachments for a sample (replacing <a href="attachment://" class="uri">attachment://</a>* references with attachment content) by passing <code>resolve_attachments=True</code> to log reading functions.</p>
 </dd>
-<dt><code>limit</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.log.html#evalsamplelimit">EvalSampleLimit</a></span> | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">limit</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.log.html#evalsamplelimit">EvalSampleLimit</a></span> | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>The limit that halted the sample</p>
 </dd>
@@ -2530,11 +2530,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>Pydantic model interface to metadata.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/6d7f690f1448a76633cbd04a8ccc54115d567e2b/src/inspect_ai/log/_log.py#L162">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f73c01239f047b6a94bb4b2e6ffc5040d0055b93/src/inspect_ai/log/_log.py#L162">Source</a>
 </div>
 <div class="sourceCode" id="cb25"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> metadata_as(<span class="va">self</span>, metadata_cls: Type[MT]) <span class="op">-&gt;</span> MT</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <dl>
-<dt><code>metadata_cls</code> <span class="element-type"><span class="element-type-name">Type</span>[<span class="element-type-name">MT</span>]</span></dt>
+<dt><code class="ref-definition">metadata_cls</code> <span class="element-type"><span class="element-type-name">Type</span>[<span class="element-type-name">MT</span>]</span></dt>
 <dd>
 <p>Pydantic model type</p>
 </dd>
@@ -2544,11 +2544,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>Pydantic model interface to the store.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/6d7f690f1448a76633cbd04a8ccc54115d567e2b/src/inspect_ai/log/_log.py#L176">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f73c01239f047b6a94bb4b2e6ffc5040d0055b93/src/inspect_ai/log/_log.py#L176">Source</a>
 </div>
 <div class="sourceCode" id="cb26"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> store_as(<span class="va">self</span>, model_cls: Type[SMT]) <span class="op">-&gt;</span> SMT</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <dl>
-<dt><code>model_cls</code> <span class="element-type"><span class="element-type-name">Type</span>[<span class="element-type-name">SMT</span>]</span></dt>
+<dt><code class="ref-definition">model_cls</code> <span class="element-type"><span class="element-type-name">Type</span>[<span class="element-type-name">SMT</span>]</span></dt>
 <dd>
 <p>Pydantic model type (must derive from StoreModel)</p>
 </dd>
@@ -2561,17 +2561,17 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="evalsamplelimit">EvalSampleLimit</h3>
 <p>Limit encontered by sample.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/6d7f690f1448a76633cbd04a8ccc54115d567e2b/src/inspect_ai/log/_log.py#L113">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f73c01239f047b6a94bb4b2e6ffc5040d0055b93/src/inspect_ai/log/_log.py#L113">Source</a>
 </div>
 <div class="sourceCode" id="cb27"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> EvalSampleLimit(BaseModel)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
 <h4 class="anchored" data-anchor-id="">Attributes</h4>
 <dl>
-<dt><code>type</code> <span class="element-type"><span class="element-type-name">Literal</span>['context', 'time', 'message', 'token', 'operator', 'custom']</span></dt>
+<dt><code class="ref-definition">type</code> <span class="element-type"><span class="element-type-name">Literal</span>['context', 'time', 'message', 'token', 'operator', 'custom']</span></dt>
 <dd>
 <p>The type of limit</p>
 </dd>
-<dt><code>limit</code> <span class="element-type"><span class="element-type-name">int</span></span></dt>
+<dt><code class="ref-definition">limit</code> <span class="element-type"><span class="element-type-name">int</span></span></dt>
 <dd>
 <p>The limit value</p>
 </dd>
@@ -2582,21 +2582,21 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="evalsamplereductions-1">EvalSampleReductions</h3>
 <p>Score reductions.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/6d7f690f1448a76633cbd04a8ccc54115d567e2b/src/inspect_ai/log/_log.py#L341">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f73c01239f047b6a94bb4b2e6ffc5040d0055b93/src/inspect_ai/log/_log.py#L341">Source</a>
 </div>
 <div class="sourceCode" id="cb28"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> EvalSampleReductions(BaseModel)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
 <h4 class="anchored" data-anchor-id="">Attributes</h4>
 <dl>
-<dt><code>scorer</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
+<dt><code class="ref-definition">scorer</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
 <dd>
 <p>Name the of scorer</p>
 </dd>
-<dt><code>reducer</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">reducer</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Name the of reducer</p>
 </dd>
-<dt><code>samples</code> <span class="element-type">list[<span class="element-type-name"><a href="../reference/inspect_ai.log.html#evalsamplescore">EvalSampleScore</a></span>]</span></dt>
+<dt><code class="ref-definition">samples</code> <span class="element-type">list[<span class="element-type-name"><a href="../reference/inspect_ai.log.html#evalsamplescore">EvalSampleScore</a></span>]</span></dt>
 <dd>
 <p>List of reduced scores</p>
 </dd>
@@ -2607,13 +2607,13 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="evalsamplescore">EvalSampleScore</h3>
 <p>Score and sample_id scored.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/6d7f690f1448a76633cbd04a8ccc54115d567e2b/src/inspect_ai/log/_log.py#L334">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f73c01239f047b6a94bb4b2e6ffc5040d0055b93/src/inspect_ai/log/_log.py#L334">Source</a>
 </div>
 <div class="sourceCode" id="cb29"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> EvalSampleScore(Score)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
 <h4 class="anchored" data-anchor-id="">Attributes</h4>
 <dl>
-<dt><code>sample_id</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">int</span> | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">sample_id</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">int</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Sample ID.</p>
 </dd>
@@ -2627,7 +2627,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="transcript">transcript</h3>
 <p>Get the current <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.log.html#transcript">Transcript</a></span>.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/6d7f690f1448a76633cbd04a8ccc54115d567e2b/src/inspect_ai/log/_transcript.py#L392">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f73c01239f047b6a94bb4b2e6ffc5040d0055b93/src/inspect_ai/log/_transcript.py#L392">Source</a>
 </div>
 <div class="sourceCode" id="cb30"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> transcript() <span class="op">-&gt;</span> Transcript</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
@@ -2635,7 +2635,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="transcript-1">Transcript</h3>
 <p>Transcript of events.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/6d7f690f1448a76633cbd04a8ccc54115d567e2b/src/inspect_ai/log/_transcript.py#L351">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f73c01239f047b6a94bb4b2e6ffc5040d0055b93/src/inspect_ai/log/_transcript.py#L351">Source</a>
 </div>
 <div class="sourceCode" id="cb31"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Transcript</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4 class-methods">
@@ -2645,11 +2645,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>Add an <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.log.html#infoevent">InfoEvent</a></span> to the transcript.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/6d7f690f1448a76633cbd04a8ccc54115d567e2b/src/inspect_ai/log/_transcript.py#L358">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f73c01239f047b6a94bb4b2e6ffc5040d0055b93/src/inspect_ai/log/_transcript.py#L358">Source</a>
 </div>
 <div class="sourceCode" id="cb32"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> info(<span class="va">self</span>, data: JsonValue) <span class="op">-&gt;</span> <span class="va">None</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <dl>
-<dt><code>data</code> <span class="element-type"><span class="element-type-name">JsonValue</span></span></dt>
+<dt><code class="ref-definition">data</code> <span class="element-type"><span class="element-type-name">JsonValue</span></span></dt>
 <dd>
 <p>Data associated with the event.</p>
 </dd>
@@ -2659,16 +2659,16 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>Context manager for recording StepEvent.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/6d7f690f1448a76633cbd04a8ccc54115d567e2b/src/inspect_ai/log/_transcript.py#L366">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f73c01239f047b6a94bb4b2e6ffc5040d0055b93/src/inspect_ai/log/_transcript.py#L366">Source</a>
 </div>
 <div class="sourceCode" id="cb33"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a><span class="at">@contextlib.contextmanager</span></span>
 <span id="cb33-2"><a href="#cb33-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> step(<span class="va">self</span>, name: <span class="bu">str</span>, <span class="bu">type</span>: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>) <span class="op">-&gt;</span> Iterator[<span class="va">None</span>]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <dl>
-<dt><code>name</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
+<dt><code class="ref-definition">name</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
 <dd>
 <p>Step name.</p>
 </dd>
-<dt><code>type</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">type</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Optional step type.</p>
 </dd>
@@ -2681,7 +2681,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="event">Event</h3>
 <p>Event in a transcript.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/6d7f690f1448a76633cbd04a8ccc54115d567e2b/src/inspect_ai/log/_transcript.py#L332">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f73c01239f047b6a94bb4b2e6ffc5040d0055b93/src/inspect_ai/log/_transcript.py#L332">Source</a>
 </div>
 <div class="sourceCode" id="cb34"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true" tabindex="-1"></a>Event: TypeAlias <span class="op">=</span> Union[</span>
 <span id="cb34-2"><a href="#cb34-2" aria-hidden="true" tabindex="-1"></a>    SampleInitEvent</span>
@@ -2704,21 +2704,21 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="sampleinitevent">SampleInitEvent</h3>
 <p>Beginning of processing a Sample.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/6d7f690f1448a76633cbd04a8ccc54115d567e2b/src/inspect_ai/log/_transcript.py#L54">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f73c01239f047b6a94bb4b2e6ffc5040d0055b93/src/inspect_ai/log/_transcript.py#L54">Source</a>
 </div>
 <div class="sourceCode" id="cb35"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb35-1"><a href="#cb35-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> SampleInitEvent(BaseEvent)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
 <h4 class="anchored" data-anchor-id="">Attributes</h4>
 <dl>
-<dt><code>event</code> <span class="element-type"><span class="element-type-name">Literal</span>['sample_init']</span></dt>
+<dt><code class="ref-definition">event</code> <span class="element-type"><span class="element-type-name">Literal</span>['sample_init']</span></dt>
 <dd>
 <p>Event type.</p>
 </dd>
-<dt><code>sample</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.dataset.html#sample">Sample</a></span></span></dt>
+<dt><code class="ref-definition">sample</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.dataset.html#sample">Sample</a></span></span></dt>
 <dd>
 <p>Sample.</p>
 </dd>
-<dt><code>state</code> <span class="element-type"><span class="element-type-name">JsonValue</span></span></dt>
+<dt><code class="ref-definition">state</code> <span class="element-type"><span class="element-type-name">JsonValue</span></span></dt>
 <dd>
 <p>Initial state.</p>
 </dd>
@@ -2729,25 +2729,25 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="samplelimitevent">SampleLimitEvent</h3>
 <p>The sample was unable to finish processing due to a limit</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/6d7f690f1448a76633cbd04a8ccc54115d567e2b/src/inspect_ai/log/_transcript.py#L67">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f73c01239f047b6a94bb4b2e6ffc5040d0055b93/src/inspect_ai/log/_transcript.py#L67">Source</a>
 </div>
 <div class="sourceCode" id="cb36"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> SampleLimitEvent(BaseEvent)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
 <h4 class="anchored" data-anchor-id="">Attributes</h4>
 <dl>
-<dt><code>event</code> <span class="element-type"><span class="element-type-name">Literal</span>['sample_limit']</span></dt>
+<dt><code class="ref-definition">event</code> <span class="element-type"><span class="element-type-name">Literal</span>['sample_limit']</span></dt>
 <dd>
 <p>Event type.</p>
 </dd>
-<dt><code>type</code> <span class="element-type"><span class="element-type-name">Literal</span>['message', 'time', 'token', 'operator', 'custom']</span></dt>
+<dt><code class="ref-definition">type</code> <span class="element-type"><span class="element-type-name">Literal</span>['message', 'time', 'token', 'operator', 'custom']</span></dt>
 <dd>
 <p>Type of limit that halted processing</p>
 </dd>
-<dt><code>message</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
+<dt><code class="ref-definition">message</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
 <dd>
 <p>A message associated with this limit</p>
 </dd>
-<dt><code>limit</code> <span class="element-type"><span class="element-type-name">int</span> | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">limit</code> <span class="element-type"><span class="element-type-name">int</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>The limit value (if any)</p>
 </dd>
@@ -2758,17 +2758,17 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="stateevent">StateEvent</h3>
 <p>Change to the current <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.solver.html#taskstate">TaskState</a></span></p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/6d7f690f1448a76633cbd04a8ccc54115d567e2b/src/inspect_ai/log/_transcript.py#L93">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f73c01239f047b6a94bb4b2e6ffc5040d0055b93/src/inspect_ai/log/_transcript.py#L93">Source</a>
 </div>
 <div class="sourceCode" id="cb37"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb37-1"><a href="#cb37-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> StateEvent(BaseEvent)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
 <h4 class="anchored" data-anchor-id="">Attributes</h4>
 <dl>
-<dt><code>event</code> <span class="element-type"><span class="element-type-name">Literal</span>['state']</span></dt>
+<dt><code class="ref-definition">event</code> <span class="element-type"><span class="element-type-name">Literal</span>['state']</span></dt>
 <dd>
 <p>Event type.</p>
 </dd>
-<dt><code>changes</code> <span class="element-type">list[<span class="element-type-name">JsonChange</span>]</span></dt>
+<dt><code class="ref-definition">changes</code> <span class="element-type">list[<span class="element-type-name">JsonChange</span>]</span></dt>
 <dd>
 <p>List of changes to the <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.solver.html#taskstate">TaskState</a></span></p>
 </dd>
@@ -2779,17 +2779,17 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="storeevent">StoreEvent</h3>
 <p>Change to data within the current <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.util.html#store">Store</a></span>.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/6d7f690f1448a76633cbd04a8ccc54115d567e2b/src/inspect_ai/log/_transcript.py#L83">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f73c01239f047b6a94bb4b2e6ffc5040d0055b93/src/inspect_ai/log/_transcript.py#L83">Source</a>
 </div>
 <div class="sourceCode" id="cb38"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb38-1"><a href="#cb38-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> StoreEvent(BaseEvent)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
 <h4 class="anchored" data-anchor-id="">Attributes</h4>
 <dl>
-<dt><code>event</code> <span class="element-type"><span class="element-type-name">Literal</span>['store']</span></dt>
+<dt><code class="ref-definition">event</code> <span class="element-type"><span class="element-type-name">Literal</span>['store']</span></dt>
 <dd>
 <p>Event type.</p>
 </dd>
-<dt><code>changes</code> <span class="element-type">list[<span class="element-type-name">JsonChange</span>]</span></dt>
+<dt><code class="ref-definition">changes</code> <span class="element-type">list[<span class="element-type-name">JsonChange</span>]</span></dt>
 <dd>
 <p>List of changes to the <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.util.html#store">Store</a></span>.</p>
 </dd>
@@ -2800,49 +2800,49 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="modelevent">ModelEvent</h3>
 <p>Call to a language model.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/6d7f690f1448a76633cbd04a8ccc54115d567e2b/src/inspect_ai/log/_transcript.py#L103">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f73c01239f047b6a94bb4b2e6ffc5040d0055b93/src/inspect_ai/log/_transcript.py#L103">Source</a>
 </div>
 <div class="sourceCode" id="cb39"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb39-1"><a href="#cb39-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ModelEvent(BaseEvent)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
 <h4 class="anchored" data-anchor-id="">Attributes</h4>
 <dl>
-<dt><code>event</code> <span class="element-type"><span class="element-type-name">Literal</span>['model']</span></dt>
+<dt><code class="ref-definition">event</code> <span class="element-type"><span class="element-type-name">Literal</span>['model']</span></dt>
 <dd>
 <p>Event type.</p>
 </dd>
-<dt><code>model</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
+<dt><code class="ref-definition">model</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
 <dd>
 <p>Model name.</p>
 </dd>
-<dt><code>input</code> <span class="element-type">list[<span class="element-type-name"><a href="../reference/inspect_ai.model.html#chatmessage">ChatMessage</a></span>]</span></dt>
+<dt><code class="ref-definition">input</code> <span class="element-type">list[<span class="element-type-name"><a href="../reference/inspect_ai.model.html#chatmessage">ChatMessage</a></span>]</span></dt>
 <dd>
 <p>Model input (list of messages).</p>
 </dd>
-<dt><code>tools</code> <span class="element-type">list[<span class="element-type-name"><a href="../reference/inspect_ai.tool.html#toolinfo">ToolInfo</a></span>]</span></dt>
+<dt><code class="ref-definition">tools</code> <span class="element-type">list[<span class="element-type-name"><a href="../reference/inspect_ai.tool.html#toolinfo">ToolInfo</a></span>]</span></dt>
 <dd>
 <p>Tools available to the model.</p>
 </dd>
-<dt><code>tool_choice</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.tool.html#toolchoice">ToolChoice</a></span></span></dt>
+<dt><code class="ref-definition">tool_choice</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.tool.html#toolchoice">ToolChoice</a></span></span></dt>
 <dd>
 <p>Directive to the model which tools to prefer.</p>
 </dd>
-<dt><code>config</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.model.html#generateconfig">GenerateConfig</a></span></span></dt>
+<dt><code class="ref-definition">config</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.model.html#generateconfig">GenerateConfig</a></span></span></dt>
 <dd>
 <p>Generate config used for call to model.</p>
 </dd>
-<dt><code>output</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.model.html#modeloutput">ModelOutput</a></span></span></dt>
+<dt><code class="ref-definition">output</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.model.html#modeloutput">ModelOutput</a></span></span></dt>
 <dd>
 <p>Output from model.</p>
 </dd>
-<dt><code>error</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">error</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Error which occurred during model call.</p>
 </dd>
-<dt><code>cache</code> <span class="element-type"><span class="element-type-name">Literal</span>['read', 'write'] | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">cache</code> <span class="element-type"><span class="element-type-name">Literal</span>['read', 'write'] | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Was this a cache read or write.</p>
 </dd>
-<dt><code>call</code> <span class="element-type"><span class="element-type-name">ModelCall</span> | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">call</code> <span class="element-type"><span class="element-type-name">ModelCall</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Raw call made to model API.</p>
 </dd>
@@ -2853,53 +2853,53 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="toolevent">ToolEvent</h3>
 <p>Call to a tool.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/6d7f690f1448a76633cbd04a8ccc54115d567e2b/src/inspect_ai/log/_transcript.py#L137">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f73c01239f047b6a94bb4b2e6ffc5040d0055b93/src/inspect_ai/log/_transcript.py#L137">Source</a>
 </div>
 <div class="sourceCode" id="cb40"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb40-1"><a href="#cb40-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ToolEvent(BaseEvent)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
 <h4 class="anchored" data-anchor-id="">Attributes</h4>
 <dl>
-<dt><code>event</code> <span class="element-type"><span class="element-type-name">Literal</span>['tool']</span></dt>
+<dt><code class="ref-definition">event</code> <span class="element-type"><span class="element-type-name">Literal</span>['tool']</span></dt>
 <dd>
 <p>Event type.</p>
 </dd>
-<dt><code>type</code> <span class="element-type"><span class="element-type-name">Literal</span>['function']</span></dt>
+<dt><code class="ref-definition">type</code> <span class="element-type"><span class="element-type-name">Literal</span>['function']</span></dt>
 <dd>
 <p>Type of tool call (currently only ‘function’)</p>
 </dd>
-<dt><code>id</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
+<dt><code class="ref-definition">id</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
 <dd>
 <p>Unique identifier for tool call.</p>
 </dd>
-<dt><code>function</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
+<dt><code class="ref-definition">function</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
 <dd>
 <p>Function called.</p>
 </dd>
-<dt><code>arguments</code> <span class="element-type">dict[<span class="element-type-name">str</span>, <span class="element-type-name">JsonValue</span>]</span></dt>
+<dt><code class="ref-definition">arguments</code> <span class="element-type">dict[<span class="element-type-name">str</span>, <span class="element-type-name">JsonValue</span>]</span></dt>
 <dd>
 <p>Arguments to function.</p>
 </dd>
-<dt><code>view</code> <span class="element-type"><span class="element-type-name">ToolCallContent</span> | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">view</code> <span class="element-type"><span class="element-type-name">ToolCallContent</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Custom view of tool call input.</p>
 </dd>
-<dt><code>result</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.tool.html#toolresult">ToolResult</a></span></span></dt>
+<dt><code class="ref-definition">result</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.tool.html#toolresult">ToolResult</a></span></span></dt>
 <dd>
 <p>Function return value.</p>
 </dd>
-<dt><code>truncated</code> <span class="element-type">tuple[<span class="element-type-name">int</span>, <span class="element-type-name">int</span>] | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">truncated</code> <span class="element-type">tuple[<span class="element-type-name">int</span>, <span class="element-type-name">int</span>] | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Bytes truncated (from,to) if truncation occurred</p>
 </dd>
-<dt><code>error</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.tool.html#toolcallerror">ToolCallError</a></span> | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">error</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.tool.html#toolcallerror">ToolCallError</a></span> | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Error that occurred during tool call.</p>
 </dd>
-<dt><code>events</code> <span class="element-type">list[<span class="element-type-name"><a href="../reference/inspect_ai.log.html#event">Event</a></span>]</span></dt>
+<dt><code class="ref-definition">events</code> <span class="element-type">list[<span class="element-type-name"><a href="../reference/inspect_ai.log.html#event">Event</a></span>]</span></dt>
 <dd>
 <p>Transcript of events for tool.</p>
 </dd>
-<dt><code>cancelled</code> <span class="element-type"><span class="element-type-name">bool</span></span></dt>
+<dt><code class="ref-definition">cancelled</code> <span class="element-type"><span class="element-type-name">bool</span></span></dt>
 <dd>
 <p>Was the task cancelled?</p>
 </dd>
@@ -2910,41 +2910,41 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="approvalevent">ApprovalEvent</h3>
 <p>Tool approval.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/6d7f690f1448a76633cbd04a8ccc54115d567e2b/src/inspect_ai/log/_transcript.py#L210">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f73c01239f047b6a94bb4b2e6ffc5040d0055b93/src/inspect_ai/log/_transcript.py#L210">Source</a>
 </div>
 <div class="sourceCode" id="cb41"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb41-1"><a href="#cb41-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ApprovalEvent(BaseEvent)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
 <h4 class="anchored" data-anchor-id="">Attributes</h4>
 <dl>
-<dt><code>event</code> <span class="element-type"><span class="element-type-name">Literal</span>['approval']</span></dt>
+<dt><code class="ref-definition">event</code> <span class="element-type"><span class="element-type-name">Literal</span>['approval']</span></dt>
 <dd>
 <p>Event type</p>
 </dd>
-<dt><code>message</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
+<dt><code class="ref-definition">message</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
 <dd>
 <p>Message generated by model along with tool call.</p>
 </dd>
-<dt><code>call</code> <span class="element-type"><span class="element-type-name">ToolCall</span></span></dt>
+<dt><code class="ref-definition">call</code> <span class="element-type"><span class="element-type-name">ToolCall</span></span></dt>
 <dd>
 <p>Tool call being approved.</p>
 </dd>
-<dt><code>view</code> <span class="element-type"><span class="element-type-name">ToolCallView</span> | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">view</code> <span class="element-type"><span class="element-type-name">ToolCallView</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>View presented for approval.</p>
 </dd>
-<dt><code>approver</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
+<dt><code class="ref-definition">approver</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
 <dd>
 <p>Aprover name.</p>
 </dd>
-<dt><code>decision</code> <span class="element-type"><span class="element-type-name">Literal</span>['approve', 'modify', 'reject', 'escalate', 'terminate']</span></dt>
+<dt><code class="ref-definition">decision</code> <span class="element-type"><span class="element-type-name">Literal</span>['approve', 'modify', 'reject', 'escalate', 'terminate']</span></dt>
 <dd>
 <p>Decision of approver.</p>
 </dd>
-<dt><code>modified</code> <span class="element-type"><span class="element-type-name">ToolCall</span> | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">modified</code> <span class="element-type"><span class="element-type-name">ToolCall</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Modified tool call for decision ‘modify’.</p>
 </dd>
-<dt><code>explanation</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">explanation</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Explanation for decision.</p>
 </dd>
@@ -2955,21 +2955,21 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="inputevent">InputEvent</h3>
 <p>Input screen interaction.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/6d7f690f1448a76633cbd04a8ccc54115d567e2b/src/inspect_ai/log/_transcript.py#L238">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f73c01239f047b6a94bb4b2e6ffc5040d0055b93/src/inspect_ai/log/_transcript.py#L238">Source</a>
 </div>
 <div class="sourceCode" id="cb42"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb42-1"><a href="#cb42-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> InputEvent(BaseEvent)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
 <h4 class="anchored" data-anchor-id="">Attributes</h4>
 <dl>
-<dt><code>event</code> <span class="element-type"><span class="element-type-name">Literal</span>['input']</span></dt>
+<dt><code class="ref-definition">event</code> <span class="element-type"><span class="element-type-name">Literal</span>['input']</span></dt>
 <dd>
 <p>Event type.</p>
 </dd>
-<dt><code>input</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
+<dt><code class="ref-definition">input</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
 <dd>
 <p>Input interaction (plain text).</p>
 </dd>
-<dt><code>input_ansi</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
+<dt><code class="ref-definition">input_ansi</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
 <dd>
 <p>Input interaction (ANSI).</p>
 </dd>
@@ -2980,17 +2980,17 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="storeevent-1">StoreEvent</h3>
 <p>Change to data within the current <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.util.html#store">Store</a></span>.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/6d7f690f1448a76633cbd04a8ccc54115d567e2b/src/inspect_ai/log/_transcript.py#L83">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f73c01239f047b6a94bb4b2e6ffc5040d0055b93/src/inspect_ai/log/_transcript.py#L83">Source</a>
 </div>
 <div class="sourceCode" id="cb43"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb43-1"><a href="#cb43-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> StoreEvent(BaseEvent)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
 <h4 class="anchored" data-anchor-id="">Attributes</h4>
 <dl>
-<dt><code>event</code> <span class="element-type"><span class="element-type-name">Literal</span>['store']</span></dt>
+<dt><code class="ref-definition">event</code> <span class="element-type"><span class="element-type-name">Literal</span>['store']</span></dt>
 <dd>
 <p>Event type.</p>
 </dd>
-<dt><code>changes</code> <span class="element-type">list[<span class="element-type-name">JsonChange</span>]</span></dt>
+<dt><code class="ref-definition">changes</code> <span class="element-type">list[<span class="element-type-name">JsonChange</span>]</span></dt>
 <dd>
 <p>List of changes to the <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.util.html#store">Store</a></span>.</p>
 </dd>
@@ -3001,17 +3001,17 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="errorevent">ErrorEvent</h3>
 <p>Event with sample error.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/6d7f690f1448a76633cbd04a8ccc54115d567e2b/src/inspect_ai/log/_transcript.py#L271">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f73c01239f047b6a94bb4b2e6ffc5040d0055b93/src/inspect_ai/log/_transcript.py#L271">Source</a>
 </div>
 <div class="sourceCode" id="cb44"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb44-1"><a href="#cb44-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ErrorEvent(BaseEvent)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
 <h4 class="anchored" data-anchor-id="">Attributes</h4>
 <dl>
-<dt><code>event</code> <span class="element-type"><span class="element-type-name">Literal</span>['error']</span></dt>
+<dt><code class="ref-definition">event</code> <span class="element-type"><span class="element-type-name">Literal</span>['error']</span></dt>
 <dd>
 <p>Event type.</p>
 </dd>
-<dt><code>error</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.log.html#evalerror">EvalError</a></span></span></dt>
+<dt><code class="ref-definition">error</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.log.html#evalerror">EvalError</a></span></span></dt>
 <dd>
 <p>Sample error</p>
 </dd>
@@ -3022,17 +3022,17 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="loggerevent">LoggerEvent</h3>
 <p>Log message recorded with Python logger.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/6d7f690f1448a76633cbd04a8ccc54115d567e2b/src/inspect_ai/log/_transcript.py#L251">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f73c01239f047b6a94bb4b2e6ffc5040d0055b93/src/inspect_ai/log/_transcript.py#L251">Source</a>
 </div>
 <div class="sourceCode" id="cb45"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb45-1"><a href="#cb45-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> LoggerEvent(BaseEvent)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
 <h4 class="anchored" data-anchor-id="">Attributes</h4>
 <dl>
-<dt><code>event</code> <span class="element-type"><span class="element-type-name">Literal</span>['logger']</span></dt>
+<dt><code class="ref-definition">event</code> <span class="element-type"><span class="element-type-name">Literal</span>['logger']</span></dt>
 <dd>
 <p>Event type.</p>
 </dd>
-<dt><code>message</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.log.html#loggingmessage">LoggingMessage</a></span></span></dt>
+<dt><code class="ref-definition">message</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.log.html#loggingmessage">LoggingMessage</a></span></span></dt>
 <dd>
 <p>Logging message</p>
 </dd>
@@ -3043,7 +3043,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="logginglevel">LoggingLevel</h3>
 <p>Logging level.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/6d7f690f1448a76633cbd04a8ccc54115d567e2b/src/inspect_ai/log/_message.py#L7">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f73c01239f047b6a94bb4b2e6ffc5040d0055b93/src/inspect_ai/log/_message.py#L7">Source</a>
 </div>
 <div class="sourceCode" id="cb46"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb46-1"><a href="#cb46-1" aria-hidden="true" tabindex="-1"></a>LoggingLevel <span class="op">=</span> Literal[</span>
 <span id="cb46-2"><a href="#cb46-2" aria-hidden="true" tabindex="-1"></a>    <span class="st">"debug"</span>, <span class="st">"trace"</span>, <span class="st">"http"</span>, <span class="st">"sandbox"</span>, <span class="st">"info"</span>, <span class="st">"warning"</span>, <span class="st">"error"</span>, <span class="st">"critical"</span></span>
@@ -3053,37 +3053,37 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="loggingmessage">LoggingMessage</h3>
 <p>Message written to Python log.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/6d7f690f1448a76633cbd04a8ccc54115d567e2b/src/inspect_ai/log/_message.py#L13">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f73c01239f047b6a94bb4b2e6ffc5040d0055b93/src/inspect_ai/log/_message.py#L13">Source</a>
 </div>
 <div class="sourceCode" id="cb47"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb47-1"><a href="#cb47-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> LoggingMessage(BaseModel)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
 <h4 class="anchored" data-anchor-id="">Attributes</h4>
 <dl>
-<dt><code>name</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">name</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Logger name (e.g.&nbsp;‘httpx’)</p>
 </dd>
-<dt><code>level</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.log.html#logginglevel">LoggingLevel</a></span></span></dt>
+<dt><code class="ref-definition">level</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.log.html#logginglevel">LoggingLevel</a></span></span></dt>
 <dd>
 <p>Logging level.</p>
 </dd>
-<dt><code>message</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
+<dt><code class="ref-definition">message</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
 <dd>
 <p>Log message.</p>
 </dd>
-<dt><code>created</code> <span class="element-type"><span class="element-type-name">float</span></span></dt>
+<dt><code class="ref-definition">created</code> <span class="element-type"><span class="element-type-name">float</span></span></dt>
 <dd>
 <p>Message created time.</p>
 </dd>
-<dt><code>filename</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
+<dt><code class="ref-definition">filename</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
 <dd>
 <p>Logged from filename.</p>
 </dd>
-<dt><code>module</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
+<dt><code class="ref-definition">module</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
 <dd>
 <p>Logged from module.</p>
 </dd>
-<dt><code>lineno</code> <span class="element-type"><span class="element-type-name">int</span></span></dt>
+<dt><code class="ref-definition">lineno</code> <span class="element-type"><span class="element-type-name">int</span></span></dt>
 <dd>
 <p>Logged from line number.</p>
 </dd>
@@ -3094,17 +3094,17 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="infoevent">InfoEvent</h3>
 <p>Event with custom info/data.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/6d7f690f1448a76633cbd04a8ccc54115d567e2b/src/inspect_ai/log/_transcript.py#L261">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f73c01239f047b6a94bb4b2e6ffc5040d0055b93/src/inspect_ai/log/_transcript.py#L261">Source</a>
 </div>
 <div class="sourceCode" id="cb48"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb48-1"><a href="#cb48-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> InfoEvent(BaseEvent)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
 <h4 class="anchored" data-anchor-id="">Attributes</h4>
 <dl>
-<dt><code>event</code> <span class="element-type"><span class="element-type-name">Literal</span>['info']</span></dt>
+<dt><code class="ref-definition">event</code> <span class="element-type"><span class="element-type-name">Literal</span>['info']</span></dt>
 <dd>
 <p>Event type.</p>
 </dd>
-<dt><code>data</code> <span class="element-type"><span class="element-type-name">JsonValue</span></span></dt>
+<dt><code class="ref-definition">data</code> <span class="element-type"><span class="element-type-name">JsonValue</span></span></dt>
 <dd>
 <p>Data provided with event.</p>
 </dd>
@@ -3115,25 +3115,25 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="stepevent">StepEvent</h3>
 <p>Step within current sample or subtask.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/6d7f690f1448a76633cbd04a8ccc54115d567e2b/src/inspect_ai/log/_transcript.py#L294">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f73c01239f047b6a94bb4b2e6ffc5040d0055b93/src/inspect_ai/log/_transcript.py#L294">Source</a>
 </div>
 <div class="sourceCode" id="cb49"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb49-1"><a href="#cb49-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> StepEvent(BaseEvent)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
 <h4 class="anchored" data-anchor-id="">Attributes</h4>
 <dl>
-<dt><code>event</code> <span class="element-type"><span class="element-type-name">Literal</span>['step']</span></dt>
+<dt><code class="ref-definition">event</code> <span class="element-type"><span class="element-type-name">Literal</span>['step']</span></dt>
 <dd>
 <p>Event type.</p>
 </dd>
-<dt><code>action</code> <span class="element-type"><span class="element-type-name">Literal</span>['begin', 'end']</span></dt>
+<dt><code class="ref-definition">action</code> <span class="element-type"><span class="element-type-name">Literal</span>['begin', 'end']</span></dt>
 <dd>
 <p>Designates beginning or end of event.</p>
 </dd>
-<dt><code>type</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">type</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Optional ‘type’ field for events</p>
 </dd>
-<dt><code>name</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
+<dt><code class="ref-definition">name</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
 <dd>
 <p>Event name.</p>
 </dd>
@@ -3144,33 +3144,33 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="subtaskevent">SubtaskEvent</h3>
 <p>Subtask spawned.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/6d7f690f1448a76633cbd04a8ccc54115d567e2b/src/inspect_ai/log/_transcript.py#L310">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f73c01239f047b6a94bb4b2e6ffc5040d0055b93/src/inspect_ai/log/_transcript.py#L310">Source</a>
 </div>
 <div class="sourceCode" id="cb50"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb50-1"><a href="#cb50-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> SubtaskEvent(BaseEvent)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
 <h4 class="anchored" data-anchor-id="">Attributes</h4>
 <dl>
-<dt><code>event</code> <span class="element-type"><span class="element-type-name">Literal</span>['subtask']</span></dt>
+<dt><code class="ref-definition">event</code> <span class="element-type"><span class="element-type-name">Literal</span>['subtask']</span></dt>
 <dd>
 <p>Event type.</p>
 </dd>
-<dt><code>name</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
+<dt><code class="ref-definition">name</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
 <dd>
 <p>Name of subtask function.</p>
 </dd>
-<dt><code>type</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">type</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Type of subtask</p>
 </dd>
-<dt><code>input</code> <span class="element-type">dict[<span class="element-type-name">str</span>, <span class="element-type-name">Any</span>]</span></dt>
+<dt><code class="ref-definition">input</code> <span class="element-type">dict[<span class="element-type-name">str</span>, <span class="element-type-name">Any</span>]</span></dt>
 <dd>
 <p>Subtask function inputs.</p>
 </dd>
-<dt><code>result</code> <span class="element-type"><span class="element-type-name">Any</span></span></dt>
+<dt><code class="ref-definition">result</code> <span class="element-type"><span class="element-type-name">Any</span></span></dt>
 <dd>
 <p>Subtask function result.</p>
 </dd>
-<dt><code>events</code> <span class="element-type">list[<span class="element-type-name"><a href="../reference/inspect_ai.log.html#event">Event</a></span>]</span></dt>
+<dt><code class="ref-definition">events</code> <span class="element-type">list[<span class="element-type-name"><a href="../reference/inspect_ai.log.html#event">Event</a></span>]</span></dt>
 <dd>
 <p>Transcript of events for subtask.</p>
 </dd>

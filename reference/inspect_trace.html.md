@@ -9,6 +9,9 @@ TRACE logs are always recorded to a separate file, and the last 10 TRACE
 logs are preserved. The ‘trace’ command provides ways to list and read
 these traces.
 
+Learn more about execution traces at
+<https://inspect.ai-safety-institute.org.uk/tracing.html>.
+
 #### Usage
 
 ``` text

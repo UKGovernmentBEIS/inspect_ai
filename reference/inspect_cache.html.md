@@ -1,7 +1,10 @@
 # inspect cache
 
 
-Manage the inspect cache.
+Manage the inspect model output cache.
+
+Learn more about model output caching at
+<https://inspect.ai-safety-institute.org.uk/caching.html>.
 
 #### Usage
 

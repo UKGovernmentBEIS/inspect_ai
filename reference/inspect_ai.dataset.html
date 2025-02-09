@@ -1568,7 +1568,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="csv_dataset">csv_dataset</h3>
 <p>Read dataset from CSV file.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/6d7f690f1448a76633cbd04a8ccc54115d567e2b/src/inspect_ai/dataset/_sources/csv.py#L20">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f73c01239f047b6a94bb4b2e6ffc5040d0055b93/src/inspect_ai/dataset/_sources/csv.py#L20">Source</a>
 </div>
 <div class="sourceCode" id="cb1"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> csv_dataset(</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    csv_file: <span class="bu">str</span>,</span>
@@ -1586,55 +1586,55 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a>    delimiter: <span class="bu">str</span> <span class="op">=</span> <span class="st">","</span>,</span>
 <span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> Dataset</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <dl>
-<dt><code>csv_file</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
+<dt><code class="ref-definition">csv_file</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
 <dd>
 <p>Path to CSV file. Can be a local filesystem path, a path to an S3 bucket (e.g.&nbsp;“s3://my-bucket”), or an HTTPS URL. Use <code>fs_options</code> to pass arguments through to the <code>S3FileSystem</code> constructor.</p>
 </dd>
-<dt><code>sample_fields</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.dataset.html#fieldspec">FieldSpec</a></span> | <span class="element-type-name"><a href="../reference/inspect_ai.dataset.html#recordtosample">RecordToSample</a></span> | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">sample_fields</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.dataset.html#fieldspec">FieldSpec</a></span> | <span class="element-type-name"><a href="../reference/inspect_ai.dataset.html#recordtosample">RecordToSample</a></span> | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Method of mapping underlying fields in the data source to Sample objects. Pass <code>None</code> if the data is already stored in <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.dataset.html#sample">Sample</a></span> form (i.e.&nbsp;has “input” and “target” columns.); Pass a <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.dataset.html#fieldspec">FieldSpec</a></span> to specify mapping fields by name; Pass a <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.dataset.html#recordtosample">RecordToSample</a></span> to handle mapping with a custom function that returns one or more samples.</p>
 </dd>
-<dt><code>auto_id</code> <span class="element-type"><span class="element-type-name">bool</span></span></dt>
+<dt><code class="ref-definition">auto_id</code> <span class="element-type"><span class="element-type-name">bool</span></span></dt>
 <dd>
 <p>Assign an auto-incrementing ID for each sample.</p>
 </dd>
-<dt><code>shuffle</code> <span class="element-type"><span class="element-type-name">bool</span></span></dt>
+<dt><code class="ref-definition">shuffle</code> <span class="element-type"><span class="element-type-name">bool</span></span></dt>
 <dd>
 <p>Randomly shuffle the dataset order.</p>
 </dd>
-<dt><code>seed</code> <span class="element-type"><span class="element-type-name">int</span> | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">seed</code> <span class="element-type"><span class="element-type-name">int</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Seed used for random shuffle.</p>
 </dd>
-<dt><code>shuffle_choices</code> <span class="element-type"><span class="element-type-name">bool</span> | <span class="element-type-name">int</span> | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">shuffle_choices</code> <span class="element-type"><span class="element-type-name">bool</span> | <span class="element-type-name">int</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Whether to shuffle the choices. If an int is passed, this will be used as the seed when shuffling.</p>
 </dd>
-<dt><code>limit</code> <span class="element-type"><span class="element-type-name">int</span> | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">limit</code> <span class="element-type"><span class="element-type-name">int</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Limit the number of records to read.</p>
 </dd>
-<dt><code>dialect</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
+<dt><code class="ref-definition">dialect</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
 <dd>
-<p>CSV dialect (“unix”, “excel” or”excel-tab”). Defaults to “unix”. See https://docs.python.org/3/library/csv.html#dialects-and-formatting-parameters for more details</p>
+<p>CSV dialect (“unix”, “excel” or”excel-tab”). Defaults to “unix”. See <a href="https://docs.python.org/3/library/csv.html#dialects-and-formatting-parameters" class="uri">https://docs.python.org/3/library/csv.html#dialects-and-formatting-parameters</a> for more details</p>
 </dd>
-<dt><code>encoding</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
+<dt><code class="ref-definition">encoding</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
 <dd>
 <p>Text encoding for file (defaults to “utf-8”).</p>
 </dd>
-<dt><code>name</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">name</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Optional name for dataset (for logging). If not specified, defaults to the stem of the filename</p>
 </dd>
-<dt><code>fs_options</code> <span class="element-type">dict[<span class="element-type-name">str</span>, <span class="element-type-name">Any</span>]</span></dt>
+<dt><code class="ref-definition">fs_options</code> <span class="element-type">dict[<span class="element-type-name">str</span>, <span class="element-type-name">Any</span>]</span></dt>
 <dd>
 <p>Optional. Additional arguments to pass through to the filesystem provider (e.g.&nbsp;<code>S3FileSystem</code>). Use <code>{"anon": True }</code> if you are accessing a public S3 bucket with no credentials.</p>
 </dd>
-<dt><code>fieldnames</code> <span class="element-type">list[<span class="element-type-name">str</span>] | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">fieldnames</code> <span class="element-type">list[<span class="element-type-name">str</span>] | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Optional. A list of fieldnames to use for the CSV. If None, the values in the first row of the file will be used as the fieldnames. Useful for files without a header.</p>
 </dd>
-<dt><code>delimiter</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
+<dt><code class="ref-definition">delimiter</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
 <dd>
 <p>Optional. The delimiter to use when parsing the file. Defaults to “,”.</p>
 </dd>
@@ -1645,7 +1645,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Read dataset from a JSON file.</p>
 <p>Read a dataset from a JSON file containing an array of objects, or from a JSON Lines file containing one object per line. These objects may already be formatted as <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.dataset.html#sample">Sample</a></span> instances, or may require some mapping using the <code>sample_fields</code> argument.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/6d7f690f1448a76633cbd04a8ccc54115d567e2b/src/inspect_ai/dataset/_sources/json.py#L22">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f73c01239f047b6a94bb4b2e6ffc5040d0055b93/src/inspect_ai/dataset/_sources/json.py#L22">Source</a>
 </div>
 <div class="sourceCode" id="cb2"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> json_dataset(</span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>    json_file: <span class="bu">str</span>,</span>
@@ -1660,43 +1660,43 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>    fs_options: <span class="bu">dict</span>[<span class="bu">str</span>, Any] <span class="op">=</span> {},</span>
 <span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> Dataset</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <dl>
-<dt><code>json_file</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
+<dt><code class="ref-definition">json_file</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
 <dd>
 <p>Path to JSON file. Can be a local filesystem path or a path to an S3 bucket (e.g.&nbsp;“s3://my-bucket”). Use <code>fs_options</code> to pass arguments through to the <code>S3FileSystem</code> constructor.</p>
 </dd>
-<dt><code>sample_fields</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.dataset.html#fieldspec">FieldSpec</a></span> | <span class="element-type-name"><a href="../reference/inspect_ai.dataset.html#recordtosample">RecordToSample</a></span> | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">sample_fields</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.dataset.html#fieldspec">FieldSpec</a></span> | <span class="element-type-name"><a href="../reference/inspect_ai.dataset.html#recordtosample">RecordToSample</a></span> | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Method of mapping underlying fields in the data source to <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.dataset.html#sample">Sample</a></span> objects. Pass <code>None</code> if the data is already stored in <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.dataset.html#sample">Sample</a></span> form (i.e.&nbsp;object with “input” and “target” fields); Pass a <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.dataset.html#fieldspec">FieldSpec</a></span> to specify mapping fields by name; Pass a <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.dataset.html#recordtosample">RecordToSample</a></span> to handle mapping with a custom function that returns one or more samples.</p>
 </dd>
-<dt><code>auto_id</code> <span class="element-type"><span class="element-type-name">bool</span></span></dt>
+<dt><code class="ref-definition">auto_id</code> <span class="element-type"><span class="element-type-name">bool</span></span></dt>
 <dd>
 <p>Assign an auto-incrementing ID for each sample.</p>
 </dd>
-<dt><code>shuffle</code> <span class="element-type"><span class="element-type-name">bool</span></span></dt>
+<dt><code class="ref-definition">shuffle</code> <span class="element-type"><span class="element-type-name">bool</span></span></dt>
 <dd>
 <p>Randomly shuffle the dataset order.</p>
 </dd>
-<dt><code>seed</code> <span class="element-type"><span class="element-type-name">int</span> | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">seed</code> <span class="element-type"><span class="element-type-name">int</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Seed used for random shuffle.</p>
 </dd>
-<dt><code>shuffle_choices</code> <span class="element-type"><span class="element-type-name">bool</span> | <span class="element-type-name">int</span> | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">shuffle_choices</code> <span class="element-type"><span class="element-type-name">bool</span> | <span class="element-type-name">int</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Whether to shuffle the choices. If an int is passed, this will be used as the seed when shuffling.</p>
 </dd>
-<dt><code>limit</code> <span class="element-type"><span class="element-type-name">int</span> | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">limit</code> <span class="element-type"><span class="element-type-name">int</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Limit the number of records to read.</p>
 </dd>
-<dt><code>encoding</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
+<dt><code class="ref-definition">encoding</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
 <dd>
 <p>Text encoding for file (defaults to “utf-8”).</p>
 </dd>
-<dt><code>name</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">name</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Optional name for dataset (for logging). If not specified, defaults to the stem of the filename.</p>
 </dd>
-<dt><code>fs_options</code> <span class="element-type">dict[<span class="element-type-name">str</span>, <span class="element-type-name">Any</span>]</span></dt>
+<dt><code class="ref-definition">fs_options</code> <span class="element-type">dict[<span class="element-type-name">str</span>, <span class="element-type-name">Any</span>]</span></dt>
 <dd>
 <p>Optional. Additional arguments to pass through to the filesystem provider (e.g.&nbsp;<code>S3FileSystem</code>). Use <code>{"anon": True }</code> if you are accessing a public S3 bucket with no credentials.</p>
 </dd>
@@ -1707,7 +1707,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Datasets read using the Hugging Face <code>datasets</code> package.</p>
 <p>The <code>hf_dataset</code> function supports reading datasets using the Hugging Face <code>datasets</code> package, including remote datasets on Hugging Face Hub.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/6d7f690f1448a76633cbd04a8ccc54115d567e2b/src/inspect_ai/dataset/_sources/hf.py#L22">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f73c01239f047b6a94bb4b2e6ffc5040d0055b93/src/inspect_ai/dataset/_sources/hf.py#L22">Source</a>
 </div>
 <div class="sourceCode" id="cb3"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> hf_dataset(</span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    path: <span class="bu">str</span>,</span>
@@ -1726,59 +1726,59 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a>    <span class="op">**</span>kwargs: Any,</span>
 <span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> Dataset</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <dl>
-<dt><code>path</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
+<dt><code class="ref-definition">path</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
 <dd>
 <p>Path or name of the dataset. Depending on path, the dataset builder that is used comes from a generic dataset script (JSON, CSV, Parquet, text etc.) or from the dataset script (a python file) inside the dataset directory.</p>
 </dd>
-<dt><code>split</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
+<dt><code class="ref-definition">split</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
 <dd>
 <p>Which split of the data to load.</p>
 </dd>
-<dt><code>name</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">name</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Name of the dataset configuration.</p>
 </dd>
-<dt><code>data_dir</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">data_dir</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>data_dir of the dataset configuration to read data from.</p>
 </dd>
-<dt><code>revision</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">revision</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Specific revision to load (e.g.&nbsp;“main”, a branch name, or a specific commit SHA). When using <code>revision</code> the <code>cached</code> option is ignored and datasets are revalidated on Hugging Face before loading.</p>
 </dd>
-<dt><code>sample_fields</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.dataset.html#fieldspec">FieldSpec</a></span> | <span class="element-type-name"><a href="../reference/inspect_ai.dataset.html#recordtosample">RecordToSample</a></span> | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">sample_fields</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.dataset.html#fieldspec">FieldSpec</a></span> | <span class="element-type-name"><a href="../reference/inspect_ai.dataset.html#recordtosample">RecordToSample</a></span> | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Method of mapping underlying fields in the data source to Sample objects. Pass <code>None</code> if the data is already stored in <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.dataset.html#sample">Sample</a></span> form (i.e.&nbsp;has “input” and “target” columns.); Pass a <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.dataset.html#fieldspec">FieldSpec</a></span> to specify mapping fields by name; Pass a <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.dataset.html#recordtosample">RecordToSample</a></span> to handle mapping with a custom function that returns one or more samples.</p>
 </dd>
-<dt><code>auto_id</code> <span class="element-type"><span class="element-type-name">bool</span></span></dt>
+<dt><code class="ref-definition">auto_id</code> <span class="element-type"><span class="element-type-name">bool</span></span></dt>
 <dd>
 <p>Assign an auto-incrementing ID for each sample.</p>
 </dd>
-<dt><code>shuffle</code> <span class="element-type"><span class="element-type-name">bool</span></span></dt>
+<dt><code class="ref-definition">shuffle</code> <span class="element-type"><span class="element-type-name">bool</span></span></dt>
 <dd>
 <p>Randomly shuffle the dataset order.</p>
 </dd>
-<dt><code>seed</code> <span class="element-type"><span class="element-type-name">int</span> | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">seed</code> <span class="element-type"><span class="element-type-name">int</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Seed used for random shuffle.</p>
 </dd>
-<dt><code>shuffle_choices</code> <span class="element-type"><span class="element-type-name">bool</span> | <span class="element-type-name">int</span> | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">shuffle_choices</code> <span class="element-type"><span class="element-type-name">bool</span> | <span class="element-type-name">int</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Whether to shuffle the choices. If an int is passed, this will be used as the seed when shuffling.</p>
 </dd>
-<dt><code>limit</code> <span class="element-type"><span class="element-type-name">int</span> | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">limit</code> <span class="element-type"><span class="element-type-name">int</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Limit the number of records to read.</p>
 </dd>
-<dt><code>trust</code> <span class="element-type"><span class="element-type-name">bool</span></span></dt>
+<dt><code class="ref-definition">trust</code> <span class="element-type"><span class="element-type-name">bool</span></span></dt>
 <dd>
 <p>Whether or not to allow for datasets defined on the Hub using a dataset script. This option should only be set to True for repositories you trust and in which you have read the code, as it will execute code present on the Hub on your local machine.</p>
 </dd>
-<dt><code>cached</code> <span class="element-type"><span class="element-type-name">bool</span></span></dt>
+<dt><code class="ref-definition">cached</code> <span class="element-type"><span class="element-type-name">bool</span></span></dt>
 <dd>
 <p>By default, datasets are read once from HuggingFace Hub and then cached for future reads. Pass <code>cached=False</code> to force re-reading the dataset from Hugging Face. Ignored when the <code>revision</code> option is specified.</p>
 </dd>
-<dt><code>**kwargs</code> <span class="element-type"><span class="element-type-name">Any</span></span></dt>
+<dt><code class="ref-definition">**kwargs</code> <span class="element-type"><span class="element-type-name">Any</span></span></dt>
 <dd>
 <p>Additional arguments to pass through to the <code>load_dataset</code> function of the <code>datasets</code> package.</p>
 </dd>
@@ -1791,41 +1791,41 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="sample">Sample</h3>
 <p>Sample for an evaluation task.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/6d7f690f1448a76633cbd04a8ccc54115d567e2b/src/inspect_ai/dataset/_dataset.py#L29">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f73c01239f047b6a94bb4b2e6ffc5040d0055b93/src/inspect_ai/dataset/_dataset.py#L29">Source</a>
 </div>
 <div class="sourceCode" id="cb4"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Sample(BaseModel)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
 <h4 class="anchored" data-anchor-id="">Attributes</h4>
 <dl>
-<dt><code>input</code> <span class="element-type"><span class="element-type-name">str</span> | list[<span class="element-type-name"><a href="../reference/inspect_ai.model.html#chatmessage">ChatMessage</a></span>]</span></dt>
+<dt><code class="ref-definition">input</code> <span class="element-type"><span class="element-type-name">str</span> | list[<span class="element-type-name"><a href="../reference/inspect_ai.model.html#chatmessage">ChatMessage</a></span>]</span></dt>
 <dd>
 <p>The input to be submitted to the model.</p>
 </dd>
-<dt><code>choices</code> <span class="element-type">list[<span class="element-type-name">str</span>] | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">choices</code> <span class="element-type">list[<span class="element-type-name">str</span>] | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>List of available answer choices (used only for multiple-choice evals).</p>
 </dd>
-<dt><code>target</code> <span class="element-type"><span class="element-type-name">str</span> | list[<span class="element-type-name">str</span>]</span></dt>
+<dt><code class="ref-definition">target</code> <span class="element-type"><span class="element-type-name">str</span> | list[<span class="element-type-name">str</span>]</span></dt>
 <dd>
 <p>Ideal target output. May be a literal value or narrative text to be used by a model grader.</p>
 </dd>
-<dt><code>id</code> <span class="element-type"><span class="element-type-name">int</span> | <span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">id</code> <span class="element-type"><span class="element-type-name">int</span> | <span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Unique identifier for sample.</p>
 </dd>
-<dt><code>metadata</code> <span class="element-type">dict[<span class="element-type-name">str</span>, <span class="element-type-name">Any</span>] | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">metadata</code> <span class="element-type">dict[<span class="element-type-name">str</span>, <span class="element-type-name">Any</span>] | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Arbitrary metadata associated with the sample.</p>
 </dd>
-<dt><code>sandbox</code> <span class="element-type"><span class="element-type-name">SandboxEnvironmentSpec</span> | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">sandbox</code> <span class="element-type"><span class="element-type-name">SandboxEnvironmentSpec</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Sandbox environment type and optional config file.</p>
 </dd>
-<dt><code>files</code> <span class="element-type">dict[<span class="element-type-name">str</span>, <span class="element-type-name">str</span>] | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">files</code> <span class="element-type">dict[<span class="element-type-name">str</span>, <span class="element-type-name">str</span>] | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Files that go along with the sample (copied to SandboxEnvironment)</p>
 </dd>
-<dt><code>setup</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">setup</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Setup script to run for sample (run within default SandboxEnvironment).</p>
 </dd>
@@ -1838,7 +1838,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>Create a Sample.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/6d7f690f1448a76633cbd04a8ccc54115d567e2b/src/inspect_ai/dataset/_dataset.py#L32">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f73c01239f047b6a94bb4b2e6ffc5040d0055b93/src/inspect_ai/dataset/_dataset.py#L32">Source</a>
 </div>
 <div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> <span class="fu">__init__</span>(</span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>    <span class="va">self</span>,</span>
@@ -1852,35 +1852,35 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>    setup: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
 <span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="va">None</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <dl>
-<dt><code>input</code> <span class="element-type"><span class="element-type-name">str</span> | list[<span class="element-type-name"><a href="../reference/inspect_ai.model.html#chatmessage">ChatMessage</a></span>]</span></dt>
+<dt><code class="ref-definition">input</code> <span class="element-type"><span class="element-type-name">str</span> | list[<span class="element-type-name"><a href="../reference/inspect_ai.model.html#chatmessage">ChatMessage</a></span>]</span></dt>
 <dd>
 <p>The input to be submitted to the model.</p>
 </dd>
-<dt><code>choices</code> <span class="element-type">list[<span class="element-type-name">str</span>] | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">choices</code> <span class="element-type">list[<span class="element-type-name">str</span>] | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Optional. List of available answer choices (used only for multiple-choice evals).</p>
 </dd>
-<dt><code>target</code> <span class="element-type"><span class="element-type-name">str</span> | list[<span class="element-type-name">str</span>]</span></dt>
+<dt><code class="ref-definition">target</code> <span class="element-type"><span class="element-type-name">str</span> | list[<span class="element-type-name">str</span>]</span></dt>
 <dd>
 <p>Optional. Ideal target output. May be a literal value or narrative text to be used by a model grader.</p>
 </dd>
-<dt><code>id</code> <span class="element-type"><span class="element-type-name">int</span> | <span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">id</code> <span class="element-type"><span class="element-type-name">int</span> | <span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Optional. Unique identifier for sample.</p>
 </dd>
-<dt><code>metadata</code> <span class="element-type">dict[<span class="element-type-name">str</span>, <span class="element-type-name">Any</span>] | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">metadata</code> <span class="element-type">dict[<span class="element-type-name">str</span>, <span class="element-type-name">Any</span>] | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Optional. Arbitrary metadata associated with the sample. sandbox (SandboxEnvironmentType | None): Sandbox environment type (or optionally a str or tuple with a shorthand spec)</p>
 </dd>
-<dt><code>sandbox</code> <span class="element-type"><span class="element-type-name">SandboxEnvironmentType</span> | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">sandbox</code> <span class="element-type"><span class="element-type-name">SandboxEnvironmentType</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Optional. Sandbox specification for this sample.</p>
 </dd>
-<dt><code>files</code> <span class="element-type">dict[<span class="element-type-name">str</span>, <span class="element-type-name">str</span>] | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">files</code> <span class="element-type">dict[<span class="element-type-name">str</span>, <span class="element-type-name">str</span>] | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Optional. Files that go along with the sample (copied to SandboxEnvironment). Files can be paths, inline text, or inline binary (base64 encoded data URL).</p>
 </dd>
-<dt><code>setup</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">setup</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Optional. Setup script to run for sample (run within default SandboxEnvironment).</p>
 </dd>
@@ -1890,11 +1890,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>Metadata as a Pydantic model.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/6d7f690f1448a76633cbd04a8ccc54115d567e2b/src/inspect_ai/dataset/_dataset.py#L86">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f73c01239f047b6a94bb4b2e6ffc5040d0055b93/src/inspect_ai/dataset/_dataset.py#L86">Source</a>
 </div>
 <div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> metadata_as(<span class="va">self</span>, metadata_cls: Type[MT]) <span class="op">-&gt;</span> MT</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <dl>
-<dt><code>metadata_cls</code> <span class="element-type"><span class="element-type-name">Type</span>[<span class="element-type-name">MT</span>]</span></dt>
+<dt><code class="ref-definition">metadata_cls</code> <span class="element-type"><span class="element-type-name">Type</span>[<span class="element-type-name">MT</span>]</span></dt>
 <dd>
 <p>BaseModel derived class.</p>
 </dd>
@@ -1907,42 +1907,42 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="fieldspec">FieldSpec</h3>
 <p>Specification for mapping data source fields to sample fields.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/6d7f690f1448a76633cbd04a8ccc54115d567e2b/src/inspect_ai/dataset/_dataset.py#L209">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f73c01239f047b6a94bb4b2e6ffc5040d0055b93/src/inspect_ai/dataset/_dataset.py#L209">Source</a>
 </div>
 <div class="sourceCode" id="cb7"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span></span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> FieldSpec</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
 <h4 class="anchored" data-anchor-id="">Attributes</h4>
 <dl>
-<dt><code>input</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
+<dt><code class="ref-definition">input</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
 <dd>
 <p>Name of the field containing the sample input.</p>
 </dd>
-<dt><code>target</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
+<dt><code class="ref-definition">target</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
 <dd>
 <p>Name of the field containing the sample target.</p>
 </dd>
-<dt><code>choices</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
+<dt><code class="ref-definition">choices</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
 <dd>
 <p>Name of field containing the list of answer choices.</p>
 </dd>
-<dt><code>id</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
+<dt><code class="ref-definition">id</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
 <dd>
 <p>Unique identifier for the sample.</p>
 </dd>
-<dt><code>metadata</code> <span class="element-type">list[<span class="element-type-name">str</span>] | <span class="element-type-name">Type</span>[<span class="element-type-name">BaseModel</span>] | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">metadata</code> <span class="element-type">list[<span class="element-type-name">str</span>] | <span class="element-type-name">Type</span>[<span class="element-type-name">BaseModel</span>] | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>List of additional field names that should be read as metadata.</p>
 </dd>
-<dt><code>sandbox</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
+<dt><code class="ref-definition">sandbox</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
 <dd>
 <p>Sandbox type along with optional config file.</p>
 </dd>
-<dt><code>files</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
+<dt><code class="ref-definition">files</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
 <dd>
 <p>Files that go along wtih the sample.</p>
 </dd>
-<dt><code>setup</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
+<dt><code class="ref-definition">setup</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
 <dd>
 <p>Setup script to run for sample (run within default SandboxEnvironment).</p>
 </dd>
@@ -1953,7 +1953,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="recordtosample">RecordToSample</h3>
 <p>Callable that maps raw dictionary record to a Sample.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/6d7f690f1448a76633cbd04a8ccc54115d567e2b/src/inspect_ai/dataset/_dataset.py#L238">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f73c01239f047b6a94bb4b2e6ffc5040d0055b93/src/inspect_ai/dataset/_dataset.py#L238">Source</a>
 </div>
 <div class="sourceCode" id="cb8"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>RecordToSample <span class="op">=</span> Callable[[DatasetRecord], Sample <span class="op">|</span> <span class="bu">list</span>[Sample]]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
@@ -1962,7 +1962,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>A sequence of Sample objects.</p>
 <p>Datasets provide sequential access (via conventional indexes or slicing) to a collection of Sample objects.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/6d7f690f1448a76633cbd04a8ccc54115d567e2b/src/inspect_ai/dataset/_dataset.py#L130">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f73c01239f047b6a94bb4b2e6ffc5040d0055b93/src/inspect_ai/dataset/_dataset.py#L130">Source</a>
 </div>
 <div class="sourceCode" id="cb9"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Dataset(Sequence[Sample], abc.ABC)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4 class-methods">
@@ -1974,7 +1974,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>If a key function is given, apply it once to each list item and sort them, ascending or descending, according to their function values.</p>
 <p>The key function defaults to measuring the length of the sample’s input field.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/6d7f690f1448a76633cbd04a8ccc54115d567e2b/src/inspect_ai/dataset/_dataset.py#L161">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f73c01239f047b6a94bb4b2e6ffc5040d0055b93/src/inspect_ai/dataset/_dataset.py#L161">Source</a>
 </div>
 <div class="sourceCode" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="at">@abc.abstractmethod</span></span>
 <span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> sort(</span>
@@ -1983,11 +1983,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>    key: Callable[[Sample], <span class="st">"SupportsRichComparison"</span>] <span class="op">=</span> sample_input_len,</span>
 <span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="va">None</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <dl>
-<dt><code>reverse</code> <span class="element-type"><span class="element-type-name">bool</span></span></dt>
+<dt><code class="ref-definition">reverse</code> <span class="element-type"><span class="element-type-name">bool</span></span></dt>
 <dd>
 <p>If <code>Treu</code>, sort in descending order. Defaults to False.</p>
 </dd>
-<dt><code>key</code> <span class="element-type"><span class="element-type-name">Callable</span>[[<span class="element-type-name"><a href="../reference/inspect_ai.dataset.html#sample">Sample</a></span>], <span class="element-type-name">SupportsRichComparison</span>]</span></dt>
+<dt><code class="ref-definition">key</code> <span class="element-type"><span class="element-type-name">Callable</span>[[<span class="element-type-name"><a href="../reference/inspect_ai.dataset.html#sample">Sample</a></span>], <span class="element-type-name">SupportsRichComparison</span>]</span></dt>
 <dd>
 <p>a callable mapping each item to a numeric value (optional, defaults to sample_input_len).</p>
 </dd>
@@ -1997,18 +1997,18 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>Filter the dataset using a predicate.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/6d7f690f1448a76633cbd04a8ccc54115d567e2b/src/inspect_ai/dataset/_dataset.py#L178">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f73c01239f047b6a94bb4b2e6ffc5040d0055b93/src/inspect_ai/dataset/_dataset.py#L178">Source</a>
 </div>
 <div class="sourceCode" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="at">@abc.abstractmethod</span></span>
 <span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> <span class="bu">filter</span>(</span>
 <span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>    <span class="va">self</span>, predicate: Callable[[Sample], <span class="bu">bool</span>], name: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span></span>
 <span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="st">"Dataset"</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <dl>
-<dt><code>predicate</code> <span class="element-type"><span class="element-type-name">Callable</span>[[<span class="element-type-name"><a href="../reference/inspect_ai.dataset.html#sample">Sample</a></span>], <span class="element-type-name">bool</span>]</span></dt>
+<dt><code class="ref-definition">predicate</code> <span class="element-type"><span class="element-type-name">Callable</span>[[<span class="element-type-name"><a href="../reference/inspect_ai.dataset.html#sample">Sample</a></span>], <span class="element-type-name">bool</span>]</span></dt>
 <dd>
 <p>Filtering function.</p>
 </dd>
-<dt><code>name</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">name</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Name for filtered dataset (optional).</p>
 </dd>
@@ -2018,12 +2018,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>Shuffle the order of the dataset (in place).</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/6d7f690f1448a76633cbd04a8ccc54115d567e2b/src/inspect_ai/dataset/_dataset.py#L192">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f73c01239f047b6a94bb4b2e6ffc5040d0055b93/src/inspect_ai/dataset/_dataset.py#L192">Source</a>
 </div>
 <div class="sourceCode" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="at">@abc.abstractmethod</span></span>
 <span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> shuffle(<span class="va">self</span>, seed: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>) <span class="op">-&gt;</span> <span class="va">None</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <dl>
-<dt><code>seed</code> <span class="element-type"><span class="element-type-name">int</span> | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">seed</code> <span class="element-type"><span class="element-type-name">int</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Random seed for shuffling (optional).</p>
 </dd>
@@ -2033,12 +2033,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>Shuffle the order of the choices with each sample.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/6d7f690f1448a76633cbd04a8ccc54115d567e2b/src/inspect_ai/dataset/_dataset.py#L200">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f73c01239f047b6a94bb4b2e6ffc5040d0055b93/src/inspect_ai/dataset/_dataset.py#L200">Source</a>
 </div>
 <div class="sourceCode" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="at">@abc.abstractmethod</span></span>
 <span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> shuffle_choices(<span class="va">self</span>, seed: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>) <span class="op">-&gt;</span> <span class="va">None</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <dl>
-<dt><code>seed</code> <span class="element-type"><span class="element-type-name">int</span> | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">seed</code> <span class="element-type"><span class="element-type-name">int</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Random seed for shuffling (optional).</p>
 </dd>
@@ -2051,21 +2051,21 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="memorydataset">MemoryDataset</h3>
 <p>A Dataset stored in memory.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/6d7f690f1448a76633cbd04a8ccc54115d567e2b/src/inspect_ai/dataset/_dataset.py#L242">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f73c01239f047b6a94bb4b2e6ffc5040d0055b93/src/inspect_ai/dataset/_dataset.py#L242">Source</a>
 </div>
 <div class="sourceCode" id="cb14"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> MemoryDataset(Dataset)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
 <h4 class="anchored" data-anchor-id="">Attributes</h4>
 <dl>
-<dt><code>name</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">name</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Dataset name.</p>
 </dd>
-<dt><code>location</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">location</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Dataset location.</p>
 </dd>
-<dt><code>shuffled</code> <span class="element-type"><span class="element-type-name">bool</span></span></dt>
+<dt><code class="ref-definition">shuffled</code> <span class="element-type"><span class="element-type-name">bool</span></span></dt>
 <dd>
 <p>Was the dataset shuffled.</p>
 </dd>
@@ -2079,7 +2079,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>A dataset of samples held in an in-memory list.</p>
 <p>Datasets provide sequential access (via conventional indexes or slicing) to a collection of Sample objects. The ListDataset is explicitly initialized with a list that is held in memory.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/6d7f690f1448a76633cbd04a8ccc54115d567e2b/src/inspect_ai/dataset/_dataset.py#L245">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f73c01239f047b6a94bb4b2e6ffc5040d0055b93/src/inspect_ai/dataset/_dataset.py#L245">Source</a>
 </div>
 <div class="sourceCode" id="cb15"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> <span class="fu">__init__</span>(</span>
 <span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>    <span class="va">self</span>,</span>
@@ -2089,19 +2089,19 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a>    shuffled: <span class="bu">bool</span> <span class="op">=</span> <span class="va">False</span>,</span>
 <span id="cb15-7"><a href="#cb15-7" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="va">None</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <dl>
-<dt><code>samples</code> <span class="element-type">list[<span class="element-type-name"><a href="../reference/inspect_ai.dataset.html#sample">Sample</a></span>]</span></dt>
+<dt><code class="ref-definition">samples</code> <span class="element-type">list[<span class="element-type-name"><a href="../reference/inspect_ai.dataset.html#sample">Sample</a></span>]</span></dt>
 <dd>
 <p>The list of sample objects.</p>
 </dd>
-<dt><code>name</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">name</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Optional name for dataset.</p>
 </dd>
-<dt><code>location</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
+<dt><code class="ref-definition">location</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Optional location for dataset.</p>
 </dd>
-<dt><code>shuffled</code> <span class="element-type"><span class="element-type-name">bool</span></span></dt>
+<dt><code class="ref-definition">shuffled</code> <span class="element-type"><span class="element-type-name">bool</span></span></dt>
 <dd>
 <p>Was the dataset shuffled after reading.</p>
 </dd>

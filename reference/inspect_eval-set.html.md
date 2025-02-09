@@ -1,7 +1,10 @@
 # inspect eval-set
 
 
-Evaluate a set of tasks.
+Evaluate a set of tasks with retries.
+
+Learn more about eval sets at
+<https://inspect.ai-safety-institute.org.uk/eval-sets.html>.
 
 #### Usage
 

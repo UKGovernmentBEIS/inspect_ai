@@ -3,6 +3,9 @@
 
 Manage Sandbox Environments.
 
+Learn more about sandboxing at
+<https://inspect.ai-safety-institute.org.uk/sandboxing.html>.
+
 #### Usage
 
 ``` text
