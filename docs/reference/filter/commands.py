@@ -65,13 +65,10 @@ def _recursively_make_command_docs(
         yield from _make_title(ctx, depth, has_attr_list=has_attr_list)
     yield from _make_description(ctx, remove_ascii_art=remove_ascii_art)
     yield from _make_usage(ctx)
-    yield from _make_options(ctx, style, show_hidden=show_hidden)
-
     if len(subcommands) == 0:
+        yield from _make_options(ctx, style, show_hidden=show_hidden)
         return
-
-    subcommands.sort(key=lambda cmd: str(cmd.name))
-
+    
     if list_subcommands:
         yield from _make_subcommands_links(
             subcommands,
@@ -347,6 +344,8 @@ def _make_subcommands_links(
 ) -> Iterator[str]:
     yield "#### Subcommands"
     yield ""
+    yield "|  |  |"
+    yield "| ---- | ----------- |"
     for command in subcommands:
         command_name = cast(str, command.name)
         ctx = _build_command_context(command_name, command, parent)
@@ -362,7 +361,9 @@ def _make_subcommands_links(
             help_string = help_string.splitlines()[0]
         else:
             help_string = "*No description was provided with this command.*"
-        yield f"- **{command_bullet}**: {help_string}"
+
+        yield f"| {command_bullet} | {help_string} |"
+    yield ": {.borderless tbl-colwidths=[35,65]}"
     yield ""
 
 
