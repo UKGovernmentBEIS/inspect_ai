@@ -1,6 +1,6 @@
 ---
 title: Reference
-tbl-colwidths: [40,60]
+tbl-colwidths: [35,66]
 ---
 
 ### Python API
@@ -24,8 +24,8 @@ tbl-colwidths: [40,60]
 |  |  |
 |------------------------------------|------------------------------------|
 | [inspect eval](inspect_eval.qmd) | Evaluate one or more tasks. |
-| [inspect eval-set](inspect_eval-set.qmd) | Evaluate a set of tasks with retries. |
 | [inspect eval-retry](inspect_eval-retry.qmd) | Retry an evaluation task. |
+| [inspect eval-set](inspect_eval-set.qmd) | Evaluate a set of tasks with retries. |
 | [inspect score](inspect_score.qmd) | Score a previous evaluation run. |
 | [inspect view](inspect_view.qmd) | Inspect log viewer |
 | [inspect_log](inspect_log.qmd) | Query, read, write, and convert logs. |
