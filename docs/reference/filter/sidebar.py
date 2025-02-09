@@ -40,8 +40,26 @@ website:
           contents:
              - text: inspect eval
                href: reference/inspect_eval.qmd
+             - text: inspect eval-set
+               href: reference/inspect_eval-set.qmd
+             - text: inspect eval-retry
+               href: reference/inspect_eval-retry.qmd
+             - text: inspect score
+               href: reference/inspect_score.qmd
              - text: inspect view
-               href: reference/inspect_view.qmd                                  
+               href: reference/inspect_view.qmd  
+             - text: inspect log
+               href: reference/inspect_log.qmd
+             - text: inspect trace
+               href: reference/inspect_trace.qmd  
+             - text: inspect sandbox
+               href: reference/inspect_sandbox.qmd
+             - text: inspect cache
+               href: reference/inspect_cache.qmd
+             - text: inspect list
+               href: reference/inspect_list.qmd
+             - text: inspect info
+               href: reference/inspect_info.qmd                              
 """)
 contents_yaml = sidebar["website"]["sidebar"][0]["contents"][1]["contents"]
 
