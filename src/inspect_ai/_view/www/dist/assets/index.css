@@ -14298,6 +14298,7 @@ pre[class*="language-"] {
   /* Inspect Font Sizes */
   --inspect-font-size-title: 1.5rem;
   --inspect-font-size-title-secondary: 1.3rem;
+  --inspect-font-size-largest: 1.2rem;
   --inspect-font-size-larger: 1.1rem;
   --inspect-font-size-large: 1rem;
   --inspect-font-size-base: 0.9rem;
@@ -14355,6 +14356,10 @@ body[class^="vscode-"] .app-main-grid {
 
 .text-size-title-secondary {
   font-size: var(--inspect-font-size-title-secondary);
+}
+
+.text-size-largest {
+  font-size: var(--inspect-font-size-largest);
 }
 
 .text-size-larger {
@@ -19490,7 +19495,7 @@ span.ap-marker-container:hover span.ap-marker {
   display: grid;
   grid-template-columns: minmax(0, max-content) max-content;
 }
-._simpleMetricsRows_13pa9_1 {
+._simpleMetricsRows_tnqkm_1 {
   display: flex;
   flex-direction: row;
   flex-wrap: wrap;
@@ -19501,28 +19506,28 @@ span.ap-marker-container:hover span.ap-marker {
   overflow: scroll;
 }
 
-._multiMetricsRows_13pa9_12 {
+._multiMetricsRows_tnqkm_12 {
   display: flex;
   flex-direction: row;
   flex-wrap: wrap;
   justify-content: end;
-  height: 100%;
   align-items: center;
   margin-top: 0.2rem;
   padding-bottom: 0.4rem;
   row-gap: 1em;
   max-height: 15em;
   overflow: scroll;
+  align-items: baseline;
 }
 
-._verticalMetricReducer_13pa9_26 {
+._verticalMetricReducer_tnqkm_26 {
   font-size: var(--inspect-font-size-smaller);
   text-align: center;
   padding-top: 0.3rem;
   margin-bottom: -0.3rem;
 }
 
-._verticalMetricName_13pa9_33 {
+._verticalMetricName_tnqkm_33 {
   font-size: var(--inspect-font-size-smaller);
   text-align: center;
   padding-top: 0.3rem;
@@ -19530,32 +19535,55 @@ span.ap-marker-container:hover span.ap-marker {
   border-bottom: solid var(--bs-border-color) 1px;
 }
 
-._verticalMetricValue_13pa9_41 {
-  font-size: var(--inspect-font-size-larger);
+._verticalMetricValue_tnqkm_41 {
   font-weight: 500;
   text-align: center;
 }
 
-._multiScorerReducer_13pa9_47 {
-  text-align: center;
-  margin-bottom: -0.3rem;
+._multiScorer_tnqkm_46 {
+  padding-left: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 0.5em 1em;
 }
 
-._multiScorerLabel_13pa9_52 {
+._multiScorerIndent_tnqkm_54 {
+  padding-left: 1.5em;
+}
+
+._multiScorerReducer_tnqkm_58 {
+  text-align: center;
+  margin-bottom: -0.3rem;
+  margin-top: 0.2em;
+}
+
+._multiScorerLabel_tnqkm_64 {
   text-align: center;
   border-bottom: solid var(--bs-border-color) 1px;
   margin-bottom: -0.1rem;
 }
 
-._multiScorerValue_13pa9_58 {
+._multiScorerValue_tnqkm_70 {
   display: grid;
   grid-template-columns: auto auto;
+  grid-auto-rows: auto;
   grid-column-gap: 0.3rem;
   grid-row-gap: 0;
+  padding-top: 0.3em;
 }
 
-._multiScorerValueContent_13pa9_65 {
+._multiScorerValueContent_tnqkm_79 {
   font-weight: 600;
+  text-align: center;
+}
+
+._multiScoreMetricGrid_tnqkm_84 {
+  display: grid;
+  grid-template-rows: auto auto;
+  column-gap: 1em;
+  padding: 0 0.2em;
+  justify-content: center;
 }
 ._statusPanel_1fzh4_1 {
   padding: 1em;
