@@ -25618,7 +25618,9 @@ categories: ${categories.join(" ")}`;
       cancelled
     };
     const metricDisplayName = (metric2) => {
-      const metricParamNames = Object.keys(metric2.params || {});
+      const metricParamNames = Object.keys(metric2.params || {}).filter((key2) => {
+        return !!metric2.params[key2];
+      });
       const metricsParams = metricParamNames.length === 1 ? metricParamNames[0] : `${metricParamNames[0]}, ...`;
       const metricName2 = metricParamNames.length === 0 ? metric2.name : `${metric2.name} (${metricsParams})`;
       return metricName2;

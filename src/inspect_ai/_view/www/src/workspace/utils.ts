@@ -1,7 +1,11 @@
 import { EvalMetric } from "../types/log";
 
 export const metricDisplayName = (metric: EvalMetric): string => {
-  const metricParamNames = Object.keys(metric.params || {});
+  // filter only to truthy params
+  const metricParamNames = Object.keys(metric.params || {}).filter((key) => {
+    return !!(metric.params as Record<string, unknown>)[key];
+  });
+
   const metricsParams =
     metricParamNames.length === 1
       ? metricParamNames[0]
