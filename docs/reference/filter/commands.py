@@ -58,13 +58,15 @@ def _recursively_make_command_docs(
 
     if ctx.command.hidden and not show_hidden:
         return
+    
+    subcommands = _get_sub_commands(ctx.command, ctx)
 
-    yield from _make_title(ctx, depth + (1 if parent is None else 0), has_attr_list=has_attr_list)
+    if parent is not None:
+        yield from _make_title(ctx, depth, has_attr_list=has_attr_list)
     yield from _make_description(ctx, remove_ascii_art=remove_ascii_art)
     yield from _make_usage(ctx)
     yield from _make_options(ctx, style, show_hidden=show_hidden)
 
-    subcommands = _get_sub_commands(ctx.command, ctx)
     if len(subcommands) == 0:
         return
 

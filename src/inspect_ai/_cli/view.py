@@ -39,7 +39,7 @@ def start_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
 @common_options
 @click.pass_context
 def view_command(ctx: click.Context, **kwargs: Unpack[CommonOptions]) -> None:
-    """View command group."""
+    """Inspect log viewer."""
     if ctx.invoked_subcommand is None:
         ctx.invoke(start, **kwargs)
     else:
