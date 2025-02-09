@@ -20,12 +20,12 @@ title: "inspect_ai.solver"
 
 ### basic_agent
 ### human_agent
+### bridge
 
 ## Composition
 
 ### chain
 ### fork
-### bridge
 
 ## Types
 
