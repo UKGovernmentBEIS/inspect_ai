@@ -25,6 +25,7 @@ def info_command() -> None:
     help="Output version and path info as JSON",
 )
 def version(json: bool) -> None:
+    """Output version and path info."""
     if json:
         print(dumps(dict(version=__version__, path=PKG_PATH.as_posix()), indent=2))
     else:

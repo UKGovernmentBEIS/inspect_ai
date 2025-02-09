@@ -40,6 +40,11 @@ img.navbar-logo {
     margin-bottom: 0;
 }
 
+.sidebar-item-section  .sidebar-item-section {
+    margin-bottom: 0 !important;    
+}
+
+
 .sidebar-tools-main .quarto-navigation-tool[title="Source Code"] {
     padding-top: 2.5px;
 }
@@ -129,3 +134,4 @@ img.navbar-logo {
 .class-methods > dl > dt {
     font-size: 1.3em;
 }
+
