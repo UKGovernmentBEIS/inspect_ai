@@ -33,7 +33,7 @@
 - [Interactivity](https://inspect.ai-safety-institute.org.uk/interactivity.html.md): Covers various ways to introduce user interaction into the implementation of tasks (for example, confirming consequential actions or prompting the model dynamically based on the trajectory of the evaluation).
 - [Extensions](https://inspect.ai-safety-institute.org.uk/extensions.html.md) describes the various ways you can extend Inspect, including adding support for new Model APIs, tool execution environments, and storage platforms (for datasets, prompts, and logs).
 
-## Reference
+## Reference: Python API
 
 - [inspect_ai](https://inspect.ai-safety-institute.org.uk/reference/inspect_ai.html.md) describes the core types used to create tasks and run evaluations.
 - [inspect_ai.solver](https://inspect.ai-safety-institute.org.uk/reference/inspect_ai.solver.html.md) describes built in solvers as well as the types used to create custom solvers.
@@ -44,4 +44,18 @@
 - [inspect_ai.approval](https://inspect.ai-safety-institute.org.uk/reference/inspect_ai.approval.html.md) covers using built in approvers as well as the types used to create custom approvers and approval policies.
 - [inspect_ai.log](https://inspect.ai-safety-institute.org.uk/reference/inspect_ai.log.html.md) describes the types used to list, read, write, and traverse the contents of eval log files.
 - [inspect_ai.util](https://inspect.ai-safety-institute.org.uk/reference/inspect_ai.util.html.md) covers various utility functions for concurrency, sandboxes, the store, and more.
+
+## Reference: Command Line 
+
+- [inspect_eval](https://inspect.ai-safety-institute.org.uk/reference/inspect_eval.html.md): Evaluate one or more tasks.
+- [inspect_eval-retry](https://inspect.ai-safety-institute.org.uk/reference/inspect_eval-retry.html.md): Retry an evaluation task.
+- [inspect_eval-set](https://inspect.ai-safety-institute.org.uk/reference/inspect_eval-set.html.md): Evaluate a set of tasks with retries.
+- [inspect_score](https://inspect.ai-safety-institute.org.uk/reference/inspect_score.html.md): Score a previous evaluation run.
+- [inspect_view](https://inspect.ai-safety-institute.org.uk/reference/inspect_view.html.md): Inspect log viewer.
+- [inspect_log](https://inspect.ai-safety-institute.org.uk/reference/inspect_log.html.md): Query, read, write, and convert logs.
+- [inspect_trace](https://inspect.ai-safety-institute.org.uk/reference/inspect_trace.html.md): List and read execution traces.
+- [inspect_sandbox](https://inspect.ai-safety-institute.org.uk/reference/inspect_sandbox.html.md): Manage sandbox environments.
+- [inspect_cache](https://inspect.ai-safety-institute.org.uk/reference/inspect_cache.html.md): Manage the Inspect model cache.
+- [inspect_list](https://inspect.ai-safety-institute.org.uk/reference/inspect_list.html.md): List tasks on the filesystem.
+- [inspect_info](https://inspect.ai-safety-institute.org.uk/reference/inspect_info.html.md): Read version and configuration.
 

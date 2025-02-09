@@ -5,8 +5,20 @@
     <lastmod>2025-01-31T22:00:20.400Z</lastmod>
   </url>
   <url>
-    <loc>https://inspect.ai-safety-institute.org.uk/reference/inspect_ai.dataset.html</loc>
+    <loc>https://inspect.ai-safety-institute.org.uk/reference/inspect_eval-set.html</loc>
+    <lastmod>2025-02-09T15:16:27.764Z</lastmod>
+  </url>
+  <url>
+    <loc>https://inspect.ai-safety-institute.org.uk/reference/inspect_ai.solver.html</loc>
     <lastmod>2025-02-08T20:06:00.567Z</lastmod>
+  </url>
+  <url>
+    <loc>https://inspect.ai-safety-institute.org.uk/reference/inspect_list.html</loc>
+    <lastmod>2025-02-09T15:16:27.764Z</lastmod>
+  </url>
+  <url>
+    <loc>https://inspect.ai-safety-institute.org.uk/reference/inspect_cache.html</loc>
+    <lastmod>2025-02-09T15:16:27.764Z</lastmod>
   </url>
   <url>
     <loc>https://inspect.ai-safety-institute.org.uk/reference/inspect_ai.model.html</loc>
@@ -14,11 +26,23 @@
   </url>
   <url>
     <loc>https://inspect.ai-safety-institute.org.uk/reference/inspect_ai.approval.html</loc>
+    <lastmod>2025-02-09T12:55:39.282Z</lastmod>
+  </url>
+  <url>
+    <loc>https://inspect.ai-safety-institute.org.uk/reference/inspect_trace.html</loc>
+    <lastmod>2025-02-09T15:16:27.765Z</lastmod>
+  </url>
+  <url>
+    <loc>https://inspect.ai-safety-institute.org.uk/reference/inspect_score.html</loc>
+    <lastmod>2025-02-09T15:16:27.764Z</lastmod>
+  </url>
+  <url>
+    <loc>https://inspect.ai-safety-institute.org.uk/reference/inspect_ai.log.html</loc>
     <lastmod>2025-02-08T20:06:00.567Z</lastmod>
   </url>
   <url>
-    <loc>https://inspect.ai-safety-institute.org.uk/reference/inspect_ai.tool.html</loc>
-    <lastmod>2025-02-08T20:06:00.567Z</lastmod>
+    <loc>https://inspect.ai-safety-institute.org.uk/reference/inspect_view.html</loc>
+    <lastmod>2025-02-09T15:16:27.765Z</lastmod>
   </url>
   <url>
     <loc>https://inspect.ai-safety-institute.org.uk/options.html</loc>
@@ -141,15 +165,39 @@
     <lastmod>2025-02-08T20:06:00.567Z</lastmod>
   </url>
   <url>
-    <loc>https://inspect.ai-safety-institute.org.uk/reference/inspect_ai.log.html</loc>
+    <loc>https://inspect.ai-safety-institute.org.uk/reference/inspect_ai.tool.html</loc>
     <lastmod>2025-02-08T20:06:00.567Z</lastmod>
+  </url>
+  <url>
+    <loc>https://inspect.ai-safety-institute.org.uk/reference/inspect_eval-retry.html</loc>
+    <lastmod>2025-02-09T15:16:27.764Z</lastmod>
+  </url>
+  <url>
+    <loc>https://inspect.ai-safety-institute.org.uk/reference/index.html</loc>
+    <lastmod>2025-02-09T15:16:27.764Z</lastmod>
+  </url>
+  <url>
+    <loc>https://inspect.ai-safety-institute.org.uk/reference/inspect_eval.html</loc>
+    <lastmod>2025-02-09T15:16:27.764Z</lastmod>
   </url>
   <url>
     <loc>https://inspect.ai-safety-institute.org.uk/reference/inspect_ai.scorer.html</loc>
-    <lastmod>2025-02-08T20:06:00.567Z</lastmod>
+    <lastmod>2025-02-08T20:19:26.695Z</lastmod>
   </url>
   <url>
-    <loc>https://inspect.ai-safety-institute.org.uk/reference/inspect_ai.solver.html</loc>
+    <loc>https://inspect.ai-safety-institute.org.uk/reference/inspect_info.html</loc>
+    <lastmod>2025-02-09T15:16:27.764Z</lastmod>
+  </url>
+  <url>
+    <loc>https://inspect.ai-safety-institute.org.uk/reference/inspect_log.html</loc>
+    <lastmod>2025-02-09T15:16:27.764Z</lastmod>
+  </url>
+  <url>
+    <loc>https://inspect.ai-safety-institute.org.uk/reference/inspect_sandbox.html</loc>
+    <lastmod>2025-02-09T15:16:27.764Z</lastmod>
+  </url>
+  <url>
+    <loc>https://inspect.ai-safety-institute.org.uk/reference/inspect_ai.dataset.html</loc>
     <lastmod>2025-02-08T20:06:00.567Z</lastmod>
   </url>
   <url>
