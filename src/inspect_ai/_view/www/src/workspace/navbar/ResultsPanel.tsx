@@ -1,6 +1,7 @@
 import clsx from "clsx";
 import { EvalMetric, EvalResults, EvalScore, Reducer } from "../../types/log";
 import { formatPrettyDecimal } from "../../utils/format";
+import { metricDisplayName } from "../utils";
 import styles from "./ResultsPanel.module.css";
 
 interface ResultsPanelProps {
@@ -174,19 +175,4 @@ const MultiScorerMetric: React.FC<MultiScorerMetricProps> = ({
       </div>
     </div>
   );
-};
-
-const metricDisplayName = (metric: EvalMetric) => {
-  const metricParamNames = Object.keys(metric.params || {});
-  const metricsParams =
-    metricParamNames.length === 1
-      ? metricParamNames[0]
-      : `${metricParamNames[0]}, ...`;
-
-  const metricName =
-    metricParamNames.length === 0
-      ? metric.name
-      : `${metric.name} (${metricsParams})`;
-
-  return metricName;
 };

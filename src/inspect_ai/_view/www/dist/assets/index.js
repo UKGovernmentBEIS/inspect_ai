@@ -25617,6 +25617,12 @@ categories: ${categories.join(" ")}`;
       running,
       cancelled
     };
+    const metricDisplayName = (metric2) => {
+      const metricParamNames = Object.keys(metric2.params || {});
+      const metricsParams = metricParamNames.length === 1 ? metricParamNames[0] : `${metricParamNames[0]}, ...`;
+      const metricName2 = metricParamNames.length === 0 ? metric2.name : `${metric2.name} (${metricsParams})`;
+      return metricName2;
+    };
     const container$c = "_container_1frsg_1";
     const metric = "_metric_1frsg_8";
     const metricName$1 = "_metricName_1frsg_17";
@@ -25628,6 +25634,7 @@ categories: ${categories.join(" ")}`;
       metricReducer: metricReducer$1
     };
     const SidebarScoreView = ({ scorer }) => {
+      const showReducer = !!scorer.reducer;
       return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$O.container, children: Object.keys(scorer.metrics).map((metric2) => {
         return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$O.metric, children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -25639,13 +25646,10 @@ categories: ${categories.join(" ")}`;
                 "text-size-small",
                 styles$O.metricName
               ),
-              children: scorer.metrics[metric2].name
+              children: metricDisplayName(scorer.metrics[metric2])
             }
           ),
-          scorer.reducer ? /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("text-size-small", styles$O.metricReducer), children: [
-            "$",
-            scorer.reducer
-          ] }) : "",
+          showReducer ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-small", styles$O.metricReducer), children: scorer.reducer || "default" }) : "",
           /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-size-title-secondary", children: formatPrettyDecimal(scorer.metrics[metric2].value) })
         ] });
       }) });
@@ -25665,6 +25669,7 @@ categories: ${categories.join(" ")}`;
       metricValue
     };
     const SidebarScoresView = ({ scores: scores2 }) => {
+      const showReducer = scores2.findIndex((score2) => !!score2.reducer) !== -1;
       return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$N.container, children: scores2.map((score2) => {
         const name2 = score2.name;
         const reducer = score2.reducer;
@@ -25674,27 +25679,29 @@ categories: ${categories.join(" ")}`;
             {
               className: clsx(
                 "text-style-secondary",
-                "text-label",
+                "text-style-label",
                 "text-size-small",
                 styles$N.metricName
               ),
               children: name2
             }
           ),
-          reducer ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-small", styles$N.metricReducer), children: reducer }) : "",
+          showReducer ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+            "div",
+            {
+              className: clsx(
+                "text-size-small",
+                "text-style-label",
+                "text-style-secondary",
+                styles$N.metricReducer
+              ),
+              children: reducer || "default"
+            }
+          ) : "",
           /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-small", styles$N.metricValues), children: Object.keys(score2.metrics).map((key2) => {
             const metric2 = score2.metrics[key2];
             return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsx(
-                "div",
-                {
-                  className: clsx(
-                    "text-style-secondary",
-                    "text-style-label"
-                  ),
-                  children: metric2.name
-                }
-              ),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(), children: metricDisplayName(metric2) }),
               /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$N.metricValue, children: formatPrettyDecimal(metric2.value) })
             ] }, key2);
           }) })
@@ -60691,12 +60698,6 @@ ${events}
           ]
         }
       );
-    };
-    const metricDisplayName = (metric2) => {
-      const metricParamNames = Object.keys(metric2.params || {});
-      const metricsParams = metricParamNames.length === 1 ? metricParamNames[0] : `${metricParamNames[0]}, ...`;
-      const metricName2 = metricParamNames.length === 0 ? metric2.name : `${metric2.name} (${metricsParams})`;
-      return metricName2;
     };
     const statusPanel = "_statusPanel_1fzh4_1";
     const statusIcon = "_statusIcon_1fzh4_10";
