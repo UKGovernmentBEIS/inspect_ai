@@ -10,7 +10,7 @@
 
 Evaluate tasks using a Model.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/cfbd741f07dd94c2e95cb4016f009a47dbbda652/src/inspect_ai/_eval/eval.py#L53)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6d7f690f1448a76633cbd04a8ccc54115d567e2b/src/inspect_ai/_eval/eval.py#L53)
 
 ``` python
 def eval(
@@ -172,11 +172,123 @@ Show scoring metrics in realtime (defaults to True)
 `**kwargs` Unpack\[[GenerateConfigArgs](inspect_ai.model.qmd#generateconfigargs)\]  
 Model generation options.
 
+### eval_retry
+
+Retry a previously failed evaluation task.
+
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6d7f690f1448a76633cbd04a8ccc54115d567e2b/src/inspect_ai/_eval/eval.py#L468)
+
+``` python
+def eval_retry(
+    tasks: str | EvalLogInfo | EvalLog | list[str] | list[EvalLogInfo] | list[EvalLog],
+    log_level: str | None = None,
+    log_level_transcript: str | None = None,
+    log_dir: str | None = None,
+    log_format: Literal["eval", "json"] | None = None,
+    max_samples: int | None = None,
+    max_tasks: int | None = None,
+    max_subprocesses: int | None = None,
+    max_sandboxes: int | None = None,
+    sandbox_cleanup: bool | None = None,
+    trace: bool | None = None,
+    display: DisplayType | None = None,
+    fail_on_error: bool | float | None = None,
+    debug_errors: bool | None = None,
+    log_samples: bool | None = None,
+    log_images: bool | None = None,
+    log_buffer: int | None = None,
+    score: bool = True,
+    score_display: bool | None = None,
+    max_retries: int | None = None,
+    timeout: int | None = None,
+    max_connections: int | None = None,
+) -> list[EvalLog]
+```
+
+`tasks` str \| [EvalLogInfo](inspect_ai.log.qmd#evalloginfo) \| [EvalLog](inspect_ai.log.qmd#evallog) \| list\[str\] \| list\[[EvalLogInfo](inspect_ai.log.qmd#evalloginfo)\] \| list\[[EvalLog](inspect_ai.log.qmd#evallog)\]  
+Log files for task(s) to retry.
+
+`log_level` str \| None  
+Level for logging to the console: “debug”, “http”, “sandbox”, “info”,
+“warning”, “error”, or “critical” (defaults to “warning”)
+
+`log_level_transcript` str \| None  
+Level for logging to the log file (defaults to “info”)
+
+`log_dir` str \| None  
+Output path for logging results (defaults to file log in ./logs
+directory).
+
+`log_format` Literal\['eval', 'json'\] \| None  
+Format for writing log files (defaults to “eval”, the native
+high-performance format).
+
+`max_samples` int \| None  
+Maximum number of samples to run in parallel (default is
+max_connections)
+
+`max_tasks` int \| None  
+Maximum number of tasks to run in parallel (default is 1)
+
+`max_subprocesses` int \| None  
+Maximum number of subprocesses to run in parallel (default is
+os.cpu_count())
+
+`max_sandboxes` int \| None  
+Maximum number of sandboxes (per-provider) to run in parallel.
+
+`sandbox_cleanup` bool \| None  
+Cleanup sandbox environments after task completes (defaults to True)
+
+`trace` bool \| None  
+Trace message interactions with evaluated model to terminal.
+
+`display` [DisplayType](inspect_ai.util.qmd#displaytype) \| None  
+Task display type (defaults to ‘full’).
+
+`fail_on_error` bool \| float \| None  
+`True` to fail on first sample error (default); `False` to never fail on
+sample errors; Value between 0 and 1 to fail if a proportion of total
+samples fails. Value greater than 1 to fail eval if a count of samples
+fails.
+
+`debug_errors` bool \| None  
+Raise task errors (rather than logging them) so they can be debugged
+(defaults to False).
+
+`log_samples` bool \| None  
+Log detailed samples and scores (defaults to True)
+
+`log_images` bool \| None  
+Log base64 encoded version of images, even if specified as a filename or
+URL (defaults to False)
+
+`log_buffer` int \| None  
+Number of samples to buffer before writing log file. If not specified,
+an appropriate default for the format and filesystem is chosen (10 for
+most all cases, 100 for JSON logs on remote filesystems).
+
+`score` bool  
+Score output (defaults to True)
+
+`score_display` bool \| None  
+Show scoring metrics in realtime (defaults to True)
+
+`max_retries` int \| None  
+Maximum number of times to retry request.
+
+`timeout` int \| None  
+Request timeout (in seconds)
+
+`max_connections` int \| None  
+Maximum number of concurrent connections to Model API (default is per
+Model API)
+
 ### eval_set
 
 Evaluate a set of tasks.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/cfbd741f07dd94c2e95cb4016f009a47dbbda652/src/inspect_ai/_eval/evalset.py#L52)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6d7f690f1448a76633cbd04a8ccc54115d567e2b/src/inspect_ai/_eval/evalset.py#L52)
 
 ``` python
 def eval_set(
@@ -362,123 +474,11 @@ Whether to overwrite files in the bundle_dir. (defaults to False).
 `**kwargs` Unpack\[[GenerateConfigArgs](inspect_ai.model.qmd#generateconfigargs)\]  
 Model generation options.
 
-### eval_retry
-
-Retry a previously failed evaluation task.
-
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/cfbd741f07dd94c2e95cb4016f009a47dbbda652/src/inspect_ai/_eval/eval.py#L468)
-
-``` python
-def eval_retry(
-    tasks: str | EvalLogInfo | EvalLog | list[str] | list[EvalLogInfo] | list[EvalLog],
-    log_level: str | None = None,
-    log_level_transcript: str | None = None,
-    log_dir: str | None = None,
-    log_format: Literal["eval", "json"] | None = None,
-    max_samples: int | None = None,
-    max_tasks: int | None = None,
-    max_subprocesses: int | None = None,
-    max_sandboxes: int | None = None,
-    sandbox_cleanup: bool | None = None,
-    trace: bool | None = None,
-    display: DisplayType | None = None,
-    fail_on_error: bool | float | None = None,
-    debug_errors: bool | None = None,
-    log_samples: bool | None = None,
-    log_images: bool | None = None,
-    log_buffer: int | None = None,
-    score: bool = True,
-    score_display: bool | None = None,
-    max_retries: int | None = None,
-    timeout: int | None = None,
-    max_connections: int | None = None,
-) -> list[EvalLog]
-```
-
-`tasks` str \| [EvalLogInfo](inspect_ai.log.qmd#evalloginfo) \| [EvalLog](inspect_ai.log.qmd#evallog) \| list\[str\] \| list\[[EvalLogInfo](inspect_ai.log.qmd#evalloginfo)\] \| list\[[EvalLog](inspect_ai.log.qmd#evallog)\]  
-Log files for task(s) to retry.
-
-`log_level` str \| None  
-Level for logging to the console: “debug”, “http”, “sandbox”, “info”,
-“warning”, “error”, or “critical” (defaults to “warning”)
-
-`log_level_transcript` str \| None  
-Level for logging to the log file (defaults to “info”)
-
-`log_dir` str \| None  
-Output path for logging results (defaults to file log in ./logs
-directory).
-
-`log_format` Literal\['eval', 'json'\] \| None  
-Format for writing log files (defaults to “eval”, the native
-high-performance format).
-
-`max_samples` int \| None  
-Maximum number of samples to run in parallel (default is
-max_connections)
-
-`max_tasks` int \| None  
-Maximum number of tasks to run in parallel (default is 1)
-
-`max_subprocesses` int \| None  
-Maximum number of subprocesses to run in parallel (default is
-os.cpu_count())
-
-`max_sandboxes` int \| None  
-Maximum number of sandboxes (per-provider) to run in parallel.
-
-`sandbox_cleanup` bool \| None  
-Cleanup sandbox environments after task completes (defaults to True)
-
-`trace` bool \| None  
-Trace message interactions with evaluated model to terminal.
-
-`display` [DisplayType](inspect_ai.util.qmd#displaytype) \| None  
-Task display type (defaults to ‘full’).
-
-`fail_on_error` bool \| float \| None  
-`True` to fail on first sample error (default); `False` to never fail on
-sample errors; Value between 0 and 1 to fail if a proportion of total
-samples fails. Value greater than 1 to fail eval if a count of samples
-fails.
-
-`debug_errors` bool \| None  
-Raise task errors (rather than logging them) so they can be debugged
-(defaults to False).
-
-`log_samples` bool \| None  
-Log detailed samples and scores (defaults to True)
-
-`log_images` bool \| None  
-Log base64 encoded version of images, even if specified as a filename or
-URL (defaults to False)
-
-`log_buffer` int \| None  
-Number of samples to buffer before writing log file. If not specified,
-an appropriate default for the format and filesystem is chosen (10 for
-most all cases, 100 for JSON logs on remote filesystems).
-
-`score` bool  
-Score output (defaults to True)
-
-`score_display` bool \| None  
-Show scoring metrics in realtime (defaults to True)
-
-`max_retries` int \| None  
-Maximum number of times to retry request.
-
-`timeout` int \| None  
-Request timeout (in seconds)
-
-`max_connections` int \| None  
-Maximum number of concurrent connections to Model API (default is per
-Model API)
-
 ### score
 
 Score an evaluation log.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/cfbd741f07dd94c2e95cb4016f009a47dbbda652/src/inspect_ai/_eval/score.py#L30)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6d7f690f1448a76633cbd04a8ccc54115d567e2b/src/inspect_ai/_eval/score.py#L30)
 
 ``` python
 def score(
@@ -506,7 +506,7 @@ Evaluation task.
 
 Tasks are the basis for defining and running evaluations.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/cfbd741f07dd94c2e95cb4016f009a47dbbda652/src/inspect_ai/_eval/task/task.py#L38)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6d7f690f1448a76633cbd04a8ccc54115d567e2b/src/inspect_ai/_eval/task/task.py#L38)
 
 ``` python
 class Task
@@ -517,7 +517,7 @@ class Task
 \_\_init\_\_  
 Create a task.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/cfbd741f07dd94c2e95cb4016f009a47dbbda652/src/inspect_ai/_eval/task/task.py#L44)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6d7f690f1448a76633cbd04a8ccc54115d567e2b/src/inspect_ai/_eval/task/task.py#L44)
 
 ``` python
 def __init__(
@@ -612,7 +612,7 @@ Deprecated arguments.
 
 Task adapted with alternate values for one or more options.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/cfbd741f07dd94c2e95cb4016f009a47dbbda652/src/inspect_ai/_eval/task/task.py#L159)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6d7f690f1448a76633cbd04a8ccc54115d567e2b/src/inspect_ai/_eval/task/task.py#L159)
 
 ``` python
 def task_with(
@@ -711,7 +711,7 @@ Number of epochs to repeat samples over and optionally one or more
 reducers used to combine scores from samples across epochs. If not
 specified the “mean” score reducer is used.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/cfbd741f07dd94c2e95cb4016f009a47dbbda652/src/inspect_ai/_eval/task/epochs.py#L4)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6d7f690f1448a76633cbd04a8ccc54115d567e2b/src/inspect_ai/_eval/task/epochs.py#L4)
 
 ``` python
 class Epochs
@@ -722,7 +722,7 @@ class Epochs
 \_\_init\_\_  
 Task epochs.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/cfbd741f07dd94c2e95cb4016f009a47dbbda652/src/inspect_ai/_eval/task/epochs.py#L12)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6d7f690f1448a76633cbd04a8ccc54115d567e2b/src/inspect_ai/_eval/task/epochs.py#L12)
 
 ``` python
 def __init__(self, epochs: int, reducer: ScoreReducers | None = None) -> None
@@ -739,7 +739,7 @@ One or more reducers used to combine scores from samples across epochs
 
 Task information (file, name, and attributes).
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/cfbd741f07dd94c2e95cb4016f009a47dbbda652/src/inspect_ai/_eval/task/task.py#L259)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6d7f690f1448a76633cbd04a8ccc54115d567e2b/src/inspect_ai/_eval/task/task.py#L259)
 
 ``` python
 class TaskInfo(BaseModel)
@@ -765,7 +765,7 @@ including directory names, task functions, task classes, and task
 instances (a single task or list of tasks can be specified). None is a
 request to read a task out of the current working directory.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/cfbd741f07dd94c2e95cb4016f009a47dbbda652/src/inspect_ai/_eval/task/task.py#L290)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6d7f690f1448a76633cbd04a8ccc54115d567e2b/src/inspect_ai/_eval/task/task.py#L290)
 
 ``` python
 Tasks = (
@@ -791,7 +791,7 @@ Tasks = (
 
 Decorator for registering tasks.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/cfbd741f07dd94c2e95cb4016f009a47dbbda652/src/inspect_ai/_eval/registry.py#L107)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6d7f690f1448a76633cbd04a8ccc54115d567e2b/src/inspect_ai/_eval/registry.py#L107)
 
 ``` python
 def task(*args: Any, name: str | None = None, **attribs: Any) -> Any
