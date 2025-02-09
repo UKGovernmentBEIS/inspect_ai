@@ -646,7 +646,10 @@ def eval_set_command(
     log_level_transcript: str,
     **common: Unpack[CommonOptions],
 ) -> int:
-    """Evaluate a set of tasks."""
+    """Evaluate a set of tasks with retries.
+
+    Learn more about eval sets at https://inspect.ai-safety-institute.org.uk/eval-sets.html.
+    """
     # read config
     config = config_from_locals(dict(locals()))
 
