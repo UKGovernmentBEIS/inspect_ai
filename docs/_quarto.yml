@@ -41,7 +41,7 @@ website:
           - text: "User Guide"
             href: index.qmd
           - text: "Reference"
-            href: reference/inspect_ai.qmd
+            href: reference/index.qmd
           - text: "Evals"
             href: evals/index.qmd
       right: 
