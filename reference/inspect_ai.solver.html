@@ -337,6 +337,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.solver.html#bridge" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">bridge</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.solver.html#chain" class="sidebar-item-text sidebar-link">
  <span class="menu-text">chain</span></a>
   </div>
@@ -345,12 +351,6 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.solver.html#fork" class="sidebar-item-text sidebar-link">
  <span class="menu-text">fork</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.solver.html#bridge" class="sidebar-item-text sidebar-link">
- <span class="menu-text">bridge</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -1541,12 +1541,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <ul class="collapse">
   <li><a href="#basic_agent" id="toc-basic_agent" class="nav-link" data-scroll-target="#basic_agent">basic_agent</a></li>
   <li><a href="#human_agent" id="toc-human_agent" class="nav-link" data-scroll-target="#human_agent">human_agent</a></li>
+  <li><a href="#bridge" id="toc-bridge" class="nav-link" data-scroll-target="#bridge">bridge</a></li>
   </ul></li>
   <li><a href="#composition" id="toc-composition" class="nav-link" data-scroll-target="#composition">Composition</a>
   <ul class="collapse">
   <li><a href="#chain" id="toc-chain" class="nav-link" data-scroll-target="#chain">chain</a></li>
   <li><a href="#fork" id="toc-fork" class="nav-link" data-scroll-target="#fork">fork</a></li>
-  <li><a href="#bridge" id="toc-bridge" class="nav-link" data-scroll-target="#bridge">bridge</a></li>
   </ul></li>
   <li><a href="#types" id="toc-types" class="nav-link" data-scroll-target="#types">Types</a>
   <ul class="collapse">
@@ -1591,7 +1591,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Generate output from the model and append it to task message history.</p>
 <p>generate() is the default solver if none is specified for a given task.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/bb280f5b86bd6676bd1975942bb1df7b2a95791e/src/inspect_ai/solver/_solver.py#L251">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/cfbd741f07dd94c2e95cb4016f009a47dbbda652/src/inspect_ai/solver/_solver.py#L251">Source</a>
 </div>
 <div class="sourceCode" id="cb1"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="at">@solver</span></span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> generate(</span>
@@ -1618,7 +1618,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="use_tools">use_tools</h3>
 <p>Inject tools into the task state to be used in generate().</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/bb280f5b86bd6676bd1975942bb1df7b2a95791e/src/inspect_ai/solver/_use_tools.py#L8">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/cfbd741f07dd94c2e95cb4016f009a47dbbda652/src/inspect_ai/solver/_use_tools.py#L8">Source</a>
 </div>
 <div class="sourceCode" id="cb2"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="at">@solver</span></span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> use_tools(</span>
@@ -1649,7 +1649,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Parameterized prompt template.</p>
 <p>Prompt template containing a <code>{prompt}</code> placeholder and any number of additional <code>params</code>. All values contained in sample <code>metadata</code> and <code>store</code> are also automatically included in the <code>params</code>.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/bb280f5b86bd6676bd1975942bb1df7b2a95791e/src/inspect_ai/solver/_prompt.py#L13">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/cfbd741f07dd94c2e95cb4016f009a47dbbda652/src/inspect_ai/solver/_prompt.py#L13">Source</a>
 </div>
 <div class="sourceCode" id="cb3"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="at">@solver</span></span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> prompt_template(template: <span class="bu">str</span>, <span class="op">**</span>params: Any) <span class="op">-&gt;</span> Solver</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
@@ -1670,7 +1670,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>System message template containing any number of optional <code>params</code>. for substitution using the <code>str.format()</code> method. All values contained in sample <code>metadata</code> and <code>store</code> are also automatically included in the <code>params</code>.</p>
 <p>The new message will go after other system messages (if there are none it will be inserted at the beginning of the conversation).</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/bb280f5b86bd6676bd1975942bb1df7b2a95791e/src/inspect_ai/solver/_prompt.py#L41">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/cfbd741f07dd94c2e95cb4016f009a47dbbda652/src/inspect_ai/solver/_prompt.py#L41">Source</a>
 </div>
 <div class="sourceCode" id="cb4"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="at">@solver</span></span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> system_message(template: <span class="bu">str</span>, <span class="op">**</span>params: Any) <span class="op">-&gt;</span> Solver</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
@@ -1690,7 +1690,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Solver which inserts a user message into the conversation.</p>
 <p>User message template containing any number of optional <code>params</code>. for substitution using the <code>str.format()</code> method. All values contained in sample <code>metadata</code> and <code>store</code> are also automatically included in the <code>params</code>.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/bb280f5b86bd6676bd1975942bb1df7b2a95791e/src/inspect_ai/solver/_prompt.py#L73">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/cfbd741f07dd94c2e95cb4016f009a47dbbda652/src/inspect_ai/solver/_prompt.py#L73">Source</a>
 </div>
 <div class="sourceCode" id="cb5"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="at">@solver</span></span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> user_message(template: <span class="bu">str</span>, <span class="op">**</span>params: Any) <span class="op">-&gt;</span> Solver</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
@@ -1709,7 +1709,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="chain_of_thought">chain_of_thought</h3>
 <p>Solver which modifies the user prompt to encourage chain of thought.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/bb280f5b86bd6676bd1975942bb1df7b2a95791e/src/inspect_ai/solver/_prompt.py#L107">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/cfbd741f07dd94c2e95cb4016f009a47dbbda652/src/inspect_ai/solver/_prompt.py#L107">Source</a>
 </div>
 <div class="sourceCode" id="cb6"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="at">@solver</span></span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> chain_of_thought(template: <span class="bu">str</span> <span class="op">=</span> DEFAULT_COT_TEMPLATE) <span class="op">-&gt;</span> Solver</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
@@ -1725,7 +1725,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Solver which uses a model to critique the original answer.</p>
 <p>The <code>critique_template</code> is used to generate a critique and the <code>completion_template</code> is used to play that critique back to the model for an improved response. Note that you can specify an alternate <code>model</code> for critique (you don’t need to use the model being evaluated).</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/bb280f5b86bd6676bd1975942bb1df7b2a95791e/src/inspect_ai/solver/_critique.py#L13">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/cfbd741f07dd94c2e95cb4016f009a47dbbda652/src/inspect_ai/solver/_critique.py#L13">Source</a>
 </div>
 <div class="sourceCode" id="cb7"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="at">@solver</span></span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> self_critique(</span>
@@ -1758,7 +1758,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <li>It calls <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.solver.html#generate">generate()</a></span> internally, so you don’t need to call it again</li>
 </ol>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/bb280f5b86bd6676bd1975942bb1df7b2a95791e/src/inspect_ai/solver/_multiple_choice.py#L214">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/cfbd741f07dd94c2e95cb4016f009a47dbbda652/src/inspect_ai/solver/_multiple_choice.py#L214">Source</a>
 </div>
 <div class="sourceCode" id="cb8"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="at">@solver</span></span>
 <span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> multiple_choice(</span>
@@ -1801,7 +1801,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Agent that runs a tool use loop until the model submits an answer using the <code>submit()</code> tool. Tailor the model’s instructions by passing a <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.solver.html#system_message">system_message()</a></span> and/or other steps to <code>init</code> (if no <code>init</code> is specified then a default system message will be used). Use <code>max_attempts</code> to support additional submissions if the initial submission(s) are incorrect.</p>
 <p>Submissions are evaluated using the task’s main scorer, with value of 1.0 indicating a correct answer. Scorer values are converted to float (e.g. “C” becomes 1.0) using the standard value_to_float() function. Provide an alternate conversion scheme as required via <code>score_value</code>.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/bb280f5b86bd6676bd1975942bb1df7b2a95791e/src/inspect_ai/solver/_basic_agent.py#L50">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/cfbd741f07dd94c2e95cb4016f009a47dbbda652/src/inspect_ai/solver/_basic_agent.py#L50">Source</a>
 </div>
 <div class="sourceCode" id="cb9"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="at">@solver</span></span>
 <span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> basic_agent(</span>
@@ -1884,7 +1884,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>The Human agent solver installs agent task tools in the default sandbox and presents the user with both task instructions and documentation for the various tools (e.g.&nbsp;<code>task submit</code>, <code>task start</code>, <code>task stop</code> <code>task instructions</code>, etc.). A human agent panel is displayed with instructions for logging in to the sandbox.</p>
 <p>If the user is running in VS Code with the Inspect extension, they will also be presented with links to login to the sandbox using a VS Code Window or Terminal.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/bb280f5b86bd6676bd1975942bb1df7b2a95791e/src/inspect_ai/solver/_human_agent/agent.py#L14">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/cfbd741f07dd94c2e95cb4016f009a47dbbda652/src/inspect_ai/solver/_human_agent/agent.py#L14">Source</a>
 </div>
 <div class="sourceCode" id="cb10"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="at">@solver</span></span>
 <span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> human_agent(</span>
@@ -1907,6 +1907,22 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </dd>
 </dl>
 </section>
+<section id="bridge" class="level3">
+<h3 class="anchored" data-anchor-id="bridge">bridge</h3>
+<p>Bridge an external agent into an Inspect Solver.</p>
+<p>See documentation at <a href="https://inspect.ai-safety-institute.org.uk/agent-bridge.html" class="uri">https://inspect.ai-safety-institute.org.uk/agent-bridge.html</a></p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/cfbd741f07dd94c2e95cb4016f009a47dbbda652/src/inspect_ai/solver/_bridge/bridge.py#L16">Source</a>
+</div>
+<div class="sourceCode" id="cb11"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="at">@solver</span></span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> bridge(agent: Callable[[<span class="bu">dict</span>[<span class="bu">str</span>, Any]], Awaitable[<span class="bu">dict</span>[<span class="bu">str</span>, Any]]]) <span class="op">-&gt;</span> Solver</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<dl>
+<dt><code>agent</code> <span class="element-type"><span class="element-type-name">Callable</span>[[dict[<span class="element-type-name">str</span>, <span class="element-type-name">Any</span>]], <span class="element-type-name">Awaitable</span>[dict[<span class="element-type-name">str</span>, <span class="element-type-name">Any</span>]]]</span></dt>
+<dd>
+<p>Callable which takes a sample <code>dict</code> and returns a result <code>dict</code>.</p>
+</dd>
+</dl>
+</section>
 </section>
 <section id="composition" class="level2">
 <h2 class="anchored" data-anchor-id="composition">Composition</h2>
@@ -1915,9 +1931,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Compose a solver from multiple other solvers.</p>
 <p>Solvers are executed in turn, and a solver step event is added to the transcript for each. If a solver returns a state with <code>completed=True</code>, the chain is terminated early.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/bb280f5b86bd6676bd1975942bb1df7b2a95791e/src/inspect_ai/solver/_chain.py#L9">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/cfbd741f07dd94c2e95cb4016f009a47dbbda652/src/inspect_ai/solver/_chain.py#L9">Source</a>
 </div>
-<div class="sourceCode" id="cb11"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> chain(<span class="op">*</span>solvers: Solver <span class="op">|</span> <span class="bu">list</span>[Solver]) <span class="op">-&gt;</span> Solver</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb12"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> chain(<span class="op">*</span>solvers: Solver <span class="op">|</span> <span class="bu">list</span>[Solver]) <span class="op">-&gt;</span> Solver</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <dl>
 <dt><code>*solvers</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.solver.html#solver">Solver</a></span> | list[<span class="element-type-name"><a href="../reference/inspect_ai.solver.html#solver">Solver</a></span>]</span></dt>
 <dd>
@@ -1930,11 +1946,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Fork the TaskState and evaluate it against multiple solvers in parallel.</p>
 <p>Run several solvers against independent copies of a TaskState. Each Solver gets its own copy of the TaskState and is run (in parallel) in an independent Subtask (meaning that is also has its own independent Store that doesn’t affect the Store of other subtasks or the parent).</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/bb280f5b86bd6676bd1975942bb1df7b2a95791e/src/inspect_ai/solver/_fork.py#L24">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/cfbd741f07dd94c2e95cb4016f009a47dbbda652/src/inspect_ai/solver/_fork.py#L24">Source</a>
 </div>
-<div class="sourceCode" id="cb12"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> fork(</span>
-<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>    state: TaskState, solvers: Solver <span class="op">|</span> <span class="bu">list</span>[Solver]</span>
-<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> TaskState <span class="op">|</span> <span class="bu">list</span>[TaskState]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb13"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> fork(</span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>    state: TaskState, solvers: Solver <span class="op">|</span> <span class="bu">list</span>[Solver]</span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> TaskState <span class="op">|</span> <span class="bu">list</span>[TaskState]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <dl>
 <dt><code>state</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.solver.html#taskstate">TaskState</a></span></span></dt>
 <dd>
@@ -1946,22 +1962,6 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </dd>
 </dl>
 </section>
-<section id="bridge" class="level3">
-<h3 class="anchored" data-anchor-id="bridge">bridge</h3>
-<p>Bridge an external agent into an Inspect Solver.</p>
-<p>See documentation at <a href="https://inspect.ai-safety-institute.org.uk/agent-bridge.html" class="uri">https://inspect.ai-safety-institute.org.uk/agent-bridge.html</a></p>
-<div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/bb280f5b86bd6676bd1975942bb1df7b2a95791e/src/inspect_ai/solver/_bridge/bridge.py#L16">Source</a>
-</div>
-<div class="sourceCode" id="cb13"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="at">@solver</span></span>
-<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> bridge(agent: Callable[[<span class="bu">dict</span>[<span class="bu">str</span>, Any]], Awaitable[<span class="bu">dict</span>[<span class="bu">str</span>, Any]]]) <span class="op">-&gt;</span> Solver</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<dl>
-<dt><code>agent</code> <span class="element-type"><span class="element-type-name">Callable</span>[[dict[<span class="element-type-name">str</span>, <span class="element-type-name">Any</span>]], <span class="element-type-name">Awaitable</span>[dict[<span class="element-type-name">str</span>, <span class="element-type-name">Any</span>]]]</span></dt>
-<dd>
-<p>Callable which takes a sample <code>dict</code> and returns a result <code>dict</code>.</p>
-</dd>
-</dl>
-</section>
 </section>
 <section id="types" class="level2">
 <h2 class="anchored" data-anchor-id="types">Types</h2>
@@ -1970,7 +1970,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Contribute to solving an evaluation task.</p>
 <p>Transform a <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.solver.html#taskstate">TaskState</a></span>, returning the new state. Solvers may optionally call the <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.solver.html#generate">generate()</a></span> function to create a new state resulting from model generation. Solvers may also do prompt engineering or other types of elicitation.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/bb280f5b86bd6676bd1975942bb1df7b2a95791e/src/inspect_ai/solver/_solver.py#L73">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/cfbd741f07dd94c2e95cb4016f009a47dbbda652/src/inspect_ai/solver/_solver.py#L73">Source</a>
 </div>
 <div class="sourceCode" id="cb14"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Solver(Protocol):</span>
 <span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> <span class="fu">__call__</span>(</span>
@@ -2003,7 +2003,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="solverspec">SolverSpec</h3>
 <p>Solver specification used to (re-)create solvers.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/bb280f5b86bd6676bd1975942bb1df7b2a95791e/src/inspect_ai/solver/_solver.py#L60">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/cfbd741f07dd94c2e95cb4016f009a47dbbda652/src/inspect_ai/solver/_solver.py#L60">Source</a>
 </div>
 <div class="sourceCode" id="cb16"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span>(frozen<span class="op">=</span><span class="va">True</span>)</span>
 <span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> SolverSpec</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
@@ -2026,7 +2026,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>The <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.solver.html#taskstate">TaskState</a></span> represents the internal state of the <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.html#task">Task</a></span> being run for a single <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.dataset.html#sample">Sample</a></span>.</p>
 <p>The <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.solver.html#taskstate">TaskState</a></span> is passed to and returned from each solver during a sample’s evaluation. It allows us to manipulated the message history, the tools available to the model, the final output of the model, and whether the task is completed or has hit a limit.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/bb280f5b86bd6676bd1975942bb1df7b2a95791e/src/inspect_ai/solver/_task_state.py#L129">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/cfbd741f07dd94c2e95cb4016f009a47dbbda652/src/inspect_ai/solver/_task_state.py#L129">Source</a>
 </div>
 <div class="sourceCode" id="cb17"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> TaskState</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
@@ -2118,7 +2118,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>Pydantic model interface to metadata.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/bb280f5b86bd6676bd1975942bb1df7b2a95791e/src/inspect_ai/solver/_task_state.py#L374">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/cfbd741f07dd94c2e95cb4016f009a47dbbda652/src/inspect_ai/solver/_task_state.py#L374">Source</a>
 </div>
 <div class="sourceCode" id="cb18"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> metadata_as(<span class="va">self</span>, metadata_cls: Type[MT]) <span class="op">-&gt;</span> MT</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <dl>
@@ -2132,7 +2132,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>Pydantic model interface to the store.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/bb280f5b86bd6676bd1975942bb1df7b2a95791e/src/inspect_ai/solver/_task_state.py#L388">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/cfbd741f07dd94c2e95cb4016f009a47dbbda652/src/inspect_ai/solver/_task_state.py#L388">Source</a>
 </div>
 <div class="sourceCode" id="cb19"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> store_as(<span class="va">self</span>, model_cls: Type[SMT]) <span class="op">-&gt;</span> SMT</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <dl>
@@ -2149,7 +2149,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="generate-1">Generate</h3>
 <p>Generate using the model and add the assistant message to the task state.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/bb280f5b86bd6676bd1975942bb1df7b2a95791e/src/inspect_ai/solver/_solver.py#L32">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/cfbd741f07dd94c2e95cb4016f009a47dbbda652/src/inspect_ai/solver/_solver.py#L32">Source</a>
 </div>
 <div class="sourceCode" id="cb20"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Generate(Protocol):</span>
 <span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> <span class="fu">__call__</span>(</span>
@@ -2189,7 +2189,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="solver-1">solver</h3>
 <p>Decorator for registering solvers.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/bb280f5b86bd6676bd1975942bb1df7b2a95791e/src/inspect_ai/solver/_solver.py#L146">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/cfbd741f07dd94c2e95cb4016f009a47dbbda652/src/inspect_ai/solver/_solver.py#L146">Source</a>
 </div>
 <div class="sourceCode" id="cb21"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> solver(</span>
 <span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a>    name: <span class="bu">str</span> <span class="op">|</span> Callable[P, Solver],</span>
