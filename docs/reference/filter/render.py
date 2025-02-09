@@ -98,7 +98,7 @@ def render_element_definition_item(
     element: DocAttribute | DocParameter,
 ) -> pf.DefinitionItem:
     return pf.DefinitionItem(
-        [pf.Code(element.name), pf.Space(), render_element_type(element.type)],
+        [pf.Code(element.name, classes=["ref-definition"]), pf.Space(), render_element_type(element.type)],
         [pf.Definition(pf.RawBlock(element.description, format="markdown"))],
     )
 

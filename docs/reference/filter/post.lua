@@ -27,7 +27,7 @@ function RawBlock(raw)
 
     -- Parse the markdown content into pandoc AST
     -- Note: pandoc.read returns a Pandoc document, we want its blocks
-    local doc = pandoc.read(raw.text, 'markdown')
+    local doc = pandoc.read(raw.text, 'markdown+autolink_bare_uris')
     if doc and doc.blocks then
         return doc.blocks
     end
@@ -41,7 +41,7 @@ function RawInline(raw)
     end
 
     -- Parse the markdown content into pandoc AST
-    local doc = pandoc.read(raw.text, 'markdown')
+    local doc = pandoc.read(raw.text, 'markdown+autolink_bare_uris')
     if doc and doc.blocks then
         -- For inline content, we want the inlines from the first block
         -- (typically a Para or Plain block)
