@@ -24,9 +24,11 @@ def make_command_docs(
     has_attr_list: bool = True,
 ) -> Iterator[str]:
     """Create the Markdown lines for a command and its sub-commands."""
+    command = command.replace("-", "_")
+    module = "eval" if command.startswith("eval") else command
     for line in _recursively_make_command_docs(
         f"inspect {command}",
-        load_command(f"inspect_ai._cli.{command}", f"{command}_command"),
+        load_command(f"inspect_ai._cli.{module}", f"{command}_command"),
         depth=depth,
         style=style,
         remove_ascii_art=remove_ascii_art,
@@ -189,7 +191,7 @@ def _make_usage(ctx: click.Context) -> Iterator[str]:
     formatter.write_usage(ctx.command_path, " ".join(pieces), prefix="")
     usage = formatter.getvalue().rstrip("\n")
 
-    yield "#### Usage:"
+    yield "#### Usage"
     yield ""
     yield "```text"
     yield usage
@@ -246,7 +248,7 @@ def _make_plain_options(ctx: click.Context, show_hidden: bool = False) -> Iterat
             # We expect at least `--help` to be present.
             raise RuntimeError("Expected at least one option")
 
-        yield "#### Options:"
+        yield "#### Options"
         yield ""
         yield "```text"
         yield from option_lines
