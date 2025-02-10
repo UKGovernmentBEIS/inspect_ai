@@ -523,7 +523,8 @@ class Model:
         ) -> None:
             # trace
             if isinstance(result, ModelOutput):
-                conversation_assistant_message(input, result.choices[0].message)
+                if result.choices:
+                    conversation_assistant_message(input, result.choices[0].message)
                 event.output = result
             else:
                 conversation_assistant_error(result)
