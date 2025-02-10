@@ -52,7 +52,12 @@ const extractInput = (
   inputKey?: string,
 ): { input?: string; args: string[] } => {
   const formatArg = (key: string, value: unknown) => {
-    const quotedValue = typeof value === "string" ? `"${value}"` : value;
+    const quotedValue =
+      typeof value === "string"
+        ? `"${value}"`
+        : typeof value === "object" || Array.isArray(value)
+          ? JSON.stringify(value, undefined, 2)
+          : String(value);
     return `${key}: ${quotedValue}`;
   };
   if (args) {

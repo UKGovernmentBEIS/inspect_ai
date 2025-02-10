@@ -29661,7 +29661,7 @@ var require_assets = __commonJS({
     };
     const extractInput = (args, inputKey) => {
       const formatArg = (key2, value2) => {
-        const quotedValue = typeof value2 === "string" ? `"${value2}"` : value2;
+        const quotedValue = typeof value2 === "string" ? `"${value2}"` : typeof value2 === "object" || Array.isArray(value2) ? JSON.stringify(value2, void 0, 2) : String(value2);
         return `${key2}: ${quotedValue}`;
       };
       if (args) {
