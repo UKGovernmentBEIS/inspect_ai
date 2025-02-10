@@ -56,28 +56,6 @@ export const SelectScorer: React.FC<SelectScorerProps> = ({
       return score && sc.scorer === score.scorer;
     });
 
-    const selectors = [
-      <ScorerSelector
-        scorers={scorers}
-        selectedIndex={scorerIndex(scorers, score)}
-        setSelectedIndex={(index: number) => {
-          setScore(scorers[index]);
-        }}
-      />,
-    ];
-    if (scorerScores.length > 1) {
-      selectors.push(
-        <ScoreSelector
-          className={clsx(styles.secondSel)}
-          scores={scorerScores}
-          selectedIndex={scoreIndex(scorerScores, score)}
-          setSelectedIndex={(index: number) => {
-            setScore(scorerScores[index]);
-          }}
-        />,
-      );
-    }
-
     // There are multiple scorers, so show a scorer selector and a r
     return (
       <div className={styles.flex}>
@@ -93,7 +71,23 @@ export const SelectScorer: React.FC<SelectScorerProps> = ({
         >
           Scorer:
         </span>
-        {selectors}
+        <ScorerSelector
+          scorers={scorers}
+          selectedIndex={scorerIndex(scorers, score)}
+          setSelectedIndex={(index: number) => {
+            setScore(scorers[index]);
+          }}
+        />
+        {scorerScores.length > 1 ? (
+          <ScoreSelector
+            className={clsx(styles.secondSel)}
+            scores={scorerScores}
+            selectedIndex={scoreIndex(scorerScores, score)}
+            setSelectedIndex={(index: number) => {
+              setScore(scorerScores[index]);
+            }}
+          />
+        ) : undefined}
       </div>
     );
   }
@@ -128,7 +122,11 @@ const ScoreSelector: React.FC<ScoreSelectorProps> = ({
       }}
     >
       {scores.map((score) => {
-        return <option value={score.name}>{score.name}</option>;
+        return (
+          <option key={score.name} value={score.name}>
+            {score.name}
+          </option>
+        );
       })}
     </select>
   );
@@ -156,7 +154,11 @@ const ScorerSelector: React.FC<ScorerSelectorProps> = ({
       }}
     >
       {scorers.map((scorer) => {
-        return <option value={scorer.scorer}>{scorer.scorer}</option>;
+        return (
+          <option key={scorer.scorer} value={scorer.scorer}>
+            {scorer.scorer}
+          </option>
+        );
       })}
     </select>
   );

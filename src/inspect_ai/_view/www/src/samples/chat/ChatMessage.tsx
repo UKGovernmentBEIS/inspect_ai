@@ -42,7 +42,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
         {message.role}
       </div>
       {message.role === "assistant" && message.reasoning ? (
-        <Fragment>
+        <Fragment key={`${id}-response-label`}>
           <div className={clsx("text-style-label", "text-style-secondary")}>
             Reasoning
           </div>

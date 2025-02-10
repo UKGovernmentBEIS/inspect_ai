@@ -23915,7 +23915,7 @@ var require_assets = __commonJS({
             activeItem,
             setActiveItem
           },
-          void 0,
+          `nav-pill-contents-${idx}`,
           false,
           {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/NavPills.tsx",
@@ -23925,7 +23925,7 @@ var require_assets = __commonJS({
           void 0
         );
       });
-      const navBodies = children2.map((child) => {
+      const navBodies = children2.map((child, idx) => {
         var _a2;
         return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
           "div",
@@ -23933,11 +23933,11 @@ var require_assets = __commonJS({
             className: ((_a2 = child["props"]) == null ? void 0 : _a2.title) === activeItem ? styles$11.visible : styles$11.hidden,
             children: child
           },
-          void 0,
+          `nav-pill-container-${idx}`,
           false,
           {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/NavPills.tsx",
-            lineNumber: 39,
+            lineNumber: 40,
             columnNumber: 7
           },
           void 0
@@ -23956,7 +23956,7 @@ var require_assets = __commonJS({
           false,
           {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/NavPills.tsx",
-            lineNumber: 51,
+            lineNumber: 53,
             columnNumber: 7
           },
           void 0
@@ -23964,7 +23964,7 @@ var require_assets = __commonJS({
         navBodies
       ] }, void 0, true, {
         fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/NavPills.tsx",
-        lineNumber: 50,
+        lineNumber: 52,
         columnNumber: 5
       }, void 0);
     };
@@ -23997,7 +23997,7 @@ var require_assets = __commonJS({
           false,
           {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/NavPills.tsx",
-            lineNumber: 80,
+            lineNumber: 82,
             columnNumber: 7
           },
           void 0
@@ -24005,7 +24005,7 @@ var require_assets = __commonJS({
         children2
       ] }, void 0, true, {
         fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/NavPills.tsx",
-        lineNumber: 79,
+        lineNumber: 81,
         columnNumber: 5
       }, void 0);
     };
@@ -29441,52 +29441,65 @@ var require_assets = __commonJS({
       }
       const outputs = [];
       if (Array.isArray(output2)) {
-        output2.forEach((out) => {
+        output2.forEach((out, idx) => {
+          const key2 = `tool-output-${idx}`;
           if (out.type === "text") {
-            outputs.push(/* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(ToolTextOutput, { text: out.text }, void 0, false, {
+            outputs.push(/* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(ToolTextOutput, { text: out.text }, key2, false, {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/chat/tools/ToolOutput.tsx",
-              lineNumber: 23,
+              lineNumber: 24,
               columnNumber: 22
             }, void 0));
           } else {
             if (out.image.startsWith("data:")) {
               outputs.push(
-                /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("img", { className: clsx(styles$_.toolImage), src: out.image }, void 0, false, {
-                  fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/chat/tools/ToolOutput.tsx",
-                  lineNumber: 27,
-                  columnNumber: 13
-                }, void 0)
+                /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+                  "img",
+                  {
+                    className: clsx(styles$_.toolImage),
+                    src: out.image
+                  },
+                  key2,
+                  false,
+                  {
+                    fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/chat/tools/ToolOutput.tsx",
+                    lineNumber: 28,
+                    columnNumber: 13
+                  },
+                  void 0
+                )
               );
             } else {
-              outputs.push(/* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(ToolTextOutput, { text: String(out.image) }, void 0, false, {
+              outputs.push(/* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(ToolTextOutput, { text: String(out.image) }, key2, false, {
                 fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/chat/tools/ToolOutput.tsx",
-                lineNumber: 30,
+                lineNumber: 35,
                 columnNumber: 24
               }, void 0));
             }
           }
         });
       } else {
-        outputs.push(/* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(ToolTextOutput, { text: String(output2) }, void 0, false, {
-          fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/chat/tools/ToolOutput.tsx",
-          lineNumber: 35,
-          columnNumber: 18
-        }, void 0));
+        outputs.push(
+          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(ToolTextOutput, { text: String(output2) }, "tool-output-single", false, {
+            fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/chat/tools/ToolOutput.tsx",
+            lineNumber: 41,
+            columnNumber: 7
+          }, void 0)
+        );
       }
       return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: clsx(styles$_.output), children: outputs }, void 0, false, {
         fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/chat/tools/ToolOutput.tsx",
-        lineNumber: 37,
+        lineNumber: 44,
         columnNumber: 10
       }, void 0);
     };
     const ToolTextOutput = ({ text: text2 }) => {
       return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("pre", { className: clsx(styles$_.textOutput), children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("code", { className: clsx("sourceCode", styles$_.textCode), children: text2.trim() }, void 0, false, {
         fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/chat/tools/ToolOutput.tsx",
-        lineNumber: 50,
+        lineNumber: 57,
         columnNumber: 7
       }, void 0) }, void 0, false, {
         fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/chat/tools/ToolOutput.tsx",
-        lineNumber: 49,
+        lineNumber: 56,
         columnNumber: 5
       }, void 0);
     };
@@ -29495,6 +29508,7 @@ var require_assets = __commonJS({
         return contents2.map((content2, index) => {
           if (typeof content2 === "string") {
             return messageRenderers["text"].render(
+              `text-content-${index}`,
               {
                 type: "text",
                 text: content2
@@ -29505,7 +29519,11 @@ var require_assets = __commonJS({
             if (content2) {
               const renderer = messageRenderers[content2.type];
               if (renderer) {
-                return renderer.render(content2, index === contents2.length - 1);
+                return renderer.render(
+                  `text-${content2.type}-${index}`,
+                  content2,
+                  index === contents2.length - 1
+                );
               } else {
                 console.error(`Unknown message content type '${content2.type}'`);
               }
@@ -29517,12 +29535,16 @@ var require_assets = __commonJS({
           type: "text",
           text: contents2
         };
-        return messageRenderers["text"].render(contentText, true);
+        return messageRenderers["text"].render(
+          "text-message-content",
+          contentText,
+          true
+        );
       }
     };
     const messageRenderers = {
       text: {
-        render: (content2, isLast) => {
+        render: (key2, content2, isLast) => {
           const c2 = content2;
           return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
             MarkdownDiv,
@@ -29530,11 +29552,11 @@ var require_assets = __commonJS({
               markdown: c2.text,
               className: isLast ? "no-last-para-padding" : ""
             },
-            void 0,
+            key2,
             false,
             {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/chat/MessageContent.tsx",
-              lineNumber: 81,
+              lineNumber: 94,
               columnNumber: 9
             },
             void 0
@@ -29542,57 +29564,57 @@ var require_assets = __commonJS({
         }
       },
       image: {
-        render: (content2) => {
+        render: (key2, content2) => {
           const c2 = content2;
           if (c2.image.startsWith("data:")) {
-            return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("img", { src: c2.image, className: styles$$.contentImage }, void 0, false, {
+            return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("img", { src: c2.image, className: styles$$.contentImage }, key2, false, {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/chat/MessageContent.tsx",
-              lineNumber: 92,
+              lineNumber: 106,
               columnNumber: 16
             }, void 0);
           } else {
-            return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("code", { children: c2.image }, void 0, false, {
+            return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("code", { children: c2.image }, key2, false, {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/chat/MessageContent.tsx",
-              lineNumber: 94,
+              lineNumber: 108,
               columnNumber: 16
             }, void 0);
           }
         }
       },
       audio: {
-        render: (content2) => {
+        render: (key2, content2) => {
           const c2 = content2;
           return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("audio", { controls: true, children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("source", { src: c2.audio, type: mimeTypeForFormat(c2.format) }, void 0, false, {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/chat/MessageContent.tsx",
-            lineNumber: 103,
+            lineNumber: 117,
             columnNumber: 11
-          }, void 0) }, void 0, false, {
+          }, void 0) }, key2, false, {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/chat/MessageContent.tsx",
-            lineNumber: 102,
+            lineNumber: 116,
             columnNumber: 9
           }, void 0);
         }
       },
       video: {
-        render: (content2) => {
+        render: (key2, content2) => {
           const c2 = content2;
           return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("video", { width: "500", height: "375", controls: true, children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("source", { src: c2.video, type: mimeTypeForFormat(c2.format) }, void 0, false, {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/chat/MessageContent.tsx",
-            lineNumber: 113,
+            lineNumber: 127,
             columnNumber: 11
-          }, void 0) }, void 0, false, {
+          }, void 0) }, key2, false, {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/chat/MessageContent.tsx",
-            lineNumber: 112,
+            lineNumber: 126,
             columnNumber: 9
           }, void 0);
         }
       },
       tool: {
-        render: (content2) => {
+        render: (key2, content2) => {
           const c2 = content2;
-          return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(ToolOutput, { output: c2.content }, void 0, false, {
+          return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(ToolOutput, { output: c2.content }, key2, false, {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/chat/MessageContent.tsx",
-            lineNumber: 121,
+            lineNumber: 135,
             columnNumber: 14
           }, void 0);
         }
@@ -29865,20 +29887,6 @@ var require_assets = __commonJS({
       toolCallStyle
     }) => {
       if (message2.role === "assistant" && message2.tool_calls && message2.tool_calls.length) {
-        const result = [];
-        if (message2.content) {
-          result.push(
-            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: styles$X.content, children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(MessageContent, { contents: message2.content }, void 0, false, {
-              fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/chat/MessageContents.tsx",
-              lineNumber: 35,
-              columnNumber: 11
-            }, void 0) }, void 0, false, {
-              fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/chat/MessageContents.tsx",
-              lineNumber: 34,
-              columnNumber: 9
-            }, void 0)
-          );
-        }
         const toolCalls = message2.tool_calls.map((tool_call, idx) => {
           const { input: input2, functionCall, highlightLanguage } = resolveToolInput(
             tool_call.function,
@@ -29899,11 +29907,11 @@ var require_assets = __commonJS({
               functionCall
             ] }, void 0, true, {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/chat/MessageContents.tsx",
-              lineNumber: 62,
+              lineNumber: 53,
               columnNumber: 13
-            }, void 0) }, void 0, false, {
+            }, void 0) }, `tool-call-${idx}`, false, {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/chat/MessageContents.tsx",
-              lineNumber: 61,
+              lineNumber: 52,
               columnNumber: 11
             }, void 0);
           } else {
@@ -29915,25 +29923,37 @@ var require_assets = __commonJS({
                 highlightLanguage,
                 output: resolvedToolOutput
               },
-              void 0,
+              `tool-call-${idx}`,
               false,
               {
                 fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/chat/MessageContents.tsx",
-                lineNumber: 67,
+                lineNumber: 58,
                 columnNumber: 11
               },
               void 0
             );
           }
         });
-        if (toolCalls) {
-          result.push(...toolCalls);
-        }
-        return result;
+        return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(reactExports.Fragment, { children: [
+          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: styles$X.content, children: message2.content ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(MessageContent, { contents: message2.content }, void 0, false, {
+            fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/chat/MessageContents.tsx",
+            lineNumber: 73,
+            columnNumber: 13
+          }, void 0) : void 0 }, void 0, false, {
+            fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/chat/MessageContents.tsx",
+            lineNumber: 71,
+            columnNumber: 9
+          }, void 0),
+          toolCalls
+        ] }, void 0, true, {
+          fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/chat/MessageContents.tsx",
+          lineNumber: 70,
+          columnNumber: 7
+        }, void 0);
       } else {
         return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(MessageContent, { contents: message2.content }, void 0, false, {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/chat/MessageContents.tsx",
-          lineNumber: 82,
+          lineNumber: 80,
           columnNumber: 12
         }, void 0);
       }
@@ -30087,7 +30107,7 @@ var require_assets = __commonJS({
                 lineNumber: 49,
                 columnNumber: 11
               }, void 0)
-            ] }, void 0, true, {
+            ] }, `${id}-response-label`, true, {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/chat/ChatMessage.tsx",
               lineNumber: 45,
               columnNumber: 9
@@ -30246,7 +30266,7 @@ var require_assets = __commonJS({
             indented: indented2,
             toolCallStyle
           },
-          void 0,
+          `${id}-msg-${index}`,
           false,
           {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/chat/ChatView.tsx",
@@ -30364,7 +30384,7 @@ var require_assets = __commonJS({
             lineNumber: 49,
             columnNumber: 9
           }, void 0)
-        ] }, void 0, true, {
+        ] }, id2, true, {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/metadata/MetaDataView.tsx",
           lineNumber: 38,
           columnNumber: 7
@@ -33817,10 +33837,10 @@ categories: ${categories.join(" ")}`;
               setSort(sel.value);
             },
             children: options.map((option) => {
-              return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("option", { value: option.val, children: option.label }, void 0, false, {
+              return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("option", { value: option.val, children: option.label }, option.val, false, {
                 fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/sample-tools/SortFilter.tsx",
-                lineNumber: 71,
-                columnNumber: 18
+                lineNumber: 72,
+                columnNumber: 13
               }, void 0);
             })
           },
@@ -34578,7 +34598,7 @@ categories: ${categories.join(" ")}`;
             lineNumber: 35,
             columnNumber: 13
           }, void 0)
-        ] }, void 0, true, {
+        ] }, metric2, true, {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/sidebar/SidebarScoreView.tsx",
           lineNumber: 17,
           columnNumber: 11
@@ -34605,7 +34625,7 @@ categories: ${categories.join(" ")}`;
     };
     const SidebarScoresView = ({ scores: scores2 }) => {
       const showReducer = scores2.findIndex((score2) => !!score2.reducer) !== -1;
-      return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: styles$N.container, children: scores2.map((score2) => {
+      return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: styles$N.container, children: scores2.map((score2, idx) => {
         const name2 = score2.name;
         const reducer = score2.reducer;
         return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: styles$N.scoreWrapper, children: [
@@ -34672,7 +34692,7 @@ categories: ${categories.join(" ")}`;
             lineNumber: 45,
             columnNumber: 13
           }, void 0)
-        ] }, void 0, true, {
+        ] }, `scorer-${name2}-${idx}`, true, {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/sidebar/SidebarScoresView.tsx",
           lineNumber: 20,
           columnNumber: 11
@@ -55584,49 +55604,6 @@ Supported expressions:
         const scorerScores = scores2.filter((sc) => {
           return score2 && sc.scorer === score2.scorer;
         });
-        const selectors = [
-          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
-            ScorerSelector,
-            {
-              scorers,
-              selectedIndex: scorerIndex(scorers, score2),
-              setSelectedIndex: (index) => {
-                setScore(scorers[index]);
-              }
-            },
-            void 0,
-            false,
-            {
-              fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/sample-tools/SelectScorer.tsx",
-              lineNumber: 60,
-              columnNumber: 7
-            },
-            void 0
-          )
-        ];
-        if (scorerScores.length > 1) {
-          selectors.push(
-            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
-              ScoreSelector,
-              {
-                className: clsx(styles$J.secondSel),
-                scores: scorerScores,
-                selectedIndex: scoreIndex(scorerScores, score2),
-                setSelectedIndex: (index) => {
-                  setScore(scorerScores[index]);
-                }
-              },
-              void 0,
-              false,
-              {
-                fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/sample-tools/SelectScorer.tsx",
-                lineNumber: 70,
-                columnNumber: 9
-              },
-              void 0
-            )
-          );
-        }
         return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: styles$J.flex, children: [
           /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
             "span",
@@ -55645,15 +55622,51 @@ Supported expressions:
             false,
             {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/sample-tools/SelectScorer.tsx",
-              lineNumber: 84,
+              lineNumber: 62,
               columnNumber: 9
             },
             void 0
           ),
-          selectors
+          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+            ScorerSelector,
+            {
+              scorers,
+              selectedIndex: scorerIndex(scorers, score2),
+              setSelectedIndex: (index) => {
+                setScore(scorers[index]);
+              }
+            },
+            void 0,
+            false,
+            {
+              fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/sample-tools/SelectScorer.tsx",
+              lineNumber: 74,
+              columnNumber: 9
+            },
+            void 0
+          ),
+          scorerScores.length > 1 ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+            ScoreSelector,
+            {
+              className: clsx(styles$J.secondSel),
+              scores: scorerScores,
+              selectedIndex: scoreIndex(scorerScores, score2),
+              setSelectedIndex: (index) => {
+                setScore(scorerScores[index]);
+              }
+            },
+            void 0,
+            false,
+            {
+              fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/sample-tools/SelectScorer.tsx",
+              lineNumber: 82,
+              columnNumber: 11
+            },
+            void 0
+          ) : void 0
         ] }, void 0, true, {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/sample-tools/SelectScorer.tsx",
-          lineNumber: 83,
+          lineNumber: 61,
           columnNumber: 7
         }, void 0);
       }
@@ -55680,10 +55693,10 @@ Supported expressions:
             setSelectedIndex(sel.selectedIndex);
           },
           children: scores2.map((score2) => {
-            return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("option", { value: score2.name, children: score2.name }, void 0, false, {
+            return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("option", { value: score2.name, children: score2.name }, score2.name, false, {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/sample-tools/SelectScorer.tsx",
-              lineNumber: 131,
-              columnNumber: 16
+              lineNumber: 126,
+              columnNumber: 11
             }, void 0);
           })
         },
@@ -55691,7 +55704,7 @@ Supported expressions:
         false,
         {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/sample-tools/SelectScorer.tsx",
-          lineNumber: 116,
+          lineNumber: 110,
           columnNumber: 5
         },
         void 0
@@ -55713,10 +55726,10 @@ Supported expressions:
             setSelectedIndex(sel.selectedIndex);
           },
           children: scorers.map((scorer) => {
-            return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("option", { value: scorer.scorer, children: scorer.scorer }, void 0, false, {
+            return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("option", { value: scorer.scorer, children: scorer.scorer }, scorer.scorer, false, {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/sample-tools/SelectScorer.tsx",
-              lineNumber: 159,
-              columnNumber: 16
+              lineNumber: 158,
+              columnNumber: 11
             }, void 0);
           })
         },
@@ -55724,7 +55737,7 @@ Supported expressions:
         false,
         {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/sample-tools/SelectScorer.tsx",
-          lineNumber: 149,
+          lineNumber: 147,
           columnNumber: 5
         },
         void 0
@@ -55749,8 +55762,7 @@ Supported expressions:
       scores: scores2,
       sampleDescriptor
     }) => {
-      const tools2 = [];
-      tools2.push(
+      return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(jsxRuntimeExports.Fragment, { children: [
         /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
           SampleFilter,
           {
@@ -55763,35 +55775,30 @@ Supported expressions:
           {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SamplesTools.tsx",
             lineNumber: 38,
-            columnNumber: 5
+            columnNumber: 7
           },
           void 0
-        )
-      );
-      if (scores2.length > 1) {
-        tools2.push(
-          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(SelectScorer, { scores: scores2, score: score2, setScore }, void 0, false, {
-            fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SamplesTools.tsx",
-            lineNumber: 47,
-            columnNumber: 7
-          }, void 0)
-        );
-      }
-      if (epochs > 1) {
-        tools2.push(
-          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(EpochFilter, { epoch, setEpoch, epochs }, void 0, false, {
-            fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SamplesTools.tsx",
-            lineNumber: 53,
-            columnNumber: 7
-          }, void 0)
-        );
-      }
-      tools2.push(/* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(SortFilter, { sort, setSort, epochs }, void 0, false, {
+        ),
+        scores2.length > 1 ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(SelectScorer, { scores: scores2, score: score2, setScore }, void 0, false, {
+          fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SamplesTools.tsx",
+          lineNumber: 44,
+          columnNumber: 9
+        }, void 0) : void 0,
+        epochs > 1 ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(EpochFilter, { epoch, setEpoch, epochs }, void 0, false, {
+          fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SamplesTools.tsx",
+          lineNumber: 47,
+          columnNumber: 9
+        }, void 0) : void 0,
+        /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(SortFilter, { sort, setSort, epochs }, void 0, false, {
+          fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SamplesTools.tsx",
+          lineNumber: 49,
+          columnNumber: 7
+        }, void 0)
+      ] }, void 0, true, {
         fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SamplesTools.tsx",
-        lineNumber: 57,
-        columnNumber: 14
-      }, void 0));
-      return tools2;
+        lineNumber: 37,
+        columnNumber: 5
+      }, void 0);
     };
     const filename = (path) => {
       const pathparts = path.split("/");
@@ -58977,7 +58984,7 @@ self.onmessage = function (e) {
             },
             void 0
           )
-        ] }, void 0, true, {
+        ] }, `${baseId}-record-${index}`, true, {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/metadata/MetaDataGrid.tsx",
           lineNumber: 29,
           columnNumber: 7
@@ -59429,12 +59436,12 @@ self.onmessage = function (e) {
         value: usage.total_tokens,
         secondary: false
       });
-      return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: clsx("text-size-small", styles$E.wrapper), children: rows.map((row2) => {
+      return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: clsx("text-size-small", styles$E.wrapper), children: rows.map((row2, idx) => {
         if (row2.label === "---") {
-          return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: styles$E.separator }, void 0, false, {
+          return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: styles$E.separator }, `$usage-sep-${idx}`, false, {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/usage/ModelUsagePanel.tsx",
-            lineNumber: 73,
-            columnNumber: 18
+            lineNumber: 74,
+            columnNumber: 13
           }, void 0);
         } else {
           return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(reactExports.Fragment, { children: [
@@ -59452,19 +59459,19 @@ self.onmessage = function (e) {
               false,
               {
                 fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/usage/ModelUsagePanel.tsx",
-                lineNumber: 77,
+                lineNumber: 79,
                 columnNumber: 15
               },
               void 0
             ),
             /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: styles$E.col3, children: row2.value ? formatNumber(row2.value) : "" }, void 0, false, {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/usage/ModelUsagePanel.tsx",
-              lineNumber: 86,
+              lineNumber: 88,
               columnNumber: 15
             }, void 0)
-          ] }, void 0, true, {
+          ] }, `$usage-row-${idx}`, true, {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/usage/ModelUsagePanel.tsx",
-            lineNumber: 76,
+            lineNumber: 78,
             columnNumber: 13
           }, void 0);
         }
@@ -59635,11 +59642,21 @@ self.onmessage = function (e) {
           columnNumber: 7
         }, void 0),
         /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("tbody", { children: Object.keys(model_usage).map((key2) => {
-          return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(TokenRow, { model: key2, usage: model_usage[key2] }, void 0, false, {
-            fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/usage/ModelTokenTable.tsx",
-            lineNumber: 17,
-            columnNumber: 18
-          }, void 0);
+          return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+            TokenRow,
+            {
+              model: `${key2}-token-row`,
+              usage: model_usage[key2]
+            },
+            key2,
+            false,
+            {
+              fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/usage/ModelTokenTable.tsx",
+              lineNumber: 18,
+              columnNumber: 13
+            },
+            void 0
+          );
         }) }, void 0, false, {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/usage/ModelTokenTable.tsx",
           lineNumber: 15,
@@ -60166,7 +60183,7 @@ self.onmessage = function (e) {
             }).join(" ")}`
           },
           children: [
-            columns.map((col) => {
+            columns.map((col, idx) => {
               return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
                 "div",
                 {
@@ -60178,7 +60195,7 @@ self.onmessage = function (e) {
                   ),
                   children: col.label
                 },
-                void 0,
+                `sample-summ-lbl-${idx}`,
                 false,
                 {
                   fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SampleSummaryView.tsx",
@@ -60188,7 +60205,7 @@ self.onmessage = function (e) {
                 void 0
               );
             }),
-            columns.map((col) => {
+            columns.map((col, idx) => {
               return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
                 "div",
                 {
@@ -60199,11 +60216,11 @@ self.onmessage = function (e) {
                   ),
                   children: col.value
                 },
-                void 0,
+                `sample-summ-val-${idx}`,
                 false,
                 {
                   fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SampleSummaryView.tsx",
-                  lineNumber: 162,
+                  lineNumber: 163,
                   columnNumber: 11
                 },
                 void 0
@@ -60383,7 +60400,7 @@ self.onmessage = function (e) {
                 selectedNav,
                 setSelectedNav
               },
-              void 0,
+              nav2.title,
               false,
               {
                 fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/event/EventNavs.tsx",
@@ -60611,7 +60628,7 @@ self.onmessage = function (e) {
                   className: clsx("tab-pane", "show", isSelected ? "active" : ""),
                   children: child
                 },
-                void 0,
+                `children-${id2}-${index}`,
                 false,
                 {
                   fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/event/EventPanel.tsx",
@@ -61129,7 +61146,7 @@ self.onmessage = function (e) {
       }, void 0);
     };
     const ToolsConfig = ({ tools: tools2 }) => {
-      const toolEls = tools2.map((tool2) => {
+      const toolEls = tools2.map((tool2, idx) => {
         return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(reactExports.Fragment, { children: [
           /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: clsx("text-style-label", "text-style-secondary"), children: tool2.name }, void 0, false, {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/ModelEventView.tsx",
@@ -61141,7 +61158,7 @@ self.onmessage = function (e) {
             lineNumber: 217,
             columnNumber: 9
           }, void 0)
-        ] }, void 0, true, {
+        ] }, `${tool2.name}-${idx}`, true, {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/ModelEventView.tsx",
           lineNumber: 213,
           columnNumber: 7
@@ -61177,12 +61194,12 @@ self.onmessage = function (e) {
       if (event.sample.files && Object.keys(event.sample.files).length > 0) {
         sections.push(
           /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(EventSection, { title: "Files", children: Object.keys(event.sample.files).map((file) => {
-            return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("pre", { className: styles$p.noMargin, children: file }, void 0, false, {
+            return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("pre", { className: styles$p.noMargin, children: file }, `sample-init-file-${file}`, false, {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/SampleInitEventView.tsx",
-              lineNumber: 40,
-              columnNumber: 18
+              lineNumber: 41,
+              columnNumber: 13
             }, void 0);
-          }) }, void 0, false, {
+          }) }, `sample-${id}-init-files`, false, {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/SampleInitEventView.tsx",
             lineNumber: 38,
             columnNumber: 7
@@ -61193,15 +61210,15 @@ self.onmessage = function (e) {
         sections.push(
           /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(EventSection, { title: "Setup", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("pre", { className: styles$p.code, children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("code", { className: "sourceCode", children: event.sample.setup }, void 0, false, {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/SampleInitEventView.tsx",
-            lineNumber: 50,
+            lineNumber: 54,
             columnNumber: 11
           }, void 0) }, void 0, false, {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/SampleInitEventView.tsx",
-            lineNumber: 49,
+            lineNumber: 53,
             columnNumber: 9
-          }, void 0) }, void 0, false, {
+          }, void 0) }, `sample-${id}-init-setup`, false, {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/SampleInitEventView.tsx",
-            lineNumber: 48,
+            lineNumber: 52,
             columnNumber: 7
           }, void 0)
         );
@@ -61226,7 +61243,7 @@ self.onmessage = function (e) {
             /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { "data-name": "Sample", className: styles$p.sample, children: [
               /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(ChatView, { messages: stateObj["messages"] }, void 0, false, {
                 fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/SampleInitEventView.tsx",
-                lineNumber: 73,
+                lineNumber: 77,
                 columnNumber: 9
               }, void 0),
               /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { children: [
@@ -61235,36 +61252,36 @@ self.onmessage = function (e) {
                     String.fromCharCode(65 + index),
                     ") ",
                     choice
-                  ] }, void 0, true, {
+                  ] }, `$choice-{choice}`, true, {
                     fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/SampleInitEventView.tsx",
-                    lineNumber: 78,
+                    lineNumber: 82,
                     columnNumber: 19
                   }, void 0);
                 }) : "",
                 sections.length > 0 ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: styles$p.section, children: sections }, void 0, false, {
                   fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/SampleInitEventView.tsx",
-                  lineNumber: 85,
+                  lineNumber: 89,
                   columnNumber: 13
                 }, void 0) : "",
                 /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(EventSection, { title: "Target", children: toArray(event.sample.target).map((target2) => {
-                  return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { children: target2 }, void 0, false, {
+                  return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { children: target2 }, target2, false, {
                     fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/SampleInitEventView.tsx",
-                    lineNumber: 91,
+                    lineNumber: 95,
                     columnNumber: 22
                   }, void 0);
                 }) }, void 0, false, {
                   fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/SampleInitEventView.tsx",
-                  lineNumber: 89,
+                  lineNumber: 93,
                   columnNumber: 11
                 }, void 0)
               ] }, void 0, true, {
                 fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/SampleInitEventView.tsx",
-                lineNumber: 74,
+                lineNumber: 78,
                 columnNumber: 9
               }, void 0)
             ] }, void 0, true, {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/SampleInitEventView.tsx",
-              lineNumber: 72,
+              lineNumber: 76,
               columnNumber: 7
             }, void 0),
             event.sample.metadata && Object.keys(event.sample.metadata).length > 0 ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
@@ -61278,7 +61295,7 @@ self.onmessage = function (e) {
               false,
               {
                 fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/SampleInitEventView.tsx",
-                lineNumber: 98,
+                lineNumber: 102,
                 columnNumber: 9
               },
               void 0
@@ -61289,7 +61306,7 @@ self.onmessage = function (e) {
         true,
         {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/SampleInitEventView.tsx",
-          lineNumber: 57,
+          lineNumber: 61,
           columnNumber: 5
         },
         void 0
@@ -68212,11 +68229,11 @@ ${events}
             id: "system_msg_event_preview",
             messages: [message2]
           },
-          void 0,
+          "system_msg_event_preview",
           false,
           {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/state/StateEventRenderers.tsx",
-            lineNumber: 35,
+            lineNumber: 38,
             columnNumber: 7
           },
           void 0
@@ -68302,11 +68319,11 @@ ${events}
             runtime,
             sessionLogs: Object.values(sessions)
           },
-          void 0,
+          "human_baseline_view",
           false,
           {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/state/StateEventRenderers.tsx",
-            lineNumber: 125,
+            lineNumber: 129,
             columnNumber: 7
           },
           void 0
@@ -68340,7 +68357,7 @@ ${events}
         if (toolIndexes.length === 0) {
           toolsInfo["Tools"] = /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(Tools, { toolDefinitions: resolvedState.tools }, void 0, false, {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/state/StateEventRenderers.tsx",
-            lineNumber: 177,
+            lineNumber: 182,
             columnNumber: 9
           }, void 0);
         } else {
@@ -68349,7 +68366,7 @@ ${events}
           });
           toolsInfo["Tools"] = /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(Tools, { toolDefinitions: filtered }, void 0, false, {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/state/StateEventRenderers.tsx",
-            lineNumber: 183,
+            lineNumber: 188,
             columnNumber: 28
           }, void 0);
         }
@@ -68370,24 +68387,24 @@ ${events}
             false,
             {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/state/StateEventRenderers.tsx",
-              lineNumber: 192,
+              lineNumber: 197,
               columnNumber: 13
             },
             void 0
           ),
           /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: clsx("text-size-base"), children: toolsInfo[key2] }, void 0, false, {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/state/StateEventRenderers.tsx",
-            lineNumber: 201,
+            lineNumber: 206,
             columnNumber: 13
           }, void 0)
-        ] }, void 0, true, {
+        ] }, key2, true, {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/state/StateEventRenderers.tsx",
-          lineNumber: 191,
+          lineNumber: 196,
           columnNumber: 11
         }, void 0);
-      }) }, void 0, false, {
+      }) }, "state-diff-tools", false, {
         fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/state/StateEventRenderers.tsx",
-        lineNumber: 188,
+        lineNumber: 193,
         columnNumber: 5
       }, void 0);
     };
@@ -68400,26 +68417,36 @@ ${events}
       human_baseline_session
     ];
     const Tools = ({ toolDefinitions }) => {
-      return toolDefinitions.map((toolDefinition) => {
+      return toolDefinitions.map((toolDefinition, idx) => {
         var _a2;
         const toolName = toolDefinition.name;
         const toolArgs = ((_a2 = toolDefinition.parameters) == null ? void 0 : _a2.properties) ? Object.keys(toolDefinition.parameters.properties) : [];
-        return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(Tool, { toolName, toolArgs }, void 0, false, {
-          fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/state/StateEventRenderers.tsx",
-          lineNumber: 250,
-          columnNumber: 12
-        }, void 0);
+        return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+          Tool,
+          {
+            toolName,
+            toolArgs
+          },
+          `${toolName}-${idx}`,
+          false,
+          {
+            fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/state/StateEventRenderers.tsx",
+            lineNumber: 256,
+            columnNumber: 7
+          },
+          void 0
+        );
       });
     };
     const Tool = ({ toolName, toolArgs }) => {
       const functionCall = toolArgs && toolArgs.length > 0 ? `${toolName}(${toolArgs.join(", ")})` : toolName;
       return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("code", { className: clsx("text-size-small", styles$n.tool), children: functionCall }, void 0, false, {
         fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/state/StateEventRenderers.tsx",
-        lineNumber: 269,
+        lineNumber: 280,
         columnNumber: 7
       }, void 0) }, void 0, false, {
         fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/state/StateEventRenderers.tsx",
-        lineNumber: 268,
+        lineNumber: 279,
         columnNumber: 5
       }, void 0);
     };
@@ -68439,39 +68466,11 @@ ${events}
     }) => {
       const summary2 = summarizeChanges(event.changes);
       const [before, after] = synthesizeComparable(event.changes);
-      const tabs2 = [
-        /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
-          StateDiffView,
-          {
-            before,
-            after,
-            "data-name": "Diff",
-            className: clsx(styles$m.diff)
-          },
-          void 0,
-          false,
-          {
-            fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/state/StateEventView.tsx",
-            lineNumber: 48,
-            columnNumber: 5
-          },
-          void 0
-        )
-      ];
       const changePreview = generatePreview(
         event.changes,
         structuredClone(after),
         isStore
       );
-      if (changePreview) {
-        tabs2.unshift(
-          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { "data-name": "Summary", className: clsx(styles$m.summary), children: changePreview }, void 0, false, {
-            fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/state/StateEventView.tsx",
-            lineNumber: 65,
-            columnNumber: 7
-          }, void 0)
-        );
-      }
       const title2 = event.event === "state" ? "State Updated" : "Store Updated";
       return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
         EventPanel,
@@ -68480,7 +68479,7 @@ ${events}
           title: title2,
           className: className2,
           subTitle: formatDateTime(new Date(event.timestamp)),
-          text: tabs2.length === 1 ? summary2 : void 0,
+          text: !changePreview ? summary2 : void 0,
           collapse: changePreview === void 0 ? true : void 0,
           selectedNav: eventState.selectedNav || "",
           setSelectedNav: (selectedNav) => {
@@ -68490,13 +68489,36 @@ ${events}
           setCollapsed: (collapsed) => {
             setEventState({ ...eventState, collapsed });
           },
-          children: tabs2
+          children: [
+            changePreview ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { "data-name": "Summary", className: clsx(styles$m.summary), children: changePreview }, void 0, false, {
+              fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/state/StateEventView.tsx",
+              lineNumber: 76,
+              columnNumber: 9
+            }, void 0) : void 0,
+            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+              StateDiffView,
+              {
+                before,
+                after,
+                "data-name": "Diff",
+                className: clsx(styles$m.diff)
+              },
+              void 0,
+              false,
+              {
+                fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/state/StateEventView.tsx",
+                lineNumber: 80,
+                columnNumber: 7
+              },
+              void 0
+            )
+          ]
         },
         void 0,
-        false,
+        true,
         {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/state/StateEventView.tsx",
-          lineNumber: 75,
+          lineNumber: 59,
           columnNumber: 5
         },
         void 0
@@ -68543,7 +68565,8 @@ ${events}
           }
         }
         if (matchingOps === requiredMatchCount) {
-          results.push(changeType.render(changes, resolvedState));
+          const el = changeType.render(changes, resolvedState);
+          results.push(el);
           break;
         }
       }
@@ -69703,7 +69726,7 @@ ${events}
                 printSample(id, targetId);
               }
             },
-            void 0,
+            "sample-print-tool",
             false,
             {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SampleDisplay.tsx",
@@ -69726,7 +69749,7 @@ ${events}
           false,
           {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SampleDisplay.tsx",
-            lineNumber: 91,
+            lineNumber: 92,
             columnNumber: 7
           },
           void 0
@@ -69759,17 +69782,17 @@ ${events}
                     false,
                     {
                       fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SampleDisplay.tsx",
-                      lineNumber: 114,
+                      lineNumber: 116,
                       columnNumber: 13
                     },
                     void 0
                   )
                 },
-                void 0,
+                kSampleTranscriptTabId,
                 false,
                 {
                   fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SampleDisplay.tsx",
-                  lineNumber: 103,
+                  lineNumber: 104,
                   columnNumber: 11
                 },
                 void 0
@@ -69796,17 +69819,17 @@ ${events}
                     false,
                     {
                       fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SampleDisplay.tsx",
-                      lineNumber: 130,
+                      lineNumber: 133,
                       columnNumber: 11
                     },
                     void 0
                   )
                 },
-                void 0,
+                kSampleMessagesTabId,
                 false,
                 {
                   fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SampleDisplay.tsx",
-                  lineNumber: 122,
+                  lineNumber: 124,
                   columnNumber: 9
                 },
                 void 0
@@ -69830,17 +69853,17 @@ ${events}
                     false,
                     {
                       fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SampleDisplay.tsx",
-                      lineNumber: 147,
+                      lineNumber: 151,
                       columnNumber: 13
                     },
                     void 0
                   )
                 },
-                void 0,
+                kSampleScoringTabId,
                 false,
                 {
                   fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SampleDisplay.tsx",
-                  lineNumber: 140,
+                  lineNumber: 143,
                   columnNumber: 11
                 },
                 void 0
@@ -69865,24 +69888,24 @@ ${events}
                       false,
                       {
                         fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SampleDisplay.tsx",
-                        lineNumber: 165,
+                        lineNumber: 170,
                         columnNumber: 19
                       },
                       void 0
                     )
                   },
-                  void 0,
+                  tabId,
                   false,
                   {
                     fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SampleDisplay.tsx",
-                    lineNumber: 158,
+                    lineNumber: 162,
                     columnNumber: 17
                   },
                   void 0
                 );
               }) }, void 0, false, {
                 fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SampleDisplay.tsx",
-                lineNumber: 154,
+                lineNumber: 158,
                 columnNumber: 11
               }, void 0),
               sampleMetadatas.length > 0 ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
@@ -69895,7 +69918,7 @@ ${events}
                   selected: selectedTab === kSampleMetdataTabId,
                   children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: clsx(styles$A.metadataPanel), children: sampleMetadatas }, void 0, false, {
                     fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SampleDisplay.tsx",
-                    lineNumber: 183,
+                    lineNumber: 188,
                     columnNumber: 13
                   }, void 0)
                 },
@@ -69903,7 +69926,7 @@ ${events}
                 false,
                 {
                   fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SampleDisplay.tsx",
-                  lineNumber: 176,
+                  lineNumber: 181,
                   columnNumber: 11
                 },
                 void 0
@@ -69926,13 +69949,13 @@ ${events}
                     false,
                     {
                       fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SampleDisplay.tsx",
-                      lineNumber: 195,
+                      lineNumber: 200,
                       columnNumber: 15
                     },
                     void 0
                   ) }, void 0, false, {
                     fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SampleDisplay.tsx",
-                    lineNumber: 194,
+                    lineNumber: 199,
                     columnNumber: 13
                   }, void 0)
                 },
@@ -69940,7 +69963,7 @@ ${events}
                 false,
                 {
                   fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SampleDisplay.tsx",
-                  lineNumber: 187,
+                  lineNumber: 192,
                   columnNumber: 11
                 },
                 void 0
@@ -69955,11 +69978,11 @@ ${events}
                   selected: selectedTab === kSampleJsonTabId,
                   children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: clsx(styles$A.padded, styles$A.fullWidth), children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(JSONPanel, { data: sample2, simple: true }, void 0, false, {
                     fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SampleDisplay.tsx",
-                    lineNumber: 211,
+                    lineNumber: 216,
                     columnNumber: 15
                   }, void 0) }, void 0, false, {
                     fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SampleDisplay.tsx",
-                    lineNumber: 210,
+                    lineNumber: 215,
                     columnNumber: 13
                   }, void 0)
                 },
@@ -69967,7 +69990,7 @@ ${events}
                 false,
                 {
                   fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SampleDisplay.tsx",
-                  lineNumber: 203,
+                  lineNumber: 208,
                   columnNumber: 11
                 },
                 void 0
@@ -69978,25 +70001,25 @@ ${events}
           true,
           {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SampleDisplay.tsx",
-            lineNumber: 96,
+            lineNumber: 97,
             columnNumber: 7
           },
           void 0
         )
       ] }, void 0, true, {
         fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SampleDisplay.tsx",
-        lineNumber: 90,
+        lineNumber: 91,
         columnNumber: 5
       }, void 0);
     };
-    const metadataViewsForSample = (_id, sample2) => {
+    const metadataViewsForSample = (id, sample2) => {
       const sampleMetadatas = [];
       if (sample2.model_usage && Object.keys(sample2.model_usage).length > 0) {
         sampleMetadatas.push(
           /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(Card, { children: [
             /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(CardHeader, { label: "Usage" }, void 0, false, {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SampleDisplay.tsx",
-              lineNumber: 225,
+              lineNumber: 230,
               columnNumber: 9
             }, void 0),
             /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(CardBody, { children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
@@ -70009,18 +70032,18 @@ ${events}
               false,
               {
                 fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SampleDisplay.tsx",
-                lineNumber: 227,
+                lineNumber: 232,
                 columnNumber: 11
               },
               void 0
             ) }, void 0, false, {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SampleDisplay.tsx",
-              lineNumber: 226,
+              lineNumber: 231,
               columnNumber: 9
             }, void 0)
-          ] }, void 0, true, {
+          ] }, `sample-usage-${id}`, true, {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SampleDisplay.tsx",
-            lineNumber: 224,
+            lineNumber: 229,
             columnNumber: 7
           }, void 0)
         );
@@ -70030,7 +70053,7 @@ ${events}
           /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(Card, { children: [
             /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(CardHeader, { label: "Metadata" }, void 0, false, {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SampleDisplay.tsx",
-              lineNumber: 239,
+              lineNumber: 244,
               columnNumber: 9
             }, void 0),
             /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(CardBody, { children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
@@ -70044,18 +70067,18 @@ ${events}
               false,
               {
                 fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SampleDisplay.tsx",
-                lineNumber: 241,
+                lineNumber: 246,
                 columnNumber: 11
               },
               void 0
             ) }, void 0, false, {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SampleDisplay.tsx",
-              lineNumber: 240,
+              lineNumber: 245,
               columnNumber: 9
             }, void 0)
-          ] }, void 0, true, {
+          ] }, `sample-metadata-${id}`, true, {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SampleDisplay.tsx",
-            lineNumber: 238,
+            lineNumber: 243,
             columnNumber: 7
           }, void 0)
         );
@@ -70065,7 +70088,7 @@ ${events}
           /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(Card, { children: [
             /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(CardHeader, { label: "Store" }, void 0, false, {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SampleDisplay.tsx",
-              lineNumber: 254,
+              lineNumber: 259,
               columnNumber: 9
             }, void 0),
             /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(CardBody, { children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
@@ -70079,18 +70102,18 @@ ${events}
               false,
               {
                 fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SampleDisplay.tsx",
-                lineNumber: 256,
+                lineNumber: 261,
                 columnNumber: 11
               },
               void 0
             ) }, void 0, false, {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SampleDisplay.tsx",
-              lineNumber: 255,
+              lineNumber: 260,
               columnNumber: 9
             }, void 0)
-          ] }, void 0, true, {
+          ] }, `sample-store-${id}`, true, {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SampleDisplay.tsx",
-            lineNumber: 253,
+            lineNumber: 258,
             columnNumber: 7
           }, void 0)
         );
@@ -70264,76 +70287,6 @@ ${events}
         },
         [setInitialScrollPosition]
       );
-      const headerEls = [];
-      headerEls.push(
-        /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: clsx("modal-title", "text-size-smaller", styles$h.title), children: title2 || "" }, void 0, false, {
-          fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/LargeModal.tsx",
-          lineNumber: 85,
-          columnNumber: 5
-        }, void 0)
-      );
-      if (detail2) {
-        headerEls.push(
-          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: styles$h.detail, children: [
-            (detailTools == null ? void 0 : detailTools.left) ? detailTools.left.map((tool2) => {
-              return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(TitleTool, { ...tool2 }, void 0, false, {
-                fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/LargeModal.tsx",
-                lineNumber: 96,
-                columnNumber: 22
-              }, void 0);
-            }) : "",
-            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: clsx("text-size-smaller", styles$h.detailText), children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { children: detail2 }, void 0, false, {
-              fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/LargeModal.tsx",
-              lineNumber: 100,
-              columnNumber: 11
-            }, void 0) }, void 0, false, {
-              fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/LargeModal.tsx",
-              lineNumber: 99,
-              columnNumber: 9
-            }, void 0),
-            (detailTools == null ? void 0 : detailTools.right) ? detailTools.right.map((tool2) => {
-              return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(TitleTool, { ...tool2 }, void 0, false, {
-                fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/LargeModal.tsx",
-                lineNumber: 105,
-                columnNumber: 22
-              }, void 0);
-            }) : ""
-          ] }, void 0, true, {
-            fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/LargeModal.tsx",
-            lineNumber: 93,
-            columnNumber: 7
-          }, void 0)
-        );
-      }
-      headerEls.push(
-        /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
-          "button",
-          {
-            type: "button",
-            className: clsx(
-              "btn",
-              "btn-close-large-dialog",
-              "text-size-larger",
-              styles$h.close
-            ),
-            onClick: onHide,
-            "aria-label": "Close",
-            children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(HtmlEntity, { html: "&times;" }, void 0, false, {
-              fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/LargeModal.tsx",
-              lineNumber: 125,
-              columnNumber: 7
-            }, void 0)
-          },
-          void 0,
-          false,
-          {
-            fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/LargeModal.tsx",
-            lineNumber: 114,
-            columnNumber: 5
-          },
-          void 0
-        )
-      );
       return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
         "div",
         {
@@ -70356,25 +70309,97 @@ ${events}
               ),
               role: "document",
               children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: clsx("modal-content", styles$h.content), children: [
-                /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: clsx("modal-header", styles$h.header), children: headerEls }, void 0, false, {
+                /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: clsx("modal-header", styles$h.header), children: [
+                  /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+                    "div",
+                    {
+                      className: clsx("modal-title", "text-size-smaller", styles$h.title),
+                      children: title2 || ""
+                    },
+                    void 0,
+                    false,
+                    {
+                      fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/LargeModal.tsx",
+                      lineNumber: 103,
+                      columnNumber: 13
+                    },
+                    void 0
+                  ),
+                  detail2 ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: styles$h.detail, children: [
+                    (detailTools == null ? void 0 : detailTools.left) ? detailTools.left.map((tool2, idx) => {
+                      return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(TitleTool, { ...tool2 }, `tool-left-${idx}`, false, {
+                        fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/LargeModal.tsx",
+                        lineNumber: 113,
+                        columnNumber: 30
+                      }, void 0);
+                    }) : "",
+                    /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: clsx("text-size-smaller", styles$h.detailText), children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { children: detail2 }, void 0, false, {
+                      fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/LargeModal.tsx",
+                      lineNumber: 117,
+                      columnNumber: 19
+                    }, void 0) }, void 0, false, {
+                      fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/LargeModal.tsx",
+                      lineNumber: 116,
+                      columnNumber: 17
+                    }, void 0),
+                    (detailTools == null ? void 0 : detailTools.right) ? detailTools.right.map((tool2, idx) => {
+                      return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(TitleTool, { ...tool2 }, `tool-right-${idx}`, false, {
+                        fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/LargeModal.tsx",
+                        lineNumber: 122,
+                        columnNumber: 30
+                      }, void 0);
+                    }) : ""
+                  ] }, void 0, true, {
+                    fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/LargeModal.tsx",
+                    lineNumber: 110,
+                    columnNumber: 15
+                  }, void 0) : void 0,
+                  /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+                    "button",
+                    {
+                      type: "button",
+                      className: clsx(
+                        "btn",
+                        "btn-close-large-dialog",
+                        "text-size-larger",
+                        styles$h.close
+                      ),
+                      onClick: onHide,
+                      "aria-label": "Close",
+                      children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(HtmlEntity, { html: "&times;" }, void 0, false, {
+                        fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/LargeModal.tsx",
+                        lineNumber: 138,
+                        columnNumber: 15
+                      }, void 0)
+                    },
+                    void 0,
+                    false,
+                    {
+                      fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/LargeModal.tsx",
+                      lineNumber: 127,
+                      columnNumber: 13
+                    },
+                    void 0
+                  )
+                ] }, void 0, true, {
                   fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/LargeModal.tsx",
-                  lineNumber: 150,
+                  lineNumber: 102,
                   columnNumber: 11
                 }, void 0),
                 /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(ProgressBar, { animating: showProgress }, void 0, false, {
                   fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/LargeModal.tsx",
-                  lineNumber: 151,
+                  lineNumber: 141,
                   columnNumber: 11
                 }, void 0),
                 /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "modal-body", ref: scrollRef, onScroll, children: children2 }, void 0, false, {
                   fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/LargeModal.tsx",
-                  lineNumber: 152,
+                  lineNumber: 142,
                   columnNumber: 11
                 }, void 0),
                 modalFooter
               ] }, void 0, true, {
                 fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/LargeModal.tsx",
-                lineNumber: 149,
+                lineNumber: 101,
                 columnNumber: 9
               }, void 0)
             },
@@ -70382,7 +70407,7 @@ ${events}
             false,
             {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/LargeModal.tsx",
-              lineNumber: 141,
+              lineNumber: 93,
               columnNumber: 7
             },
             void 0
@@ -70392,7 +70417,7 @@ ${events}
         false,
         {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/LargeModal.tsx",
-          lineNumber: 130,
+          lineNumber: 82,
           columnNumber: 5
         },
         void 0
@@ -70400,7 +70425,7 @@ ${events}
     };
     const HtmlEntity = ({ html }) => /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("span", { dangerouslySetInnerHTML: { __html: html } }, void 0, false, {
       fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/LargeModal.tsx",
-      lineNumber: 167,
+      lineNumber: 157,
       columnNumber: 3
     }, void 0);
     const TitleTool = ({
@@ -70424,7 +70449,7 @@ ${events}
           disabled: !enabled,
           children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("i", { className: icon }, void 0, false, {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/LargeModal.tsx",
-            lineNumber: 196,
+            lineNumber: 186,
             columnNumber: 7
           }, void 0)
         },
@@ -70432,7 +70457,7 @@ ${events}
         false,
         {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/LargeModal.tsx",
-          lineNumber: 184,
+          lineNumber: 174,
           columnNumber: 5
         },
         void 0
@@ -71608,7 +71633,7 @@ ${events}
             void 0
           ),
           index < steps.length - 1 ? separator2 : ""
-        ] }, void 0, true, {
+        ] }, `solver-step-${index}`, true, {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/plan/SolverDetailView.tsx",
           lineNumber: 21,
           columnNumber: 7
@@ -71743,7 +71768,7 @@ ${events}
                 scores: scorers[key2].scores,
                 params: scorers[key2].params
               },
-              void 0,
+              key2,
               false,
               {
                 fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/plan/PlanDetailView.tsx",
@@ -71778,11 +71803,11 @@ ${events}
             entries: taskInformation,
             tableOptions: "sm"
           },
-          void 0,
+          `plan-md-task`,
           false,
           {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/plan/PlanDetailView.tsx",
-            lineNumber: 161,
+            lineNumber: 162,
             columnNumber: 7
           },
           void 0
@@ -71799,11 +71824,11 @@ ${events}
               entries: task_args,
               tableOptions: "sm"
             },
-            void 0,
+            `plan-md-task-args`,
             false,
             {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/plan/PlanDetailView.tsx",
-              lineNumber: 174,
+              lineNumber: 176,
               columnNumber: 9
             },
             void 0
@@ -71821,11 +71846,11 @@ ${events}
               entries: model_args,
               tableOptions: "sm"
             },
-            void 0,
+            `plan-md-model-args`,
             false,
             {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/plan/PlanDetailView.tsx",
-              lineNumber: 187,
+              lineNumber: 190,
               columnNumber: 9
             },
             void 0
@@ -71843,11 +71868,11 @@ ${events}
               entries: config2,
               tableOptions: "sm"
             },
-            void 0,
+            `plan-md-config`,
             false,
             {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/plan/PlanDetailView.tsx",
-              lineNumber: 201,
+              lineNumber: 205,
               columnNumber: 9
             },
             void 0
@@ -71868,11 +71893,11 @@ ${events}
               entries: generate_record,
               tableOptions: "sm"
             },
-            void 0,
+            `plan-md-generate-config`,
             false,
             {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/plan/PlanDetailView.tsx",
-              lineNumber: 219,
+              lineNumber: 224,
               columnNumber: 9
             },
             void 0
@@ -71890,11 +71915,11 @@ ${events}
               entries: metadata2,
               tableOptions: "sm"
             },
-            void 0,
+            `plan-md-metadata`,
             false,
             {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/plan/PlanDetailView.tsx",
-              lineNumber: 233,
+              lineNumber: 239,
               columnNumber: 9
             },
             void 0
@@ -71910,36 +71935,58 @@ ${events}
               gridTemplateColumns: `repeat(${taskColumns.length}, auto)`
             },
             children: taskColumns.map((col) => {
-              return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(PlanColumn, { title: col.title, className: col.className, children: col.contents }, void 0, false, {
-                fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/plan/PlanDetailView.tsx",
-                lineNumber: 252,
-                columnNumber: 13
-              }, void 0);
+              return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+                PlanColumn,
+                {
+                  title: col.title,
+                  className: col.className,
+                  children: col.contents
+                },
+                `plan-col-${col.title}`,
+                false,
+                {
+                  fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/plan/PlanDetailView.tsx",
+                  lineNumber: 259,
+                  columnNumber: 13
+                },
+                void 0
+              );
             })
           },
           void 0,
           false,
           {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/plan/PlanDetailView.tsx",
-            lineNumber: 244,
+            lineNumber: 251,
             columnNumber: 7
           },
           void 0
         ),
         /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: clsx(styles$9.row), children: metadataColumns.map((col) => {
-          return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(PlanColumn, { title: col.title, className: col.className, children: col.contents }, void 0, false, {
-            fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/plan/PlanDetailView.tsx",
-            lineNumber: 262,
-            columnNumber: 13
-          }, void 0);
+          return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+            PlanColumn,
+            {
+              title: col.title,
+              className: col.className,
+              children: col.contents
+            },
+            `plan-col-${col.title}`,
+            false,
+            {
+              fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/plan/PlanDetailView.tsx",
+              lineNumber: 273,
+              columnNumber: 13
+            },
+            void 0
+          );
         }) }, void 0, false, {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/plan/PlanDetailView.tsx",
-          lineNumber: 259,
+          lineNumber: 270,
           columnNumber: 7
         }, void 0)
       ] }, void 0, true, {
         fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/plan/PlanDetailView.tsx",
-        lineNumber: 243,
+        lineNumber: 250,
         columnNumber: 5
       }, void 0);
     };
@@ -71974,7 +72021,7 @@ ${events}
           false,
           {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/plan/PlanDetailView.tsx",
-            lineNumber: 295,
+            lineNumber: 310,
             columnNumber: 7
           },
           void 0
@@ -71982,7 +72029,7 @@ ${events}
         children2
       ] }, void 0, true, {
         fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/plan/PlanDetailView.tsx",
-        lineNumber: 294,
+        lineNumber: 309,
         columnNumber: 5
       }, void 0);
     };
@@ -72166,39 +72213,6 @@ ${events}
       reactExports.useEffect(() => {
         setHidden(false);
       }, [evalSpec, evalPlan, evalResults, evalStats, samples]);
-      const infoCards = [];
-      infoCards.push([
-        /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
-          PlanCard,
-          {
-            evalSpec,
-            evalPlan,
-            scores: evalResults == null ? void 0 : evalResults.scores
-          },
-          void 0,
-          false,
-          {
-            fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/tabs/InfoTab.tsx",
-            lineNumber: 41,
-            columnNumber: 5
-          },
-          void 0
-        )
-      ]);
-      if (evalStatus !== "started") {
-        infoCards.push(/* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(UsageCard, { stats: evalStats }, void 0, false, {
-          fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/tabs/InfoTab.tsx",
-          lineNumber: 49,
-          columnNumber: 20
-        }, void 0));
-      }
-      if (evalStatus === "error" && evalError) {
-        infoCards.unshift(/* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(TaskErrorCard, { error: evalError }, void 0, false, {
-          fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/tabs/InfoTab.tsx",
-          lineNumber: 54,
-          columnNumber: 23
-        }, void 0));
-      }
       const showWarning = (!samples || samples.length === 0) && evalStatus === "success" && (evalSpec == null ? void 0 : evalSpec.dataset.samples) && evalSpec.dataset.samples > 0;
       return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { style: { width: "100%" }, children: [
         showWarning ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
@@ -72213,19 +72227,46 @@ ${events}
           false,
           {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/tabs/InfoTab.tsx",
-            lineNumber: 66,
+            lineNumber: 48,
             columnNumber: 9
           },
           void 0
         ) : "",
-        /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { style: { padding: "0.5em 1em 0 1em", width: "100%" }, children: infoCards }, void 0, false, {
+        /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { style: { padding: "0.5em 1em 0 1em", width: "100%" }, children: [
+          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+            PlanCard,
+            {
+              evalSpec,
+              evalPlan,
+              scores: evalResults == null ? void 0 : evalResults.scores
+            },
+            void 0,
+            false,
+            {
+              fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/tabs/InfoTab.tsx",
+              lineNumber: 58,
+              columnNumber: 9
+            },
+            void 0
+          ),
+          evalStatus !== "started" ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(UsageCard, { stats: evalStats }, void 0, false, {
+            fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/tabs/InfoTab.tsx",
+            lineNumber: 63,
+            columnNumber: 37
+          }, void 0) : void 0,
+          evalStatus === "error" && evalError ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(TaskErrorCard, { error: evalError }, void 0, false, {
+            fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/tabs/InfoTab.tsx",
+            lineNumber: 65,
+            columnNumber: 11
+          }, void 0) : void 0
+        ] }, void 0, true, {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/tabs/InfoTab.tsx",
-          lineNumber: 75,
+          lineNumber: 57,
           columnNumber: 7
         }, void 0)
       ] }, void 0, true, {
         fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/tabs/InfoTab.tsx",
-        lineNumber: 64,
+        lineNumber: 46,
         columnNumber: 5
       }, void 0);
     };
@@ -72384,7 +72425,7 @@ ${events}
               isFirst: i2 === 0,
               showReducer
             },
-            void 0,
+            `simple-metric-${i2}`,
             false,
             {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/ResultsPanel.tsx",
@@ -72408,18 +72449,18 @@ ${events}
               isFirst: index === 0,
               showReducer
             },
-            void 0,
+            `multi-metric-${index}`,
             false,
             {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/ResultsPanel.tsx",
-              lineNumber: 56,
+              lineNumber: 57,
               columnNumber: 13
             },
             void 0
           );
         }) }, void 0, false, {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/ResultsPanel.tsx",
-          lineNumber: 53,
+          lineNumber: 54,
           columnNumber: 7
         }, void 0);
       }
@@ -72445,7 +72486,7 @@ ${events}
           false,
           {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/ResultsPanel.tsx",
-            lineNumber: 83,
+            lineNumber: 85,
             columnNumber: 7
           },
           void 0
@@ -72464,7 +72505,7 @@ ${events}
           false,
           {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/ResultsPanel.tsx",
-            lineNumber: 94,
+            lineNumber: 96,
             columnNumber: 9
           },
           void 0
@@ -72483,14 +72524,14 @@ ${events}
           false,
           {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/ResultsPanel.tsx",
-            lineNumber: 105,
+            lineNumber: 107,
             columnNumber: 7
           },
           void 0
         )
       ] }, void 0, true, {
         fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/ResultsPanel.tsx",
-        lineNumber: 82,
+        lineNumber: 84,
         columnNumber: 5
       }, void 0);
     };
@@ -72526,7 +72567,7 @@ ${events}
               false,
               {
                 fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/ResultsPanel.tsx",
-                lineNumber: 140,
+                lineNumber: 142,
                 columnNumber: 7
               },
               void 0
@@ -72546,7 +72587,7 @@ ${events}
               false,
               {
                 fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/ResultsPanel.tsx",
-                lineNumber: 152,
+                lineNumber: 154,
                 columnNumber: 9
               },
               void 0
@@ -72556,22 +72597,22 @@ ${events}
               return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: styles$3.multiScoreMetricGrid, children: [
                 /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { children: metricDisplayName(metric2) }, void 0, false, {
                   fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/ResultsPanel.tsx",
-                  lineNumber: 168,
+                  lineNumber: 170,
                   columnNumber: 15
                 }, void 0),
                 /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: styles$3.multiScorerValueContent, children: formatPrettyDecimal(metric2.value) }, void 0, false, {
                   fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/ResultsPanel.tsx",
-                  lineNumber: 169,
+                  lineNumber: 171,
                   columnNumber: 15
                 }, void 0)
-              ] }, void 0, true, {
+              ] }, key2, true, {
                 fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/ResultsPanel.tsx",
-                lineNumber: 167,
+                lineNumber: 169,
                 columnNumber: 13
               }, void 0);
             }) }, void 0, false, {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/ResultsPanel.tsx",
-              lineNumber: 163,
+              lineNumber: 165,
               columnNumber: 7
             }, void 0)
           ]
@@ -72580,7 +72621,7 @@ ${events}
         true,
         {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/ResultsPanel.tsx",
-          lineNumber: 134,
+          lineNumber: 136,
           columnNumber: 5
         },
         void 0
@@ -72698,32 +72739,6 @@ ${events}
       evalSpec,
       setOffcanvas
     }) => {
-      let statusPanel2;
-      if (status === "success") {
-        statusPanel2 = /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(ResultsPanel, { results: evalResults }, void 0, false, {
-          fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/PrimaryBar.tsx",
-          lineNumber: 35,
-          columnNumber: 19
-        }, void 0);
-      } else if (status === "cancelled") {
-        statusPanel2 = /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(CancelledPanel, { sampleCount: (samples == null ? void 0 : samples.length) || 0 }, void 0, false, {
-          fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/PrimaryBar.tsx",
-          lineNumber: 37,
-          columnNumber: 19
-        }, void 0);
-      } else if (status === "started") {
-        statusPanel2 = /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(RunningPanel, { sampleCount: (samples == null ? void 0 : samples.length) || 0 }, void 0, false, {
-          fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/PrimaryBar.tsx",
-          lineNumber: 39,
-          columnNumber: 19
-        }, void 0);
-      } else if (status === "error") {
-        statusPanel2 = /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(ErroredPanel, { sampleCount: (samples == null ? void 0 : samples.length) || 0 }, void 0, false, {
-          fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/PrimaryBar.tsx",
-          lineNumber: 41,
-          columnNumber: 19
-        }, void 0);
-      }
       const logFileName = file ? filename(file) : "";
       const handleToggle = reactExports.useCallback(() => {
         setOffcanvas(!offcanvas);
@@ -72752,7 +72767,7 @@ ${events}
                   type: "button",
                   children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("i", { className: ApplicationIcons.menu }, void 0, false, {
                     fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/PrimaryBar.tsx",
-                    lineNumber: 70,
+                    lineNumber: 60,
                     columnNumber: 13
                   }, void 0)
                 },
@@ -72760,7 +72775,7 @@ ${events}
                 false,
                 {
                   fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/PrimaryBar.tsx",
-                  lineNumber: 60,
+                  lineNumber: 50,
                   columnNumber: 11
                 },
                 void 0
@@ -72779,7 +72794,7 @@ ${events}
                     false,
                     {
                       fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/PrimaryBar.tsx",
-                      lineNumber: 77,
+                      lineNumber: 67,
                       columnNumber: 13
                     },
                     void 0
@@ -72801,35 +72816,35 @@ ${events}
                     false,
                     {
                       fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/PrimaryBar.tsx",
-                      lineNumber: 84,
+                      lineNumber: 74,
                       columnNumber: 13
                     },
                     void 0
                   )
                 ] }, void 0, true, {
                   fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/PrimaryBar.tsx",
-                  lineNumber: 76,
+                  lineNumber: 66,
                   columnNumber: 11
                 }, void 0),
                 /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: clsx("text-size-small", styles$4.secondaryContainer), children: [
                   /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: clsx("navbar-secondary-text", "text-truncate"), children: logFileName }, void 0, false, {
                     fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/PrimaryBar.tsx",
-                    lineNumber: 98,
+                    lineNumber: 88,
                     columnNumber: 13
                   }, void 0),
                   file ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(CopyButton, { value: file }, void 0, false, {
                     fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/PrimaryBar.tsx",
-                    lineNumber: 101,
+                    lineNumber: 91,
                     columnNumber: 21
                   }, void 0) : ""
                 ] }, void 0, true, {
                   fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/PrimaryBar.tsx",
-                  lineNumber: 97,
+                  lineNumber: 87,
                   columnNumber: 11
                 }, void 0)
               ] }, void 0, true, {
                 fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/PrimaryBar.tsx",
-                lineNumber: 75,
+                lineNumber: 65,
                 columnNumber: 9
               }, void 0)
             ]
@@ -72838,24 +72853,45 @@ ${events}
           true,
           {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/PrimaryBar.tsx",
-            lineNumber: 51,
+            lineNumber: 41,
             columnNumber: 7
           },
           void 0
         ),
-        /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: clsx(styles$4.taskStatus, "navbar-text"), children: statusPanel2 }, void 0, false, {
+        /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: clsx(styles$4.taskStatus, "navbar-text"), children: [
+          status === "success" ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(ResultsPanel, { results: evalResults }, void 0, false, {
+            fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/PrimaryBar.tsx",
+            lineNumber: 97,
+            columnNumber: 11
+          }, void 0) : void 0,
+          status === "cancelled" ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(CancelledPanel, { sampleCount: (samples == null ? void 0 : samples.length) || 0 }, void 0, false, {
+            fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/PrimaryBar.tsx",
+            lineNumber: 100,
+            columnNumber: 11
+          }, void 0) : void 0,
+          status === "started" ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(RunningPanel, { sampleCount: (samples == null ? void 0 : samples.length) || 0 }, void 0, false, {
+            fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/PrimaryBar.tsx",
+            lineNumber: 103,
+            columnNumber: 11
+          }, void 0) : void 0,
+          status === "error" ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(ErroredPanel, { sampleCount: (samples == null ? void 0 : samples.length) || 0 }, void 0, false, {
+            fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/PrimaryBar.tsx",
+            lineNumber: 106,
+            columnNumber: 11
+          }, void 0) : void 0
+        ] }, void 0, true, {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/PrimaryBar.tsx",
-          lineNumber: 105,
+          lineNumber: 95,
           columnNumber: 7
         }, void 0),
         /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { id: "task-created", style: { display: "none" }, children: evalSpec == null ? void 0 : evalSpec.created }, void 0, false, {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/PrimaryBar.tsx",
-          lineNumber: 108,
+          lineNumber: 109,
           columnNumber: 7
         }, void 0)
       ] }, void 0, true, {
         fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/PrimaryBar.tsx",
-        lineNumber: 50,
+        lineNumber: 40,
         columnNumber: 5
       }, void 0);
     };
@@ -72962,13 +72998,13 @@ ${events}
               false,
               {
                 fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/SecondaryBar.tsx",
-                lineNumber: 59,
+                lineNumber: 60,
                 columnNumber: 9
               },
               void 0
             )
           },
-          void 0,
+          "sb-dataset",
           false,
           {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/SecondaryBar.tsx",
@@ -72992,15 +73028,15 @@ ${events}
             ),
             children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(ScorerSummary, { evalDescriptor }, void 0, false, {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/SecondaryBar.tsx",
-              lineNumber: 81,
+              lineNumber: 83,
               columnNumber: 9
             }, void 0)
           },
-          void 0,
+          "sb-scorer",
           false,
           {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/SecondaryBar.tsx",
-            lineNumber: 73,
+            lineNumber: 74,
             columnNumber: 7
           },
           void 0
@@ -73016,15 +73052,15 @@ ${events}
               className: clsx(styles$1.justifyRight, "text-size-small"),
               children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(ParamSummary, { params: hyperparameters }, void 0, false, {
                 fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/SecondaryBar.tsx",
-                lineNumber: 94,
+                lineNumber: 97,
                 columnNumber: 11
               }, void 0)
             },
-            void 0,
+            "sb-params",
             false,
             {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/SecondaryBar.tsx",
-              lineNumber: 90,
+              lineNumber: 92,
               columnNumber: 9
             },
             void 0
@@ -73045,11 +73081,11 @@ ${events}
               className: clsx(styles$1.justifyRight, "text-size-small"),
               children: totalDuration
             },
-            void 0,
+            "sb-duration",
             false,
             {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/SecondaryBar.tsx",
-              lineNumber: 108,
+              lineNumber: 111,
               columnNumber: 9
             },
             void 0
@@ -73079,7 +73115,7 @@ ${events}
             false,
             {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/SecondaryBar.tsx",
-              lineNumber: 124,
+              lineNumber: 128,
               columnNumber: 7
             },
             void 0
@@ -73089,7 +73125,7 @@ ${events}
         false,
         {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/SecondaryBar.tsx",
-          lineNumber: 119,
+          lineNumber: 123,
           columnNumber: 5
         },
         void 0
@@ -73105,7 +73141,7 @@ ${events}
       }
       return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { children: (samples == null ? void 0 : samples.length) ? formatDataset(samples.length, epochs, dataset.name) : "" }, void 0, false, {
         fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/SecondaryBar.tsx",
-        lineNumber: 161,
+        lineNumber: 165,
         columnNumber: 5
       }, void 0);
     };
@@ -73117,17 +73153,17 @@ ${events}
       return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("span", { style: { position: "relative" }, children: Array.from(items).map((item2, index, array) => /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("span", { children: [
         /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("span", { title: item2.tooltip, children: item2.canonicalName }, void 0, false, {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/SecondaryBar.tsx",
-          lineNumber: 186,
+          lineNumber: 190,
           columnNumber: 11
         }, void 0),
         index < array.length - 1 ? ", " : ""
       ] }, index, true, {
         fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/SecondaryBar.tsx",
-        lineNumber: 185,
+        lineNumber: 189,
         columnNumber: 9
       }, void 0)) }, void 0, false, {
         fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/SecondaryBar.tsx",
-        lineNumber: 183,
+        lineNumber: 187,
         columnNumber: 5
       }, void 0);
     };
@@ -73146,7 +73182,7 @@ ${events}
       if (paraValues.length > 0) {
         return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("code", { style: { padding: 0, color: "var(--bs-body-color)" }, children: paraValues.join(", ") }, void 0, false, {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/SecondaryBar.tsx",
-          lineNumber: 215,
+          lineNumber: 219,
           columnNumber: 7
         }, void 0);
       } else {
@@ -73266,43 +73302,10 @@ ${events}
         },
         [setSelectedTab]
       );
-      const tabPanels2 = reactExports.useMemo(() => {
-        return Object.keys(tabs2).map((key2) => {
-          var _a2;
-          const tab2 = tabs2[key2];
-          return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
-            TabPanel,
-            {
-              id: tab2.id,
-              title: tab2.label,
-              onSelected,
-              selected: selectedTab === tab2.id,
-              scrollable: !!tab2.scrollable,
-              scrollRef: tab2.scrollRef,
-              scrollPosition: (_a2 = workspaceTabScrollPositionRef.current) == null ? void 0 : _a2[tab2.id],
-              setScrollPosition: reactExports.useCallback(
-                (position) => {
-                  onScroll(tab2.id, position);
-                },
-                [onScroll]
-              ),
-              children: tab2.content()
-            },
-            void 0,
-            false,
-            {
-              fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/WorkSpaceView.tsx",
-              lineNumber: 87,
-              columnNumber: 9
-            },
-            void 0
-          );
-        });
-      }, [tabs2, selectedTab]);
       if (evalSpec === void 0) {
         return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(EmptyPanel, {}, void 0, false, {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/WorkSpaceView.tsx",
-          lineNumber: 109,
+          lineNumber: 83,
           columnNumber: 12
         }, void 0);
       } else {
@@ -73339,7 +73342,7 @@ ${events}
             false,
             {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/WorkSpaceView.tsx",
-              lineNumber: 130,
+              lineNumber: 104,
               columnNumber: 9
             },
             void 0
@@ -73353,28 +73356,58 @@ ${events}
               className: clsx(styles.tabSet, "text-size-smaller"),
               tabControlsClassName: clsx(styles.tabs, "text-size-smaller"),
               tabPanelsClassName: clsx(styles.tabPanels),
-              children: tabPanels2
+              children: Object.keys(tabs2).map((key2) => {
+                var _a2;
+                const tab2 = tabs2[key2];
+                return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+                  TabPanel,
+                  {
+                    id: tab2.id,
+                    title: tab2.label,
+                    onSelected,
+                    selected: selectedTab === tab2.id,
+                    scrollable: !!tab2.scrollable,
+                    scrollRef: tab2.scrollRef,
+                    scrollPosition: (_a2 = workspaceTabScrollPositionRef.current) == null ? void 0 : _a2[tab2.id],
+                    setScrollPosition: reactExports.useCallback(
+                      (position) => {
+                        onScroll(tab2.id, position);
+                      },
+                      [onScroll]
+                    ),
+                    children: tab2.content()
+                  },
+                  tab2.id,
+                  false,
+                  {
+                    fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/WorkSpaceView.tsx",
+                    lineNumber: 130,
+                    columnNumber: 19
+                  },
+                  void 0
+                );
+              })
             },
             void 0,
             false,
             {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/WorkSpaceView.tsx",
-              lineNumber: 145,
+              lineNumber: 119,
               columnNumber: 13
             },
             void 0
           ) }, void 0, false, {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/WorkSpaceView.tsx",
-            lineNumber: 144,
+            lineNumber: 118,
             columnNumber: 11
           }, void 0) }, void 0, false, {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/WorkSpaceView.tsx",
-            lineNumber: 143,
+            lineNumber: 117,
             columnNumber: 9
           }, void 0)
         ] }, void 0, true, {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/WorkSpaceView.tsx",
-          lineNumber: 129,
+          lineNumber: 103,
           columnNumber: 7
         }, void 0);
       }

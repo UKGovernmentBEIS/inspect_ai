@@ -208,9 +208,9 @@ interface ToolConfigProps {
 }
 
 const ToolsConfig: React.FC<ToolConfigProps> = ({ tools }) => {
-  const toolEls = tools.map((tool) => {
+  const toolEls = tools.map((tool, idx) => {
     return (
-      <Fragment>
+      <Fragment key={`${tool.name}-${idx}`}>
         <div className={clsx("text-style-label", "text-style-secondary")}>
           {tool.name}
         </div>

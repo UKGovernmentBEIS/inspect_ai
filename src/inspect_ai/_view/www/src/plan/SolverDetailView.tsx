@@ -18,7 +18,7 @@ export const SolversDetailView: React.FC<SolversDetailView> = ({ steps }) => {
 
   const details = steps?.map((step, index) => {
     return (
-      <Fragment>
+      <Fragment key={`solver-step-${index}`}>
         <DetailStep
           name={step.solver}
           className={clsx(styles.items, "text-size-small")}

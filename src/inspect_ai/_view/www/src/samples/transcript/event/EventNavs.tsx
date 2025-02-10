@@ -26,6 +26,7 @@ export const EventNavs: React.FC<EventNavsProps> = ({
       {navs.map((nav) => {
         return (
           <EventNav
+            key={nav.title}
             target={nav.target}
             title={nav.title}
             selectedNav={selectedNav}

@@ -68,7 +68,11 @@ export const SortFilter: React.FC<SortFilterProps> = ({
         }}
       >
         {options.map((option) => {
-          return <option value={option.val}>{option.label}</option>;
+          return (
+            <option key={option.val} value={option.val}>
+              {option.label}
+            </option>
+          );
         })}
       </select>
     </div>

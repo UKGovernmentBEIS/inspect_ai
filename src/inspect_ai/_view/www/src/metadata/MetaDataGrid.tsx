@@ -26,7 +26,7 @@ export const MetaDataGrid: React.FC<MetadataGridProps> = ({
   const entryEls = entryRecords(entries).map((entry, index) => {
     const id = `${baseId}-value-${index}`;
     return (
-      <Fragment>
+      <Fragment key={`${baseId}-record-${index}`}>
         <div
           style={{
             gridColumn: "1 / -1",
