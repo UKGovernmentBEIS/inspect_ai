@@ -40,7 +40,7 @@ export const MessageContents: React.FC<MessageContentsProps> = ({
     // Render the tool calls made by this message
     const toolCalls = message.tool_calls.map((tool_call, idx) => {
       // Extract tool input
-      const { input, functionCall, inputType } = resolveToolInput(
+      const { input, functionCall, highlightLanguage } = resolveToolInput(
         tool_call.function,
         tool_call.arguments,
       );
@@ -57,13 +57,17 @@ export const MessageContents: React.FC<MessageContentsProps> = ({
       // Resolve the tool output
       const resolvedToolOutput = resolveToolMessage(toolMessage);
       if (toolCallStyle === "compact") {
-        return <code>tool: {functionCall}</code>;
+        return (
+          <div>
+            <code>tool: {functionCall}</code>
+          </div>
+        );
       } else {
         return (
           <ToolCallView
             functionCall={functionCall}
             input={input}
-            inputType={inputType}
+            highlightLanguage={highlightLanguage}
             output={resolvedToolOutput}
           />
         );

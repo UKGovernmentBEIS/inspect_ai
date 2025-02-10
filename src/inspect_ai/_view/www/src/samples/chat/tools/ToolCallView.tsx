@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import ExpandablePanel from "../../../components/ExpandablePanel";
 import { ContentTool } from "../../../types";
 import {
@@ -14,7 +15,7 @@ import { ToolTitle } from "./ToolTitle";
 interface ToolCallViewProps {
   functionCall: string;
   input?: string;
-  inputType?: string;
+  highlightLanguage?: string;
   view?: ToolCallContent;
   output:
     | string
@@ -41,7 +42,7 @@ interface ToolCallViewProps {
 export const ToolCallView: React.FC<ToolCallViewProps> = ({
   functionCall,
   input,
-  inputType,
+  highlightLanguage,
   view,
   output,
   mode,
@@ -76,6 +77,7 @@ export const ToolCallView: React.FC<ToolCallViewProps> = ({
   const collapse = Array.isArray(output)
     ? output.every((item) => !isContentImage(item))
     : !isContentImage(output);
+  const normalizedContent = useMemo(() => normalizeContent(output), [output]);
 
   return (
     <div>
@@ -86,10 +88,14 @@ export const ToolCallView: React.FC<ToolCallViewProps> = ({
       )}
       <div>
         <div>
-          <ToolInput type={inputType} contents={input} view={view} />
+          <ToolInput
+            highlightLanguage={highlightLanguage}
+            contents={input}
+            toolCallView={view}
+          />
           {output ? (
             <ExpandablePanel collapse={collapse} border={true} lines={15}>
-              <MessageContent contents={normalizeContent(output)} />
+              <MessageContent contents={normalizedContent} />
             </ExpandablePanel>
           ) : (
             ""
