@@ -1,7 +1,7 @@
 import asyncio
 from copy import deepcopy
 from pathlib import Path
-from typing import Any, Callable, cast
+from typing import Any, Callable, Literal, cast
 
 from inspect_ai._display import display
 from inspect_ai._eval.loader import scorer_from_spec
@@ -56,6 +56,7 @@ async def score_async(
     log: EvalLog,
     scorers: list[Scorer],
     epochs_reducer: ScoreReducers | None = None,
+    action: Literal["append", "overwrite"] | None = None,
 ) -> EvalLog:
     """Score an evaluation log.
 
@@ -108,7 +109,22 @@ async def score_async(
 
         # write them back (gather ensures that they come back in the same order)
         for index, score in enumerate(scores):
-            log.samples[index].scores = {k: v.score for k, v in score.items()}
+            if action == "overwrite":
+                log.samples[index].scores = {k: v.score for k, v in score.items()}
+            else:
+                existing_scores = log.samples[index].scores or {}
+                new_scores = {k: v.score for k, v in score.items()}
+
+                for key, value in new_scores.items():
+                    if key not in existing_scores:
+                        existing_scores[key] = value
+                    else:
+                        # This key already exists, dedupe its name
+                        count = 1
+                        while f"{key}-{count}" in existing_scores.keys():
+                            count = count + 1
+                        existing_scores[f"{key}-{count}"] = value
+                log.samples[index].scores = existing_scores
 
         # collect metrics from EvalLog (they may overlap w/ the scorer metrics,
         # that will be taken care of in eval_results)
@@ -130,7 +146,10 @@ async def score_async(
 
 
 async def task_score(
-    log: EvalLog, scorer: str | None, scorer_args: dict[str, Any] | None
+    log: EvalLog,
+    scorer: str | None,
+    scorer_args: dict[str, Any] | None,
+    action: Literal["append", "overwrite"] | None,
 ) -> EvalLog:
     ## TODO: Why would we need to change the run dir when scoring?
 
@@ -149,10 +168,10 @@ async def task_score(
     display().print(f"Scoring {len(log.samples)} samples for task: {task_name}")
 
     # perform scoring
-    log = await score_async(log, scorers)
+    log = await score_async(log=log, scorers=scorers, action=action)
 
     # compute and log metrics
-    display().print(f"Aggregating scores for task: {task_name}")
+    display().print(f"Computing metrics for task: {task_name}")
     if log.samples:
         sample_scores = [
             {

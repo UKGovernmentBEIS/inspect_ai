@@ -1,5 +1,6 @@
 import asyncio
 import os
+from typing import Literal
 
 import click
 from typing_extensions import Unpack
@@ -36,12 +37,19 @@ from .common import CommonOptions, common_options, process_common_options
     envvar="INSPECT_SCORE_SCORER_ARGS",
     help="One or more scorer arguments (e.g. -S arg=value)",
 )
+@click.option(
+    "--action",
+    type=click.Choice(["append", "overwrite"]),
+    envvar="INSPECT_SCORE_SCORER_ACTION",
+    help="Whether to append or overwrite the existing scores.",
+)
 @common_options
 def score_command(
     log_file: str,
     no_overwrite: bool | None,
     scorer: str | None,
     s: tuple[str] | None,
+    action: Literal["append", "overwrite"] | None,
     **common: Unpack[CommonOptions],
 ) -> None:
     """Score a previous evaluation run."""
@@ -56,6 +64,7 @@ def score_command(
             scorer=scorer,
             s=s,
             overwrite=False if no_overwrite else True,
+            action=action,
             log_level=common["log_level"],
         )
     )
@@ -67,6 +76,7 @@ async def score(
     scorer: str | None,
     s: tuple[str] | None,
     overwrite: bool,
+    action: Literal["append", "overwrite"] | None,
     log_level: str | None,
 ) -> None:
     # init eval context
@@ -92,7 +102,9 @@ async def score(
     init_task_context(model)
 
     # re-score the task
-    eval_log = await task_score(eval_log, scorer, scorer_args)
+    eval_log = await task_score(
+        log=eval_log, scorer=scorer, scorer_args=scorer_args, action=action
+    )
 
     # re-write the log (w/ a -score suffix if requested)
     _, ext = os.path.splitext(log_file)
@@ -103,7 +115,7 @@ async def score(
 
     # print results
     display().print("")
-    display().print(f"\nResults for{eval_log.eval.task}")
+    display().print(f"\nResults for {eval_log.eval.task}")
     if eval_log.results:
         for score in eval_log.results.scores:
             display().print(f"{score.name}")
