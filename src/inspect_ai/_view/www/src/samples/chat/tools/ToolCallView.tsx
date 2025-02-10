@@ -93,13 +93,9 @@ export const ToolCallView: React.FC<ToolCallViewProps> = ({
             contents={input}
             toolCallView={view}
           />
-          {output ? (
-            <ExpandablePanel collapse={collapse} border={true} lines={15}>
-              <MessageContent contents={normalizedContent} />
-            </ExpandablePanel>
-          ) : (
-            ""
-          )}
+          <ExpandablePanel collapse={collapse} border={true} lines={15}>
+            <MessageContent contents={normalizedContent} />
+          </ExpandablePanel>
         </div>
       </div>
     </div>

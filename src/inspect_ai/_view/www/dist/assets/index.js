@@ -29708,35 +29708,37 @@ var require_assets = __commonJS({
       }, [language2]);
       return codeRef;
     };
-    const ToolInput = (props) => {
+    const ToolInput = reactExports.memo((props) => {
       const { highlightLanguage, contents: contents2, toolCallView } = props;
       const codeRef = useCodeHighlight(highlightLanguage);
       if (!contents2 && !(toolCallView == null ? void 0 : toolCallView.content)) return null;
       if (toolCallView) {
         const toolViewRef = reactExports.useRef(null);
-        reactExports.useLayoutEffect(() => {
-          if (toolViewRef.current) {
-            const codeBlocks = toolViewRef.current.querySelectorAll("pre code");
-            codeBlocks.forEach((block2) => {
-              if (block2.className.includes("language-")) {
-                block2.classList.add("sourceCode");
-                prismExports.highlightElement(block2);
-              }
+        reactExports.useEffect(() => {
+          if ((toolCallView == null ? void 0 : toolCallView.content) && toolViewRef.current) {
+            requestAnimationFrame(() => {
+              const codeBlocks = toolViewRef.current.querySelectorAll("pre code");
+              codeBlocks.forEach((block2) => {
+                if (block2.className.includes("language-")) {
+                  block2.classList.add("sourceCode");
+                  prismExports.highlightElement(block2);
+                }
+              });
             });
           }
-        }, [toolCallView]);
+        }, [toolCallView == null ? void 0 : toolCallView.content]);
         return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
           MarkdownDiv,
           {
             markdown: toolCallView.content,
             ref: toolViewRef,
-            className: styles$Z.bottomMargin
+            className: clsx(styles$Z.bottomMargin, "text-size-small")
           },
           void 0,
           false,
           {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/chat/tools/ToolInput.tsx",
-            lineNumber: 48,
+            lineNumber: 50,
             columnNumber: 7
           },
           void 0
@@ -29759,16 +29761,16 @@ var require_assets = __commonJS({
         false,
         {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/chat/tools/ToolInput.tsx",
-          lineNumber: 61,
+          lineNumber: 63,
           columnNumber: 7
         },
         void 0
       ) }, void 0, false, {
         fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/chat/tools/ToolInput.tsx",
-        lineNumber: 60,
+        lineNumber: 62,
         columnNumber: 5
       }, void 0);
-    };
+    });
     const image = "_image_10saa_1";
     const styles$Y = {
       image
@@ -29836,15 +29838,15 @@ var require_assets = __commonJS({
             },
             void 0
           ),
-          output2 ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(ExpandablePanel, { collapse, border: true, lines: 15, children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(MessageContent, { contents: normalizedContent }, void 0, false, {
-            fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/chat/tools/ToolCallView.tsx",
-            lineNumber: 98,
-            columnNumber: 15
-          }, void 0) }, void 0, false, {
+          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(ExpandablePanel, { collapse, border: true, lines: 15, children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(MessageContent, { contents: normalizedContent }, void 0, false, {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/chat/tools/ToolCallView.tsx",
             lineNumber: 97,
             columnNumber: 13
-          }, void 0) : ""
+          }, void 0) }, void 0, false, {
+            fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/chat/tools/ToolCallView.tsx",
+            lineNumber: 96,
+            columnNumber: 11
+          }, void 0)
         ] }, void 0, true, {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/chat/tools/ToolCallView.tsx",
           lineNumber: 90,

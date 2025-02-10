@@ -1,6 +1,6 @@
 import clsx from "clsx";
 import { highlightElement } from "prismjs";
-import { useEffect, useLayoutEffect, useRef } from "react";
+import { memo, useEffect, useRef } from "react";
 import { MarkdownDiv } from "../../../components/MarkdownDiv";
 
 import styles from "./ToolInput.module.css";
@@ -22,7 +22,7 @@ interface ToolInputProps {
   contents?: string | object;
   toolCallView?: { content: string };
 }
-export const ToolInput: React.FC<ToolInputProps> = (props) => {
+export const ToolInput: React.FC<ToolInputProps> = memo((props) => {
   const { highlightLanguage, contents, toolCallView } = props;
 
   const codeRef = useCodeHighlight(highlightLanguage);
@@ -32,23 +32,25 @@ export const ToolInput: React.FC<ToolInputProps> = (props) => {
   if (toolCallView) {
     const toolViewRef = useRef<HTMLDivElement>(null);
 
-    useLayoutEffect(() => {
-      if (toolViewRef.current) {
-        const codeBlocks = toolViewRef.current.querySelectorAll("pre code");
-        codeBlocks.forEach((block) => {
-          if (block.className.includes("language-")) {
-            block.classList.add("sourceCode");
-            highlightElement(block as HTMLElement);
-          }
+    useEffect(() => {
+      if (toolCallView?.content && toolViewRef.current) {
+        requestAnimationFrame(() => {
+          const codeBlocks = toolViewRef.current!.querySelectorAll("pre code");
+          codeBlocks.forEach((block) => {
+            if (block.className.includes("language-")) {
+              block.classList.add("sourceCode");
+              highlightElement(block as HTMLElement);
+            }
+          });
         });
       }
-    }, [toolCallView]);
+    }, [toolCallView?.content]);
 
     return (
       <MarkdownDiv
         markdown={toolCallView.content}
         ref={toolViewRef}
-        className={styles.bottomMargin}
+        className={clsx(styles.bottomMargin, "text-size-small")}
       />
     );
   }
@@ -71,4 +73,4 @@ export const ToolInput: React.FC<ToolInputProps> = (props) => {
       </code>
     </pre>
   );
-};
+});
