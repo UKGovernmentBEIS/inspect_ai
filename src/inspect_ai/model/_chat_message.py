@@ -13,8 +13,13 @@ logger = getLogger(__name__)
 
 
 class ChatMessageBase(BaseModel):
+    """Base class for chat messages."""
+
+    role: Literal["system", "user", "assistant", "tool"]
+    """Conversation role"""
+
     content: str | list[Content]
-    """Content (simple string or list of string|image content)"""
+    """Content (simple string or list of content objects)"""
 
     source: Literal["input", "generate"] | None = Field(default=None)
     """Source of message."""
@@ -31,9 +36,6 @@ class ChatMessageBase(BaseModel):
         property returns either the plain str content, or if the
         content is a list of text and images, the text items
         concatenated together (separated by newline)
-
-        Returns: Text content of `ChatMessage` If this message does
-          not have text content then "" is returned.
         """
         if isinstance(self.content, str):
             return self.content
@@ -66,11 +68,15 @@ class ChatMessageBase(BaseModel):
 
 
 class ChatMessageSystem(ChatMessageBase):
+    """System chat message."""
+
     role: Literal["system"] = Field(default="system")
     """Conversation role."""
 
 
 class ChatMessageUser(ChatMessageBase):
+    """User chat message."""
+
     role: Literal["user"] = Field(default="user")
     """Conversation role."""
 
@@ -79,6 +85,8 @@ class ChatMessageUser(ChatMessageBase):
 
 
 class ChatMessageAssistant(ChatMessageBase):
+    """Assistant chat message."""
+
     role: Literal["assistant"] = Field(default="assistant")
     """Conversation role."""
 
@@ -112,6 +120,8 @@ class ChatMessageAssistant(ChatMessageBase):
 
 
 class ChatMessageTool(ChatMessageBase):
+    """Tool chat message."""
+
     role: Literal["tool"] = Field(default="tool")
     """Conversation role."""
 

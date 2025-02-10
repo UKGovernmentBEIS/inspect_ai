@@ -19,7 +19,7 @@ from ._tool_call import (
 from ._tool_choice import ToolChoice, ToolFunction
 from ._tool_def import ToolDef
 from ._tool_info import ToolInfo
-from ._tool_params import ToolParam, ToolParams
+from ._tool_params import JSONType, ToolParam, ToolParams
 from ._tool_with import tool_with
 from ._tools._computer import computer
 from ._tools._execute import bash, python
@@ -54,6 +54,7 @@ __all__ = [
     "ToolInfo",
     "ToolParam",
     "ToolParams",
+    "JSONType",
 ]
 
 _UTIL_MODULE_VERSION = "0.3.19"

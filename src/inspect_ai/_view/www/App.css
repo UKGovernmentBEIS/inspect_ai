@@ -25,6 +25,7 @@
   /* Inspect Font Sizes */
   --inspect-font-size-title: 1.5rem;
   --inspect-font-size-title-secondary: 1.3rem;
+  --inspect-font-size-largest: 1.2rem;
   --inspect-font-size-larger: 1.1rem;
   --inspect-font-size-large: 1rem;
   --inspect-font-size-base: 0.9rem;
@@ -82,6 +83,10 @@ body[class^="vscode-"] .app-main-grid {
 
 .text-size-title-secondary {
   font-size: var(--inspect-font-size-title-secondary);
+}
+
+.text-size-largest {
+  font-size: var(--inspect-font-size-largest);
 }
 
 .text-size-larger {

@@ -2,12 +2,14 @@ import clsx from "clsx";
 import { EvalScore } from "../../types/log";
 import { formatPrettyDecimal } from "../../utils/format";
 
+import { metricDisplayName } from "../utils";
 import styles from "./SidebarScoreView.module.css";
 interface SidebarScoreProps {
   scorer: EvalScore;
 }
 
 export const SidebarScoreView: React.FC<SidebarScoreProps> = ({ scorer }) => {
+  const showReducer = !!scorer.reducer;
   return (
     <div className={styles.container}>
       {Object.keys(scorer.metrics).map((metric) => {
@@ -21,11 +23,11 @@ export const SidebarScoreView: React.FC<SidebarScoreProps> = ({ scorer }) => {
                 styles.metricName,
               )}
             >
-              {scorer.metrics[metric].name}
+              {metricDisplayName(scorer.metrics[metric])}
             </div>
-            {scorer.reducer ? (
+            {showReducer ? (
               <div className={clsx("text-size-small", styles.metricReducer)}>
-                ${scorer.reducer}
+                {scorer.reducer || "default"}
               </div>
             ) : (
               ""

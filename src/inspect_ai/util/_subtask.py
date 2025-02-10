@@ -27,21 +27,21 @@ logger = getLogger(__name__)
 
 @runtime_checkable
 class Subtask(Protocol):
-    """Subtask with distinct `Store` and `Transcript`.
-
-    Args:
-      *args (Any): Arguments for the subtask.
-      **kwargs (Any): Keyword arguments for the subtask.
-
-    Returns:
-      Result of subtask.
-    """
-
     async def __call__(
         self,
         *args: Any,
         **kwargs: Any,
-    ) -> Any: ...
+    ) -> Any:
+        """Subtask with distinct `Store` and `Transcript`.
+
+        Args:
+            *args (Any): Arguments for the subtask.
+            **kwargs (Any): Keyword arguments for the subtask.
+
+        Returns:
+            Result of subtask.
+        """
+        ...
 
 
 @overload
@@ -71,11 +71,10 @@ def subtask(
     r"""Decorator for subtasks.
 
     Args:
-        func (Subtask): Subtask implementation.
-        name (str | None): Name for subtask (defaults to function name)
-        store (store | None): Store to use for subtask
-        type (str | None): Type to use for subtask
-        input (dict[str, Any] | None): Input to log for subtask
+        name: Name for subtask (defaults to function name)
+        store: Store to use for subtask
+        type: Type to use for subtask
+        input: Input to log for subtask
 
     Returns:
         Function which runs the Subtask, providing an isolated

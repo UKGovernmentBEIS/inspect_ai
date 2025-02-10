@@ -26,21 +26,33 @@ from ._target import Target
 
 @runtime_checkable
 class Scorer(Protocol):
-    r"""Score model outputs.
-
-    Evaluate the passed outputs and targets and return a
-    dictionary with scoring outcomes and context.
-
-    Args:
-        state (TaskState): Task state
-        target (Target): Ideal target for the output.
-    """
-
     async def __call__(
         self,
         state: TaskState,
         target: Target,
-    ) -> Score: ...
+    ) -> Score:
+        r"""Score model outputs.
+
+        Evaluate the passed outputs and targets and return a
+        dictionary with scoring outcomes and context.
+
+        Args:
+            state: Task state
+            target: Ideal target for the output.
+
+        Examples:
+          ```python
+          @scorer
+          def custom_scorer() -> Scorer:
+              async def score(state: TaskState, target: Target) -> Score:
+                  # Compare state / model output with target
+                  # to yield a score
+                  return Score(value=...)
+
+              return score
+          ````
+        """
+        ...
 
 
 P = ParamSpec("P")
@@ -90,17 +102,28 @@ def scorer(
     r"""Decorator for registering scorers.
 
     Args:
-        metrics (list[Metric] | dict[str, list[Metric]]): One or more metrics to calculate
+        metrics: One or more metrics to calculate
             over the scores.
-        name (str | None):
-            Optional name for scorer. If the decorator has no name
+        name: Optional name for scorer. If the decorator has no name
             argument then the name of the underlying ScorerType
             object will be used to automatically assign a name.
-        **metadata (dict[str,Any]): Additional values to serialize
+        **metadata: Additional values to serialize
             in metadata.
 
     Returns:
         Scorer with registry attributes.
+
+    Examples:
+      ```python
+      @scorer
+      def custom_scorer() -> Scorer:
+          async def score(state: TaskState, target: Target) -> Score:
+              # Compare state / model output with target
+              # to yield a score
+              return Score(value=...)
+
+          return score
+      ````
     """
 
     def wrapper(scorer_type: Callable[P, Scorer]) -> Callable[P, Scorer]:

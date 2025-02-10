@@ -167,7 +167,7 @@ class ToolEvent(BaseEvent):
     events: list["Event"] = Field(default_factory=list)
     """Transcript of events for tool."""
 
-    def set_result(
+    def _set_result(
         self,
         result: ToolResult,
         truncated: tuple[int, int] | None,
@@ -182,11 +182,11 @@ class ToolEvent(BaseEvent):
 
     # mechanism for operator to cancel the tool call
 
-    def set_task(self, task: asyncio.Task[Any]) -> None:
+    def _set_task(self, task: asyncio.Task[Any]) -> None:
         """Set the tool task (for possible cancellation)"""
         self._task = task
 
-    def cancel(self) -> None:
+    def _cancel(self) -> None:
         """Cancel the tool task."""
         if self._task:
             self._cancelled = True

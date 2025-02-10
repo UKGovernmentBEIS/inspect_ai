@@ -473,7 +473,7 @@ class SampleToolbar(Horizontal):
                     else None
                 )
                 if isinstance(last_event, ToolEvent):
-                    last_event.cancel()
+                    last_event._cancel()
             elif event.button.id == self.CANCEL_SCORE_OUTPUT:
                 self.sample.interrupt("score")
             elif event.button.id == self.CANCEL_RAISE_ERROR:

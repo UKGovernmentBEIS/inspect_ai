@@ -31,11 +31,11 @@ def approver(*args: Any, name: str | None = None, **attribs: Any) -> Any:
     Args:
       *args: Function returning `Approver` targeted by
         plain approver decorator without attributes (e.g. `@approver`)
-      name (str | None):
+      name:
         Optional name for approver. If the decorator has no name
         argument then the name of the function
         will be used to automatically assign a name.
-      **attribs: (dict[str,Any]): Additional approver attributes.
+      **attribs: Additional approver attributes.
 
     Returns:
         Approver with registry attributes.

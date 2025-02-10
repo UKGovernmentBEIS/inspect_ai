@@ -12,6 +12,8 @@ from .types import ScoreReducer
 
 @score_reducer(name="mode")
 def mode_score() -> ScoreReducer:
+    r"""Take the mode from a list of scores."""
+
     def reduce(scores: list[Score]) -> Score:
         r"""A utility function for the most common score in a list of scores.
 
@@ -36,12 +38,13 @@ def mode_score() -> ScoreReducer:
 
 @score_reducer(name="mean")
 def mean_score(value_to_float: ValueToFloat = value_to_float()) -> ScoreReducer:
-    def reduce(scores: list[Score]) -> Score:
-        r"""A utility function for taking a mean value over a list of scores.
+    r"""Take the mean of a list of scores.
 
-        Args:
-            scores: a list of Scores.
-        """
+    Args:
+       value_to_float: Function to convert the value to a float
+    """
+
+    def reduce(scores: list[Score]) -> Score:
         if isinstance(scores[0].value, dict):
             return _compute_dict_stat(scores, value_to_float, statistics.mean)
         elif isinstance(scores[0].value, list):
@@ -54,12 +57,13 @@ def mean_score(value_to_float: ValueToFloat = value_to_float()) -> ScoreReducer:
 
 @score_reducer(name="median")
 def median_score(value_to_float: ValueToFloat = value_to_float()) -> ScoreReducer:
-    def reduce(scores: list[Score]) -> Score:
-        r"""A utility function for taking a median value over a list of scores.
+    r"""Take the median value from a list of scores.
 
-        Args:
-            scores: a list of Scores.
-        """
+    Args:
+       value_to_float: Function to convert the value to a float
+    """
+
+    def reduce(scores: list[Score]) -> Score:
         if isinstance(scores[0].value, dict):
             return _compute_dict_stat(scores, value_to_float, statistics.median)
         elif isinstance(scores[0].value, list):
@@ -74,13 +78,15 @@ def median_score(value_to_float: ValueToFloat = value_to_float()) -> ScoreReduce
 def at_least(
     k: int, value: float = 1.0, value_to_float: ValueToFloat = value_to_float()
 ) -> ScoreReducer:
+    r"""Score correct if there are at least k score values greater than or equal to the value.
+
+    Args:
+       k: Number of score values that must exceed `value`.
+       value: Score value threshold.
+       value_to_float: Function to convert score values to float.
+    """
+
     def reduce(scores: list[Score]) -> Score:
-        r"""A utility function for scoring a value as correct if there are at least n score values greater than or equal to the value
-
-        Args:
-            scores: a list of Scores.
-        """
-
         def gte_n(
             counter: Counter[str | int | float | bool],
         ) -> str | int | float | bool:
@@ -104,6 +110,14 @@ def at_least(
 def pass_at(
     k: int, value: float = 1.0, value_to_float: ValueToFloat = value_to_float()
 ) -> ScoreReducer:
+    r"""Probability of at least 1 correct sample given `k` epochs (<https://arxiv.org/pdf/2107.03374>).
+
+    Args:
+       k: Epochs to compute probability for.
+       value: Score value threshold.
+       value_to_float: Function to convert score values to float.
+    """
+
     def reduce(scores: list[Score]) -> Score:
         def pass_at_k(values: list[float]) -> float:
             total = len(scores)
@@ -129,12 +143,13 @@ def pass_at(
 
 @score_reducer(name="max")
 def max_score(value_to_float: ValueToFloat = value_to_float()) -> ScoreReducer:
-    def reduce(scores: list[Score]) -> Score:
-        r"""A utility function for taking the maximum value from a list of scores
+    r"""Take the maximum value from a list of scores.
 
-        Args:
-            scores: a list of Scores.
-        """
+    Args:
+       value_to_float: Function to convert the value to a float
+    """
+
+    def reduce(scores: list[Score]) -> Score:
         if isinstance(scores[0].value, dict):
             dict_result: dict[str, str | int | float | bool | None] = {}
             keys = scores[0].value.keys()  # type: ignore
@@ -238,7 +253,7 @@ def _compute_dict_stat(
 
     Args:
         scores: a list of Scores.
-        value_to_float: function to convert the value to a float
+        value_to_float: Function to convert the value to a float
         statistic: the statistic to apply
     """
     # Make sure these are all dictionaries be we proceed

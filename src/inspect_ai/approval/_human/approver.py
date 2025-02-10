@@ -14,6 +14,9 @@ def human_approver(
 ) -> Approver:
     """Interactive human approver.
 
+    Args:
+       choices: Choices to present to human.
+
     Returns:
        Approver: Interactive human approver.
     """

@@ -41,36 +41,36 @@ def hf_dataset(
     `datasets` package, including remote datasets on Hugging Face Hub.
 
     Args:
-        path (str): Path or name of the dataset. Depending on path, the dataset
-          builder that is used comes from a generic dataset script (JSON, CSV,
-          Parquet, text etc.) or from the dataset script (a python file) inside
-          the dataset directory.
-        split (str): Which split of the data to load.
-        name (str | None): Name of the dataset configuration.
-        data_dir (str | None): data_dir of the dataset configuration
-          to read data from.
-        revision (str | None): Specific revision to load (e.g. "main", a branch
-          name, or a specific commit SHA). When using `revision` the `cached` option
-          is ignored and datasets are revalidated on Hugging Face before loading.
-        sample_fields (FieldSpec | RecordToSample): Method of mapping underlying
-          fields in the data source to Sample objects. Pass `None` if the data is already
-          stored in `Sample` form (i.e. has "input" and "target" columns.); Pass a
-          `FieldSpec` to specify mapping fields by name; Pass a `RecordToSample` to
+      path: Path or name of the dataset. Depending on path, the dataset
+        builder that is used comes from a generic dataset script (JSON, CSV,
+        Parquet, text etc.) or from the dataset script (a python file) inside
+        the dataset directory.
+      split: Which split of the data to load.
+      name: Name of the dataset configuration.
+      data_dir: data_dir of the dataset configuration
+        to read data from.
+      revision: Specific revision to load (e.g. "main", a branch
+        name, or a specific commit SHA). When using `revision` the `cached` option
+        is ignored and datasets are revalidated on Hugging Face before loading.
+      sample_fields: Method of mapping underlying
+        fields in the data source to Sample objects. Pass `None` if the data is already
+        stored in `Sample` form (i.e. has "input" and "target" columns.); Pass a
+        `FieldSpec` to specify mapping fields by name; Pass a `RecordToSample` to
           handle mapping with a custom function that returns one or more samples.
-        auto_id (bool): Assign an auto-incrementing ID for each sample.
-        shuffle (bool): Randomly shuffle the dataset order.
-        seed: (int | None): Seed used for random shuffle.
-        shuffle_choices: (bool | int | None): Whether to shuffle the choices. If an int is passed, this will be used as the seed when shuffling.
-        limit (int | None): Limit the number of records to read.
-        trust (bool): Whether or not to allow for datasets defined on the Hub
-          using a dataset script. This option should only be set to True for
-          repositories you trust and in which you have read the code, as it
-          will execute code present on the Hub on your local machine.
-        cached (bool): By default, datasets are read once from HuggingFace
-          Hub and then cached for future reads. Pass `cached=False` to force
-          re-reading the dataset from Hugging Face. Ignored when the `revision`
-          option is specified.
-        **kwargs (dict[str, Any]): Additional arguments to pass through to the
+      auto_id: Assign an auto-incrementing ID for each sample.
+      shuffle: Randomly shuffle the dataset order.
+      seed: Seed used for random shuffle.
+      shuffle_choices: Whether to shuffle the choices. If an int is passed, this will be used as the seed when shuffling.
+      limit: Limit the number of records to read.
+      trust: Whether or not to allow for datasets defined on the Hub
+        using a dataset script. This option should only be set to True for
+        repositories you trust and in which you have read the code, as it
+        will execute code present on the Hub on your local machine.
+      cached: By default, datasets are read once from HuggingFace
+        Hub and then cached for future reads. Pass `cached=False` to force
+        re-reading the dataset from Hugging Face. Ignored when the `revision`
+        option is specified.
+      **kwargs (dict[str, Any]): Additional arguments to pass through to the
           `load_dataset` function of the `datasets` package.
 
     Returns:
