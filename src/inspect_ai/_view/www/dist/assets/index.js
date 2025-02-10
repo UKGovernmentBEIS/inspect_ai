@@ -48845,7 +48845,6 @@ self.onmessage = function (e) {
         if (remoteZipFile.centralDirectory.has(sampleFile)) {
           return await readJSONFile(sampleFile, MAX_BYTES);
         } else {
-          console.log({ dir: remoteZipFile.centralDirectory });
           throw new Error(
             `Unable to read sample file ${sampleFile} - it is not present in the manifest.`
           );
