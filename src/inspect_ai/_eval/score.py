@@ -1,12 +1,10 @@
 import asyncio
-import inspect
 from copy import deepcopy
 from pathlib import Path
 from typing import Any, Callable, cast
 
 from inspect_ai._display import display
-from inspect_ai._eval.loader import load_module
-from inspect_ai._util.error import PrerequisiteError
+from inspect_ai._eval.loader import scorer_from_spec
 from inspect_ai._util.platform import platform_init
 from inspect_ai._util.registry import registry_create, registry_unqualified_name
 from inspect_ai.log import (
@@ -22,7 +20,7 @@ from inspect_ai.scorer._reducer import (
     create_reducers,
     reducer_log_names,
 )
-from inspect_ai.scorer._scorer import scorer_create, unique_scorer_name
+from inspect_ai.scorer._scorer import ScorerSpec, unique_scorer_name
 from inspect_ai.solver import TaskState
 
 from .task.results import eval_results
@@ -131,13 +129,17 @@ async def score_async(
     return log
 
 
-async def task_score(log: EvalLog) -> EvalLog:
+async def task_score(
+    log: EvalLog, scorer: str | None, scorer_args: dict[str, Any] | None
+) -> EvalLog:
     ## TODO: Why would we need to change the run dir when scoring?
 
     # confirm we have a scorer
-    scorers = scorers_from_log(log)
+    scorers = resolve_scorers(log, scorer, scorer_args)
     if len(scorers) == 0:
-        raise ValueError("You must specify a scorer for evals to be scored.")
+        raise ValueError(
+            "Unable to resolve any scorers for this log. Please specify a scorer using the '--scorer' param."
+        )
 
     # confirm we have samples
     if log.samples is None or len(log.samples) == 0:
@@ -223,25 +225,40 @@ def reducers_from_log(log: EvalLog) -> list[ScoreReducer] | None:
     return create_reducers(log.eval.config.epochs_reducer)
 
 
-def scorers_from_log(log: EvalLog) -> list[Scorer]:
+def resolve_scorers(
+    log: EvalLog, scorer: str | None, scorer_args: dict[str, Any] | None
+) -> list[Scorer]:
     """
     Create a list of Scorer objects from an evaluation log.
 
     Args:
         log: EvalLog object containing evaluation configuration and results
+        scorer:: Scorer name (simple name or file.py@name).
+        scorer_args: Dictionary of scorer arguments
 
     Returns:
         list[Scorer]: List of initialized scorers
     """
     # resolve the scorer path
-    scorer_path = Path(log.eval.task_file) if log.eval.task_file else None
+    task_path = Path(log.eval.task_file) if log.eval.task_file else None
 
+    # If there is an explicit scorer
+    if scorer:
+        return [
+            scorer_from_spec(
+                spec=ScorerSpec(scorer=scorer),
+                task_path=task_path,
+                **(scorer_args or {}),
+            )
+        ]
     # See if we can create scorers from the eval itself
-    if log.eval.scorers is not None:
+    elif log.eval.scorers is not None:
         return (
             [
-                load_scorer(
-                    scorer=score.name, scorer_path=scorer_path, **(score.options or {})
+                scorer_from_spec(
+                    spec=ScorerSpec(scorer=score.name),
+                    task_path=task_path,
+                    **(score.options or {}),
                 )
                 for score in log.eval.scorers
             ]
@@ -252,60 +269,11 @@ def scorers_from_log(log: EvalLog) -> list[Scorer]:
     # Otherwise, perhaps we can re-create them from the results
     return (
         [
-            load_scorer(scorer=score.name, scorer_path=scorer_path, **score.params)
+            scorer_from_spec(
+                spec=ScorerSpec(scorer=score.name), task_path=task_path, **score.params
+            )
             for score in log.results.scores
         ]
         if log.results
         else []
     )
-
-
-def load_scorer(scorer: str, scorer_path: Path | None = None, **kwargs: Any) -> Scorer:
-    """
-    Load a scorer
-
-    Args:
-        scorer: The scorer name
-        scorer_path: An optional path to a scorer file
-        **kwargs: Additional keyword arguments passed to the scorer initialization
-
-    Returns:
-        Scorer: the loaded scorer
-
-    Raises:
-        PrerequisiteError: If the scorer cannot be found, loaded, or lacks required type annotations
-    """
-    try:
-        # try loading directly from the registry
-        return scorer_create(scorer, **kwargs)
-    except ValueError:
-        # We need a valid path to a scorer file to try to load the scorer from there
-        if not scorer_path:
-            raise PrerequisiteError(
-                f"The scorer '{scorer}' couldn't be loaded. Please provide a path to the file containing the scorer using the '--scorer' parameter"
-            )
-
-        if not scorer_path.exists():
-            raise PrerequisiteError(
-                f"The scorer `{scorer}` couldn't be loaded. The file '{scorer_path}' was not found. Please provide a path to the file containing the scorer using the '--scorer' parameter"
-            )
-
-        # We have the path to a file, so load that and try again
-        try:
-            load_module(scorer_path)
-            scorer_fn = scorer_create(scorer, **kwargs)
-
-            # See if the scorer doesn't have type annotations. Currently the registry will not load
-            # the function without type annotations.
-            # TODO: We could consider calling this ourselves if we're certain it is what we're looking for
-            signature = inspect.signature(scorer_fn)
-            if signature.return_annotation is inspect.Signature.empty:
-                raise PrerequisiteError(
-                    f"The scorer '{scorer}' in the file '{scorer_path}' requires return type annotations. Please add type annotations to load the scorer."
-                )
-            return scorer_fn
-        except ValueError:
-            # we still couldn't load this, request the user provide a path
-            raise PrerequisiteError(
-                f"The scorer {scorer} in the file '{scorer_path}' couldn't be loaded. Please provide a path to the file containing the scorer using the '--scorer' parameter."
-            )
