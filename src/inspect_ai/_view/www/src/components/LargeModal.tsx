@@ -78,54 +78,6 @@ export const LargeModal: React.FC<LargeModalProps> = ({
     [setInitialScrollPosition],
   );
 
-  // Capture header elements
-  const headerEls = [];
-  // The title
-  headerEls.push(
-    <div className={clsx("modal-title", "text-size-smaller", styles.title)}>
-      {title || ""}
-    </div>,
-  );
-
-  // A centered text element with tools to the left and right
-  if (detail) {
-    headerEls.push(
-      <div className={styles.detail}>
-        {detailTools?.left
-          ? detailTools.left.map((tool) => {
-              return <TitleTool {...tool} />;
-            })
-          : ""}
-        <div className={clsx("text-size-smaller", styles.detailText)}>
-          <div>{detail}</div>
-        </div>
-
-        {detailTools?.right
-          ? detailTools.right.map((tool) => {
-              return <TitleTool {...tool} />;
-            })
-          : ""}
-      </div>,
-    );
-  }
-
-  // The close 'x'
-  headerEls.push(
-    <button
-      type="button"
-      className={clsx(
-        "btn",
-        "btn-close-large-dialog",
-        "text-size-larger",
-        styles.close,
-      )}
-      onClick={onHide}
-      aria-label="Close"
-    >
-      <HtmlEntity html={"&times;"} />
-    </button>,
-  );
-
   return (
     <div
       id={id}
@@ -147,7 +99,45 @@ export const LargeModal: React.FC<LargeModalProps> = ({
         role="document"
       >
         <div className={clsx("modal-content", styles.content)}>
-          <div className={clsx("modal-header", styles.header)}>{headerEls}</div>
+          <div className={clsx("modal-header", styles.header)}>
+            <div
+              className={clsx("modal-title", "text-size-smaller", styles.title)}
+            >
+              {title || ""}
+            </div>
+
+            {detail ? (
+              <div className={styles.detail}>
+                {detailTools?.left
+                  ? detailTools.left.map((tool, idx) => {
+                      return <TitleTool key={`tool-left-${idx}`} {...tool} />;
+                    })
+                  : ""}
+                <div className={clsx("text-size-smaller", styles.detailText)}>
+                  <div>{detail}</div>
+                </div>
+
+                {detailTools?.right
+                  ? detailTools.right.map((tool, idx) => {
+                      return <TitleTool key={`tool-right-${idx}`} {...tool} />;
+                    })
+                  : ""}
+              </div>
+            ) : undefined}
+            <button
+              type="button"
+              className={clsx(
+                "btn",
+                "btn-close-large-dialog",
+                "text-size-larger",
+                styles.close,
+              )}
+              onClick={onHide}
+              aria-label="Close"
+            >
+              <HtmlEntity html={"&times;"} />
+            </button>
+          </div>
           <ProgressBar animating={showProgress} />
           <div className={"modal-body"} ref={scrollRef} onScroll={onScroll}>
             {children}

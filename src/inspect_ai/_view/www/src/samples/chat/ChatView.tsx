@@ -32,6 +32,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
           collapsedMessages.length > 1 && numbered ? index + 1 : undefined;
         return (
           <ChatMessageRow
+            key={`${id}-msg-${index}`}
             parentName={id || "chat-view"}
             number={number}
             resolvedMessage={msg}

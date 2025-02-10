@@ -13,11 +13,11 @@ export const SidebarScoresView: React.FC<SidebarScoresProps> = ({ scores }) => {
   const showReducer = scores.findIndex((score) => !!score.reducer) !== -1;
   return (
     <div className={styles.container}>
-      {scores.map((score) => {
+      {scores.map((score, idx) => {
         const name = score.name;
         const reducer = score.reducer;
         return (
-          <div className={styles.scoreWrapper}>
+          <div className={styles.scoreWrapper} key={`scorer-${name}-${idx}`}>
             <div
               className={clsx(
                 "text-style-secondary",

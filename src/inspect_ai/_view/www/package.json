@@ -8,7 +8,7 @@
   "scripts": {
     "build": "vite build",
     "watch": "vite build --watch",
-    "dev-watch": "vite build --mode development --watch",
+    "dev-watch": "NODE_ENV=development vite build --mode development --watch",
     "dev": "vite",
     "prettier:check": "prettier --check src",
     "prettier:write": "prettier --write src",

@@ -176,6 +176,7 @@ export const EventPanel: React.FC<EventPanelProps> = ({
 
           return (
             <div
+              key={`children-${id}-${index}`}
               id={id}
               className={clsx("tab-pane", "show", isSelected ? "active" : "")}
             >

@@ -14,7 +14,7 @@ export const SidebarScoreView: React.FC<SidebarScoreProps> = ({ scorer }) => {
     <div className={styles.container}>
       {Object.keys(scorer.metrics).map((metric) => {
         return (
-          <div className={styles.metric}>
+          <div className={styles.metric} key={metric}>
             <div
               className={clsx(
                 "text-style-secondary",
