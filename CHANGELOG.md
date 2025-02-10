@@ -5,6 +5,7 @@
 - Add support for [clustered standard errors](https://inspect.ai-safety-institute.org.uk/scorers.html#clustered-standard-errors) via a new `cluster` parameter for the `stderr()` metric.
 - Metrics now take `list[SampleScore]` rather than `list[Score]` (previous signature is deprecated but still works with a warning).
 - Use a sample adjustment for the `var()` metric.
+- Python and Bash tools: Add `sandbox` argument for running in non-default sandboxes.
 - Docker: Support Dockerfiles with `.Dockerfile` extension.
 - Bugfix: Always honor level-level-transcript setting for transcript logging.
 
