@@ -5,6 +5,7 @@
 - Add support for [clustered standard errors](https://inspect.ai-safety-institute.org.uk/scorers.html#clustered-standard-errors) via a new `cluster` parameter for the `stderr()` metric.
 - Metrics now take `list[SampleScore]` rather than `list[Score]` (previous signature is deprecated but still works with a warning).
 - Use a sample adjustment for the `var()` metric.
+- OpenAI: Native tool calling for o1-mini (upon initial release it required emulated tool calling like o1-preview).
 - Python and Bash tools: Add `sandbox` argument for running in non-default sandboxes.
 - Docker: Support Dockerfiles with `.Dockerfile` extension.
 - Docker: Raise error when there is an explicitly configured `container_name` (incompatible with epochs > 1).
