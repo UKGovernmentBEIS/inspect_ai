@@ -9,6 +9,7 @@ from typing import Literal, Union, cast, overload
 
 from typing_extensions import override
 
+from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.util._subprocess import ExecResult, subprocess
 
 from ..environment import (
@@ -85,6 +86,14 @@ class DockerSandboxEnvironment(SandboxEnvironment):
 
             services = await compose_services(project)
             for name, service in services.items():
+                # if the service has an explicit container_name then
+                # error (as this won't work w/ epochs > 1)
+                container_name = service.get("container_name", None)
+                if container_name:
+                    raise PrerequisiteError(
+                        f"ERROR: Docker service '{name}' includes an explicitly configured container_name ('{container_name}'). This is not permitted, as container names should be provisioned by Docker compose and an explicit container_name will not work with epochs > 1."
+                    )
+
                 # build internal images
                 image = service.get("image", None)
                 if image and is_internal_image(image):
