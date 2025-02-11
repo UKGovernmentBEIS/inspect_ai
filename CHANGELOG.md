@@ -8,6 +8,7 @@
 - Python and Bash tools: Add `sandbox` argument for running in non-default sandboxes.
 - Docker: Support Dockerfiles with `.Dockerfile` extension.
 - Bugfix: Always honor level-level-transcript setting for transcript logging.
+- Bugfix: Fix some dynamic layout issues for sample sandbox view.
 
 ## v0.3.63 (07 February 2025)
 
