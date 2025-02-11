@@ -151,9 +151,9 @@ async def score_async(
 
 async def task_score(
     log: EvalLog,
-    scorer: str | None,
-    scorer_args: dict[str, Any] | None,
-    action: ScoreAction | None,
+    scorer: str | None = None,
+    scorer_args: dict[str, Any] | None = None,
+    action: ScoreAction | None = None,
 ) -> EvalLog:
     # confirm we have a scorer
     scorers = resolve_scorers(log, scorer, scorer_args)
