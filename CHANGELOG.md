@@ -8,6 +8,7 @@
 - Python and Bash tools: Add `sandbox` argument for running in non-default sandboxes.
 - Docker: Support Dockerfiles with `.Dockerfile` extension.
 - Docker: Raise error when there is an explicitly configured `container_name` (incompatible with epochs > 1).
+- Log: Validate that `log_dir` is writeable at startup.
 - Bugfix: Always honor level-level-transcript setting for transcript logging.
 - Bugfix: Fix some dynamic layout issues for sample sandbox view.
 
