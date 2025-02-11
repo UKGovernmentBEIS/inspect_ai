@@ -36,10 +36,8 @@ from .._model_output import (
 )
 from .._openai import (
     is_gpt,
-    is_o1_full,
     is_o1_mini,
     is_o1_preview,
-    is_o3,
     is_o_series,
     openai_chat_messages,
     openai_chat_tool_choice,
@@ -145,14 +143,8 @@ class OpenAIAPI(ModelAPI):
     def is_o_series(self) -> bool:
         return is_o_series(self.model_name)
 
-    def is_o1_full(self) -> bool:
-        return is_o1_full(self.model_name)
-
     def is_o1_mini(self) -> bool:
         return is_o1_mini(self.model_name)
-
-    def is_o3(self) -> bool:
-        return is_o3(self.model_name)
 
     def is_o1_preview(self) -> bool:
         return is_o1_preview(self.model_name)
@@ -303,7 +295,11 @@ class OpenAIAPI(ModelAPI):
             params["top_logprobs"] = config.top_logprobs
         if tools and config.parallel_tool_calls is not None and not self.is_o_series():
             params["parallel_tool_calls"] = config.parallel_tool_calls
-        if config.reasoning_effort is not None and not self.is_gpt():
+        if (
+            config.reasoning_effort is not None
+            and not self.is_gpt()
+            and not self.is_o1_mini()
+        ):
             params["reasoning_effort"] = config.reasoning_effort
 
         return params

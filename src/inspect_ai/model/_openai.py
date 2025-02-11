@@ -1,4 +1,5 @@
 import json
+import re
 from typing import Literal
 
 from openai.types.chat import (
@@ -44,27 +45,11 @@ from ._model_output import ModelUsage, StopReason, as_stop_reason
 
 
 def is_o_series(name: str) -> bool:
-    return is_o1(name) or is_o3(name)
-
-
-def is_o1(name: str) -> bool:
-    return name.startswith("o1")
-
-
-def is_o3(name: str) -> bool:
-    return name.startswith("o3")
-
-
-def is_o1_full(name: str) -> bool:
-    return is_o1(name) and not is_o1_mini(name) and not is_o1_preview(name)
+    return bool(re.match(r"^o\d+", name))
 
 
 def is_o1_mini(name: str) -> bool:
     return name.startswith("o1-mini")
-
-
-def is_o3_mini(name: str) -> bool:
-    return name.startswith("o3-mini")
 
 
 def is_o1_preview(name: str) -> bool:
@@ -132,10 +117,17 @@ async def openai_chat_message(
     message: ChatMessage, model: str
 ) -> ChatCompletionMessageParam:
     if message.role == "system":
-        if is_o1(model):
+        # o1-mini does not support developer or system messages
+        # (see Dec 17, 2024 changelog: https://platform.openai.com/docs/changelog)
+        if is_o1_mini(model):
+            return ChatCompletionUserMessageParam(role="user", content=message.text)
+        # other o-series models use 'developer' rather than 'system' messages
+        # https://platform.openai.com/docs/guides/reasoning#advice-on-prompting
+        elif is_o_series(model):
             return ChatCompletionDeveloperMessageParam(
                 role="developer", content=message.text
             )
+        # gpt models use standard 'system' messages
         else:
             return ChatCompletionSystemMessageParam(
                 role=message.role, content=message.text
