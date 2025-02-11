@@ -126,8 +126,8 @@ async def score(
         for score in eval_log.results.scores:
             display().print(f"{score.name}")
             for name, metric in score.metrics.items():
-                display().print(f" - {name}: {metric.value}")
-    display().print(f"\nLog file written to {output_file}\n")
+                display().print(f" - {name}: {metric.value:.3f}")
+    display().print(f"\nLog: {output_file}\n")
 
 
 def resolve_output_file(log_file: str, output_file: str | None, overwrite: bool) -> str:
@@ -139,24 +139,30 @@ def resolve_output_file(log_file: str, output_file: str | None, overwrite: bool)
         else:
             if exists(log_file):
                 # Ask if we should overwrite
-                confirm = Prompt.ask(
-                    f"Overwrite file {basename(log_file)}?",
-                    choices=["yes", "no", "y", "n"],
-                    default="no",
+                file_action = Prompt.ask(
+                    "Overwrite existing log file or create new log file?",
+                    choices=["overwrite", "create", "o", "c"],
+                    default="create",
                 )
-                if confirm in ["yes", "y"]:
+                if file_action in ["overwrite", "0"]:
                     return log_file
                 else:
                     file_name = basename(log_file)
                     base_dir = dirname(log_file)
                     _, ext = os.path.splitext(file_name)
-                    count = 1
-                    while exists(
-                        f"{os.path.join(base_dir, f'{file_name.removesuffix(ext)}-{count}{ext}')}"
-                    ):
+
+                    count = 0
+
+                    def filename() -> str:
+                        if count > 0:
+                            return f"{file_name.removesuffix(ext)}-scored-{count}{ext}"
+                        else:
+                            return f"{file_name.removesuffix(ext)}-scored{ext}"
+
+                    while exists(f"{os.path.join(base_dir, filename())}"):
                         count = count + 1
 
-                    suggested_file = f"{file_name.removesuffix(ext)}-{count}{ext}"
+                    suggested_file = filename()
                     user_file = Prompt.ask("Output file name?", default=suggested_file)
                     return os.path.join(base_dir, user_file)
             else:
@@ -171,7 +177,7 @@ def resolve_action(eval_log: EvalLog, action: ScoreAction | None) -> ScoreAction
 
     if eval_log.results is not None and len(eval_log.results.scores) > 0:
         user_action = Prompt.ask(
-            "Overwrite existing scores or append as additional score?",
+            "Overwrite existing scores or append as additional scores?",
             choices=["overwrite", "append", "o", "a"],
             default="append",
         )
