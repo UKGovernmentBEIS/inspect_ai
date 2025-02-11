@@ -109,6 +109,24 @@
   - gaia_level2
   - gaia_level3
   title: 'GAIA: A Benchmark for General AI Assistants'
+- arxiv: https://arxiv.org/abs/2404.07972
+  categories:
+  - Assistants
+  - Agent
+  contributors:
+  - epatey
+  description: 'Benchmark for multimodal agents for open-ended tasks in real computer
+    environments.
+
+    '
+  group: Assistants
+  path: src/inspect_evals/osworld
+  tags:
+  - Agent
+  tasks:
+  - osworld
+  - osworld_small
+  title: OSWorld
 - arxiv: https://arxiv.org/abs/2407.15711
   categories:
   - Assistants
@@ -791,21 +809,3 @@
   tasks:
   - onet_m6
   title: O-NET
-- arxiv: https://arxiv.org/abs/2404.07972
-  categories:
-  - Assistants
-  - Agent
-  contributors:
-  - epatey
-  description: 'Benchmark for multimodal agents for open-ended tasks in real computer
-    environments.
-
-    '
-  group: Assistants
-  path: src/inspect_evals/osworld
-  tags:
-  - Agent
-  tasks:
-  - osworld
-  - osworld_small
-  title: OSWorld

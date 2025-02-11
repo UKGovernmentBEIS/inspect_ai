@@ -168,6 +168,20 @@
       dataset_samples: 26
   tags: ["Agent"]
 
+- title: "OSWorld"
+  description: |
+    Benchmark for multimodal agents for open-ended tasks in real computer environments.
+  path: src/inspect_evals/osworld
+  arxiv: https://arxiv.org/abs/2404.07972
+  group: Assistants
+  contributors: ["epatey"]
+  tasks:
+    - name: osworld
+      dataset_samples: 369 # This is the count in the OSWorld corpus. Many samples are excluded because they are not yet supported
+    - name: osworld_small
+      dataset_samples: 39 # This is the count in the OSWorld corpus. Many samples are excluded because they are not yet supported
+  tags: ["Agent"]
+
 - title: "AssistantBench: Can Web Agents Solve Realistic and Time-Consuming Tasks?"
   description: |
     Tests whether AI agents can perform real-world time-consuming tasks on the web.
@@ -810,17 +824,3 @@
   tasks:
     - name: "onet_m6"
       dataset_samples: 397
-
-- title: "OSWorld"
-  description: |
-    Benchmark for multimodal agents for open-ended tasks in real computer environments.
-  path: src/inspect_evals/osworld
-  arxiv: https://arxiv.org/abs/2404.07972
-  group: Assistants
-  contributors: ["epatey"]
-  tasks:
-    - name: osworld
-      dataset_samples: 369 # This is the count in the OSWorld corpus. Many samples are excluded because they are not yet supported
-    - name: osworld_small
-      dataset_samples: 39 # This is the count in the OSWorld corpus. Many samples are excluded because they are not yet supported
-  tags: ["Agent"]
