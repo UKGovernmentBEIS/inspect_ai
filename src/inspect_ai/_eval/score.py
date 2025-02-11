@@ -32,6 +32,7 @@ def score(
     log: EvalLog,
     scorers: Scorer | list[Scorer],
     epochs_reducer: ScoreReducers | None = None,
+    action: ScoreAction | None = None,
 ) -> EvalLog:
     """Score an evaluation log.
 
@@ -41,6 +42,7 @@ def score(
        epochs_reducer (ScoreReducers | None):
            Reducer function(s) for aggregating scores in each sample.
            Defaults to previously used reducer(s).
+       action: Whether to append or overwrite this score
 
     Returns:
        Log with scores yielded by scorer.
@@ -51,7 +53,7 @@ def score(
     # resolve scorers into a list
     scorers = [scorers] if isinstance(scorers, Scorer) else scorers
 
-    return asyncio.run(score_async(log, scorers, epochs_reducer))
+    return asyncio.run(score_async(log, scorers, epochs_reducer, action))
 
 
 async def score_async(
