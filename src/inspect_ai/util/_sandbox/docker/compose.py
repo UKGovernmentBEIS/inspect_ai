@@ -196,6 +196,7 @@ ComposeService = TypedDict(
     {
         "image": str | None,
         "build": str | None,
+        "container_name": str | None,
         "x-default": bool | None,
         "x-local": bool | None,
     },
