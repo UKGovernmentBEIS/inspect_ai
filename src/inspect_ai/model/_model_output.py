@@ -9,6 +9,8 @@ from ._chat_message import ChatMessageAssistant
 
 
 class ModelUsage(BaseModel):
+    """Token usage for completion."""
+
     input_tokens: int = Field(default=0)
     """Total input tokens used."""
 
@@ -26,9 +28,14 @@ class ModelUsage(BaseModel):
 
 
 StopReason = Literal[
-    "stop", "max_tokens", "model_length", "tool_calls", "content_filter", "unknown"
+    "stop",
+    "max_tokens",
+    "model_length",
+    "tool_calls",
+    "content_filter",
+    "unknown",
 ]
-"""Reason that the model stopped generating."""
+"""Reason that the model stopped or failed to generate."""
 
 
 class TopLogprob(BaseModel):
@@ -68,6 +75,8 @@ class Logprobs(BaseModel):
 
 
 class ChatCompletionChoice(BaseModel):
+    """Choice generated for completion."""
+
     message: ChatMessageAssistant
     """Assistant message."""
 
@@ -91,6 +100,8 @@ class ChatCompletionChoice(BaseModel):
 
 
 class ModelOutput(BaseModel):
+    """Output from model generation."""
+
     model: str = Field(default_factory=str)
     """Model used for generation."""
 
@@ -150,7 +161,14 @@ class ModelOutput(BaseModel):
         stop_reason: StopReason = "stop",
         error: str | None = None,
     ) -> "ModelOutput":
-        """Convenient method to create ModelOutput from simple text content."""
+        """Create ModelOutput from simple text content.
+
+        Args:
+           model: Model name.
+           content: Text content from generation.
+           stop_reason: Stop reason for generation.
+           error: Error message.
+        """
         return ModelOutput(
             model=model,
             choices=[
@@ -209,3 +227,18 @@ class ModelOutput(BaseModel):
                 )
             ],
         )
+
+
+def as_stop_reason(reason: str | None) -> StopReason:
+    """Encode common reason strings into standard StopReason."""
+    match reason:
+        case "stop" | "eos":
+            return "stop"
+        case "length":
+            return "max_tokens"
+        case "tool_calls" | "function_call":
+            return "tool_calls"
+        case "content_filter" | "model_length" | "max_tokens":
+            return reason
+        case _:
+            return "unknown"

@@ -150,6 +150,12 @@ class HuggingFaceAPI(ModelAPI):
             kwargs["output_logits"] = config.logprobs
         if "return_dict_in_generate" in kwargs:
             assert kwargs["return_dict_in_generate"]
+        if config.stop_seqs is not None:
+            from transformers.generation import StopStringCriteria  # type: ignore
+
+            stopping_criteria = [StopStringCriteria(self.tokenizer, config.stop_seqs)]
+            kwargs["stopping_criteria"] = stopping_criteria
+
         kwargs["return_dict_in_generate"] = True
         generator = functools.partial(self.model.generate, **kwargs)
 
@@ -239,12 +245,17 @@ class HuggingFaceAPI(ModelAPI):
                 hf_messages = inspect_tools_to_string(hf_messages)
 
         # apply chat template
-        chat = self.tokenizer.apply_chat_template(
-            hf_messages,
-            add_generation_prompt=True,
-            tokenize=False,
-            tools=tools_list if len(tools_list) > 0 else None,
-        )
+        if self.tokenizer.chat_template is not None:
+            chat = self.tokenizer.apply_chat_template(
+                hf_messages,
+                add_generation_prompt=True,
+                tokenize=False,
+                tools=tools_list if len(tools_list) > 0 else None,
+            )
+        else:
+            chat = ""
+            for message in hf_messages:
+                chat += f"{message.role}: {message.content}\n"
         # return
         return cast(str, chat)
 

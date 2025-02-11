@@ -1,0 +1,45 @@
+---
+title: Reasoning
+---
+
+## Overview
+
+Reasoning models like OpenAI o1 and o3, Google's Gemini 2.0 Flash Thinking, and DeepSeek's r1 have some additional options that can be used to tailor their behaviour. They also in some cases make available full or partial reasoning traces for the chains of thought that led to their response.
+
+This article covers using these models with Inspect---note that the state of support for reasoning models is very early and uneven across providers. As such we'll note below which providers are known to support various options and behaviours.
+
+## Reasoning Effort
+
+OpenAI o1 and o3 models support a [`reasoning_effort`](https://platform.openai.com/docs/api-reference/chat/create#chat-create-reasoning_effort) field that can be set to `low`, `medium` or `high`.
+
+Gemini 2.0 Flash Thinking does not yet support an option to configure reasoning effort.
+
+Deepseek has also indicated that support for the `reasoning_effort` option will be [available soon](https://api-docs.deepseek.com/guides/reasoning_model). Presumably this will option will also be available from other services hosting r1 models over time.
+
+To support OpenAI today and other provides in the future, Inspect now includes the `reasoning_effort` field when using the OpenAI provider (as many services including Deepseek and Together AI are accessed using the OpenAI provider).
+
+::: {.callout appearance="simple"}
+If you are aware of other providers adding support for `reasoning_effort` please [file an issue](https://github.com/UKGovernmentBEIS/inspect_ai/issues) and we will test and update the provider accordingly.
+:::
+
+## Reasoning Traces
+
+In some cases reasoning models provide traces of their chain of thought as part of assistant responses. When available, these traces are provided by Inspect in a new `reasoning` field of `ChatMessageAssistant`.
+
+Reasoning traces are currently captured in two ways:
+
+1.  From OpenAI compatible provider responses that include a `reasoning` or `reasoning_content` field in the assistant message (the latter is currently [provided](https://api-docs.deepseek.com/guides/reasoning_model) by DeepSeek).
+
+2.  From `<think></think>` tags included in the main assistant `content` (this is how Together, Groq, and Ollama currently present reasoning traces).
+
+Gemini 2.0 Flash Thinking currently includes its reasoning inline with response content (there is currently no structured way to extract it, although this seems likely to change in the future).
+
+We have confirmed that `reasoning` traces can be extracted from models using the `together`, `groq`, and `ollama` providers.
+
+We would like to confirm this for other providers (e.g. `bedrock` and `azureai`) but as of yet have not been able to access reasoning models on those services (we'd very much welcome others contributing here, either to confirm that things work or to provide PRs which make the required changes).
+
+## Reasoning History
+
+Model APIs do not yet have fields representing reasoning content, so it isn't possible to replay previous reasoning traces in a structured way. Nevertheless, it is likely useful to replay this content (e.g. the Gemini Flash Thinking docs encourage reply of reasoning history).
+
+To enable models to see their previous reasoning traces, Inspect will by default include reasoning in `<think></think>` tags when replaying chat history to models. This behavior can be disabled by a new `reasoning_history` option on `GenerateConfig`.

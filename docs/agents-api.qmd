@@ -1,5 +1,5 @@
 ---
-title: Agents API
+title: Agent API
 ---
 
 ## Overview
@@ -65,57 +65,12 @@ While the default `Store` for a sample is shared globally between solvers and to
 {{< include _store_typing.md >}}
 
 
-## Tool Use
-
-### Custom Loop
+## Tool Loop
 
 The higher level `generate()` function passed to solvers includes a built-in tool use loop—when the model calls a tool, Inspect calls the underlying Python function and reports the result to the model, proceeding until the model stops calling tools. However, for more advanced agents you may want to intervene in the tool use loop in a variety of ways:
 
 {{< include _tools-scaffold.md >}}
 
-### Tool Filtering
-
-Note that you don't necessarily even need to structure the agent using a loop. For example, you might have an inner function implementing the loop, while an outer function dynamically swaps out what tools are available. For example, imagine the above was implemented in a function named `tool_use_loop()`, you might have outer function like this:
-
-``` python
-# first pass w/ core tools
-state.tools = [decompile(), dissasemble(), bash()]
-state = await tool_use_loop(state)
-
-# second pass w/ prompt and python tool only
-state.tools = [python()]
-state = await tool_use_loop(state)
-```
-
-Taken together these APIs enable you to build a custom version of `generate()` with whatever structure and logic you need.
-
-### Tool Descriptions
-
-In some cases you may want to change the default descriptions created by a tool author—for example you might want to provide better disambiguation between multiple similar tools that are used together. You also might have need to do this during development of tools (to explore what descriptions are most useful to models).
-
-The `tool_with()` function enables you to take any tool and adapt its name and/or descriptions. For example:
-
-``` python
-from inspect_ai.tool import tool_with
-
-my_add = tool_with(
-  tool=add(), 
-  name="my_add",
-  description="a tool to add numbers", 
-  parameters={
-    "x": "the x argument",
-    "y": "the y argument"
-  })
-```
-
-You need not provide all of the parameters shown above, for example here are some examples where we modify just the main tool description or only a single parameter:
-
-``` python
-my_add = tool_with(add(), description="a tool to add numbers")
-my_add = tool_with(add(), parameters={"x": "the x argument"})
-```
-
-Note that the `tool_with()` function returns a copy of the passed tool with modified descriptions (the passed tool retains its original descriptions)..
 
 ## Transcripts {#sec-transcripts}
 

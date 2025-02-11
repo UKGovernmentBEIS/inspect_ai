@@ -157,6 +157,7 @@
       "type": "object"
     },
     "ChatCompletionChoice": {
+      "description": "Choice generated for completion.",
       "properties": {
         "message": {
           "$ref": "#/$defs/ChatMessageAssistant"
@@ -196,7 +197,14 @@
       "additionalProperties": false
     },
     "ChatMessageAssistant": {
+      "description": "Assistant chat message.",
       "properties": {
+        "role": {
+          "const": "assistant",
+          "default": "assistant",
+          "title": "Role",
+          "type": "string"
+        },
         "content": {
           "anyOf": [
             {
@@ -210,6 +218,12 @@
                   },
                   {
                     "$ref": "#/$defs/ContentImage"
+                  },
+                  {
+                    "$ref": "#/$defs/ContentAudio"
+                  },
+                  {
+                    "$ref": "#/$defs/ContentVideo"
                   }
                 ]
               },
@@ -233,12 +247,6 @@
           ],
           "default": null,
           "title": "Source"
-        },
-        "role": {
-          "const": "assistant",
-          "default": "assistant",
-          "title": "Role",
-          "type": "string"
         },
         "tool_calls": {
           "anyOf": [
@@ -254,20 +262,40 @@
           ],
           "default": null,
           "title": "Tool Calls"
+        },
+        "reasoning": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reasoning"
         }
       },
       "required": [
+        "role",
         "content",
         "source",
-        "role",
-        "tool_calls"
+        "tool_calls",
+        "reasoning"
       ],
       "title": "ChatMessageAssistant",
       "type": "object",
       "additionalProperties": false
     },
     "ChatMessageSystem": {
+      "description": "System chat message.",
       "properties": {
+        "role": {
+          "const": "system",
+          "default": "system",
+          "title": "Role",
+          "type": "string"
+        },
         "content": {
           "anyOf": [
             {
@@ -281,6 +309,12 @@
                   },
                   {
                     "$ref": "#/$defs/ContentImage"
+                  },
+                  {
+                    "$ref": "#/$defs/ContentAudio"
+                  },
+                  {
+                    "$ref": "#/$defs/ContentVideo"
                   }
                 ]
               },
@@ -304,25 +338,26 @@
           ],
           "default": null,
           "title": "Source"
-        },
-        "role": {
-          "const": "system",
-          "default": "system",
-          "title": "Role",
-          "type": "string"
         }
       },
       "required": [
+        "role",
         "content",
-        "source",
-        "role"
+        "source"
       ],
       "title": "ChatMessageSystem",
       "type": "object",
       "additionalProperties": false
     },
     "ChatMessageTool": {
+      "description": "Tool chat message.",
       "properties": {
+        "role": {
+          "const": "tool",
+          "default": "tool",
+          "title": "Role",
+          "type": "string"
+        },
         "content": {
           "anyOf": [
             {
@@ -336,6 +371,12 @@
                   },
                   {
                     "$ref": "#/$defs/ContentImage"
+                  },
+                  {
+                    "$ref": "#/$defs/ContentAudio"
+                  },
+                  {
+                    "$ref": "#/$defs/ContentVideo"
                   }
                 ]
               },
@@ -359,12 +400,6 @@
           ],
           "default": null,
           "title": "Source"
-        },
-        "role": {
-          "const": "tool",
-          "default": "tool",
-          "title": "Role",
-          "type": "string"
         },
         "tool_call_id": {
           "anyOf": [
@@ -403,9 +438,9 @@
         }
       },
       "required": [
+        "role",
         "content",
         "source",
-        "role",
         "tool_call_id",
         "function",
         "error"
@@ -415,7 +450,14 @@
       "additionalProperties": false
     },
     "ChatMessageUser": {
+      "description": "User chat message.",
       "properties": {
+        "role": {
+          "const": "user",
+          "default": "user",
+          "title": "Role",
+          "type": "string"
+        },
         "content": {
           "anyOf": [
             {
@@ -429,6 +471,12 @@
                   },
                   {
                     "$ref": "#/$defs/ContentImage"
+                  },
+                  {
+                    "$ref": "#/$defs/ContentAudio"
+                  },
+                  {
+                    "$ref": "#/$defs/ContentVideo"
                   }
                 ]
               },
@@ -453,16 +501,13 @@
           "default": null,
           "title": "Source"
         },
-        "role": {
-          "const": "user",
-          "default": "user",
-          "title": "Role",
-          "type": "string"
-        },
         "tool_call_id": {
           "anyOf": [
             {
-              "type": "string"
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
             },
             {
               "type": "null"
@@ -473,16 +518,48 @@
         }
       },
       "required": [
+        "role",
         "content",
         "source",
-        "role",
         "tool_call_id"
       ],
       "title": "ChatMessageUser",
       "type": "object",
       "additionalProperties": false
     },
+    "ContentAudio": {
+      "description": "Audio content.",
+      "properties": {
+        "type": {
+          "const": "audio",
+          "default": "audio",
+          "title": "Type",
+          "type": "string"
+        },
+        "audio": {
+          "title": "Audio",
+          "type": "string"
+        },
+        "format": {
+          "enum": [
+            "wav",
+            "mp3"
+          ],
+          "title": "Format",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "audio",
+        "format"
+      ],
+      "title": "ContentAudio",
+      "type": "object",
+      "additionalProperties": false
+    },
     "ContentImage": {
+      "description": "Image content.",
       "properties": {
         "type": {
           "const": "image",
@@ -515,6 +592,7 @@
       "additionalProperties": false
     },
     "ContentText": {
+      "description": "Text content.",
       "properties": {
         "type": {
           "const": "text",
@@ -532,6 +610,38 @@
         "text"
       ],
       "title": "ContentText",
+      "type": "object",
+      "additionalProperties": false
+    },
+    "ContentVideo": {
+      "description": "Video content.",
+      "properties": {
+        "type": {
+          "const": "video",
+          "default": "video",
+          "title": "Type",
+          "type": "string"
+        },
+        "video": {
+          "title": "Video",
+          "type": "string"
+        },
+        "format": {
+          "enum": [
+            "mp4",
+            "mpeg",
+            "mov"
+          ],
+          "title": "Format",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "video",
+        "format"
+      ],
+      "title": "ContentVideo",
       "type": "object",
       "additionalProperties": false
     },
@@ -576,6 +686,7 @@
       "additionalProperties": false
     },
     "EvalConfig": {
+      "description": "Configuration used for evaluation.",
       "properties": {
         "limit": {
           "anyOf": [
@@ -656,18 +767,6 @@
           ],
           "default": null,
           "title": "Epochs Reducer"
-        },
-        "trace": {
-          "anyOf": [
-            {
-              "type": "boolean"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Trace"
         },
         "approval": {
           "anyOf": [
@@ -847,7 +946,6 @@
         "sample_id",
         "epochs",
         "epochs_reducer",
-        "trace",
         "approval",
         "fail_on_error",
         "message_limit",
@@ -866,6 +964,7 @@
       "additionalProperties": false
     },
     "EvalDataset": {
+      "description": "Dataset used for evaluation.",
       "properties": {
         "name": {
           "anyOf": [
@@ -950,6 +1049,7 @@
       "additionalProperties": false
     },
     "EvalError": {
+      "description": "Eval error details.",
       "properties": {
         "message": {
           "title": "Message",
@@ -974,6 +1074,7 @@
       "additionalProperties": false
     },
     "EvalMetric": {
+      "description": "Metric for evaluation score.",
       "properties": {
         "name": {
           "title": "Name",
@@ -990,8 +1091,8 @@
           ],
           "title": "Value"
         },
-        "options": {
-          "title": "Options",
+        "params": {
+          "title": "Params",
           "type": "object"
         },
         "metadata": {
@@ -1010,7 +1111,7 @@
       "required": [
         "name",
         "value",
-        "options",
+        "params",
         "metadata"
       ],
       "title": "EvalMetric",
@@ -1018,6 +1119,7 @@
       "additionalProperties": false
     },
     "EvalPlan": {
+      "description": "Plan (solvers) used in evaluation.",
       "properties": {
         "name": {
           "default": "plan",
@@ -1059,15 +1161,16 @@
             "presence_penalty": null,
             "logit_bias": null,
             "seed": null,
-            "suffix": null,
             "top_k": null,
             "num_choices": null,
             "logprobs": null,
             "top_logprobs": null,
             "parallel_tool_calls": null,
+            "internal_tools": null,
             "max_tool_output": null,
             "cache_prompt": null,
-            "reasoning_effort": null
+            "reasoning_effort": null,
+            "reasoning_history": null
           }
         }
       },
@@ -1082,6 +1185,7 @@
       "additionalProperties": false
     },
     "EvalPlanStep": {
+      "description": "Solver step.",
       "properties": {
         "solver": {
           "title": "Solver",
@@ -1101,6 +1205,7 @@
       "additionalProperties": false
     },
     "EvalResults": {
+      "description": "Scoring results from evaluation.",
       "properties": {
         "total_samples": {
           "default": 0,
@@ -1144,6 +1249,7 @@
       "additionalProperties": false
     },
     "EvalRevision": {
+      "description": "Git revision for evaluation.",
       "properties": {
         "type": {
           "const": "git",
@@ -1169,6 +1275,7 @@
       "additionalProperties": false
     },
     "EvalSample": {
+      "description": "Sample from evaluation task.",
       "properties": {
         "id": {
           "anyOf": [
@@ -1437,6 +1544,7 @@
       "additionalProperties": false
     },
     "EvalSampleLimit": {
+      "description": "Limit encontered by sample.",
       "properties": {
         "type": {
           "enum": [
@@ -1444,7 +1552,8 @@
             "time",
             "message",
             "token",
-            "operator"
+            "operator",
+            "custom"
           ],
           "title": "Type",
           "type": "string"
@@ -1463,6 +1572,7 @@
       "additionalProperties": false
     },
     "EvalSampleReductions": {
+      "description": "Score reductions.",
       "properties": {
         "scorer": {
           "title": "Scorer",
@@ -1498,6 +1608,7 @@
       "additionalProperties": false
     },
     "EvalSampleScore": {
+      "description": "Score and sample_id scored.",
       "properties": {
         "value": {
           "anyOf": [
@@ -1621,6 +1732,7 @@
       "additionalProperties": false
     },
     "EvalScore": {
+      "description": "Score for evaluation task.",
       "properties": {
         "name": {
           "title": "Name",
@@ -1679,6 +1791,7 @@
       "additionalProperties": false
     },
     "EvalSpec": {
+      "description": "Eval target and configuration.",
       "properties": {
         "run_id": {
           "title": "Run Id",
@@ -1855,6 +1968,7 @@
       "additionalProperties": false
     },
     "EvalStats": {
+      "description": "Timing and usage statistics.",
       "properties": {
         "started_at": {
           "title": "Started At",
@@ -1882,7 +1996,7 @@
       "additionalProperties": false
     },
     "GenerateConfig": {
-      "description": "Base class for model generation configs.",
+      "description": "Model generation options.",
       "properties": {
         "max_retries": {
           "anyOf": [
@@ -2046,18 +2160,6 @@
           "default": null,
           "title": "Seed"
         },
-        "suffix": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Suffix"
-        },
         "top_k": {
           "anyOf": [
             {
@@ -2118,6 +2220,18 @@
           "default": null,
           "title": "Parallel Tool Calls"
         },
+        "internal_tools": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Internal Tools"
+        },
         "max_tool_output": {
           "anyOf": [
             {
@@ -2162,6 +2276,18 @@
           ],
           "default": null,
           "title": "Reasoning Effort"
+        },
+        "reasoning_history": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reasoning History"
         }
       },
       "title": "GenerateConfig",
@@ -2180,15 +2306,16 @@
         "presence_penalty",
         "logit_bias",
         "seed",
-        "suffix",
         "top_k",
         "num_choices",
         "logprobs",
         "top_logprobs",
         "parallel_tool_calls",
+        "internal_tools",
         "max_tool_output",
         "cache_prompt",
-        "reasoning_effort"
+        "reasoning_effort",
+        "reasoning_history"
       ],
       "additionalProperties": false
     },
@@ -2371,6 +2498,7 @@
       "additionalProperties": false
     },
     "LoggingMessage": {
+      "description": "Message written to Python log.",
       "properties": {
         "name": {
           "anyOf": [
@@ -2387,6 +2515,7 @@
         "level": {
           "enum": [
             "debug",
+            "trace",
             "http",
             "sandbox",
             "info",
@@ -2609,6 +2738,18 @@
         "output": {
           "$ref": "#/$defs/ModelOutput"
         },
+        "error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Error"
+        },
         "cache": {
           "anyOf": [
             {
@@ -2647,6 +2788,7 @@
         "tool_choice",
         "config",
         "output",
+        "error",
         "cache",
         "call"
       ],
@@ -2655,6 +2797,7 @@
       "additionalProperties": false
     },
     "ModelOutput": {
+      "description": "Output from model generation.",
       "properties": {
         "model": {
           "title": "Model",
@@ -2729,6 +2872,7 @@
       "additionalProperties": false
     },
     "ModelUsage": {
+      "description": "Token usage for completion.",
       "properties": {
         "input_tokens": {
           "default": 0,
@@ -2782,6 +2926,7 @@
       "additionalProperties": false
     },
     "Sample": {
+      "description": "Sample for an evaluation task.",
       "properties": {
         "input": {
           "anyOf": [
@@ -2994,7 +3139,8 @@
             "message",
             "time",
             "token",
-            "operator"
+            "operator",
+            "custom"
           ],
           "title": "Type",
           "type": "string"
@@ -3055,7 +3201,7 @@
       "type": "array"
     },
     "Score": {
-      "description": "Score generated by a scorer.\n\nArgs:\n   value (Value): Score value.\n   answer (str | None): Answer extracted from model output (optional).\n   explanation (str | None): Explanation of score (optional).\n   metadata (dict[str,Any]): Additional metadata related to the score.",
+      "description": "Score generated by a scorer.",
       "properties": {
         "value": {
           "anyOf": [
@@ -3722,6 +3868,12 @@
               "$ref": "#/$defs/ContentImage"
             },
             {
+              "$ref": "#/$defs/ContentAudio"
+            },
+            {
+              "$ref": "#/$defs/ContentVideo"
+            },
+            {
               "items": {
                 "anyOf": [
                   {
@@ -3729,6 +3881,12 @@
                   },
                   {
                     "$ref": "#/$defs/ContentImage"
+                  },
+                  {
+                    "$ref": "#/$defs/ContentAudio"
+                  },
+                  {
+                    "$ref": "#/$defs/ContentVideo"
                   }
                 ]
               },
@@ -4093,6 +4251,7 @@
       "additionalProperties": false
     }
   },
+  "description": "Evaluation log.",
   "properties": {
     "version": {
       "default": 2,
@@ -4114,36 +4273,7 @@
       "$ref": "#/$defs/EvalSpec"
     },
     "plan": {
-      "$ref": "#/$defs/EvalPlan",
-      "default": {
-        "name": "plan",
-        "steps": [],
-        "finish": null,
-        "config": {
-          "best_of": null,
-          "cache_prompt": null,
-          "frequency_penalty": null,
-          "logit_bias": null,
-          "logprobs": null,
-          "max_connections": null,
-          "max_retries": null,
-          "max_tokens": null,
-          "max_tool_output": null,
-          "num_choices": null,
-          "parallel_tool_calls": null,
-          "presence_penalty": null,
-          "reasoning_effort": null,
-          "seed": null,
-          "stop_seqs": null,
-          "suffix": null,
-          "system_message": null,
-          "temperature": null,
-          "timeout": null,
-          "top_k": null,
-          "top_logprobs": null,
-          "top_p": null
-        }
-      }
+      "$ref": "#/$defs/EvalPlan"
     },
     "results": {
       "anyOf": [
@@ -4157,12 +4287,7 @@
       "default": null
     },
     "stats": {
-      "$ref": "#/$defs/EvalStats",
-      "default": {
-        "started_at": "",
-        "completed_at": "",
-        "model_usage": {}
-      }
+      "$ref": "#/$defs/EvalStats"
     },
     "error": {
       "anyOf": [

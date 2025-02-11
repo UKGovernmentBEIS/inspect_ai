@@ -3,6 +3,8 @@ from typing import Any, Callable, Literal
 
 from pydantic import BaseModel, Field
 
+from inspect_ai._util.content import Content
+
 
 class ToolCallContent(BaseModel):
     """Content to include in tool call view."""
@@ -11,10 +13,10 @@ class ToolCallContent(BaseModel):
     """Optional (plain text) title for tool call content."""
 
     format: Literal["text", "markdown"]
-    """Format."""
+    """Format (text or markdown)."""
 
     content: str
-    """Content."""
+    """Text or markdown content."""
 
 
 class ToolCallView(BaseModel):
@@ -54,6 +56,8 @@ class ToolCall:
 
 @dataclass
 class ToolCallError:
+    """Error raised by a tool call."""
+
     type: Literal[
         "parsing",
         "timeout",
@@ -65,9 +69,19 @@ class ToolCallError:
         "approval",
         "unknown",
     ]
+    """Error type."""
 
     message: str
+    """Error message."""
 
 
 ToolCallViewer = Callable[[ToolCall], ToolCallView]
 """Custom view renderer for tool calls."""
+
+
+ToolCallModelInput = Callable[[int, int, str | list[Content]], str | list[Content]]
+"""Determine how tool call results are played back as model input.
+
+The first argument is an index into the total number of tool results
+for this tool in the message history, the second is the total number.
+"""

@@ -19,10 +19,10 @@ Approvers can be specified at either the eval level or at the task level. The ex
 The simplest approval policy is interactive human approval of all tool calls. You can enable this policy by using the `--approval human` CLI option (or the `approval = "human"`) argument to `eval()`:
 
 ``` bash
-inspect eval browser.py --approval human --trace
+inspect eval browser.py --approval human
 ```
 
-Note that we also enable [trace mode](interactivity.qmd#sec-trace-mode) so that we can see all messages exchanged with the model for context. This example provides the model with the built-in [web browser](tools.qmd#sec-web-browser) tool and asks it to navigate to a web and perform a search.
+This example provides the model with the built-in [web browser](tools.qmd#sec-web-browser) tool and asks it to navigate to a web and perform a search.
 
 ## Auto Approver
 
@@ -33,19 +33,38 @@ You can chain to together the `human` and `auto` approvers in an *approval polic
 ``` yaml
 approvers:
   - name: human
-    tools: ["web_browser_click", "web_browser_type*"]
+    tools: ["web_browser_click", "web_browser_type"]
 
   - name: auto
     tools: "*"
 ```
 
-Navigational web browser tool calls (e.g. `web_browser_go`) are approved automatically via the catch-all `auto` approver at the end of the chain. Note that when listing an approver in a policy you indicate which tools it should handle using a glob or list of globs.
+
+Navigational web browser tool calls (e.g. `web_browser_go`) are approved automatically via the catch-all `auto` approver at the end of the chain. Note that when listing an approver in a policy you indicate which tools it should handle using a glob or list of globs. These globs are prefix matched so the `web_browser_type` glob matches both `web_browser_type` and `web_browser_type_submit`.
 
 To use this policy, pass the path to the policy YAML file as the approver. For example:
 
 ``` bash
-inspect eval browser.py --approval approval.yaml --trace
+inspect eval browser.py --approval approval.yaml
 ```
+
+You can also match on tool arguments (for tools that dispatch many action types). For example, here is an approval policy for the [Computer Tool](tools.qmd#sec-computer) which allows typing and mouse movement but requires approval for key combos (e.g. Enter or a shortcut) and typing:
+
+
+```{.yaml filename="approval.yaml"}
+approvers:
+  - name: human
+    tools:
+      - computer(action='key'
+      - computer(action='left_click'
+      - computer(action='middle_click'
+      - computer(action='double_click'
+
+  - name: auto
+    tools: "*"
+```
+
+Note that since this is a prefix match and there could be other arguments, we don't end the tool match pattern with a parentheses.
 
 ## Approvers in Code
 
@@ -152,7 +171,7 @@ Assuming we have properly [registered our approver](extensions.qmd#sec-extension
 ``` yaml
 approvers:
   - name: evaltools/bash_allowlist
-    tools: "*bash*"
+    tools: "bash"
     allowed_commands: ["ls", "echo", "cat"]
 
   - name: human

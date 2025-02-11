@@ -15,7 +15,6 @@ from inspect_ai._util.constants import CONSOLE_DISPLAY_WIDTH
 from inspect_ai.log._transcript import InputEvent, transcript
 from inspect_ai.util._display import display_type
 from inspect_ai.util._throttle import throttle
-from inspect_ai.util._trace import trace_enabled
 
 from ..core.config import task_config
 from ..core.display import (
@@ -130,11 +129,6 @@ class RichDisplay(Display):
     @override
     @contextlib.contextmanager
     def task(self, profile: TaskProfile) -> Iterator[TaskDisplay]:
-        # if there is no ansi display than all of the below will
-        # be a no-op, so we print a simple text message for the task
-        if display_type() == "plain":
-            rich.get_console().print(task_no_ansi(profile))
-
         # for typechekcer
         if self.tasks is None:
             self.tasks = []
@@ -151,7 +145,8 @@ class RichDisplay(Display):
     @throttle(1)
     def _update_display(self) -> None:
         if (
-            self.tasks is not None
+            display_type() != "conversation"
+            and self.tasks is not None
             and self.tasks
             and self.progress_ui is not None
             and self.live is not None
@@ -170,7 +165,7 @@ class RichTaskScreen(TaskScreen):
     def __init__(self, live: Live) -> None:
         self.theme = rich_theme()
         self.live = live
-        status_text = "Working" if trace_enabled() else "Task running"
+        status_text = "Working" if display_type() == "conversation" else "Task running"
         self.status = self.live.console.status(
             f"[{self.theme.meta} bold]{status_text}...[/{self.theme.meta} bold]",
             spinner="clock",
@@ -189,7 +184,7 @@ class RichTaskScreen(TaskScreen):
     ) -> Iterator[Console]:
         # determine transient based on trace mode
         if transient is None:
-            transient = not trace_enabled()
+            transient = display_type() != "conversation"
 
         # clear live task status and transient status
         self.live.update("", refresh=True)

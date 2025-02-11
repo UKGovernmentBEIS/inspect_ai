@@ -4,11 +4,22 @@ import contextlib
 from random import random
 from typing import AsyncGenerator, Callable, NamedTuple, cast
 
+import httpx
+from tenacity import (
+    retry,
+    retry_if_exception,
+    stop_after_attempt,
+    stop_after_delay,
+    wait_exponential_jitter,
+)
+
 from inspect_ai._eval.task.task import Task
 from inspect_ai._eval.task.util import task_run_dir
+from inspect_ai._util.constants import DEFAULT_MAX_RETRIES, DEFAULT_TIMEOUT
 from inspect_ai._util.file import file, filesystem
 from inspect_ai._util.registry import registry_unqualified_name
-from inspect_ai._util.url import data_uri_to_base64, is_data_uri
+from inspect_ai._util.retry import httpx_should_retry, log_retry_attempt
+from inspect_ai._util.url import data_uri_to_base64, is_data_uri, is_http_url
 from inspect_ai.dataset import Sample
 from inspect_ai.util._concurrency import concurrency
 from inspect_ai.util._sandbox.context import (
@@ -65,12 +76,12 @@ async def sandboxenv_context(
         files: dict[str, bytes] = {}
         if sample.files:
             for path, contents in sample.files.items():
-                files[path] = read_sandboxenv_file(contents)
+                files[path] = await read_sandboxenv_file(contents)
 
         # read setup script from sample (add bash shebang if necessary)
         setup: bytes | None = None
         if sample.setup:
-            setup = read_sandboxenv_file(sample.setup)
+            setup = await read_sandboxenv_file(sample.setup)
             setup_str = setup.decode(encoding="utf-8")
             if not setup_str.strip().startswith("#!"):
                 setup_str = f"#!/usr/bin/env bash\n\n{setup_str}"
@@ -108,13 +119,15 @@ async def sandboxenv_context(
                 )
 
 
-def read_sandboxenv_file(contents: str) -> bytes:
+async def read_sandboxenv_file(contents: str) -> bytes:
     if is_data_uri(contents):
         contents_base64 = data_uri_to_base64(contents)
         file_bytes = base64.b64decode(contents_base64)
+    elif is_http_url(contents):
+        file_bytes = await _retrying_httpx_get(contents)
     else:
         # try to read as a file (if it doesn't exist or has a path not cool w/
-        # the fileystem then we fall back to contents)
+        # the filesystem then we fall back to contents)
         try:
             fs = filesystem(contents)
             if fs.exists(contents):
@@ -167,3 +180,28 @@ def resolve_sandbox(
         return sample.sandbox
     else:
         return None
+
+
+async def _retrying_httpx_get(
+    url: str,
+    client: httpx.AsyncClient = httpx.AsyncClient(),
+    timeout: int = 30,  # per-attempt timeout
+    max_retries: int = DEFAULT_MAX_RETRIES,
+    total_timeout: int = DEFAULT_TIMEOUT,  #  timeout for the whole retry loop. not for an individual attempt
+) -> bytes:
+    @retry(
+        wait=wait_exponential_jitter(),
+        stop=(stop_after_attempt(max_retries) | stop_after_delay(total_timeout)),
+        retry=retry_if_exception(httpx_should_retry),
+        before_sleep=log_retry_attempt(url),
+    )
+    async def do_get() -> bytes:
+        response = await client.get(
+            url=url,
+            follow_redirects=True,
+            timeout=(timeout, timeout, timeout, timeout),
+        )
+        response.raise_for_status()
+        return response.content
+
+    return await do_get()

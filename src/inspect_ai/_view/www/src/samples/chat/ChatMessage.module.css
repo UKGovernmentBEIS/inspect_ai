@@ -1,0 +1,29 @@
+.message {
+  font-weight: 300;
+  padding-bottom: 0.5em;
+  margin-left: 0;
+  margin-right: 0;
+  white-space: normal;
+}
+
+.systemRole {
+  opacity: 0.7;
+}
+
+.messageGrid {
+  display: grid;
+  grid-template-columns: max-content auto;
+  column-gap: 0.3em;
+  font-weight: 500;
+  margin-bottom: 0.5em;
+}
+
+.messageContents {
+  margin-left: 0;
+  padding-bottom: 0;
+}
+
+.messageContents.indented {
+  margin-left: 1.1rem;
+  padding-bottom: 0.8rem;
+}

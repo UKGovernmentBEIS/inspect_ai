@@ -1,0 +1,16 @@
+.label {
+  align-self: center;
+  margin-right: 0.3em;
+  margin-left: 0.2em;
+}
+
+.input {
+  width: 300px;
+}
+
+.help {
+  position: relative;
+  margin-left: 0.5em;
+  cursor: help;
+  align-self: center;
+}

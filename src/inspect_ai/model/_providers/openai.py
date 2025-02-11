@@ -1,4 +1,3 @@
-import json
 import os
 from logging import getLogger
 from typing import Any
@@ -15,50 +14,41 @@ from openai import (
 from openai._types import NOT_GIVEN
 from openai.types.chat import (
     ChatCompletion,
-    ChatCompletionAssistantMessageParam,
-    ChatCompletionContentPartImageParam,
-    ChatCompletionContentPartParam,
-    ChatCompletionContentPartTextParam,
-    ChatCompletionDeveloperMessageParam,
-    ChatCompletionMessage,
-    ChatCompletionMessageParam,
-    ChatCompletionMessageToolCallParam,
-    ChatCompletionNamedToolChoiceParam,
-    ChatCompletionSystemMessageParam,
-    ChatCompletionToolChoiceOptionParam,
-    ChatCompletionToolMessageParam,
-    ChatCompletionToolParam,
-    ChatCompletionUserMessageParam,
 )
-from openai.types.shared_params.function_definition import FunctionDefinition
 from typing_extensions import override
 
 from inspect_ai._util.constants import DEFAULT_MAX_RETRIES
-from inspect_ai._util.content import Content
 from inspect_ai._util.error import PrerequisiteError
-from inspect_ai._util.images import image_as_data_uri
 from inspect_ai._util.logger import warn_once
-from inspect_ai._util.url import is_data_uri, is_http_url
-from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
+from inspect_ai.model._openai import chat_choices_from_openai
+from inspect_ai.tool import ToolChoice, ToolInfo
 
-from .._chat_message import ChatMessage, ChatMessageAssistant
+from .._chat_message import ChatMessage
 from .._generate_config import GenerateConfig
 from .._image import image_url_filter
 from .._model import ModelAPI
 from .._model_call import ModelCall
 from .._model_output import (
     ChatCompletionChoice,
-    Logprobs,
     ModelOutput,
     ModelUsage,
     StopReason,
 )
+from .._openai import (
+    is_gpt,
+    is_o1_full,
+    is_o1_mini,
+    is_o1_preview,
+    is_o3,
+    is_o_series,
+    openai_chat_messages,
+    openai_chat_tool_choice,
+    openai_chat_tools,
+)
 from .openai_o1 import generate_o1
 from .util import (
-    as_stop_reason,
     environment_prerequisite_error,
     model_base_url,
-    parse_tool_call,
 )
 
 logger = getLogger(__name__)
@@ -86,20 +76,22 @@ class OpenAIAPI(ModelAPI):
             config=config,
         )
 
-        # pull out azure model_arg
-        AZURE_MODEL_ARG = "azure"
-        is_azure = False
-        if AZURE_MODEL_ARG in model_args:
-            is_azure = model_args.get(AZURE_MODEL_ARG, False)
-            del model_args[AZURE_MODEL_ARG]
+        # extract any service prefix from model name
+        parts = model_name.split("/")
+        if len(parts) > 1:
+            self.service: str | None = parts[0]
+            model_name = "/".join(parts[1:])
+        else:
+            self.service = None
 
         # resolve api_key
         if not self.api_key:
             self.api_key = os.environ.get(
                 AZUREAI_OPENAI_API_KEY, os.environ.get(AZURE_OPENAI_API_KEY, None)
             )
-            if self.api_key:
-                is_azure = True
+            # backward compatibility for when env vars determined service
+            if self.api_key and (os.environ.get(OPENAI_API_KEY, None) is None):
+                self.service = "azure"
             else:
                 self.api_key = os.environ.get(OPENAI_API_KEY, None)
                 if not self.api_key:
@@ -112,7 +104,7 @@ class OpenAIAPI(ModelAPI):
                     )
 
         # azure client
-        if is_azure:
+        if self.is_azure():
             # resolve base_url
             base_url = model_base_url(
                 base_url,
@@ -147,17 +139,26 @@ class OpenAIAPI(ModelAPI):
                 **model_args,
             )
 
-    def is_o1(self) -> bool:
-        return self.model_name.startswith("o1")
+    def is_azure(self) -> bool:
+        return self.service == "azure"
+
+    def is_o_series(self) -> bool:
+        return is_o_series(self.model_name)
 
     def is_o1_full(self) -> bool:
-        return self.is_o1() and not self.is_o1_mini() and not self.is_o1_preview()
+        return is_o1_full(self.model_name)
 
     def is_o1_mini(self) -> bool:
-        return self.model_name.startswith("o1-mini")
+        return is_o1_mini(self.model_name)
+
+    def is_o3(self) -> bool:
+        return is_o3(self.model_name)
 
     def is_o1_preview(self) -> bool:
-        return self.model_name.startswith("o1-preview")
+        return is_o1_preview(self.model_name)
+
+    def is_gpt(self) -> bool:
+        return is_gpt(self.model_name)
 
     async def generate(
         self,
@@ -165,7 +166,7 @@ class OpenAIAPI(ModelAPI):
         tools: list[ToolInfo],
         tool_choice: ToolChoice,
         config: GenerateConfig,
-    ) -> ModelOutput | tuple[ModelOutput, ModelCall]:
+    ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
         # short-circuit to call o1- models that are text only
         if self.is_o1_preview() or self.is_o1_mini():
             return await generate_o1(
@@ -197,9 +198,11 @@ class OpenAIAPI(ModelAPI):
 
         # prepare request (we do this so we can log the ModelCall)
         request = dict(
-            messages=await as_openai_chat_messages(input, self.is_o1_full()),
-            tools=chat_tools(tools) if len(tools) > 0 else NOT_GIVEN,
-            tool_choice=chat_tool_choice(tool_choice) if len(tools) > 0 else NOT_GIVEN,
+            messages=await openai_chat_messages(input, self.model_name),
+            tools=openai_chat_tools(tools) if len(tools) > 0 else NOT_GIVEN,
+            tool_choice=openai_chat_tool_choice(tool_choice)
+            if len(tools) > 0
+            else NOT_GIVEN,
             **self.completion_params(config, len(tools) > 0),
         )
 
@@ -236,7 +239,7 @@ class OpenAIAPI(ModelAPI):
         self, response: ChatCompletion, tools: list[ToolInfo]
     ) -> list[ChatCompletionChoice]:
         # adding this as a method so we can override from other classes (e.g together)
-        return chat_choices_from_response(response, tools)
+        return chat_choices_from_openai(response, tools)
 
     @override
     def is_rate_limit(self, ex: BaseException) -> bool:
@@ -263,7 +266,7 @@ class OpenAIAPI(ModelAPI):
             model=self.model_name,
         )
         if config.max_tokens is not None:
-            if self.is_o1_full():
+            if self.is_o_series():
                 params["max_completion_tokens"] = config.max_tokens
             else:
                 params["max_tokens"] = config.max_tokens
@@ -278,10 +281,10 @@ class OpenAIAPI(ModelAPI):
         if config.seed is not None:
             params["seed"] = config.seed
         if config.temperature is not None:
-            if self.is_o1():
+            if self.is_o_series():
                 warn_once(
                     logger,
-                    "o1 models do not support the 'temperature' parameter (temperature is always 1).",
+                    "o series models do not support the 'temperature' parameter (temperature is always 1).",
                 )
             else:
                 params["temperature"] = config.temperature
@@ -298,181 +301,35 @@ class OpenAIAPI(ModelAPI):
             params["logprobs"] = config.logprobs
         if config.top_logprobs is not None:
             params["top_logprobs"] = config.top_logprobs
-        if tools and config.parallel_tool_calls is not None and not self.is_o1():
+        if tools and config.parallel_tool_calls is not None and not self.is_o_series():
             params["parallel_tool_calls"] = config.parallel_tool_calls
-        if config.reasoning_effort is not None and self.is_o1_full():
+        if config.reasoning_effort is not None and not self.is_gpt():
             params["reasoning_effort"] = config.reasoning_effort
 
         return params
 
     # convert some well known bad request errors into ModelOutput
-    def handle_bad_request(self, e: BadRequestError) -> ModelOutput:
-        if e.status_code == 400:
-            # extract message
-            if isinstance(e.body, dict) and "message" in e.body.keys():
-                content = str(e.body.get("message"))
-            else:
-                content = e.message
+    def handle_bad_request(self, e: BadRequestError) -> ModelOutput | Exception:
+        # extract message
+        if isinstance(e.body, dict) and "message" in e.body.keys():
+            content = str(e.body.get("message"))
+        else:
+            content = e.message
 
-            # narrow stop_reason
-            if e.code == "context_length_exceeded":
-                stop_reason: StopReason = "model_length"
-            elif e.code == "invalid_prompt":
-                stop_reason = "content_filter"
-            else:
-                stop_reason = "unknown"
+        # narrow stop_reason
+        stop_reason: StopReason | None = None
+        if e.code == "context_length_exceeded":
+            stop_reason = "model_length"
+        elif (
+            e.code == "invalid_prompt"  # seems to happen for o1/o3
+            or e.code == "content_policy_violation"  # seems to happen for vision
+            or e.code == "content_filter"  # seems to happen on azure
+        ):
+            stop_reason = "content_filter"
 
+        if stop_reason:
             return ModelOutput.from_content(
                 model=self.model_name, content=content, stop_reason=stop_reason
             )
         else:
-            raise e
-
-
-async def as_openai_chat_messages(
-    messages: list[ChatMessage], o1_full: bool
-) -> list[ChatCompletionMessageParam]:
-    return [await openai_chat_message(message, o1_full) for message in messages]
-
-
-async def openai_chat_message(
-    message: ChatMessage, o1_full: bool
-) -> ChatCompletionMessageParam:
-    if message.role == "system":
-        if o1_full:
-            return ChatCompletionDeveloperMessageParam(
-                role="developer", content=message.text
-            )
-        else:
-            return ChatCompletionSystemMessageParam(
-                role=message.role, content=message.text
-            )
-    elif message.role == "user":
-        return ChatCompletionUserMessageParam(
-            role=message.role,
-            content=(
-                message.content
-                if isinstance(message.content, str)
-                else [
-                    await as_chat_completion_part(content)
-                    for content in message.content
-                ]
-            ),
-        )
-    elif message.role == "assistant":
-        if message.tool_calls:
-            return ChatCompletionAssistantMessageParam(
-                role=message.role,
-                content=message.text,
-                tool_calls=[chat_tool_call(call) for call in message.tool_calls],
-            )
-        else:
-            return ChatCompletionAssistantMessageParam(
-                role=message.role, content=message.text
-            )
-    elif message.role == "tool":
-        return ChatCompletionToolMessageParam(
-            role=message.role,
-            content=(
-                f"Error: {message.error.message}" if message.error else message.text
-            ),
-            tool_call_id=str(message.tool_call_id),
-        )
-    else:
-        raise ValueError(f"Unexpected message role {message.role}")
-
-
-def chat_tool_call(tool_call: ToolCall) -> ChatCompletionMessageToolCallParam:
-    return ChatCompletionMessageToolCallParam(
-        id=tool_call.id,
-        function=dict(
-            name=tool_call.function, arguments=json.dumps(tool_call.arguments)
-        ),
-        type=tool_call.type,
-    )
-
-
-def chat_tools(tools: list[ToolInfo]) -> list[ChatCompletionToolParam]:
-    return [chat_tool_param(tool) for tool in tools]
-
-
-def chat_tool_param(tool: ToolInfo) -> ChatCompletionToolParam:
-    function = FunctionDefinition(
-        name=tool.name,
-        description=tool.description,
-        parameters=tool.parameters.model_dump(exclude_none=True),
-    )
-    return ChatCompletionToolParam(type="function", function=function)
-
-
-def chat_tool_choice(tool_choice: ToolChoice) -> ChatCompletionToolChoiceOptionParam:
-    if isinstance(tool_choice, ToolFunction):
-        return ChatCompletionNamedToolChoiceParam(
-            type="function", function=dict(name=tool_choice.name)
-        )
-    # openai supports 'any' via the 'required' keyword
-    elif tool_choice == "any":
-        return "required"
-    else:
-        return tool_choice
-
-
-def chat_tool_calls(
-    message: ChatCompletionMessage, tools: list[ToolInfo]
-) -> list[ToolCall] | None:
-    if message.tool_calls:
-        return [
-            parse_tool_call(call.id, call.function.name, call.function.arguments, tools)
-            for call in message.tool_calls
-        ]
-    else:
-        return None
-
-
-def chat_choices_from_response(
-    response: ChatCompletion, tools: list[ToolInfo]
-) -> list[ChatCompletionChoice]:
-    choices = list(response.choices)
-    choices.sort(key=lambda c: c.index)
-    return [
-        ChatCompletionChoice(
-            message=chat_message_assistant(choice.message, tools),
-            stop_reason=as_stop_reason(choice.finish_reason),
-            logprobs=(
-                Logprobs(**choice.logprobs.model_dump())
-                if choice.logprobs is not None
-                else None
-            ),
-        )
-        for choice in choices
-    ]
-
-
-def chat_message_assistant(
-    message: ChatCompletionMessage, tools: list[ToolInfo]
-) -> ChatMessageAssistant:
-    return ChatMessageAssistant(
-        content=message.content or "",
-        source="generate",
-        tool_calls=chat_tool_calls(message, tools),
-    )
-
-
-async def as_chat_completion_part(
-    content: Content,
-) -> ChatCompletionContentPartParam:
-    if content.type == "text":
-        return ChatCompletionContentPartTextParam(type="text", text=content.text)
-    else:
-        # API takes URL or base64 encoded file. If it's a remote file or
-        # data URL leave it alone, otherwise encode it
-        image_url = content.image
-        detail = content.detail
-
-        if not is_http_url(image_url) and not is_data_uri(image_url):
-            image_url = await image_as_data_uri(image_url)
-
-        return ChatCompletionContentPartImageParam(
-            type="image_url",
-            image_url=dict(url=image_url, detail=detail),
-        )
+            return e

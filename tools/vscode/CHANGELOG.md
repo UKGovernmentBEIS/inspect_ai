@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.51
+
+- Improve performance of log listing rendering by caching information in the workspace.
+
+## 0.3.50
+
+- Use the integrated terminal when debugging tasks.
+
 ## 0.3.49
 
 - Improve code lense detection of Inspect tasks (ty @tobiasraabe)

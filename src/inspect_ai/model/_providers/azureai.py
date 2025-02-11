@@ -31,12 +31,13 @@ from azure.core.exceptions import AzureError, HttpResponseError
 from typing_extensions import override
 
 from inspect_ai._util.constants import DEFAULT_MAX_TOKENS
-from inspect_ai._util.content import Content, ContentText
-from inspect_ai._util.images import image_as_data_uri
+from inspect_ai._util.content import Content, ContentImage, ContentText
+from inspect_ai._util.images import file_as_data_uri
 from inspect_ai.tool import ToolChoice, ToolInfo
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_choice import ToolFunction
 
+from .._call_tools import parse_tool_call
 from .._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
@@ -60,7 +61,6 @@ from .util import (
 )
 from .util.chatapi import ChatAPIHandler
 from .util.llama31 import Llama31Handler
-from .util.util import parse_tool_call
 
 AZUREAI_API_KEY = "AZUREAI_API_KEY"
 AZUREAI_ENDPOINT_KEY = "AZUREAI_ENDPOINT_KEY"
@@ -130,7 +130,7 @@ class AzureAIAPI(ModelAPI):
         tools: list[ToolInfo],
         tool_choice: ToolChoice,
         config: GenerateConfig,
-    ) -> ModelOutput | tuple[ModelOutput, ModelCall]:
+    ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
         # emulate tools (auto for llama, opt-in for others)
         if self.emulate_tools is None and self.is_llama():
             handler: ChatAPIHandler | None = Llama31Handler()
@@ -162,6 +162,19 @@ class AzureAIAPI(ModelAPI):
             model_extras=self.model_args,
         )
 
+        def model_call(response: ChatCompletions | None = None) -> ModelCall:
+            return ModelCall.create(
+                request=request
+                | dict(
+                    messages=[message.as_dict() for message in request["messages"]],
+                    tools=[tool.as_dict() for tool in request["tools"]]
+                    if request.get("tools", None) is not None
+                    else None,
+                ),
+                response=response.as_dict() if response else {},
+                filter=image_url_filter,
+            )
+
         # make call
         try:
             response: ChatCompletions = await client.complete(**request)
@@ -173,19 +186,10 @@ class AzureAIAPI(ModelAPI):
                     output_tokens=response.usage.completion_tokens,
                     total_tokens=response.usage.total_tokens,
                 ),
-            ), ModelCall.create(
-                request=request
-                | dict(
-                    messages=[message.as_dict() for message in request["messages"]],
-                    tools=[tool.as_dict() for tool in request["tools"]]
-                    if request.get("tools", None) is not None
-                    else None,
-                ),
-                response=response.as_dict(),
-                filter=image_url_filter,
-            )
+            ), model_call(response)
+
         except AzureError as ex:
-            return self.handle_azure_error(ex)
+            return self.handle_azure_error(ex), model_call()
         finally:
             await client.close()
 
@@ -251,7 +255,7 @@ class AzureAIAPI(ModelAPI):
     def is_mistral(self) -> bool:
         return "mistral" in self.model_name.lower()
 
-    def handle_azure_error(self, ex: AzureError) -> ModelOutput:
+    def handle_azure_error(self, ex: AzureError) -> ModelOutput | Exception:
         if isinstance(ex, HttpResponseError):
             response = str(ex.message)
             if "maximum context length" in response.lower():
@@ -260,12 +264,8 @@ class AzureAIAPI(ModelAPI):
                     content=response,
                     stop_reason="model_length",
                 )
-            elif ex.status_code == 400 and ex.error:
-                return ModelOutput.from_content(
-                    model=self.model_name,
-                    content=f"Your request triggered an error: {ex.error}",
-                    stop_reason="content_filter",
-                )
+            elif ex.status_code == 400:
+                return ex
 
         raise ex
 
@@ -312,12 +312,14 @@ async def chat_request_message(
 async def chat_content_item(content: Content) -> ContentItem:
     if isinstance(content, ContentText):
         return TextContentItem(text=content.text)
-    else:
+    elif isinstance(content, ContentImage):
         return ImageContentItem(
             image_url=ImageUrl(
-                url=await image_as_data_uri(content.image), detail=content.detail
+                url=await file_as_data_uri(content.image), detail=content.detail
             )
         )
+    else:
+        raise RuntimeError("Azure AI models do not support audio or video inputs.")
 
 
 def chat_tool_call(tool_call: ToolCall) -> ChatCompletionsToolCall:

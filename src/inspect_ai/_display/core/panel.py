@@ -50,9 +50,13 @@ def task_panel(
         table.add_row(subtitle_table)
 
     # main progress and task info
-    table.add_row()
-    table.add_row(body)
-    table.add_row()
+    if body:
+        table.add_row()
+        table.add_row(body)
+
+    # spacing if there is more ocontent
+    if footer or log_location:
+        table.add_row()
 
     # footer if specified
     if footer:
@@ -112,7 +116,7 @@ def tasks_title(completed: int, total: int) -> str:
 def task_title(profile: TaskProfile, show_model: bool) -> str:
     eval_epochs = profile.eval_config.epochs or 1
     epochs = f" x {profile.eval_config.epochs}" if eval_epochs > 1 else ""
-    samples = f"{profile.samples//eval_epochs:,}{epochs} sample{'s' if profile.samples != 1 else ''}"
+    samples = f"{profile.samples // eval_epochs:,}{epochs} sample{'s' if profile.samples != 1 else ''}"
     title = f"{registry_unqualified_name(profile.name)} ({samples})"
     if show_model:
         title = f"{title}: {profile.model}"

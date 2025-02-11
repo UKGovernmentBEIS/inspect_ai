@@ -1,0 +1,74 @@
+#refs {
+    display: none;
+  }
+  
+  
+  .listing-actions-group {
+    display: block;
+  }
+  
+  .quarto-listing {
+    margin-top: 2em;
+  }
+  
+  .quarto-listing-filter {
+    width: 200px;
+    position: absolute;
+    top: -8px;
+    right: 0;
+  }
+  
+  .listing-actions-group {
+    position: relative;
+  }
+  
+  #quarto-margin-sidebar {
+    margin-top: 1.5em;
+  }
+  
+  h2 {
+    margin-top: 0.7em;
+    margin-bottom: 0.6em;
+  }
+  
+  .listing-actions-group {
+    margin-bottom: 1em;
+  }
+  
+  
+  h3 {
+    margin-top: 0;
+  }
+  
+  ul.no-bullets {
+    list-style-type: none;
+    padding: 0;
+    margin: 0;
+  }
+  
+  li.group {
+    padding-bottom: 10px;
+  }
+  
+  li.example {
+    margin-bottom: 0.6em;
+  }
+  
+  li.example a {
+    text-decoration: none;
+  }
+  
+  div.example-card {
+    display: flex;
+  }
+  
+  div.example-icon {
+    width: 30px;
+    flex-shrink: 0;
+  }
+  
+  div.example-info {
+    flex-grow: 1;
+  }
+
+  

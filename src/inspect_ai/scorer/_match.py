@@ -15,12 +15,11 @@ def match(
     """Scorer which matches text or a number.
 
     Args:
-       location (Literal["begin", "end", "any", "exact"]):
-          Location to match at. "any" matches anywhere in the
+       location: Location to match at. "any" matches anywhere in the
           output; "exact" requires the output be exactly
           equal to the target (module whitespace, etc.)
-       ignore_case (bool): Do case insensitive comparison.
-       numeric (bool): Is this a numeric match? (in this
+       ignore_case: Do case insensitive comparison.
+       numeric: Is this a numeric match? (in this
           case different punctuation removal rules are
           used and numbers are normalized before comparison).
     """
@@ -42,7 +41,7 @@ def includes(ignore_case: bool = True) -> Scorer:
     """Check whether the specified text is included in the model output.
 
     Args:
-       ignore_case (bool): Use a case insensitive comparison.
+       ignore_case: Use a case insensitive comparison.
 
     """
 

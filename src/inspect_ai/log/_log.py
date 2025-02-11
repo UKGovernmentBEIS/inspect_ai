@@ -17,12 +17,7 @@ from inspect_ai._util.error import EvalError, exception_message
 from inspect_ai._util.logger import warn_once
 from inspect_ai.approval._policy import ApprovalPolicyConfig
 from inspect_ai.dataset._dataset import MT, metadata_as
-from inspect_ai.model import (
-    ChatMessage,
-    GenerateConfig,
-    ModelOutput,
-    ModelUsage,
-)
+from inspect_ai.model import ChatMessage, GenerateConfig, ModelOutput, ModelUsage
 from inspect_ai.scorer import Score
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
 from inspect_ai.util._store import Store
@@ -36,6 +31,8 @@ SCORER_PLACEHOLDER = "88F74D2C"
 
 
 class EvalConfig(BaseModel):
+    """Configuration used for evaluation."""
+
     limit: int | tuple[int, int] | None = Field(default=None)
     """Sample limit (number of samples or range of samples)."""
 
@@ -47,9 +44,6 @@ class EvalConfig(BaseModel):
 
     epochs_reducer: list[str] | None = Field(default=None)
     """Reducers for aggregating per-sample scores."""
-
-    trace: bool | None = Field(default=None)
-    """Trace message interactions with evaluated model to terminal."""
 
     approval: ApprovalPolicyConfig | None = Field(default=None)
     """Approval policy for tool use."""
@@ -117,7 +111,9 @@ class EvalConfig(BaseModel):
 
 
 class EvalSampleLimit(BaseModel):
-    type: Literal["context", "time", "message", "token", "operator"]
+    """Limit encontered by sample."""
+
+    type: Literal["context", "time", "message", "token", "operator", "custom"]
     """The type of limit"""
 
     limit: int
@@ -125,6 +121,8 @@ class EvalSampleLimit(BaseModel):
 
 
 class EvalSample(BaseModel):
+    """Sample from evaluation task."""
+
     id: int | str
     """Unique id for sample."""
 
@@ -199,7 +197,7 @@ class EvalSample(BaseModel):
     """Attachments referenced from messages and events.
 
     Resolve attachments for a sample (replacing attachment://* references with
-    attachment content) with the resolve_sample_attachments() function.
+    attachment content) by passing `resolve_attachments=True` to log reading functions.
     """
 
     limit: EvalSampleLimit | None = Field(default=None)
@@ -270,6 +268,8 @@ class EvalEvents(BaseModel):
 
 
 class EvalPlanStep(BaseModel):
+    """Solver step."""
+
     solver: str
     """Name of solver."""
 
@@ -278,6 +278,8 @@ class EvalPlanStep(BaseModel):
 
 
 class EvalPlan(BaseModel):
+    """Plan (solvers) used in evaluation."""
+
     name: str = Field(default="plan")
     """Plan name."""
 
@@ -292,20 +294,24 @@ class EvalPlan(BaseModel):
 
 
 class EvalMetric(BaseModel):
+    """Metric for evaluation score."""
+
     name: str
     """Metric name."""
 
     value: int | float
     """Metric value."""
 
-    options: dict[str, Any] = Field(default_factory=dict)
-    """Options specified when creating metric."""
+    params: dict[str, Any] = Field(default_factory=dict)
+    """Params specified when creating metric."""
 
     metadata: dict[str, Any] | None = Field(default=None)
     """Additional metadata associated with metric."""
 
 
 class EvalScore(BaseModel):
+    """Score for evaluation task."""
+
     name: str
     """Score name."""
 
@@ -326,10 +332,15 @@ class EvalScore(BaseModel):
 
 
 class EvalSampleScore(Score):
+    """Score and sample_id scored."""
+
     sample_id: str | int | None = Field(default=None)
+    """Sample ID."""
 
 
 class EvalSampleReductions(BaseModel):
+    """Score reductions."""
+
     scorer: str
     """Name the of scorer"""
 
@@ -341,6 +352,8 @@ class EvalSampleReductions(BaseModel):
 
 
 class EvalResults(BaseModel):
+    """Scoring results from evaluation."""
+
     total_samples: int = Field(default=0)
     """Total samples in eval (dataset samples * epochs)"""
 
@@ -355,7 +368,7 @@ class EvalResults(BaseModel):
         """Scorer used to compute results (deprecated)."""
         warn_once(
             logger,
-            "The 'scorer' field is deprecated. Use 'scorers' instead.",
+            "The 'scorer' field is deprecated. Use 'scores' instead.",
         )
         return self.scores[0] if self.scores else None
 
@@ -364,7 +377,7 @@ class EvalResults(BaseModel):
         """Metrics computed (deprecated)."""
         warn_once(
             logger,
-            "The 'metrics' field is deprecated. Access metrics through 'scorers' instead.",
+            "The 'metrics' field is deprecated. Access metrics through 'scores' instead.",
         )
         return self.scores[0].metrics if self.scores else {}
 
@@ -407,6 +420,8 @@ class EvalResults(BaseModel):
             if "metrics" in values:
                 metrics = values["metrics"]
                 del values["metrics"]
+            else:
+                metrics = None
             # Convert the scorer to the new schema
             score = values["scorer"]
             if metrics:
@@ -421,6 +436,8 @@ class EvalResults(BaseModel):
 
 
 class EvalDataset(BaseModel):
+    """Dataset used for evaluation."""
+
     name: str | None = Field(default=None)
     """Dataset name."""
 
@@ -438,6 +455,8 @@ class EvalDataset(BaseModel):
 
 
 class EvalRevision(BaseModel):
+    """Git revision for evaluation."""
+
     type: Literal["git"]
     """Type of revision (currently only "git")"""
 
@@ -449,6 +468,8 @@ class EvalRevision(BaseModel):
 
 
 class EvalSpec(BaseModel):
+    """Eval target and configuration."""
+
     run_id: str = Field(default_factory=str)
     """Unique run id"""
 
@@ -552,6 +573,8 @@ def rich_traceback(
 
 
 class EvalStats(BaseModel):
+    """Timing and usage statistics."""
+
     started_at: str = Field(default_factory=str)
     """Evaluation start time."""
 
@@ -566,6 +589,8 @@ class EvalStats(BaseModel):
 
 
 class EvalLog(BaseModel):
+    """Evaluation log."""
+
     # WARNING: The order of these fields is important for the log file format.
     # Do not change the order of these fields without incrementing the version number,
     # updating the log file read/write functionality (such as read_eval_log),
@@ -581,13 +606,13 @@ class EvalLog(BaseModel):
     eval: EvalSpec
     """Eval identity and configuration."""
 
-    plan: EvalPlan = Field(default=EvalPlan())
+    plan: EvalPlan = Field(default_factory=EvalPlan)
     """Eval plan (solvers and config)"""
 
     results: EvalResults | None = None
     """Eval results (scores and metrics)."""
 
-    stats: EvalStats = Field(default=EvalStats())
+    stats: EvalStats = Field(default_factory=EvalStats)
     """Eval stats (runtime, model usage)"""
 
     error: EvalError | None = Field(default=None)

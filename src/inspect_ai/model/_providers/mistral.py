@@ -40,12 +40,13 @@ from typing_extensions import override
 # https://github.com/mistralai/client-python/blob/main/MIGRATION.md
 from inspect_ai._util.constants import (
     DEFAULT_TIMEOUT,
+    NO_CONTENT,
 )
 from inspect_ai._util.content import Content, ContentImage, ContentText
-from inspect_ai._util.images import image_as_data_uri
-from inspect_ai._util.url import is_data_uri
+from inspect_ai._util.images import file_as_data_uri
 from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
 
+from .._call_tools import parse_tool_call
 from .._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
@@ -59,7 +60,7 @@ from .._model_output import (
     ModelUsage,
     StopReason,
 )
-from .util import environment_prerequisite_error, model_base_url, parse_tool_call
+from .util import environment_prerequisite_error, model_base_url
 
 AZURE_MISTRAL_API_KEY = "AZURE_MISTRAL_API_KEY"
 AZUREAI_MISTRAL_API_KEY = "AZUREAI_MISTRAL_API_KEY"
@@ -123,7 +124,7 @@ class MistralAPI(ModelAPI):
         tools: list[ToolInfo],
         tool_choice: ToolChoice,
         config: GenerateConfig,
-    ) -> ModelOutput | tuple[ModelOutput, ModelCall]:
+    ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
         # build request
         request: dict[str, Any] = dict(
             model=self.model_name,
@@ -147,7 +148,7 @@ class MistralAPI(ModelAPI):
             response = await self.client.chat.complete_async(**request)
         except SDKError as ex:
             if ex.status_code == 400:
-                return self.handle_bad_request(ex)
+                return self.handle_bad_request(ex), mistral_model_call(request, None)
             else:
                 raise ex
 
@@ -182,25 +183,27 @@ class MistralAPI(ModelAPI):
     def connection_key(self) -> str:
         return str(self.api_key)
 
-    def handle_bad_request(self, ex: SDKError) -> ModelOutput:
+    def handle_bad_request(self, ex: SDKError) -> ModelOutput | Exception:
+        body = json.loads(ex.body)
+        content = body.get("message", ex.body)
         if "maximum context length" in ex.body:
-            body = json.loads(ex.body)
-            content = body.get("message", ex.body)
             return ModelOutput.from_content(
                 model=self.model_name, content=content, stop_reason="model_length"
             )
         else:
-            raise ex
+            return ex
 
 
 def mistral_model_call(
-    request: dict[str, Any], response: MistralChatCompletionResponse
+    request: dict[str, Any], response: MistralChatCompletionResponse | None
 ) -> ModelCall:
     request = request.copy()
     request.update(messages=[message.model_dump() for message in request["messages"]])
     if request.get("tools", None) is not None:
         request["tools"] = [tool.model_dump() for tool in request["tools"]]
-    return ModelCall(request=request, response=response.model_dump())
+    return ModelCall(
+        request=request, response=response.model_dump() if response else {}
+    )
 
 
 def mistral_chat_tools(tools: list[ToolInfo]) -> list[MistralTool]:
@@ -327,9 +330,6 @@ async def mistral_chat_message(
         )
 
 
-NO_CONTENT = "(no content)"
-
-
 async def mistral_message_content(
     content: str | list[Content],
 ) -> str | list[ContentChunk]:
@@ -351,16 +351,14 @@ def mistral_system_message_content(
 async def mistral_content_chunk(content: Content) -> ContentChunk:
     if isinstance(content, ContentText):
         return TextChunk(text=content.text or NO_CONTENT)
-    else:
+    elif isinstance(content, ContentImage):
         # resolve image to url
-        image_url = content.image
-        if not is_data_uri(image_url):
-            image_url = await image_as_data_uri(image_url)
+        image_url = await file_as_data_uri(content.image)
 
         # return chunk
-        return ImageURLChunk(
-            image_url=ImageURL(url=content.image, detail=content.detail)
-        )
+        return ImageURLChunk(image_url=ImageURL(url=image_url, detail=content.detail))
+    else:
+        raise RuntimeError("Mistral models do not support audio or video inputs.")
 
 
 def mistral_tool_call(tool_call: ToolCall) -> MistralToolCall:

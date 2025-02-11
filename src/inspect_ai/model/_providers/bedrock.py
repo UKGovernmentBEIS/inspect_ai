@@ -11,7 +11,7 @@ from inspect_ai._util.constants import (
 )
 from inspect_ai._util.content import Content, ContentImage, ContentText
 from inspect_ai._util.error import pip_dependency_error
-from inspect_ai._util.images import image_as_data
+from inspect_ai._util.images import file_as_data
 from inspect_ai._util.version import verify_required_version
 from inspect_ai.tool import ToolChoice, ToolInfo
 from inspect_ai.tool._tool_call import ToolCall
@@ -27,11 +27,7 @@ from .._chat_message import (
 from .._generate_config import GenerateConfig
 from .._model import ModelAPI
 from .._model_call import ModelCall
-from .._model_output import (
-    ChatCompletionChoice,
-    ModelOutput,
-    ModelUsage,
-)
+from .._model_output import ChatCompletionChoice, ModelOutput, ModelUsage
 from .util import (
     model_base_url,
 )
@@ -307,7 +303,7 @@ class BedrockAPI(ModelAPI):
         tools: list[ToolInfo],
         tool_choice: ToolChoice,
         config: GenerateConfig,
-    ) -> ModelOutput | tuple[ModelOutput, ModelCall]:
+    ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
         from botocore.config import Config
         from botocore.exceptions import ClientError
 
@@ -339,25 +335,33 @@ class BedrockAPI(ModelAPI):
             # Resolve the input messages into converse messages
             system, messages = await converse_messages(input)
 
-            try:
-                # Make the request
-                request = ConverseClientConverseRequest(
-                    modelId=self.model_name,
-                    messages=messages,
-                    system=system,
-                    inferenceConfig=ConverseInferenceConfig(
-                        maxTokens=config.max_tokens,
-                        temperature=config.temperature,
-                        topP=config.top_p,
-                        stopSequences=config.stop_seqs,
+            # Make the request
+            request = ConverseClientConverseRequest(
+                modelId=self.model_name,
+                messages=messages,
+                system=system,
+                inferenceConfig=ConverseInferenceConfig(
+                    maxTokens=config.max_tokens,
+                    temperature=config.temperature,
+                    topP=config.top_p,
+                    stopSequences=config.stop_seqs,
+                ),
+                additionalModelRequestFields={
+                    "top_k": config.top_k,
+                    **config.model_config,
+                },
+                toolConfig=tool_config,
+            )
+
+            def model_call(response: dict[str, Any] | None = None) -> ModelCall:
+                return ModelCall.create(
+                    request=replace_bytes_with_placeholder(
+                        request.model_dump(exclude_none=True)
                     ),
-                    additionalModelRequestFields={
-                        "top_k": config.top_k,
-                        **config.model_config,
-                    },
-                    toolConfig=tool_config,
+                    response=response,
                 )
 
+            try:
                 # Process the reponse
                 response = await client.converse(
                     **request.model_dump(exclude_none=True)
@@ -366,32 +370,24 @@ class BedrockAPI(ModelAPI):
 
             except ClientError as ex:
                 # Look for an explicit validation exception
-                if (
-                    ex.response["Error"]["Code"] == "ValidationException"
-                    and "Too many input tokens" in ex.response["Error"]["Message"]
-                ):
+                if ex.response["Error"]["Code"] == "ValidationException":
                     response = ex.response["Error"]["Message"]
-                    return ModelOutput.from_content(
-                        model=self.model_name,
-                        content=response,
-                        stop_reason="model_length",
-                    )
+                    if "Too many input tokens" in response:
+                        return ModelOutput.from_content(
+                            model=self.model_name,
+                            content=response,
+                            stop_reason="model_length",
+                        )
+                    else:
+                        return ex, model_call(None)
                 else:
                     raise ex
 
         # create a model output from the response
         output = model_output_from_response(self.model_name, converse_response, tools)
 
-        # record call
-        call = ModelCall.create(
-            request=replace_bytes_with_placeholder(
-                request.model_dump(exclude_none=True)
-            ),
-            response=response,
-        )
-
         # return
-        return output, call
+        return output, model_call(response)
 
 
 async def converse_messages(
@@ -430,7 +426,9 @@ def model_output_from_response(
             content.append(ContentText(type="text", text=c.text))
         elif c.image is not None:
             base64_image = base64.b64encode(c.image.source.bytes).decode("utf-8")
-            content.append(ContentImage(image=base64_image))
+            content.append(
+                ContentImage(image=f"data:image/{c.image.format};base64,{base64_image}")
+            )
         elif c.toolUse is not None:
             tool_calls.append(
                 ToolCall(
@@ -548,6 +546,7 @@ async def converse_chat_message(
                 "Tool call is missing a tool call id, which is required for Converse API"
             )
         if message.function is None:
+            print(message)
             raise ValueError(
                 "Tool call is missing a function, which is required for Converse API"
             )
@@ -565,7 +564,7 @@ async def converse_chat_message(
                 if c.type == "text":
                     tool_result_content.append(ConverseToolResultContent(text=c.text))
                 elif c.type == "image":
-                    image_data, image_type = await image_as_data(c.image)
+                    image_data, image_type = await file_as_data(c.image)
                     tool_result_content.append(
                         ConverseToolResultContent(
                             image=ConverseImage(
@@ -604,7 +603,7 @@ async def converse_contents(
         result: list[ConverseMessageContent] = []
         for c in content:
             if c.type == "image":
-                image_data, image_type = await image_as_data(c.image)
+                image_data, image_type = await file_as_data(c.image)
                 result.append(
                     ConverseMessageContent(
                         image=ConverseImage(

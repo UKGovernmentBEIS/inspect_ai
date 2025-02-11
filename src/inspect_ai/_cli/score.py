@@ -43,7 +43,6 @@ def score_command(
             log_file,
             False if no_overwrite else True,
             common["log_level"],
-            common["log_level_transcript"],
         )
     )
 
@@ -54,10 +53,9 @@ async def score(
     log_file: str,
     overwrite: bool,
     log_level: str | None,
-    log_level_transcript: str | None,
 ) -> None:
     # init eval context
-    init_eval_context(log_level, log_level_transcript)
+    init_eval_context(log_level, None)
 
     # read the eval log
     recorder = create_recorder_for_location(log_file, log_dir)

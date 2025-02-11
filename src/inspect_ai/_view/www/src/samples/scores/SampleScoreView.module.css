@@ -1,0 +1,53 @@
+.container {
+  margin-top: 0.5em;
+  padding-left: 0;
+}
+
+.label {
+  padding-right: 2em;
+  padding-left: 0;
+  padding-bottom: 0;
+  font-weight: 400;
+  padding-bottom: 0;
+}
+
+.wordBreak {
+  word-break: break-all;
+}
+
+.scoreTable {
+  width: 100%;
+  margin-bottom: 1em;
+}
+
+.bottomBorder {
+  border-bottom-color: #00000000;
+}
+
+.headerScore {
+  padding-left: 2em;
+}
+
+.targetValue {
+  padding-right: 2em;
+  padding-left: 0;
+  padding-top: 0;
+}
+
+.answerValue {
+  padding-left: 0;
+  padding-top: 0;
+}
+
+.scoreValue {
+  padding-left: 2em;
+  padding-top: 0;
+}
+
+.noLeft {
+  padding-left: 0;
+}
+
+.noTop {
+  margin-top: 0;
+}

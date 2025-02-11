@@ -4,6 +4,8 @@ from pydantic import BaseModel, Field
 
 
 class ContentText(BaseModel):
+    """Text content."""
+
     type: Literal["text"] = Field(default="text")
     """Type."""
 
@@ -12,6 +14,8 @@ class ContentText(BaseModel):
 
 
 class ContentImage(BaseModel):
+    """Image content."""
+
     type: Literal["image"] = Field(default="image")
     """Type."""
 
@@ -25,5 +29,31 @@ class ContentImage(BaseModel):
     """
 
 
-Content = Union[ContentText, ContentImage]
+class ContentAudio(BaseModel):
+    """Audio content."""
+
+    type: Literal["audio"] = Field(default="audio")
+    """Type."""
+
+    audio: str
+    """Audio file path or base64 encoded data URL."""
+
+    format: Literal["wav", "mp3"]
+    """Format of audio data ('mp3' or 'wav')"""
+
+
+class ContentVideo(BaseModel):
+    """Video content."""
+
+    type: Literal["video"] = Field(default="video")
+    """Type."""
+
+    video: str
+    """Audio file path or base64 encoded data URL."""
+
+    format: Literal["mp4", "mpeg", "mov"]
+    """Format of video data ('mp4', 'mpeg', or 'mov')"""
+
+
+Content = Union[ContentText, ContentImage, ContentAudio, ContentVideo]
 """Content sent to or received from a model."""

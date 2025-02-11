@@ -12,9 +12,9 @@ Inspect supports a variety of approaches to agent evaluations, including:
 
 1.  Using Inspect's built-in `basic_agent()`.
 
-2.  Implementing a fully custom agent scaffold (i.e. taking full control of generation, tool calling, reasoning steps, etc.) using the [Agents API](agents-api.qmd).
+2.  Implementing a fully custom agent scaffold (i.e. taking full control of generation, tool calling, reasoning steps, etc.) using the [Agent API](agents-api.qmd).
 
-3.  Adapting an agent provided by a research paper or open source library (for example, using a 3rd party agent library like [LangChain](https://python.langchain.com/docs/modules/agents/) or [Langroid](https://langroid.github.io/langroid/)).
+3.  Integrating external agent frameworks like [AutoGen](https://microsoft.github.io/autogen/stable/) or [LangChain](https://python.langchain.com/docs/introduction/) via the Inspect [Agent Bridge](agent-bridge.qmd).
 
 4.  A [Human Agent](human-agent.qmd) for creating human baselines on computing tasks.
 
@@ -98,176 +98,27 @@ There are several options available for customising the behaviour of the basic a
 
 For multiple attempts, submissions are evaluated using the task's main scorer, with value of 1.0 indicating a correct answer. Scorer values are converted to float (e.g. "C" becomes 1.0) using the standard `value_to_float()` function. Provide an alternate conversion scheme as required via `score_value`.
 
-## Custom Scaffold {#sec-custom-scaffolding}
+## Custom Agent
 
 The basic agent demonstrated above will work well for some tasks, but in other cases you may want to provide more custom logic. For example, you might want to:
 
 {{< include _tools-scaffold.md >}}
 
-### Tool Filtering
 
-While its possible to make tools globally available to the model via `use_tools()`, you may also want to filter the available tools either based on task stages or dynamically based on some other criteria.
+### Agent API
 
-Here's an example of a solver agent that filters the available tools between calls to `generate()`:
+For more sophisticated agents, Inspect offers several additional advanced APIs for state management, sub-agents, and fine grained logging. See the [Agent API](agents-api.qmd) article for additional details.
 
-``` python
-@solver
-def ctf_agent():
-    async def solve(state: TaskState, generate: Generate):
-        
-        # first pass w/ core tools
-        state.tools = [decompile(), dissasemble(), bash()]
-        state = await generate(state)
+## Agent Frameworks 
 
-        # second pass w/ prompt and python tool only
-        state.tools = [python()]
-        state.messages.append(ChatMessageUser( 
-            content = "Use Python to extract the flag." 
-        ))  
-        state = await generate(state)
+While Inspect provides facilities for native agent development, you can also very easily integrate agents created with 3rd party frameworks like [AutoGen](https://microsoft.github.io/autogen/stable/) or [LangChain](https://python.langchain.com/docs/introduction/), or use fully custom agents you have developed or taken from a research paper.
 
-        # clear tools and return
-        state.tools = []
-        return state
-    
-    return solve
-```
+To learn more about integrating custom agents into Inspect:
 
-### Agents API
+- See the documentation on the Inspect [Agent Bridge](agent-bridge.qmd)
 
-For more sophisticated agents, Inspect offers several additional advanced APIs for state management, sub-agents, and fine grained logging. See the [Agents API](agents-api.qmd) article for additional details.
+- See the [AutoGen](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/bridge/autogen) and [LangChain](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/bridge/langchain) examples which demonstrate the basic mechanics of agent integration.
 
-## Agent Libraries {#sec-agent-libraries}
-
-You can also adapt code from a research paper or 3rd party agent library to run within an Inspect solver. Below we'll provide an example of doing this for a [LangChain Agent](https://python.langchain.com/v0.2/docs/tutorials/agents/).
-
-When adapting 3rd party agent code, it's important that the agent scaffolding use Inspect's model API rather than whatever interface is built in to the existing code or library (otherwise you might be evaluating the wrong model!). If the agent is executing arbitrary code, it's also beneficial to use Inspect [Sandbox Environments](sandboxing.qmd) for sandboxing.
-
-### Example: LangChain {#sec-langchain}
-
-This example demonstrates how to integrate a LangChain Agent with Inspect. The agent uses Wikipedia via the [Tavili Search API](https://tavily.com/) to perform question answering tasks. If you want to start by getting some grounding in the code *without* the Inspect integration, see [this article](https://brightinventions.pl/blog/introducing-langchain-agents-tutorial-with-example/) upon which the example is based.
-
-The main thing that an integration with an agent framework needs to account for is:
-
-1.  Bridging Inspect's model API into the API of the agent framework. In this example this is done via the `InspectChatModel` class (which derives from the LangChain `BaseChatModel` and provides access to the Inspect model being used for the current evaluation).
-
-2.  Bridging from the Inspect solver interface to the standard input and output types of the agent library. In this example this is provided by the `langchain_solver()` function, which takes a LangChain agent function and converts it to an Inspect solver.
-
-Here's the implementation of `langchain_solver()` (imports excluded for brevity):
-
-``` python
-# Interface for LangChain agent function
-class LangChainAgent(Protocol):
-    async def __call__(self, llm: BaseChatModel, input: dict[str, Any]): ...
-
-# Convert a LangChain agent function into a Solver
-def langchain_solver(agent: LangChainAgent) -> Solver:
-
-    async def solve(state: TaskState, generate: Generate) -> TaskState:
-
-        # create the inspect model api bridge
-        llm = InspectChatModel()
-
-        # call the agent
-        await agent(
-            llm = llm,
-            input = dict(
-                input=state.user_prompt.text,
-                chat_history=as_langchain_chat_history(
-                    state.messages[1:]
-                ),
-            )
-        )
-
-        # collect output from llm interface
-        state.messages = llm.messages
-        state.output = llm.output
-        state.output.completion = output
-        
-        # return state
-        return state
-
-    return solve
-
-# LangChain BaseChatModel for Inspect Model API
-class InspectChatModel(BaseChatModel):
-     async def _agenerate(
-        self,
-        messages: list[BaseMessage],
-        stop: list[str] | None = None,
-        run_manager: AsyncCallbackManagerForLLMRun | None = None,
-        **kwargs: dict[str, Any],
-    ) -> ChatResult:
-        ...
-```
-
-::: {.callout-note appearance="simple"}
-Note that the the `inspect_langchain` module imported here is not a built in feature of Inspect. Rather, you can find its [source code](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/examples/langchain/inspect_langchain.py) as part of the example. You can use this to create your own LangChain agents or as the basis for creating similar integrations with other agent frameworks.
-:::
-
-Now here's the `wikipedia_search()` solver (imports again excluded for brevity):
-
-``` python
-@solver
-def wikipedia_search(
-    max_iterations: int | None = 15,
-    max_execution_time: float | None = None
-) -> Solver:
-    # standard prompt for tools agent
-    prompt = hub.pull("hwchase17/openai-tools-agent")
-
-    # tavily and wikipedia tools                # <1>
-    tavily_api = TavilySearchAPIWrapper()  # type: ignore
-    tools = (
-        [TavilySearchResults(api_wrapper=tavily_api)] + 
-        load_tools(["wikipedia"])
-    )
-
-    # agent function                            # <2>
-    async def agent(
-        llm: BaseChatModel, 
-        input: dict[str, Any]
-    ) -> str | list[str | dict[str,Any]]:  
-        # create agent
-        tools_agent = create_openai_tools_agent(
-          llm, tools, prompt
-        )
-        executor = AgentExecutor.from_agent_and_tools(
-            agent=cast(BaseMultiActionAgent, tools_agent),
-            tools=tools,
-            name="wikipedia_search",
-            max_iterations=max_iterations,  
-            max_execution_time=max_execution_time
-        )
-
-        # execute the agent and return output   # <3>
-        result = await executor.ainvoke(input)  
-        return result["output"]
-
-    # return agent function as inspect solver   # <4>
-    return langchain_solver(agent)
-```
-
-1.  Note that we register native LangChain tools. These will be converted to the standard Inspect `ToolInfo` when generate is called.
-2.  This is the standard interface to LangChain agents. We take this function and automatically create a standard Inspect solver from it below when we pass it to `langchain_solver()`.
-3.  Invoke the agent using the chat history passed in `input`. We call the async executor API to play well with Inspect's concurrency.
-4.  The `langchain_solver()` function maps the simpler agent function semantics into the standard Inspect solver API.
-
-If you reviewed the [original article](https://brightinventions.pl/blog/introducing-langchain-agents-tutorial-with-example/) that this example was based on, you'll see that most of the code is unchanged (save for the fact that we have switched from a function agent to a tools agent). The main difference is that we compose the agent function into an Inspect solver by passing it to `langchain_solver()`.
-
-Finally, here's a task that uses the `wikipedia_search()` solver:
-
-``` python
-@task
-def wikipedia() -> Task:
-    return Task(
-        dataset=json_dataset("wikipedia.jsonl"),
-        solver=wikipedia_search(),
-        scorer=model_graded_fact(),
-    )
-```
-
-The full source code for this example can be found in the Inspect GitHub repo at [examples/langchain](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/langchain).
 
 ## Learning More
 
@@ -275,7 +126,9 @@ See these additioanl articles to learn more about creating agent evaluations wit
 
 -   [Sandboxing](sandboxing.qmd) enables you to isolate code generated by models as well as set up more complex computing environments for tasks. 
 
--   [Agents API](agents-api.qmd) describes advanced Inspect APIs available for creating evaluations with agents.
+-   [Agent API](agents-api.qmd) describes advanced Inspect APIs available for creating evaluations with agents.
+
+-   [Agent Bridge](agent-bridge.qmd) enables the use of agents from 3rd party frameworks like AutoGen or LangChain with Inspect.
 
 -   [Human Agent](human-agent.qmd) is a solver that enables human baselining on computing tasks.
 

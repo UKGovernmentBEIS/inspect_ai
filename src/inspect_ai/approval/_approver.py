@@ -20,10 +20,10 @@ class Approver(Protocol):
         Approve or reject a tool call.
 
         Args:
-            message (str): Message genreated by the model along with the tool call.
-            call (ToolCall): The tool call to be approved.
-            view (ToolCallView): Custom rendering of tool context and call.
-            state (state | None): The current task state, if available.
+            message: Message genreated by the model along with the tool call.
+            call: The tool call to be approved.
+            view: Custom rendering of tool context and call.
+            state: The current task state, if available.
 
         Returns:
             Approval: An Approval object containing the decision and explanation.

@@ -1,0 +1,19 @@
+.toolImage {
+  max-width: 800px;
+  border: solid var(--bs-border-color) 1px;
+}
+
+.output {
+  display: grid;
+}
+
+.textOutput {
+  margin-left: 2px;
+  padding: 0.5em 0.5em 0.5em 0.5em;
+  white-space: pre-wrap;
+  margin-bottom: 0;
+}
+
+.textCode {
+  word-wrap: anywhere;
+}

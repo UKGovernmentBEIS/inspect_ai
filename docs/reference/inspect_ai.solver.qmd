@@ -1,0 +1,39 @@
+---
+title: "inspect_ai.solver"
+---
+
+## Generation
+
+### generate
+### use_tools
+
+## Prompting
+
+### prompt_template
+### system_message
+### user_message
+### chain_of_thought
+### self_critique
+### multiple_choice
+
+## Agents
+
+### basic_agent
+### human_agent
+### bridge
+
+## Composition
+
+### chain
+### fork
+
+## Types
+
+### Solver
+### SolverSpec
+### TaskState
+### Generate
+
+## Decorators
+
+### solver

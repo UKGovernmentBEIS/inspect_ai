@@ -26,6 +26,8 @@ def trace_command() -> None:
     """List and read execution traces.
 
     Inspect includes a TRACE log-level which is right below the HTTP and INFO log levels (so not written to the console by default). However, TRACE logs are always recorded to a separate file, and the last 10 TRACE logs are preserved. The 'trace' command provides ways to list and read these traces.
+
+    Learn more about execution traces at https://inspect.ai-safety-institute.org.uk/tracing.html.
     """
     return None
 
@@ -62,11 +64,21 @@ def list_command(json: bool) -> None:
 
 @trace_command.command("dump")
 @click.argument("trace-file", type=str, required=False)
-def dump_command(trace_file: str | None) -> None:
+@click.option(
+    "--filter",
+    type=str,
+    help="Filter (applied to trace message field).",
+)
+def dump_command(trace_file: str | None, filter: str | None) -> None:
     """Dump a trace file to stdout (as a JSON array of log records)."""
     trace_file_path = _resolve_trace_file_path(trace_file)
 
     traces = read_trace_file(trace_file_path)
+
+    if filter:
+        filter = filter.lower()
+        traces = [trace for trace in traces if filter in trace.message.lower()]
+
     print(
         to_json(traces, indent=2, exclude_none=True, fallback=lambda _: None).decode()
     )
@@ -75,26 +87,37 @@ def dump_command(trace_file: str | None) -> None:
 @trace_command.command("anomalies")
 @click.argument("trace-file", type=str, required=False)
 @click.option(
+    "--filter",
+    type=str,
+    help="Filter (applied to trace message field).",
+)
+@click.option(
     "--all",
     is_flag=True,
     default=False,
     help="Show all anomolies including errors and timeouts (by default only still running and cancelled actions are shown).",
 )
-def anomolies_command(trace_file: str | None, all: bool) -> None:
+def anomolies_command(trace_file: str | None, filter: str | None, all: bool) -> None:
     """Look for anomalies in a trace file (never completed or cancelled actions)."""
     trace_file_path = _resolve_trace_file_path(trace_file)
     traces = read_trace_file(trace_file_path)
+
+    if filter:
+        filter = filter.lower()
+        traces = [trace for trace in traces if filter in trace.message.lower()]
 
     # Track started actions
     running_actions: dict[str, ActionTraceRecord] = {}
     canceled_actions: dict[str, ActionTraceRecord] = {}
     error_actions: dict[str, ActionTraceRecord] = {}
     timeout_actions: dict[str, ActionTraceRecord] = {}
+    start_trace: ActionTraceRecord | None = None
 
     def action_started(trace: ActionTraceRecord) -> None:
         running_actions[trace.trace_id] = trace
 
     def action_completed(trace: ActionTraceRecord) -> ActionTraceRecord:
+        nonlocal start_trace
         start_trace = running_actions.get(trace.trace_id)
         if start_trace:
             del running_actions[trace.trace_id]
@@ -103,14 +126,20 @@ def anomolies_command(trace_file: str | None, all: bool) -> None:
             raise RuntimeError(f"Expected {trace.trace_id} in action dictionary.")
 
     def action_failed(trace: ActionTraceRecord) -> None:
+        nonlocal start_trace
         if all:
+            assert start_trace
             error_actions[start_trace.trace_id] = trace
 
     def action_canceled(trace: ActionTraceRecord) -> None:
+        nonlocal start_trace
+        assert start_trace
         canceled_actions[start_trace.trace_id] = trace
 
     def action_timeout(trace: ActionTraceRecord) -> None:
+        nonlocal start_trace
         if all:
+            assert start_trace
             timeout_actions[start_trace.trace_id] = trace
 
     for trace in traces:

@@ -5,12 +5,14 @@ from typing import Any, Literal, Type, cast
 from pydantic import BaseModel, Field, model_validator
 
 LoggingLevel = Literal[
-    "debug", "http", "sandbox", "info", "warning", "error", "critical"
+    "debug", "trace", "http", "sandbox", "info", "warning", "error", "critical"
 ]
 """Logging level."""
 
 
 class LoggingMessage(BaseModel):
+    """Message written to Python log."""
+
     name: str | None = Field(default=None)
     """Logger name (e.g. 'httpx')"""
 
@@ -33,7 +35,7 @@ class LoggingMessage(BaseModel):
     """Logged from line number."""
 
     @staticmethod
-    def from_log_record(record: LogRecord) -> "LoggingMessage":
+    def _from_log_record(record: LogRecord) -> "LoggingMessage":
         """Create a LoggingMesssage from a LogRecord.
 
         Args:

@@ -1,4 +1,6 @@
+import base64
 import errno
+import json
 import os
 import tempfile
 from logging import getLogger
@@ -7,9 +9,12 @@ from typing import Literal, Union, cast, overload
 
 from typing_extensions import override
 
-from inspect_ai.util._subprocess import ExecResult
+from inspect_ai._util.error import PrerequisiteError
+from inspect_ai.util._subprocess import ExecResult, subprocess
 
 from ..environment import (
+    HostMapping,
+    PortMapping,
     SandboxConnection,
     SandboxEnvironment,
     SandboxEnvironmentConfigType,
@@ -31,7 +36,6 @@ from .compose import (
     compose_build,
     compose_check_running,
     compose_cleanup_images,
-    compose_command,
     compose_cp,
     compose_exec,
     compose_ps,
@@ -82,6 +86,14 @@ class DockerSandboxEnvironment(SandboxEnvironment):
 
             services = await compose_services(project)
             for name, service in services.items():
+                # if the service has an explicit container_name then
+                # error (as this won't work w/ epochs > 1)
+                container_name = service.get("container_name", None)
+                if container_name:
+                    raise PrerequisiteError(
+                        f"ERROR: Docker service '{name}' includes an explicitly configured container_name ('{container_name}'). This is not permitted, as container names should be provisioned by Docker compose and an explicit container_name will not work with epochs > 1."
+                    )
+
                 # build internal images
                 image = service.get("image", None)
                 if image and is_internal_image(image):
@@ -138,28 +150,31 @@ class DockerSandboxEnvironment(SandboxEnvironment):
             # start the services
             await compose_up(project)
 
+            # check to ensure that the services are running
+            running_services = await compose_check_running(
+                list(services.keys()), project=project
+            )
+
             # note that the project is running
             project_startup(project)
 
-            # check to ensure that the services are running
-            await compose_check_running(list(services.keys()), project=project)
-
-            # create sandbox environments
+            # create sandbox environments for all running services
             default_service: str | None = None
             environments: dict[str, SandboxEnvironment] = {}
             for service, service_info in services.items():
-                # update the project w/ the working directory
-                working_dir = await container_working_dir(service, project)
+                if service in running_services:
+                    # update the project w/ the working directory
+                    working_dir = await container_working_dir(service, project)
 
-                # create the docker sandbox environemnt
-                docker_env = DockerSandboxEnvironment(service, project, working_dir)
+                    # create the docker sandbox environemnt
+                    docker_env = DockerSandboxEnvironment(service, project, working_dir)
 
-                # save reference to default service if requested
-                if service_info.get("x-default", False):
-                    default_service = service
+                    # save reference to default service if requested
+                    if service_info.get("x-default", False):
+                        default_service = service
 
-                # record service => environment
-                environments[service] = docker_env
+                    # record service => environment
+                    environments[service] = docker_env
 
             # confirm that we have a 'default' environemnt
             if environments.get("default", None) is None and default_service is None:
@@ -225,6 +240,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         env: dict[str, str] = {},
         user: str | None = None,
         timeout: int | None = None,
+        timeout_retry: bool = True,
     ) -> ExecResult[str]:
         # additional args
         args = []
@@ -251,6 +267,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
             args + [self._service] + cmd,
             project=self._project,
             timeout=timeout,
+            timeout_retry=timeout_retry,
             input=input,
             output_limit=SandboxEnvironmentLimits.MAX_EXEC_OUTPUT_SIZE,
         )
@@ -262,103 +279,50 @@ class DockerSandboxEnvironment(SandboxEnvironment):
 
     @override
     async def write_file(self, file: str, contents: str | bytes) -> None:
-        # exec function w/ timeout
-        async def exec(cmd: list[str]) -> ExecResult[str]:
-            return await self.exec(cmd, timeout=60)
-
         # resolve relative file paths
         file = self.container_file(file)
 
-        # We want to be able to write a file in the container,
-        # but only if the container's user would be allowed to do that.
-        # We need to avoid implicitly trusting the provided "file" string.
-        # For example, it shouldn't be passed as part of a shell command,
-        # because of the risk of shell injection.
+        # ensure that the directory exists
+        parent = Path(file).parent.as_posix()
+        if parent != ".":
+            result = await self.exec(["mkdir", "-p", parent])
+            if not result.success:
+                msg = f"Failed to create container directory {parent}: {result.stderr}"
+                raise RuntimeError(msg)
 
-        local_tmpfile = tempfile.NamedTemporaryFile()
-
-        # write contents into a local tmp file (not in the container)
+        # write the file
         if isinstance(contents, str):
-            local_tmpfile.write(contents.encode("utf-8"))
+            result = await self.exec(
+                ["sh", "-e", "-c", 'tee -- "$1"', "write_file_script", file],
+                input=contents,
+            )
         else:
-            local_tmpfile.write(contents)
-
-        local_tmpfile.flush()
-
-        # Copy the local tmp file into a tmp file on the container.
-        # Both tmp files have safe names as we created them ourselves
-
-        # We write the tmp file in the default directory,
-        # because of strangeness with /tmp on GitHub action runners.
-
-        # We are reusing the generated local tmp file name within
-        # the sandbox to save on a container roundtrip. There is a very slight
-        # risk of collision if another write_file call happens
-        # to get the same local tmp file name. But we assume tmp file
-        # names have enough randomness for us to ignore that.
-
-        container_tmpfile = (
-            f".tmp_inspect_sandbox_{os.path.basename(local_tmpfile.name)}"
-        )
-
-        # compose cp will leave the file owned by root
-        await compose_cp(
-            src=local_tmpfile.name,
-            dest=f"{self._service}:{self.container_file(container_tmpfile)}",
-            project=self._project,
-        )
-
-        local_tmpfile.close()  # this will also delete the file
-
-        if not hasattr(self, "_docker_user"):
-            uid = (await exec(["id", "-u"])).stdout.strip()
-            gid = (await exec(["id", "-g"])).stdout.strip()
-            self._docker_user = (uid, gid)
-
-        await compose_command(
-            [
-                "exec",
-                "--user",
-                "root",
-                self._service,
-                "chown",
-                f"{self._docker_user[0]}:{self._docker_user[1]}",
-                container_tmpfile,
-            ],
-            project=self._project,
-            timeout=60,
-        )
-
-        parent = PurePosixPath(file).parent
-
-        # We do these steps in a shell script for efficiency to avoid round-trips to docker.
-        res_cp = await exec(
-            [
-                "sh",
-                "-e",
-                "-c",
-                'mkdir -p -- "$1"; cp -T -- "$2" "$3"; rm -- "$2"',
-                "copy_script",
-                str(parent),
-                container_tmpfile,
-                file,
-            ]
-        )
-
-        if res_cp.returncode != 0:
-            if "Permission denied" in res_cp.stderr:
-                ls_result = await exec(["ls", "-la", "."])
-                error_string = f"Permission was denied. Error details: {res_cp.stderr}; ls -la: {ls_result.stdout}; {self._docker_user=}"
+            base64_contents = base64.b64encode(contents).decode("US-ASCII")
+            result = await self.exec(
+                [
+                    "sh",
+                    "-e",
+                    "-c",
+                    'base64 -d | tee -- "$1" > /dev/null',
+                    "write_file_script",
+                    file,
+                ],
+                input=base64_contents,
+            )
+        if result.returncode != 0:
+            if "permission denied" in result.stderr.casefold():
+                ls_result = await self.exec(["ls", "-la", "."])
+                error_string = f"Permission was denied. Error details: {result.stderr}; ls -la: {ls_result.stdout}"
                 raise PermissionError(error_string)
             elif (
-                "cannot overwrite directory" in res_cp.stderr
-                or "is a directory" in res_cp.stderr
+                "cannot overwrite directory" in result.stderr.casefold()
+                or "is a directory" in result.stderr.casefold()
             ):
                 raise IsADirectoryError(
                     f"Failed to write file: {file} because it is a directory already"
                 )
             else:
-                raise RuntimeError(f"failed to copy during write_file: {res_cp}")
+                raise RuntimeError(f"failed to copy during write_file: {result}")
 
     @overload
     async def read_file(self, file: str, text: Literal[True] = True) -> str: ...
@@ -428,11 +392,14 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         # return container connection
         if container:
             return SandboxConnection(
+                type="docker",
                 command=f"docker exec -it {container} bash -l",
                 vscode_command=[
                     "remote-containers.attachToRunningContainer",
                     container,
                 ],
+                ports=await get_ports_info(container),
+                container=container,
             )
         # error (not currently running)
         else:
@@ -461,3 +428,62 @@ async def container_working_dir(
             + f"{result.stderr}"
         )
         return default
+
+
+async def get_ports_info(container: str) -> list[PortMapping] | None:
+    try:
+        result = await subprocess(
+            [
+                "docker",
+                "inspect",
+                container,
+                "--format",
+                "{{json .NetworkSettings.Ports}}",
+            ],
+            timeout=60,
+        )
+
+        if not result.success:
+            raise RuntimeError(result.stderr)
+
+        return parse_docker_inspect_ports(result.stdout)
+
+    # It's currently a policy decision to let docker timeouts to be silent.
+    except TimeoutError:
+        return None
+
+
+def parse_docker_inspect_ports(json_str: str) -> list[PortMapping] | None:
+    """
+    Parses the JSON output from `docker inspect {container_name} --format='{{json .NetworkSettings.Ports}}'` to extract port mappings.
+
+    Args:
+        json_str (str): A JSON string representing the `NetworkSettings.Ports` output of `docker inspect`. e.g.
+          ```
+          {
+              "5900/tcp": [{"HostIp": "0.0.0.0", "HostPort": "54023"}],
+              "8080/tcp": [{"HostIp": "0.0.0.0", "HostPort": "54024"}]
+          }
+          ```
+
+    Returns:
+        list[PortMapping] | None: A list of PortMapping objects if any port mappings are found,
+                                   otherwise None.
+    """
+    data = json.loads(json_str)
+    port_mappings = []
+    for port_protocol, mappings in data.items():
+        if mappings is None:
+            continue
+        container_port, protocol = port_protocol.split("/")
+        host_mappings = [
+            HostMapping(host_ip=mapping["HostIp"], host_port=int(mapping["HostPort"]))
+            for mapping in mappings
+        ]
+        port_mapping = PortMapping(
+            container_port=int(container_port),
+            protocol=protocol,
+            mappings=host_mappings,
+        )
+        port_mappings.append(port_mapping)
+    return port_mappings if port_mappings else None

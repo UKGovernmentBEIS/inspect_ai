@@ -14,7 +14,7 @@ from inspect_ai._eval.task import TaskInfo
 
 @click.group("list")
 def list_command() -> None:
-    """List tasks or eval logs."""
+    """List tasks on the filesystem."""
     return None
 
 

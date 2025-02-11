@@ -1,0 +1,34 @@
+---
+title: "inspect_ai.tool"
+---
+
+## Tools
+
+### bash
+### python
+### web_search
+### web_browser
+### computer
+
+## Dynamic 
+
+### tool_with
+### ToolDef
+
+## Types
+
+### Tool
+### ToolResult
+### ToolError
+### ToolCallError
+### ToolChoice
+### ToolFunction
+### ToolInfo
+### ToolParams
+### ToolParam
+### JSONType
+
+## Decorator
+
+### tool
+

@@ -1,0 +1,18 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-left: 0.5rem;
+}
+
+.padded {
+  padding-bottom: 1em;
+}
+
+.key {
+  font-weight: 300;
+}
+
+.value {
+  font-weight: 600;
+}

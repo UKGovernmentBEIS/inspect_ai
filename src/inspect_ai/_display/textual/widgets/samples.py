@@ -5,28 +5,28 @@ from rich.console import RenderableType
 from rich.table import Table
 from rich.text import Text
 from textual.app import ComposeResult
-from textual.containers import (
-    Horizontal,
-    HorizontalGroup,
-    Vertical,
-    VerticalGroup,
-)
+from textual.containers import Horizontal, HorizontalGroup, Vertical, VerticalGroup
 from textual.reactive import reactive
 from textual.widget import Widget
 from textual.widgets import (
     Button,
     Collapsible,
+    Link,
     LoadingIndicator,
     OptionList,
     Static,
 )
 from textual.widgets.option_list import Option, Separator
 
+from inspect_ai._display.textual.widgets.port_mappings import get_url
 from inspect_ai._util.format import format_progress_time
+from inspect_ai._util.port_names import get_service_by_port
 from inspect_ai._util.registry import registry_unqualified_name
 from inspect_ai.log._samples import ActiveSample
+from inspect_ai.log._transcript import ToolEvent
 
 from .clock import Clock
+from .sandbox import SandboxView
 from .transcript import TranscriptView
 
 
@@ -73,6 +73,7 @@ class SamplesView(Widget):
 
     async def set_highlighted_sample(self, highlighted: int | None) -> None:
         sample_info = self.query_one(SampleInfo)
+        sample_vnc = self.query_one(SampleVNC)
         transcript_view = self.query_one(TranscriptView)
         sample_toolbar = self.query_one(SampleToolbar)
         if highlighted is not None:
@@ -82,12 +83,14 @@ class SamplesView(Widget):
                 transcript_view.display = True
                 sample_toolbar.display = True
                 await sample_info.sync_sample(sample)
+                await sample_vnc.sync_sample(sample)
                 await transcript_view.sync_sample(sample)
                 await sample_toolbar.sync_sample(sample)
                 return
 
         # otherwise hide ui
         sample_info.display = False
+        sample_vnc.display = False
         transcript_view.display = False
         sample_toolbar.display = False
 
@@ -181,10 +184,59 @@ class SamplesList(OptionList):
             return None
 
 
-class SampleInfo(Horizontal):
+class SampleVNC(Horizontal):
+    DEFAULT_CSS = """
+    SampleVNC {
+        layout: grid;
+        grid-size: 2 1;
+        grid-columns: auto 1fr;
+    }
+    SampleVNC Static {
+        color: $secondary;
+    }
+    SampleVNC Link {
+        color: $accent;
+    }
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._sample: ActiveSample | None = None
+
+    def compose(self) -> ComposeResult:
+        yield Static("VNC: ")
+        yield Link("")
+
+    async def sync_sample(self, sample: ActiveSample) -> None:
+        if sample == self._sample:
+            return
+
+        # defult to hidden (show if we find a vnc connection)
+        self.display = False
+
+        # is there a vnc connection? if so populate
+        for connection in [c for c in sample.sandboxes.values() if c.ports]:
+            for port in connection.ports or []:
+                service = get_service_by_port(port.container_port, port.protocol)
+                if service == "noVNC" and port.mappings:
+                    host_mappings = port.mappings
+                    link = self.query_one(Link)
+                    vnc_url = get_url(host_mappings[0].host_port, service)
+                    if vnc_url:
+                        link.text = vnc_url
+                        link.url = link.text
+                        self.display = True
+                        break
+
+
+class SampleInfo(Vertical):
     DEFAULT_CSS = """
     SampleInfo {
         color: $text-muted;
+        layout: grid;
+        grid-size: 1 2;
+        grid-rows: auto 1;
+        grid-gutter: 1;
     }
     SampleInfo Collapsible {
         padding: 0;
@@ -217,11 +269,13 @@ class SampleInfo(Horizontal):
     def __init__(self) -> None:
         super().__init__()
         self._sample: ActiveSample | None = None
+        self._sandbox_count: int | None = None
 
     def compose(self) -> ComposeResult:
         with Collapsible(title=""):
             yield SampleLimits()
             yield SandboxesView()
+        yield SampleVNC()
 
     async def sync_sample(self, sample: ActiveSample | None) -> None:
         if sample is None:
@@ -232,12 +286,14 @@ class SampleInfo(Horizontal):
             limits = self.query_one(SampleLimits)
             await limits.sync_sample(sample)
 
+            new_sandbox_count = len(sample.sandboxes)
             # bail if we've already processed this sample
-            if self._sample == sample:
+            if self._sample == sample and self._sandbox_count == new_sandbox_count:
                 return
 
             # set sample
             self._sample = sample
+            self._sandbox_count = new_sandbox_count
 
             # update UI
             self.display = True
@@ -245,6 +301,7 @@ class SampleInfo(Horizontal):
             self.query_one(Collapsible).title = title
             sandboxes = self.query_one(SandboxesView)
             await sandboxes.sync_sample(sample)
+            await self.query_one(SampleVNC).sync_sample(sample)
 
 
 class SampleLimits(Widget):
@@ -290,14 +347,18 @@ class SampleLimits(Widget):
 class SandboxesView(Vertical):
     DEFAULT_CSS = """
     SandboxesView {
-        padding: 1 0 1 0;
+        padding: 1 0 0 0;
         background: transparent;
+        height: auto;
+    }
+    #sandboxes-list {
         height: auto;
     }
     SandboxesView Static {
         background: transparent;
     }
     .clipboard-message {
+        height: auto;
         margin-top: 1;
     }
     """
@@ -311,37 +372,58 @@ class SandboxesView(Vertical):
 
     async def sync_sample(self, sample: ActiveSample) -> None:
         if len(sample.sandboxes) > 0:
-            self.display = True
+            multiple_sandboxes = len(sample.sandboxes) > 1
             sandboxes_caption = cast(Static, self.query_one("#sandboxes-caption"))
-            sandboxes_caption.update("[bold]sandbox containers:[/bold]")
+            sandboxes_caption.update(
+                f"[bold]sandbox container{'s' if multiple_sandboxes else ''}:[/bold]"
+            )
 
             sandboxes_list = self.query_one("#sandboxes-list")
             await sandboxes_list.remove_children()
+
             await sandboxes_list.mount_all(
-                [Static(sandbox.command) for sandbox in sample.sandboxes.values()]
+                [
+                    SandboxView(connection, name if multiple_sandboxes else None)
+                    for name, connection in sample.sandboxes.items()
+                ]
             )
-            sandboxes_list.mount(
+
+            await sandboxes_list.mount(
                 Static(
                     "[italic]Hold down Alt (or Option) to select text for copying[/italic]",
                     classes="clipboard-message",
                     markup=True,
                 )
             )
+            self.display = True
         else:
             self.display = False
 
 
 class SampleToolbar(Horizontal):
+    STATUS_GROUP = "status_group"
+    TIMEOUT_TOOL_CALL = "timeout_tool_call"
     CANCEL_SCORE_OUTPUT = "cancel_score_output"
     CANCEL_RAISE_ERROR = "cancel_raise_error"
     PENDING_STATUS = "pending_status"
     PENDING_CAPTION = "pending_caption"
 
     DEFAULT_CSS = f"""
+    SampleToolbar {{
+        grid-size: 5 1;
+        grid-columns: auto auto 1fr auto auto;
+    }}
+    SampleToolbar #{STATUS_GROUP} {{
+        width: 22;
+    }}
     SampleToolbar Button {{
         margin-bottom: 1;
         margin-right: 2;
-        min-width: 20;
+        min-width: 18;
+    }}
+    SampleToolbar #{TIMEOUT_TOOL_CALL} {{
+        color: $secondary-darken-3;
+        min-width: 16;
     }}
     SampleToolbar #{CANCEL_SCORE_OUTPUT} {{
         color: $primary-darken-3;
@@ -356,9 +438,16 @@ class SampleToolbar(Horizontal):
         self.sample: ActiveSample | None = None
 
     def compose(self) -> ComposeResult:
-        with VerticalGroup(id=self.PENDING_STATUS):
-            yield Static("Executing...", id=self.PENDING_CAPTION)
-            yield HorizontalGroup(EventLoadingIndicator(), Clock())
+        with HorizontalGroup(id=self.STATUS_GROUP):
+            with VerticalGroup(id=self.PENDING_STATUS):
+                yield Static("Executing...", id=self.PENDING_CAPTION)
+                yield HorizontalGroup(EventLoadingIndicator(), Clock())
+        yield Button(
+            Text("Timeout Tool"),
+            id=self.TIMEOUT_TOOL_CALL,
+            tooltip="Cancel the tool call and report a timeout to the model.",
+        )
+        yield Horizontal()
         yield Button(
             Text("Cancel (Score)"),
             id=self.CANCEL_SCORE_OUTPUT,
@@ -372,12 +461,21 @@ class SampleToolbar(Horizontal):
 
     def on_mount(self) -> None:
         self.query_one("#" + self.PENDING_STATUS).visible = False
+        self.query_one("#" + self.TIMEOUT_TOOL_CALL).display = False
         self.query_one("#" + self.CANCEL_SCORE_OUTPUT).display = False
         self.query_one("#" + self.CANCEL_RAISE_ERROR).display = False
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if self.sample:
-            if event.button.id == self.CANCEL_SCORE_OUTPUT:
+            if event.button.id == self.TIMEOUT_TOOL_CALL:
+                last_event = (
+                    self.sample.transcript.events[-1]
+                    if self.sample.transcript.events
+                    else None
+                )
+                if isinstance(last_event, ToolEvent):
+                    last_event._cancel()
+            elif event.button.id == self.CANCEL_SCORE_OUTPUT:
                 self.sample.interrupt("score")
             elif event.button.id == self.CANCEL_RAISE_ERROR:
                 self.sample.interrupt("error")
@@ -389,6 +487,7 @@ class SampleToolbar(Horizontal):
         self.sample = sample
 
         pending_status = self.query_one("#" + self.PENDING_STATUS)
+        timeout_tool = self.query_one("#" + self.TIMEOUT_TOOL_CALL)
         clock = self.query_one(Clock)
         cancel_score_output = cast(
             Button, self.query_one("#" + self.CANCEL_SCORE_OUTPUT)
@@ -419,14 +518,19 @@ class SampleToolbar(Horizontal):
                 pending_caption.update(
                     Text.from_markup(f"[italic]{pending_caption_text}[/italic]")
                 )
+
+                timeout_tool.display = isinstance(last_event, ToolEvent)
+
                 clock.start(last_event.timestamp.timestamp())
             else:
                 pending_status.visible = False
+                timeout_tool.display = False
                 clock.stop()
 
         else:
             self.display = False
             pending_status.visible = False
+            timeout_tool.display = False
             clock.stop()
 
 

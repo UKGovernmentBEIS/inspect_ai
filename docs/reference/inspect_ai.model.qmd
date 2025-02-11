@@ -1,0 +1,54 @@
+---
+title: "inspect_ai.model"
+---
+
+## Generation
+
+### get_model
+### Model
+### GenerateConfig
+### GenerateConfigArgs
+### ModelOutput
+### ModelUsage
+### StopReason
+### ChatCompletionChoice
+
+## Messages
+
+### ChatMessage
+### ChatMessageBase
+### ChatMessageSystem
+### ChatMessageUser
+### ChatMessageAssistant
+### ChatMessageTool
+
+## Content
+
+### Content
+### ContentText
+### ContentImage
+### ContentAudio
+### ContentVideo
+
+## Logprobs
+
+### Logprob
+### Logprobs
+### TopLogprob
+
+## Caching
+
+### CachePolicy
+### cache_size
+### cache_clear
+### cache_list_expired
+### cache_prune
+### cache_path
+
+## Provider
+
+### modelapi
+### ModelAPI
+
+
+

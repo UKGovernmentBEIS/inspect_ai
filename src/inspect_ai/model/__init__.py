@@ -1,6 +1,12 @@
 # ruff: noqa: F401 F403 F405
 
-from inspect_ai._util.content import Content, ContentImage, ContentText
+from inspect_ai._util.content import (
+    Content,
+    ContentAudio,
+    ContentImage,
+    ContentText,
+    ContentVideo,
+)
 from inspect_ai._util.deprecation import relocated_module_attribute
 
 from ._cache import (
@@ -15,6 +21,7 @@ from ._call_tools import call_tools
 from ._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
+    ChatMessageBase,
     ChatMessageSystem,
     ChatMessageTool,
     ChatMessageUser,
@@ -42,10 +49,13 @@ __all__ = [
     "GenerateConfig",
     "GenerateConfigArgs",
     "CachePolicy",
-    "ContentText",
+    "ContentAudio",
     "ContentImage",
+    "ContentText",
+    "ContentVideo",
     "Content",
     "ChatMessage",
+    "ChatMessageBase",
     "ChatMessageSystem",
     "ChatMessageUser",
     "ChatMessageAssistant",

@@ -7,7 +7,9 @@ from typing_extensions import Unpack
 from inspect_ai import Epochs, eval, eval_retry
 from inspect_ai._eval.evalset import eval_set
 from inspect_ai._util.constants import (
+    ALL_LOG_LEVELS,
     DEFAULT_EPOCHS,
+    DEFAULT_LOG_LEVEL_TRANSCRIPT,
     DEFAULT_MAX_CONNECTIONS,
     DEFAULT_MAX_RETRIES,
 )
@@ -118,6 +120,7 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         "--trace",
         type=bool,
         is_flag=True,
+        hidden=True,
         envvar="INSPECT_EVAL_TRACE",
         help="Trace message interactions with evaluated model to terminal.",
     )
@@ -314,12 +317,6 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         envvar="INSPECT_EVAL_STOP_SEQS",
     )
     @click.option(
-        "--suffix",
-        type=str,
-        help="The suffix that comes after a completion of inserted text. OpenAI only.",
-        envvar="INSPECT_EVAL_SUFFIX",
-    )
-    @click.option(
         "--temperature",
         type=float,
         help="What sampling temperature to use, between 0 and 2. Higher values like 0.8 will make the output more random, while lower values like 0.2 will make it more focused and deterministic.",
@@ -347,13 +344,13 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         "--logprobs",
         type=bool,
         is_flag=True,
-        help="Return log probabilities of the output tokens. OpenAI, Google, Grok, TogetherAI, Huggingface, llama-cpp-python, and vLLM only.",
+        help="Return log probabilities of the output tokens. OpenAI, Grok, TogetherAI, Huggingface, llama-cpp-python, and vLLM only.",
         envvar="INSPECT_EVAL_LOGPROBS",
     )
     @click.option(
         "--top-logprobs",
         type=int,
-        help="Number of most likely tokens (0-20) to return at each token position, each with an associated log probability. OpenAI, Google, Grok, TogetherAI, Huggingface, and vLLM only.",
+        help="Number of most likely tokens (0-20) to return at each token position, each with an associated log probability. OpenAI, Grok, TogetherAI, Huggingface, and vLLM only.",
         envvar="INSPECT_EVAL_TOP_LOGPROBS",
     )
     @click.option(
@@ -363,6 +360,14 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         default=True,
         help="Whether to enable parallel function calling during tool use (defaults to True) OpenAI and Groq only.",
         envvar="INSPECT_EVAL_PARALLEL_TOOL_CALLS",
+    )
+    @click.option(
+        "--internal-tools/--no-internal-tools",
+        type=bool,
+        is_flag=True,
+        default=True,
+        help="Whether to automatically map tools to model internal implementations (e.g. 'computer' for anthropic).",
+        envvar="INSPECT_EVAL_INTERNAL_TOOLS",
     )
     @click.option(
         "--max-tool-output",
@@ -383,10 +388,28 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         envvar="INSPECT_EVAL_REASONING_EFFORT",
     )
     @click.option(
+        "--reasoning-history/--no-reasoning-history",
+        type=bool,
+        is_flag=True,
+        default=True,
+        help="Include reasoning in chat message history sent to generate.",
+        envvar="INSPECT_EVAL_REASONING_HISTORY",
+    )
+    @click.option(
         "--log-format",
         type=click.Choice(["eval", "json"], case_sensitive=False),
         envvar=["INSPECT_LOG_FORMAT", "INSPECT_EVAL_LOG_FORMAT"],
         help="Format for writing log files.",
+    )
+    @click.option(
+        "--log-level-transcript",
+        type=click.Choice(
+            [level.lower() for level in ALL_LOG_LEVELS],
+            case_sensitive=False,
+        ),
+        default=DEFAULT_LOG_LEVEL_TRANSCRIPT,
+        envvar="INSPECT_LOG_LEVEL_TRANSCRIPT",
+        help=f"Set the log level of the transcript (defaults to '{DEFAULT_LOG_LEVEL_TRANSCRIPT}')",
     )
     @common_options
     @functools.wraps(func)
@@ -430,7 +453,6 @@ def eval_command(
     logit_bias: str | None,
     seed: int | None,
     stop_seqs: str | None,
-    suffix: str | None,
     temperature: float | None,
     top_p: float | None,
     top_k: int | None,
@@ -438,9 +460,11 @@ def eval_command(
     logprobs: bool | None,
     top_logprobs: int | None,
     parallel_tool_calls: bool | None,
+    internal_tools: bool | None,
     max_tool_output: int | None,
     cache_prompt: str | None,
     reasoning_effort: str | None,
+    reasoning_history: bool | None,
     message_limit: int | None,
     token_limit: int | None,
     time_limit: int | None,
@@ -456,6 +480,7 @@ def eval_command(
     no_score: bool | None,
     no_score_display: bool | None,
     log_format: Literal["eval", "json"] | None,
+    log_level_transcript: str,
     **common: Unpack[CommonOptions],
 ) -> None:
     """Evaluate tasks."""
@@ -470,7 +495,7 @@ def eval_command(
         tasks=tasks,
         solver=solver,
         log_level=common["log_level"],
-        log_level_transcript=common["log_level_transcript"],
+        log_level_transcript=log_level_transcript,
         log_dir=common["log_dir"],
         log_format=log_format,
         model=model,
@@ -589,7 +614,6 @@ def eval_set_command(
     logit_bias: str | None,
     seed: int | None,
     stop_seqs: str | None,
-    suffix: str | None,
     temperature: float | None,
     top_p: float | None,
     top_k: int | None,
@@ -597,9 +621,11 @@ def eval_set_command(
     logprobs: bool | None,
     top_logprobs: int | None,
     parallel_tool_calls: bool | None,
+    internal_tools: bool | None,
     max_tool_output: int | None,
     cache_prompt: str | None,
     reasoning_effort: str | None,
+    reasoning_history: bool | None,
     message_limit: int | None,
     token_limit: int | None,
     time_limit: int | None,
@@ -617,9 +643,13 @@ def eval_set_command(
     bundle_dir: str | None,
     bundle_overwrite: bool | None,
     log_format: Literal["eval", "json"] | None,
+    log_level_transcript: str,
     **common: Unpack[CommonOptions],
 ) -> int:
-    """Evaluate a set of tasks."""
+    """Evaluate a set of tasks with retries.
+
+    Learn more about eval sets at https://inspect.ai-safety-institute.org.uk/eval-sets.html.
+    """
     # read config
     config = config_from_locals(dict(locals()))
 
@@ -631,7 +661,7 @@ def eval_set_command(
         tasks=tasks,
         solver=solver,
         log_level=common["log_level"],
-        log_level_transcript=common["log_level_transcript"],
+        log_level_transcript=log_level_transcript,
         log_dir=common["log_dir"],
         log_format=log_format,
         model=model,
@@ -835,6 +865,12 @@ def config_from_locals(locals: dict[str, Any]) -> GenerateConfigArgs:
             if key == "parallel_tool_calls":
                 if value is not False:
                     value = None
+            if key == "internal_tools":
+                if value is not False:
+                    value = None
+            if key == "reasoning_history":
+                if value is not False:
+                    value = None
             config[key] = value  # type: ignore
     return config
 
@@ -886,6 +922,7 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
     "--trace",
     type=bool,
     is_flag=True,
+    hidden=True,
     help="Trace message interactions with evaluated model to terminal.",
     envvar="INSPECT_EVAL_TRACE",
 )
@@ -947,6 +984,16 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
     "--max-retries", type=int, help=MAX_RETRIES_HELP, envvar="INSPECT_EVAL_MAX_RETRIES"
 )
 @click.option("--timeout", type=int, help=TIMEOUT_HELP, envvar="INSPECT_EVAL_TIMEOUT")
+@click.option(
+    "--log-level-transcript",
+    type=click.Choice(
+        [level.lower() for level in ALL_LOG_LEVELS],
+        case_sensitive=False,
+    ),
+    default=DEFAULT_LOG_LEVEL_TRANSCRIPT,
+    envvar="INSPECT_LOG_LEVEL_TRANSCRIPT",
+    help=f"Set the log level of the transcript (defaults to '{DEFAULT_LOG_LEVEL_TRANSCRIPT}')",
+)
 @common_options
 def eval_retry_command(
     log_files: tuple[str],
@@ -966,6 +1013,7 @@ def eval_retry_command(
     max_connections: int | None,
     max_retries: int | None,
     timeout: int | None,
+    log_level_transcript: str,
     **common: Unpack[CommonOptions],
 ) -> None:
     """Retry failed evaluation(s)"""
@@ -994,7 +1042,7 @@ def eval_retry_command(
     eval_retry(
         retry_log_files,
         log_level=common["log_level"],
-        log_level_transcript=common["log_level_transcript"],
+        log_level_transcript=log_level_transcript,
         log_dir=common["log_dir"],
         max_samples=max_samples,
         max_tasks=max_tasks,

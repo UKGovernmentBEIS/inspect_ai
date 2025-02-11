@@ -23,10 +23,11 @@ from typing_extensions import override
 
 from inspect_ai._util.constants import DEFAULT_MAX_RETRIES, DEFAULT_MAX_TOKENS
 from inspect_ai._util.content import Content
-from inspect_ai._util.images import image_as_data_uri
-from inspect_ai._util.url import is_data_uri, is_http_url
+from inspect_ai._util.images import file_as_data_uri
+from inspect_ai._util.url import is_http_url
 from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
 
+from .._call_tools import parse_tool_call
 from .._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
@@ -37,12 +38,15 @@ from .._chat_message import (
 from .._generate_config import GenerateConfig
 from .._model import ModelAPI
 from .._model_call import ModelCall
-from .._model_output import ChatCompletionChoice, ModelOutput, ModelUsage
-from .util import (
+from .._model_output import (
+    ChatCompletionChoice,
+    ModelOutput,
+    ModelUsage,
     as_stop_reason,
+)
+from .util import (
     environment_prerequisite_error,
     model_base_url,
-    parse_tool_call,
 )
 
 GROQ_API_KEY = "GROQ_API_KEY"
@@ -248,18 +252,20 @@ async def as_chat_completion_part(
 ) -> ChatCompletionContentPartParam:
     if content.type == "text":
         return ChatCompletionContentPartTextParam(type="text", text=content.text)
-    else:
+    elif content.type == "image":
         # API takes URL or base64 encoded file. If it's a remote file or data URL leave it alone, otherwise encode it
         image_url = content.image
         detail = content.detail
 
-        if not is_http_url(image_url) and not is_data_uri(image_url):
-            image_url = await image_as_data_uri(image_url)
+        if not is_http_url(image_url):
+            image_url = await file_as_data_uri(image_url)
 
         return ChatCompletionContentPartImageParam(
             type="image_url",
             image_url=dict(url=image_url, detail=detail),
         )
+    else:
+        raise RuntimeError("Groq models do not support audio or video inputs.")
 
 
 def chat_tools(tools: List[ToolInfo]) -> List[Dict[str, Any]]:
@@ -288,8 +294,12 @@ def chat_tool_calls(message: Any, tools: list[ToolInfo]) -> Optional[List[ToolCa
 
 
 def chat_message_assistant(message: Any, tools: list[ToolInfo]) -> ChatMessageAssistant:
+    reasoning = getattr(message, "reasoning", None)
+    if reasoning is not None:
+        reasoning = str(reasoning)
     return ChatMessageAssistant(
         content=message.content or "",
         source="generate",
         tool_calls=chat_tool_calls(message, tools),
+        reasoning=reasoning,
     )

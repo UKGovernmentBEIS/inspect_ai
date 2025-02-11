@@ -1,0 +1,12 @@
+.empty-panel {
+  width: 100%;
+}
+
+.empty-panel .container {
+  display: flex;
+  text-align: center;
+  flex: 0 0 content;
+  align-items: center;
+  justify-content: center;
+  height: 10rem;
+}

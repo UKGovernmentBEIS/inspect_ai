@@ -2,7 +2,11 @@
 2.  Exercise more fine grained control over which, when, and how many tool calls are made, and how tool calling errors are handled.
 3.  Have multiple `generate()` passes each with a distinct set of tools.
 
-To do this, create a solver that emulates the default tool use loop and provides additional customisation as required. For example, here is a complete solver agent that has essentially the same implementation as the default `generate()` function:
+To do this, create a solver that emulates the default tool use loop and provides additional customisation as required. 
+
+### Example
+
+For example, here is a complete solver agent that has essentially the same implementation as the default `generate()` function:
 
 ``` python
 @solver
@@ -12,27 +16,30 @@ def agent_loop(message_limit: int = 50):
         # establish messages limit so we have a termination condition
         state.message_limit = message_limit
 
-        # call the model in a loop
-        while not state.completed:
-            # call model
-            output = await get_model().generate(state.messages, state.tools)
+        try:
+            # call the model in a loop
+            while not state.completed:
+                # call model
+                output = await get_model().generate(state.messages, state.tools)
 
-            # update state
-            state.output = output
-            state.messages.append(output.message)
+                # update state
+                state.output = output
+                state.messages.append(output.message)
 
-            # make tool calls or terminate if there are none
-            if output.message.tool_calls:
-                state.messages.extend(call_tools(output.message, state.tools))
-            else:
-                break
+                # make tool calls or terminate if there are none
+                if output.message.tool_calls:
+                    state.messages.extend(call_tools(output.message, state.tools))
+                else:
+                    break
+        except SampleLimitExceededError as ex:
+            raise ex.with_state(state)
 
         return state
 
     return solve
 ```
 
-The `state.completed` flag is automatically set to `False` if `message_limit` or `token_limit` for the task is exceeded, so we check it at the top of the loop.
+Solvers can set the `state.completed` flag to indicate that the sample is complete, so we check it at the top of the loop. When sample limits (e.g. tokens or messages) are exceeded an exception is thrown, so we re-raise it along with the current state of our agent loop.
 
 You can imagine several ways you might want to customise this loop:
 
@@ -44,12 +51,17 @@ You can imagine several ways you might want to customise this loop:
 
 ### Stop Reasons {#sec-stop-reasons}
 
-One thing that a custom scaffold may do is try to recover from various conditions that cause the model to stop generating. You can find the reason that generation stopped in the `stop_reason` field of `ModelOutput`. For example:
+One thing that a custom scaffold may do is try to recover from various conditions that cause the model to stop generating. You can find the reason that generation stopped in the `stop_reason` field of `ModelOutput`. 
 
-``` python
-output = await model.generate(state.messages, state.tools)
-if output.stop_reason == "model_length":
-    # do something to recover from context window overflow
+For example:, if you have written a scaffold loop that continues calling the model even after it stops calling tools, there may be values of `stop_reason` that indicate that the loop should terminate anyway (because the error will just keep repeating on subsequent calls to the model). For example, the [basic agent](agents.qmd#sec-basic-agent) checks for `stop_reason` and exits if there is a context window overflow:
+
+```python
+# check for stop reasons that indicate we should terminate
+if state.output.stop_reason == "model_length":
+    transcript().info(
+        f"Agent terminated (reason: {state.output.stop_reason})"
+    )
+    break
 ```
 
 Here are the possible values for `StopReason` :

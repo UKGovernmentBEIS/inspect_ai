@@ -1,3 +1,4 @@
+from functools import wraps
 from typing import (
     Any,
     Callable,
@@ -25,21 +26,33 @@ from ._target import Target
 
 @runtime_checkable
 class Scorer(Protocol):
-    r"""Score model outputs.
-
-    Evaluate the passed outputs and targets and return a
-    dictionary with scoring outcomes and context.
-
-    Args:
-        state (TaskState): Task state
-        target (Target): Ideal target for the output.
-    """
-
     async def __call__(
         self,
         state: TaskState,
         target: Target,
-    ) -> Score: ...
+    ) -> Score:
+        r"""Score model outputs.
+
+        Evaluate the passed outputs and targets and return a
+        dictionary with scoring outcomes and context.
+
+        Args:
+            state: Task state
+            target: Ideal target for the output.
+
+        Examples:
+          ```python
+          @scorer
+          def custom_scorer() -> Scorer:
+              async def score(state: TaskState, target: Target) -> Score:
+                  # Compare state / model output with target
+                  # to yield a score
+                  return Score(value=...)
+
+              return score
+          ````
+        """
+        ...
 
 
 P = ParamSpec("P")
@@ -89,18 +102,28 @@ def scorer(
     r"""Decorator for registering scorers.
 
     Args:
-        metrics (list[Metric] | dict[str, list[Metric]]): One or more metrics to calculate
+        metrics: One or more metrics to calculate
             over the scores.
-        name (str | None):
-            Optional name for scorer. If the decorator has no name
+        name: Optional name for scorer. If the decorator has no name
             argument then the name of the underlying ScorerType
             object will be used to automatically assign a name.
-        **metadata (dict[str,Any]): Additional values to serialize
+        **metadata: Additional values to serialize
             in metadata.
 
     Returns:
         Scorer with registry attributes.
 
+    Examples:
+      ```python
+      @scorer
+      def custom_scorer() -> Scorer:
+          async def score(state: TaskState, target: Target) -> Score:
+              # Compare state / model output with target
+              # to yield a score
+              return Score(value=...)
+
+          return score
+      ````
     """
 
     def wrapper(scorer_type: Callable[P, Scorer]) -> Callable[P, Scorer]:
@@ -110,6 +133,7 @@ def scorer(
         )
 
         # wrap instantiations of scorer so they carry registry info and metrics
+        @wraps(scorer_type)
         def scorer_wrapper(*args: P.args, **kwargs: P.kwargs) -> Scorer:
             scorer = scorer_type(*args, **kwargs)
 
@@ -151,8 +175,8 @@ def scorer_metrics(
         return cast(list[Metric | dict[str, list[Metric]]], metrics_raw)
 
 
-def unique_scorer_name(scorer: Scorer, already_used_names: list[str]) -> str:
-    base_name = registry_unqualified_name(scorer)
+def unique_scorer_name(scorer: Scorer | str, already_used_names: list[str]) -> str:
+    base_name = scorer if isinstance(scorer, str) else registry_unqualified_name(scorer)
     scorer_name = base_name
     count = 1
     while scorer_name in already_used_names:

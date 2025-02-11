@@ -1,3 +1,4 @@
+import asyncio
 import contextlib
 from contextvars import ContextVar
 from datetime import datetime
@@ -11,7 +12,7 @@ from typing import (
     Union,
 )
 
-from pydantic import BaseModel, Field, JsonValue, field_serializer
+from pydantic import BaseModel, ConfigDict, Field, JsonValue, field_serializer
 
 from inspect_ai._util.constants import SAMPLE_SUBTASK
 from inspect_ai._util.error import EvalError
@@ -69,7 +70,7 @@ class SampleLimitEvent(BaseEvent):
     event: Literal["sample_limit"] = Field(default="sample_limit")
     """Event type."""
 
-    type: Literal["message", "time", "token", "operator"]
+    type: Literal["message", "time", "token", "operator", "custom"]
     """Type of limit that halted processing"""
 
     message: str
@@ -123,6 +124,9 @@ class ModelEvent(BaseEvent):
     output: ModelOutput
     """Output from model."""
 
+    error: str | None = Field(default=None)
+    """Error which occurred during model call."""
+
     cache: Literal["read", "write"] | None = Field(default=None)
     """Was this a cache read or write."""
 
@@ -163,7 +167,7 @@ class ToolEvent(BaseEvent):
     events: list["Event"] = Field(default_factory=list)
     """Transcript of events for tool."""
 
-    def set_result(
+    def _set_result(
         self,
         result: ToolResult,
         truncated: tuple[int, int] | None,
@@ -175,6 +179,32 @@ class ToolEvent(BaseEvent):
         self.error = error
         self.events = events
         self.pending = None
+
+    # mechanism for operator to cancel the tool call
+
+    def _set_task(self, task: asyncio.Task[Any]) -> None:
+        """Set the tool task (for possible cancellation)"""
+        self._task = task
+
+    def _cancel(self) -> None:
+        """Cancel the tool task."""
+        if self._task:
+            self._cancelled = True
+            self._task.cancel()
+
+    @property
+    def cancelled(self) -> bool:
+        """Was the task cancelled?"""
+        return self._cancelled is True
+
+    _cancelled: bool | None = None
+    """Was this tool call cancelled?"""
+
+    _task: asyncio.Task[Any] | None = None
+    """Handle to task (used for cancellation)"""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+    """Required so that we can include '_task' as a member."""
 
 
 class ApprovalEvent(BaseEvent):
