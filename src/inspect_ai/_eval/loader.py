@@ -26,7 +26,6 @@ from inspect_ai._util.registry import (
     registry_params,
 )
 from inspect_ai.model import Model, ModelName
-from inspect_ai.solver._bridge.bridge import bridge
 from inspect_ai.scorer._scorer import Scorer, ScorerSpec, scorer_create
 from inspect_ai.solver._bridge import bridge
 from inspect_ai.solver._solver import Solver, SolverSpec
@@ -510,8 +509,8 @@ def scorer_from_spec(spec: ScorerSpec, task_path: Path | None, **kwargs: Any) ->
     Load a scorer
 
     Args:
-        scorer: The scorer name
-        scorer_path: An optional path to a scorer file
+        spec: The scorer spec
+        task_path: An optional path to the task file
         **kwargs: Additional keyword arguments passed to the scorer initialization
 
     Returns:
@@ -621,4 +620,3 @@ def parse_spec_str(spec_str: str) -> Tuple[Path | None, str | None]:
         file = None
         name = spec_split[0]
     return file, name
-

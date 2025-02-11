@@ -66,6 +66,8 @@ async def score_async(
        epochs_reducer (ScoreReducers  | None):
          Reducer function(s) for aggregating scores in each sample.
          Defaults to previously used reducer(s).
+       action: Whether to append or overwrite this score
+
 
 
     Returns:
@@ -151,8 +153,6 @@ async def task_score(
     scorer_args: dict[str, Any] | None,
     action: Literal["append", "overwrite"] | None,
 ) -> EvalLog:
-    ## TODO: Why would we need to change the run dir when scoring?
-
     # confirm we have a scorer
     scorers = resolve_scorers(log, scorer, scorer_args)
     if len(scorers) == 0:
@@ -165,13 +165,13 @@ async def task_score(
         raise ValueError("There are no samples to score in the log.")
 
     task_name = log.eval.task
-    display().print(f"Scoring {len(log.samples)} samples for task: {task_name}")
+    display().print(f"Scoring {task_name} ({len(log.samples)} samples)")
 
     # perform scoring
     log = await score_async(log=log, scorers=scorers, action=action)
 
     # compute and log metrics
-    display().print(f"Computing metrics for task: {task_name}")
+    display().print("Computing metrics")
     if log.samples:
         sample_scores = [
             {
