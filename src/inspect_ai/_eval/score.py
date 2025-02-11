@@ -25,6 +25,8 @@ from inspect_ai.solver import TaskState
 
 from .task.results import eval_results
 
+ScoreAction = Literal["append", "overwrite"]
+
 
 def score(
     log: EvalLog,
@@ -56,7 +58,7 @@ async def score_async(
     log: EvalLog,
     scorers: list[Scorer],
     epochs_reducer: ScoreReducers | None = None,
-    action: Literal["append", "overwrite"] | None = None,
+    action: ScoreAction | None = None,
 ) -> EvalLog:
     """Score an evaluation log.
 
@@ -151,7 +153,7 @@ async def task_score(
     log: EvalLog,
     scorer: str | None,
     scorer_args: dict[str, Any] | None,
-    action: Literal["append", "overwrite"] | None,
+    action: ScoreAction | None,
 ) -> EvalLog:
     # confirm we have a scorer
     scorers = resolve_scorers(log, scorer, scorer_args)

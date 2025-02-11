@@ -9,7 +9,7 @@ from typing_extensions import Unpack
 from inspect_ai._cli.util import parse_cli_config
 from inspect_ai._display import display
 from inspect_ai._eval.context import init_eval_context, init_task_context
-from inspect_ai._eval.score import task_score
+from inspect_ai._eval.score import ScoreAction, task_score
 from inspect_ai._util.file import basename, dirname, exists
 from inspect_ai.log._log import EvalLog
 from inspect_ai.log._recorders import create_recorder_for_location
@@ -51,7 +51,7 @@ def score_command(
     overwrite: bool | None,
     scorer: str | None,
     s: tuple[str] | None,
-    action: Literal["append", "overwrite"] | None,
+    action: ScoreAction | None,
     **common: Unpack[CommonOptions],
 ) -> None:
     """Score a previous evaluation run."""
@@ -78,7 +78,7 @@ async def score(
     scorer: str | None,
     s: tuple[str] | None,
     overwrite: bool,
-    action: Literal["append", "overwrite"] | None,
+    action: ScoreAction | None,
     log_level: str | None,
     output_file: str | None = None,
 ) -> None:
@@ -165,15 +165,13 @@ def resolve_output_file(log_file: str, output_file: str | None, overwrite: bool)
         return output_file
 
 
-def resolve_action(
-    eval_log: EvalLog, action: Literal["append", "overwrite"] | None
-) -> Literal["append", "overwrite"]:
+def resolve_action(eval_log: EvalLog, action: ScoreAction | None) -> ScoreAction:
     if action is not None:
         return action
 
     if eval_log.results is not None and len(eval_log.results.scores) > 0:
         user_action = Prompt.ask(
-            f"The task {eval_log.eval.task} has already been scored. Would you like to overwrite these scores or append an additional score?",
+            "Overwrite existing scores or append as additional score?",
             choices=["overwrite", "append", "o", "a"],
             default="append",
         )
