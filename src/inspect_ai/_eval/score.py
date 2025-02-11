@@ -167,13 +167,12 @@ async def task_score(
         raise ValueError("There are no samples to score in the log.")
 
     task_name = log.eval.task
-    display().print(f"Scoring {task_name} ({len(log.samples)} samples)")
+    display().print(f"\nScoring {task_name} ({len(log.samples)} samples)")
 
     # perform scoring
     log = await score_async(log=log, scorers=scorers, action=action)
 
     # compute and log metrics
-    display().print("Computing metrics")
     if log.samples:
         sample_scores = [
             {

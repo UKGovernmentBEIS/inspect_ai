@@ -1,13 +1,16 @@
 import asyncio
 import os
-from typing import Literal
 
 import click
+import rich
+from rich.panel import Panel
 from rich.prompt import Prompt
+from rich.table import Table
 from typing_extensions import Unpack
 
 from inspect_ai._cli.util import parse_cli_config
 from inspect_ai._display import display
+from inspect_ai._display.core.rich import rich_theme
 from inspect_ai._eval.context import init_eval_context, init_task_context
 from inspect_ai._eval.score import ScoreAction, task_score
 from inspect_ai._util.file import basename, dirname, exists
@@ -16,6 +19,8 @@ from inspect_ai.log._recorders import create_recorder_for_location
 from inspect_ai.model import get_model
 
 from .common import CommonOptions, common_options, process_common_options
+
+SCORES_PER_ROW = 4
 
 
 @click.command("score")
@@ -121,13 +126,70 @@ async def score(
     await recorder.write_log(output_file, eval_log)
 
     # print results
-    display().print(f"\nResults for {eval_log.eval.task}")
+    print_results(output_file, eval_log)
+
+
+def print_results(output_file: str, eval_log: EvalLog) -> None:
+    # the theme
+    theme = rich_theme()
+
+    # Create results panel
+    grid = Table.grid(expand=True)
+    grid.add_column()
+    grid.add_row("")
+
     if eval_log.results:
-        for score in eval_log.results.scores:
-            display().print(f"{score.name}")
-            for name, metric in score.metrics.items():
-                display().print(f" - {name}: {metric.value:.3f}")
-    display().print(f"\nLog: {output_file}\n")
+        # Process scores in groups
+        for i in range(0, len(eval_log.results.scores), SCORES_PER_ROW):
+            # Create a grid for this row of scores
+            score_row = Table.grid(
+                expand=False,
+                padding=(0, 2, 0, 0),
+            )
+
+            # Add columns for each score in this row
+            for _ in range(SCORES_PER_ROW):
+                score_row.add_column()
+
+            # Create individual score tables and add them to the row
+            score_tables: list[Table | str] = []
+            for score in eval_log.results.scores[i : i + SCORES_PER_ROW]:
+                table = Table(
+                    show_header=False, show_lines=False, box=None, show_edge=False
+                )
+                table.add_column()
+                table.add_column()
+
+                # Add score name and metrics
+                table.add_row(f"[bold]{score.name}[/bold]")
+                for name, metric in score.metrics.items():
+                    table.add_row(f"{name}", f"{metric.value:.3f}")
+
+                score_tables.append(table)
+
+            # Fill remaining slots with empty tables if needed
+            while len(score_tables) < SCORES_PER_ROW:
+                score_tables.append("")
+
+            # Add the score tables to this row
+            score_row.add_row(*score_tables)
+
+            # Add this row of scores to the main grid
+            grid.add_row(score_row)
+
+    grid.add_row("")
+    grid.add_row(f" Log: [{theme.link}]{output_file}[/{theme.link}]")
+
+    p = Panel(
+        title=f"[bold][{theme.meta}]Results for {eval_log.eval.task}[/bold][/{theme.meta}]",
+        title_align="left",
+        renderable=grid,
+    )
+
+    # Print the results panel
+    display().print("")
+    console = rich.get_console()
+    console.print(p)
 
 
 def resolve_output_file(log_file: str, output_file: str | None, overwrite: bool) -> str:
