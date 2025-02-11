@@ -22,6 +22,9 @@ class Recorder(abc.ABC):
     def default_log_buffer(self) -> int: ...
 
     @abc.abstractmethod
+    def is_writeable(self) -> bool: ...
+
+    @abc.abstractmethod
     async def log_init(self, eval: EvalSpec, location: str | None = None) -> str: ...
 
     @abc.abstractmethod

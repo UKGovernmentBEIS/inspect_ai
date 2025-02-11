@@ -18,6 +18,7 @@ from fsspec.core import split_protocol  # type: ignore  # type: ignore
 from fsspec.implementations.local import make_path_posix  # type: ignore
 from pydantic import BaseModel
 from s3fs import S3FileSystem  # type: ignore
+from shortuuid import uuid
 
 # https://filesystem-spec.readthedocs.io/en/latest/_modules/fsspec/spec.html#AbstractFileSystem
 # https://filesystem-spec.readthedocs.io/en/latest/api.html#fsspec.generic.GenericFileSystem
@@ -169,6 +170,9 @@ class FileSystem:
     def exists(self, path: str) -> bool:
         return self.fs.exists(path) is True
 
+    def touch(self, path: str) -> None:
+        self.fs.touch(path)
+
     def rm(
         self, path: str, recursive: bool = False, maxdepth: int | None = None
     ) -> None:
@@ -217,6 +221,16 @@ class FileSystem:
 
     def is_local(self) -> bool:
         return isinstance(self.fs, fsspec.implementations.local.LocalFileSystem)
+
+    def is_writeable(self, path: str) -> bool:
+        try:
+            path = path.rstrip("/\\")
+            touch_file = f"{path}{self.fs.sep}{uuid()}"
+            self.touch(touch_file)
+            self.rm(touch_file)
+            return True
+        except PermissionError:
+            return False
 
     def is_async(self) -> bool:
         return isinstance(self.fs, fsspec.asyn.AsyncFileSystem)
