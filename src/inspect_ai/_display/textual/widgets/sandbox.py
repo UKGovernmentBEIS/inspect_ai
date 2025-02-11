@@ -9,6 +9,12 @@ from .port_mappings import PortMappingsView
 
 class SandboxView(Vertical):
     DEFAULT_CSS = """
+    SandboxView {
+        height: auto;
+    }
+    SandboxView * {
+        height: auto;
+    }
     .indent {
         width: 2;
     }

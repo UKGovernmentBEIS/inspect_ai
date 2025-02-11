@@ -347,7 +347,7 @@ class SampleLimits(Widget):
 class SandboxesView(Vertical):
     DEFAULT_CSS = """
     SandboxesView {
-        padding: 1 0 1 0;
+        padding: 1 0 0 0;
         background: transparent;
         height: auto;
     }
@@ -358,6 +358,7 @@ class SandboxesView(Vertical):
         background: transparent;
     }
     .clipboard-message {
+        height: auto;
         margin-top: 1;
     }
     """
@@ -372,7 +373,6 @@ class SandboxesView(Vertical):
     async def sync_sample(self, sample: ActiveSample) -> None:
         if len(sample.sandboxes) > 0:
             multiple_sandboxes = len(sample.sandboxes) > 1
-            self.display = True
             sandboxes_caption = cast(Static, self.query_one("#sandboxes-caption"))
             sandboxes_caption.update(
                 f"[bold]sandbox container{'s' if multiple_sandboxes else ''}:[/bold]"
@@ -395,6 +395,7 @@ class SandboxesView(Vertical):
                     markup=True,
                 )
             )
+            self.display = True
         else:
             self.display = False
 
