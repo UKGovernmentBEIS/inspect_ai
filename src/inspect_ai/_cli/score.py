@@ -206,7 +206,7 @@ def resolve_output_file(log_file: str, output_file: str | None, overwrite: bool)
                     choices=["overwrite", "create", "o", "c"],
                     default="create",
                 )
-                if file_action in ["overwrite", "0"]:
+                if file_action in ["overwrite", "o"]:
                     return log_file
                 else:
                     file_name = basename(log_file)
