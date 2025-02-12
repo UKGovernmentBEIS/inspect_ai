@@ -148,7 +148,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
             services = await compose_services(project)
 
             # start the services
-            await compose_up(project)
+            await compose_up(project, services)
 
             # check to ensure that the services are running
             running_services = await compose_check_running(
