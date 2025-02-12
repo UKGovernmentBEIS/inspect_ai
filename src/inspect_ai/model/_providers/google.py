@@ -5,7 +5,7 @@ import json
 from copy import copy
 from io import BytesIO
 from logging import getLogger
-from typing import Any, cast
+from typing import Any, MutableSequence, cast
 
 import proto  # type: ignore
 from google.ai.generativelanguage import (
@@ -553,11 +553,15 @@ def completion_choice_from_candidate(candidate: Candidate) -> ChatCompletionChoi
 
 
 def completion_choices_from_candidates(
-    candidates: list[Candidate],
+    candidates: MutableSequence[Candidate],
 ) -> list[ChatCompletionChoice]:
-    candidates = copy(candidates)
-    candidates.sort(key=lambda c: c.index)
-    return [completion_choice_from_candidate(candidate) for candidate in candidates]
+    if candidates:
+        candidates_list = sorted(candidates, key=lambda c: c.index)
+        return [
+            completion_choice_from_candidate(candidate) for candidate in candidates_list
+        ]
+    else:
+        return []
 
 
 # google doesn't export FinishReason (it's in a sub-namespace with a beta
