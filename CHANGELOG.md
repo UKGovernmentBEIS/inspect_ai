@@ -12,6 +12,7 @@
 - Transcript: Add `source` field to `InfoEvent` and use it for events logged by the human agent.
 - Docker: Support Dockerfiles with `.Dockerfile` extension.
 - Docker: Raise error when there is an explicitly configured `container_name` (incompatible with epochs > 1).
+- Docker: Dynamically set `compose up` timeout when there are `healthcheck` entries for services.
 - Log: Validate that `log_dir` is writeable at startup.
 - Log: Write eval config defaults into log file (rather than `None`).
 - Bugfix: Always honor level-level-transcript setting for transcript logging.
