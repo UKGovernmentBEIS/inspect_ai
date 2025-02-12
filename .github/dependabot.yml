@@ -1,11 +1,14 @@
 version: 2
 updates:
-- package-ecosystem: pip
-  directory: "/"
-  schedule:
-    interval: daily
-    time: "13:00"
-  groups:
-    python-packages:
-      patterns:
-        - "*"
+  - package-ecosystem: pip
+    directory: "/"
+    schedule:
+      interval: daily
+      time: "13:00"
+    groups:
+      python-packages:
+        patterns:
+          - "*"
+    ignore:
+      - dependency-name: "quarto-cli"
+        versions: [">=1.6.0"]
