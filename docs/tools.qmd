@@ -430,12 +430,12 @@ The `computer()` tool provides models with a computer desktop environment along 
 
 ### Configuration
 
-The `computer()` tool runs within a Docker container. To use it with a task you need to reference the `aisiuk/inspect-computer-tool:latest-beta` image in your Docker compose file. For example:
+The `computer()` tool runs within a Docker container. To use it with a task you need to reference the `aisiuk/inspect-computer-tool:latest` image in your Docker compose file. For example:
 
 ``` {.yaml filename="compose.yaml"}
 services:
   default:
-    image: aisiuk/inspect-computer-tool:latest-beta
+    image: aisiuk/inspect-computer-tool:latest
 ```
 
 You can configure the container to not have Internet access as follows:
@@ -443,13 +443,13 @@ You can configure the container to not have Internet access as follows:
 ``` {.yaml filename="compose.yaml"}
 services:
   default:
-    image: aisiuk/inspect-computer-tool:latest-beta
+    image: aisiuk/inspect-computer-tool:latest
     network_mode: none
 ```
 
 Note that if you'd like to be able to view the model's interactions with the computer desktop in realtime, you will need to also do some port mapping to enable a VNC connection with the container. See the [VNC Client](#vnc-client) section below for details on how to do this.
 
-The `aisiuk/inspect-computer-tool:latest-beta` image is based on the [ubuntu:22.04](https://hub.docker.com/layers/library/ubuntu/22.04/images/sha256-965fbcae990b0467ed5657caceaec165018ef44a4d2d46c7cdea80a9dff0d1ea?context=explore) image and includes the following additional applications pre-installed:
+The `aisiuk/inspect-computer-tool:latest` image is based on the [ubuntu:22.04](https://hub.docker.com/layers/library/ubuntu/22.04/images/sha256-965fbcae990b0467ed5657caceaec165018ef44a4d2d46c7cdea80a9dff0d1ea?context=explore) image and includes the following additional applications pre-installed:
 
 -   Firefox
 -   VS Code
@@ -521,7 +521,7 @@ You can use a [VNC](https://en.wikipedia.org/wiki/VNC) connection to the contain
 ``` {.yaml filename="compose.yaml"}
 services:
   default:
-    image: aisiuk/inspect-computer-tool:latest-beta
+    image: aisiuk/inspect-computer-tool:latest
     ports:
       - "5900"
       - "6080"

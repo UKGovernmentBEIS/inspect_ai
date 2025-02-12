@@ -3,12 +3,13 @@ import os
 import shlex
 from logging import getLogger
 from pathlib import Path
-from typing import Any, Literal, TypedDict, cast
+from typing import Any, Literal, cast
 
 import yaml
 from pydantic import BaseModel
 
 from inspect_ai._util.error import PrerequisiteError
+from inspect_ai._util.trace import trace_message
 from inspect_ai.util._display import display_type
 from inspect_ai.util._subprocess import ExecResult, subprocess
 
@@ -16,26 +17,37 @@ from .prereqs import (
     DOCKER_COMPOSE_REQUIRED_VERSION_PULL_POLICY,
     validate_docker_compose,
 )
+from .service import ComposeService, services_healthcheck_time
 from .util import ComposeProject, is_inspect_project
 
 logger = getLogger(__name__)
 
 # How long to wait for compose environment to pass a health check
-COMPOSE_WAIT = "120"
+COMPOSE_WAIT = 120
 
 
-async def compose_up(project: ComposeProject) -> None:
+async def compose_up(
+    project: ComposeProject, services: dict[str, ComposeService]
+) -> None:
+    # compute the maximum amount of time we will
+    up_command = ["up", "--detach", "--wait"]
+
+    # are there healthchecks in the service definitions? if so then peg our timeout
+    # at the maximum total wait time. otherwise, pick a reasonable default
+    healthcheck_time = services_healthcheck_time(services)
+    if healthcheck_time > 0:
+        timeout: int = healthcheck_time
+        trace_message(logger, "Docker", "Docker services heathcheck timeout: {timeout}")
+    else:
+        timeout = COMPOSE_WAIT
+        up_command.extend(["--wait-timeout", str(timeout)])
+
     # Start the environment. Note that we don't check the result because docker will
     # return a non-zero exit code for services that exit (even successfully) when
     # passing the --wait flag (see https://github.com/docker/compose/issues/10596).
     # In practice, we will catch any errors when calling compose_check_running()
     # immediately after we call compose_up().
-    await compose_command(
-        ["up", "--detach", "--wait", "--wait-timeout", COMPOSE_WAIT],
-        project=project,
-        # wait up to 5 minutes for container to go up (compose wait + 3 minutes)
-        timeout=300,
-    )
+    await compose_command(up_command, project=project, timeout=timeout)
 
 
 async def compose_down(project: ComposeProject, quiet: bool = True) -> None:
@@ -189,18 +201,6 @@ async def compose_exec(
         forward_env=False,
         output_limit=output_limit,
     )
-
-
-ComposeService = TypedDict(
-    "ComposeService",
-    {
-        "image": str | None,
-        "build": str | None,
-        "container_name": str | None,
-        "x-default": bool | None,
-        "x-local": bool | None,
-    },
-)
 
 
 async def compose_services(project: ComposeProject) -> dict[str, ComposeService]:

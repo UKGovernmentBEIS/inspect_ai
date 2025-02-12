@@ -148,7 +148,7 @@ def task(*args: Any, name: str | None = None, **attribs: Any) -> Any:
             # module import, so set its task file and run dir
             if get_installed_package_name(task_type) is None:
                 module = inspect.getmodule(task_type)
-                if module and hasattr(module, "__file__"):
+                if module and hasattr(module, "__file__") and module.__file__:
                     file = Path(getattr(module, "__file__"))
                     setattr(task_instance, TASK_FILE_ATTR, file.as_posix())
                     setattr(task_instance, TASK_RUN_DIR_ATTR, file.parent.as_posix())
