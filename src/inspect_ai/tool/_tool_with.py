@@ -25,14 +25,14 @@ def tool_with(
     """Tool with modifications to name and descriptions.
 
     Args:
-       tool (Tool): Tool instance to copy and add descriptions to.
-       name (str | None): Tool name (optional).
-       description (str | None): Tool description (optional).
-       parameters (dict[str,str] | None): Parameter descriptions (optional)
-       parallel (bool | None): Does the tool support parallel execution
+       tool: Tool instance to copy and add descriptions to.
+       name: Tool name (optional).
+       description: Tool description (optional).
+       parameters: Parameter descriptions (optional)
+       parallel: Does the tool support parallel execution
           (defaults to True if not specified)
-       viewer (ToolCallViewer | None): Optional tool call viewer implementation.
-       model_input (ToolCallModelInput | None): Optional function that determines how
+       viewer: Optional tool call viewer implementation.
+       model_input: Optional function that determines how
            tool call results are played back as model input.
 
     Returns:

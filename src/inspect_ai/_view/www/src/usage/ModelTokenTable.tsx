@@ -14,7 +14,13 @@ export const ModelTokenTable: React.FC<ModelTokenTable> = ({
       <TokenHeader />
       <tbody>
         {Object.keys(model_usage).map((key) => {
-          return <TokenRow model={key} usage={model_usage[key]} />;
+          return (
+            <TokenRow
+              key={key}
+              model={`${key}-token-row`}
+              usage={model_usage[key]}
+            />
+          );
         })}
       </tbody>
     </TokenTable>

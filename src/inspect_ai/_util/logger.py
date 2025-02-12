@@ -181,7 +181,9 @@ def notify_logger_record(record: LogRecord, write: bool) -> None:
     from inspect_ai.log._transcript import LoggerEvent, transcript
 
     if write:
-        transcript()._event(LoggerEvent(message=LoggingMessage.from_log_record(record)))
+        transcript()._event(
+            LoggerEvent(message=LoggingMessage._from_log_record(record))
+        )
     global _rate_limit_count
     if (record.levelno <= INFO and re.search(r"\b429\b", record.getMessage())) or (
         record.levelno == DEBUG

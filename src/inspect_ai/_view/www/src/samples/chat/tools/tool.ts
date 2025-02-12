@@ -7,7 +7,7 @@ import { Arguments } from "../../../types/log";
 export interface ToolCallResult {
   functionCall: string;
   input?: string;
-  inputType?: string;
+  highlightLanguage?: string;
 }
 
 /**
@@ -19,24 +19,18 @@ export const resolveToolInput = (
 ): ToolCallResult => {
   const toolName = fn;
 
-  const [inputKey, inputType] = extractInputMetadata(toolName);
-  if (inputKey) {
-    const { input, args } = extractInput(
-      inputKey,
-      toolArgs as Record<string, unknown>,
-    );
-    const functionCall =
-      args.length > 0 ? `${toolName}(${args.join(",")})` : toolName;
-    return {
-      functionCall,
-      input,
-      inputType,
-    };
-  } else {
-    return {
-      functionCall: toolName,
-    };
-  }
+  const [inputKey, highlightLanguage] = extractInputMetadata(toolName);
+  const { input, args } = extractInput(
+    toolArgs as Record<string, unknown>,
+    inputKey,
+  );
+  const functionCall =
+    args.length > 0 ? `${toolName}(${args.join(", ")})` : toolName;
+  return {
+    functionCall,
+    input,
+    highlightLanguage,
+  };
 };
 
 const extractInputMetadata = (
@@ -54,29 +48,20 @@ const extractInputMetadata = (
 };
 
 const extractInput = (
-  inputKey: string,
   args: Record<string, unknown>,
+  inputKey?: string,
 ): { input?: string; args: string[] } => {
   const formatArg = (key: string, value: unknown) => {
-    const quotedValue = typeof value === "string" ? `"${value}"` : value;
+    const quotedValue =
+      typeof value === "string"
+        ? `"${value}"`
+        : typeof value === "object" || Array.isArray(value)
+          ? JSON.stringify(value, undefined, 2)
+          : String(value);
     return `${key}: ${quotedValue}`;
   };
   if (args) {
-    if (Object.keys(args).length === 1) {
-      const inputRaw = args[Object.keys(args)[0]];
-
-      let input;
-      if (Array.isArray(inputRaw) || typeof inputRaw === "object") {
-        input = JSON.stringify(inputRaw, undefined, 2);
-      } else {
-        input = String(inputRaw);
-      }
-
-      return {
-        input: input,
-        args: [],
-      };
-    } else if (args[inputKey]) {
+    if (inputKey && args[inputKey]) {
       const input = args[inputKey];
       const filteredArgs = Object.keys(args)
         .filter((key) => {

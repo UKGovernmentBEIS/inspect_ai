@@ -167,7 +167,7 @@ class ToolEvent(BaseEvent):
     events: list["Event"] = Field(default_factory=list)
     """Transcript of events for tool."""
 
-    def set_result(
+    def _set_result(
         self,
         result: ToolResult,
         truncated: tuple[int, int] | None,
@@ -182,11 +182,11 @@ class ToolEvent(BaseEvent):
 
     # mechanism for operator to cancel the tool call
 
-    def set_task(self, task: asyncio.Task[Any]) -> None:
+    def _set_task(self, task: asyncio.Task[Any]) -> None:
         """Set the tool task (for possible cancellation)"""
         self._task = task
 
-    def cancel(self) -> None:
+    def _cancel(self) -> None:
         """Cancel the tool task."""
         if self._task:
             self._cancelled = True
@@ -264,6 +264,9 @@ class InfoEvent(BaseEvent):
     event: Literal["info"] = Field(default="info")
     """Event type."""
 
+    source: str | None = Field(default=None)
+    """Optional source for info event."""
+
     data: JsonValue
     """Data provided with event."""
 
@@ -279,16 +282,23 @@ class ErrorEvent(BaseEvent):
 
 
 class ScoreEvent(BaseEvent):
-    """Event with sample score."""
+    """Event with score.
+
+    Can be the final score for a `Sample`, or can be an intermediate score
+    resulting from a call to `score`.
+    """
 
     event: Literal["score"] = Field(default="score")
     """Event type."""
 
     score: Score
-    """Sample score."""
+    """Score value."""
 
     target: str | list[str] | None = Field(default=None)
     """"Sample target."""
+
+    intermediate: bool = Field(default=False)
+    """Was this an intermediate scoring?"""
 
 
 class StepEvent(BaseEvent):
@@ -355,13 +365,14 @@ class Transcript:
         self.name = name
         self._events: list[Event] = []
 
-    def info(self, data: JsonValue) -> None:
+    def info(self, data: JsonValue, *, source: str | None = None) -> None:
         """Add an `InfoEvent` to the transcript.
 
         Args:
-           data (JsonValue): Data associated with the event.
+           data: Data associated with the event.
+           source: Optional event source.
         """
-        self._event(InfoEvent(data=data))
+        self._event(InfoEvent(source=source, data=data))
 
     @contextlib.contextmanager
     def step(self, name: str, type: str | None = None) -> Iterator[None]:

@@ -36,24 +36,6 @@ export const InfoTab: React.FC<PlanTabProps> = ({
     setHidden(false);
   }, [evalSpec, evalPlan, evalResults, evalStats, samples]);
 
-  const infoCards = [];
-  infoCards.push([
-    <PlanCard
-      evalSpec={evalSpec}
-      evalPlan={evalPlan}
-      scores={evalResults?.scores}
-    />,
-  ]);
-
-  if (evalStatus !== "started") {
-    infoCards.push(<UsageCard stats={evalStats} />);
-  }
-
-  // If there is error or progress, includes those within info
-  if (evalStatus === "error" && evalError) {
-    infoCards.unshift(<TaskErrorCard error={evalError} />);
-  }
-
   const showWarning =
     (!samples || samples.length === 0) &&
     evalStatus === "success" &&
@@ -73,7 +55,15 @@ export const InfoTab: React.FC<PlanTabProps> = ({
         ""
       )}
       <div style={{ padding: "0.5em 1em 0 1em", width: "100%" }}>
-        {infoCards}
+        <PlanCard
+          evalSpec={evalSpec}
+          evalPlan={evalPlan}
+          scores={evalResults?.scores}
+        />
+        {evalStatus !== "started" ? <UsageCard stats={evalStats} /> : undefined}
+        {evalStatus === "error" && evalError ? (
+          <TaskErrorCard error={evalError} />
+        ) : undefined}
       </div>
     </div>
   );

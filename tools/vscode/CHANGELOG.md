@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.52
+
+- Don't add entries to the `.gitignore` file.
+
 ## 0.3.51
 
 - Improve performance of log listing rendering by caching information in the workspace.

@@ -3,6 +3,7 @@ import re
 from logging import getLogger
 from typing import Any, Callable, Generator, Literal, cast
 
+from pydantic import BaseModel
 from pydantic_core import to_json
 
 from inspect_ai._util._async import run_coroutine
@@ -22,7 +23,21 @@ from ._recorders import recorder_type_for_format, recorder_type_for_location
 logger = getLogger(__name__)
 
 
-class EvalLogInfo(FileInfo):
+class EvalLogInfo(BaseModel):
+    """File info and task identifiers for eval log."""
+
+    name: str
+    """Name of file."""
+
+    type: str
+    """Type of file (file or directory)"""
+
+    size: int
+    """File size in bytes."""
+
+    mtime: float | None
+    """File modification time (None if the file is a directory on S3)."""
+
     task: str
     """Task name."""
 
@@ -231,7 +246,7 @@ def write_log_dir_manifest(
 
 
 def read_eval_log(
-    log_file: str | FileInfo,
+    log_file: str | EvalLogInfo,
     header_only: bool = False,
     resolve_attachments: bool = False,
     format: Literal["eval", "json", "auto"] = "auto",
@@ -241,7 +256,7 @@ def read_eval_log(
     Args:
        log_file (str | FileInfo): Log file to read.
        header_only (bool): Read only the header (i.e. exclude
-         the "samples" and "logging" fields). Defaults to False.
+          the "samples" and "logging" fields). Defaults to False.
        resolve_attachments (bool): Resolve attachments (e.g. images)
           to their full content.
        format (Literal["eval", "json", "auto"]): Read from format
@@ -256,7 +271,7 @@ def read_eval_log(
 
 
 async def read_eval_log_async(
-    log_file: str | FileInfo,
+    log_file: str | EvalLogInfo,
     header_only: bool = False,
     resolve_attachments: bool = False,
     format: Literal["eval", "json", "auto"] = "auto",
@@ -304,13 +319,13 @@ async def read_eval_log_async(
 
 
 def read_eval_log_headers(
-    log_files: list[str] | list[FileInfo] | list[EvalLogInfo],
+    log_files: list[str] | list[EvalLogInfo],
 ) -> list[EvalLog]:
     return run_coroutine(read_eval_log_headers_async(log_files))
 
 
 async def read_eval_log_headers_async(
-    log_files: list[str] | list[FileInfo] | list[EvalLogInfo],
+    log_files: list[str] | list[EvalLogInfo],
 ) -> list[EvalLog]:
     return [
         await read_eval_log_async(log_file, header_only=True) for log_file in log_files
@@ -318,7 +333,7 @@ async def read_eval_log_headers_async(
 
 
 def read_eval_log_sample(
-    log_file: str | FileInfo,
+    log_file: str | EvalLogInfo,
     id: int | str,
     epoch: int = 1,
     resolve_attachments: bool = False,
@@ -347,7 +362,7 @@ def read_eval_log_sample(
 
 
 async def read_eval_log_sample_async(
-    log_file: str | FileInfo,
+    log_file: str | EvalLogInfo,
     id: int | str,
     epoch: int = 1,
     resolve_attachments: bool = False,
@@ -386,7 +401,7 @@ async def read_eval_log_sample_async(
 
 
 def read_eval_log_samples(
-    log_file: str | FileInfo,
+    log_file: str | EvalLogInfo,
     all_samples_required: bool = True,
     resolve_attachments: bool = False,
     format: Literal["eval", "json", "auto"] = "auto",

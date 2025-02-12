@@ -68,12 +68,14 @@ export const ModelUsagePanel: React.FC<ModelUsageProps> = ({ usage }) => {
 
   return (
     <div className={clsx("text-size-small", styles.wrapper)}>
-      {rows.map((row) => {
+      {rows.map((row, idx) => {
         if (row.label === "---") {
-          return <div className={styles.separator}></div>;
+          return (
+            <div key={`$usage-sep-${idx}`} className={styles.separator}></div>
+          );
         } else {
           return (
-            <Fragment>
+            <Fragment key={`$usage-row-${idx}`}>
               <div
                 className={clsx(
                   "text-style-label",

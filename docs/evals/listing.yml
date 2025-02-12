@@ -1,0 +1,826 @@
+# Groups: Coding Assistants Cybersecurity Safeguards Mathematics Reasoning Knowledge
+
+- title: "HumanEval: Evaluating Large Language Models Trained on Code"
+  description: |
+    Measures the functional correctness of synthesizing programs from docstrings.
+  path: src/inspect_evals/humaneval
+  arxiv: https://arxiv.org/abs/2107.03374
+  group: Coding
+  contributors: ["adil-a"]
+  tasks:
+    - name: humaneval
+      dataset_samples: 164
+      baselines:
+        - name: openai/gpt-4o
+          metric: pass@1
+          score: 90.2
+          parameters: ["0-shot"]
+          source: https://www.anthropic.com/news/claude-3-5-sonnet
+        - name: openai/gpt-4
+          metric: pass@1
+          score: 85.4
+          parameters: ["0-shot"]
+          source: https://arxiv.org/abs/2308.01861
+        - name: anthropic/claude-3-5-sonnet-latest
+          metric: pass@1
+          score: 92
+          parameters: ["0-shot"]
+          source: https://www.anthropic.com/news/claude-3-5-sonnet
+        - name: anthropic/claude-3-sonnet-latest
+          metric: pass@1
+          score: 73
+          parameters: ["0-shot"]
+          source: https://www.anthropic.com/news/claude-3-5-sonnet
+        - name: anthropic/claude-3-5-opus-latest
+          metric: pass@1
+          score: 84.9
+          parameters: ["0-shot"]
+          source: https://www.anthropic.com/news/claude-3-5-sonnet
+        - name: google/gemini-1.5-pro
+          metric: pass@1
+          score: 84.1
+          parameters: ["0-shot"]
+          source: https://www.anthropic.com/news/claude-3-5-sonnet
+        - name: hf/meta-llama/Llama-3.1-405B
+          metric: pass@1
+          score: 54.9
+          parameters: ["0-shot"]
+          source: https://arxiv.org/abs/2412.19437v1
+        - name: hf/deepseek-ai/DeepSeek-V3-Base
+          metric: pass@1
+          score: 65.2
+          parameters: ["0-shot"]
+          source: https://arxiv.org/abs/2412.19437v1
+        - name: hf/Qwen/Qwen2.5-72B
+          metric: pass@1
+          score: 53.0
+          parameters: ["0-shot"]
+          source: https://arxiv.org/abs/2412.19437v1
+
+- title: "MBPP: Mostly Basic Python Problems"
+  description: |
+    Measures the ability to synthesize short Python programs from natural language descriptions.
+  path: src/inspect_evals/mbpp
+  arxiv: https://arxiv.org/abs/2108.07732
+  group: Coding
+  contributors: ["jddantes"]
+  tasks:
+    - name: mbpp
+      dataset_samples: 257
+      baselines:
+        - name: hf/meta-llama/Llama-3.1-405B
+          metric: pass@1
+          score: 68.4
+          parameters: ["3-shot"]
+          source: https://arxiv.org/abs/2412.19437v1
+        - name: hf/deepseek-ai/DeepSeek-V3-Base
+          metric: pass@1
+          score: 75.4
+          parameters: ["3-shot"]
+          source: https://arxiv.org/abs/2412.19437v1
+        - name: hf/Qwen/Qwen2.5-72B
+          metric: pass@1
+          score: 72.6
+          parameters: ["3-shot"]
+          source: https://arxiv.org/abs/2412.19437v1
+
+- title: "SWE-bench Verified: Resolving Real-World GitHub Issues"
+  description: |
+    Software engineering problems drawn from real GitHub issues and corresponding pull requests across 12 popular Python repositories.
+  path: src/inspect_evals/swe_bench
+  arxiv: https://arxiv.org/abs/2310.06770
+  group: Coding
+  contributors: ["max-kaufmann"]
+  tasks:
+    - name: swe_bench
+      dataset_samples: 500
+      baselines:
+        - name: openai/gpt-4
+          metric: pass
+          score: 33.2
+          source: https://openai.com/index/introducing-swe-bench-verified
+  dependency: "swe_bench"
+  tags: ["Agent"]
+
+- title: "DS-1000: A Natural and Reliable Benchmark for Data Science Code Generation"
+  description: Code generation benchmark with a thousand data science problems spanning seven Python libraries.
+  path: src/inspect_evals/ds1000
+  arxiv: https://arxiv.org/abs/2211.11501
+  group: Coding
+  contributors: ["bienehito"]
+  tasks:
+    - name: ds1000
+      dataset_samples: 1000
+
+- title: "BigCodeBench: Benchmarking Code Generation with Diverse Function Calls and Complex Instructions"
+  description: |
+    Python coding benchmark with 1,140 diverse questions drawing on numerous python libraries.
+  path: src/inspect_evals/bigcodebench
+  arxiv: https://arxiv.org/abs/2406.15877
+  group: Coding
+  contributors: ["tim-hua-01"]
+  tasks:
+    - name: bigcodebench
+      dataset_samples: 1140
+
+- title: "ClassEval: A Manually-Crafted Benchmark for Evaluating LLMs on Class-level Code Generation"
+  description: |
+    Evaluates LLMs on class-level code generation with 100 tasks constructed over 500 person-hours. The study shows that LLMs perform worse on class-level tasks compared to method-level tasks.
+  path: src/inspect_evals/class_eval
+  arxiv: https://arxiv.org/abs/2308.01861
+  group: Coding
+  contributors: ["zhenningdavidliu"]
+  tasks:
+    - name: class_eval
+      dataset_samples: 100
+      baselines:
+        - name: openai/gpt-4
+          metric: pass@1
+          score: 37.6
+          parameters: ["class-level"]
+          source: https://arxiv.org/abs/2308.01861
+        - name: openai/gpt-4
+          metric: pass@3
+          score: 41.3
+          parameters: ["class-level"]
+          source: https://arxiv.org/abs/2308.01861
+        - name: openai/gpt-4
+          metric: pass@5
+          score: 42.0
+          parameters: ["class-level"]
+          source: https://arxiv.org/abs/2308.01861
+
+- title: "GAIA: A Benchmark for General AI Assistants"
+  description: |
+    Proposes real-world questions that require a set of fundamental abilities such as reasoning, multi-modality handling, web browsing, and generally tool-use proficiency. GAIA questions are conceptually simple for humans yet challenging for most advanced AIs.
+  path: src/inspect_evals/gaia
+  arxiv: https://arxiv.org/abs/2311.12983
+  group: Assistants
+  contributors: ["max-kaufmann"]
+  tasks:
+    - name: gaia
+      dataset_samples: 165
+    - name: gaia_level1
+      dataset_samples: 53
+    - name: gaia_level2
+      dataset_samples: 86
+    - name: gaia_level3
+      dataset_samples: 26
+  tags: ["Agent"]
+
+- title: "OSWorld"
+  description: |
+    Benchmark for multimodal agents for open-ended tasks in real computer environments.
+  path: src/inspect_evals/osworld
+  arxiv: https://arxiv.org/abs/2404.07972
+  group: Assistants
+  contributors: ["epatey"]
+  tasks:
+    - name: osworld
+      dataset_samples: 369 # This is the count in the OSWorld corpus. Many samples are excluded because they are not yet supported
+    - name: osworld_small
+      dataset_samples: 39 # This is the count in the OSWorld corpus. Many samples are excluded because they are not yet supported
+  tags: ["Agent"]
+
+- title: "AssistantBench: Can Web Agents Solve Realistic and Time-Consuming Tasks?"
+  description: |
+    Tests whether AI agents can perform real-world time-consuming tasks on the web.
+  path: src/inspect_evals/assistant_bench
+  arxiv: https://arxiv.org/abs/2407.15711
+  group: Assistants
+  contributors: ["nlpet"]
+  tasks:
+    - name: assistant_bench
+      dataset_samples: 33
+  tags: ["Agent"]
+
+- title: "Cybench: A Framework for Evaluating Cybersecurity Capabilities and Risks of Language Models"
+  description: |
+    40 professional-level Capture the Flag (CTF) tasks from 4 distinct CTF competitions, chosen to be recent, meaningful, and spanning a wide range of difficulties.
+  path: src/inspect_evals/cybench
+  group: Cybersecurity
+  contributors: ["sinman-aisi", "sam-deverett-dsit", "kola-aisi", "pgiav"]
+  arxiv: https://arxiv.org/abs/2408.08926
+  tasks:
+    - name: cybench
+      dataset_samples: 40
+      baselines:
+        - name: openai/gpt-4o
+          metric: accuracy
+          score: 12.5
+          parameters: ["unguided"]
+          source: https://arxiv.org/abs/2408.08926
+        - name: openai/o1-preview
+          metric: accuracy
+          score: 10
+          parameters: ["unguided"]
+          source: https://arxiv.org/abs/2408.08926
+        - name: anthropic/claude-3-5-sonnet-latest
+          metric: accuracy
+          score: 17.5
+          parameters: ["unguided"]
+          source: https://arxiv.org/abs/2408.08926
+        - name: anthropic/claude-3-opus-latest
+          metric: accuracy
+          score: 10
+          parameters: ["unguided"]
+          source: https://arxiv.org/abs/2408.08926
+        - name: hf/meta-llama/Llama-3.1-405B-Instruct
+          metric: accuracy
+          score: 7.5
+          parameters: ["unguided"]
+          source: https://arxiv.org/abs/2408.08926
+        - name: hf/meta-llama/Llama-3-70B
+          metric: accuracy
+          score: 5
+          parameters: ["unguided"]
+          source: https://arxiv.org/abs/2408.08926
+        - name: google/gemini-1.5-pro
+          metric: accuracy
+          score: 7.5
+          parameters: ["unguided"]
+          source: https://arxiv.org/abs/2408.08926
+        - name: mistral/open-mixtral-8x22b
+          metric: accuracy
+          score: 7.5
+          parameters: ["unguided"]
+          source: https://arxiv.org/abs/2408.08926
+  tags: ["Agent"]
+
+- title: "CyberMetric: A Benchmark Dataset based on Retrieval-Augmented Generation for Evaluating LLMs in Cybersecurity Knowledge"
+  description: |
+    Datasets containing 80, 500, 2000 and 10000 multiple-choice questions, designed to evaluate understanding across nine domains within cybersecurity
+  path: src/inspect_evals/cybermetric
+  arxiv: https://arxiv.org/abs/2402.07688
+  group: Cybersecurity
+  contributors: ["neilshaabi"]
+  tasks:
+    - name: cybermetric_80
+      dataset_samples: 80
+    - name: cybermetric_500
+      dataset_samples: 500
+    - name: cybermetric_2000
+      dataset_samples: 2000
+    - name: cybermetric_10000
+      dataset_samples: 10000
+  tags: ["Agent"]
+
+- title: "CyberSecEval_2: A Wide-Ranging Cybersecurity Evaluation Suite for Large Language Models"
+  description: |
+    Evaluates Large Language Models for risky capabilities in cybersecurity.
+  path: src/inspect_evals/cyberseceval_2
+  arxiv: https://arxiv.org/pdf/2404.13161
+  group: Cybersecurity
+  contributors: ["its-emile"]
+  tasks:
+    - name: cse2_interpreter_abuse
+      dataset_samples: 500
+    - name: cse2_prompt_injection
+      dataset_samples: 251
+    - name: cse2_vulnerability_exploit
+      dataset_samples: 585
+
+- title: "InterCode: Capture the Flag"
+  description: |
+    Measure expertise in coding, cryptography (i.e. binary exploitation, forensics), reverse engineering, and recognizing security vulnerabilities. Demonstrates tool use and sandboxing untrusted model code.
+  path: src/inspect_evals/gdm_capabilities/intercode_ctf
+  arxiv: https://arxiv.org/abs/2306.14898
+  group: Cybersecurity
+  contributors: ["jjallaire"]
+  tasks:
+    - name: gdm_intercode_ctf
+      dataset_samples: 79
+  tags: ["Agent"]
+
+- title: "GDM Dangerous Capabilities: Capture the Flag"
+  description: |
+    CTF challenges covering web app vulnerabilities, off-the-shelf exploits, databases, Linux privilege escalation, password cracking and spraying. Demonstrates tool use and sandboxing untrusted model code.
+  path: src/inspect_evals/gdm_capabilities/in_house_ctf
+  arxiv: https://arxiv.org/abs/2403.13793
+  group: Cybersecurity
+  contributors: ["XkunW"]
+  tasks:
+    - name: gdm_in_house_ctf
+      dataset_samples: 13
+  tags: ["Agent"]
+
+- title: "SEvenLLM: A benchmark to elicit, and improve cybersecurity incident analysis and response abilities in LLMs for Security Events."
+  description: |
+    Designed for analyzing cybersecurity incidents, which is comprised of two primary task categories: understanding and generation, with a further breakdown into 28 subcategories of tasks.
+  path: src/inspect_evals/sevenllm
+  group: Cybersecurity
+  contributors: ["kingroryg"]
+  arxiv: https://arxiv.org/abs/2405.03446
+  tasks:
+    - name: sevenllm_mcq_zh
+      dataset_samples: 50
+    - name: sevenllm_mcq_en
+      dataset_samples: 50
+    - name: sevenllm_qa_zh
+      dataset_samples: 600
+    - name: sevenllm_qa_en
+      dataset_samples: 600
+  dependency: "sevenllm"
+
+- title: "SecQA: A Concise Question-Answering Dataset for Evaluating Large Language Models in Computer Security"
+  description: >
+    "Security Question Answering" dataset to assess LLMs' understanding and application of security principles.
+    SecQA has "v1" and "v2" datasets of multiple-choice questions that aim to provide two levels of cybersecurity evaluation criteria. 
+    The questions were generated by GPT-4 based on the "Computer Systems Security: Planning for Success" textbook and vetted by humans.
+  path: src/inspect_evals/sec_qa
+  group: Cybersecurity
+  contributors: ["matthewreed26"]
+  arxiv: https://arxiv.org/abs/2312.15838
+  tasks:
+    - name: sec_qa_v1
+      dataset_samples: 110
+    - name: sec_qa_v1_5_shot
+      dataset_samples: 110
+    - name: sec_qa_v2
+      dataset_samples: 100
+    - name: sec_qa_v2_5_shot
+      dataset_samples: 100
+
+- title: "AgentHarm: A Benchmark for Measuring Harmfulness of LLM Agents"
+  description: |
+    Diverse set of 110 explicitly malicious agent tasks (440 with augmentations), covering 11 harm categories including fraud, cybercrime, and harassment.
+  path: src/inspect_evals/agentharm
+  arxiv: https://arxiv.org/abs/2410.09024
+  group: Safeguards
+  contributors:
+    ["alexandrasouly-aisi", "EricWinsorDSIT", "max-andr", "xanderdavies"]
+  tasks:
+    - name: agentharm
+      dataset_samples: 176
+    - name: agentharm_benign
+      dataset_samples: 176
+  tags: ["Agent"]
+
+- title: "WMDP: Measuring and Reducing Malicious Use With Unlearning"
+  description: |
+    A dataset of 3,668 multiple-choice questions developed by a consortium of academics and technical consultants that serve as a proxy measurement of hazardous knowledge in biosecurity, cybersecurity, and chemical security.
+  path: src/inspect_evals/wmdp
+  arxiv: https://arxiv.org/abs/2403.03218
+  group: Safeguards
+  contributors: ["alexandraabbas"]
+  tasks:
+    - name: wmdp_bio
+      dataset_samples: 1273
+    - name: wmdp_chem
+      dataset_samples: 408
+    - name: wmdp_cyber
+      dataset_samples: 1987
+
+- title: "MATH: Measuring Mathematical Problem Solving"
+  description: |
+    Dataset of 12,500 challenging competition mathematics problems. Demonstrates fewshot prompting and custom scorers.
+  path: src/inspect_evals/mathematics
+  arxiv: https://arxiv.org/abs/2103.03874
+  group: Mathematics
+  contributors: ["xeon27"]
+  tasks:
+    - name: math
+      dataset_samples: 12500
+  dependency: "math"
+
+- title: "GSM8K: Training Verifiers to Solve Math Word Problems"
+  description: |
+    Dataset of 8.5K high quality linguistically diverse grade school math word problems.
+  path: src/inspect_evals/gsm8k
+  arxiv: https://arxiv.org/abs/2110.14168
+  group: Mathematics
+  contributors: ["jjallaire"]
+  tasks:
+    - name: gsm8k
+      dataset_samples: 1319
+      baselines:
+        - name: hf/meta-llama/Llama-3.1-405B
+          metric: accuracy
+          score: 83.5
+          parameters: ["8-shot"]
+          source: https://arxiv.org/abs/2412.19437v1
+        - name: hf/deepseek-ai/DeepSeek-V3-Base
+          metric: accuracy
+          score: 89.3
+          parameters: ["8-shot"]
+          source: https://arxiv.org/abs/2412.19437v1
+        - name: hf/Qwen/Qwen2.5-72B
+          metric: accuracy
+          score: 88.3
+          parameters: ["8-shot"]
+          source: https://arxiv.org/abs/2412.19437v1
+
+- title: "MathVista: Evaluating Mathematical Reasoning in Visual Contexts"
+  path: src/inspect_evals/mathvista
+  description: |
+    Diverse mathematical and visual tasks that require fine-grained, deep visual understanding and compositional reasoning. Demonstrates multimodal inputs and custom scorers.
+  arxiv: https://arxiv.org/abs/2310.02255
+  group: Mathematics
+  contributors: ["ShivMunagala"]
+  tasks:
+    - name: mathvista
+      dataset_samples: 1000
+  tags: ["Multimodal"]
+
+- title: "MGSM: Multilingual Grade School Math"
+  description: |
+    Extends the original GSM8K dataset by translating 250 of its problems into 10 typologically diverse languages.
+  path: src/inspect_evals/mgsm
+  arxiv: https://arxiv.org/abs/2210.03057
+  group: Mathematics
+  contributors: ["manifoldhiker"]
+  tasks:
+    - name: mgsm
+      dataset_samples: 2750
+      baselines:
+        - name: hf/meta-llama/Llama-3.1-405B
+          metric: pass@1
+          score: 69.9
+          parameters: ["8-shot"]
+          source: https://arxiv.org/abs/2412.19437v1
+        - name: hf/deepseek-ai/DeepSeek-V3-Base
+          metric: pass@1
+          score: 79.8
+          parameters: ["8-shot"]
+          source: https://arxiv.org/abs/2412.19437v1
+        - name: hf/Qwen/Qwen2.5-72B
+          metric: pass@1
+          score: 76.2
+          parameters: ["8-shot"]
+          source: https://arxiv.org/abs/2412.19437v1
+
+- title: "V*Bench: A Visual QA Benchmark with Detailed High-resolution Images"
+  description: |
+    V*Bench is a visual question & answer benchmark that evaluates MLLMs in their ability to process high-resolution and visually crowded images to find and focus on small details.
+  path: src/inspect_evals/vstar_bench
+  arxiv: https://arxiv.org/abs/2312.14135
+  group: Reasoning
+  tags: ["Multimodal"]
+  contributors: ["bienehito"]
+  tasks:
+    - name: vstar_bench_attribute_recognition
+      dataset_samples: 115
+    - name: vstar_bench_spatial_relationship_reasoning
+      dataset_samples: 76
+
+- title: "ARC: AI2 Reasoning Challenge"
+  description: Dataset of natural, grade-school science multiple-choice questions (authored for human tests).
+  path: src/inspect_evals/arc
+  arxiv: https://arxiv.org/abs/1803.05457
+  group: Reasoning
+  contributors: ["jjallaire"]
+  tasks:
+    - name: arc_easy
+      dataset_samples: 2376
+    - name: arc_challenge
+      dataset_samples: 1172
+  dependency: "math"
+
+- title: "HellaSwag: Can a Machine Really Finish Your Sentence?"
+  description: |
+    Evaluting commonsense natural language inference: given an event description such as "A woman sits at a piano," a machine must select the most likely followup.
+  path: src/inspect_evals/hellaswag
+  arxiv: https://arxiv.org/abs/1905.07830
+  group: Reasoning
+  contributors: ["jjallaire"]
+  tasks:
+    - name: hellaswag
+      dataset_samples: 10042
+      baselines:
+        - name: hf/meta-llama/Llama-3.1-405B
+          metric: accuracy
+          score: 89.2
+          parameters: ["10-shot"]
+          source: https://arxiv.org/abs/2412.19437v1
+        - name: hf/deepseek-ai/DeepSeek-V3-Base
+          metric: accuracy
+          score: 79.8
+          parameters: ["10-shot"]
+          source: https://arxiv.org/abs/2412.19437v1
+        - name: hf/Qwen/Qwen2.5-72B
+          metric: accuracy
+          score: 88.9
+          parameters: ["10-shot"]
+          source: https://arxiv.org/abs/2412.19437v1
+
+- title: "PIQA: Reasoning about Physical Commonsense in Natural Language"
+  description: |
+    Measure physical commonsense reasoning (e.g. "To apply eyeshadow without a brush, should I use a cotton swab or a toothpick?")
+  path: src/inspect_evals/piqa
+  arxiv: https://arxiv.org/abs/1911.11641
+  group: Reasoning
+  contributors: ["seddy-aisi"]
+  tasks:
+    - name: piqa
+      dataset_samples: 1838
+
+- title: "∞Bench: Extending Long Context Evaluation Beyond 100K Tokens"
+  description: |
+    LLM benchmark featuring an average data length surpassing 100K tokens. Comprises synthetic and realistic tasks spanning diverse domains in English and Chinese.
+  path: src/inspect_evals/infinite_bench
+  arxiv: https://arxiv.org/abs/2402.13718
+  group: Reasoning
+  contributors: ["celiawaggoner"]
+  tasks:
+    - name: infinite_bench_code_debug
+      dataset_samples: 394
+    - name: infinite_bench_code_run
+      dataset_samples: 400
+    - name: infinite_bench_kv_retrieval
+      dataset_samples: 500
+    - name: infinite_bench_longbook_choice_eng
+      dataset_samples: 229
+    - name: infinite_bench_longdialogue_qa_eng
+      dataset_samples: 200
+    - name: infinite_bench_math_calc
+      dataset_samples: 50
+    - name: infinite_bench_math_find
+      dataset_samples: 350
+    - name: infinite_bench_number_string
+      dataset_samples: 590
+    - name: infinite_bench_passkey
+      dataset_samples: 590
+
+- title: "BBH: Challenging BIG-Bench Tasks and Whether Chain-of-Thought Can Solve Them"
+  description: |
+    Suite of 23 challenging BIG-Bench tasks for which prior language model evaluations did not outperform the average human-rater.
+  path: src/inspect_evals/bbh
+  arxiv: https://arxiv.org/abs/2210.09261
+  group: Reasoning
+  contributors: ["JoschkaCBraun"]
+  tasks:
+    - name: bbh
+      dataset_samples: 250
+      baselines:
+        - name: human
+          metric: accuracy
+          score: 87.5
+          source: https://arxiv.org/abs/2210.09261
+        - name: hf/meta-llama/Llama-3.1-405B
+          metric: accuracy
+          score: 82.9
+          parameters: ["3-shot"]
+          source: https://arxiv.org/abs/2412.19437v1
+        - name: hf/deepseek-ai/DeepSeek-V3-Base
+          metric: accuracy
+          score: 79.8
+          parameters: ["3-shot"]
+          source: https://arxiv.org/abs/2412.19437v1
+        - name: hf/Qwen/Qwen2.5-72B
+          metric: accuracy
+          score: 79.8
+          parameters: ["3-shot"]
+          source: https://arxiv.org/abs/2412.19437v1
+
+- title: "BoolQ: Exploring the Surprising Difficulty of Natural Yes/No Questions"
+  description: |
+    Reading comprehension dataset that queries for complex, non-factoid information, and require difficult entailment-like inference to solve.
+  path: src/inspect_evals/boolq
+  arxiv: https://arxiv.org/abs/1905.10044
+  group: Reasoning
+  contributors: ["seddy-aisi"]
+  tasks:
+    - name: boolq
+      dataset_samples: 3270
+
+- title: "DocVQA: A Dataset for VQA on Document Images"
+  description: |
+    DocVQA is a Visual Question Answering benchmark that consists of 50,000 questions covering 12,000+ document images. This implementation solves and scores the "validation" split.
+  path: src/inspect_evals/docvqa
+  arxiv: https://arxiv.org/abs/2007.00398
+  group: Reasoning
+  tags: ["Multimodal"]
+  contributors: ["evanmiller-anthropic"]
+  tasks:
+    - name: docvqa
+      dataset_samples: 5349
+
+- title: "DROP: A Reading Comprehension Benchmark Requiring Discrete Reasoning Over Paragraphs"
+  description: |
+    Evaluates reading comprehension where models must resolve references in a question, perhaps to multiple input positions, and perform discrete operations over them (such as addition, counting, or sorting).
+  path: src/inspect_evals/drop
+  arxiv: https://arxiv.org/abs/1903.00161
+  group: Reasoning
+  contributors: ["xeon27"]
+  tasks:
+    - name: drop
+      dataset_samples: 9535
+
+- title: "WINOGRANDE: An Adversarial Winograd Schema Challenge at Scale"
+  description: |
+    Set of 273 expert-crafted pronoun resolution problems originally designed to be unsolvable for statistical models that rely on selectional preferences or word associations.
+  path: src/inspect_evals/winogrande
+  arxiv: https://arxiv.org/abs/1907.10641
+  group: Reasoning
+  contributors: ["xeon27"]
+  tasks:
+    - name: winogrande
+      dataset_samples: 1267
+
+- title: "RACE-H: A benchmark for testing reading comprehension and reasoning abilities of neural models"
+  description: |
+    Reading comprehension tasks collected from the English exams for middle and high school Chinese students in the age range between 12 to 18.
+  path: src/inspect_evals/race_h
+  arxiv: https://arxiv.org/abs/1704.04683
+  group: Reasoning
+  contributors: ["mdrpanwar"]
+  tasks:
+    - name: race_h
+      dataset_samples: 3498
+
+- title: "MMMU: A Massive Multi-discipline Multimodal Understanding and Reasoning Benchmark"
+  description: |
+    Multimodal questions from college exams, quizzes, and textbooks, covering six core disciplinestasks, demanding college-level subject knowledge and deliberate reasoning. Demonstrates multimodel inputs.
+  path: src/inspect_evals/mmmu
+  arxiv: https://arxiv.org/abs/2311.16502
+  group: Reasoning
+  contributors: ["shaheenahmedc"]
+  tasks:
+    - name: mmmu_multiple_choice
+      dataset_samples: 847
+    - name: mmmu_open
+      dataset_samples: 53
+  tags: ["Multimodal"]
+
+- title: "SQuAD: A Reading Comprehension Benchmark requiring reasoning over Wikipedia articles"
+  description: |
+    Set of 100,000+ questions posed by crowdworkers on a set of Wikipedia articles, where the answer to each question is a segment of text from the corresponding reading passage.
+  path: src/inspect_evals/squad
+  arxiv: https://arxiv.org/abs/1606.05250
+  group: Reasoning
+  contributors: ["tknasir"]
+  tasks:
+    - name: squad
+      dataset_samples: 11873
+
+- title: "IFEval: Instruction-Following Evaluation for Large Language Models"
+  description: |
+    Evaluates the ability to follow a set of "verifiable instructions" such as "write in more than 400 words" and "mention the keyword of AI at least 3 times. Demonstrates custom scoring.
+  path: src/inspect_evals/ifeval
+  arxiv: https://arxiv.org/abs/2311.07911
+  group: Reasoning
+  contributors: ["adil-a"]
+  dependency: "ifeval"
+  tasks:
+    - name: ifeval
+      dataset_samples: 541
+
+- title: "MuSR: Testing the Limits of Chain-of-thought with Multistep Soft Reasoning"
+  description: |
+    Evaluating models on multistep soft reasoning tasks in the form of free text narratives.
+  path: src/inspect_evals/musr
+  arxiv: https://arxiv.org/abs/2310.16049
+  group: Reasoning
+  contributors: ["farrelmahaztra"]
+  tasks:
+    - name: musr
+      dataset_samples: 250
+
+- title: "Needle in a Haystack (NIAH): In-Context Retrieval Benchmark for Long Context LLMs"
+  description: |
+    NIAH evaluates in-context retrieval ability of long context LLMs by testing a model's ability to extract factual information from long-context inputs.
+  path: src/inspect_evals/niah
+  arxiv: https://arxiv.org/abs/2407.01437
+  group: Reasoning
+  contributors: ["owenparsons"]
+  tasks:
+    - name: niah
+      dataset_samples: 225
+
+- title: "PAWS: Paraphrase Adversaries from Word Scrambling"
+  description: |
+    Evaluating models on the task of paraphrase detection by providing pairs of sentences that are either paraphrases or not.
+  path: src/inspect_evals/paws
+  arxiv: https://arxiv.org/abs/1904.01130
+  group: Reasoning
+  contributors: ["meltemkenis"]
+  tasks:
+    - name: paws
+      dataset_samples: 8000
+
+- title: "MMLU: Measuring Massive Multitask Language Understanding"
+  description: |
+    Evaluate models on 57 tasks including elementary mathematics, US history, computer science, law, and more.
+  path: src/inspect_evals/mmlu
+  arxiv: https://arxiv.org/abs/2009.03300
+  group: Knowledge
+  contributors: ["jjallaire", "domdomegg"]
+  tasks:
+    - name: mmlu_0_shot
+      dataset_samples: 14042
+    - name: mmlu_5_shot
+      dataset_samples: 14042
+
+- title: "MMLU-Pro: A More Robust and Challenging Multi-Task Language Understanding Benchmark"
+  description: |
+    An enhanced dataset designed to extend the mostly knowledge-driven MMLU benchmark by integrating more challenging, reasoning-focused questions and expanding the choice set from four to ten options.
+  path: src/inspect_evals/mmlu_pro
+  arxiv: https://arxiv.org/abs/2406.01574
+  group: Knowledge
+  contributors: ["xeon27"]
+  tasks:
+    - name: mmlu_pro
+      dataset_samples: 12032
+
+- title: "GPQA: A Graduate-Level Google-Proof Q&A Benchmark"
+  description: |
+    Challenging dataset of 448 multiple-choice questions written by domain experts in biology, physics, and chemistry (experts at PhD level in the corresponding domains reach 65% accuracy).
+  path: src/inspect_evals/gpqa
+  arxiv: https://arxiv.org/abs/2311.12022
+  group: Knowledge
+  contributors: ["jjallaire"]
+  tasks:
+    - name: gpqa_diamond
+      dataset_samples: 198
+
+- title: "CommonsenseQA: A Question Answering Challenge Targeting Commonsense Knowledge"
+  description: |
+    Measure question answering with commonsense prior knowledge.
+  path: src/inspect_evals/commonsense_qa
+  arxiv: https://arxiv.org/abs/1811.00937
+  group: Knowledge
+  contributors: ["jjallaire"]
+  tasks:
+    - name: commonsense_qa
+      dataset_samples: 1221
+
+- title: "TruthfulQA: Measuring How Models Mimic Human Falsehoods"
+  description: |
+    Measure whether a language model is truthful in generating answers to questions using questions that some humans would answer falsely due to a false belief or misconception.
+  path: src/inspect_evals/truthfulqa
+  arxiv: https://arxiv.org/abs/2109.07958v2
+  group: Knowledge
+  contributors: ["seddy-aisi"]
+  tasks:
+    - name: truthfulqa
+      dataset_samples: 817
+
+- title: "XSTest: A benchmark for identifying exaggerated safety behaviours in LLM's"
+  description: |
+    Dataset with 250 safe prompts across ten prompt types that well-calibrated models should not refuse, and 200 unsafe prompts as contrasts that models, for most applications, should refuse.
+  path: src/inspect_evals/xstest
+  arxiv: https://arxiv.org/abs/2308.01263
+  group: Knowledge
+  contributors: ["NelsonG-C"]
+  tasks:
+    - name: xstest
+      dataset_samples: 250
+
+- title: "PubMedQA: A Dataset for Biomedical Research Question Answering"
+  description: |
+    Novel biomedical question answering (QA) dataset collected from PubMed abstracts.
+  path: src/inspect_evals/pubmedqa
+  arxiv: https://arxiv.org/abs/1909.06146
+  group: Knowledge
+  contributors: ["MattFisher"]
+  tasks:
+    - name: pubmedqa
+      dataset_samples: 500
+
+- title: "AGIEval: A Human-Centric Benchmark for Evaluating Foundation Models"
+  description: |
+    AGIEval is a human-centric benchmark specifically designed to evaluate the general abilities of foundation models in tasks pertinent to human cognition and problem-solving.
+  path: src/inspect_evals/agieval
+  arxiv: https://arxiv.org/abs/2304.06364
+  group: Knowledge
+  tasks:
+    - name: agie_aqua_rat
+      dataset_samples: 254
+    - name: agie_logiqa_en
+      dataset_samples: 651
+    - name: agie_lsat_ar
+      dataset_samples: 230
+    - name: agie_lsat_lr
+      dataset_samples: 510
+    - name: agie_lsat_rc
+      dataset_samples: 269
+    - name: agie_math
+      dataset_samples: 1000
+    - name: agie_sat_en
+      dataset_samples: 206
+    - name: agie_sat_en_without_passage
+      dataset_samples: 206
+    - name: agie_sat_math
+      dataset_samples: 220
+
+- title: "SciCode: A Research Coding Benchmark Curated by Scientists"
+  description: |
+    SciCode tests the ability of language models to generate code to solve scientific research problems. It assesses models on 65 problems from mathematics, physics, chemistry, biology, and materials science.
+  path: src/inspect_evals/scicode
+  arxiv: https://arxiv.org/abs/2407.13168
+  group: Coding
+  contributors: ["xantheocracy"]
+  dependency: "scicode"
+  tasks:
+    - name: scicode
+      dataset_samples: 65
+
+- title: "O-NET"
+  description: |
+    Questions and answers from the Ordinary National Educational Test (O-NET), administered annually by the National Institute of Educational Testing Service to Matthayom 6 (Grade 12 / ISCED 3) students in Thailand. The exam contains six subjects: English language, math, science, social knowledge, and Thai language. There are questions with multiple-choice and true/false answers. Questions can be in either English or Thai.
+  path: src/inspect_evals/onet
+  group: Knowledge
+  contributors: ["bact"]
+  tasks:
+    - name: "onet_m6"
+      dataset_samples: 397

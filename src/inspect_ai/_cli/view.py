@@ -39,7 +39,10 @@ def start_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
 @common_options
 @click.pass_context
 def view_command(ctx: click.Context, **kwargs: Unpack[CommonOptions]) -> None:
-    """View command group."""
+    """Inspect log viewer.
+
+    Learn more about using the log viewer at https://inspect.ai-safety-institute.org.uk/log-viewer.html.
+    """
     if ctx.invoked_subcommand is None:
         ctx.invoke(start, **kwargs)
     else:
@@ -78,7 +81,6 @@ def start(
         port=port,
         authorization=authorization,
         log_level=common["log_level"],
-        log_level_transcript=common["log_level_transcript"],
     )
 
 

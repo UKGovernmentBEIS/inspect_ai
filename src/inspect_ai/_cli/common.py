@@ -9,14 +9,12 @@ from inspect_ai._util.constants import (
     ALL_LOG_LEVELS,
     DEFAULT_DISPLAY,
     DEFAULT_LOG_LEVEL,
-    DEFAULT_LOG_LEVEL_TRANSCRIPT,
 )
 from inspect_ai.util._display import init_display_type
 
 
 class CommonOptions(TypedDict):
     log_level: str
-    log_level_transcript: str
     log_dir: str
     display: Literal["full", "conversation", "rich", "plain", "none"]
     no_ansi: bool | None
@@ -35,16 +33,6 @@ def log_level_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         default=DEFAULT_LOG_LEVEL,
         envvar="INSPECT_LOG_LEVEL",
         help=f"Set the log level (defaults to '{DEFAULT_LOG_LEVEL}')",
-    )
-    @click.option(
-        "--log-level-transcript",
-        type=click.Choice(
-            [level.lower() for level in ALL_LOG_LEVELS],
-            case_sensitive=False,
-        ),
-        default=DEFAULT_LOG_LEVEL_TRANSCRIPT,
-        envvar="INSPECT_LOG_LEVEL_TRANSCRIPT",
-        help=f"Set the log level of the transcript (defaults to '{DEFAULT_LOG_LEVEL_TRANSCRIPT}')",
     )
     @functools.wraps(func)
     def wrapper(*args: Any, **kwargs: Any) -> click.Context:

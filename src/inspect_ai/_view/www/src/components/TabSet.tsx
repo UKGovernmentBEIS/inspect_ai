@@ -1,6 +1,8 @@
 import clsx from "clsx";
 import {
+  Children,
   Fragment,
+  isValidElement,
   MouseEvent,
   ReactElement,
   useCallback,
@@ -46,10 +48,7 @@ export const TabSet: React.FC<TabSetProps> = ({
   tools,
   children,
 }) => {
-  const validTabs: ReactElement<TabPanelProps>[] = Array.isArray(children)
-    ? (children.filter(Boolean) as ReactElement<TabPanelProps>[])
-    : [children];
-
+  const validTabs = flattenChildren(children);
   if (validTabs.length === 0) return null;
 
   return (
@@ -198,3 +197,19 @@ const TabTools: React.FC<{ tools?: React.ReactNode }> = ({ tools }) => (
 // Utility functions
 const computeTabId = (id: string, index: number) => `${id}-${index}`;
 const computeTabContentsId = (id: string) => `${id}-contents`;
+
+const flattenChildren = (
+  children: React.ReactNode,
+): ReactElement<TabPanelProps>[] => {
+  return Children.toArray(children).flatMap((child) => {
+    if (isValidElement(child)) {
+      const element = child as React.ReactElement<any>;
+
+      if (element.type === Fragment) {
+        return flattenChildren(element.props.children);
+      }
+      return element;
+    }
+    return [];
+  });
+};

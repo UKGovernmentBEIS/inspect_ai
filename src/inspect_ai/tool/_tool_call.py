@@ -13,10 +13,10 @@ class ToolCallContent(BaseModel):
     """Optional (plain text) title for tool call content."""
 
     format: Literal["text", "markdown"]
-    """Format."""
+    """Format (text or markdown)."""
 
     content: str
-    """Content."""
+    """Text or markdown content."""
 
 
 class ToolCallView(BaseModel):
@@ -56,6 +56,8 @@ class ToolCall:
 
 @dataclass
 class ToolCallError:
+    """Error raised by a tool call."""
+
     type: Literal[
         "parsing",
         "timeout",
@@ -67,8 +69,10 @@ class ToolCallError:
         "approval",
         "unknown",
     ]
+    """Error type."""
 
     message: str
+    """Error message."""
 
 
 ToolCallViewer = Callable[[ToolCall], ToolCallView]

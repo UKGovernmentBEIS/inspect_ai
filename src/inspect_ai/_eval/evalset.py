@@ -93,79 +93,79 @@ def eval_set(
     r"""Evaluate a set of tasks.
 
     Args:
-        tasks: (Tasks): Task(s) to evaluate. If None, attempt
+        tasks: Task(s) to evaluate. If None, attempt
             to evaluate a task in the current working directory
-        log_dir (str): Output path for logging results
-           (required to ensure that a unique storage scope is assigned for the set).
-        retry_attempts: (int | None): Maximum number of retry attempts before giving up
-          (defaults to 10).
-        retry_wait (float | None): Time to wait between attempts, increased exponentially.
-          (defaults to 30, resulting in waits of 30, 60, 120, 240, etc.). Wait time
-          per-retry will in no case by longer than 1 hour.
-        retry_connections (float | None): Reduce max_connections at this rate with each retry
-          (defaults to 0.5)
-        retry_cleanup (bool | None): Cleanup failed log files after retries
-          (defaults to True)
-        model (str | Model | list[str] | list[Model] | None): Model(s) for
-          evaluation. If not specified use the value of the INSPECT_EVAL_MODEL
-          environment variable.
-        model_base_url: (str | None): Base URL for communicating
-          with the model API.
-        model_args (dict[str,Any] | str): Model creation args
-          (as a dictionary or as a path to a JSON or YAML config file)
-        task_args (dict[str,Any] | str): Task creation arguments
-          (as a dictionary or as a path to a JSON or YAML config file)
-        sandbox (SandboxEnvironmentType | None): Sandbox environment type
-          (or optionally a str or tuple with a shorthand spec)
-        sandbox_cleanup (bool | None): Cleanup sandbox environments after task completes
-          (defaults to True)
-        solver (Solver | list[Solver] | SolverSpec | None): Alternative solver(s) for
-           evaluating task(s). ptional (uses task solver by default).
-        tags (list[str] | None): Tags to associate with this evaluation run.
-        trace: (bool | None): Trace message interactions with evaluated model to terminal.
-        display (DisplayType | None): Task display type (defaults to 'full').
-        approval: (str | list[ApprovalPolicy] | None): Tool use approval policies.
-          Either a path to an approval policy config file or a list of approval policies.
-          Defaults to no approval policy.
-        score (bool): Score output (defaults to True)
-        log_level (str | None): Level for logging to the console: "debug", "http", "sandbox",
-          "info", "warning", "error", or "critical" (defaults to "warning")
-        log_level_transcript (str | None): Level for logging to the log file (defaults to "info")
-        log_format (Literal["eval", "json"] | None): Format for writing
-          log files (defaults to "eval", the native high-performance format).
-        limit (int | tuple[int, int] | None): Limit evaluated samples
-           (defaults to all samples).
-        sample_id (str | int | list[str | int] | None): Evaluate specific sample(s) from the dataset.
-        epochs (int | Epochs | None): Epochs to repeat samples for and optional score
-           reducer function(s) used to combine sample scores (defaults to "mean")
-        fail_on_error (bool | float | None): `True` to fail on first sample error
-           (default); `False` to never fail on sample errors; Value between 0 and 1
-           to fail if a proportion of total samples fails. Value greater than 1 to fail
-           eval if a count of samples fails.
-        debug_errors (bool | None): Raise task errors (rather than logging them)
-           so they can be debugged (defaults to False).
-        message_limit (int | None): Limit on total messages used for each sample.
-        token_limit (int | None): Limit on total tokens used for each sample.
-        time_limit (int | None): Limit on time (in seconds) for execution of each sample.
-        max_samples (int | None): Maximum number of samples to run in parallel
-           (default is max_connections)
-        max_tasks (int | None): Maximum number of tasks to run in parallel
-           (default is 1)
-        max_subprocesses (int | None): Maximum number of subprocesses to
-           run in parallel (default is os.cpu_count())
-        max_sandboxes (int | None): Maximum number of sandboxes (per-provider)
-           to run in parallel.
-        log_samples: (bool | None): Log detailed samples and scores (defaults to True)
-        log_images: (bool | None): Log base64 encoded version of images,
+        log_dir: Output path for logging results
+            (required to ensure that a unique storage scope is assigned for the set).
+        retry_attempts: Maximum number of retry attempts before giving up
+            (defaults to 10).
+        retry_wait: Time to wait between attempts, increased exponentially.
+            (defaults to 30, resulting in waits of 30, 60, 120, 240, etc.). Wait time
+            per-retry will in no case by longer than 1 hour.
+        retry_connections: Reduce max_connections at this rate with each retry
+            (defaults to 0.5)
+        retry_cleanup: Cleanup failed log files after retries
+            (defaults to True)
+        model: Model(s) for
+            evaluation. If not specified use the value of the INSPECT_EVAL_MODEL
+            environment variable.
+        model_base_url: Base URL for communicating
+            with the model API.
+        model_args: Model creation args
+            (as a dictionary or as a path to a JSON or YAML config file)
+        task_args: Task creation arguments
+            (as a dictionary or as a path to a JSON or YAML config file)
+        sandbox: Sandbox environment type
+            (or optionally a str or tuple with a shorthand spec)
+        sandbox_cleanup: Cleanup sandbox environments after task completes
+            (defaults to True)
+        solver: Alternative solver(s) for
+            evaluating task(s). ptional (uses task solver by default).
+        tags: Tags to associate with this evaluation run.
+        trace: Trace message interactions with evaluated model to terminal.
+        display: Task display type (defaults to 'full').
+        approval: Tool use approval policies.
+            Either a path to an approval policy config file or a list of approval policies.
+            Defaults to no approval policy.
+        score: Score output (defaults to True)
+        log_level: Level for logging to the console: "debug", "http", "sandbox",
+            "info", "warning", "error", or "critical" (defaults to "warning")
+        log_level_transcript: Level for logging to the log file (defaults to "info")
+        log_format: Format for writing
+            log files (defaults to "eval", the native high-performance format).
+        limit: Limit evaluated samples
+            (defaults to all samples).
+        sample_id: Evaluate specific sample(s) from the dataset.
+        epochs: Epochs to repeat samples for and optional score
+            reducer function(s) used to combine sample scores (defaults to "mean")
+        fail_on_error: `True` to fail on first sample error
+            (default); `False` to never fail on sample errors; Value between 0 and 1
+            to fail if a proportion of total samples fails. Value greater than 1 to fail
+            eval if a count of samples fails.
+        debug_errors: Raise task errors (rather than logging them)
+            so they can be debugged (defaults to False).
+        message_limit: Limit on total messages used for each sample.
+        token_limit: Limit on total tokens used for each sample.
+        time_limit: Limit on time (in seconds) for execution of each sample.
+        max_samples: Maximum number of samples to run in parallel
+            (default is max_connections)
+        max_tasks: Maximum number of tasks to run in parallel
+            (default is 1)
+        max_subprocesses: Maximum number of subprocesses to
+            run in parallel (default is os.cpu_count())
+        max_sandboxes: Maximum number of sandboxes (per-provider)
+            to run in parallel.
+        log_samples: Log detailed samples and scores (defaults to True)
+        log_images: Log base64 encoded version of images,
             even if specified as a filename or URL (defaults to False)
-        log_buffer: (int | None): Number of samples to buffer before writing log file.
-           If not specified, an appropriate default for the format and filesystem is
-           chosen (10 for most all cases, 100 for JSON logs on remote filesystems).
-        bundle_dir: (str | None): If specified, the log viewer and logs generated
+        log_buffer: Number of samples to buffer before writing log file.
+            If not specified, an appropriate default for the format and filesystem is
+            chosen (10 for most all cases, 100 for JSON logs on remote filesystems).
+        bundle_dir: If specified, the log viewer and logs generated
             by this eval set will be bundled into this directory.
-        bundle_overwrite (bool): Whether to overwrite files in the bundle_dir.
+        bundle_overwrite: Whether to overwrite files in the bundle_dir.
             (defaults to False).
-        **kwargs (GenerateConfigArgs): Model generation options.
+        **kwargs: Model generation options.
 
     Returns:
         Tuple of bool (whether all tasks completed successfully) and list of EvalLog

@@ -13,7 +13,6 @@ import { activateWorkspaceTaskProvider } from "./providers/workspace/workspace-t
 import {
   activateWorkspaceState,
 } from "./providers/workspace/workspace-state-provider";
-import { initializeWorkspace } from "./providers/workspace/workspace-init";
 import { activateWorkspaceEnv } from "./providers/workspace/workspace-env-provider";
 import { initPythonInterpreter } from "./core/python";
 import { initInspectProps } from "./inspect";
@@ -63,9 +62,6 @@ export async function activate(context: ExtensionContext) {
   const workspaceActivationResult = activateWorkspaceEnv();
   const [envComands, workspaceEnvManager] = workspaceActivationResult;
   context.subscriptions.push(workspaceEnvManager);
-
-  // Initial the workspace
-  await initializeWorkspace(stateManager);
 
   // Initialize the protocol handler
   activateProtocolHandler(context);

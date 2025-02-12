@@ -126,7 +126,7 @@ The `Sample` class includes `sandbox`, `files` and `setup` fields that are used 
 
 You can either define a default `sandbox` for an entire `Task` as illustrated above, or alternatively define a per-sample `sandbox`. For example, you might want to do this if each sample has its own Dockerfile and/or custom compose configuration file. (Note, each sample gets its own sandbox *instance*, even if the sandbox is defined at Task level. So samples do not interfere with each other's sandboxes.)
 
-The `sandbox` can be specified as a string (e.g. `"docker`") or a list of sandbox type and config file (e.g. `["docker", "compose.yaml"]`).
+The `sandbox` can be specified as a string (e.g. `"docker`") or a tuple of sandbox type and config file (e.g. `("docker", "compose.yaml")`).
 
 ### Files
 

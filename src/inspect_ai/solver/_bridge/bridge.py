@@ -17,7 +17,7 @@ from .._task_state import TaskState
 def bridge(agent: Callable[[dict[str, Any]], Awaitable[dict[str, Any]]]) -> Solver:
     """Bridge an external agent into an Inspect Solver.
 
-    See documentation at https://inspect.ai-safety-institute.org.uk/agent-bridge.html
+    See documentation at <https://inspect.ai-safety-institute.org.uk/agent-bridge.html>
 
     Args:
       agent: Callable which takes a sample `dict` and returns a result `dict`.
@@ -63,11 +63,11 @@ def bridge(agent: Callable[[dict[str, Any]], Awaitable[dict[str, Any]]]) -> Solv
             else state.input
         )
 
-        # create sample
+        # create sample (use standard gpt-4 message encoding -- i.e. no 'developer' messages)
         sample = BridgeSample(
             sample_id=str(state.sample_id),
             epoch=state.epoch,
-            input=await openai_chat_messages(input, state.model.name),
+            input=await openai_chat_messages(input, model="gpt-4"),
             metadata=state.metadata,
             target=list(state.target),
         )

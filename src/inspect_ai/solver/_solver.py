@@ -29,36 +29,32 @@ from ._task_state import TaskState, set_sample_state
 
 @runtime_checkable
 class Generate(Protocol):
-    """Generate using the model and add the assistant message to the task state.
-
-    Args:
-       state (TaskState): Beginning task state.
-
-       tool_calls (Literal["loop", "single", "none"]): Resolve tool calls:
-          - `"loop"` resolves tools calls and then invokes `generate()`,
-             proceeding in a loop which terminates when there are no more
-             tool calls, or `message_limit` or `token_limit` is exceeded.
-             This is the default behavior.
-          - `"single"` resolves at most a single set of tool calls and then returns.
-          - `"none"` does not resolve tool calls at all (in this
-             case you will need to invoke `call_tools()` directly).
-
-       cache: (bool | CachePolicy):
-          Caching behaviour for generate responses (defaults to no caching).
-
-       **kwargs: Optional generation config arguments.
-
-    Returns:
-       Updated TaskState.
-    """
-
     async def __call__(
         self,
         state: TaskState,
         tool_calls: Literal["loop", "single", "none"] = "loop",
         cache: bool | CachePolicy = False,
         **kwargs: Unpack[GenerateConfigArgs],
-    ) -> TaskState: ...
+    ) -> TaskState:
+        """Generate using the model and add the assistant message to the task state.
+
+        Args:
+            state: Beginning task state.
+            tool_calls:
+                - `"loop"` resolves tools calls and then invokes `generate()`,
+                    proceeding in a loop which terminates when there are no more
+                    tool calls, or `message_limit` or `token_limit` is exceeded.
+                    This is the default behavior.
+                - `"single"` resolves at most a single set of tool calls and then returns.
+                - `"none"` does not resolve tool calls at all (in this
+                    case you will need to invoke `call_tools()` directly).
+            cache: Caching behaviour for generate responses (defaults to no caching).
+            **kwargs: Optional generation config arguments.
+
+        Returns:
+            Updated TaskState.
+        """
+        ...
 
 
 @dataclass(frozen=True)
@@ -74,28 +70,37 @@ class SolverSpec:
 
 @runtime_checkable
 class Solver(Protocol):
-    r"""Contribute to solving an evaluation task.
-
-    Contribute to the solution of a task by transforming a TaskState
-    (e.g. prompt enhancement, elicitation, etc.). Solvers return a
-    TaskState (which could simply be a modified version of the one
-    they were passed) and optionally may call the generate() function
-    to generate output (and a new TaskState with that output).
-
-
-    Args:
-        state (TaskState): States for tasks being evaluated.
-        generate (Generate): Function for generating outputs.
-
-    Returns:
-        Updated TaskState.
-    """
-
     async def __call__(
         self,
         state: TaskState,
         generate: Generate,
-    ) -> TaskState: ...
+    ) -> TaskState:
+        r"""Contribute to solving an evaluation task.
+
+        Transform a `TaskState`, returning the new state. Solvers may
+        optionally call the `generate()` function to create a new
+        state resulting from model generation. Solvers may also do
+        prompt engineering or other types of elicitation.
+
+        Args:
+          state: State for tasks being evaluated.
+          generate: Function for generating outputs.
+
+        Returns:
+          Updated TaskState.
+
+        Examples:
+          ```python
+          @solver
+          def prompt_cot(template: str) -> Solver:
+              def solve(state: TaskState, generate: Generate) -> TaskState:
+                  # insert chain of thought prompt
+                  return state
+
+              return solve
+          ```
+        """
+        ...
 
 
 P = ParamSpec("P")
@@ -144,7 +149,7 @@ def solver(
     r"""Decorator for registering solvers.
 
     Args:
-        name: (str | Callable[P, Solver]):
+        name:
             Optional name for solver. If the decorator has no name
             argument then the name of the underlying Callable[P, Solver]
             object will be used to automatically assign a name.
@@ -153,19 +158,15 @@ def solver(
         Solver with registry attributes.
 
     Examples:
-        @solver
-        def prompt_cot(state: TaskState, generate: Generate) -> None:
-            ...
-
-        @solver(name = "prompt_cot")
-        def cot(state: TaskState, generate: Generate) -> None:
-            ...
-
+        ```python
         @solver
         def prompt_cot(template: str) -> Solver:
-            def solve(state: TaskState, generate: Generate) -> None:
-                ...
+            def solve(state: TaskState, generate: Generate) -> TaskState:
+                # insert chain of thought prompt
+                return state
+
             return solve
+        ```
     """
 
     # create_solver_wrapper:

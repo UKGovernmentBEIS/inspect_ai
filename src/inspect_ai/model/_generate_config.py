@@ -80,7 +80,7 @@ class GenerateConfigArgs(TypedDict, total=False):
 
 
 class GenerateConfig(BaseModel):
-    """Base class for model generation configs."""
+    """Model generation options."""
 
     max_retries: int | None = Field(default=None)
     """Maximum number of times to retry request (defaults to 5)."""

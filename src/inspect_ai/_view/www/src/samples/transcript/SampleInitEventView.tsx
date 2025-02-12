@@ -35,9 +35,13 @@ export const SampleInitEventView: React.FC<SampleInitEventViewProps> = ({
 
   if (event.sample.files && Object.keys(event.sample.files).length > 0) {
     sections.push(
-      <EventSection title="Files">
+      <EventSection title="Files" key={`sample-${id}-init-files`}>
         {Object.keys(event.sample.files).map((file) => {
-          return <pre className={styles.noMargin}>{file}</pre>;
+          return (
+            <pre key={`sample-init-file-${file}`} className={styles.noMargin}>
+              {file}
+            </pre>
+          );
         })}
       </EventSection>,
     );
@@ -45,7 +49,7 @@ export const SampleInitEventView: React.FC<SampleInitEventViewProps> = ({
 
   if (event.sample.setup) {
     sections.push(
-      <EventSection title="Setup">
+      <EventSection title="Setup" key={`sample-${id}-init-setup`}>
         <pre className={styles.code}>
           <code className="sourceCode">{event.sample.setup}</code>
         </pre>
@@ -75,7 +79,7 @@ export const SampleInitEventView: React.FC<SampleInitEventViewProps> = ({
           {event.sample.choices
             ? event.sample.choices.map((choice, index) => {
                 return (
-                  <div>
+                  <div key={`$choice-{choice}`}>
                     {String.fromCharCode(65 + index)}) {choice}
                   </div>
                 );
@@ -88,7 +92,7 @@ export const SampleInitEventView: React.FC<SampleInitEventViewProps> = ({
           )}
           <EventSection title="Target">
             {toArray(event.sample.target).map((target) => {
-              return <div>{target}</div>;
+              return <div key={target}>{target}</div>;
             })}
           </EventSection>
         </div>

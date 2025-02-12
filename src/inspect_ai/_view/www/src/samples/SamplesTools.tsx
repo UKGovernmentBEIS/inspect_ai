@@ -1,3 +1,4 @@
+import { Fragment } from "react/jsx-runtime";
 import { ScoreFilter, ScoreLabel } from "../types";
 import { SamplesDescriptor } from "./descriptor/samplesDescriptor";
 import { EpochFilter } from "./sample-tools/EpochFilter";
@@ -32,29 +33,20 @@ export const SampleTools: React.FC<SampleToolsProps> = ({
   scores,
   sampleDescriptor,
 }) => {
-  const tools = [];
-
-  tools.push(
-    <SampleFilter
-      evalDescriptor={sampleDescriptor.evalDescriptor}
-      scoreFilter={scoreFilter}
-      setScoreFilter={setScoreFilter}
-    />,
+  return (
+    <Fragment>
+      <SampleFilter
+        evalDescriptor={sampleDescriptor.evalDescriptor}
+        scoreFilter={scoreFilter}
+        setScoreFilter={setScoreFilter}
+      />
+      {scores.length > 1 ? (
+        <SelectScorer scores={scores} score={score} setScore={setScore} />
+      ) : undefined}
+      {epochs > 1 ? (
+        <EpochFilter epoch={epoch} setEpoch={setEpoch} epochs={epochs} />
+      ) : undefined}
+      <SortFilter sort={sort} setSort={setSort} epochs={epochs} />
+    </Fragment>
   );
-
-  if (scores.length > 1) {
-    tools.push(
-      <SelectScorer scores={scores} score={score} setScore={setScore} />,
-    );
-  }
-
-  if (epochs > 1) {
-    tools.push(
-      <EpochFilter epoch={epoch} setEpoch={setEpoch} epochs={epochs} />,
-    );
-  }
-
-  tools.push(<SortFilter sort={sort} setSort={setSort} epochs={epochs} />);
-
-  return tools;
 };

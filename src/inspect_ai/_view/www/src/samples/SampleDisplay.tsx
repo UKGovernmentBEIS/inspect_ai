@@ -77,6 +77,7 @@ export const SampleDisplay: React.FC<SampleDisplayProps> = ({
   if (!isVscode()) {
     tools.push(
       <ToolButton
+        key="sample-print-tool"
         label="Print"
         icon={ApplicationIcons.copy}
         onClick={() => {
@@ -101,6 +102,7 @@ export const SampleDisplay: React.FC<SampleDisplayProps> = ({
       >
         {sample.events && sample.events.length > 0 ? (
           <TabPanel
+            key={kSampleTranscriptTabId}
             id={kSampleTranscriptTabId}
             className="sample-tab"
             title="Transcript"
@@ -120,6 +122,7 @@ export const SampleDisplay: React.FC<SampleDisplayProps> = ({
           </TabPanel>
         ) : null}
         <TabPanel
+          key={kSampleMessagesTabId}
           id={kSampleMessagesTabId}
           className={clsx("sample-tab", styles.fullWidth)}
           title="Messages"
@@ -138,6 +141,7 @@ export const SampleDisplay: React.FC<SampleDisplayProps> = ({
         </TabPanel>
         {scorerNames.length === 1 ? (
           <TabPanel
+            key={kSampleScoringTabId}
             id={kSampleScoringTabId}
             className="sample-tab"
             title="Scoring"
@@ -156,6 +160,7 @@ export const SampleDisplay: React.FC<SampleDisplayProps> = ({
               const tabId = `score-${scorer}`;
               return (
                 <TabPanel
+                  key={tabId}
                   id={tabId}
                   className="sample-tab"
                   title={scorer}
@@ -217,11 +222,11 @@ export const SampleDisplay: React.FC<SampleDisplayProps> = ({
   );
 };
 
-const metadataViewsForSample = (_id: string, sample: EvalSample) => {
+const metadataViewsForSample = (id: string, sample: EvalSample) => {
   const sampleMetadatas = [];
   if (sample.model_usage && Object.keys(sample.model_usage).length > 0) {
     sampleMetadatas.push(
-      <Card>
+      <Card key={`sample-usage-${id}`}>
         <CardHeader label="Usage" />
         <CardBody>
           <ModelTokenTable
@@ -235,7 +240,7 @@ const metadataViewsForSample = (_id: string, sample: EvalSample) => {
 
   if (Object.keys(sample?.metadata).length > 0) {
     sampleMetadatas.push(
-      <Card>
+      <Card key={`sample-metadata-${id}`}>
         <CardHeader label="Metadata" />
         <CardBody>
           <MetaDataView
@@ -250,7 +255,7 @@ const metadataViewsForSample = (_id: string, sample: EvalSample) => {
 
   if (Object.keys(sample?.store).length > 0) {
     sampleMetadatas.push(
-      <Card>
+      <Card key={`sample-store-${id}`}>
         <CardHeader label="Store" />
         <CardBody>
           <MetaDataView

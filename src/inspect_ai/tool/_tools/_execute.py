@@ -1,4 +1,4 @@
-from inspect_ai.util import sandbox
+from inspect_ai.util import sandbox as sandbox_env
 
 from .._tool import Tool, tool
 from .._tool_call import ToolCall, ToolCallContent, ToolCallView, ToolCallViewer
@@ -20,14 +20,17 @@ def code_viewer(language: str, code_param: str) -> ToolCallViewer:
 
 
 @tool(viewer=code_viewer("bash", "cmd"))
-def bash(timeout: int | None = None, user: str | None = None) -> Tool:
+def bash(
+    timeout: int | None = None, user: str | None = None, sandbox: str | None = None
+) -> Tool:
     """Bash shell command execution tool.
 
     Execute bash shell commands using a sandbox environment (e.g. "docker").
 
     Args:
-      timeout (int | None): Timeout (in seconds) for command.
-      user (str | None): User to execute commands as.
+      timeout: Timeout (in seconds) for command.
+      user: User to execute commands as.
+      sandbox: Optional sandbox environmnent name.
 
     Returns:
       String with command output (stdout) or command error (stderr).
@@ -44,7 +47,7 @@ def bash(timeout: int | None = None, user: str | None = None) -> Tool:
           The output of the command.
         """
         # execute the command
-        result = await sandbox().exec(
+        result = await sandbox_env(sandbox).exec(
             cmd=["bash", "--login", "-c", cmd], timeout=timeout, user=user
         )
         # return output (including stderr if any)
@@ -57,14 +60,17 @@ def bash(timeout: int | None = None, user: str | None = None) -> Tool:
 
 
 @tool(viewer=code_viewer("python", "code"))
-def python(timeout: int | None = None, user: str | None = None) -> Tool:
+def python(
+    timeout: int | None = None, user: str | None = None, sandbox: str | None = None
+) -> Tool:
     """Python code execution tool.
 
     Execute Python code using a sandbox environment (e.g. "docker").
 
     Args:
-      timeout (int | None): Timeout (in seconds) for command.
-      user (str | None): User to execute commands as.
+      timeout: Timeout (in seconds) for command.
+      user: User to execute commands as.
+      sandbox: Optional sandbox environmnent name.
 
     Returns:
       String with command output (stdout) or command error (stderr).
@@ -89,7 +95,7 @@ def python(timeout: int | None = None, user: str | None = None) -> Tool:
         Returns:
           The output of the Python code.
         """
-        result = await sandbox().exec(
+        result = await sandbox_env(sandbox).exec(
             cmd=["python3"], input=code, timeout=timeout, user=user
         )
         # return output (including stderr if any)
