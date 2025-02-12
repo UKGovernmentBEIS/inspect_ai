@@ -493,7 +493,7 @@ def solver_from_spec(spec: SolverSpec) -> Solver:
             else:
                 agent_fn = getattr(solver_module, solver_name, None)
                 if inspect.isfunction(agent_fn):
-                    return bridge(agent_fn(**spec.args))
+                    return bridge.bridge(agent_fn(**spec.args))
                 elif agent_fn is not None:
                     raise PrerequisiteError(
                         f"The object {solver_name} in file {pretty_solver_file} is not a Python function."
