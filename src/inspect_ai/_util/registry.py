@@ -209,7 +209,7 @@ def registry_create(type: RegistryType, name: str, **kwargs: Any) -> object:
     if isclass(obj):
         return with_registry_info(obj(**kwargs))
     elif callable(obj):
-        return_type = get_annotations(obj)["return"]
+        return_type = get_annotations(obj).get("return")
         # Until we remove the MetricDeprecated symbol we need this extra
         # bit to map the Metric union back to Metric
         if "_metric.Metric" in str(return_type):

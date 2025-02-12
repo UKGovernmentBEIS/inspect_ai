@@ -1,3 +1,4 @@
+from dataclasses import dataclass, field
 from logging import getLogger
 from typing import (
     Any,
@@ -12,11 +13,15 @@ from typing import (
 
 from pydantic import BaseModel, Field
 
+from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.registry import (
     RegistryInfo,
+    is_registry_object,
     registry_add,
     registry_create,
+    registry_info,
     registry_name,
+    registry_params,
     registry_tag,
 )
 
@@ -219,6 +224,17 @@ depreacated signature will eventually be removed.
 P = ParamSpec("P")
 
 
+@dataclass(frozen=True)
+class MetricSpec:
+    """Scorer specification used to (re-)create scorers."""
+
+    metric: str
+    """Metric name"""
+
+    args: dict[str, Any] = field(default_factory=dict)
+    """Metric arguments."""
+
+
 def metric_register(metric: Callable[P, Metric], name: str = "") -> Callable[P, Metric]:
     r"""Register a function or class as a metric.
 
@@ -250,6 +266,26 @@ def metric_create(name: str, **kwargs: Any) -> Metric:
         Metric with registry info attribute
     """
     return cast(Metric, registry_create("metric", name, **kwargs))
+
+
+def to_metric_specs(
+    metrics: list[Metric] | dict[str, list[Metric]],
+) -> list[MetricSpec] | dict[str, list[MetricSpec]]:
+    if isinstance(metrics, list):
+        return [as_metric_spec(m) for m in metrics]
+    else:
+        return {
+            k: [as_metric_spec(v) for v in metric_list]
+            for k, metric_list in metrics.items()
+        }
+
+
+def as_metric_spec(metric: Metric) -> MetricSpec:
+    if not is_registry_object(metric):
+        raise PrerequisiteError(
+            f"The metric {getattr(metric, '__name__', '<unknown>')} was not created by a function decorated with @metric so cannot be recorded."
+        )
+    return MetricSpec(metric=registry_info(metric).name, args=registry_params(metric))
 
 
 @overload

@@ -140,19 +140,19 @@ async def score(state: TaskState, target: Target):
 First we'll talk about the core `Score` and `Value` objects, then provide some examples of custom scorers to make things more concrete.
 
 ::: {.callout-note appearance="simple"}
-Note that `score()` above is declared as an `async` function. When creating custom scorers, it's critical that you understand Inspect's concurrency model. More specifically, if your scorer is doing non-trivial work (e.g. calling REST APIs, executing external processes, etc.) please review [Parallelism](parallelism.qmd#sec-parallel-solvers-and-scorers) before proceeding.
+Note that `score` above is declared as an `async` function. When creating custom scorers, it's critical that you understand Inspect's concurrency model. More specifically, if your scorer is doing non-trivial work (e.g. calling REST APIs, executing external processes, etc.) please review [Parallelism](parallelism.qmd#sec-parallel-solvers-and-scorers) before proceeding.
 :::
 
 ### Score
 
 The components of `Score` include:
 
-| Field         | Type            | Description                                                                     |
+| Field | Type | Description |
 |-------------------|-------------------|----------------------------------|
-| `value`       | `Value`         | Value assigned to the sample (e.g. "C" or "I", or a raw numeric value).         |
-| `answer`      | `str`           | Text extracted from model output for comparison (optional).                     |
-| `explanation` | `str`           | Explanation of score, e.g. full model output or grader model output (optional). |
-| `metadata`    | `dict[str,Any]` | Additional metadata about the score to record in the log file (optional).       |
+| `value` | `Value` | Value assigned to the sample (e.g. "C" or "I", or a raw numeric value). |
+| `answer` | `str` | Text extracted from model output for comparison (optional). |
+| `explanation` | `str` | Explanation of score, e.g. full model output or grader model output (optional). |
+| `metadata` | `dict[str,Any]` | Additional metadata about the score to record in the log file (optional). |
 
 : {tbl-colwidths=\[20,20,60\]}
 
@@ -191,7 +191,7 @@ Next, we'll take a look at the source code for a couple of the built in scorers 
 
 You'll often want to use models in the implementation of scorers. Use the `get_model()` function to get either the currently evaluated model or another model interface. For example:
 
-```python
+``` python
 # use the model being evaluated for grading
 grader_model = get_model() 
 
@@ -201,13 +201,12 @@ grader_model = get_model("google/gemini-1.5-pro")
 
 Use the `config` parameter of `get_model()` to override default generation options:
 
-```python
+``` python
 grader_model = get_model(
     "google/gemini-1.5-pro", 
     config = GenerateConfig(temperature = 0.9, max_connections = 10)
 )
 ```
-
 
 ### Example: Includes
 
@@ -237,7 +236,7 @@ def includes(ignore_case: bool = True):
 ```
 
 1.  The function applies the `@scorer` decorator and registers two metrics for use with the scorer.
-2.  The `score()` function is declared as `async`. This is so that it can participate in Inspect's optimised scheduling for expensive model generation calls (this scorer doesn't call a model but others will).
+2.  The `score` function is declared as `async`. This is so that it can participate in Inspect's optimised scheduling for expensive model generation calls (this scorer doesn't call a model but others will).
 3.  We make use of the `text` property on the `Target`. This is a convenience property to get a simple text value out of the `Target` (as targets can technically be a list of strings).
 4.  We use the special constants `CORRECT` and `INCORRECT` for the score value (as the `accuracy()`, `stderr()`, and `bootstrap_stderr()` metrics know how to convert these special constants to float values (1.0 and 0.0 respectively).
 5.  We provide the full model completion as the answer for the score (`answer` is optional, but highly recommended as it is often useful to refer to during evaluation development).
@@ -381,10 +380,9 @@ Glob keys will each be resolved and a complete list of matching metrics will be 
 )
 ```
 
-### Scorer with Complex Metrics 
+### Scorer with Complex Metrics
 
 Sometime, it is useful for a scorer to compute multiple values (returning a dictionary as the score value) and to have metrics computed both for each key in the score dictionary, but also for the dictionary as a whole. For example:
-
 
 ``` python
 @scorer(
@@ -420,10 +418,10 @@ task = Task(
     scorer=letter_count()
 )
 ```
+
 1.  The metrics for this scorer are a list, one element is a dictionary—this defines metrics to be applied to scores (by name), the other element is a Metric which will receive the entire score dictionary.
 2.  The score value itself is a dictionary—the keys corresponding to the keys defined in the metrics on the `@scorer` decorator.
-3.  The `total_count` metric will compute a metric based upon the entire score dictionary (since it isn't being mapped onto the dictionary by key) 
-
+3.  The `total_count` metric will compute a metric based upon the entire score dictionary (since it isn't being mapped onto the dictionary by key)
 
 ### Reducing Multiple Scores
 
@@ -438,7 +436,6 @@ multi_scorer(
 
 Use of `multi_scorer()` requires both a list of scorers as well as a *reducer* which determines how a list of scores will be turned into a single score. In this case we use the "mode" reducer which returns the score that appeared most frequently in the answers.
 
-
 ### Sandbox Access
 
 If your Solver is an [Agent](agents.qmd) with tool use, you might want to inspect the contents of the tool sandbox to score the task.
@@ -447,8 +444,7 @@ The contents of the sandbox for the Sample are available to the scorer; simply c
 
 For example:
 
-
-```python
+``` python
 from inspect_ai import Task, task
 from inspect_ai.dataset import Sample
 from inspect_ai.scorer import Score, Target, accuracy, scorer
@@ -483,10 +479,7 @@ def challenge() -> Task:
         sandbox="local",
         scorer=check_file_exists(),
     )
-
 ```
-
-
 
 ## Scoring Metrics
 
@@ -508,7 +501,7 @@ Task(
 
 If you still want to compute the built-in metrics, we re-specify them along with the custom metrics:
 
-```python
+``` python
 metrics=[accuracy(), stderr(), custom_metric()]
 ```
 
@@ -534,7 +527,7 @@ Inspect includes some simple built in metrics for calculating accuracy, mean, et
 
 -   `stderr()`
 
-    Standard error of the mean. 
+    Standard error of the mean.
 
 -   `bootstrap_stderr()`
 
@@ -550,7 +543,7 @@ pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
 ```
 :::
 
-The `stderr()` metric supports computing [clustered standard errors](https://en.wikipedia.org/wiki/Clustered_standard_errors) via the `cluster` parameter. Most scorers already include `stderr()` as a built-in metric, so to compute clustered standard errors you'll want to specify custom `metrics` for your task (which will override the scorer's built in metrics). 
+The `stderr()` metric supports computing [clustered standard errors](https://en.wikipedia.org/wiki/Clustered_standard_errors) via the `cluster` parameter. Most scorers already include `stderr()` as a built-in metric, so to compute clustered standard errors you'll want to specify custom `metrics` for your task (which will override the scorer's built in metrics).
 
 For example, let's say you wanted to cluster on a "category" variable defined in `Sample` metadata:
 
@@ -597,7 +590,7 @@ Note that the `Score` class contains a `Value` that is a union over several scal
 
 ## Reducing Epochs {#reducing-epochs}
 
-If a task is run over more than one `epoch`, multiple scores will be generated for each sample. These scores are then *reduced* to a single score representing the score for the sample across all the epochs. 
+If a task is run over more than one `epoch`, multiple scores will be generated for each sample. These scores are then *reduced* to a single score representing the score for the sample across all the epochs.
 
 By default, this is done by taking the mean of all sample scores, but you may specify other strategies for reducing the samples by passing an `Epochs`, which includes both a count and one or more reducers to combine sample scores with. For example:
 
@@ -630,22 +623,19 @@ def gpqa():
 
 Inspect includes several built in reducers which are summarised below.
 
-| Reducer                  | Description                                                                                                          |
-|--------------------------|----------------------------------------------------------------------------------------------------------------------|
-| mean                  | Reduce to the average of all scores.                                                                                 |
-| median               | Reduce to the median of all scores                                                                                   |
-| mode             | Reduce to the most common score.                                                             |
-| max              | Reduce to the maximum of all scores.                                                            |
-| pass_at_{k}  | Probability of at least 1 correct sample given `k` epochs (<https://arxiv.org/pdf/2107.03374>) |
-| at_least_{k} | `1` if at least `k` samples are correct, else `0`. |
+| Reducer | Description |
+|------------------|------------------------------------------------------|
+| mean | Reduce to the average of all scores. |
+| median | Reduce to the median of all scores |
+| mode | Reduce to the most common score. |
+| max | Reduce to the maximum of all scores. |
+| pass_at\_{k} | Probability of at least 1 correct sample given `k` epochs (<https://arxiv.org/pdf/2107.03374>) |
+| at_least\_{k} | `1` if at least `k` samples are correct, else `0`. |
 
 : {tbl-colwidths="\[30,70\]"}
 
-
-:::{.callout-note}
-
+::: callout-note
 The built in reducers will compute a reduced `value` for the score and populate the fields `answer` and `explanation` only if their value is equal across all epochs. The `metadata` field will always be reduced to the value of `metadata` in the first epoch. If your custom metrics function needs differing behavior for reducing fields, you should also implement your own custom reducer and merge or preserve fields in some way.
-
 :::
 
 ### Custom Reducers
@@ -670,50 +660,92 @@ def mean_score() -> ScoreReducer:
     return reduce
 ```
 
-
 ## Workflow {#sec-scorer-workflow}
 
-### Score Command
+::: {.callout-note appearance="simple"}
+The `inspect score` command and `score()` function as described below are currently available only in the development version of Inspect. To install the development version from GitHub:
 
-By default, model output in evaluations is automatically scored. However, you can separate generation and scoring by using the `--no-score` option. For example:
+``` bash
+pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+```
+:::
+
+### Unscored Evals
+
+By default, model output in evaluations is automatically scored. However, you can defer scoring by using the `--no-score` option. For example:
 
 ``` bash
 inspect eval popularity.py --model openai/gpt-4 --no-score
 ```
 
-You can score an evaluation previously run this way using the `inspect score` command:
+This will produce a log with samples that have not yet been scored and with no evaluation metrics.
 
-``` bash
-# score last eval
-inspect score popularity.py
-
-# score specific log file
-inspect score popularity.py ./logs/2024-02-23_task_gpt-4_TUhnCn473c6.json
-```
-
-::: callout-tip
+::: {.callout-tip appearance="simple"}
 Using a distinct scoring step is particularly useful during scorer development, as it bypasses the entire generation phase, saving lots of time and inference costs.
 :::
 
-### Log Overwriting
+### Score Command
 
-By default, `inspect score` overwrites the file it scores. If don't want to overwrite target files, pass the `--no-overwrite` flag:
-
-``` bash
-inspect score popularity.py --no-overwrite
-```
-
-When specifying `--no-overwrite`, a `-scored` suffix will be added to the original log file name:
+You can score an evaluation previously run this way using the `inspect score` command:
 
 ``` bash
-./logs/2024-02-23_task_gpt-4_TUhnCn473c6-scored.json
+# score an unscored eval
+inspect score ./logs/2024-02-23_task_gpt-4_TUhnCn473c6.eval
 ```
 
-Note that the `--no-overwrite` flag does not apply to log files that already have the `-scored` suffix—those files are always overwritten by `inspect score`. If you plan on scoring multiple times and you want to save each scoring output, you will want to copy the log to another location before re-scoring.
+This will use the scorers and metrics that were declared when the evaluation was run, applying them to score each sample and generate metrics for the evaluation.
 
-### Python API
+You may choose to use a different scorer than the task scorer to score a log file. In this case, you can use the `--scorer` option to pass the name of a scorer (including one in a package) or the path to a source code file containing a scorer to use. For example:
 
-If you are exploring the performance of different scorers, you might find it more useful to call the `score()` function using varying scorers or scorer options. For example:
+``` bash
+# use built in match scorer
+inspect score ./logs/2024-02-23_task_gpt-4_TUhnCn473c6.eval --scorer match
+
+# use scorer in a package
+inspect score ./logs/2024-02-23_task_gpt-4_TUhnCn473c6.eval --scorer scorertools/custom_scorer
+
+# use scorer in a file
+inspect score ./logs/2024-02-23_task_gpt-4_TUhnCn473c6.eval --scorer custom_scorer.py
+
+# use a custom scorer named 'classify' in a file with more than one scorer
+inspect score ./logs/2024-02-23_task_gpt-4_TUhnCn473c6.eval --scorer custom_scorers.py@classify
+```
+
+If you need to pass arguments to the scorer, you can do do using scorer args (`-S`) like so:
+
+``` bash
+inspect score ./logs/2024-02-23_task_gpt-4_TUhnCn473c6.eval --scorer match -S location=end
+```
+
+#### Overwriting Logs
+
+When you use the `inspect score` command, you will prompted whether or not you'd like to overwrite the existing log file (with the scores added), or create a new scored log file. By default, the command will create a new log file with a `-scored` suffix to distinguish it from the original file. You may also control this using the `--overwrite` flag as follows:
+
+``` bash
+# overwrite the log with scores from the task defined scorer
+inspect score ./logs/2024-02-23_task_gpt-4_TUhnCn473c6.eval --overwrite
+```
+
+#### Ovewriting Scores
+
+When rescoring a previously scored log file you have two options:
+
+1)  Append Mode (Default): The new scores will be added alongside the existing scores in the log file, keeping both the old and new results.
+2)  Overwrite Mode: The new scores will replace the existing scores in the log file, removing the old results.
+
+You can choose which mode to use based on whether you want to preserve or discard the previous scoring data. To control this, use the `--action` arg:
+
+``` bash
+# append scores from custom scorer
+inspect score ./logs/2024-02-23_task_gpt-4_TUhnCn473c6.eval --scorer custom_scorer.py --action append
+
+# overwrite scores with new scores from custom scorer
+inspect score ./logs/2024-02-23_task_gpt-4_TUhnCn473c6.eval --scorer custom_scorer.py --action overwrite
+```
+
+### Score Function
+
+You can also use the `score()` function in your Python code to score evaluation logs. For example, if you are exploring the performance of different scorers, you might find it more useful to call the `score()` function using varying scorers or scorer options. For example:
 
 ``` python
 log = eval(popularity, model="openai/gpt-4")[0]
@@ -729,4 +761,29 @@ scoring_logs = [score(log, model_graded_qa(model=model))
                 for model in grader_models]
 
 plot_results(scoring_logs)
+```
+
+You can also use this function to score an existing log file (appending or overwriting results) like so:
+
+``` python
+# read the log
+input_log_path = "./logs/2025-02-11T15-17-00-05-00_popularity_dPiJifoWeEQBrfWsAopzWr.eval"
+log = read_eval_log(input_log_path)
+
+grader_models = [
+    "openai/gpt-4",
+    "anthropic/claude-3-opus-20240229",
+    "google/gemini-1.0-pro",
+    "mistral/mistral-large-latest"
+]
+
+# perform the scoring using various models
+scoring_logs = [score(log, model_graded_qa(model=model), action="append") 
+                for model in grader_models]
+
+# write log files with the model name as a suffix
+for model, scored_log in zip(grader_models, scoring_logs):
+    base, ext = os.path.splitext(input_log_path)
+    output_file = f"{base}_{model.replace('/', '_')}{ext}"
+    write_eval_log(scored_log, output_file)
 ```

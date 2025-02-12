@@ -20,8 +20,10 @@ from inspect_ai.log import EvalConfig, EvalLog
 from inspect_ai.log._recorders import Recorder
 from inspect_ai.model import GenerateConfigArgs
 from inspect_ai.model._model import ModelName
+from inspect_ai.scorer._metric import to_metric_specs
 from inspect_ai.scorer._reducer import ScoreReducer, reducer_log_names
 from inspect_ai.scorer._reducer.registry import validate_reducer
+from inspect_ai.scorer._scorer import as_scorer_spec
 from inspect_ai.solver._solver import Solver, SolverSpec
 from inspect_ai.util._sandbox.environment import (
     SandboxEnvironmentConfigType,
@@ -100,6 +102,16 @@ async def eval_run(
         eval_solver = None
         eval_solver_spec = None
 
+    # resolve the task scorers
+    eval_scorer_specs = (
+        [as_scorer_spec(scorer) for scorer in task.scorer]
+        if task.scorer is not None
+        else None
+    )
+
+    # resolve task metrics
+    eval_metrics = to_metric_specs(task.metrics) if task.metrics is not None else None
+
     try:
         # create run tasks
         task_run_options: list[TaskRunOptions] = []
@@ -168,6 +180,8 @@ async def eval_run(
                     tags=tags,
                     model=resolved_task.model,
                     dataset=task.dataset,
+                    scorer=eval_scorer_specs,
+                    metrics=eval_metrics,
                     sandbox=resolved_task.sandbox,
                     task_attribs=task.attribs,
                     task_args=resolved_task.task_args,

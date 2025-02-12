@@ -190,7 +190,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
         if task.setup:
             plan.steps = unroll(task.setup) + plan.steps
 
-        # reaolve the scorer
+        # resolve the scorer
         score = score and task.scorer is not None
         scorers: list[Scorer] | None = task.scorer if (score and task.scorer) else None
         scorer_profiles = (

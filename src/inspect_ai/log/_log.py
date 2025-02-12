@@ -482,6 +482,30 @@ class EvalDataset(BaseModel):
     """Was the dataset shuffled after reading."""
 
 
+class EvalMetricDefinition(BaseModel):
+    name: str
+    """Metric name"""
+
+    options: dict[str, Any] | None = Field(default=None)
+
+
+class EvalScorer(BaseModel):
+    name: str
+    """Scorer name"""
+
+    options: dict[str, Any] | None = Field(default=None)
+    """Scorer arguments"""
+
+    metrics: (
+        list[EvalMetricDefinition | dict[str, list[EvalMetricDefinition]]]
+        | dict[str, list[EvalMetricDefinition]]
+        | None
+    ) = Field(default=None)
+
+    metadata: dict[str, Any] | None = Field(default=None)
+    """Scorer metadata"""
+
+
 class EvalRevision(BaseModel):
     """Git revision for evaluation."""
 
@@ -557,6 +581,14 @@ class EvalSpec(BaseModel):
 
     metadata: dict[str, Any] | None = Field(default=None)
     """Additional eval metadata."""
+
+    scorers: list[EvalScorer] | None = Field(default=None)
+    """Scorers and args for this eval"""
+
+    metrics: (
+        list[EvalMetricDefinition] | dict[str, list[EvalMetricDefinition]] | None
+    ) = Field(default=None)
+    """metrics and args for this eval"""
 
     # allow field model_args
     model_config = ConfigDict(protected_namespaces=())

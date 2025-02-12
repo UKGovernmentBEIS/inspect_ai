@@ -27,7 +27,9 @@ from inspect_ai.log import (
 )
 from inspect_ai.log._log import (
     EvalLog,
+    EvalMetricDefinition,
     EvalSampleReductions,
+    EvalScorer,
     eval_config_defaults,
 )
 from inspect_ai.log._recorders import Recorder
@@ -37,6 +39,8 @@ from inspect_ai.model import (
     ModelName,
 )
 from inspect_ai.model._model import model_usage
+from inspect_ai.scorer._metric import MetricSpec
+from inspect_ai.scorer._scorer import ScorerSpec
 from inspect_ai.solver._plan import Plan
 from inspect_ai.solver._solver import Solver, SolverSpec
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
@@ -54,6 +58,8 @@ class TaskLogger:
         tags: list[str] | None,
         model: Model,
         dataset: Dataset,
+        scorer: list[ScorerSpec] | None,
+        metrics: list[MetricSpec] | dict[str, list[MetricSpec]] | None,
         sandbox: SandboxEnvironmentSpec | None,
         task_attribs: dict[str, Any],
         task_args: dict[str, Any],
@@ -99,6 +105,12 @@ class TaskLogger:
             if getattr(eval_config, name, None) is None:
                 setattr(eval_config, name, value)
 
+        # resolve scorers
+        eval_scorers = resolve_eval_scorers(scorer)
+
+        # resolve metrics
+        eval_metrics = resolve_eval_metrics(metrics)
+
         # create eval spec
         self.eval = EvalSpec(
             run_id=run_id,
@@ -121,6 +133,8 @@ class TaskLogger:
                 sample_ids=sample_ids,
                 shuffled=dataset.shuffled,
             ),
+            scorers=eval_scorers,
+            metrics=eval_metrics,
             sandbox=sandbox,
             model_args=model_args,
             config=eval_config,
@@ -207,3 +221,83 @@ def collect_eval_data(stats: EvalStats) -> None:
     # collect stats
     stats.completed_at = iso_now()
     stats.model_usage = model_usage()
+
+
+def resolve_eval_metrics(
+    metrics: list[MetricSpec] | dict[str, list[MetricSpec]] | None,
+) -> list[EvalMetricDefinition] | dict[str, list[EvalMetricDefinition]] | None:
+    if metrics is None:
+        return None
+    elif isinstance(metrics, list):
+        return [EvalMetricDefinition(name=m.metric, options=m.args) for m in metrics]
+    else:
+        return {
+            k: [
+                EvalMetricDefinition(name=v.metric, options=v.args) for v in metric_list
+            ]
+            for k, metric_list in metrics.items()
+        }
+
+
+def resolve_eval_scorers(scorers: list[ScorerSpec] | None) -> list[EvalScorer] | None:
+    if scorers is None:
+        return None
+    else:
+        results = []
+        for scorer in scorers:
+            results.append(
+                EvalScorer(
+                    name=scorer.scorer,
+                    metrics=resolve_scorer_metrics(scorer.metrics),
+                    options=scorer.args,
+                    metadata=scorer.metadata,
+                )
+            )
+        return results
+
+
+def resolve_scorer_metrics(
+    metrics: list[MetricSpec | dict[str, list[MetricSpec]]]
+    | dict[str, list[MetricSpec]]
+    | None,
+) -> (
+    list[EvalMetricDefinition | dict[str, list[EvalMetricDefinition]]]
+    | dict[str, list[EvalMetricDefinition]]
+    | None
+):
+    if metrics is None:
+        return None
+    elif isinstance(metrics, list):
+        resolved_metrics: list[
+            EvalMetricDefinition | dict[str, list[EvalMetricDefinition]]
+        ] = []
+        for metric_item in metrics:
+            if isinstance(metric_item, MetricSpec):
+                resolved_metrics.append(
+                    EvalMetricDefinition(
+                        name=metric_item.metric, options=metric_item.args
+                    )
+                )
+            elif isinstance(metric_item, dict):
+                resolved_metrics.append(
+                    {
+                        metric_group: [
+                            EvalMetricDefinition(
+                                name=metric_spec.metric, options=metric_spec.args
+                            )
+                            for metric_spec in metric_specs
+                        ]
+                        for metric_group, metric_specs in metric_item.items()
+                    }
+                )
+            else:
+                raise TypeError(f"Unexpected item in list: {metric_item}")
+        return resolved_metrics
+    else:
+        return {
+            metric_group: [
+                EvalMetricDefinition(name=metric_spec.metric, options=metric_spec.args)
+                for metric_spec in metric_specs
+            ]
+            for metric_group, metric_specs in metrics.items()
+        }

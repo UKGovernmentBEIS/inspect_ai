@@ -22512,8 +22512,10 @@ var require_assets = __commonJS({
       const scoreRendered = (sample2, scoreLabel) => {
         const descriptor = scoreDescriptor(scoreLabel);
         const score22 = scoreValue2(sample2, scoreLabel);
-        if (score22 === null || score22 === "undefined") {
+        if (score22 === null) {
           return "null";
+        } else if (score22 === void 0) {
+          return "";
         } else if (score22 && descriptor && descriptor.render) {
           return descriptor.render(score22);
         } else {

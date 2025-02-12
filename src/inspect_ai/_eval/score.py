@@ -1,15 +1,16 @@
 import asyncio
 from copy import deepcopy
-from typing import Callable, cast
+from pathlib import Path
+from typing import Any, Callable, Literal, cast
 
 from inspect_ai._display import display
-from inspect_ai._util.path import chdir_python
+from inspect_ai._eval.loader import scorer_from_spec
 from inspect_ai._util.platform import platform_init
 from inspect_ai._util.registry import registry_create, registry_unqualified_name
 from inspect_ai.log import (
     EvalLog,
-    EvalMetric,
 )
+from inspect_ai.log._log import EvalMetricDefinition
 from inspect_ai.model import ModelName
 from inspect_ai.scorer import Metric, Scorer, Target
 from inspect_ai.scorer._metric import SampleScore
@@ -19,18 +20,19 @@ from inspect_ai.scorer._reducer import (
     create_reducers,
     reducer_log_names,
 )
-from inspect_ai.scorer._scorer import unique_scorer_name
+from inspect_ai.scorer._scorer import ScorerSpec, unique_scorer_name
 from inspect_ai.solver import TaskState
 
-from .task import Task
 from .task.results import eval_results
-from .task.util import task_run_dir
+
+ScoreAction = Literal["append", "overwrite"]
 
 
 def score(
     log: EvalLog,
     scorers: Scorer | list[Scorer],
     epochs_reducer: ScoreReducers | None = None,
+    action: ScoreAction | None = None,
 ) -> EvalLog:
     """Score an evaluation log.
 
@@ -40,6 +42,7 @@ def score(
        epochs_reducer (ScoreReducers | None):
            Reducer function(s) for aggregating scores in each sample.
            Defaults to previously used reducer(s).
+       action: Whether to append or overwrite this score
 
     Returns:
        Log with scores yielded by scorer.
@@ -50,13 +53,14 @@ def score(
     # resolve scorers into a list
     scorers = [scorers] if isinstance(scorers, Scorer) else scorers
 
-    return asyncio.run(score_async(log, scorers, epochs_reducer))
+    return asyncio.run(score_async(log, scorers, epochs_reducer, action))
 
 
 async def score_async(
     log: EvalLog,
     scorers: list[Scorer],
     epochs_reducer: ScoreReducers | None = None,
+    action: ScoreAction | None = None,
 ) -> EvalLog:
     """Score an evaluation log.
 
@@ -66,6 +70,8 @@ async def score_async(
        epochs_reducer (ScoreReducers  | None):
          Reducer function(s) for aggregating scores in each sample.
          Defaults to previously used reducer(s).
+       action: Whether to append or overwrite this score
+
 
 
     Returns:
@@ -109,7 +115,22 @@ async def score_async(
 
         # write them back (gather ensures that they come back in the same order)
         for index, score in enumerate(scores):
-            log.samples[index].scores = {k: v.score for k, v in score.items()}
+            if action == "overwrite":
+                log.samples[index].scores = {k: v.score for k, v in score.items()}
+            else:
+                existing_scores = log.samples[index].scores or {}
+                new_scores = {k: v.score for k, v in score.items()}
+
+                for key, value in new_scores.items():
+                    if key not in existing_scores:
+                        existing_scores[key] = value
+                    else:
+                        # This key already exists, dedupe its name
+                        count = 1
+                        while f"{key}-{count}" in existing_scores.keys():
+                            count = count + 1
+                        existing_scores[f"{key}-{count}"] = value
+                log.samples[index].scores = existing_scores
 
         # collect metrics from EvalLog (they may overlap w/ the scorer metrics,
         # that will be taken care of in eval_results)
@@ -130,25 +151,31 @@ async def score_async(
     return log
 
 
-async def task_score(task: Task, log: EvalLog) -> EvalLog:
-    with chdir_python(task_run_dir(task)):
-        # confirm we have a scorer
-        if task.scorer is None:
-            raise ValueError("You must specify a scorer for evals to be scored.")
+async def task_score(
+    log: EvalLog,
+    scorer: str | None = None,
+    scorer_args: dict[str, Any] | None = None,
+    action: ScoreAction | None = None,
+) -> EvalLog:
+    # confirm we have a scorer
+    scorers = resolve_scorers(log, scorer, scorer_args)
+    if len(scorers) == 0:
+        raise ValueError(
+            "Unable to resolve any scorers for this log. Please specify a scorer using the '--scorer' param."
+        )
 
-        # confirm we have samples
-        if log.samples is None or len(log.samples) == 0:
-            raise ValueError("There are no samples to score in the log.")
+    # confirm we have samples
+    if log.samples is None or len(log.samples) == 0:
+        raise ValueError("There are no samples to score in the log.")
 
-        task_name = task.name
-        display().print(f"Scoring {len(log.samples)} samples for task: {task_name}")
+    task_name = log.eval.task
+    display().print(f"\nScoring {task_name} ({len(log.samples)} samples)")
 
-        # perform scoring
-        log = await score_async(log, task.scorer)
+    # perform scoring
+    log = await score_async(log=log, scorers=scorers, action=action)
 
     # compute and log metrics
-    display().print(f"Aggregating scores for task: {task_name}")
-    if task.scorer and log.samples:
+    if log.samples:
         sample_scores = [
             {
                 score_key: SampleScore(
@@ -162,12 +189,15 @@ async def task_score(task: Task, log: EvalLog) -> EvalLog:
             if sample.scores is not None
         ]
 
+        epochs_reducer = reducers_from_log(log)
+        metrics = metrics_from_log(log)
+
         log.results, log.reductions = eval_results(
             log.results.total_samples if log.results else 0,
             sample_scores,
-            task.epochs_reducer,
-            task.scorer,
-            task.metrics,
+            epochs_reducer,
+            scorers,
+            metrics,
         )
     return log
 
@@ -194,21 +224,78 @@ async def run_score_task(
     return results
 
 
-def metrics_from_log(log: EvalLog) -> list[Metric]:
-    return (
-        [
-            metric_from_log(metric)
-            for score in log.results.scores
-            for metric in score.metrics.values()
-        ]
-        if log.results
-        else []
+def metrics_from_log(log: EvalLog) -> list[Metric] | dict[str, list[Metric]] | None:
+    # See if we have metrics in the eval itself
+    if log.eval.metrics:
+        if isinstance(log.eval.metrics, list):
+            return [metric_from_log(metric) for metric in log.eval.metrics]
+        else:
+            return {
+                key: [metric_from_log(metric) for metric in metrics]
+                for key, metrics in log.eval.metrics.items()
+            }
+    return None
+
+
+def metric_from_log(metric: EvalMetricDefinition) -> Metric:
+    return cast(
+        Metric, registry_create("metric", metric.name, **(metric.options or {}))
     )
-
-
-def metric_from_log(metric: EvalMetric) -> Metric:
-    return cast(Metric, registry_create("metric", metric.name, **metric.params))
 
 
 def reducers_from_log(log: EvalLog) -> list[ScoreReducer] | None:
     return create_reducers(log.eval.config.epochs_reducer)
+
+
+def resolve_scorers(
+    log: EvalLog, scorer: str | None, scorer_args: dict[str, Any] | None
+) -> list[Scorer]:
+    """
+    Create a list of Scorer objects from an evaluation log.
+
+    Args:
+        log: EvalLog object containing evaluation configuration and results
+        scorer:: Scorer name (simple name or file.py@name).
+        scorer_args: Dictionary of scorer arguments
+
+    Returns:
+        list[Scorer]: List of initialized scorers
+    """
+    # resolve the scorer path
+    task_path = Path(log.eval.task_file) if log.eval.task_file else None
+
+    # If there is an explicit scorer
+    if scorer:
+        return [
+            scorer_from_spec(
+                spec=ScorerSpec(scorer=scorer),
+                task_path=task_path,
+                **(scorer_args or {}),
+            )
+        ]
+    # See if we can create scorers from the eval itself
+    elif log.eval.scorers is not None:
+        return (
+            [
+                scorer_from_spec(
+                    spec=ScorerSpec(scorer=score.name),
+                    task_path=task_path,
+                    **(score.options or {}),
+                )
+                for score in log.eval.scorers
+            ]
+            if log.results
+            else []
+        )
+
+    # Otherwise, perhaps we can re-create them from the results
+    return (
+        [
+            scorer_from_spec(
+                spec=ScorerSpec(scorer=score.name), task_path=task_path, **score.params
+            )
+            for score in log.results.scores
+        ]
+        if log.results
+        else []
+    )
