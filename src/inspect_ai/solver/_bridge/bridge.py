@@ -63,11 +63,11 @@ def bridge(agent: Callable[[dict[str, Any]], Awaitable[dict[str, Any]]]) -> Solv
             else state.input
         )
 
-        # create sample
+        # create sample (use standard gpt-4 message encoding -- i.e. no 'developer' messages)
         sample = BridgeSample(
             sample_id=str(state.sample_id),
             epoch=state.epoch,
-            input=await openai_chat_messages(input, state.model.name),
+            input=await openai_chat_messages(input, model="gpt-4"),
             metadata=state.metadata,
             target=list(state.target),
         )

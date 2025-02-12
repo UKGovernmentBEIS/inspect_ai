@@ -359,10 +359,14 @@ async def eval_async(
                     "Trace mode cannot be used when evaluating multiple models."
                 )
 
-        # resolve recorder
+        # resolve recorder (confirm writeable)
         log_dir = log_dir if log_dir else os.environ.get("INSPECT_LOG_DIR", "./logs")
         log_dir = absolute_file_path(log_dir)
         recorder = create_recorder_for_format(log_format or DEFAULT_LOG_FORMAT, log_dir)
+        if not recorder.is_writeable():
+            raise PrerequisiteError(
+                f"ERROR: You do not have write permission for the log_dir '{log_dir}'"
+            )
 
         # resolve solver
         solver = chain(solver) if isinstance(solver, list) else solver

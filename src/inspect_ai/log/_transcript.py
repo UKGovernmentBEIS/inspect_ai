@@ -264,6 +264,9 @@ class InfoEvent(BaseEvent):
     event: Literal["info"] = Field(default="info")
     """Event type."""
 
+    source: str | None = Field(default=None)
+    """Optional source for info event."""
+
     data: JsonValue
     """Data provided with event."""
 
@@ -279,16 +282,23 @@ class ErrorEvent(BaseEvent):
 
 
 class ScoreEvent(BaseEvent):
-    """Event with sample score."""
+    """Event with score.
+
+    Can be the final score for a `Sample`, or can be an intermediate score
+    resulting from a call to `score`.
+    """
 
     event: Literal["score"] = Field(default="score")
     """Event type."""
 
     score: Score
-    """Sample score."""
+    """Score value."""
 
     target: str | list[str] | None = Field(default=None)
     """"Sample target."""
+
+    intermediate: bool = Field(default=False)
+    """Was this an intermediate scoring?"""
 
 
 class StepEvent(BaseEvent):
@@ -355,13 +365,14 @@ class Transcript:
         self.name = name
         self._events: list[Event] = []
 
-    def info(self, data: JsonValue) -> None:
+    def info(self, data: JsonValue, *, source: str | None = None) -> None:
         """Add an `InfoEvent` to the transcript.
 
         Args:
-           data (JsonValue): Data associated with the event.
+           data: Data associated with the event.
+           source: Optional event source.
         """
-        self._event(InfoEvent(data=data))
+        self._event(InfoEvent(source=source, data=data))
 
     @contextlib.contextmanager
     def step(self, name: str, type: str | None = None) -> Iterator[None]:

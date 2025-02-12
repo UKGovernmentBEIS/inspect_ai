@@ -27,14 +27,10 @@ class StartCommand(HumanAgentCommand):
         print(call_human_agent("start"))
 
     def service(self, state: HumanAgentState) -> Callable[..., Awaitable[JsonValue]]:
-        from inspect_ai.log._transcript import transcript
-
         async def start() -> str:
             if not state.running:
                 state.running = True
-                transcript().info(
-                    f"Task started (total time: {format_progress_time(state.time)})"
-                )
+                clock_action_event("start", state)
             return render_status(state)
 
         return start
@@ -57,14 +53,22 @@ class StopCommand(HumanAgentCommand):
         print(call_human_agent("stop"))
 
     def service(self, state: HumanAgentState) -> Callable[..., Awaitable[JsonValue]]:
-        from inspect_ai.log._transcript import transcript
-
         async def stop() -> str:
             if state.running:
                 state.running = False
-                transcript().info(
-                    f"Task stopped (total time: {format_progress_time(state.time)})"
-                )
+                clock_action_event("stop", state)
             return render_status(state)
 
         return stop
+
+
+def clock_action_event(action: str, state: HumanAgentState) -> None:
+    from inspect_ai.log._transcript import transcript
+
+    transcript().info(
+        {
+            "action": action,
+            "total_time": format_progress_time(state.time, False),
+        },
+        source="human_agent",
+    )
