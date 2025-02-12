@@ -37,6 +37,6 @@ class NoteCommand(HumanAgentCommand):
         from inspect_ai.log._transcript import transcript
 
         async def note(content: str) -> None:
-            transcript().info(content)
+            transcript().info(content, source="human_agent")
 
         return note
