@@ -37,7 +37,7 @@ export const ScoreEventView: React.FC<ScoreEventViewProps> = ({
   return (
     <EventPanel
       id={id}
-      title="Score"
+      title={(event.intermediate ? "Intermediate " : "") + "Score"}
       className={clsx(className, "text-size-small")}
       subTitle={formatDateTime(new Date(event.timestamp))}
       icon={ApplicationIcons.scorer}

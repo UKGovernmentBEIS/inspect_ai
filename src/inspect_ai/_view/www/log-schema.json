@@ -2345,6 +2345,18 @@
           "title": "Event",
           "type": "string"
         },
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source"
+        },
         "data": {
           "$ref": "#/$defs/JsonValue"
         }
@@ -2353,6 +2365,7 @@
         "timestamp",
         "pending",
         "event",
+        "source",
         "data"
       ],
       "title": "InfoEvent",
@@ -3309,7 +3322,7 @@
       "additionalProperties": false
     },
     "ScoreEvent": {
-      "description": "Event with sample score.",
+      "description": "Event with score.\n\nCan be the final score for a `Sample`, or can be an intermediate score\nresulting from a call to `score`.",
       "properties": {
         "timestamp": {
           "format": "date-time",
@@ -3354,6 +3367,11 @@
           ],
           "default": null,
           "title": "Target"
+        },
+        "intermediate": {
+          "default": false,
+          "title": "Intermediate",
+          "type": "boolean"
         }
       },
       "required": [
@@ -3361,7 +3379,8 @@
         "pending",
         "event",
         "score",
-        "target"
+        "target",
+        "intermediate"
       ],
       "title": "ScoreEvent",
       "type": "object",

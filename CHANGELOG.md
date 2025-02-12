@@ -7,6 +7,8 @@
 - Use a sample adjustment for the `var()` metric.
 - OpenAI: Native tool calling for o1-mini (upon initial release it required emulated tool calling like o1-preview).
 - Python and Bash tools: Add `sandbox` argument for running in non-default sandboxes.
+- Transcript: Log `ScoreEvent` (with `intermediate=True`) when the `score()` function is called.
+- Transcript: Add `source` field to `InfoEvent` and use it for events logged by the human agent.
 - Docker: Support Dockerfiles with `.Dockerfile` extension.
 - Docker: Raise error when there is an explicitly configured `container_name` (incompatible with epochs > 1).
 - Log: Validate that `log_dir` is writeable at startup.

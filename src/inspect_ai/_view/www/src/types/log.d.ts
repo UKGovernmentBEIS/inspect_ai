@@ -315,6 +315,7 @@ export type Timestamp8 = string;
 export type Pending8 = boolean | null;
 export type Event8 = "score";
 export type Target2 = string | string[] | null;
+export type Intermediate = boolean;
 export type Timestamp9 = string;
 export type Pending9 = boolean | null;
 export type Event9 = "error";
@@ -339,6 +340,7 @@ export type Lineno = number;
 export type Timestamp11 = string;
 export type Pending11 = boolean | null;
 export type Event11 = "info";
+export type Source4 = string | null;
 export type Timestamp12 = string;
 export type Pending12 = boolean | null;
 export type Event12 = "step";
@@ -1053,7 +1055,10 @@ export interface InputEvent {
   input_ansi: InputAnsi;
 }
 /**
- * Event with sample score.
+ * Event with score.
+ *
+ * Can be the final score for a `Sample`, or can be an intermediate score
+ * resulting from a call to `score`.
  */
 export interface ScoreEvent {
   timestamp: Timestamp8;
@@ -1061,6 +1066,7 @@ export interface ScoreEvent {
   event: Event8;
   score: Score;
   target: Target2;
+  intermediate: Intermediate;
 }
 /**
  * Event with sample error.
@@ -1099,6 +1105,7 @@ export interface InfoEvent {
   timestamp: Timestamp11;
   pending: Pending11;
   event: Event11;
+  source: Source4;
   data: JsonValue;
 }
 /**
