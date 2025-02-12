@@ -1042,7 +1042,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="intermediate-scoring" class="level3">
 <h3 class="anchored" data-anchor-id="intermediate-scoring">Intermediate Scoring</h3>
-<p>In some cases it is useful for a solver to score a task directly to generate an intermediate score or assist in deciding whether or how to continue. You can do this using the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#score">score()</a></span> function:</p>
+<p>In some cases it is useful for a solver to score a task directly to generate an intermediate score or assist in deciding whether or how to continue. You can do this using the <code>score</code> function:</p>
 <div class="sourceCode" id="cb18"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.scorer <span class="im">import</span> score</span>
 <span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> solver_that_scores() <span class="op">-&gt;</span> Solver:</span>
@@ -1054,7 +1054,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb18-9"><a href="#cb18-9" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> state</span>
 <span id="cb18-10"><a href="#cb18-10" aria-hidden="true" tabindex="-1"></a>    </span>
 <span id="cb18-11"><a href="#cb18-11" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> solver</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Note that the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#score">score()</a></span> function returns a list of <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#score">Score</a></span> (as its possible that a task could have multiple scorers).</p>
+<p>Note that the <code>score</code> function returns a list of <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#score">Score</a></span> (as its possible that a task could have multiple scorers).</p>
 </section>
 <section id="concurrency" class="level3">
 <h3 class="anchored" data-anchor-id="concurrency">Concurrency</h3>

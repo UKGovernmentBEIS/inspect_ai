@@ -6,14 +6,17 @@ Score a previous evaluation run.
 #### Usage
 
 ``` text
-inspect score [OPTIONS] TASK LOG_FILE
+inspect score [OPTIONS] LOG_FILE
 ```
 
 #### Options
 
 | Name | Type | Description | Default |
 |----|----|----|----|
-| `--no-overwrite` | boolean | Do not overwrite unscored log_files with the scored version (instead write a new file w/ ‘-scored’ appended) | `False` |
+| `--scorer` | text | Scorer to use for scoring | None |
+| `-S` | text | One or more scorer arguments (e.g. -S arg=value) | None |
+| `--action` | choice (`append` \| `overwrite`) | Whether to append or overwrite the existing scores. | None |
+| `--overwrite` | boolean | Overwrite log file with the scored version | `False` |
 | `--log-level` | choice (`debug` \| `trace` \| `http` \| `info` \| `warning` \| `error` \| `critical`) | Set the log level (defaults to ‘warning’) | `warning` |
 | `--log-dir` | text | Directory for log files. | `./logs` |
 | `--display` | choice (`full` \| `conversation` \| `rich` \| `plain` \| `none`) | Set the display type (defaults to ‘full’) | `full` |

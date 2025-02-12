@@ -247,8 +247,8 @@ and/or custom compose configuration file. (Note, each sample gets its
 own sandbox *instance*, even if the sandbox is defined at Task level. So
 samples do not interfere with each other’s sandboxes.)
 
-The `sandbox` can be specified as a string (e.g. `"docker`“) or a list
-of sandbox type and config file (e.g. `["docker", "compose.yaml"]`).
+The `sandbox` can be specified as a string (e.g. `"docker`“) or a tuple
+of sandbox type and config file (e.g. `("docker", "compose.yaml")`).
 
 ### Files
 

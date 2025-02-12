@@ -1514,7 +1514,7 @@ ul.task-list li input[type="checkbox"] {
 <p>Score a previous evaluation run.</p>
 <section id="usage" class="level4">
 <h4 class="anchored" data-anchor-id="usage">Usage</h4>
-<pre class="text"><code>inspect score [OPTIONS] TASK LOG_FILE</code></pre>
+<pre class="text"><code>inspect score [OPTIONS] LOG_FILE</code></pre>
 </section>
 <section id="options" class="level4">
 <h4 class="anchored" data-anchor-id="options">Options</h4>
@@ -1535,48 +1535,66 @@ ul.task-list li input[type="checkbox"] {
 </thead>
 <tbody>
 <tr class="odd">
-<td><code>--no-overwrite</code></td>
-<td>boolean</td>
-<td>Do not overwrite unscored log_files with the scored version (instead write a new file w/ ‘-scored’ appended)</td>
-<td><code>False</code></td>
+<td><code>--scorer</code></td>
+<td>text</td>
+<td>Scorer to use for scoring</td>
+<td>None</td>
 </tr>
 <tr class="even">
+<td><code>-S</code></td>
+<td>text</td>
+<td>One or more scorer arguments (e.g.&nbsp;-S arg=value)</td>
+<td>None</td>
+</tr>
+<tr class="odd">
+<td><code>--action</code></td>
+<td>choice (<code>append</code> | <code>overwrite</code>)</td>
+<td>Whether to append or overwrite the existing scores.</td>
+<td>None</td>
+</tr>
+<tr class="even">
+<td><code>--overwrite</code></td>
+<td>boolean</td>
+<td>Overwrite log file with the scored version</td>
+<td><code>False</code></td>
+</tr>
+<tr class="odd">
 <td><code>--log-level</code></td>
 <td>choice (<code>debug</code> | <code>trace</code> | <code>http</code> | <code>info</code> | <code>warning</code> | <code>error</code> | <code>critical</code>)</td>
 <td>Set the log level (defaults to ‘warning’)</td>
 <td><code>warning</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--log-dir</code></td>
 <td>text</td>
 <td>Directory for log files.</td>
 <td><code>./logs</code></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--display</code></td>
 <td>choice (<code>full</code> | <code>conversation</code> | <code>rich</code> | <code>plain</code> | <code>none</code>)</td>
 <td>Set the display type (defaults to ‘full’)</td>
 <td><code>full</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--debug</code></td>
 <td>boolean</td>
 <td>Wait to attach debugger</td>
 <td><code>False</code></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--debug-port</code></td>
 <td>integer</td>
 <td>Port number for debugger</td>
 <td><code>5678</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--debug-errors</code></td>
 <td>boolean</td>
 <td>Raise task errors (rather than logging them) so they can be debugged.</td>
 <td><code>False</code></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--help</code></td>
 <td>boolean</td>
 <td>Show this message and exit.</td>

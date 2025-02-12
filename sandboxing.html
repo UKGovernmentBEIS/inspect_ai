@@ -643,7 +643,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="sec-per-sample-sandbox" class="level3">
 <h3 class="anchored" data-anchor-id="sec-per-sample-sandbox">Sandbox</h3>
 <p>You can either define a default <code>sandbox</code> for an entire <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#task">Task</a></span> as illustrated above, or alternatively define a per-sample <code>sandbox</code>. For example, you might want to do this if each sample has its own Dockerfile and/or custom compose configuration file. (Note, each sample gets its own sandbox <em>instance</em>, even if the sandbox is defined at Task level. So samples do not interfere with each other’s sandboxes.)</p>
-<p>The <code>sandbox</code> can be specified as a string (e.g.&nbsp;<code>"docker</code>“) or a list of sandbox type and config file (e.g.&nbsp;<code>["docker", "compose.yaml"]</code>).</p>
+<p>The <code>sandbox</code> can be specified as a string (e.g.&nbsp;<code>"docker</code>“) or a tuple of sandbox type and config file (e.g.&nbsp;<code>("docker", "compose.yaml")</code>).</p>
 </section>
 <section id="files" class="level3">
 <h3 class="anchored" data-anchor-id="files">Files</h3>

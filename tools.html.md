@@ -688,16 +688,15 @@ input.
 ### Configuration
 
 The `computer()` tool runs within a Docker container. To use it with a
-task you need to reference the
-`aisiuk/inspect-computer-tool:latest-beta` image in your Docker compose
-file. For example:
+task you need to reference the `aisiuk/inspect-computer-tool:latest`
+image in your Docker compose file. For example:
 
 **compose.yaml**
 
 ``` yaml
 services:
   default:
-    image: aisiuk/inspect-computer-tool:latest-beta
+    image: aisiuk/inspect-computer-tool:latest
 ```
 
 You can configure the container to not have Internet access as follows:
@@ -707,7 +706,7 @@ You can configure the container to not have Internet access as follows:
 ``` yaml
 services:
   default:
-    image: aisiuk/inspect-computer-tool:latest-beta
+    image: aisiuk/inspect-computer-tool:latest
     network_mode: none
 ```
 
@@ -716,7 +715,7 @@ the computer desktop in realtime, you will need to also do some port
 mapping to enable a VNC connection with the container. See the [VNC
 Client](#vnc-client) section below for details on how to do this.
 
-The `aisiuk/inspect-computer-tool:latest-beta` image is based on the
+The `aisiuk/inspect-computer-tool:latest` image is based on the
 [ubuntu:22.04](https://hub.docker.com/layers/library/ubuntu/22.04/images/sha256-965fbcae990b0467ed5657caceaec165018ef44a4d2d46c7cdea80a9dff0d1ea?context=explore)
 image and includes the following additional applications pre-installed:
 
@@ -799,7 +798,7 @@ dynamic port ranges for VNC (5900) and a browser based noVNC client
 ``` yaml
 services:
   default:
-    image: aisiuk/inspect-computer-tool:latest-beta
+    image: aisiuk/inspect-computer-tool:latest
     ports:
       - "5900"
       - "6080"

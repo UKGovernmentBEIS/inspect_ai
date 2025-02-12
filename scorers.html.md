@@ -214,7 +214,7 @@ provide some examples of custom scorers to make things more concrete.
 
 > [!NOTE]
 >
-> Note that `score()` above is declared as an `async` function. When
+> Note that `score` above is declared as an `async` function. When
 > creating custom scorers, it’s critical that you understand Inspect’s
 > concurrency model. More specifically, if your scorer is doing
 > non-trivial work (e.g. calling REST APIs, executing external
@@ -333,7 +333,7 @@ The function applies the `@scorer` decorator and registers two metrics
 for use with the scorer.
 
 Line 4  
-The `score()` function is declared as `async`. This is so that it can
+The `score` function is declared as `async`. This is so that it can
 participate in Inspect’s optimised scheduling for expensive model
 generation calls (this scorer doesn’t call a model but others will).
 
@@ -861,26 +861,28 @@ def mean_score() -> ScoreReducer:
 
 ## Workflow
 
-### Score Command
+> [!NOTE]
+>
+> The `inspect score` command and `score()` function as described below
+> are currently available only in the development version of Inspect. To
+> install the development version from GitHub:
+>
+> ``` bash
+> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+> ```
+
+### Unscored Evals
 
 By default, model output in evaluations is automatically scored.
-However, you can separate generation and scoring by using the
-`--no-score` option. For example:
+However, you can defer scoring by using the `--no-score` option. For
+example:
 
 ``` bash
 inspect eval popularity.py --model openai/gpt-4 --no-score
 ```
 
-You can score an evaluation previously run this way using the
-`inspect score` command:
-
-``` bash
-# score last eval
-inspect score popularity.py
-
-# score specific log file
-inspect score popularity.py ./logs/2024-02-23_task_gpt-4_TUhnCn473c6.json
-```
+This will produce a log with samples that have not yet been scored and
+with no evaluation metrics.
 
 > [!TIP]
 >
@@ -888,33 +890,88 @@ inspect score popularity.py ./logs/2024-02-23_task_gpt-4_TUhnCn473c6.json
 > development, as it bypasses the entire generation phase, saving lots
 > of time and inference costs.
 
-### Log Overwriting
+### Score Command
 
-By default, `inspect score` overwrites the file it scores. If don’t want
-to overwrite target files, pass the `--no-overwrite` flag:
-
-``` bash
-inspect score popularity.py --no-overwrite
-```
-
-When specifying `--no-overwrite`, a `-scored` suffix will be added to
-the original log file name:
+You can score an evaluation previously run this way using the
+`inspect score` command:
 
 ``` bash
-./logs/2024-02-23_task_gpt-4_TUhnCn473c6-scored.json
+# score an unscored eval
+inspect score ./logs/2024-02-23_task_gpt-4_TUhnCn473c6.eval
 ```
 
-Note that the `--no-overwrite` flag does not apply to log files that
-already have the `-scored` suffix—those files are always overwritten by
-`inspect score`. If you plan on scoring multiple times and you want to
-save each scoring output, you will want to copy the log to another
-location before re-scoring.
+This will use the scorers and metrics that were declared when the
+evaluation was run, applying them to score each sample and generate
+metrics for the evaluation.
 
-### Python API
+You may choose to use a different scorer than the task scorer to score a
+log file. In this case, you can use the `--scorer` option to pass the
+name of a scorer (including one in a package) or the path to a source
+code file containing a scorer to use. For example:
 
-If you are exploring the performance of different scorers, you might
-find it more useful to call the `score()` function using varying scorers
-or scorer options. For example:
+``` bash
+# use built in match scorer
+inspect score ./logs/2024-02-23_task_gpt-4_TUhnCn473c6.eval --scorer match
+
+# use scorer in a package
+inspect score ./logs/2024-02-23_task_gpt-4_TUhnCn473c6.eval --scorer scorertools/custom_scorer
+
+# use scorer in a file
+inspect score ./logs/2024-02-23_task_gpt-4_TUhnCn473c6.eval --scorer custom_scorer.py
+
+# use a custom scorer named 'classify' in a file with more than one scorer
+inspect score ./logs/2024-02-23_task_gpt-4_TUhnCn473c6.eval --scorer custom_scorers.py@classify
+```
+
+If you need to pass arguments to the scorer, you can do do using scorer
+args (`-S`) like so:
+
+``` bash
+inspect score ./logs/2024-02-23_task_gpt-4_TUhnCn473c6.eval --scorer match -S location=end
+```
+
+#### Overwriting Logs
+
+When you use the `inspect score` command, you will prompted whether or
+not you’d like to overwrite the existing log file (with the scores
+added), or create a new scored log file. By default, the command will
+create a new log file with a `-scored` suffix to distinguish it from the
+original file. You may also control this using the `--overwrite` flag as
+follows:
+
+``` bash
+# overwrite the log with scores from the task defined scorer
+inspect score ./logs/2024-02-23_task_gpt-4_TUhnCn473c6.eval --overwrite
+```
+
+#### Ovewriting Scores
+
+When rescoring a previously scored log file you have two options:
+
+1)  Append Mode (Default): The new scores will be added alongside the
+    existing scores in the log file, keeping both the old and new
+    results.
+2)  Overwrite Mode: The new scores will replace the existing scores in
+    the log file, removing the old results.
+
+You can choose which mode to use based on whether you want to preserve
+or discard the previous scoring data. To control this, use the
+`--action` arg:
+
+``` bash
+# append scores from custom scorer
+inspect score ./logs/2024-02-23_task_gpt-4_TUhnCn473c6.eval --scorer custom_scorer.py --action append
+
+# overwrite scores with new scores from custom scorer
+inspect score ./logs/2024-02-23_task_gpt-4_TUhnCn473c6.eval --scorer custom_scorer.py --action overwrite
+```
+
+### Score Function
+
+You can also use the `score()` function in your Python code to score
+evaluation logs. For example, if you are exploring the performance of
+different scorers, you might find it more useful to call the `score()`
+function using varying scorers or scorer options. For example:
 
 ``` python
 log = eval(popularity, model="openai/gpt-4")[0]
@@ -930,4 +987,30 @@ scoring_logs = [score(log, model_graded_qa(model=model))
                 for model in grader_models]
 
 plot_results(scoring_logs)
+```
+
+You can also use this function to score an existing log file (appending
+or overwriting results) like so:
+
+``` python
+# read the log
+input_log_path = "./logs/2025-02-11T15-17-00-05-00_popularity_dPiJifoWeEQBrfWsAopzWr.eval"
+log = read_eval_log(input_log_path)
+
+grader_models = [
+    "openai/gpt-4",
+    "anthropic/claude-3-opus-20240229",
+    "google/gemini-1.0-pro",
+    "mistral/mistral-large-latest"
+]
+
+# perform the scoring using various models
+scoring_logs = [score(log, model_graded_qa(model=model), action="append") 
+                for model in grader_models]
+
+# write log files with the model name as a suffix
+for model, scored_log in zip(grader_models, scoring_logs):
+    base, ext = os.path.splitext(input_log_path)
+    output_file = f"{base}_{model.replace('/', '_')}{ext}"
+    write_eval_log(scored_log, output_file)
 ```

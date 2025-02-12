@@ -616,7 +616,7 @@ normal scoring provided by the scorer(s) defined for a `Task`.
 
 In some cases it is useful for a solver to score a task directly to
 generate an intermediate score or assist in deciding whether or how to
-continue. You can do this using the `score()` function:
+continue. You can do this using the `score` function:
 
 ``` python
 from inspect_ai.scorer import score
@@ -632,7 +632,7 @@ def solver_that_scores() -> Solver:
     return solver
 ```
 
-Note that the `score()` function returns a list of `Score` (as its
+Note that the `score` function returns a list of `Score` (as its
 possible that a task could have multiple scorers).
 
 ### Concurrency
