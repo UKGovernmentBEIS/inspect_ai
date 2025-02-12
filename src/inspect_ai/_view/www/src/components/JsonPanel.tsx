@@ -1,7 +1,7 @@
 import clsx from "clsx";
 import { highlightElement } from "prismjs";
 import React, { useEffect, useMemo, useRef } from "react";
-import "./JSONPanel.css";
+import "./JsonPanel.css";
 
 const kPrismRenderMaxSize = 250000;
 

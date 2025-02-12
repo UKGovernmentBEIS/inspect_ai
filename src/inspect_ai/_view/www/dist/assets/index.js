@@ -50618,7 +50618,7 @@ self.onmessage = function (e) {
         EventPanel,
         {
           id,
-          title: "Info",
+          title: "Info" + (event.source ? ": " + event.source : ""),
           className: className2,
           subTitle: formatDateTime(new Date(event.timestamp)),
           icon: ApplicationIcons.info,
@@ -51022,7 +51022,7 @@ self.onmessage = function (e) {
         EventPanel,
         {
           id,
-          title: "Score",
+          title: (event.intermediate ? "Intermediate " : "") + "Score",
           className: clsx(className2, "text-size-small"),
           subTitle: formatDateTime(new Date(event.timestamp)),
           icon: ApplicationIcons.scorer,

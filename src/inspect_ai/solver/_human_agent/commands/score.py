@@ -64,14 +64,6 @@ class ScoreCommand(HumanAgentCommand):
             # record the scoring action in our state
             state.scorings.append(IntermediateScoring(time=state.time, scores=result))
 
-            # record to transcript
-            transcript().info(
-                dedent(f"""
-            ### Intermediate Score
-            **Answer:** {result[0].answer}, **Score:** {result[0].as_str()}
-            """)
-            )
-
             # notify user
             return render_text(
                 f"[bold]Answer:[/bold] {result[0].answer}, [bold]Score:[/bold] {result[0].as_str()}"

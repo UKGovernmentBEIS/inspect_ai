@@ -35,7 +35,7 @@ export const InfoEventView: React.FC<InfoEventViewProps> = ({
   return (
     <EventPanel
       id={id}
-      title="Info"
+      title={"Info" + (event.source ? ": " + event.source : "")}
       className={className}
       subTitle={formatDateTime(new Date(event.timestamp))}
       icon={ApplicationIcons.info}

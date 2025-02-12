@@ -1,6 +1,6 @@
 import { ANSIColor, ANSIOutput, ANSIOutputRun, ANSIStyle } from "ansi-output";
 import clsx from "clsx";
-import "./ANSIDisplay.css";
+import "./AnsiDisplay.css";
 
 interface ANSIDisplayProps {
   output: string;
