@@ -6,6 +6,7 @@
 - Metrics now take `list[SampleScore]` rather than `list[Score]` (previous signature is deprecated but still works with a warning).
 - Use a sample adjustment for the `var()` metric.
 - OpenAI: Native tool calling for o1-mini (upon initial release it required emulated tool calling like o1-preview).
+- Google: Speculative fix for completion candidates not being returned as a list.
 - Python and Bash tools: Add `sandbox` argument for running in non-default sandboxes.
 - Transcript: Log `ScoreEvent` (with `intermediate=True`) when the `score()` function is called.
 - Transcript: Add `source` field to `InfoEvent` and use it for events logged by the human agent.
