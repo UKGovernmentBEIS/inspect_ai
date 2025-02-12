@@ -12,3 +12,5 @@ updates:
     ignore:
       - dependency-name: "quarto-cli"
         versions: [">=1.6.0"]
+      - dependency-name: "ruff"
+        versions: [">=0.9.5"]
