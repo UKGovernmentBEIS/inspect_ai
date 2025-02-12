@@ -39,24 +39,25 @@ def service_healthcheck_time(service: ComposeService) -> int:
     Calculate the maximum time a single service's healthcheck could take.
 
     The total time is:
-    start_period + (retries * (timeout))
+    (retries * (interval + timeout))
 
     Default values (from Docker documentation):
-    - timeout: 30s
     - retries: 3
-    - start_period: 0s
+    - interval: 30s
+    - timeout: 30s
     """
     healthcheck = service.get("healthcheck", None)
     if healthcheck is None:
         return 0
 
     # Parse duration strings with defaults
-    start_period = parse_duration(healthcheck.get("start_period", "0s"))
-    timeout = parse_duration(healthcheck.get("timeout", "30s"))
     retries = healthcheck.get("retries", 3)
+    interval = parse_duration(healthcheck.get("interval", "30s"))
+    timeout = parse_duration(healthcheck.get("timeout", "30s"))
 
-    # Compute and return total time
-    total_time = start_period.seconds + (retries * (timeout.seconds))
+    # Calculate total time in seconds
+    total_time = retries * (interval.seconds + timeout.seconds)
+
     return int(total_time)
 
 

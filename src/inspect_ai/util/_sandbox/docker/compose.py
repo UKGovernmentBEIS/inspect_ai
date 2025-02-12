@@ -36,7 +36,7 @@ async def compose_up(
     # at the maximum total wait time. otherwise, pick a reasonable default
     healthcheck_time = services_healthcheck_time(services)
     if healthcheck_time > 0:
-        timeout = healthcheck_time
+        timeout: int = healthcheck_time
         trace_message(logger, "Docker", "Docker services heathcheck timeout: {timeout}")
     else:
         timeout = COMPOSE_WAIT
