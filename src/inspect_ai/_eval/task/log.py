@@ -4,9 +4,7 @@ from typing import Any, Literal, cast
 from shortuuid import uuid
 
 from inspect_ai._eval.task.util import slice_dataset
-from inspect_ai._util.constants import (
-    PKG_NAME,
-)
+from inspect_ai._util.constants import PKG_NAME
 from inspect_ai._util.datetime import iso_now
 from inspect_ai._util.git import git_context
 from inspect_ai._util.path import cwd_relative_path
@@ -27,7 +25,11 @@ from inspect_ai.log import (
     EvalSpec,
     EvalStats,
 )
-from inspect_ai.log._log import EvalLog, EvalSampleReductions
+from inspect_ai.log._log import (
+    EvalLog,
+    EvalSampleReductions,
+    eval_config_defaults,
+)
 from inspect_ai.log._recorders import Recorder
 from inspect_ai.model import (
     GenerateConfig,
@@ -91,6 +93,11 @@ class TaskLogger:
                 )
             ],
         )
+
+        # write defaults for unspecified config
+        for name, value in eval_config_defaults().items():
+            if getattr(eval_config, name, None) is None:
+                setattr(eval_config, name, value)
 
         # create eval spec
         self.eval = EvalSpec(

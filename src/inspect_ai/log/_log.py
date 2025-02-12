@@ -4,11 +4,17 @@ import sys
 import traceback
 from logging import getLogger
 from types import TracebackType
-from typing import Any, Literal, Type
+from typing import Any, Literal, Type, TypedDict
 
 import click
 import tenacity
-from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    PrivateAttr,
+    model_validator,
+)
 from rich.console import Console, RenderableType
 from rich.traceback import Traceback
 
@@ -28,6 +34,28 @@ from ._transcript import Event
 logger = getLogger(__name__)
 
 SCORER_PLACEHOLDER = "88F74D2C"
+
+
+class EvalConfigDefaults(TypedDict):
+    epochs: int
+    epochs_reducer: list[str]
+    fail_on_error: bool
+    sandbox_cleanup: bool
+    log_samples: bool
+    log_images: bool
+    score_display: bool
+
+
+def eval_config_defaults() -> EvalConfigDefaults:
+    return {
+        "epochs": 1,
+        "epochs_reducer": ["mean"],
+        "fail_on_error": True,
+        "sandbox_cleanup": True,
+        "log_samples": True,
+        "log_images": True,
+        "score_display": True,
+    }
 
 
 class EvalConfig(BaseModel):
