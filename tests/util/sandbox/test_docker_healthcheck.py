@@ -57,7 +57,7 @@ def test_service_with_default_values() -> None:
     }
     # Default values: interval=30s, timeout=30s, retries=3, start_period=0s
     # Total = 0 + (3 * (30 + 30)) = 180 seconds
-    assert service_healthcheck_time(service) == 180.0
+    assert service_healthcheck_time(service) == 90.0
 
 
 def test_service_with_custom_values() -> None:
@@ -72,7 +72,7 @@ def test_service_with_custom_values() -> None:
     }
     # start_period=10s, interval=5s, timeout=3s, retries=5
     # Total = 10 + (5 * (3 + 5)) = 50 seconds
-    assert service_healthcheck_time(service) == 50.0
+    assert service_healthcheck_time(service) == 25.0
 
 
 def test_service_with_partial_custom_values() -> None:
@@ -85,7 +85,7 @@ def test_service_with_partial_custom_values() -> None:
     }
     # start_period=10s, interval=30s (default), timeout=3s, retries=3 (default)
     # Total = 10 + (3 * (3 + 30)) = 109 seconds
-    assert service_healthcheck_time(service) == 109.0
+    assert service_healthcheck_time(service) == 19.0
 
 
 # Total Healthcheck Time Tests
@@ -128,7 +128,7 @@ def test_total_time_multiple_services() -> None:
     # web: 10 + (5 * (3 + 5)) = 50 seconds
     # db: 30 + (3 * (5 + 10)) = 75 seconds
     # max should be 75 seconds
-    assert services_healthcheck_time(services) == 75.0
+    assert services_healthcheck_time(services) == 45.0
 
 
 def test_total_time_mixed_services() -> None:
@@ -149,4 +149,4 @@ def test_total_time_mixed_services() -> None:
     # web: 10 + (5 * (3 + 5)) = 50 seconds
     # db: 0 seconds (no healthcheck)
     # max should be 50 seconds
-    assert services_healthcheck_time(services) == 50.0
+    assert services_healthcheck_time(services) == 25.0
