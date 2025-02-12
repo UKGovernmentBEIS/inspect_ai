@@ -1,6 +1,5 @@
 from argparse import Namespace
 from copy import deepcopy
-from textwrap import dedent
 from typing import Awaitable, Callable, Literal
 
 from pydantic import JsonValue
@@ -51,8 +50,6 @@ class ScoreCommand(HumanAgentCommand):
 
     def service(self, state: HumanAgentState) -> Callable[..., Awaitable[JsonValue]]:
         async def score_task(answer: str | None) -> str:
-            from inspect_ai.log._transcript import transcript
-
             # make a copy of TaskState, add the answer, then score
             if answer:
                 task_state = deepcopy(self._state)
