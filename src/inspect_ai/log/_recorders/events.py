@@ -15,10 +15,10 @@ from .._transcript import Event
 from .types import SampleSummary
 
 JsonData: TypeAlias = dict[str, JsonValue]
+# write eval file right away
 
-
-# partial events
 # attachments
+# garbage collection of dbs
 
 
 class SampleInfo(BaseModel):
@@ -29,6 +29,7 @@ class SampleInfo(BaseModel):
 
 class EventInfo(BaseModel):
     id: int
+    event_id: str
     sample_id: str
     epoch: int
     event: JsonData
@@ -46,6 +47,7 @@ class SampleEventDatabase:
 
     CREATE TABLE events (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        event_id TEXT,
         sample_id TEXT,
         sample_epoch INTEGER,
         data TEXT, -- JSON containing full event
@@ -107,12 +109,12 @@ class SampleEventDatabase:
             # Collect the values for all events
             values: list[Any] = []
             for event in events:
-                values.extend((id, epoch, event.model_dump_json()))
+                values.extend((event._id, id, epoch, event.model_dump_json()))
 
             # Dynamically create the SQL query
-            placeholders = ", ".join(["(?, ?, ?)"] * len(events))
+            placeholders = ", ".join(["(?, ?, ?, ?)"] * len(events))
             sql = f"""
-            INSERT INTO events (sample_id, sample_epoch, data)
+            INSERT INTO events (event_id, sample_id, sample_epoch, data)
             VALUES {placeholders}
             """
 
@@ -156,14 +158,14 @@ class SampleEventDatabase:
 
             # Delete associated events first due to foreign key constraint
             events_query = f"""
-                DELETE FROM events 
+                DELETE FROM events
                 WHERE (sample_id, sample_epoch) IN ({sample_conditions})
             """
             cursor.execute(events_query)
 
             # Then delete the samples
             samples_query = f"""
-                DELETE FROM samples 
+                DELETE FROM samples
                 WHERE (id, epoch) IN ({sample_conditions})
             """
             cursor.execute(samples_query)
@@ -199,7 +201,7 @@ class SampleEventDatabase:
 
         with self._get_connection() as conn:
             query = """
-                SELECT id, sample_id, sample_epoch, data
+                SELECT id, event_id, sample_id, sample_epoch, data
                 FROM events e WHERE sample_id = ? AND sample_epoch = ?
             """
             params: list[str | int] = [str(id), epoch]
@@ -216,6 +218,7 @@ class SampleEventDatabase:
                 event = json.loads(row["data"])
                 yield EventInfo(
                     id=row["id"],
+                    event_id=row["event_id"],
                     sample_id=row["sample_id"],
                     epoch=row["sample_epoch"],
                     event=event,
