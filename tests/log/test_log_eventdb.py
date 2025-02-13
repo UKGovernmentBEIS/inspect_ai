@@ -2,8 +2,10 @@ import os
 from typing import Generator
 
 import pytest
+from shortuuid import uuid
 
-from inspect_ai.log._recorders.eventdb.eventdb import JsonData, SampleEventDatabase
+from inspect_ai.log._log import EvalSample
+from inspect_ai.log._recorders.events import JsonData, SampleEventDatabase
 
 
 @pytest.fixture
@@ -14,31 +16,34 @@ def db() -> Generator[SampleEventDatabase, None, None]:
     test_db.cleanup()
 
 
+@pytest.fixture
+def sample() -> Generator[EvalSample, None, None]:
+    yield EvalSample(id=uuid(), epoch=1, input="test input", target="test target")
+
+
 def test_database_initialization(db: SampleEventDatabase) -> None:
     """Test that the database is properly initialized."""
     assert os.path.exists(db.db_path)
     assert db.location == "test_location"
 
 
-def test_start_sample(db: SampleEventDatabase) -> None:
+def test_start_sample(db: SampleEventDatabase, sample: EvalSample) -> None:
     """Test starting a new sample."""
-    sample_data: JsonData = {"input": "test input", "target": "test target"}
-    db.start_sample(id="sample1", epoch=1, sample=sample_data)
+    db.start_sample(id="sample1", epoch=1, sample=sample)
 
     # Verify the sample was created
     samples = list(db.get_samples())
     assert len(samples) == 1
     assert samples[0].id == "sample1"
     assert samples[0].epoch == 1
-    assert samples[0].sample == sample_data
+    assert samples[0].sample == sample
     assert samples[0].summary is None
 
 
-def test_log_events(db: SampleEventDatabase) -> None:
+def test_log_events(db: SampleEventDatabase, sample: EvalSample) -> None:
     """Test logging events for a sample."""
     # First create a sample
-    sample_data: JsonData = {"input": "test input"}
-    db.start_sample(id="sample1", epoch=1, sample=sample_data)
+    db.start_sample(id="sample1", epoch=1, sample=sample)
 
     # Log some events
     events: list[JsonData] = [
@@ -55,11 +60,10 @@ def test_log_events(db: SampleEventDatabase) -> None:
     assert {k: v for k, v in logged_events[1].event.items() if k != "id"} == events[1]
 
 
-def test_complete_sample(db: SampleEventDatabase) -> None:
+def test_complete_sample(db: SampleEventDatabase, sample: EvalSample) -> None:
     """Test completing a sample with a summary."""
     # Create sample
-    sample_data: JsonData = {"input": "test input"}
-    db.start_sample(id="sample1", epoch=1, sample=sample_data)
+    db.start_sample(id="sample1", epoch=1, sample=sample)
 
     # Complete sample
     summary_data: JsonData = {"result": "success", "metrics": {"accuracy": 0.95}}
@@ -74,8 +78,10 @@ def test_complete_sample(db: SampleEventDatabase) -> None:
 def test_get_events_with_filters(db: SampleEventDatabase) -> None:
     """Test getting events with various filters."""
     # Create two samples with events
-    db.start_sample(id="sample1", epoch=1, sample={"input": "test1"})
-    db.start_sample(id="sample2", epoch=1, sample={"input": "test2"})
+    sample1 = EvalSample(id="sample1", epoch=1, input="test1", target="test target")
+    sample2 = EvalSample(id="sample2", epoch=1, input="test2", target="test target")
+    db.start_sample(id="sample1", epoch=1, sample=sample1)
+    db.start_sample(id="sample2", epoch=1, sample=sample2)
 
     events1: list[JsonData] = [{"type": "start", "sample": "1"}]
     events2: list[JsonData] = [{"type": "start", "sample": "2"}]
@@ -114,10 +120,22 @@ def test_error_cases(db: SampleEventDatabase) -> None:
 def test_concurrent_samples(db: SampleEventDatabase) -> None:
     """Test handling multiple samples concurrently."""
     # Create multiple samples
-    samples: list[tuple[str, int, JsonData]] = [
-        ("sample1", 1, {"input": "test1"}),
-        ("sample1", 2, {"input": "test1_v2"}),  # Same ID, different epoch
-        ("sample2", 1, {"input": "test2"}),
+    samples: list[tuple[str, int, EvalSample]] = [
+        (
+            "sample1",
+            1,
+            EvalSample(id="sample1", epoch=1, input="test1", target="target"),
+        ),
+        (
+            "sample1",
+            2,
+            EvalSample(id="sample1", epoch=2, input="test1_v2", target="target"),
+        ),
+        (
+            "sample2",
+            1,
+            EvalSample(id="sample2", epoch=1, input="test2", target="target"),
+        ),
     ]
 
     sample_ids = []
@@ -141,11 +159,10 @@ def test_concurrent_samples(db: SampleEventDatabase) -> None:
     assert len(events_epoch_2) == 1
 
 
-def test_cleanup(db: SampleEventDatabase) -> None:
+def test_cleanup(db: SampleEventDatabase, sample: EvalSample) -> None:
     """Test database cleanup."""
     # Create some data
-    sample_data: JsonData = {"input": "test"}
-    db.start_sample(id="sample1", epoch=1, sample=sample_data)
+    db.start_sample(id="sample1", epoch=1, sample=sample)
 
     # Verify file exists
     assert os.path.exists(db.db_path)
