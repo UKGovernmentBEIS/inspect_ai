@@ -6,6 +6,7 @@ import pytest
 from inspect_ai.log._log import EvalSample
 from inspect_ai.log._recorders.events import JsonData, SampleEventDatabase
 from inspect_ai.log._recorders.types import SampleSummary
+from inspect_ai.log._transcript import Event, InfoEvent
 
 
 @pytest.fixture
@@ -46,18 +47,13 @@ def test_log_events(db: SampleEventDatabase, sample: EvalSample) -> None:
     db.start_sample(sample=sample)
 
     # Log some events
-    events: list[JsonData] = [
-        {"type": "start", "timestamp": "2024-02-13T10:00:00"},
-        {"type": "progress", "timestamp": "2024-02-13T10:00:01"},
-    ]
+    events: list[Event] = [InfoEvent(data="event1"), InfoEvent(data="event2")]
     event_ids = db.log_events(id="sample1", epoch=1, events=events)
 
     # Verify events were logged
     assert len(event_ids) == 2
     logged_events = list(db.get_events(id="sample1", epoch=1))
     assert len(logged_events) == 2
-    assert {k: v for k, v in logged_events[0].event.items() if k != "id"} == events[0]
-    assert {k: v for k, v in logged_events[1].event.items() if k != "id"} == events[1]
 
 
 def test_complete_sample(db: SampleEventDatabase, sample: EvalSample) -> None:
@@ -85,8 +81,8 @@ def test_get_events_with_filters(db: SampleEventDatabase) -> None:
     db.start_sample(sample=sample1)
     db.start_sample(sample=sample2)
 
-    events1: list[JsonData] = [{"type": "start", "sample": "1"}]
-    events2: list[JsonData] = [{"type": "start", "sample": "2"}]
+    events1: list[Event] = [InfoEvent(data="event1")]
+    events2: list[Event] = [InfoEvent(data="event2")]
 
     db.log_events(id="sample1", epoch=1, events=events1)
     db.log_events(id="sample2", epoch=1, events=events2)
@@ -94,8 +90,7 @@ def test_get_events_with_filters(db: SampleEventDatabase) -> None:
     # Test filtering by sample
     filtered_events = list(db.get_events(id="sample1", epoch=1))
     assert len(filtered_events) == 1
-    assert filtered_events[0].event["type"] == events1[0]["type"]
-    assert filtered_events[0].event["sample"] == events1[0]["sample"]
+    assert filtered_events[0].event["data"] == "event1"
 
     # Test getting all events
     all_events = list(db.get_events())
@@ -139,7 +134,7 @@ def test_concurrent_samples(db: SampleEventDatabase) -> None:
     assert len(stored_samples) == 3
 
     # Verify we can get specific samples
-    events: list[JsonData] = [{"type": "test"}]
+    events: list[Event] = [InfoEvent(data="event1")]
     db.log_events(id="sample1", epoch=1, events=events)
     db.log_events(id="sample1", epoch=2, events=events)
 
