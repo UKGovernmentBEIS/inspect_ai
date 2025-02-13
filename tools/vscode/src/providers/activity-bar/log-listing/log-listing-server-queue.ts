@@ -197,7 +197,7 @@ function iconForStatus(
 }
 
 
-export function evalSummary(node: LogNode, log: EvalLog): MarkdownString {
+export function evalSummary(node: LogNode, log: EvalLog): MarkdownString | undefined {
   // build summary
   const summary = evalHeader(log);
 
@@ -213,7 +213,11 @@ export function evalSummary(node: LogNode, log: EvalLog): MarkdownString {
     summary.push(...config);
   }
 
-  return new MarkdownString(summary.join("\n  "), true);
+  if (summary.length > 0) {
+    return new MarkdownString(summary.join("\n  "), true);
+  } else {
+    return undefined;
+  }
 }
 
 function evalHeader(log: EvalLog): string[] {
