@@ -5,21 +5,23 @@ import sqlite3
 import tempfile
 from contextlib import contextmanager
 from sqlite3 import Connection
-from typing import Iterator, NamedTuple, TypeAlias, cast
+from typing import Iterator, TypeAlias, cast
 
-from pydantic import JsonValue
+from pydantic import BaseModel, JsonValue
+
+from .._log import EvalSample
 
 JsonData: TypeAlias = dict[str, JsonValue]
 
 
-class SampleInfo(NamedTuple):
+class SampleInfo(BaseModel):
     id: str
     epoch: int
-    sample: JsonData
+    sample: EvalSample
     summary: JsonData | None
 
 
-class EventInfo(NamedTuple):
+class EventInfo(BaseModel):
     id: int
     sample_id: str
     epoch: int
@@ -85,7 +87,7 @@ class SampleEventDatabase:
         finally:
             conn.close()
 
-    def start_sample(self, id: int | str, epoch: int, sample: JsonData) -> int:
+    def start_sample(self, id: int | str, epoch: int, sample: EvalSample) -> int:
         """Start logging a sample. Returns the internal sample_id."""
         with self._get_connection() as conn:
             cursor = conn.execute(
@@ -94,7 +96,7 @@ class SampleEventDatabase:
                 VALUES (?, ?, ?, ?)
                 RETURNING sample_id
             """,
-                (self.location, str(id), epoch, json.dumps(sample)),
+                (self.location, str(id), epoch, sample.model_dump_json()),
             )
             return cast(int, cursor.fetchone()[0])
 
@@ -183,11 +185,16 @@ class SampleEventDatabase:
             for row in cursor:
                 id = row["sample_id"]
                 epoch = row["sample_epoch"]
-                sample = json.loads(row["sample_data"])
+                sample = row["sample_data"]
                 summary = None
                 if row["summary_data"] is not None:
                     summary = json.loads(row["summary_data"])
-                yield SampleInfo(id=id, epoch=epoch, sample=sample, summary=summary)
+                yield SampleInfo(
+                    id=id,
+                    epoch=epoch,
+                    sample=EvalSample.model_validate_json(sample),
+                    summary=summary,
+                )
 
     def get_events(
         self,
