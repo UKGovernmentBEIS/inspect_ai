@@ -2,17 +2,23 @@ import hashlib
 import json
 import os
 import sqlite3
-import tempfile
 from contextlib import contextmanager
+from pathlib import Path
 from sqlite3 import Connection
 from typing import Any, Iterator, TypeAlias, cast
 
 from pydantic import BaseModel, JsonValue
 
+from inspect_ai._util.appdirs import inspect_data_dir
+
 from .._transcript import Event
 from .types import SampleSummary
 
 JsonData: TypeAlias = dict[str, JsonValue]
+
+
+# partial events
+# attachments
 
 
 class SampleInfo(BaseModel):
@@ -50,10 +56,14 @@ class SampleEventDatabase:
     CREATE INDEX IF NOT EXISTS idx_events_sample ON events(sample_id, sample_epoch);
     """
 
-    def __init__(self, location: str, db_dir: str = tempfile.mkdtemp()):
-        self.db_path = os.path.join(
-            db_dir, hashlib.sha256(location.encode("utf-8")).hexdigest()
-        )
+    def __init__(self, location: str, db_dir: Path | None = None):
+        self.location = location
+
+        # provide default db dir
+        if db_dir is None:
+            db_dir = inspect_data_dir("eventdb")
+
+        self.db_path = db_dir / hashlib.sha256(location.encode("utf-8")).hexdigest()
         self._initialize_db()
 
     def _initialize_db(self) -> None:
@@ -119,7 +129,6 @@ class SampleEventDatabase:
             return event_ids
 
     def complete_sample(self, summary: SampleSummary) -> str | int:
-        print(summary)
         """Note that a sample has completed processing. Returns the internal summary_id."""
         with self._get_connection() as conn:
             # Then insert the summary
@@ -134,6 +143,30 @@ class SampleEventDatabase:
                 raise ValueError("No rows were updated. Matching row not found.")
 
             return summary.id
+
+    def remove_samples(self, samples: list[tuple[str | int, int]]) -> None:
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+
+            # Convert list of tuples into a string for SQL IN clause
+            # Format: (('id1', 1), ('id2', 2))
+            sample_conditions = ",".join(
+                [f"('{sid}', {epoch})" for sid, epoch in samples]
+            )
+
+            # Delete associated events first due to foreign key constraint
+            events_query = f"""
+                DELETE FROM events 
+                WHERE (sample_id, sample_epoch) IN ({sample_conditions})
+            """
+            cursor.execute(events_query)
+
+            # Then delete the samples
+            samples_query = f"""
+                DELETE FROM samples 
+                WHERE (id, epoch) IN ({sample_conditions})
+            """
+            cursor.execute(samples_query)
 
     def get_samples(self) -> Iterator[SampleInfo]:
         with self._get_connection() as conn:
@@ -157,7 +190,7 @@ class SampleEventDatabase:
 
     def get_events(
         self,
-        id: str,
+        id: str | int,
         epoch: int,
         after_event_id: int | None = None,
     ) -> Iterator[EventInfo]:
@@ -169,7 +202,7 @@ class SampleEventDatabase:
                 SELECT id, sample_id, sample_epoch, data
                 FROM events e WHERE sample_id = ? AND sample_epoch = ?
             """
-            params: list[str | int] = [id, epoch]
+            params: list[str | int] = [str(id), epoch]
 
             if after_event_id is not None:
                 query += " AND e.id > ?"
