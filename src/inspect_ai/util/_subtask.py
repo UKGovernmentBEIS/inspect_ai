@@ -143,6 +143,7 @@ def subtask(
             event.result = result
             event.events = events
             event.pending = None
+            transcript()._event_updated(event)
 
             # return result
             return result

@@ -233,6 +233,7 @@ async def call_tools(
                 error=result_event.error,
                 events=result_event.events,
             )
+            transcript()._event_updated(event)
 
         # return tool messages
         return tool_messages
