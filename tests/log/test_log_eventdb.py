@@ -1,9 +1,9 @@
 import os
+from sqlite3 import IntegrityError
 from typing import Generator
 
 import pytest
 
-from inspect_ai.log._log import EvalSample
 from inspect_ai.log._recorders.events import JsonData, SampleEventDatabase
 from inspect_ai.log._recorders.types import SampleSummary
 from inspect_ai.log._transcript import Event, InfoEvent
@@ -18,8 +18,8 @@ def db() -> Generator[SampleEventDatabase, None, None]:
 
 
 @pytest.fixture
-def sample() -> Generator[EvalSample, None, None]:
-    yield EvalSample(id="sample1", epoch=1, input="test input", target="test target")
+def sample() -> Generator[SampleSummary, None, None]:
+    yield SampleSummary(id="sample1", epoch=1, input="test input", target="test target")
 
 
 def test_database_initialization(db: SampleEventDatabase) -> None:
@@ -28,7 +28,7 @@ def test_database_initialization(db: SampleEventDatabase) -> None:
     assert db.location == "test_location"
 
 
-def test_start_sample(db: SampleEventDatabase, sample: EvalSample) -> None:
+def test_start_sample(db: SampleEventDatabase, sample: SampleSummary) -> None:
     """Test starting a new sample."""
     db.start_sample(sample=sample)
 
@@ -38,10 +38,9 @@ def test_start_sample(db: SampleEventDatabase, sample: EvalSample) -> None:
     assert samples[0].id == "sample1"
     assert samples[0].epoch == 1
     assert samples[0].sample == sample
-    assert samples[0].summary is None
 
 
-def test_log_events(db: SampleEventDatabase, sample: EvalSample) -> None:
+def test_log_events(db: SampleEventDatabase, sample: SampleSummary) -> None:
     """Test logging events for a sample."""
     # First create a sample
     db.start_sample(sample=sample)
@@ -56,7 +55,7 @@ def test_log_events(db: SampleEventDatabase, sample: EvalSample) -> None:
     assert len(logged_events) == 2
 
 
-def test_complete_sample(db: SampleEventDatabase, sample: EvalSample) -> None:
+def test_complete_sample(db: SampleEventDatabase, sample: SampleSummary) -> None:
     """Test completing a sample with a summary."""
     # Create sample
     db.start_sample(sample=sample)
@@ -70,14 +69,14 @@ def test_complete_sample(db: SampleEventDatabase, sample: EvalSample) -> None:
     # Verify summary was added
     samples = list(db.get_samples())
     assert len(samples) == 1
-    assert samples[0].summary == summary
+    assert samples[0].sample == summary
 
 
 def test_get_events_with_filters(db: SampleEventDatabase) -> None:
     """Test getting events with various filters."""
     # Create two samples with events
-    sample1 = EvalSample(id="sample1", epoch=1, input="test1", target="test target")
-    sample2 = EvalSample(id="sample2", epoch=1, input="test2", target="test target")
+    sample1 = SampleSummary(id="sample1", epoch=1, input="test1", target="test target")
+    sample2 = SampleSummary(id="sample2", epoch=1, input="test2", target="test target")
     db.start_sample(sample=sample1)
     db.start_sample(sample=sample2)
 
@@ -93,15 +92,17 @@ def test_get_events_with_filters(db: SampleEventDatabase) -> None:
     assert filtered_events[0].event["data"] == "event1"
 
     # Test getting all events
-    all_events = list(db.get_events())
-    assert len(all_events) == 2
+    sample_1_events = list(db.get_events("sample1", 1))
+    sample_2_events = list(db.get_events("sample2", 1))
+    assert len(sample_1_events) == 1
+    assert len(sample_2_events) == 1
 
 
 def test_error_cases(db: SampleEventDatabase) -> None:
     """Test various error cases."""
     # Test logging events for non-existent sample
-    with pytest.raises(ValueError):
-        test_event: list[JsonData] = [{"type": "test"}]
+    with pytest.raises(IntegrityError):
+        test_event: list[Event] = [InfoEvent(data={"type": "test"})]
         db.log_events(id="nonexistent", epoch=1, events=test_event)
 
     # Test completing non-existent sample
@@ -111,18 +112,14 @@ def test_error_cases(db: SampleEventDatabase) -> None:
         )
         db.complete_sample(summary=summary)
 
-    # Test invalid get_events parameters
-    with pytest.raises(ValueError):
-        list(db.get_events(id="sample1", epoch=None))
-
 
 def test_concurrent_samples(db: SampleEventDatabase) -> None:
     """Test handling multiple samples concurrently."""
     # Create multiple samples
-    samples: list[EvalSample] = [
-        EvalSample(id="sample1", epoch=1, input="test1", target="target"),
-        EvalSample(id="sample1", epoch=2, input="test1_v2", target="target"),
-        EvalSample(id="sample2", epoch=1, input="test2", target="target"),
+    samples: list[SampleSummary] = [
+        SampleSummary(id="sample1", epoch=1, input="test1", target="target"),
+        SampleSummary(id="sample1", epoch=2, input="test1_v2", target="target"),
+        SampleSummary(id="sample2", epoch=1, input="test2", target="target"),
     ]
 
     sample_ids = []
@@ -146,7 +143,7 @@ def test_concurrent_samples(db: SampleEventDatabase) -> None:
     assert len(events_epoch_2) == 1
 
 
-def test_cleanup(db: SampleEventDatabase, sample: EvalSample) -> None:
+def test_cleanup(db: SampleEventDatabase, sample: SampleSummary) -> None:
     """Test database cleanup."""
     # Create some data
     db.start_sample(sample=sample)
