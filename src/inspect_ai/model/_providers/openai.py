@@ -159,8 +159,8 @@ class OpenAIAPI(ModelAPI):
         tool_choice: ToolChoice,
         config: GenerateConfig,
     ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
-        # short-circuit to call o1-preview, which doesn't support standard OAI message syntax and tool calling
-        if self.is_o1_preview():
+        # short-circuit to call o1- models that are text only
+        if self.is_o1_preview() or self.is_o1_mini():
             return await generate_o1(
                 client=self.client,
                 input=input,
