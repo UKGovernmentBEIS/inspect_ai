@@ -40,7 +40,9 @@ async def compose_up(
         trace_message(logger, "Docker", "Docker services heathcheck timeout: {timeout}")
     else:
         timeout = COMPOSE_WAIT
-        up_command.extend(["--wait-timeout", str(timeout)])
+
+    # align global wait timeout to maximum healthcheck timeout
+    up_command.extend(["--wait-timeout", str(timeout + 1)])
 
     # Start the environment. Note that we don't check the result because docker will
     # return a non-zero exit code for services that exit (even successfully) when
