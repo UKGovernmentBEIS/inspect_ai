@@ -10,6 +10,7 @@ from typing import Iterator, TypeAlias, cast
 from pydantic import BaseModel, JsonValue
 
 from .._log import EvalSample
+from .._transcript import Event
 from .types import SampleSummary
 
 JsonData: TypeAlias = dict[str, JsonValue]
@@ -101,9 +102,7 @@ class SampleEventDatabase:
             )
             return cast(int, cursor.fetchone()[0])
 
-    def log_events(
-        self, id: int | str, epoch: int, events: list[JsonData]
-    ) -> list[int]:
+    def log_events(self, id: int | str, epoch: int, events: list[Event]) -> list[int]:
         if not events:
             return []
 
@@ -133,7 +132,7 @@ class SampleEventDatabase:
                     VALUES (?, ?)
                     RETURNING event_id
                     """,
-                    (sample_id, json.dumps(event)),
+                    (sample_id, event.model_dump_json()),
                 )
                 event_ids.append(cursor.fetchone()[0])
 
