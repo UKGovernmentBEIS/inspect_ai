@@ -5,33 +5,20 @@ import sqlite3
 import tempfile
 from contextlib import contextmanager
 from sqlite3 import Connection
-from typing import Iterator, TypeAlias, cast
+from typing import Any, Iterator, TypeAlias, cast
 
 from pydantic import BaseModel, JsonValue
 
-from .._log import EvalSample
 from .._transcript import Event
 from .types import SampleSummary
 
 JsonData: TypeAlias = dict[str, JsonValue]
 
-# TODO: Eliminate sample_summaries (samples has a SampleSummary)
-#  - change complete_sample to update, change queries, etc.
-
-# TODO: go back to multi-insert for log_events (no id)
-
-# TODO: go back to simple id, epoch as foreign key
-
-# TODO: get_events always id and epoch
-
-# TODO: remove location entirely
-
 
 class SampleInfo(BaseModel):
     id: str
     epoch: int
-    sample: EvalSample
-    summary: SampleSummary | None
+    sample: SampleSummary | None
 
 
 class EventInfo(BaseModel):
@@ -43,38 +30,27 @@ class EventInfo(BaseModel):
 
 class SampleEventDatabase:
     SCHEMA = """
-    CREATE TABLE IF NOT EXISTS samples (
-        sample_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        location TEXT,
+
+    CREATE TABLE samples (
         id TEXT,
         epoch INTEGER,
-        data TEXT,  -- JSON containing all other sample fields
-        UNIQUE(location, id, epoch)
+        data TEXT, -- JSON containing all other sample fields
+        PRIMARY KEY (id, epoch)
     );
 
-    CREATE TABLE IF NOT EXISTS events (
-        event_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        sample_id INTEGER,
-        data TEXT,  -- JSON containing full event
-        FOREIGN KEY (sample_id) REFERENCES samples(sample_id)
-    );
-
-    CREATE TABLE IF NOT EXISTS sample_summaries (
-        summary_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        sample_id INTEGER UNIQUE,  -- one summary per sample
-        data TEXT,  -- JSON containing full summary
-        FOREIGN KEY (sample_id) REFERENCES samples(sample_id)
+    CREATE TABLE events (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        sample_id TEXT,
+        sample_epoch INTEGER,
+        data TEXT, -- JSON containing full event
+        FOREIGN KEY (sample_id, sample_epoch) REFERENCES samples(id, epoch)
     );
 
     -- Indices for foreign keys and common queries
-    CREATE INDEX IF NOT EXISTS idx_samples_location ON samples(location);
-    CREATE INDEX IF NOT EXISTS idx_samples_composite ON samples(location, id, epoch);
-    CREATE INDEX IF NOT EXISTS idx_events_sample ON events(sample_id);
-    CREATE INDEX IF NOT EXISTS idx_events_id ON events(event_id);
+    CREATE INDEX IF NOT EXISTS idx_events_sample ON events(sample_id, sample_epoch);
     """
 
     def __init__(self, location: str, db_dir: str = tempfile.mkdtemp()):
-        self.location = location
         self.db_path = os.path.join(
             db_dir, hashlib.sha256(location.encode("utf-8")).hexdigest()
         )
@@ -92,6 +68,9 @@ class SampleEventDatabase:
         conn = sqlite3.connect(self.db_path)
         conn.row_factory = sqlite3.Row  # Enable row factory for named columns
         try:
+            # Enable foreign key constraints
+            conn.execute("PRAGMA foreign_keys = ON")
+
             yield conn
             conn.commit()  # Auto-commit if no exceptions
         except Exception:
@@ -100,121 +79,86 @@ class SampleEventDatabase:
         finally:
             conn.close()
 
-    def start_sample(self, sample: EvalSample) -> int:
+    def start_sample(self, sample: SampleSummary) -> int:
         """Start logging a sample. Returns the internal sample_id."""
         with self._get_connection() as conn:
             cursor = conn.execute(
                 """
-                INSERT INTO samples (location, id, epoch, data)
-                VALUES (?, ?, ?, ?)
-                RETURNING sample_id
+                INSERT INTO samples (id, epoch, data)
+                VALUES (?, ?, ?)
+                RETURNING id
             """,
-                (self.location, str(sample.id), sample.epoch, sample.model_dump_json()),
+                (str(sample.id), sample.epoch, sample.model_dump_json()),
             )
             return cast(int, cursor.fetchone()[0])
 
     def log_events(self, id: int | str, epoch: int, events: list[Event]) -> list[int]:
-        if not events:
-            return []
-
         with self._get_connection() as conn:
-            # First get the sample_id
-            cursor = conn.execute(
-                """
-                SELECT sample_id
-                FROM samples
-                WHERE location = ? AND id = ? AND epoch = ?
-            """,
-                (self.location, str(id), epoch),
-            )
-
-            row = cursor.fetchone()
-            if not row:
-                raise ValueError(f"No sample found for id={id}, epoch={epoch}")
-
-            sample_id = row[0]
-
-            # Execute inserts one at a time to get event_ids
-            event_ids = []
+            # Collect the values for all events
+            values: list[Any] = []
             for event in events:
-                cursor = conn.execute(
-                    """
-                    INSERT INTO events (sample_id, data)
-                    VALUES (?, ?)
-                    RETURNING event_id
-                    """,
-                    (sample_id, event.model_dump_json()),
-                )
-                event_ids.append(cursor.fetchone()[0])
+                values.extend((id, epoch, event.model_dump_json()))
 
+            # Dynamically create the SQL query
+            placeholders = ", ".join(["(?, ?, ?)"] * len(events))
+            sql = f"""
+            INSERT INTO events (sample_id, sample_epoch, data)
+            VALUES {placeholders}
+            """
+
+            # Insert all rows
+            conn.execute(sql, values)
+
+            # Fetch the last inserted IDs
+            cursor = conn.execute(
+                "SELECT id FROM events ORDER BY id DESC LIMIT ?", (len(events),)
+            )
+            event_ids = [row[0] for row in cursor.fetchall()][
+                ::-1
+            ]  # Reverse order to match insertion
             return event_ids
 
-    def complete_sample(self, summary: SampleSummary) -> int:
+    def complete_sample(self, summary: SampleSummary) -> str | int:
+        print(summary)
         """Note that a sample has completed processing. Returns the internal summary_id."""
         with self._get_connection() as conn:
-            # First get the sample_id
-            cursor = conn.execute(
-                """
-                SELECT sample_id
-                FROM samples
-                WHERE location = ? AND id = ? AND epoch = ?
-            """,
-                (self.location, str(summary.id), summary.epoch),
-            )
-
-            row = cursor.fetchone()
-            if not row:
-                raise ValueError(
-                    f"No sample found for id={summary.id}, epoch={summary.epoch}"
-                )
-
-            sample_id = row[0]
-
             # Then insert the summary
             cursor = conn.execute(
                 """
-                INSERT INTO sample_summaries (sample_id, data)
-                VALUES (?, ?)
-                RETURNING summary_id
+                UPDATE samples SET data = ? WHERE id = ? and epoch = ?
             """,
-                (sample_id, summary.model_dump_json()),
+                (summary.model_dump_json(), summary.id, summary.epoch),
             )
 
-            return cast(int, cursor.fetchone()[0])
+            if cursor.rowcount == 0:
+                raise ValueError("No rows were updated. Matching row not found.")
+
+            return summary.id
 
     def get_samples(self) -> Iterator[SampleInfo]:
         with self._get_connection() as conn:
             cursor = conn.execute(
                 """
-                SELECT s.id as sample_id, s.epoch as sample_epoch, s.data as sample_data, ss.data as summary_data
+                SELECT s.id as sample_id, s.epoch as sample_epoch, s.data as sample_data
                 FROM samples s
-                LEFT JOIN sample_summaries ss ON s.sample_id = ss.sample_id
-                WHERE s.location = ?
-                ORDER BY s.sample_id
-            """,
-                (self.location,),
+                ORDER BY s.id
+            """
             )
 
             for row in cursor:
                 id = row["sample_id"]
                 epoch = row["sample_epoch"]
-                sample = row["sample_data"]
-                summary = None
-                if row["summary_data"] is not None:
-                    summary = row["summary_data"]
+                summary = row["sample_data"]
                 yield SampleInfo(
                     id=id,
                     epoch=epoch,
-                    sample=EvalSample.model_validate_json(sample),
-                    summary=SampleSummary.model_validate_json(summary)
-                    if summary is not None
-                    else None,
+                    sample=SampleSummary.model_validate_json(summary),
                 )
 
     def get_events(
         self,
-        id: str | None = None,
-        epoch: int | None = None,
+        id: str,
+        epoch: int,
         after_event_id: int | None = None,
     ) -> Iterator[EventInfo]:
         if id is not None and epoch is None:
@@ -222,31 +166,25 @@ class SampleEventDatabase:
 
         with self._get_connection() as conn:
             query = """
-                SELECT s.id, s.epoch, e.data, e.event_id
-                FROM events e
-                JOIN samples s ON e.sample_id = s.sample_id
-                WHERE s.location = ?
+                SELECT id, sample_id, sample_epoch, data
+                FROM events e WHERE sample_id = ? AND sample_epoch = ?
             """
-            params: list[str | int] = [self.location]
-
-            if id is not None and epoch is not None:
-                query += " AND s.id = ? AND s.epoch = ?"
-                params.extend([id, epoch])
+            params: list[str | int] = [id, epoch]
 
             if after_event_id is not None:
-                query += " AND e.event_id > ?"
+                query += " AND e.id > ?"
                 params.append(after_event_id)
 
-            query += " ORDER BY e.event_id"
+            query += " ORDER BY e.id"
 
             cursor = conn.execute(query, params)
 
             for row in cursor:
                 event = json.loads(row["data"])
                 yield EventInfo(
-                    id=row["event_id"],
-                    sample_id=row["id"],
-                    epoch=row["epoch"],
+                    id=row["id"],
+                    sample_id=row["sample_id"],
+                    epoch=row["sample_epoch"],
                     event=event,
                 )
 
