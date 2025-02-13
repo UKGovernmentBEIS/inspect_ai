@@ -15,6 +15,17 @@ from .types import SampleSummary
 
 JsonData: TypeAlias = dict[str, JsonValue]
 
+# TODO: Eliminate sample_summaries (samples has a SampleSummary)
+#  - change complete_sample to update, change queries, etc.
+
+# TODO: go back to multi-insert for log_events (no id)
+
+# TODO: go back to simple id, epoch as foreign key
+
+# TODO: get_events always id and epoch
+
+# TODO: remove location entirely
+
 
 class SampleInfo(BaseModel):
     id: str
@@ -244,43 +255,3 @@ class SampleEventDatabase:
             os.remove(self.db_path)
         except FileNotFoundError:
             pass
-
-
-# Example usage:
-"""
-# Create a logger for a specific location
-logger = SampleLogger("experiment_123")
-
-# Log a sample
-sample = EvalSample(id="sample_1", epoch=1, input="test input", target="test target")
-logger.start_sample(sample)
-
-# Log events using the sample's id and epoch
-event = Event(type="start", time="2024-02-13")
-logger.log_event(id="sample_1", epoch=1, event=event)
-
-# Complete the sample using the sample's id and epoch
-summary = SampleSummary(id="sample_1", epoch=1, input="test input", target="test target")
-logger.complete_sample(id="sample_1", epoch=1, summary=summary)
-
-# Query all samples
-for sample_with_summary in logger.get_samples():
-    print(f"Sample: {sample_with_summary.sample}")
-    if sample_with_summary.summary:
-        print(f"Summary: {sample_with_summary.summary}")
-
-# Query all events
-for sample_id, epoch, event in logger.get_events():
-    print(f"Event for sample {sample_id} epoch {epoch}: {event}")
-
-# Query events for a specific sample
-for sample_id, epoch, event in logger.get_events(id="sample_1", epoch=1):
-    print(f"Event for sample {sample_id} epoch {epoch}: {event}")
-
-# Query events for a specific sample after a specific event_id
-for sample_id, epoch, event in logger.get_events(id="sample_1", epoch=1, after_event_id=1000):
-    print(f"Event for sample {sample_id} epoch {epoch}: {event}")
-
-# Clean up when done
-logger.cleanup()
-"""
