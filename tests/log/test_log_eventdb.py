@@ -2,10 +2,10 @@ import os
 from typing import Generator
 
 import pytest
-from shortuuid import uuid
 
 from inspect_ai.log._log import EvalSample
 from inspect_ai.log._recorders.events import JsonData, SampleEventDatabase
+from inspect_ai.log._recorders.types import SampleSummary
 
 
 @pytest.fixture
@@ -66,13 +66,15 @@ def test_complete_sample(db: SampleEventDatabase, sample: EvalSample) -> None:
     db.start_sample(sample=sample)
 
     # Complete sample
-    summary_data: JsonData = {"result": "success", "metrics": {"accuracy": 0.95}}
-    db.complete_sample(id="sample1", epoch=1, summary=summary_data)
+    summary = SampleSummary(
+        id=sample.id, epoch=sample.epoch, input=sample.input, target=sample.target
+    )
+    db.complete_sample(summary=summary)
 
     # Verify summary was added
     samples = list(db.get_samples())
     assert len(samples) == 1
-    assert samples[0].summary == summary_data
+    assert samples[0].summary == summary
 
 
 def test_get_events_with_filters(db: SampleEventDatabase) -> None:
@@ -109,8 +111,10 @@ def test_error_cases(db: SampleEventDatabase) -> None:
 
     # Test completing non-existent sample
     with pytest.raises(ValueError):
-        summary: JsonData = {"status": "done"}
-        db.complete_sample(id="nonexistent", epoch=1, summary=summary)
+        summary = SampleSummary(
+            id="nonexistent", epoch=1, input="input", target="target"
+        )
+        db.complete_sample(summary=summary)
 
     # Test invalid get_events parameters
     with pytest.raises(ValueError):

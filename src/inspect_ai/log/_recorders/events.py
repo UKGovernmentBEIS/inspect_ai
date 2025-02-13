@@ -10,6 +10,7 @@ from typing import Iterator, TypeAlias, cast
 from pydantic import BaseModel, JsonValue
 
 from .._log import EvalSample
+from .types import SampleSummary
 
 JsonData: TypeAlias = dict[str, JsonValue]
 
@@ -18,7 +19,7 @@ class SampleInfo(BaseModel):
     id: str
     epoch: int
     sample: EvalSample
-    summary: JsonData | None
+    summary: SampleSummary | None
 
 
 class EventInfo(BaseModel):
@@ -138,7 +139,7 @@ class SampleEventDatabase:
 
             return event_ids
 
-    def complete_sample(self, id: int | str, epoch: int, summary: JsonData) -> int:
+    def complete_sample(self, summary: SampleSummary) -> int:
         """Note that a sample has completed processing. Returns the internal summary_id."""
         with self._get_connection() as conn:
             # First get the sample_id
@@ -148,12 +149,14 @@ class SampleEventDatabase:
                 FROM samples
                 WHERE location = ? AND id = ? AND epoch = ?
             """,
-                (self.location, str(id), epoch),
+                (self.location, str(summary.id), summary.epoch),
             )
 
             row = cursor.fetchone()
             if not row:
-                raise ValueError(f"No sample found for id={id}, epoch={epoch}")
+                raise ValueError(
+                    f"No sample found for id={summary.id}, epoch={summary.epoch}"
+                )
 
             sample_id = row[0]
 
@@ -164,7 +167,7 @@ class SampleEventDatabase:
                 VALUES (?, ?)
                 RETURNING summary_id
             """,
-                (sample_id, json.dumps(summary)),
+                (sample_id, summary.model_dump_json()),
             )
 
             return cast(int, cursor.fetchone()[0])
@@ -188,12 +191,14 @@ class SampleEventDatabase:
                 sample = row["sample_data"]
                 summary = None
                 if row["summary_data"] is not None:
-                    summary = json.loads(row["summary_data"])
+                    summary = row["summary_data"]
                 yield SampleInfo(
                     id=id,
                     epoch=epoch,
                     sample=EvalSample.model_validate_json(sample),
-                    summary=summary,
+                    summary=SampleSummary.model_validate_json(summary)
+                    if summary is not None
+                    else None,
                 )
 
     def get_events(
