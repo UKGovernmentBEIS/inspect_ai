@@ -14,7 +14,14 @@ from typing import (
     Union,
 )
 
-from pydantic import BaseModel, ConfigDict, Field, JsonValue, field_serializer
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    JsonValue,
+    field_serializer,
+)
+from shortuuid import uuid
 
 from inspect_ai._util.constants import SAMPLE_SUBTASK
 from inspect_ai._util.error import EvalError
@@ -43,6 +50,12 @@ logger = getLogger(__name__)
 
 
 class BaseEvent(BaseModel):
+    @property
+    def _id(self) -> str:
+        if not hasattr(self, "_id_value"):
+            self._id_value = uuid()
+        return self._id_value
+
     timestamp: datetime = Field(default_factory=datetime.now)
     """Clock time at which event occurred."""
 
@@ -490,6 +503,10 @@ class Transcript:
         if self._event_logger:
             self._event_logger(event)
         self._events.append(event)
+
+    def _event_updated(self, event: Event) -> None:
+        if self._event_logger:
+            self._event_logger(event)
 
     def _subscribe(self, event_logger: Callable[[Event], None]) -> None:
         self._event_logger = event_logger
