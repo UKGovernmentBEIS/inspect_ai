@@ -5,6 +5,7 @@ from datetime import datetime
 from logging import getLogger
 from typing import (
     Any,
+    Callable,
     Iterator,
     Literal,
     Sequence,
@@ -361,8 +362,11 @@ Event: TypeAlias = Union[
 class Transcript:
     """Transcript of events."""
 
+    _event_logger: Callable[[Event], None] | None
+
     def __init__(self, name: str = "") -> None:
         self.name = name
+        self._event_logger = None
         self._events: list[Event] = []
 
     def info(self, data: JsonValue, *, source: str | None = None) -> None:
@@ -397,7 +401,12 @@ class Transcript:
         return self._events
 
     def _event(self, event: Event) -> None:
+        if self._event_logger:
+            self._event_logger(event)
         self._events.append(event)
+
+    def _subscribe(self, event_logger: Callable[[Event], None]) -> None:
+        self._event_logger = event_logger
 
 
 def transcript() -> Transcript:

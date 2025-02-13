@@ -46,6 +46,7 @@ from inspect_ai.log import (
 from inspect_ai.log._condense import condense_sample
 from inspect_ai.log._file import eval_log_json_str
 from inspect_ai.log._log import EvalSampleLimit, EvalSampleReductions, eval_error
+from inspect_ai.log._recorders.types import SampleSummary
 from inspect_ai.log._samples import (
     active_sample,
     set_active_sample_message_limit,
@@ -56,6 +57,7 @@ from inspect_ai.log._transcript import (
     SampleInitEvent,
     SampleLimitEvent,
     ScoreEvent,
+    Transcript,
     transcript,
 )
 from inspect_ai.model import (
@@ -511,7 +513,7 @@ async def task_run_sample(
 
             # log if requested
             if logger:
-                await logger.log_sample(previous_sample, flush=False)
+                await logger.complete_sample(previous_sample, flush=False)
 
             # return score
             sample_scores = (
@@ -534,10 +536,19 @@ async def task_run_sample(
         semaphore if semaphore else contextlib.nullcontext()
     )
 
+    # validate that we have sample_id (mostly for the typechecker)
+    sample_id = sample.id
+    if sample_id is None:
+        raise ValueError("sample must have id to run")
+
     # initialise subtask and scoring context
     init_sample_model_usage()
     set_sample_state(state)
-    sample_transcript = init_subtask(SAMPLE_SUBTASK, state.store)
+    sample_transcript: Transcript = init_subtask(SAMPLE_SUBTASK, state.store)
+    if logger:
+        sample_transcript._subscribe(
+            lambda event: logger.log_sample_event(sample_id, state.epoch, event)
+        )
     if scorers:
         init_scoring_context(scorers, Target(sample.target))
 
@@ -592,6 +603,16 @@ async def task_run_sample(
                     async with timeout_cm:
                         # mark started
                         active.started = datetime.now().timestamp()
+
+                        if logger is not None:
+                            await logger.start_sample(
+                                SampleSummary(
+                                    id=sample_id,
+                                    epoch=state.epoch,
+                                    input=sample.input,
+                                    target=sample.target,
+                                )
+                            )
 
                         # sample init event (remove file bodies as they have content or absolute paths)
                         event_sample = sample.model_copy(
@@ -831,7 +852,7 @@ async def log_sample(
         limit=limit,
     )
 
-    await logger.log_sample(condense_sample(eval_sample, log_images), flush=True)
+    await logger.complete_sample(condense_sample(eval_sample, log_images), flush=True)
 
 
 async def resolve_dataset(
