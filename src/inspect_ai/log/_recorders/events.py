@@ -87,7 +87,7 @@ class SampleEventDatabase:
         finally:
             conn.close()
 
-    def start_sample(self, id: int | str, epoch: int, sample: EvalSample) -> int:
+    def start_sample(self, sample: EvalSample) -> int:
         """Start logging a sample. Returns the internal sample_id."""
         with self._get_connection() as conn:
             cursor = conn.execute(
@@ -96,7 +96,7 @@ class SampleEventDatabase:
                 VALUES (?, ?, ?, ?)
                 RETURNING sample_id
             """,
-                (self.location, str(id), epoch, sample.model_dump_json()),
+                (self.location, str(sample.id), sample.epoch, sample.model_dump_json()),
             )
             return cast(int, cursor.fetchone()[0])
 
