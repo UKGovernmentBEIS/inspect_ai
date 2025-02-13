@@ -15,6 +15,8 @@ from .._transcript import Event
 from .types import SampleSummary
 
 JsonData: TypeAlias = dict[str, JsonValue]
+
+# investigate test_eval_set hanging
 # write eval file right away
 
 # attachments
