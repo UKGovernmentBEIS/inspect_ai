@@ -23,7 +23,7 @@ export class LogElementQueueProcessor {
     private readonly batchSize: number = 10,
   ) {
     // Load cache from workspace storage
-    const savedCache = this.context.workspaceState.get<Map<string, { iconPath?: string; tooltip?: vscode.MarkdownString }>>('elementCache');
+    const savedCache = this.context.workspaceState.get<Map<string, { iconPath?: string; tooltip?: vscode.MarkdownString }>>('logListingCache');
     if (savedCache) {
       this.elementCache = new Map(savedCache);
     } else {
