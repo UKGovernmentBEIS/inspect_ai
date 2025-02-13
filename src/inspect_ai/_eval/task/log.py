@@ -34,6 +34,9 @@ from inspect_ai.log._log import (
     eval_config_defaults,
 )
 from inspect_ai.log._recorders import Recorder
+from inspect_ai.log._recorders.events import SampleEventDatabase
+from inspect_ai.log._recorders.types import SampleSummary
+from inspect_ai.log._transcript import Event
 from inspect_ai.model import (
     GenerateConfig,
     Model,
@@ -159,10 +162,11 @@ class TaskLogger:
 
         # size of flush buffer (how many samples we buffer before hitting storage)
         self.flush_buffer = eval_config.log_buffer or recorder.default_log_buffer()
-        self.flush_pending = 0
+        self.flush_pending: list[tuple[str | int, int]] = []
 
     async def init(self) -> None:
         self._location = await self.recorder.log_init(self.eval)
+        self._events_db = SampleEventDatabase(self._location)
 
     @property
     def location(self) -> str:
@@ -175,16 +179,41 @@ class TaskLogger:
     async def log_start(self, plan: EvalPlan) -> None:
         await self.recorder.log_start(self.eval, plan)
 
-    async def log_sample(self, sample: EvalSample, *, flush: bool) -> None:
+    async def start_sample(self, sample: SampleSummary) -> None:
+        self._events_db.start_sample(sample)
+
+    def log_sample_event(self, id: str | int, epoch: int, event: Event) -> None:
+        self._events_db.log_events(id, epoch, [event])
+
+    async def complete_sample(self, sample: EvalSample, *, flush: bool) -> None:
         # log the sample
         await self.recorder.log_sample(self.eval, sample)
 
+        # mark complete
+        self._events_db.complete_sample(
+            SampleSummary(
+                id=sample.id,
+                epoch=sample.epoch,
+                input=sample.input,
+                target=sample.target,
+                scores=sample.scores,
+                error=sample.error.message if sample.error is not None else None,
+                limit=f"{sample.limit.type}" if sample.limit is not None else None,
+            )
+        )
+
         # flush if requested
         if flush:
-            self.flush_pending += 1
-            if self.flush_pending >= self.flush_buffer:
+            self.flush_pending.append((sample.id, sample.epoch))
+            if len(self.flush_pending) >= self.flush_buffer:
+                # flush to disk
                 await self.recorder.flush(self.eval)
-                self.flush_pending = 0
+
+                # notify the event db it can remove these
+                self._events_db.remove_samples(self.flush_pending)
+
+                # Clear
+                self.flush_pending.clear()
 
         # track sucessful samples logged
         if sample.error is None:
@@ -198,9 +227,16 @@ class TaskLogger:
         reductions: list[EvalSampleReductions] | None = None,
         error: EvalError | None = None,
     ) -> EvalLog:
-        return await self.recorder.log_finish(
+        # finish and get log
+        log = await self.recorder.log_finish(
             self.eval, status, stats, results, reductions, error
         )
+
+        # cleanup the events db
+        self._events_db.cleanup()
+
+        # return log
+        return log
 
 
 async def log_start(

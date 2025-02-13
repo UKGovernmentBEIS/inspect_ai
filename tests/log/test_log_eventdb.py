@@ -1,10 +1,12 @@
 import os
+import tempfile
+from pathlib import Path
 from sqlite3 import IntegrityError
 from typing import Generator
 
 import pytest
 
-from inspect_ai.log._recorders.events import JsonData, SampleEventDatabase
+from inspect_ai.log._recorders.events import SampleEventDatabase
 from inspect_ai.log._recorders.types import SampleSummary
 from inspect_ai.log._transcript import Event, InfoEvent
 
@@ -12,9 +14,10 @@ from inspect_ai.log._transcript import Event, InfoEvent
 @pytest.fixture
 def db() -> Generator[SampleEventDatabase, None, None]:
     """Fixture to create and cleanup a test database."""
-    test_db = SampleEventDatabase(location="test_location")
-    yield test_db
-    test_db.cleanup()
+    with tempfile.TemporaryDirectory() as db_dir:
+        test_db = SampleEventDatabase(location="test_location", db_dir=Path(db_dir))
+        yield test_db
+        test_db.cleanup()
 
 
 @pytest.fixture
@@ -141,6 +144,54 @@ def test_concurrent_samples(db: SampleEventDatabase) -> None:
 
     events_epoch_2 = list(db.get_events(id="sample1", epoch=2))
     assert len(events_epoch_2) == 1
+
+
+def test_remove_samples(db: SampleEventDatabase) -> None:
+    """Test removing samples and their associated events."""
+    # Create multiple samples with events
+    samples: list[SampleSummary] = [
+        SampleSummary(id="sample1", epoch=1, input="test1", target="target"),
+        SampleSummary(id="sample1", epoch=2, input="test1_v2", target="target"),
+        SampleSummary(id="sample2", epoch=1, input="test2", target="target"),
+    ]
+
+    # Start all samples
+    for sample in samples:
+        db.start_sample(sample=sample)
+
+    # Add events to each sample
+    events: list[Event] = [InfoEvent(data="test_event")]
+    for sample in samples:
+        db.log_events(id=sample.id, epoch=sample.epoch, events=events)
+
+    # Verify initial state
+    initial_samples = list(db.get_samples())
+    assert len(initial_samples) == 3
+    assert all(list(db.get_events(s.id, s.epoch)) for s in samples)
+
+    # Remove two of the samples
+    samples_to_remove: list[tuple[str | int, int]] = [
+        ("sample1", 1),
+        ("sample2", 1),
+    ]
+    db.remove_samples(samples_to_remove)
+
+    # Verify samples were removed
+    remaining_samples = list(db.get_samples())
+    assert len(remaining_samples) == 1
+    assert remaining_samples[0].id == "sample1"
+    assert remaining_samples[0].epoch == 2
+
+    # Verify events were removed
+    for sample_id, epoch in samples_to_remove:
+        assert not list(db.get_events(sample_id, epoch))
+
+    # Verify remaining sample still has its events
+    remaining_events = list(db.get_events("sample1", 2))
+    assert len(remaining_events) == 1
+
+    # Test removing non-existent samples (should not raise an error)
+    db.remove_samples([("nonexistent", 1), ("sample1", 999)])
 
 
 def test_cleanup(db: SampleEventDatabase, sample: SampleSummary) -> None:
