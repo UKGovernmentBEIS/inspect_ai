@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.53
+
+- Fix 'Invalid Tree Item' error
+
 ## 0.3.52
 
 - Don't add entries to the `.gitignore` file.

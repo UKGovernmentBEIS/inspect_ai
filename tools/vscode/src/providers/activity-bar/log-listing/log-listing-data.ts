@@ -66,6 +66,16 @@ export class LogTreeDataProvider
         : "remote"
     );
     contextValue.push(element.name.endsWith(".eval") ? "eval" : "json");
+    const defaultIconPath = (element.type === "file"
+      ? element.name.endsWith(".eval")
+        ? this.context_.asAbsolutePath(
+          path.join("assets", "icon", "eval-treeview.svg")
+        )
+        : new vscode.ThemeIcon(
+          "bracket",
+          new vscode.ThemeColor("symbolIcon.classForeground")
+        )
+      : undefined);
 
 
     const uri = this.logListing_?.uriForNode(element);
@@ -76,8 +86,12 @@ export class LogTreeDataProvider
     let cached;
     if (uri) {
       cached = this.queueProcessor_.cachedValue(uri?.toString());
-      element.iconPath = element.iconPath || cached?.iconPath;
-      element.tooltip = element.tooltip || cached?.tooltip;
+      element.iconPath = element.iconPath || cached?.iconPath || defaultIconPath;
+
+      // Screen invalid tooltips (empty objects)
+      if (cached?.tooltip?.value) {
+        element.tooltip = element.tooltip || cached?.tooltip;
+      }
     }
 
     // base tree item
