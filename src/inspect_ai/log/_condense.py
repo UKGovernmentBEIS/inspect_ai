@@ -133,6 +133,25 @@ def resolve_sample_attachments(sample: EvalSample) -> EvalSample:
     )
 
 
+def attachments_content_fn(
+    log_images: bool, max_length: int, attachments: dict[str, str]
+) -> Callable[[str], str]:
+    def create_attachment(text: str) -> str:
+        hash = mm3_hash(text)
+        attachments[hash] = text
+        return f"{ATTACHMENT_PROTOCOL}{hash}"
+
+    def content_fn(text: str) -> str:
+        if not log_images and is_data_uri(text):
+            return BASE_64_DATA_REMOVED
+        elif len(text) > max_length:
+            return create_attachment(text)
+        else:
+            return text
+
+    return content_fn
+
+
 def walk_events(events: list[Event], content_fn: Callable[[str], str]) -> list[Event]:
     return [walk_event(event, content_fn) for event in events]
 
