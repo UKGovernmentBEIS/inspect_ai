@@ -178,6 +178,7 @@ class TaskLogger:
 
     async def log_start(self, plan: EvalPlan) -> None:
         await self.recorder.log_start(self.eval, plan)
+        await self.recorder.flush(self.eval)
 
     async def start_sample(self, sample: SampleSummary) -> None:
         self._events_db.start_sample(sample)
