@@ -25,6 +25,7 @@ from inspect_ai.model._model_output import ModelOutput
 from ._log import EvalSample
 from ._transcript import (
     Event,
+    InfoEvent,
     ModelEvent,
     SampleInitEvent,
     StateEvent,
@@ -169,6 +170,8 @@ def walk_event(event: Event, content_fn: Callable[[str], str]) -> Event:
         return walk_subtask_event(event, content_fn)
     elif isinstance(event, ToolEvent):
         return walk_tool_event(event, content_fn)
+    elif isinstance(event, InfoEvent):
+        return walk_info_event(event, content_fn)
     else:
         return event
 
@@ -181,6 +184,10 @@ def walk_subtask_event(
 
 def walk_tool_event(event: ToolEvent, content_fn: Callable[[str], str]) -> ToolEvent:
     return event.model_copy(update=dict(events=walk_events(event.events, content_fn)))
+
+
+def walk_info_event(event: InfoEvent, content_fn: Callable[[str], str]) -> InfoEvent:
+    return event.model_copy(update=dict(data=walk_json_value(event.data, content_fn)))
 
 
 def walk_sample_init_event(

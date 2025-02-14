@@ -1,14 +1,16 @@
+import json
 import os
 import tempfile
 from pathlib import Path
 from sqlite3 import IntegrityError
-from typing import Generator
+from typing import Any, Generator, cast
 
 import pytest
 
 from inspect_ai.log._recorders.events import SampleEventDatabase
 from inspect_ai.log._recorders.types import SampleSummary
 from inspect_ai.log._transcript import Event, InfoEvent
+from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
 
 
 @pytest.fixture
@@ -260,6 +262,162 @@ def test_empty_attachment_operations(db: SampleEventDatabase) -> None:
     # Test getting empty list of hashes
     result = db.get_attachments([])
     assert result == {}
+
+
+def test_large_input_attachment_handling(db: SampleEventDatabase) -> None:
+    """Test that large inputs are automatically converted to attachments."""
+    # Create a sample with input larger than 100 characters
+    large_input = ChatMessageUser(content="x" * 150)
+    sample = SampleSummary(
+        id="large_sample",
+        epoch=1,
+        input=[large_input],
+        target="test target",
+    )
+
+    # Start the sample
+    db.start_sample(sample=sample)
+
+    # Retrieve the stored sample
+    stored_samples = list(db.get_samples())
+    assert len(stored_samples) == 1
+
+    # Verify the stored input matches the original large input
+    retrieved_sample = stored_samples[0].sample
+    assert retrieved_sample
+    assert isinstance(retrieved_sample.input, list)
+    assert retrieved_sample.input == [large_input]
+
+    # Verify an attachment was created in the database
+    # Get raw database content to verify attachment placeholder
+    with db._get_connection() as conn:
+        cursor = conn.execute(
+            "SELECT data FROM samples WHERE id = ? AND epoch = ?",
+            ("large_sample", 1),
+        )
+        raw_input: list[dict[str, Any]] = json.loads(cursor.fetchone()[0])["input"]
+
+        # Verify the raw input is a placeholder (should start with "attachment:")
+        raw_input_text = raw_input[0]["content"]
+        assert raw_input_text.startswith("attachment:")
+
+        # Get the attachment hash from the placeholder
+        attachment_hash = raw_input_text.split("://")[1]
+
+        # Verify the attachment exists and contains the original content
+        cursor = conn.execute(
+            "SELECT content FROM attachments WHERE hash = ?", (attachment_hash,)
+        )
+        stored_content = cursor.fetchone()[0]
+        assert stored_content == large_input.text
+
+
+def test_large_event_attachment_handling(db: SampleEventDatabase) -> None:
+    """Test that events with large data fields are automatically converted to attachments."""
+    # Create a normal sample
+    sample = SampleSummary(
+        id="event_test", epoch=1, input="test input", target="test target"
+    )
+    db.start_sample(sample=sample)
+
+    # Create an event with large data
+    large_data = "x" * 150  # Data that exceeds the 100 char limit
+    event = InfoEvent(data=large_data)
+
+    # Log the event
+    db.log_events(id="event_test", epoch=1, events=[event])
+
+    # Retrieve the stored events
+    stored_events = list(db.get_events("event_test", 1))
+    assert len(stored_events) == 1
+
+    # Verify the retrieved event data matches the original
+    assert stored_events[0].event["data"] == large_data
+
+    # Verify attachment was created
+    with db._get_connection() as conn:
+        cursor = conn.execute(
+            "SELECT data FROM events WHERE sample_id = ? AND sample_epoch = ?",
+            ("event_test", 1),
+        )
+        raw_event_data = cursor.fetchone()[0]
+
+        # Parse the JSON event data and check the data field
+        import json
+
+        event_dict = json.loads(raw_event_data)
+        assert event_dict["data"].startswith("attachment:")
+
+        # Get the attachment hash
+        attachment_hash = event_dict["data"].split("://")[1]
+
+        # Verify the attachment exists and contains the original content
+        cursor = conn.execute(
+            "SELECT content FROM attachments WHERE hash = ?", (attachment_hash,)
+        )
+        stored_content = cursor.fetchone()[0]
+        assert stored_content == large_data
+
+
+def test_multiple_attachments_same_content(db: SampleEventDatabase) -> None:
+    """Test that identical large content creates only one attachment."""
+    large_input: list[ChatMessage] = [ChatMessageUser(content="x" * 150)]
+
+    # Create two samples with the same large input
+    samples = [
+        SampleSummary(id=f"sample{i}", epoch=1, input=large_input, target="test")
+        for i in range(2)
+    ]
+
+    for sample in samples:
+        db.start_sample(sample=sample)
+
+    # Verify both samples are stored correctly
+    stored_samples = list(db.get_samples())
+    assert len(stored_samples) == 2
+    assert all(
+        cast(list[ChatMessage], cast(SampleSummary, s.sample).input) == large_input
+        for s in stored_samples
+    )
+
+    # Verify only one attachment was created
+    with db._get_connection() as conn:
+        cursor = conn.execute("SELECT COUNT(*) FROM attachments")
+        attachment_count = cursor.fetchone()[0]
+        assert attachment_count == 1
+
+
+def test_mixed_content_sizes(db: SampleEventDatabase) -> None:
+    """Test handling of mixed regular and large content in the same sample."""
+    large_input: list[ChatMessage] = [ChatMessageUser(content="x" * 150)]
+    small_data = "small"
+    large_data = "y" * 150
+
+    # Create sample with large input
+    sample = SampleSummary(
+        id="mixed_test", epoch=1, input=large_input, target="test target"
+    )
+    db.start_sample(sample=sample)
+
+    # Log both small and large events
+    events: list[Event] = [InfoEvent(data=small_data), InfoEvent(data=large_data)]
+    db.log_events(id="mixed_test", epoch=1, events=events)
+
+    # Verify everything is stored and retrieved correctly
+    stored_samples = list(db.get_samples())
+    assert stored_samples[0].sample
+    assert stored_samples[0].sample.input == large_input
+
+    stored_events = list(db.get_events("mixed_test", 1))
+    assert len(stored_events) == 2
+    assert stored_events[0].event["data"] == small_data
+    assert stored_events[1].event["data"] == large_data
+
+    # Verify attachment count
+    with db._get_connection() as conn:
+        cursor = conn.execute("SELECT COUNT(*) FROM attachments")
+        attachment_count = cursor.fetchone()[0]
+        assert attachment_count == 2  # One for input, one for large event
 
 
 def test_cleanup(db: SampleEventDatabase, sample: SampleSummary) -> None:

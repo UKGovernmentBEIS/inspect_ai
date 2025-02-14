@@ -13,16 +13,19 @@ from pydantic import BaseModel, JsonValue
 
 from inspect_ai._util.appdirs import inspect_data_dir
 
-from .._condense import attachments_content_fn, walk_events, walk_input
+from .._condense import (
+    ATTACHMENT_PROTOCOL,
+    attachments_content_fn,
+    walk_events,
+    walk_input,
+    walk_json_dict,
+)
 from .._transcript import Event
 from .types import SampleSummary
 
 logger = getLogger(__name__)
 
 JsonData: TypeAlias = dict[str, JsonValue]
-
-
-# attachments
 
 
 class SampleInfo(BaseModel):
@@ -171,7 +174,7 @@ class SampleEventDatabase:
             """
             cursor.execute(samples_query)
 
-    def get_samples(self) -> Iterator[SampleInfo]:
+    def get_samples(self, resolve_attachments: bool = True) -> Iterator[SampleInfo]:
         with self._get_connection() as conn:
             cursor = conn.execute(
                 """
@@ -184,11 +187,13 @@ class SampleEventDatabase:
             for row in cursor:
                 id = row["sample_id"]
                 epoch = row["sample_epoch"]
-                summary = row["sample_data"]
+                summary = SampleSummary.model_validate_json(row["sample_data"])
+                if resolve_attachments:
+                    summary = self._resolve_sample_attachments(conn, summary)
                 yield SampleInfo(
                     id=id,
                     epoch=epoch,
-                    sample=SampleSummary.model_validate_json(summary),
+                    sample=summary,
                 )
 
     def get_events(
@@ -196,6 +201,7 @@ class SampleEventDatabase:
         id: str | int,
         epoch: int,
         after_event_id: int | None = None,
+        resolve_attachments: bool = True,
     ) -> Iterator[EventInfo]:
         if id is not None and epoch is None:
             raise ValueError("If id is provided, epoch must also be provided")
@@ -217,6 +223,8 @@ class SampleEventDatabase:
 
             for row in cursor:
                 event = json.loads(row["data"])
+                if resolve_attachments:
+                    event = self._resolve_event_attachments(conn, event)
                 yield EventInfo(
                     id=row["id"],
                     event_id=row["event_id"],
@@ -227,26 +235,7 @@ class SampleEventDatabase:
 
     def get_attachments(self, hashes: list[str]) -> dict[str, str | None]:
         with self._get_connection() as conn:
-            # Create placeholders for the IN clause
-            placeholders = ",".join("?" * len(hashes))
-
-            cursor = conn.execute(
-                f"""
-                SELECT hash, content
-                FROM attachments
-                WHERE hash IN ({placeholders})
-                """,
-                hashes,
-            )
-
-            # Create result dictionary with all requested hashes initialized to None
-            results: dict[str, str | None] = {hash_: None for hash_ in hashes}
-
-            # Update with found values
-            for row in cursor:
-                results[row["hash"]] = row["content"]
-
-            return results
+            return self._get_attachments(conn, hashes)
 
     def cleanup(self) -> None:
         try:
@@ -264,7 +253,7 @@ class SampleEventDatabase:
         sample = sample.model_copy(
             update={
                 "input": walk_input(
-                    sample.input, self._attachments_content_fn(attachments)
+                    sample.input, self._create_attachments_content_fn(attachments)
                 )
             }
         )
@@ -275,10 +264,21 @@ class SampleEventDatabase:
         # return sample with aliases
         return sample
 
+    def _resolve_sample_attachments(
+        self, conn: Connection, sample: SampleSummary
+    ) -> SampleSummary:
+        return sample.model_copy(
+            update={
+                "input": walk_input(
+                    sample.input, self._resolve_attachments_content_fn(conn)
+                )
+            }
+        )
+
     def _consense_events(self, conn: Connection, events: list[Event]) -> list[Event]:
         # alias attachments
         attachments: dict[str, str] = {}
-        events = walk_events(events, self._attachments_content_fn(attachments))
+        events = walk_events(events, self._create_attachments_content_fn(attachments))
 
         # insert attachments
         self._insert_attachments(conn, attachments)
@@ -286,10 +286,28 @@ class SampleEventDatabase:
         # return events with aliases
         return events
 
-    def _attachments_content_fn(
+    def _resolve_event_attachments(self, conn: Connection, event: JsonData) -> JsonData:
+        return walk_json_dict(event, self._resolve_attachments_content_fn(conn))
+
+    def _create_attachments_content_fn(
         self, attachments: dict[str, str]
     ) -> Callable[[str], str]:
         return attachments_content_fn(self.log_images, 100, attachments)
+
+    def _resolve_attachments_content_fn(self, conn: Connection) -> Callable[[str], str]:
+        def content_fn(text: str) -> str:
+            if text.startswith(ATTACHMENT_PROTOCOL):
+                hash = text.replace(ATTACHMENT_PROTOCOL, "", 1)
+                attachments = self._get_attachments(conn, [hash])
+                content = attachments.get(hash, None)
+                if content is not None:
+                    return content
+                else:
+                    return text
+            else:
+                return text
+
+        return content_fn
 
     def _insert_attachments(
         self, conn: Connection, attachments: dict[str, str]
@@ -301,6 +319,30 @@ class SampleEventDatabase:
             """,
             attachments.items(),
         )
+
+    def _get_attachments(
+        self, conn: Connection, hashes: list[str]
+    ) -> dict[str, str | None]:
+        # Create placeholders for the IN clause
+        placeholders = ",".join("?" * len(hashes))
+
+        cursor = conn.execute(
+            f"""
+            SELECT hash, content
+            FROM attachments
+            WHERE hash IN ({placeholders})
+            """,
+            hashes,
+        )
+
+        # Create result dictionary with all requested hashes initialized to None
+        results: dict[str, str | None] = {hash_: None for hash_ in hashes}
+
+        # Update with found values
+        for row in cursor:
+            results[row["hash"]] = row["content"]
+
+        return results
 
     @staticmethod
     def gc(db_dir: Path | None = None) -> None:
