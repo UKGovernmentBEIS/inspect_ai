@@ -45978,8 +45978,10 @@ categories: ${categories.join(" ")}`;
             return element;
           }
         };
-        const priorityLabels = new Set(priorityCompletions.map((c2) => c2.label));
-        const defaultCompletionsAdjusted = defaultCompletionItems.filter((c2) => !priorityLabels.has(c2.label)).map((c2) => ({ ...c2, section: miscSection }));
+        const priorityLabels = new Set(
+          priorityCompletions.map((c2) => c2.label.trim())
+        );
+        const defaultCompletionsAdjusted = defaultCompletionItems.filter((c2) => !priorityLabels.has(c2.label.trim())).map((c2) => ({ ...c2, section: miscSection }));
         return {
           from: completionStart,
           options: [...priorityCompletionsAdjusted, ...defaultCompletionsAdjusted]

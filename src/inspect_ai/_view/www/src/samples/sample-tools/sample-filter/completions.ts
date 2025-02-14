@@ -237,9 +237,11 @@ export function getCompletions(
       },
     };
 
-    const priorityLabels = new Set(priorityCompletions.map((c) => c.label));
+    const priorityLabels = new Set(
+      priorityCompletions.map((c) => c.label.trim()),
+    );
     const defaultCompletionsAdjusted = defaultCompletionItems
-      .filter((c) => !priorityLabels.has(c.label))
+      .filter((c) => !priorityLabels.has(c.label.trim()))
       .map((c) => ({ ...c, section: miscSection }));
 
     return {
