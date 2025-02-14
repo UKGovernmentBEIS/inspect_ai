@@ -3,6 +3,7 @@ import json
 import os
 import sqlite3
 from contextlib import contextmanager
+from logging import getLogger
 from pathlib import Path
 from sqlite3 import Connection
 from typing import Any, Iterator, TypeAlias, cast
@@ -14,13 +15,15 @@ from inspect_ai._util.appdirs import inspect_data_dir
 from .._transcript import Event
 from .types import SampleSummary
 
+logger = getLogger(__name__)
+
 JsonData: TypeAlias = dict[str, JsonValue]
 
-# investigate test_eval_set hanging
+
 # write eval file right away
 
-# cleanup() should be safe
 # multiple readers/writers issue w/ client interface
+
 
 # attachments
 # garbage collection of dbs
@@ -227,3 +230,7 @@ class SampleEventDatabase:
             os.remove(self.db_path)
         except FileNotFoundError:
             pass
+        except Exception as ex:
+            logger.warning(
+                f"Error cleaning up sample event database at {self.db_path}: {ex}"
+            )
