@@ -107,6 +107,12 @@ const scoreVariables = (
   return variables;
 };
 
+const sampleVariables = (sample: SampleSummary): Record<string, unknown> => {
+  return {
+    has_error: !!sample.error,
+  };
+};
+
 /**
  * Generates a dictionary of variables that can be used in the filter expression.
  * High-level scorer metrics can be accessed by name directly.
@@ -186,13 +192,6 @@ export const filterExpression = (
   filterValue: string,
 ) => {
   try {
-    if (sample.error) {
-      return {
-        matches: false,
-        error: undefined, // sample error does not indicate a problem with the filter
-      };
-    }
-
     const inputContains = (regex: string): boolean => {
       return inputString(sample.input).some((msg) =>
         msg.match(new RegExp(regex, "i")),
@@ -204,16 +203,33 @@ export const filterExpression = (
         : [sample.target];
       return targets.some((target) => target.match(new RegExp(regex, "i")));
     };
+    const errorContains = (regex: string): boolean => {
+      return !!sample.error?.match(new RegExp(regex, "i"));
+    };
 
     const extraFunctions = {
       input_contains: inputContains,
       target_contains: targetContains,
+      error_contains: errorContains,
+    };
+    const mySampleVariables = sampleVariables(sample);
+    const vars = {
+      ...mySampleVariables,
+      ...scoreVariables(evalDescriptor, sample.scores),
+    };
+    const resolveVariable = (name: string, get: (name: string) => any) => {
+      // Sample variables (like has_error) always exist.
+      if (name in mySampleVariables) {
+        return get(name);
+      }
+      // Score variables exist only if the sample completed successfully.
+      return sample.error ? undefined : get(name);
     };
     const expression = compileExpression(filterValue, {
       extraFunctions,
       constants: filterExpressionConstants,
+      customProp: resolveVariable,
     });
-    const vars = scoreVariables(evalDescriptor, sample.scores);
     const result = expression(vars);
     if (typeof result === "boolean") {
       return { matches: result, error: undefined };
