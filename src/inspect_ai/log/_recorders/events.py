@@ -135,21 +135,14 @@ class SampleEventDatabase:
             ]  # Reverse order to match insertion
             return event_ids
 
-    def complete_sample(self, summary: SampleSummary) -> str | int:
-        """Note that a sample has completed processing. Returns the internal summary_id."""
+    def complete_sample(self, summary: SampleSummary) -> None:
         with self._get_connection() as conn:
-            # Then insert the summary
-            cursor = conn.execute(
+            conn.execute(
                 """
                 UPDATE samples SET data = ? WHERE id = ? and epoch = ?
             """,
-                (summary.model_dump_json(), summary.id, summary.epoch),
+                (summary.model_dump_json(), str(summary.id), summary.epoch),
             )
-
-            if cursor.rowcount == 0:
-                raise ValueError("No rows were updated. Matching row not found.")
-
-            return summary.id
 
     def remove_samples(self, samples: list[tuple[str | int, int]]) -> None:
         with self._get_connection() as conn:
