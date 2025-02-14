@@ -42,6 +42,12 @@ class EventInfo(BaseModel):
     event: JsonData
 
 
+class AttachmentInfo(BaseModel):
+    id: int
+    hash: str
+    content: str
+
+
 class SampleEventDatabase:
     SCHEMA = """
 
@@ -233,9 +239,29 @@ class SampleEventDatabase:
                     event=event,
                 )
 
-    def get_attachments(self, hashes: list[str]) -> dict[str, str | None]:
+    def get_attachments(
+        self, after_attachment_id: int | None = None
+    ) -> Iterator[AttachmentInfo]:
         with self._get_connection() as conn:
-            return self._get_attachments(conn, hashes)
+            query = """
+                SELECT id, hash, content FROM attachments
+            """
+            params: list[str | int] = []
+
+            if after_attachment_id is not None:
+                query += " WHERE id > ?"
+                params.append(after_attachment_id)
+
+            cursor = conn.execute(query, params)
+
+            for row in cursor:
+                yield AttachmentInfo(
+                    id=row["id"], hash=row["hash"], content=row["content"]
+                )
+
+    def get_attachments_content(self, hashes: list[str]) -> dict[str, str | None]:
+        with self._get_connection() as conn:
+            return self._get_attachments_content(conn, hashes)
 
     def cleanup(self) -> None:
         try:
@@ -298,7 +324,7 @@ class SampleEventDatabase:
         def content_fn(text: str) -> str:
             if text.startswith(ATTACHMENT_PROTOCOL):
                 hash = text.replace(ATTACHMENT_PROTOCOL, "", 1)
-                attachments = self._get_attachments(conn, [hash])
+                attachments = self._get_attachments_content(conn, [hash])
                 content = attachments.get(hash, None)
                 if content is not None:
                     return content
@@ -320,7 +346,7 @@ class SampleEventDatabase:
             attachments.items(),
         )
 
-    def _get_attachments(
+    def _get_attachments_content(
         self, conn: Connection, hashes: list[str]
     ) -> dict[str, str | None]:
         # Create placeholders for the IN clause

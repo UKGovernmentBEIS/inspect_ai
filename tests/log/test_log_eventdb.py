@@ -196,8 +196,19 @@ def test_insert_attachments(db: SampleEventDatabase) -> None:
     with db._get_connection() as conn:
         db._insert_attachments(conn, attachments)
 
-    # Verify attachments were stored
-    stored = db.get_attachments(list(attachments.keys()))
+    # Verify attachment api
+    attachments_info = list(db.get_attachments())
+    assert len(attachments_info) == len(attachments)
+    for i in range(0, len(attachments_info)):
+        assert attachments_info[i].hash == list(attachments.keys())[i]
+        assert attachments_info[i].content == list(attachments.values())[i]
+
+    attachment_info = list(db.get_attachments(2))[0]
+    assert attachment_info.hash == list(attachments.keys())[2]
+    assert attachment_info.content == list(attachments.values())[2]
+
+    # Verify attachment content api
+    stored = db.get_attachments_content(list(attachments.keys()))
     assert stored == attachments
 
 
@@ -205,7 +216,7 @@ def test_get_nonexistent_attachments(db: SampleEventDatabase) -> None:
     """Test retrieving non-existent attachments."""
     # Try to get attachments that don't exist
     hashes = ["nonexistent1", "nonexistent2"]
-    result = db.get_attachments(hashes)
+    result = db.get_attachments_content(hashes)
 
     # Should return None for non-existent hashes
     assert result == {"nonexistent1": None, "nonexistent2": None}
@@ -224,7 +235,7 @@ def test_insert_duplicate_attachments(db: SampleEventDatabase) -> None:
 
     # Verify original content was preserved for hash1
     # and new content was added for hash3
-    stored = db.get_attachments(["hash1", "hash2", "hash3"])
+    stored = db.get_attachments_content(["hash1", "hash2", "hash3"])
     assert stored == {
         "hash1": "content1",  # Original content preserved
         "hash2": "content2",
@@ -243,7 +254,7 @@ def test_get_mixed_existing_and_nonexistent_attachments(
 
     # Try to get both existing and non-existent attachments
     hashes = ["existing1", "nonexistent", "existing2"]
-    result = db.get_attachments(hashes)
+    result = db.get_attachments_content(hashes)
 
     # Should return content for existing and None for non-existent
     assert result == {
@@ -260,7 +271,7 @@ def test_empty_attachment_operations(db: SampleEventDatabase) -> None:
         db._insert_attachments(conn, {})
 
     # Test getting empty list of hashes
-    result = db.get_attachments([])
+    result = db.get_attachments_content([])
     assert result == {}
 
 
