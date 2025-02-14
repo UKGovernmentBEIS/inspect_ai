@@ -176,6 +176,13 @@ export const filterExpression = (
   filterValue: string,
 ) => {
   try {
+    if (sample.error) {
+      return {
+        matches: false,
+        error: undefined, // sample error does not indicate a problem with the filter
+      };
+    }
+
     const inputContains = (regex: string): boolean => {
       return inputString(sample.input).some((msg) =>
         msg.match(new RegExp(regex, "i")),

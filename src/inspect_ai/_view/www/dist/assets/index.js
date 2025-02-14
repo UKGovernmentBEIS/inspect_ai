@@ -25185,6 +25185,13 @@ categories: ${categories.join(" ")}`;
     const filterExpression = (evalDescriptor, sample2, filterValue) => {
       var _a2, _b2;
       try {
+        if (sample2.error) {
+          return {
+            matches: false,
+            error: void 0
+            // sample error does not indicate a problem with the filter
+          };
+        }
         const inputContains = (regex2) => {
           return inputString(sample2.input).some(
             (msg) => msg.match(new RegExp(regex2, "i"))
