@@ -57,8 +57,15 @@ class SampleEventDatabase:
         FOREIGN KEY (sample_id, sample_epoch) REFERENCES samples(id, epoch)
     );
 
+    CREATE TABLE attachments (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        hash TEXT UNIQUE,
+        content TEXT
+    );
+
     -- Indices for foreign keys and common queries
     CREATE INDEX IF NOT EXISTS idx_events_sample ON events(sample_id, sample_epoch);
+    CREATE INDEX IF NOT EXISTS idx_attachments_hash ON attachments(hash);
     """
 
     def __init__(self, location: str, db_dir: Path | None = None):
@@ -210,6 +217,39 @@ class SampleEventDatabase:
                     epoch=row["sample_epoch"],
                     event=event,
                 )
+
+    def insert_attachments(self, attachments: dict[str, str]) -> None:
+        with self._get_connection() as conn:
+            conn.executemany(
+                """
+                INSERT OR IGNORE INTO attachments (hash, content)
+                VALUES (?, ?)
+                """,
+                attachments.items(),
+            )
+
+    def get_attachments_by_hash(self, hashes: list[str]) -> dict[str, str | None]:
+        with self._get_connection() as conn:
+            # Create placeholders for the IN clause
+            placeholders = ",".join("?" * len(hashes))
+
+            cursor = conn.execute(
+                f"""
+                SELECT hash, content
+                FROM attachments
+                WHERE hash IN ({placeholders})
+                """,
+                hashes,
+            )
+
+            # Create result dictionary with all requested hashes initialized to None
+            results: dict[str, str | None] = {hash_: None for hash_ in hashes}
+
+            # Update with found values
+            for row in cursor:
+                results[row["hash"]] = row["content"]
+
+            return results
 
     def cleanup(self) -> None:
         try:
