@@ -8,6 +8,7 @@ from pathlib import Path
 from sqlite3 import Connection
 from typing import Any, Iterator, TypeAlias
 
+import psutil
 from pydantic import BaseModel, JsonValue
 
 from inspect_ai._util.appdirs import inspect_data_dir
@@ -21,7 +22,6 @@ JsonData: TypeAlias = dict[str, JsonValue]
 
 
 # attachments
-# garbage collection of dbs
 
 
 class SampleInfo(BaseModel):
@@ -64,12 +64,11 @@ class SampleEventDatabase:
     def __init__(self, location: str, db_dir: Path | None = None):
         self.location = location
 
-        # provide default db dir
-        if db_dir is None:
-            db_dir = inspect_data_dir("eventdb")
-
         # set path
-        self.db_path = db_dir / hashlib.sha256(location.encode("utf-8")).hexdigest()
+        db_dir = resolve_db_dir(db_dir)
+        self.db_path = (
+            db_dir / f"{hashlib.sha256(location.encode()).hexdigest()}.{os.getpid()}.db"
+        )
 
         # initialize the database schema
         with self._get_connection() as conn:
@@ -218,6 +217,25 @@ class SampleEventDatabase:
         except FileNotFoundError:
             pass
         except Exception as ex:
-            logger.warning(
-                f"Error cleaning up sample event database at {self.db_path}: {ex}"
-            )
+            log_cleanup_warning(self.db_path, ex)
+
+    @staticmethod
+    def gc(db_dir: Path | None = None) -> None:
+        db_dir = resolve_db_dir(db_dir)
+        for db in db_dir.glob("*.*.db"):
+            _, pid_str, _ = db.name.rsplit(".", 2)
+            if pid_str.isdigit():
+                pid = int(pid_str)
+                if not psutil.pid_exists(pid):
+                    try:
+                        db.unlink(missing_ok=True)
+                    except Exception as ex:
+                        log_cleanup_warning(db, ex)
+
+
+def resolve_db_dir(db_dir: Path | None = None) -> Path:
+    return db_dir or inspect_data_dir("eventsdb")
+
+
+def log_cleanup_warning(db: Path, ex: Exception) -> None:
+    logger.warning(f"Error cleaning up sample event database at {db}: {ex}")
