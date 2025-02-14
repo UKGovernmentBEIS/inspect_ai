@@ -228,7 +228,7 @@ class SampleEventDatabase:
                 attachments.items(),
             )
 
-    def get_attachments_by_hash(self, hashes: list[str]) -> dict[str, str | None]:
+    def get_attachments(self, hashes: list[str]) -> dict[str, str | None]:
         with self._get_connection() as conn:
             # Create placeholders for the IN clause
             placeholders = ",".join("?" * len(hashes))
