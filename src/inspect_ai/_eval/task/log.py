@@ -166,7 +166,9 @@ class TaskLogger:
 
     async def init(self) -> None:
         self._location = await self.recorder.log_init(self.eval)
-        self._events_db = SampleEventDatabase(self._location)
+        self._events_db = SampleEventDatabase(
+            self._location, self.eval.config.log_images is not False
+        )
 
     @property
     def location(self) -> str:
