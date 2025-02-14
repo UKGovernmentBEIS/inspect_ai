@@ -31,4 +31,3 @@ title: "inspect_ai.tool"
 ## Decorator
 
 ### tool
-

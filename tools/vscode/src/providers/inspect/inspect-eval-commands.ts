@@ -30,4 +30,3 @@ export class DebugEvalCommand implements Command {
   private static readonly id = "inspect.debugTask";
   public readonly id = DebugEvalCommand.id;
 }
-

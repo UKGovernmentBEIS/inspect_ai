@@ -25,5 +25,3 @@ log = eval(my_task)[0]
 if log.status != "success":
   eval_retry(log, max_connections = 3)
 ```
-
-

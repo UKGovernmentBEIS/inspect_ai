@@ -17,4 +17,3 @@ title: "inspect_ai.approval"
 ## Decorator
 
 ### approver
-

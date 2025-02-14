@@ -138,5 +138,3 @@ function windowsUserCacheDir(appName: string) {
   const dir = process.env.LOCALAPPDATA || "";
   return path.join(dir, "Temp", appName, appName);
 }
-
-

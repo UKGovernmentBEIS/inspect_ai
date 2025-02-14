@@ -67,6 +67,3 @@ export function setControlsVisible(id: string, visible: boolean) {
     controls?.classList.add("hidden");
   }
 }
-
-
-

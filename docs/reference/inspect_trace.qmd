@@ -1,9 +1,3 @@
 ---
 title: inspect trace
 ---
-
-
-
-
-
-

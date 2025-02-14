@@ -25,10 +25,3 @@ inspect eval examples/bridge/autogen --model openai/gpt-4
 inspect eval examples/bridge/autogen --model anthropic/claude-3-haiku-20240307
 inspect eval examples/bridge/autogen --model google/gemini-1.5-pro
 ```
-
-
-
-
-
-
-

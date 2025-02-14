@@ -36,4 +36,3 @@ export class DebugActiveTaskCommand implements Command {
   private static readonly id = "inspect.debugActiveTask";
   public readonly id = DebugActiveTaskCommand.id;
 }
-

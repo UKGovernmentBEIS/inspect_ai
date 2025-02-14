@@ -17,7 +17,3 @@ if [ "$QUARTO_PROJECT_RENDER_ALL" = "1" ]; then
     done
     mv _quarto.yml.bak _quarto.yml
 fi
-
-
-
-

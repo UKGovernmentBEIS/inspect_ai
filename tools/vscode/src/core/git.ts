@@ -57,4 +57,3 @@ function writeGitignore(dir: string, lines: string[]) {
     { encoding: "utf-8" }
   );
 }
-

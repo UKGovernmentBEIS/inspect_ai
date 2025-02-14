@@ -58,4 +58,3 @@
 - [inspect_cache](https://inspect.ai-safety-institute.org.uk/reference/inspect_cache.html.md): Manage the Inspect model cache.
 - [inspect_list](https://inspect.ai-safety-institute.org.uk/reference/inspect_list.html.md): List tasks on the filesystem.
 - [inspect_info](https://inspect.ai-safety-institute.org.uk/reference/inspect_info.html.md): Read version and configuration.
-

@@ -10,4 +10,3 @@ done
 
 echo "XFCE4 is fully started!"
 touch /tmp/xfce_started
-

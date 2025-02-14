@@ -15,5 +15,3 @@ If the provider you are using is not listed above, you may still be able to use 
 2. It provides an OpenAI compatible API endpoint. In this scenario, use the Inspect [OpenAI](providers.qmd#openai) interface and set the `OPENAI_BASE_URL` environment variable to the apprpriate value for your provider.
 
 You can also create [Model API Extensions](extensions.qmd#model-apis) to add model providers using their native interface.
-
-

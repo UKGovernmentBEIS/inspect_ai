@@ -248,4 +248,3 @@ function webviewPanelJsonRpcServer(
   };
   return jsonRpcPostMessageServer(target, methods);
 }
-

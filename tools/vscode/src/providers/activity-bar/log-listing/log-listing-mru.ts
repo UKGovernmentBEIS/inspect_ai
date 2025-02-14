@@ -44,5 +44,3 @@ export class LogListingMRU {
     return this.context_.workspaceState.get<string[]>(kMruKey) || [];
   }
 }
-
-

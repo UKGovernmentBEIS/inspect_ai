@@ -18,4 +18,3 @@ build-backend = "setuptools.build_meta"
 
 [project.entry-points.inspect_ai]
 inspect_package = "inspect_package._registry"
-

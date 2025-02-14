@@ -49,4 +49,3 @@ from inspect_ai.util import Store
 store = Store()
 activity = Activity(store=store)
 ```
-

@@ -358,4 +358,3 @@ class InspectViewWebview extends InspectWebview<LogviewState> {
     return this.logviewPanel_.getHtml(state);
   }
 }
-

@@ -241,5 +241,3 @@ function methodNotFoundResponse(request: JsonRpcRequest) {
     `Method '${request.method}' not found.`
   );
 }
-
-

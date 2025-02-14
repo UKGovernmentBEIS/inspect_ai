@@ -17,4 +17,3 @@ for record in records:
 
 with open(PATH / "evals.yml", "w") as f:
     yaml.safe_dump(records, f)
-

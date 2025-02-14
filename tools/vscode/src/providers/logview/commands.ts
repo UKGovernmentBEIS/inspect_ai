@@ -45,4 +45,3 @@ class ShowLogviewCommand implements Command {
   private static readonly id = "inspect.inspectView";
   public readonly id = ShowLogviewCommand.id;
 }
-

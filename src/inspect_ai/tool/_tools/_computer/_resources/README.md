@@ -27,4 +27,3 @@ The image extends this minimal functionality by adding a few basic applications 
 ## Desktop Directory
 
 The `Desktop` directory contains launchers for VS Code, Firefox and XPaint.
-
