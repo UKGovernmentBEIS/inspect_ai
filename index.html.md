@@ -4,7 +4,7 @@
 ## Welcome
 
 Welcome to Inspect, a framework for large language model evaluations
-created by the [UK AI Safety Institute](https://aisi.gov.uk).
+created by the [UK AI Security Institute](https://aisi.gov.uk).
 
 Inspect provides many built-in components, including facilities for
 prompt engineering, tool usage, multi-turn dialog, and model graded

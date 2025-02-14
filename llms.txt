@@ -1,6 +1,6 @@
 # Inspect AI
 
-> Inspect AI is a Python framework for large language model evaluations created by the [UK AI Safety Institute](https://aisi.gov.uk). Inspect provides many built-in components, including facilities for prompt engineering, tool usage, multi-turn dialog, and model graded evaluations. Extensions to Inspect (e.g. to support new elicitation and scoring techniques) can be provided by other Python packages.
+> Inspect AI is a Python framework for large language model evaluations created by the [UK AI Security Institute](https://aisi.gov.uk). Inspect provides many built-in components, including facilities for prompt engineering, tool usage, multi-turn dialog, and model graded evaluations. Extensions to Inspect (e.g. to support new elicitation and scoring techniques) can be provided by other Python packages.
 
 ## Docs
 
