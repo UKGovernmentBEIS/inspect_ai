@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Literal
 
-PKG_AUTHOR = "UK AI Safety Institute"
+PKG_AUTHOR = "UK AI Security Institute"
 PKG_AUTHOR_DIR = "UK-AISI"
 PKG_NAME = Path(__file__).parent.parent.stem
 PKG_PATH = Path(__file__).parent.parent

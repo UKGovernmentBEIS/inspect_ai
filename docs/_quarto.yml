@@ -35,7 +35,7 @@ website:
       title: "Inspect AI"
       background: light
       search: true
-      logo: images/aisi-logo.png
+      logo: images/aisi-logo.svg
       logo-href: https://www.aisi.gov.uk/     
       left:      
           - text: "User Guide"
@@ -102,7 +102,7 @@ website:
 
    page-footer: 
       left: 
-         - text: UK AI Safety Institute
+         - text: UK AI Security Institute
            href: https://aisi.gov.uk/
       center: 
          - text: Code
@@ -116,8 +116,8 @@ website:
        
       right:
          - icon: twitter
-           href: https://twitter.com/AISafetyInst
-           aria-label: UK AI Safety Institute Twitter
+           href: https://x.com/sciTechgovuk
+           aria-label: UK AI Security Institute Twitter
          - icon: github
            href: https://github.com/UKGovernmentBEIS/inspect_ai/
            aria-label: Inspect on GitHub
