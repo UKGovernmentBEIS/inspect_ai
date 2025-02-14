@@ -19,6 +19,9 @@ JsonData: TypeAlias = dict[str, JsonValue]
 # investigate test_eval_set hanging
 # write eval file right away
 
+# cleanup() should be safe
+# multiple readers/writers issue w/ client interface
+
 # attachments
 # garbage collection of dbs
 
