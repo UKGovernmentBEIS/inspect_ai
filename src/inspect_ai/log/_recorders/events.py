@@ -20,14 +20,6 @@ logger = getLogger(__name__)
 JsonData: TypeAlias = dict[str, JsonValue]
 
 
-# write eval file right away
-# event buffering
-
-# transactions/connections
-
-# multiple readers/writers issue w/ client interface
-
-
 # attachments
 # garbage collection of dbs
 
@@ -76,11 +68,10 @@ class SampleEventDatabase:
         if db_dir is None:
             db_dir = inspect_data_dir("eventdb")
 
+        # set path
         self.db_path = db_dir / hashlib.sha256(location.encode("utf-8")).hexdigest()
-        self._initialize_db()
 
-    def _initialize_db(self) -> None:
-        """Initialize the database schema."""
+        # initialize the database schema
         with self._get_connection() as conn:
             conn.executescript(self.SCHEMA)
             conn.commit()
@@ -88,11 +79,16 @@ class SampleEventDatabase:
     @contextmanager
     def _get_connection(self) -> Iterator[Connection]:
         """Get a database connection."""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, timeout=10)
         conn.row_factory = sqlite3.Row  # Enable row factory for named columns
         try:
             # Enable foreign key constraints
             conn.execute("PRAGMA foreign_keys = ON")
+
+            # concurrency setup
+            conn.execute("PRAGMA journal_mode=WAL")
+            conn.execute("PRAGMA busy_timeout=10000")
+            conn.execute("PRAGMA synchronous=NORMAL")
 
             yield conn
             conn.commit()  # Auto-commit if no exceptions
