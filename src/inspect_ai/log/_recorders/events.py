@@ -6,7 +6,7 @@ from contextlib import contextmanager
 from logging import getLogger
 from pathlib import Path
 from sqlite3 import Connection
-from typing import Any, Iterator, TypeAlias, cast
+from typing import Any, Iterator, TypeAlias
 
 from pydantic import BaseModel, JsonValue
 
@@ -21,6 +21,9 @@ JsonData: TypeAlias = dict[str, JsonValue]
 
 
 # write eval file right away
+# event buffering
+
+# transactions/connections
 
 # multiple readers/writers issue w/ client interface
 
@@ -99,20 +102,17 @@ class SampleEventDatabase:
         finally:
             conn.close()
 
-    def start_sample(self, sample: SampleSummary) -> int:
-        """Start logging a sample. Returns the internal sample_id."""
+    def start_sample(self, sample: SampleSummary) -> None:
         with self._get_connection() as conn:
-            cursor = conn.execute(
+            conn.execute(
                 """
                 INSERT INTO samples (id, epoch, data)
                 VALUES (?, ?, ?)
-                RETURNING id
             """,
                 (str(sample.id), sample.epoch, sample.model_dump_json()),
             )
-            return cast(int, cursor.fetchone()[0])
 
-    def log_events(self, id: int | str, epoch: int, events: list[Event]) -> list[int]:
+    def log_events(self, id: int | str, epoch: int, events: list[Event]) -> None:
         with self._get_connection() as conn:
             # Collect the values for all events
             values: list[Any] = []
@@ -128,15 +128,6 @@ class SampleEventDatabase:
 
             # Insert all rows
             conn.execute(sql, values)
-
-            # Fetch the last inserted IDs
-            cursor = conn.execute(
-                "SELECT id FROM events ORDER BY id DESC LIMIT ?", (len(events),)
-            )
-            event_ids = [row[0] for row in cursor.fetchall()][
-                ::-1
-            ]  # Reverse order to match insertion
-            return event_ids
 
     def complete_sample(self, summary: SampleSummary) -> None:
         with self._get_connection() as conn:
