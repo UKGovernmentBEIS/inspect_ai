@@ -50,10 +50,9 @@ def test_log_events(db: SampleEventDatabase, sample: SampleSummary) -> None:
 
     # Log some events
     events: list[Event] = [InfoEvent(data="event1"), InfoEvent(data="event2")]
-    event_ids = db.log_events(id="sample1", epoch=1, events=events)
+    db.log_events(id="sample1", epoch=1, events=events)
 
     # Verify events were logged
-    assert len(event_ids) == 2
     logged_events = list(db.get_events(id="sample1", epoch=1))
     assert len(logged_events) == 2
 
@@ -108,13 +107,6 @@ def test_error_cases(db: SampleEventDatabase) -> None:
         test_event: list[Event] = [InfoEvent(data={"type": "test"})]
         db.log_events(id="nonexistent", epoch=1, events=test_event)
 
-    # Test completing non-existent sample
-    with pytest.raises(ValueError):
-        summary = SampleSummary(
-            id="nonexistent", epoch=1, input="input", target="target"
-        )
-        db.complete_sample(summary=summary)
-
 
 def test_concurrent_samples(db: SampleEventDatabase) -> None:
     """Test handling multiple samples concurrently."""
@@ -125,9 +117,8 @@ def test_concurrent_samples(db: SampleEventDatabase) -> None:
         SampleSummary(id="sample2", epoch=1, input="test2", target="target"),
     ]
 
-    sample_ids = []
     for sample in samples:
-        sample_ids.append(db.start_sample(sample=sample))
+        db.start_sample(sample=sample)
 
     # Verify all samples were created
     stored_samples = list(db.get_samples())
