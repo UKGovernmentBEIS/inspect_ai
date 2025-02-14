@@ -61,15 +61,11 @@ const bannedShortScoreNames = (scores: ScoreLabel[]): Set<string> => {
  * High-level scorer metrics can be accessed by name directly.
  * Child metrics are accessed using dot notation (e.g. `scorer_name.score_name`) or
  * directly by name when it is unique.
- *
- * @param {import("../../samples/descriptor/samplesDescriptor").EvalDescriptor} evalDescriptor
- * @param {import("../../types/log").Scores1} sampleScores
- * @returns {Object<string, any>}
  */
 const scoreVariables = (
   evalDescriptor: EvalDescriptor,
   sampleScores: Scores1,
-) => {
+): Record<string, unknown> => {
   const bannedShortNames = bannedShortScoreNames(evalDescriptor.scores);
   const variables: Record<string, unknown> = {};
 
@@ -77,7 +73,7 @@ const scoreVariables = (
     variableName: string,
     scoreLabel: ScoreLabel,
     value: unknown,
-  ) => {
+  ): void => {
     const coercedValue = coerceValue(
       value,
       evalDescriptor.scoreDescriptor(scoreLabel),
@@ -115,11 +111,6 @@ export const scoreFilterItems = (
   const valueToString = (value: unknown) =>
     typeof value === "string" ? `"${value}"` : String(value);
 
-  /**
-   * @param {string | undefined} shortName
-   * @param {string | undefined} qualifiedName
-   * @param {import("../../types").ScoreLabel} scoreLabel
-   */
   const addScore = (
     scoreLabel: ScoreLabel,
     shortName?: string,
@@ -263,12 +254,6 @@ export const filterExpression = (
   }
 };
 
-/**
- * @param {import("../../samples/descriptor/samplesDescriptor").EvalDescriptor} evalDescriptor
- * @param {import("../../api/types").SampleSummary[]} samples
- * @param {string} filterValue
- * @returns {}
- */
 export const filterSamples = (
   evalDescriptor: EvalDescriptor,
   samples: SampleSummary[],
