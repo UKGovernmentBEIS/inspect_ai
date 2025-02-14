@@ -7,6 +7,7 @@ import os
 import time
 from contextvars import ContextVar
 from copy import deepcopy
+from types import TracebackType
 from typing import Any, Callable, Literal, Type, cast
 
 from tenacity import (
@@ -109,6 +110,10 @@ class ModelAPI(abc.ABC):
         # set any explicitly specified api key
         self.api_key = api_key
 
+    async def close(self) -> None:
+        """Close method for closing any client allocated for the model."""
+        pass
+
     @abc.abstractmethod
     async def generate(
         self,
@@ -178,7 +183,17 @@ class ModelAPI(abc.ABC):
 
 
 class Model:
-    """Model interface."""
+    """Model interface.
+
+    Use `get_model()` to get an instance of a model. Model provides an
+    async context manager for closing the connection to it after use.
+    For example:
+
+    ```python
+    async with get_model("openai/gpt-4o") as model:
+        response = await model.generate("Say hello")
+    ```
+    """
 
     api: ModelAPI
     """Model API."""
@@ -199,6 +214,17 @@ class Model:
         # if using the Model API standalone in a notebook this will
         # get hit before score() or eval() so we activate nest_asyncio
         platform_init()
+
+    async def __aenter__(self: "Model") -> "Model":
+        return self
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
+        await self.api.close()
 
     @property
     def name(self) -> str:
