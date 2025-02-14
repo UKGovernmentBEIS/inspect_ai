@@ -191,7 +191,8 @@ def test_insert_attachments(db: SampleEventDatabase) -> None:
     attachments = {"hash1": "content1", "hash2": "content2", "hash3": "content3"}
 
     # Insert attachments
-    db.insert_attachments(attachments)
+    with db._get_connection() as conn:
+        db._insert_attachments(conn, attachments)
 
     # Verify attachments were stored
     stored = db.get_attachments(list(attachments.keys()))
@@ -212,11 +213,12 @@ def test_insert_duplicate_attachments(db: SampleEventDatabase) -> None:
     """Test handling of duplicate attachment insertions."""
     # Initial insertion
     initial_attachments = {"hash1": "content1", "hash2": "content2"}
-    db.insert_attachments(initial_attachments)
+    with db._get_connection() as conn:
+        db._insert_attachments(conn, initial_attachments)
 
-    # Try to insert same hash with different content
-    duplicate_attachments = {"hash1": "different_content", "hash3": "content3"}
-    db.insert_attachments(duplicate_attachments)
+        # Try to insert same hash with different content
+        duplicate_attachments = {"hash1": "different_content", "hash3": "content3"}
+        db._insert_attachments(conn, duplicate_attachments)
 
     # Verify original content was preserved for hash1
     # and new content was added for hash3
@@ -234,7 +236,8 @@ def test_get_mixed_existing_and_nonexistent_attachments(
     """Test retrieving a mix of existing and non-existent attachments."""
     # Insert some attachments
     attachments = {"existing1": "content1", "existing2": "content2"}
-    db.insert_attachments(attachments)
+    with db._get_connection() as conn:
+        db._insert_attachments(conn, attachments)
 
     # Try to get both existing and non-existent attachments
     hashes = ["existing1", "nonexistent", "existing2"]
@@ -251,7 +254,8 @@ def test_get_mixed_existing_and_nonexistent_attachments(
 def test_empty_attachment_operations(db: SampleEventDatabase) -> None:
     """Test attachment operations with empty inputs."""
     # Test inserting empty dict
-    db.insert_attachments({})
+    with db._get_connection() as conn:
+        db._insert_attachments(conn, {})
 
     # Test getting empty list of hashes
     result = db.get_attachments([])

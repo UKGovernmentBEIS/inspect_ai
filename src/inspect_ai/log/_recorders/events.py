@@ -6,13 +6,14 @@ from contextlib import contextmanager
 from logging import getLogger
 from pathlib import Path
 from sqlite3 import Connection
-from typing import Any, Iterator, TypeAlias
+from typing import Any, Callable, Iterator, TypeAlias
 
 import psutil
 from pydantic import BaseModel, JsonValue
 
 from inspect_ai._util.appdirs import inspect_data_dir
 
+from .._condense import attachments_content_fn, walk_events, walk_input
 from .._transcript import Event
 from .types import SampleSummary
 
@@ -68,8 +69,11 @@ class SampleEventDatabase:
     CREATE INDEX IF NOT EXISTS idx_attachments_hash ON attachments(hash);
     """
 
-    def __init__(self, location: str, db_dir: Path | None = None):
+    def __init__(
+        self, location: str, log_images: bool = True, db_dir: Path | None = None
+    ):
         self.location = location
+        self.log_images = log_images
 
         # set path
         db_dir = resolve_db_dir(db_dir)
@@ -106,6 +110,7 @@ class SampleEventDatabase:
 
     def start_sample(self, sample: SampleSummary) -> None:
         with self._get_connection() as conn:
+            sample = self._consense_sample(conn, sample)
             conn.execute(
                 """
                 INSERT INTO samples (id, epoch, data)
@@ -117,6 +122,7 @@ class SampleEventDatabase:
     def log_events(self, id: int | str, epoch: int, events: list[Event]) -> None:
         with self._get_connection() as conn:
             # Collect the values for all events
+            events = self._consense_events(conn, events)
             values: list[Any] = []
             for event in events:
                 values.extend((event._id, id, epoch, event.model_dump_json()))
@@ -133,6 +139,7 @@ class SampleEventDatabase:
 
     def complete_sample(self, summary: SampleSummary) -> None:
         with self._get_connection() as conn:
+            summary = self._consense_sample(conn, summary)
             conn.execute(
                 """
                 UPDATE samples SET data = ? WHERE id = ? and epoch = ?
@@ -218,16 +225,6 @@ class SampleEventDatabase:
                     event=event,
                 )
 
-    def insert_attachments(self, attachments: dict[str, str]) -> None:
-        with self._get_connection() as conn:
-            conn.executemany(
-                """
-                INSERT OR IGNORE INTO attachments (hash, content)
-                VALUES (?, ?)
-                """,
-                attachments.items(),
-            )
-
     def get_attachments(self, hashes: list[str]) -> dict[str, str | None]:
         with self._get_connection() as conn:
             # Create placeholders for the IN clause
@@ -258,6 +255,52 @@ class SampleEventDatabase:
             pass
         except Exception as ex:
             log_cleanup_warning(self.db_path, ex)
+
+    def _consense_sample(
+        self, conn: Connection, sample: SampleSummary
+    ) -> SampleSummary:
+        # alias attachments
+        attachments: dict[str, str] = {}
+        sample = sample.model_copy(
+            update={
+                "input": walk_input(
+                    sample.input, self._attachments_content_fn(attachments)
+                )
+            }
+        )
+
+        # insert attachments
+        self._insert_attachments(conn, attachments)
+
+        # return sample with aliases
+        return sample
+
+    def _consense_events(self, conn: Connection, events: list[Event]) -> list[Event]:
+        # alias attachments
+        attachments: dict[str, str] = {}
+        events = walk_events(events, self._attachments_content_fn(attachments))
+
+        # insert attachments
+        self._insert_attachments(conn, attachments)
+
+        # return events with aliases
+        return events
+
+    def _attachments_content_fn(
+        self, attachments: dict[str, str]
+    ) -> Callable[[str], str]:
+        return attachments_content_fn(self.log_images, 100, attachments)
+
+    def _insert_attachments(
+        self, conn: Connection, attachments: dict[str, str]
+    ) -> None:
+        conn.executemany(
+            """
+            INSERT OR IGNORE INTO attachments (hash, content)
+            VALUES (?, ?)
+            """,
+            attachments.items(),
+        )
 
     @staticmethod
     def gc(db_dir: Path | None = None) -> None:
