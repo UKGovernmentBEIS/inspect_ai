@@ -25086,7 +25086,7 @@ var require_assets = __commonJS({
         return value2;
       }
     };
-    const isFilteringSupportedForValue = (value2) => ["string", "number", "boolean"].includes(typeof value2);
+    const isFilteringSupportedForValue = (value2) => ["string", "number", "boolean"].includes(typeof value2) || value2 === null;
     const bannedShortScoreNames = (scores2) => {
       const used = /* @__PURE__ */ new Set();
       const banned = /* @__PURE__ */ new Set();
@@ -25099,6 +25099,11 @@ var require_assets = __commonJS({
         }
       }
       return banned;
+    };
+    const filterExpressionConstants = {
+      True: true,
+      False: false,
+      None: null
     };
     const scoreVariables = (evalDescriptor, sampleScores) => {
       const bannedShortNames = bannedShortScoreNames(evalDescriptor.scores);
@@ -25205,7 +25210,10 @@ categories: ${categories.join(" ")}`;
           input_contains: inputContains,
           target_contains: targetContains
         };
-        const expression = compileExpression(filterValue, { extraFunctions });
+        const expression = compileExpression(filterValue, {
+          extraFunctions,
+          constants: filterExpressionConstants
+        });
         const vars = scoreVariables(evalDescriptor, sample2.scores);
         const result = expression(vars);
         if (typeof result === "boolean") {

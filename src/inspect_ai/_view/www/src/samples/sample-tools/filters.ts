@@ -35,7 +35,7 @@ const coerceValue = (value: unknown, descriptor: ScoreDescriptor): unknown => {
 
 // Whether a particular value is filter-able
 const isFilteringSupportedForValue = (value: unknown): boolean =>
-  ["string", "number", "boolean"].includes(typeof value);
+  ["string", "number", "boolean"].includes(typeof value) || value === null;
 
 /**
  * Returns the names of scores that are not allowed to be used as short names in
@@ -54,6 +54,16 @@ const bannedShortScoreNames = (scores: ScoreLabel[]): Set<string> => {
     }
   }
   return banned;
+};
+
+// Pseudo-variables added to all filter expressions. These are not needed in most cases.
+// Normally one could check a boolean value `foo` by simply typing `foo` or `not foo`.
+// However, some evals use tristate values that can be true, false or null. This is where
+// these constants come in handy.
+const filterExpressionConstants: Record<string, unknown> = {
+  True: true,
+  False: false,
+  None: null,
 };
 
 /**
@@ -199,7 +209,10 @@ export const filterExpression = (
       input_contains: inputContains,
       target_contains: targetContains,
     };
-    const expression = compileExpression(filterValue, { extraFunctions });
+    const expression = compileExpression(filterValue, {
+      extraFunctions,
+      constants: filterExpressionConstants,
+    });
     const vars = scoreVariables(evalDescriptor, sample.scores);
     const result = expression(vars);
     if (typeof result === "boolean") {
