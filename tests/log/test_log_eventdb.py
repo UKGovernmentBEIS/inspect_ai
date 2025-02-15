@@ -55,7 +55,7 @@ def test_log_events(db: SampleBufferDatabase, sample: SampleSummary) -> None:
     db.log_events(id="sample1", epoch=1, events=events)
 
     # Verify events were logged
-    logged_events = list(db.get_events(id="sample1", epoch=1))
+    logged_events = list(db._get_events(id="sample1", epoch=1))
     assert len(logged_events) == 2
 
 
@@ -91,13 +91,13 @@ def test_get_events_with_filters(db: SampleBufferDatabase) -> None:
     db.log_events(id="sample2", epoch=1, events=events2)
 
     # Test filtering by sample
-    filtered_events = list(db.get_events(id="sample1", epoch=1))
+    filtered_events = list(db._get_events(id="sample1", epoch=1))
     assert len(filtered_events) == 1
     assert filtered_events[0].event["data"] == "event1"
 
     # Test getting all events
-    sample_1_events = list(db.get_events("sample1", 1))
-    sample_2_events = list(db.get_events("sample2", 1))
+    sample_1_events = list(db._get_events("sample1", 1))
+    sample_2_events = list(db._get_events("sample2", 1))
     assert len(sample_1_events) == 1
     assert len(sample_2_events) == 1
 
@@ -132,10 +132,10 @@ def test_concurrent_samples(db: SampleBufferDatabase) -> None:
     db.log_events(id="sample1", epoch=2, events=events)
 
     # Check events for specific epoch
-    events_epoch_1 = list(db.get_events(id="sample1", epoch=1))
+    events_epoch_1 = list(db._get_events(id="sample1", epoch=1))
     assert len(events_epoch_1) == 1
 
-    events_epoch_2 = list(db.get_events(id="sample1", epoch=2))
+    events_epoch_2 = list(db._get_events(id="sample1", epoch=2))
     assert len(events_epoch_2) == 1
 
 
@@ -160,7 +160,7 @@ def test_remove_samples(db: SampleBufferDatabase) -> None:
     # Verify initial state
     initial_samples = list(db.get_samples())
     assert len(initial_samples) == 3
-    assert all(list(db.get_events(s.id, s.epoch)) for s in samples)
+    assert all(list(db._get_events(s.id, s.epoch)) for s in samples)
 
     # Remove two of the samples
     samples_to_remove: list[tuple[str | int, int]] = [
@@ -177,10 +177,10 @@ def test_remove_samples(db: SampleBufferDatabase) -> None:
 
     # Verify events were removed
     for sample_id, epoch in samples_to_remove:
-        assert not list(db.get_events(sample_id, epoch))
+        assert not list(db._get_events(sample_id, epoch))
 
     # Verify remaining sample still has its events
-    remaining_events = list(db.get_events("sample1", 2))
+    remaining_events = list(db._get_events("sample1", 2))
     assert len(remaining_events) == 1
 
     # Test removing non-existent samples (should not raise an error)
@@ -194,32 +194,18 @@ def test_insert_attachments(db: SampleBufferDatabase) -> None:
 
     # Insert attachments
     with db._get_connection() as conn:
-        db._insert_attachments(conn, attachments)
+        db._insert_attachments(conn, 1, 1, attachments)
 
     # Verify attachment api
-    attachments_info = list(db.get_attachments())
+    attachments_info = list(db._get_attachments(1, 1))
     assert len(attachments_info) == len(attachments)
     for i in range(0, len(attachments_info)):
         assert attachments_info[i].hash == list(attachments.keys())[i]
         assert attachments_info[i].content == list(attachments.values())[i]
 
-    attachment_info = list(db.get_attachments(2))[0]
+    attachment_info = list(db._get_attachments(1, 1, 2))[0]
     assert attachment_info.hash == list(attachments.keys())[2]
     assert attachment_info.content == list(attachments.values())[2]
-
-    # Verify attachment content api
-    stored = db.get_attachments_content(list(attachments.keys()))
-    assert stored == attachments
-
-
-def test_get_nonexistent_attachments(db: SampleBufferDatabase) -> None:
-    """Test retrieving non-existent attachments."""
-    # Try to get attachments that don't exist
-    hashes = ["nonexistent1", "nonexistent2"]
-    result = db.get_attachments_content(hashes)
-
-    # Should return None for non-existent hashes
-    assert result == {"nonexistent1": None, "nonexistent2": None}
 
 
 def test_insert_duplicate_attachments(db: SampleBufferDatabase) -> None:
@@ -227,52 +213,18 @@ def test_insert_duplicate_attachments(db: SampleBufferDatabase) -> None:
     # Initial insertion
     initial_attachments = {"hash1": "content1", "hash2": "content2"}
     with db._get_connection() as conn:
-        db._insert_attachments(conn, initial_attachments)
+        db._insert_attachments(conn, 1, 1, initial_attachments)
 
         # Try to insert same hash with different content
         duplicate_attachments = {"hash1": "different_content", "hash3": "content3"}
-        db._insert_attachments(conn, duplicate_attachments)
+        db._insert_attachments(conn, 1, 1, duplicate_attachments)
 
     # Verify original content was preserved for hash1
     # and new content was added for hash3
-    stored = db.get_attachments_content(["hash1", "hash2", "hash3"])
-    assert stored == {
-        "hash1": "content1",  # Original content preserved
-        "hash2": "content2",
-        "hash3": "content3",  # New content added
-    }
-
-
-def test_get_mixed_existing_and_nonexistent_attachments(
-    db: SampleBufferDatabase,
-) -> None:
-    """Test retrieving a mix of existing and non-existent attachments."""
-    # Insert some attachments
-    attachments = {"existing1": "content1", "existing2": "content2"}
-    with db._get_connection() as conn:
-        db._insert_attachments(conn, attachments)
-
-    # Try to get both existing and non-existent attachments
-    hashes = ["existing1", "nonexistent", "existing2"]
-    result = db.get_attachments_content(hashes)
-
-    # Should return content for existing and None for non-existent
-    assert result == {
-        "existing1": "content1",
-        "nonexistent": None,
-        "existing2": "content2",
-    }
-
-
-def test_empty_attachment_operations(db: SampleBufferDatabase) -> None:
-    """Test attachment operations with empty inputs."""
-    # Test inserting empty dict
-    with db._get_connection() as conn:
-        db._insert_attachments(conn, {})
-
-    # Test getting empty list of hashes
-    result = db.get_attachments_content([])
-    assert result == {}
+    stored = list(db._get_attachments(1, 1))
+    assert stored[0].content == "content1"  # Original content preserved
+    assert stored[1].content == "content2"
+    assert stored[2].content == "content3"  # New content added
 
 
 def test_large_input_attachment_handling(db: SampleBufferDatabase) -> None:
@@ -290,7 +242,7 @@ def test_large_input_attachment_handling(db: SampleBufferDatabase) -> None:
     db.start_sample(sample=sample)
 
     # Retrieve the stored sample
-    stored_samples = list(db.get_samples())
+    stored_samples = list(db._get_samples(resolve_attachments=True))
     assert len(stored_samples) == 1
 
     # Verify the stored input matches the original large input
@@ -339,7 +291,7 @@ def test_large_event_attachment_handling(db: SampleBufferDatabase) -> None:
     db.log_events(id="event_test", epoch=1, events=[event])
 
     # Retrieve the stored events
-    stored_events = list(db.get_events("event_test", 1))
+    stored_events = list(db._get_events("event_test", 1, resolve_attachments=True))
     assert len(stored_events) == 1
 
     # Verify the retrieved event data matches the original
@@ -384,7 +336,7 @@ def test_multiple_attachments_same_content(db: SampleBufferDatabase) -> None:
         db.start_sample(sample=sample)
 
     # Verify both samples are stored correctly
-    stored_samples = list(db.get_samples())
+    stored_samples = list(db._get_samples(resolve_attachments=True))
     assert len(stored_samples) == 2
     assert all(
         cast(list[ChatMessage], cast(SampleSummary, s.sample).input) == large_input
@@ -415,11 +367,11 @@ def test_mixed_content_sizes(db: SampleBufferDatabase) -> None:
     db.log_events(id="mixed_test", epoch=1, events=events)
 
     # Verify everything is stored and retrieved correctly
-    stored_samples = list(db.get_samples())
+    stored_samples = list(db._get_samples(resolve_attachments=True))
     assert stored_samples[0].sample
     assert stored_samples[0].sample.input == large_input
 
-    stored_events = list(db.get_events("mixed_test", 1))
+    stored_events = list(db._get_events("mixed_test", 1, resolve_attachments=True))
     assert len(stored_events) == 2
     assert stored_events[0].event["data"] == small_data
     assert stored_events[1].event["data"] == large_data

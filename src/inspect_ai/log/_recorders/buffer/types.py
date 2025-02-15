@@ -14,7 +14,7 @@ class SampleInfo(BaseModel):
     sample: SampleSummary | None
 
 
-class EventInfo(BaseModel):
+class EventData(BaseModel):
     id: int
     event_id: str
     sample_id: str
@@ -22,29 +22,28 @@ class EventInfo(BaseModel):
     event: JsonData
 
 
-class AttachmentInfo(BaseModel):
+class AttachmentData(BaseModel):
     id: int
+    sample_id: str
+    epoch: int
     hash: str
     content: str
 
 
+class SampleData(BaseModel):
+    events: list[EventData]
+    attachments: list[AttachmentData]
+
+
 class SampleBuffer(abc.ABC):
     @abc.abstractmethod
-    def get_samples(self, resolve_attachments: bool = True) -> Iterator[SampleInfo]: ...
+    def get_samples(self) -> Iterator[SampleInfo]: ...
 
     @abc.abstractmethod
-    def get_events(
+    def get_sample_data(
         self,
         id: str | int,
         epoch: int,
         after_event_id: int | None = None,
-        resolve_attachments: bool = True,
-    ) -> Iterator[EventInfo]: ...
-
-    @abc.abstractmethod
-    def get_attachments(
-        self, after_attachment_id: int | None = None
-    ) -> Iterator[AttachmentInfo]: ...
-
-    @abc.abstractmethod
-    def get_attachments_content(self, hashes: list[str]) -> dict[str, str | None]: ...
+        after_attachment_id: int | None = None,
+    ) -> SampleData: ...

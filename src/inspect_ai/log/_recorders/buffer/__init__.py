@@ -1,10 +1,10 @@
 from .buffer import cleanup_sample_buffers, sample_buffer
 from .database import SampleBufferDatabase
-from .types import AttachmentInfo, EventInfo, SampleBuffer, SampleInfo
+from .types import AttachmentData, EventData, SampleBuffer, SampleInfo
 
 __all__ = [
-    "AttachmentInfo",
-    "EventInfo",
+    "AttachmentData",
+    "EventData",
     "SampleInfo",
     "SampleBuffer",
     "SampleBufferDatabase",

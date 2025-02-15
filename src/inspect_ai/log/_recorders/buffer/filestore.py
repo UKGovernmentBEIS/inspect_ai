@@ -6,7 +6,7 @@ from pydantic import BaseModel
 from inspect_ai._util.file import basename, dirname, file, filesystem
 
 from ..types import SampleSummary
-from .types import AttachmentInfo, EventInfo
+from .types import AttachmentData, EventData
 
 
 class Segment(BaseModel):
@@ -16,8 +16,8 @@ class Segment(BaseModel):
 
 
 class SegmentData(BaseModel):
-    events: list[EventInfo]
-    attachments: list[AttachmentInfo]
+    events: list[EventData]
+    attachments: list[AttachmentData]
 
 
 class SegmentFile(BaseModel):
