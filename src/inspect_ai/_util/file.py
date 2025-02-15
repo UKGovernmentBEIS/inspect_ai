@@ -178,6 +178,9 @@ class FileSystem:
     ) -> None:
         self.fs.rm(path, recursive=recursive, maxdepth=maxdepth)
 
+    def mv(self, lpath: str, rpath: str) -> None:
+        self.fs.mv(lpath, rpath)
+
     def mkdir(self, path: str, exist_ok: bool = False) -> None:
         if self.is_s3():
             # try to avoid calling create_bucket on s3 filesystems (as that requires distinct
