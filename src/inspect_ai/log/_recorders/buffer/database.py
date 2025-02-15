@@ -6,7 +6,7 @@ from contextlib import contextmanager
 from logging import getLogger
 from pathlib import Path
 from sqlite3 import Connection
-from typing import Any, Callable, Iterator
+from typing import Any, Callable, Iterator, Literal
 
 import psutil
 from typing_extensions import override
@@ -156,11 +156,25 @@ class SampleBufferDatabase(SampleBuffer):
                 cursor.close()
 
     @override
-    def get_samples(self) -> Samples:
-        with self._get_connection() as conn:
-            return Samples(
-                samples=list(self._get_samples(conn)), etag=str(self._get_version(conn))
-            )
+    def get_samples(
+        self, etag: str | None = None
+    ) -> Samples | Literal["NotModified"] | None:
+        if not self.db_path.exists():
+            return None
+
+        try:
+            with self._get_connection() as conn:
+                # note version
+                version = self._get_version(conn)
+
+                # apply etag if requested
+                if etag == str(version):
+                    return "NotModified"
+
+                # fetch data
+                return Samples(samples=list(self._get_samples(conn)), etag=str(version))
+        except FileNotFoundError:
+            return None
 
     @override
     def get_sample_data(
