@@ -106,7 +106,7 @@ pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
 ```
 :::
 
-By default, calls to `get_model()` are memoized, meaning that calls with identical parmaeters resolve to a cached version of the model. You can disable this by passing `use_cache=False`:
+By default, calls to `get_model()` are memoized, meaning that calls with identical parameters resolve to a cached version of the model. You can disable this by passing `use_cache=False`:
 
 ```python
 model = get_model("openai/gpt-4o", use_cache=False)
