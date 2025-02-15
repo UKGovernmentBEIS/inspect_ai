@@ -28,7 +28,7 @@ from .types import (
     JsonData,
     SampleBuffer,
     SampleData,
-    SampleInfo,
+    Samples,
 )
 
 logger = getLogger(__name__)
@@ -96,13 +96,13 @@ class SampleBufferDatabase(SampleBuffer):
 
     def log_events(self, id: int | str, epoch: int, events: list[Event]) -> None:
         with self._get_connection() as conn:
-            # Collect the values for all events
+            # collect the values for all events
             events = self._consense_events(conn, id, epoch, events)
             values: list[Any] = []
             for event in events:
                 values.extend((event._id, id, epoch, event.model_dump_json()))
 
-            # Dynamically create the SQL query
+            # dynamically create the SQL query
             placeholders = ", ".join(["(?, ?, ?, ?)"] * len(events))
             sql = f"""
             INSERT INTO events (event_id, sample_id, sample_epoch, data)
@@ -147,8 +147,13 @@ class SampleBufferDatabase(SampleBuffer):
             cursor.execute(samples_query)
 
     @override
-    def get_samples(self) -> Iterator[SampleInfo]:
-        return self._get_samples()
+    def get_samples(self) -> Samples:
+        # get list of samples
+        samples = list(self._get_samples())
+
+        # etag is database version
+
+        return Samples(samples=samples, etag="foo")
 
     @override
     def get_sample_data(
@@ -188,27 +193,23 @@ class SampleBufferDatabase(SampleBuffer):
         finally:
             conn.close()
 
-    def _get_samples(self, resolve_attachments: bool = False) -> Iterator[SampleInfo]:
+    def _get_samples(
+        self, resolve_attachments: bool = False
+    ) -> Iterator[SampleSummary]:
         with self._get_connection() as conn:
             cursor = conn.execute(
                 """
-                SELECT s.id as sample_id, s.epoch as sample_epoch, s.data as sample_data
+                SELECT s.data as sample_data
                 FROM samples s
                 ORDER BY s.id
             """
             )
 
             for row in cursor:
-                id = row["sample_id"]
-                epoch = row["sample_epoch"]
                 summary = SampleSummary.model_validate_json(row["sample_data"])
                 if resolve_attachments:
                     summary = self._resolve_sample_attachments(conn, summary)
-                yield SampleInfo(
-                    id=id,
-                    epoch=epoch,
-                    sample=summary,
-                )
+                yield summary
 
     def _get_events(
         self,
