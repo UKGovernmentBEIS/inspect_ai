@@ -13,12 +13,6 @@ class Samples(BaseModel):
     etag: str
 
 
-class SampleInfo(BaseModel):
-    id: str
-    epoch: int
-    sample: SampleSummary | None
-
-
 class EventData(BaseModel):
     id: int
     event_id: str

@@ -34,7 +34,7 @@ from inspect_ai.log._log import (
     eval_config_defaults,
 )
 from inspect_ai.log._recorders import Recorder
-from inspect_ai.log._recorders.buffer import SampleBufferDatabase
+from inspect_ai.log._recorders.buffer import SampleBufferDatabase, SampleEvent
 from inspect_ai.log._recorders.types import SampleSummary
 from inspect_ai.log._transcript import Event
 from inspect_ai.model import (
@@ -186,7 +186,7 @@ class TaskLogger:
         self._buffer_db.start_sample(sample)
 
     def log_sample_event(self, id: str | int, epoch: int, event: Event) -> None:
-        self._buffer_db.log_events(id, epoch, [event])
+        self._buffer_db.log_events([SampleEvent(id=id, epoch=epoch, event=event)])
 
     async def complete_sample(self, sample: EvalSample, *, flush: bool) -> None:
         # log the sample
