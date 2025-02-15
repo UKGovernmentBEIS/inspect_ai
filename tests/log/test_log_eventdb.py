@@ -8,9 +8,8 @@ from typing import Any, Generator, cast
 import pytest
 
 from inspect_ai.log._recorders.buffer import SampleBufferDatabase
-from inspect_ai.log._recorders.buffer.database import SampleEvent
 from inspect_ai.log._recorders.buffer.types import Samples
-from inspect_ai.log._recorders.types import SampleSummary
+from inspect_ai.log._recorders.types import SampleEvent, SampleSummary
 from inspect_ai.log._transcript import Event, InfoEvent
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
 
