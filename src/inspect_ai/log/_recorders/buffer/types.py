@@ -1,5 +1,5 @@
 import abc
-from typing import TypeAlias
+from typing import Literal, TypeAlias
 
 from pydantic import BaseModel, JsonValue
 
@@ -42,7 +42,22 @@ class SampleData(BaseModel):
 
 class SampleBuffer(abc.ABC):
     @abc.abstractmethod
-    def get_samples(self) -> Samples: ...
+    def get_samples(
+        self, etag: str | None = None
+    ) -> Samples | Literal["NotModified"] | None:
+        """Get the manifest of all running samples.
+
+        Args:
+          etag: Optional etag (returned in `Samples`) for checking
+            whether there are any changes in the datatabase.
+
+        Returns:
+          - `Samples` if the database exists and has updates
+          - "NotModifed" if the database exists and has no updates.
+          - None if the database no longer exists
+
+        """
+        ...
 
     @abc.abstractmethod
     def get_sample_data(
@@ -51,4 +66,16 @@ class SampleBuffer(abc.ABC):
         epoch: int,
         after_event_id: int | None = None,
         after_attachment_id: int | None = None,
-    ) -> SampleData: ...
+    ) -> SampleData:
+        """Get event and attachment data for a sample.
+
+        Args:
+          id: Sample id
+          epoch: Sample epoch
+          after_event_id: Optional. Fetch only event data greater than this id.
+          after_attachment_id: Optioinal. Fetch only attachment data greater than this id.
+
+        Returns:
+          SampleData with event and attachment data.
+        """
+        ...
