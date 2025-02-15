@@ -6,9 +6,10 @@ from contextlib import contextmanager
 from logging import getLogger
 from pathlib import Path
 from sqlite3 import Connection
-from typing import Any, Callable, Iterator, Literal
+from typing import Callable, Iterator, Literal
 
 import psutil
+from pydantic import BaseModel
 from typing_extensions import override
 
 from inspect_ai._util.appdirs import inspect_data_dir
@@ -32,6 +33,12 @@ from .types import (
 )
 
 logger = getLogger(__name__)
+
+
+class SampleEvent(BaseModel):
+    id: str | int
+    epoch: int
+    event: Event
 
 
 class SampleBufferDatabase(SampleBuffer):
@@ -101,13 +108,20 @@ class SampleBufferDatabase(SampleBuffer):
                 (str(sample.id), sample.epoch, sample.model_dump_json()),
             )
 
-    def log_events(self, id: int | str, epoch: int, events: list[Event]) -> None:
+    def log_events(self, events: list[SampleEvent]) -> None:
         with self._get_connection(increment_version=True) as conn:
             # collect the values for all events
-            events = self._consense_events(conn, id, epoch, events)
-            values: list[Any] = []
+            values: list[str | int] = []
             for event in events:
-                values.extend((event._id, id, epoch, event.model_dump_json()))
+                event = self._consense_event(conn, event)
+                values.extend(
+                    (
+                        event.event._id,
+                        str(event.id),
+                        event.epoch,
+                        event.event.model_dump_json(),
+                    )
+                )
 
             # dynamically create the SQL query
             placeholders = ", ".join(["(?, ?, ?, ?)"] * len(events))
@@ -357,18 +371,18 @@ class SampleBufferDatabase(SampleBuffer):
             }
         )
 
-    def _consense_events(
-        self, conn: Connection, id: int | str, epoch: int, events: list[Event]
-    ) -> list[Event]:
+    def _consense_event(self, conn: Connection, event: SampleEvent) -> SampleEvent:
         # alias attachments
         attachments: dict[str, str] = {}
-        events = walk_events(events, self._create_attachments_content_fn(attachments))
+        event.event = walk_events(
+            [event.event], self._create_attachments_content_fn(attachments)
+        )[0]
 
         # insert attachments
-        self._insert_attachments(conn, id, epoch, attachments)
+        self._insert_attachments(conn, event.id, event.epoch, attachments)
 
         # return events with aliases
-        return events
+        return event
 
     def _resolve_event_attachments(self, conn: Connection, event: JsonData) -> JsonData:
         return walk_json_dict(event, self._resolve_attachments_content_fn(conn))
