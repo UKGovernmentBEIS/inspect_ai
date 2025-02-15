@@ -22,7 +22,14 @@ from ..._condense import (
 )
 from ..._transcript import Event
 from ..types import SampleSummary
-from .types import AttachmentInfo, EventInfo, JsonData, SampleBuffer, SampleInfo
+from .types import (
+    AttachmentData,
+    EventData,
+    JsonData,
+    SampleBuffer,
+    SampleData,
+    SampleInfo,
+)
 
 logger = getLogger(__name__)
 
@@ -48,6 +55,8 @@ class SampleBufferDatabase(SampleBuffer):
 
     CREATE TABLE attachments (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        sample_id TEXT,
+        sample_epoch INTEGER,
         hash TEXT UNIQUE,
         content TEXT
     );
@@ -88,7 +97,7 @@ class SampleBufferDatabase(SampleBuffer):
     def log_events(self, id: int | str, epoch: int, events: list[Event]) -> None:
         with self._get_connection() as conn:
             # Collect the values for all events
-            events = self._consense_events(conn, events)
+            events = self._consense_events(conn, id, epoch, events)
             values: list[Any] = []
             for event in events:
                 values.extend((event._id, id, epoch, event.model_dump_json()))
@@ -138,7 +147,23 @@ class SampleBufferDatabase(SampleBuffer):
             cursor.execute(samples_query)
 
     @override
-    def get_samples(self, resolve_attachments: bool = True) -> Iterator[SampleInfo]:
+    def get_samples(self) -> Iterator[SampleInfo]:
+        return self._get_samples()
+
+    @override
+    def get_sample_data(
+        self,
+        id: str | int,
+        epoch: int,
+        after_event_id: int | None = None,
+        after_attachment_id: int | None = None,
+    ) -> SampleData:
+        return SampleData(
+            events=list(self._get_events(id, epoch, after_event_id)),
+            attachments=list(self._get_attachments(id, epoch, after_attachment_id)),
+        )
+
+    def _get_samples(self, resolve_attachments: bool = False) -> Iterator[SampleInfo]:
         with self._get_connection() as conn:
             cursor = conn.execute(
                 """
@@ -160,20 +185,16 @@ class SampleBufferDatabase(SampleBuffer):
                     sample=summary,
                 )
 
-    @override
-    def get_events(
+    def _get_events(
         self,
         id: str | int,
         epoch: int,
         after_event_id: int | None = None,
-        resolve_attachments: bool = True,
-    ) -> Iterator[EventInfo]:
-        if id is not None and epoch is None:
-            raise ValueError("If id is provided, epoch must also be provided")
-
+        resolve_attachments: bool = False,
+    ) -> Iterator[EventData]:
         with self._get_connection() as conn:
             query = """
-                SELECT id, event_id, sample_id, sample_epoch, data
+                SELECT id, event_id, data
                 FROM events e WHERE sample_id = ? AND sample_epoch = ?
             """
             params: list[str | int] = [str(id), epoch]
@@ -190,39 +211,38 @@ class SampleBufferDatabase(SampleBuffer):
                 event = json.loads(row["data"])
                 if resolve_attachments:
                     event = self._resolve_event_attachments(conn, event)
-                yield EventInfo(
+                yield EventData(
                     id=row["id"],
                     event_id=row["event_id"],
-                    sample_id=row["sample_id"],
-                    epoch=row["sample_epoch"],
+                    sample_id=str(id),
+                    epoch=epoch,
                     event=event,
                 )
 
-    @override
-    def get_attachments(
-        self, after_attachment_id: int | None = None
-    ) -> Iterator[AttachmentInfo]:
+    def _get_attachments(
+        self, id: str | int, epoch: int, after_attachment_id: int | None = None
+    ) -> Iterator[AttachmentData]:
         with self._get_connection() as conn:
             query = """
                 SELECT id, hash, content FROM attachments
+                WHERE sample_id = ? AND sample_epoch = ?
             """
-            params: list[str | int] = []
+            params: list[str | int] = [id, epoch]
 
             if after_attachment_id is not None:
-                query += " WHERE id > ?"
+                query += " AND id > ?"
                 params.append(after_attachment_id)
 
             cursor = conn.execute(query, params)
 
             for row in cursor:
-                yield AttachmentInfo(
-                    id=row["id"], hash=row["hash"], content=row["content"]
+                yield AttachmentData(
+                    id=row["id"],
+                    sample_id=str(id),
+                    epoch=epoch,
+                    hash=row["hash"],
+                    content=row["content"],
                 )
-
-    @override
-    def get_attachments_content(self, hashes: list[str]) -> dict[str, str | None]:
-        with self._get_connection() as conn:
-            return self._get_attachments_content(conn, hashes)
 
     def cleanup(self) -> None:
         cleanup_sample_buffer_db(self.db_path)
@@ -263,7 +283,7 @@ class SampleBufferDatabase(SampleBuffer):
         )
 
         # insert attachments
-        self._insert_attachments(conn, attachments)
+        self._insert_attachments(conn, sample.id, sample.epoch, attachments)
 
         # return sample with aliases
         return sample
@@ -279,13 +299,15 @@ class SampleBufferDatabase(SampleBuffer):
             }
         )
 
-    def _consense_events(self, conn: Connection, events: list[Event]) -> list[Event]:
+    def _consense_events(
+        self, conn: Connection, id: int | str, epoch: int, events: list[Event]
+    ) -> list[Event]:
         # alias attachments
         attachments: dict[str, str] = {}
         events = walk_events(events, self._create_attachments_content_fn(attachments))
 
         # insert attachments
-        self._insert_attachments(conn, attachments)
+        self._insert_attachments(conn, id, epoch, attachments)
 
         # return events with aliases
         return events
@@ -314,14 +336,18 @@ class SampleBufferDatabase(SampleBuffer):
         return content_fn
 
     def _insert_attachments(
-        self, conn: Connection, attachments: dict[str, str]
+        self, conn: Connection, id: int | str, epoch: int, attachments: dict[str, str]
     ) -> None:
+        parameters: list[list[int | str]] = []
+        for k, v in attachments.items():
+            parameters.append([id, epoch, k, v])
+
         conn.executemany(
             """
-            INSERT OR IGNORE INTO attachments (hash, content)
-            VALUES (?, ?)
+            INSERT OR IGNORE INTO attachments (sample_id, sample_epoch, hash, content)
+            VALUES (?, ?, ?, ?)
             """,
-            attachments.items(),
+            parameters,
         )
 
     def _get_attachments_content(
