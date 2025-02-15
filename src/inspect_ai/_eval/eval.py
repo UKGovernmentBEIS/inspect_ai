@@ -31,7 +31,7 @@ from inspect_ai.approval._policy import (
 from inspect_ai.log import EvalConfig, EvalLog, EvalLogInfo
 from inspect_ai.log._file import read_eval_log_async
 from inspect_ai.log._recorders import create_recorder_for_format
-from inspect_ai.log._recorders.events import SampleEventDatabase
+from inspect_ai.log._recorders.buffer import cleanup_sample_buffers
 from inspect_ai.model import (
     GenerateConfig,
     GenerateConfigArgs,
@@ -385,7 +385,8 @@ async def eval_async(
             raise PrerequisiteError(
                 f"ERROR: You do not have write permission for the log_dir '{log_dir}'"
             )
-        SampleEventDatabase.gc()
+        # periodic inline gc of orphaned sample buffers
+        cleanup_sample_buffers(log_dir)
 
         # resolve solver
         solver = chain(solver) if isinstance(solver, list) else solver

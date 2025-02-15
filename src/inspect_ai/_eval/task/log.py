@@ -34,7 +34,7 @@ from inspect_ai.log._log import (
     eval_config_defaults,
 )
 from inspect_ai.log._recorders import Recorder
-from inspect_ai.log._recorders.events import SampleEventDatabase
+from inspect_ai.log._recorders.buffer import SampleBufferDatabase
 from inspect_ai.log._recorders.types import SampleSummary
 from inspect_ai.log._transcript import Event
 from inspect_ai.model import (
@@ -166,7 +166,7 @@ class TaskLogger:
 
     async def init(self) -> None:
         self._location = await self.recorder.log_init(self.eval)
-        self._events_db = SampleEventDatabase(
+        self._buffer_db = SampleBufferDatabase(
             self._location, self.eval.config.log_images is not False
         )
 
@@ -183,17 +183,17 @@ class TaskLogger:
         await self.recorder.flush(self.eval)
 
     async def start_sample(self, sample: SampleSummary) -> None:
-        self._events_db.start_sample(sample)
+        self._buffer_db.start_sample(sample)
 
     def log_sample_event(self, id: str | int, epoch: int, event: Event) -> None:
-        self._events_db.log_events(id, epoch, [event])
+        self._buffer_db.log_events(id, epoch, [event])
 
     async def complete_sample(self, sample: EvalSample, *, flush: bool) -> None:
         # log the sample
         await self.recorder.log_sample(self.eval, sample)
 
         # mark complete
-        self._events_db.complete_sample(
+        self._buffer_db.complete_sample(
             SampleSummary(
                 id=sample.id,
                 epoch=sample.epoch,
@@ -213,7 +213,7 @@ class TaskLogger:
                 await self.recorder.flush(self.eval)
 
                 # notify the event db it can remove these
-                self._events_db.remove_samples(self.flush_pending)
+                self._buffer_db.remove_samples(self.flush_pending)
 
                 # Clear
                 self.flush_pending.clear()
@@ -236,7 +236,7 @@ class TaskLogger:
         )
 
         # cleanup the events db
-        self._events_db.cleanup()
+        self._buffer_db.cleanup()
 
         # return log
         return log
