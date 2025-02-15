@@ -214,6 +214,7 @@ class Model:
 
         # state indicating whether our lifetime is bound by a context manager
         self._context_bound = False
+        self._closed = False
 
         # if using the Model API standalone in a notebook this will
         # get hit before score() or eval() so we activate nest_asyncio
@@ -229,7 +230,9 @@ class Model:
         exc: BaseException | None,
         exc_tb: TracebackType | None,
     ) -> None:
-        await self.api.close()
+        if not self._closed:
+            await self.api.close()
+            self._closed = True
 
     @property
     def name(self) -> str:
@@ -690,7 +693,7 @@ def get_model(
     # see if we can return a memoized model instance
     model_cache_key = (
         model
-        + config.model_dump_json()
+        + config.model_dump_json(exclude_none=True)
         + str(base_url)
         + str(api_key)
         + str(to_jsonable_python(model_args, fallback=lambda _: None))
@@ -746,9 +749,9 @@ _models: dict[str, Model] = {}
 
 def cached_model(key: str) -> Model | None:
     # clean out context bound models before accessing the cache
-    for key in list(_models.keys()):
-        if _models[key]._context_bound:
-            del _models[key]
+    for k in list(_models.keys()):
+        if _models[k]._context_bound:
+            del _models[k]
 
     # read from the cache
     return _models.get(key, None)
