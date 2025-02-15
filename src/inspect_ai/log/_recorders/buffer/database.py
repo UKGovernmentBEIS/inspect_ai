@@ -37,6 +37,13 @@ logger = getLogger(__name__)
 class SampleBufferDatabase(SampleBuffer):
     SCHEMA = """
 
+    CREATE TABLE IF NOT EXISTS database_version (
+        version INTEGER PRIMARY KEY DEFAULT 1,
+        last_updated DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    INSERT INTO database_version (version) VALUES (1);
+
     CREATE TABLE samples (
         id TEXT,
         epoch INTEGER,
@@ -84,7 +91,7 @@ class SampleBufferDatabase(SampleBuffer):
             conn.commit()
 
     def start_sample(self, sample: SampleSummary) -> None:
-        with self._get_connection() as conn:
+        with self._get_connection(increment_version=True) as conn:
             sample = self._consense_sample(conn, sample)
             conn.execute(
                 """
@@ -95,7 +102,7 @@ class SampleBufferDatabase(SampleBuffer):
             )
 
     def log_events(self, id: int | str, epoch: int, events: list[Event]) -> None:
-        with self._get_connection() as conn:
+        with self._get_connection(increment_version=True) as conn:
             # collect the values for all events
             events = self._consense_events(conn, id, epoch, events)
             values: list[Any] = []
@@ -113,7 +120,7 @@ class SampleBufferDatabase(SampleBuffer):
             conn.execute(sql, values)
 
     def complete_sample(self, summary: SampleSummary) -> None:
-        with self._get_connection() as conn:
+        with self._get_connection(increment_version=True) as conn:
             summary = self._consense_sample(conn, summary)
             conn.execute(
                 """
@@ -123,37 +130,37 @@ class SampleBufferDatabase(SampleBuffer):
             )
 
     def remove_samples(self, samples: list[tuple[str | int, int]]) -> None:
-        with self._get_connection() as conn:
+        with self._get_connection(increment_version=True) as conn:
             cursor = conn.cursor()
+            try:
+                # Convert list of tuples into a string for SQL IN clause
+                # Format: (('id1', 1), ('id2', 2))
+                sample_conditions = ",".join(
+                    [f"('{sid}', {epoch})" for sid, epoch in samples]
+                )
 
-            # Convert list of tuples into a string for SQL IN clause
-            # Format: (('id1', 1), ('id2', 2))
-            sample_conditions = ",".join(
-                [f"('{sid}', {epoch})" for sid, epoch in samples]
-            )
+                # Delete associated events first due to foreign key constraint
+                events_query = f"""
+                    DELETE FROM events
+                    WHERE (sample_id, sample_epoch) IN ({sample_conditions})
+                """
+                cursor.execute(events_query)
 
-            # Delete associated events first due to foreign key constraint
-            events_query = f"""
-                DELETE FROM events
-                WHERE (sample_id, sample_epoch) IN ({sample_conditions})
-            """
-            cursor.execute(events_query)
-
-            # Then delete the samples
-            samples_query = f"""
-                DELETE FROM samples
-                WHERE (id, epoch) IN ({sample_conditions})
-            """
-            cursor.execute(samples_query)
+                # Then delete the samples
+                samples_query = f"""
+                    DELETE FROM samples
+                    WHERE (id, epoch) IN ({sample_conditions})
+                """
+                cursor.execute(samples_query)
+            finally:
+                cursor.close()
 
     @override
     def get_samples(self) -> Samples:
-        # get list of samples
-        samples = list(self._get_samples())
-
-        # etag is database version
-
-        return Samples(samples=samples, etag="foo")
+        with self._get_connection() as conn:
+            return Samples(
+                samples=list(self._get_samples(conn)), etag=str(self._get_version(conn))
+            )
 
     @override
     def get_sample_data(
@@ -163,16 +170,21 @@ class SampleBufferDatabase(SampleBuffer):
         after_event_id: int | None = None,
         after_attachment_id: int | None = None,
     ) -> SampleData:
-        return SampleData(
-            events=list(self._get_events(id, epoch, after_event_id)),
-            attachments=list(self._get_attachments(id, epoch, after_attachment_id)),
-        )
+        with self._get_connection() as conn:
+            return SampleData(
+                events=list(self._get_events(conn, id, epoch, after_event_id)),
+                attachments=list(
+                    self._get_attachments(conn, id, epoch, after_attachment_id)
+                ),
+            )
 
     def cleanup(self) -> None:
         cleanup_sample_buffer_db(self.db_path)
 
     @contextmanager
-    def _get_connection(self) -> Iterator[Connection]:
+    def _get_connection(
+        self, *, increment_version: bool = False
+    ) -> Iterator[Connection]:
         """Get a database connection."""
         conn = sqlite3.connect(self.db_path, timeout=10)
         conn.row_factory = sqlite3.Row  # Enable row factory for named columns
@@ -185,90 +197,121 @@ class SampleBufferDatabase(SampleBuffer):
             conn.execute("PRAGMA busy_timeout=10000")
             conn.execute("PRAGMA synchronous=NORMAL")
 
+            # do work
             yield conn
-            conn.commit()  # Auto-commit if no exceptions
+
+            # if this was for a write then bump the version
+            if increment_version:
+                conn.execute("""
+                UPDATE database_version
+                SET version = version + 1,
+                    last_updated = CURRENT_TIMESTAMP;
+                """)
+
+            # commit
+            conn.commit()
         except Exception:
-            conn.rollback()  # Auto-rollback on any error
+            # rollback on any error
+            conn.rollback()
             raise
         finally:
             conn.close()
 
-    def _get_samples(
-        self, resolve_attachments: bool = False
-    ) -> Iterator[SampleSummary]:
-        with self._get_connection() as conn:
-            cursor = conn.execute(
-                """
-                SELECT s.data as sample_data
-                FROM samples s
-                ORDER BY s.id
-            """
-            )
+    def _increment_version(self, conn: Connection) -> None:
+        conn.execute("""
+        UPDATE database_version
+        SET version = version + 1,
+            last_updated = CURRENT_TIMESTAMP;
+        """)
 
-            for row in cursor:
-                summary = SampleSummary.model_validate_json(row["sample_data"])
-                if resolve_attachments:
-                    summary = self._resolve_sample_attachments(conn, summary)
-                yield summary
+    def _get_version(self, conn: Connection) -> int:
+        cursor = conn.cursor()
+        try:
+            version = cursor.execute("SELECT version FROM database_version").fetchone()[
+                0
+            ]
+            return int(version)
+        finally:
+            cursor.close()
+
+    def _get_samples(
+        self, conn: Connection, resolve_attachments: bool = False
+    ) -> Iterator[SampleSummary]:
+        cursor = conn.execute(
+            """
+            SELECT s.data as sample_data
+            FROM samples s
+            ORDER BY s.id
+        """
+        )
+
+        for row in cursor:
+            summary = SampleSummary.model_validate_json(row["sample_data"])
+            if resolve_attachments:
+                summary = self._resolve_sample_attachments(conn, summary)
+            yield summary
 
     def _get_events(
         self,
+        conn: Connection,
         id: str | int,
         epoch: int,
         after_event_id: int | None = None,
         resolve_attachments: bool = False,
     ) -> Iterator[EventData]:
-        with self._get_connection() as conn:
-            query = """
-                SELECT id, event_id, data
-                FROM events e WHERE sample_id = ? AND sample_epoch = ?
-            """
-            params: list[str | int] = [str(id), epoch]
+        query = """
+            SELECT id, event_id, data
+            FROM events e WHERE sample_id = ? AND sample_epoch = ?
+        """
+        params: list[str | int] = [str(id), epoch]
 
-            if after_event_id is not None:
-                query += " AND e.id > ?"
-                params.append(after_event_id)
+        if after_event_id is not None:
+            query += " AND e.id > ?"
+            params.append(after_event_id)
 
-            query += " ORDER BY e.id"
+        query += " ORDER BY e.id"
 
-            cursor = conn.execute(query, params)
+        cursor = conn.execute(query, params)
 
-            for row in cursor:
-                event = json.loads(row["data"])
-                if resolve_attachments:
-                    event = self._resolve_event_attachments(conn, event)
-                yield EventData(
-                    id=row["id"],
-                    event_id=row["event_id"],
-                    sample_id=str(id),
-                    epoch=epoch,
-                    event=event,
-                )
+        for row in cursor:
+            event = json.loads(row["data"])
+            if resolve_attachments:
+                event = self._resolve_event_attachments(conn, event)
+            yield EventData(
+                id=row["id"],
+                event_id=row["event_id"],
+                sample_id=str(id),
+                epoch=epoch,
+                event=event,
+            )
 
     def _get_attachments(
-        self, id: str | int, epoch: int, after_attachment_id: int | None = None
+        self,
+        conn: Connection,
+        id: str | int,
+        epoch: int,
+        after_attachment_id: int | None = None,
     ) -> Iterator[AttachmentData]:
-        with self._get_connection() as conn:
-            query = """
-                SELECT id, hash, content FROM attachments
-                WHERE sample_id = ? AND sample_epoch = ?
-            """
-            params: list[str | int] = [id, epoch]
+        query = """
+            SELECT id, hash, content FROM attachments
+            WHERE sample_id = ? AND sample_epoch = ?
+        """
+        params: list[str | int] = [id, epoch]
 
-            if after_attachment_id is not None:
-                query += " AND id > ?"
-                params.append(after_attachment_id)
+        if after_attachment_id is not None:
+            query += " AND id > ?"
+            params.append(after_attachment_id)
 
-            cursor = conn.execute(query, params)
+        cursor = conn.execute(query, params)
 
-            for row in cursor:
-                yield AttachmentData(
-                    id=row["id"],
-                    sample_id=str(id),
-                    epoch=epoch,
-                    hash=row["hash"],
-                    content=row["content"],
-                )
+        for row in cursor:
+            yield AttachmentData(
+                id=row["id"],
+                sample_id=str(id),
+                epoch=epoch,
+                hash=row["hash"],
+                content=row["content"],
+            )
 
     def _consense_sample(
         self, conn: Connection, sample: SampleSummary
