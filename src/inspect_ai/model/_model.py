@@ -632,14 +632,14 @@ def get_model(
     config: GenerateConfig = GenerateConfig(),
     base_url: str | None = None,
     api_key: str | None = None,
-    use_cache: bool = True,
+    memoize: bool = True,
     **model_args: Any,
 ) -> Model:
     """Get an instance of a model.
 
     Calls to get_model() are memoized (i.e. a call with the same arguments
     will return an existing instance of the model rather than creating a
-    new one). You can disable this with `use_cache=False`.
+    new one). You can disable this with `memoize=False`.
 
     If you prefer to immediately close models after use (as well as
     prevent caching) you can employ the async context manager built in
@@ -662,7 +662,7 @@ def get_model(
        config: Configuration for model.
        base_url: Optional. Alternate base URL for model.
        api_key: Optional. API key for model.
-       use_cache: Use/store a cached version of the model based on
+       memoize: Use/store a cached version of the model based on
          the parameters to `get_model()`
        **model_args: Additional args to
           pass to model constructor.
@@ -698,7 +698,7 @@ def get_model(
         + str(api_key)
         + str(to_jsonable_python(model_args, fallback=lambda _: None))
     )
-    if use_cache:
+    if memoize:
         cached = cached_model(model_cache_key)
         if cached is not None:
             return cached
@@ -734,7 +734,7 @@ def get_model(
             **model_args,
         )
         m = Model(modelapi_instance, config)
-        if use_cache:
+        if memoize:
             _models[model_cache_key] = m
         return m
 

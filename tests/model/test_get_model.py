@@ -20,8 +20,8 @@ async def test_model_caching_enabled():
 async def test_model_caching_disabled():
     """Test that caching can be disabled."""
     # Get the same model twice with caching disabled
-    model1 = get_model("mockllm/model", use_cache=False)
-    model2 = get_model("mockllm/model", use_cache=False)
+    model1 = get_model("mockllm/model", memoize=False)
+    model2 = get_model("mockllm/model", memoize=False)
 
     # Verify we got different instances
     assert model1 is not model2

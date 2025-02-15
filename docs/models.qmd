@@ -106,10 +106,10 @@ pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
 ```
 :::
 
-By default, calls to `get_model()` are memoized, meaning that calls with identical parameters resolve to a cached version of the model. You can disable this by passing `use_cache=False`:
+By default, calls to `get_model()` are memoized, meaning that calls with identical parameters resolve to a cached version of the model. You can disable this by passing `memoize=False`:
 
 ```python
-model = get_model("openai/gpt-4o", use_cache=False)
+model = get_model("openai/gpt-4o", memoize=False)
 ```
 
 Finally, if you prefer to create and fully close model clients at their place of use, you can use the async context manager built in to the `Model` class. For example:
