@@ -25,6 +25,7 @@ from inspect_ai.log._file import (
     read_eval_log_async,
     read_eval_log_headers_async,
 )
+from inspect_ai.log._recorders.buffer.database import SampleBufferDatabase
 
 from .notify import view_last_eval_time
 
@@ -134,6 +135,55 @@ def view_server(
             else []
         )
         return web.json_response(actions)
+
+    @routes.get("/api/pending-samples")
+    async def api_pending_samples(request: web.Request) -> web.Response:
+        # log file requested
+        file = request.match_info["log"]
+        file = urllib.parse.unquote(file)
+        validate_log_file_request(file)
+
+        # see if there is an etag
+        client_etag = request.headers.get("If-None-Match")
+
+        # get samples
+        buffer = SampleBufferDatabase(file)
+        samples = buffer.get_samples(client_etag)
+
+        # respond
+        if samples == "NotModified":
+            return web.Response(status=304)
+        elif samples is None:
+            return web.Response(status=404)
+        else:
+            return web.json_response(samples.samples, headers={"ETag": samples.etag})
+
+    @routes.get("/api/pending-sample-data")
+    async def api_sample_events(request: web.Request) -> web.Response:
+        # log file requested
+        file = request.match_info["log"]
+        file = urllib.parse.unquote(file)
+        validate_log_file_request(file)
+
+        # sample id information
+        id = request.match_info["id"]
+        epoch = int_param_required("epoch", request)
+
+        # get sync info
+        after_event_id = int_param_optional("last-event-id", request)
+        after_attachment_id = int_param_optional("after_attachment_id", request)
+
+        # get samples
+        buffer = SampleBufferDatabase(file)
+        sample_data = buffer.get_sample_data(
+            id=id,
+            epoch=epoch,
+            after_event_id=after_event_id,
+            after_attachment_id=after_attachment_id,
+        )
+
+        # respond
+        return web.json_response(sample_data)
 
     # optional auth middleware
     @web.middleware
@@ -412,3 +462,25 @@ async def async_fileystem(
     else:
         options.update({"asynchronous": True, "loop": asyncio.get_event_loop()})
         yield fsspec.filesystem(protocol, **options)
+
+
+def int_param_required(key: str, request: web.Request) -> int:
+    value = request.match_info.get(key)
+    if value is None:
+        raise web.HTTPBadRequest(text=f"Missing parameter {key}")
+    else:
+        try:
+            return int(value)
+        except ValueError:
+            raise web.HTTPBadRequest(text=f"Invalid value {value} for {key}")
+
+
+def int_param_optional(key: str, request: web.Request) -> int | None:
+    value = request.match_info.get(key)
+    if value is None:
+        return None
+    else:
+        try:
+            return int(value)
+        except ValueError:
+            raise web.HTTPBadRequest(text=f"Invalid value {value} for {key}")
