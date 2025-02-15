@@ -1,4 +1,9 @@
 
+## Unreleased
+
+- Memoize calls to `get_model()` so that model instances with the same parameters are cached and re-used (pass `use_cache=False` to disable).
+- Async context manager for `Model` class for optional scoped usage of model clients.
+
 ## v0.3.64 (14 February 2025)
 
 - [Reference documentation](https://inspect.ai-safety-institute.org.uk/reference/) for Python API and CLI commands.
