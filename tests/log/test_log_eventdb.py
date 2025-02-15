@@ -8,6 +8,7 @@ from typing import Any, Generator, cast
 import pytest
 
 from inspect_ai.log._recorders.buffer import SampleBufferDatabase
+from inspect_ai.log._recorders.buffer.types import Samples
 from inspect_ai.log._recorders.types import SampleSummary
 from inspect_ai.log._transcript import Event, InfoEvent
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
@@ -27,6 +28,12 @@ def sample() -> Generator[SampleSummary, None, None]:
     yield SampleSummary(id="sample1", epoch=1, input="test input", target="test target")
 
 
+def get_samples(db: SampleBufferDatabase) -> Samples:
+    samples = db.get_samples()
+    assert isinstance(samples, Samples)
+    return samples
+
+
 def test_database_initialization(db: SampleBufferDatabase) -> None:
     """Test that the database is properly initialized."""
     assert os.path.exists(db.db_path)
@@ -38,7 +45,7 @@ def test_start_sample(db: SampleBufferDatabase, sample: SampleSummary) -> None:
     db.start_sample(sample=sample)
 
     # Verify the sample was created
-    samples = db.get_samples().samples
+    samples = get_samples(db).samples
     assert len(samples) == 1
     assert samples[0] == sample
 
@@ -70,7 +77,7 @@ def test_complete_sample(db: SampleBufferDatabase, sample: SampleSummary) -> Non
     db.complete_sample(summary=summary)
 
     # Verify summary was added
-    samples = db.get_samples()
+    samples = get_samples(db)
     assert len(samples.samples) == 1
     assert samples.samples[0] == summary
 
@@ -123,7 +130,7 @@ def test_concurrent_samples(db: SampleBufferDatabase) -> None:
         db.start_sample(sample=sample)
 
     # Verify all samples were created
-    stored_samples = db.get_samples()
+    stored_samples = get_samples(db)
     assert len(stored_samples.samples) == 3
 
     # Verify we can get specific samples
@@ -159,7 +166,7 @@ def test_remove_samples(db: SampleBufferDatabase) -> None:
         db.log_events(id=sample.id, epoch=sample.epoch, events=events)
 
     # Verify initial state
-    initial_samples = db.get_samples().samples
+    initial_samples = get_samples(db).samples
     assert len(initial_samples) == 3
     with db._get_connection() as conn:
         assert all(list(db._get_events(conn, s.id, s.epoch)) for s in samples)
@@ -172,7 +179,7 @@ def test_remove_samples(db: SampleBufferDatabase) -> None:
     db.remove_samples(samples_to_remove)
 
     # Verify samples were removed
-    remaining_samples = db.get_samples()
+    remaining_samples = get_samples(db)
     assert len(remaining_samples.samples) == 1
     assert remaining_samples.samples[0].id == "sample1"
     assert remaining_samples.samples[0].epoch == 2
@@ -417,7 +424,7 @@ def test_version_unchanged_on_read_operations(
         initial_version = db._get_version(conn)
 
     # Perform read operations
-    db.get_samples()
+    get_samples(db)
     db.get_sample_data(str(sample.id), sample.epoch)
 
     with db._get_connection() as conn:
@@ -431,7 +438,7 @@ def test_version_in_samples_etag(db: SampleBufferDatabase):
     with db._get_connection() as conn:
         initial_version = db._get_version(conn)
 
-    samples = db.get_samples()
+    samples = get_samples(db)
     assert samples.etag == str(initial_version)
 
 
