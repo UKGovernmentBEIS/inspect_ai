@@ -38,11 +38,9 @@ def test_start_sample(db: SampleBufferDatabase, sample: SampleSummary) -> None:
     db.start_sample(sample=sample)
 
     # Verify the sample was created
-    samples = list(db.get_samples())
+    samples = db.get_samples().samples
     assert len(samples) == 1
-    assert samples[0].id == "sample1"
-    assert samples[0].epoch == 1
-    assert samples[0].sample == sample
+    assert samples[0] == sample
 
 
 def test_log_events(db: SampleBufferDatabase, sample: SampleSummary) -> None:
@@ -71,9 +69,9 @@ def test_complete_sample(db: SampleBufferDatabase, sample: SampleSummary) -> Non
     db.complete_sample(summary=summary)
 
     # Verify summary was added
-    samples = list(db.get_samples())
-    assert len(samples) == 1
-    assert samples[0].sample == summary
+    samples = db.get_samples()
+    assert len(samples.samples) == 1
+    assert samples.samples[0] == summary
 
 
 def test_get_events_with_filters(db: SampleBufferDatabase) -> None:
@@ -123,8 +121,8 @@ def test_concurrent_samples(db: SampleBufferDatabase) -> None:
         db.start_sample(sample=sample)
 
     # Verify all samples were created
-    stored_samples = list(db.get_samples())
-    assert len(stored_samples) == 3
+    stored_samples = db.get_samples()
+    assert len(stored_samples.samples) == 3
 
     # Verify we can get specific samples
     events: list[Event] = [InfoEvent(data="event1")]
@@ -158,7 +156,7 @@ def test_remove_samples(db: SampleBufferDatabase) -> None:
         db.log_events(id=sample.id, epoch=sample.epoch, events=events)
 
     # Verify initial state
-    initial_samples = list(db.get_samples())
+    initial_samples = db.get_samples().samples
     assert len(initial_samples) == 3
     assert all(list(db._get_events(s.id, s.epoch)) for s in samples)
 
@@ -170,10 +168,10 @@ def test_remove_samples(db: SampleBufferDatabase) -> None:
     db.remove_samples(samples_to_remove)
 
     # Verify samples were removed
-    remaining_samples = list(db.get_samples())
-    assert len(remaining_samples) == 1
-    assert remaining_samples[0].id == "sample1"
-    assert remaining_samples[0].epoch == 2
+    remaining_samples = db.get_samples()
+    assert len(remaining_samples.samples) == 1
+    assert remaining_samples.samples[0].id == "sample1"
+    assert remaining_samples.samples[0].epoch == 2
 
     # Verify events were removed
     for sample_id, epoch in samples_to_remove:
@@ -246,7 +244,7 @@ def test_large_input_attachment_handling(db: SampleBufferDatabase) -> None:
     assert len(stored_samples) == 1
 
     # Verify the stored input matches the original large input
-    retrieved_sample = stored_samples[0].sample
+    retrieved_sample = stored_samples[0]
     assert retrieved_sample
     assert isinstance(retrieved_sample.input, list)
     assert retrieved_sample.input == [large_input]
@@ -338,10 +336,7 @@ def test_multiple_attachments_same_content(db: SampleBufferDatabase) -> None:
     # Verify both samples are stored correctly
     stored_samples = list(db._get_samples(resolve_attachments=True))
     assert len(stored_samples) == 2
-    assert all(
-        cast(list[ChatMessage], cast(SampleSummary, s.sample).input) == large_input
-        for s in stored_samples
-    )
+    assert all(cast(list[ChatMessage], s.input) == large_input for s in stored_samples)
 
     # Verify only one attachment was created
     with db._get_connection() as conn:
@@ -368,8 +363,8 @@ def test_mixed_content_sizes(db: SampleBufferDatabase) -> None:
 
     # Verify everything is stored and retrieved correctly
     stored_samples = list(db._get_samples(resolve_attachments=True))
-    assert stored_samples[0].sample
-    assert stored_samples[0].sample.input == large_input
+    assert stored_samples[0]
+    assert stored_samples[0].input == large_input
 
     stored_events = list(db._get_events("mixed_test", 1, resolve_attachments=True))
     assert len(stored_events) == 2
