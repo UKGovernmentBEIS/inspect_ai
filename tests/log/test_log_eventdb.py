@@ -8,6 +8,7 @@ from typing import Any, Generator, cast
 import pytest
 
 from inspect_ai.log._recorders.buffer import SampleBufferDatabase
+from inspect_ai.log._recorders.buffer.database import SampleEvent
 from inspect_ai.log._recorders.buffer.types import Samples
 from inspect_ai.log._recorders.types import SampleSummary
 from inspect_ai.log._transcript import Event, InfoEvent
@@ -57,7 +58,7 @@ def test_log_events(db: SampleBufferDatabase, sample: SampleSummary) -> None:
 
     # Log some events
     events: list[Event] = [InfoEvent(data="event1"), InfoEvent(data="event2")]
-    db.log_events(id="sample1", epoch=1, events=events)
+    db.log_events([SampleEvent(id="sample1", epoch=1, event=event) for event in events])
 
     # Verify events were logged
     with db._get_connection() as conn:
@@ -90,11 +91,15 @@ def test_get_events_with_filters(db: SampleBufferDatabase) -> None:
     db.start_sample(sample=sample1)
     db.start_sample(sample=sample2)
 
-    events1: list[Event] = [InfoEvent(data="event1")]
-    events2: list[Event] = [InfoEvent(data="event2")]
+    event1 = InfoEvent(data="event1")
+    event2 = InfoEvent(data="event2")
 
-    db.log_events(id="sample1", epoch=1, events=events1)
-    db.log_events(id="sample2", epoch=1, events=events2)
+    db.log_events(
+        [
+            SampleEvent(id="sample1", epoch=1, event=event1),
+            SampleEvent(id="sample2", epoch=1, event=event2),
+        ]
+    )
 
     # Test filtering by sample
     with db._get_connection() as conn:
@@ -113,8 +118,8 @@ def test_error_cases(db: SampleBufferDatabase) -> None:
     """Test various error cases."""
     # Test logging events for non-existent sample
     with pytest.raises(IntegrityError):
-        test_event: list[Event] = [InfoEvent(data={"type": "test"})]
-        db.log_events(id="nonexistent", epoch=1, events=test_event)
+        test_event = InfoEvent(data={"type": "test"})
+        db.log_events([SampleEvent(id="nonexistent", epoch=1, event=test_event)])
 
 
 def test_concurrent_samples(db: SampleBufferDatabase) -> None:
@@ -134,9 +139,13 @@ def test_concurrent_samples(db: SampleBufferDatabase) -> None:
     assert len(stored_samples.samples) == 3
 
     # Verify we can get specific samples
-    events: list[Event] = [InfoEvent(data="event1")]
-    db.log_events(id="sample1", epoch=1, events=events)
-    db.log_events(id="sample1", epoch=2, events=events)
+    event = InfoEvent(data="event1")
+    db.log_events(
+        [
+            SampleEvent(id="sample1", epoch=1, event=event),
+            SampleEvent(id="sample1", epoch=2, event=event),
+        ]
+    )
 
     # Check events for specific epoch
     with db._get_connection() as conn:
@@ -161,9 +170,9 @@ def test_remove_samples(db: SampleBufferDatabase) -> None:
         db.start_sample(sample=sample)
 
     # Add events to each sample
-    events: list[Event] = [InfoEvent(data="test_event")]
+    event = InfoEvent(data="test_event")
     for sample in samples:
-        db.log_events(id=sample.id, epoch=sample.epoch, events=events)
+        db.log_events([SampleEvent(id=sample.id, epoch=sample.epoch, event=event)])
 
     # Verify initial state
     initial_samples = get_samples(db).samples
@@ -300,7 +309,7 @@ def test_large_event_attachment_handling(db: SampleBufferDatabase) -> None:
     event = InfoEvent(data=large_data)
 
     # Log the event
-    db.log_events(id="event_test", epoch=1, events=[event])
+    db.log_events([SampleEvent(id="event_test", epoch=1, event=event)])
 
     # Retrieve the stored events
     with db._get_connection() as conn:
@@ -377,7 +386,9 @@ def test_mixed_content_sizes(db: SampleBufferDatabase) -> None:
 
     # Log both small and large events
     events: list[Event] = [InfoEvent(data=small_data), InfoEvent(data=large_data)]
-    db.log_events(id="mixed_test", epoch=1, events=events)
+    db.log_events(
+        [SampleEvent(id="mixed_test", epoch=1, event=event) for event in events]
+    )
 
     # Verify everything is stored and retrieved correctly
     with db._get_connection() as conn:
