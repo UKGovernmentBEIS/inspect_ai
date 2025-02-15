@@ -7,17 +7,17 @@ from typing import Any, Generator, cast
 
 import pytest
 
-from inspect_ai.log._recorders.events import SampleEventDatabase
+from inspect_ai.log._recorders.buffer import SampleBufferDatabase
 from inspect_ai.log._recorders.types import SampleSummary
 from inspect_ai.log._transcript import Event, InfoEvent
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
 
 
 @pytest.fixture
-def db() -> Generator[SampleEventDatabase, None, None]:
+def db() -> Generator[SampleBufferDatabase, None, None]:
     """Fixture to create and cleanup a test database."""
     with tempfile.TemporaryDirectory() as db_dir:
-        test_db = SampleEventDatabase(location="test_location", db_dir=Path(db_dir))
+        test_db = SampleBufferDatabase(location="test_location", db_dir=Path(db_dir))
         yield test_db
         test_db.cleanup()
 
@@ -27,13 +27,13 @@ def sample() -> Generator[SampleSummary, None, None]:
     yield SampleSummary(id="sample1", epoch=1, input="test input", target="test target")
 
 
-def test_database_initialization(db: SampleEventDatabase) -> None:
+def test_database_initialization(db: SampleBufferDatabase) -> None:
     """Test that the database is properly initialized."""
     assert os.path.exists(db.db_path)
     assert db.location == "test_location"
 
 
-def test_start_sample(db: SampleEventDatabase, sample: SampleSummary) -> None:
+def test_start_sample(db: SampleBufferDatabase, sample: SampleSummary) -> None:
     """Test starting a new sample."""
     db.start_sample(sample=sample)
 
@@ -45,7 +45,7 @@ def test_start_sample(db: SampleEventDatabase, sample: SampleSummary) -> None:
     assert samples[0].sample == sample
 
 
-def test_log_events(db: SampleEventDatabase, sample: SampleSummary) -> None:
+def test_log_events(db: SampleBufferDatabase, sample: SampleSummary) -> None:
     """Test logging events for a sample."""
     # First create a sample
     db.start_sample(sample=sample)
@@ -59,7 +59,7 @@ def test_log_events(db: SampleEventDatabase, sample: SampleSummary) -> None:
     assert len(logged_events) == 2
 
 
-def test_complete_sample(db: SampleEventDatabase, sample: SampleSummary) -> None:
+def test_complete_sample(db: SampleBufferDatabase, sample: SampleSummary) -> None:
     """Test completing a sample with a summary."""
     # Create sample
     db.start_sample(sample=sample)
@@ -76,7 +76,7 @@ def test_complete_sample(db: SampleEventDatabase, sample: SampleSummary) -> None
     assert samples[0].sample == summary
 
 
-def test_get_events_with_filters(db: SampleEventDatabase) -> None:
+def test_get_events_with_filters(db: SampleBufferDatabase) -> None:
     """Test getting events with various filters."""
     # Create two samples with events
     sample1 = SampleSummary(id="sample1", epoch=1, input="test1", target="test target")
@@ -102,7 +102,7 @@ def test_get_events_with_filters(db: SampleEventDatabase) -> None:
     assert len(sample_2_events) == 1
 
 
-def test_error_cases(db: SampleEventDatabase) -> None:
+def test_error_cases(db: SampleBufferDatabase) -> None:
     """Test various error cases."""
     # Test logging events for non-existent sample
     with pytest.raises(IntegrityError):
@@ -110,7 +110,7 @@ def test_error_cases(db: SampleEventDatabase) -> None:
         db.log_events(id="nonexistent", epoch=1, events=test_event)
 
 
-def test_concurrent_samples(db: SampleEventDatabase) -> None:
+def test_concurrent_samples(db: SampleBufferDatabase) -> None:
     """Test handling multiple samples concurrently."""
     # Create multiple samples
     samples: list[SampleSummary] = [
@@ -139,7 +139,7 @@ def test_concurrent_samples(db: SampleEventDatabase) -> None:
     assert len(events_epoch_2) == 1
 
 
-def test_remove_samples(db: SampleEventDatabase) -> None:
+def test_remove_samples(db: SampleBufferDatabase) -> None:
     """Test removing samples and their associated events."""
     # Create multiple samples with events
     samples: list[SampleSummary] = [
@@ -187,7 +187,7 @@ def test_remove_samples(db: SampleEventDatabase) -> None:
     db.remove_samples([("nonexistent", 1), ("sample1", 999)])
 
 
-def test_insert_attachments(db: SampleEventDatabase) -> None:
+def test_insert_attachments(db: SampleBufferDatabase) -> None:
     """Test inserting attachments into the database."""
     # Create test attachments
     attachments = {"hash1": "content1", "hash2": "content2", "hash3": "content3"}
@@ -212,7 +212,7 @@ def test_insert_attachments(db: SampleEventDatabase) -> None:
     assert stored == attachments
 
 
-def test_get_nonexistent_attachments(db: SampleEventDatabase) -> None:
+def test_get_nonexistent_attachments(db: SampleBufferDatabase) -> None:
     """Test retrieving non-existent attachments."""
     # Try to get attachments that don't exist
     hashes = ["nonexistent1", "nonexistent2"]
@@ -222,7 +222,7 @@ def test_get_nonexistent_attachments(db: SampleEventDatabase) -> None:
     assert result == {"nonexistent1": None, "nonexistent2": None}
 
 
-def test_insert_duplicate_attachments(db: SampleEventDatabase) -> None:
+def test_insert_duplicate_attachments(db: SampleBufferDatabase) -> None:
     """Test handling of duplicate attachment insertions."""
     # Initial insertion
     initial_attachments = {"hash1": "content1", "hash2": "content2"}
@@ -244,7 +244,7 @@ def test_insert_duplicate_attachments(db: SampleEventDatabase) -> None:
 
 
 def test_get_mixed_existing_and_nonexistent_attachments(
-    db: SampleEventDatabase,
+    db: SampleBufferDatabase,
 ) -> None:
     """Test retrieving a mix of existing and non-existent attachments."""
     # Insert some attachments
@@ -264,7 +264,7 @@ def test_get_mixed_existing_and_nonexistent_attachments(
     }
 
 
-def test_empty_attachment_operations(db: SampleEventDatabase) -> None:
+def test_empty_attachment_operations(db: SampleBufferDatabase) -> None:
     """Test attachment operations with empty inputs."""
     # Test inserting empty dict
     with db._get_connection() as conn:
@@ -275,7 +275,7 @@ def test_empty_attachment_operations(db: SampleEventDatabase) -> None:
     assert result == {}
 
 
-def test_large_input_attachment_handling(db: SampleEventDatabase) -> None:
+def test_large_input_attachment_handling(db: SampleBufferDatabase) -> None:
     """Test that large inputs are automatically converted to attachments."""
     # Create a sample with input larger than 100 characters
     large_input = ChatMessageUser(content="x" * 150)
@@ -323,7 +323,7 @@ def test_large_input_attachment_handling(db: SampleEventDatabase) -> None:
         assert stored_content == large_input.text
 
 
-def test_large_event_attachment_handling(db: SampleEventDatabase) -> None:
+def test_large_event_attachment_handling(db: SampleBufferDatabase) -> None:
     """Test that events with large data fields are automatically converted to attachments."""
     # Create a normal sample
     sample = SampleSummary(
@@ -370,7 +370,7 @@ def test_large_event_attachment_handling(db: SampleEventDatabase) -> None:
         assert stored_content == large_data
 
 
-def test_multiple_attachments_same_content(db: SampleEventDatabase) -> None:
+def test_multiple_attachments_same_content(db: SampleBufferDatabase) -> None:
     """Test that identical large content creates only one attachment."""
     large_input: list[ChatMessage] = [ChatMessageUser(content="x" * 150)]
 
@@ -398,7 +398,7 @@ def test_multiple_attachments_same_content(db: SampleEventDatabase) -> None:
         assert attachment_count == 1
 
 
-def test_mixed_content_sizes(db: SampleEventDatabase) -> None:
+def test_mixed_content_sizes(db: SampleBufferDatabase) -> None:
     """Test handling of mixed regular and large content in the same sample."""
     large_input: list[ChatMessage] = [ChatMessageUser(content="x" * 150)]
     small_data = "small"
@@ -431,7 +431,7 @@ def test_mixed_content_sizes(db: SampleEventDatabase) -> None:
         assert attachment_count == 2  # One for input, one for large event
 
 
-def test_cleanup(db: SampleEventDatabase, sample: SampleSummary) -> None:
+def test_cleanup(db: SampleBufferDatabase, sample: SampleSummary) -> None:
     """Test database cleanup."""
     # Create some data
     db.start_sample(sample=sample)
