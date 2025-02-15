@@ -163,6 +163,31 @@ class SampleBufferDatabase(SampleBuffer):
             attachments=list(self._get_attachments(id, epoch, after_attachment_id)),
         )
 
+    def cleanup(self) -> None:
+        cleanup_sample_buffer_db(self.db_path)
+
+    @contextmanager
+    def _get_connection(self) -> Iterator[Connection]:
+        """Get a database connection."""
+        conn = sqlite3.connect(self.db_path, timeout=10)
+        conn.row_factory = sqlite3.Row  # Enable row factory for named columns
+        try:
+            # Enable foreign key constraints
+            conn.execute("PRAGMA foreign_keys = ON")
+
+            # concurrency setup
+            conn.execute("PRAGMA journal_mode=WAL")
+            conn.execute("PRAGMA busy_timeout=10000")
+            conn.execute("PRAGMA synchronous=NORMAL")
+
+            yield conn
+            conn.commit()  # Auto-commit if no exceptions
+        except Exception:
+            conn.rollback()  # Auto-rollback on any error
+            raise
+        finally:
+            conn.close()
+
     def _get_samples(self, resolve_attachments: bool = False) -> Iterator[SampleInfo]:
         with self._get_connection() as conn:
             cursor = conn.execute(
@@ -243,31 +268,6 @@ class SampleBufferDatabase(SampleBuffer):
                     hash=row["hash"],
                     content=row["content"],
                 )
-
-    def cleanup(self) -> None:
-        cleanup_sample_buffer_db(self.db_path)
-
-    @contextmanager
-    def _get_connection(self) -> Iterator[Connection]:
-        """Get a database connection."""
-        conn = sqlite3.connect(self.db_path, timeout=10)
-        conn.row_factory = sqlite3.Row  # Enable row factory for named columns
-        try:
-            # Enable foreign key constraints
-            conn.execute("PRAGMA foreign_keys = ON")
-
-            # concurrency setup
-            conn.execute("PRAGMA journal_mode=WAL")
-            conn.execute("PRAGMA busy_timeout=10000")
-            conn.execute("PRAGMA synchronous=NORMAL")
-
-            yield conn
-            conn.commit()  # Auto-commit if no exceptions
-        except Exception:
-            conn.rollback()  # Auto-rollback on any error
-            raise
-        finally:
-            conn.close()
 
     def _consense_sample(
         self, conn: Connection, sample: SampleSummary
