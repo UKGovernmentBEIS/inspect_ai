@@ -1,11 +1,16 @@
 import abc
-from typing import Iterator, TypeAlias
+from typing import TypeAlias
 
 from pydantic import BaseModel, JsonValue
 
 from ..types import SampleSummary
 
 JsonData: TypeAlias = dict[str, JsonValue]
+
+
+class Samples(BaseModel):
+    samples: list[SampleSummary]
+    etag: str
 
 
 class SampleInfo(BaseModel):
@@ -37,7 +42,7 @@ class SampleData(BaseModel):
 
 class SampleBuffer(abc.ABC):
     @abc.abstractmethod
-    def get_samples(self) -> Iterator[SampleInfo]: ...
+    def get_samples(self) -> Samples: ...
 
     @abc.abstractmethod
     def get_sample_data(
