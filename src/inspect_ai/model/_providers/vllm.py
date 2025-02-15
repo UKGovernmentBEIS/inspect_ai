@@ -1,5 +1,6 @@
 import asyncio
 import functools
+import gc
 import os
 from dataclasses import dataclass
 from queue import Empty, Queue
@@ -130,6 +131,14 @@ class VLLMAPI(ModelAPI):
 
         # we get the tokenizer so we can use it to apply the model's chat template later
         self.tokenizer = self.model.get_tokenizer()
+
+    @override
+    async def close(self) -> None:
+        del self.tokenizer
+        self.tokenizer = None
+        del self.model
+        self.model = None
+        gc.collect()
 
     def apply_chat_template(
         self, messages: list[ChatMessage], tools: list[ToolInfo]
