@@ -32,7 +32,7 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({ results }) => {
     });
 
     const metrics = Object.values(scorers)[0];
-    const showReducer = !!metrics[0].reducer;
+    const showReducer = metrics && metrics.length > 0 && !!metrics[0].reducer;
     return (
       <div className={styles.simpleMetricsRows}>
         {metrics.map((metric, i) => {
