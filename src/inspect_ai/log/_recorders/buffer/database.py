@@ -6,49 +6,28 @@ from contextlib import contextmanager
 from logging import getLogger
 from pathlib import Path
 from sqlite3 import Connection
-from typing import Any, Callable, Iterator, TypeAlias
+from typing import Any, Callable, Iterator
 
 import psutil
-from pydantic import BaseModel, JsonValue
+from typing_extensions import override
 
 from inspect_ai._util.appdirs import inspect_data_dir
 
-from .._condense import (
+from ..._condense import (
     ATTACHMENT_PROTOCOL,
     attachments_content_fn,
     walk_events,
     walk_input,
     walk_json_dict,
 )
-from .._transcript import Event
-from .types import SampleSummary
+from ..._transcript import Event
+from ..types import SampleSummary
+from .types import AttachmentInfo, EventInfo, JsonData, SampleBuffer, SampleInfo
 
 logger = getLogger(__name__)
 
-JsonData: TypeAlias = dict[str, JsonValue]
 
-
-class SampleInfo(BaseModel):
-    id: str
-    epoch: int
-    sample: SampleSummary | None
-
-
-class EventInfo(BaseModel):
-    id: int
-    event_id: str
-    sample_id: str
-    epoch: int
-    event: JsonData
-
-
-class AttachmentInfo(BaseModel):
-    id: int
-    hash: str
-    content: str
-
-
-class SampleEventDatabase:
+class SampleBufferDatabase(SampleBuffer):
     SCHEMA = """
 
     CREATE TABLE samples (
@@ -94,28 +73,6 @@ class SampleEventDatabase:
         with self._get_connection() as conn:
             conn.executescript(self.SCHEMA)
             conn.commit()
-
-    @contextmanager
-    def _get_connection(self) -> Iterator[Connection]:
-        """Get a database connection."""
-        conn = sqlite3.connect(self.db_path, timeout=10)
-        conn.row_factory = sqlite3.Row  # Enable row factory for named columns
-        try:
-            # Enable foreign key constraints
-            conn.execute("PRAGMA foreign_keys = ON")
-
-            # concurrency setup
-            conn.execute("PRAGMA journal_mode=WAL")
-            conn.execute("PRAGMA busy_timeout=10000")
-            conn.execute("PRAGMA synchronous=NORMAL")
-
-            yield conn
-            conn.commit()  # Auto-commit if no exceptions
-        except Exception:
-            conn.rollback()  # Auto-rollback on any error
-            raise
-        finally:
-            conn.close()
 
     def start_sample(self, sample: SampleSummary) -> None:
         with self._get_connection() as conn:
@@ -180,6 +137,7 @@ class SampleEventDatabase:
             """
             cursor.execute(samples_query)
 
+    @override
     def get_samples(self, resolve_attachments: bool = True) -> Iterator[SampleInfo]:
         with self._get_connection() as conn:
             cursor = conn.execute(
@@ -202,6 +160,7 @@ class SampleEventDatabase:
                     sample=summary,
                 )
 
+    @override
     def get_events(
         self,
         id: str | int,
@@ -239,6 +198,7 @@ class SampleEventDatabase:
                     event=event,
                 )
 
+    @override
     def get_attachments(
         self, after_attachment_id: int | None = None
     ) -> Iterator[AttachmentInfo]:
@@ -259,17 +219,35 @@ class SampleEventDatabase:
                     id=row["id"], hash=row["hash"], content=row["content"]
                 )
 
+    @override
     def get_attachments_content(self, hashes: list[str]) -> dict[str, str | None]:
         with self._get_connection() as conn:
             return self._get_attachments_content(conn, hashes)
 
     def cleanup(self) -> None:
+        cleanup_sample_buffer_db(self.db_path)
+
+    @contextmanager
+    def _get_connection(self) -> Iterator[Connection]:
+        """Get a database connection."""
+        conn = sqlite3.connect(self.db_path, timeout=10)
+        conn.row_factory = sqlite3.Row  # Enable row factory for named columns
         try:
-            os.remove(self.db_path)
-        except FileNotFoundError:
-            pass
-        except Exception as ex:
-            log_cleanup_warning(self.db_path, ex)
+            # Enable foreign key constraints
+            conn.execute("PRAGMA foreign_keys = ON")
+
+            # concurrency setup
+            conn.execute("PRAGMA journal_mode=WAL")
+            conn.execute("PRAGMA busy_timeout=10000")
+            conn.execute("PRAGMA synchronous=NORMAL")
+
+            yield conn
+            conn.commit()  # Auto-commit if no exceptions
+        except Exception:
+            conn.rollback()  # Auto-rollback on any error
+            raise
+        finally:
+            conn.close()
 
     def _consense_sample(
         self, conn: Connection, sample: SampleSummary
@@ -370,23 +348,23 @@ class SampleEventDatabase:
 
         return results
 
-    @staticmethod
-    def gc(db_dir: Path | None = None) -> None:
-        db_dir = resolve_db_dir(db_dir)
-        for db in db_dir.glob("*.*.db"):
-            _, pid_str, _ = db.name.rsplit(".", 2)
-            if pid_str.isdigit():
-                pid = int(pid_str)
-                if not psutil.pid_exists(pid):
-                    try:
-                        db.unlink(missing_ok=True)
-                    except Exception as ex:
-                        log_cleanup_warning(db, ex)
+
+def cleanup_sample_buffer_databases(db_dir: Path | None = None) -> None:
+    db_dir = resolve_db_dir(db_dir)
+    for db in db_dir.glob("*.*.db"):
+        _, pid_str, _ = db.name.rsplit(".", 2)
+        if pid_str.isdigit():
+            pid = int(pid_str)
+            if not psutil.pid_exists(pid):
+                cleanup_sample_buffer_db(db)
+
+
+def cleanup_sample_buffer_db(path: Path) -> None:
+    try:
+        path.unlink(missing_ok=True)
+    except Exception as ex:
+        logger.warning(f"Error cleaning up sample buffer database at {path}: {ex}")
 
 
 def resolve_db_dir(db_dir: Path | None = None) -> Path:
-    return db_dir or inspect_data_dir("eventsdb")
-
-
-def log_cleanup_warning(db: Path, ex: Exception) -> None:
-    logger.warning(f"Error cleaning up sample event database at {db}: {ex}")
+    return db_dir or inspect_data_dir("samplebuffer")
