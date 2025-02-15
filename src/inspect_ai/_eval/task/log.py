@@ -1,3 +1,4 @@
+import time
 from importlib import metadata as importlib_metadata
 from inspect import isgenerator
 from typing import Any, Iterator, Literal, cast
@@ -169,6 +170,8 @@ class TaskLogger:
         self._buffer_db = SampleBufferDatabase(
             self._location, self.eval.config.log_images is not False
         )
+        self._sample_events_pending: list[SampleEvent] = []
+        self._sample_events_last_write: float = time.monotonic()
 
     @property
     def location(self) -> str:
@@ -186,9 +189,25 @@ class TaskLogger:
         self._buffer_db.start_sample(sample)
 
     def log_sample_event(self, id: str | int, epoch: int, event: Event) -> None:
-        self._buffer_db.log_events([SampleEvent(id=id, epoch=epoch, event=event)])
+        # collect in pending queue
+        self._sample_events_pending.append(SampleEvent(id=id, epoch=epoch, event=event))
+
+        # flush pending if its been more than 2 seconds or we have 100 events:
+        if (time.monotonic() - self._sample_events_last_write) > 2 or len(
+            self._sample_events_pending
+        ) >= 50:
+            self.flush_pending_sample_events()
+
+    def flush_pending_sample_events(self) -> None:
+        if len(self._sample_events_pending) > 0:
+            self._buffer_db.log_events(self._sample_events_pending)
+            self._sample_events_pending.clear()
+        self._sample_events_last_write = time.monotonic()
 
     async def complete_sample(self, sample: EvalSample, *, flush: bool) -> None:
+        # flush any pending events
+        self.flush_pending_sample_events()
+
         # log the sample
         await self.recorder.log_sample(self.eval, sample)
 
