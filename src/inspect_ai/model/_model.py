@@ -10,6 +10,7 @@ from copy import deepcopy
 from types import TracebackType
 from typing import Any, Callable, Literal, Type, cast
 
+from pydantic_core import to_jsonable_python
 from tenacity import (
     retry,
     retry_if_exception,
@@ -211,11 +212,15 @@ class Model:
         self.api = api
         self.config = config
 
+        # state indicating whether our lifetime is bound by a context manager
+        self._context_bound = False
+
         # if using the Model API standalone in a notebook this will
         # get hit before score() or eval() so we activate nest_asyncio
         platform_init()
 
     async def __aenter__(self: "Model") -> "Model":
+        self._context_bound = True
         return self
 
     async def __aexit__(
@@ -624,9 +629,26 @@ def get_model(
     config: GenerateConfig = GenerateConfig(),
     base_url: str | None = None,
     api_key: str | None = None,
+    use_cache: bool = True,
     **model_args: Any,
 ) -> Model:
     """Get an instance of a model.
+
+    Calls to get_model() are memoized (i.e. a call with the same arguments
+    will return an existing instance of the model rather than creating a
+    new one). You can disable this with `use_cache=False`.
+
+    If you prefer to immediately close models after use (as well as
+    prevent caching) you can employ the async context manager built in
+    to the `Model` class. For example:
+
+    ```python
+    async with get_model("openai/gpt-4o") as model:
+        response = await model.generate("Say hello")
+    ```
+
+    In this case, the model client will be closed at the end of the
+    context manager and will not be available in the get_model() cache.
 
     Args:
        model: Model specification.
@@ -637,6 +659,8 @@ def get_model(
        config: Configuration for model.
        base_url: Optional. Alternate base URL for model.
        api_key: Optional. API key for model.
+       use_cache: Use/store a cached version of the model based on
+         the parameters to `get_model()`
        **model_args: Additional args to
           pass to model constructor.
 
@@ -662,6 +686,19 @@ def get_model(
             model = model.split(",")[0]
         else:
             raise ValueError("No model specified (and no INSPECT_EVAL_MODEL defined)")
+
+    # see if we can return a memoized model instance
+    model_cache_key = (
+        model
+        + config.model_dump_json()
+        + str(base_url)
+        + str(api_key)
+        + str(to_jsonable_python(model_args, fallback=lambda _: None))
+    )
+    if use_cache:
+        cached = cached_model(model_cache_key)
+        if cached is not None:
+            return cached
 
     # split model into api name and model name if necessary
     api_name = None
@@ -693,11 +730,28 @@ def get_model(
             config=config,
             **model_args,
         )
-        return Model(modelapi_instance, config)
+        m = Model(modelapi_instance, config)
+        if use_cache:
+            _models[model_cache_key] = m
+        return m
 
     else:
         from_api = f" from {api_name}" if api_name else ""
         raise ValueError(f"Model name {model}{from_api} not recognized.")
+
+
+# cache for memoization of get_model
+_models: dict[str, Model] = {}
+
+
+def cached_model(key: str) -> Model | None:
+    # clean out context bound models before accessing the cache
+    for key in list(_models.keys()):
+        if _models[key]._context_bound:
+            del _models[key]
+
+    # read from the cache
+    return _models.get(key, None)
 
 
 def resolve_models(
