@@ -9,7 +9,6 @@ from sqlite3 import Connection
 from typing import Callable, Iterator, Literal
 
 import psutil
-from pydantic import BaseModel
 from typing_extensions import override
 
 from inspect_ai._util.appdirs import inspect_data_dir
@@ -21,8 +20,7 @@ from ..._condense import (
     walk_input,
     walk_json_dict,
 )
-from ..._transcript import Event
-from ..types import SampleSummary
+from ..types import SampleEvent, SampleSummary
 from .types import (
     AttachmentData,
     EventData,
@@ -33,12 +31,6 @@ from .types import (
 )
 
 logger = getLogger(__name__)
-
-
-class SampleEvent(BaseModel):
-    id: str | int
-    epoch: int
-    event: Event
 
 
 class SampleBufferDatabase(SampleBuffer):
