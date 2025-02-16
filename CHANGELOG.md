@@ -2,6 +2,7 @@
 ## Unreleased
 
 - Compatibility with textual 2.0 (which had several breaking changes and some new defects). 
+- Bugfix: Inspect view now correctly renders arrays with embedded `null` values.
 
 ## v0.3.64 (14 February 2025)
 
