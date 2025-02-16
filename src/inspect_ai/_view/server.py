@@ -25,7 +25,7 @@ from inspect_ai.log._file import (
     read_eval_log_async,
     read_eval_log_headers_async,
 )
-from inspect_ai.log._recorders.buffer.database import SampleBufferDatabase
+from inspect_ai.log._recorders.buffer.buffer import sample_buffer
 
 from .notify import view_last_eval_time
 
@@ -146,11 +146,9 @@ def view_server(
         # see if there is an etag
         client_etag = request.headers.get("If-None-Match")
 
-        # get samples
-        buffer = SampleBufferDatabase(file)
+        # get samples and respond
+        buffer = sample_buffer(file)
         samples = buffer.get_samples(client_etag)
-
-        # respond
         if samples == "NotModified":
             return web.Response(status=304)
         elif samples is None:
@@ -173,8 +171,8 @@ def view_server(
         after_event_id = int_param_optional("last-event-id", request)
         after_attachment_id = int_param_optional("after-attachment-id", request)
 
-        # get samples
-        buffer = SampleBufferDatabase(file)
+        # get samples and responsd
+        buffer = sample_buffer(file)
         sample_data = buffer.get_sample_data(
             id=id,
             epoch=epoch,
@@ -183,7 +181,10 @@ def view_server(
         )
 
         # respond
-        return web.json_response(sample_data)
+        if sample_data is None:
+            return web.Response(status=404)
+        else:
+            return web.json_response(sample_data)
 
     # optional auth middleware
     @web.middleware
