@@ -88,6 +88,12 @@ def test_docker_sandbox_setup_fail_on_error():
 def test_is_dockerfile():
     assert is_dockerfile("/path/to/Dockerfile")
     assert is_dockerfile("/path/to/name.Dockerfile")
+    assert is_dockerfile("/path/to/Dockerfile.name")
+    assert not is_dockerfile("/path/to/Dockerfile-name")
+    assert not is_dockerfile("/path/to/Dockerfile_name")
+    assert not is_dockerfile("/path/to/name-Dockerfile")
+    assert not is_dockerfile("/path/to/name_Dockerfile")
+    assert not is_dockerfile("/path/to/docker-compose.yaml")
     assert not is_dockerfile("/path/to/not_a_dockerfile.txt")
 
 

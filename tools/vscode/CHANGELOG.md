@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.54
+
+- Add startup output channel to monitor extension startup performance
+- Screen additional directories when scanning for tasks
+
+## 0.3.53
+
+- Fix 'Invalid Tree Item' error
+
 ## 0.3.52
 
 - Don't add entries to the `.gitignore` file.

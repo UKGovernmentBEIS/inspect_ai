@@ -5,9 +5,9 @@
   "publisher": "ukaisi",
   "icon": "assets/logo/inspect.png",
   "author": {
-    "name": "UK AI Safety Institute"
+    "name": "UK AI Security Institute"
   },
-  "version": "0.3.52",
+  "version": "0.3.54",
   "license": "MIT",
   "homepage": "https://inspect.ai-safety-institute.org.uk/",
   "repository": {

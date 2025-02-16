@@ -83,7 +83,7 @@ ignore = ["W002", "W009"]
 [project]
 name = "inspect_ai"
 description = "Framework for large language model evaluations"
-authors = [{ name = "UK AI Safety Institute" }]
+authors = [{ name = "UK AI Security Institute" }]
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT License" }

@@ -1,5 +1,12 @@
 
-## Unreleased
+## v0.3.65 (16 February 2025)
+
+- Compatibility with textual 2.0 (which had several breaking changes).
+- Inspect View: Improve scorer display formatting.
+- Bugfix: Inspect view now correctly renders arrays with embedded `null` values.
+- Bugfix: Inspect view now correctly handles scorers with no metrics.
+
+## v0.3.64 (14 February 2025)
 
 - [Reference documentation](https://inspect.ai-safety-institute.org.uk/reference/) for Python API and CLI commands.
 - Add support for [clustered standard errors](https://inspect.ai-safety-institute.org.uk/scorers.html#clustered-standard-errors) via a new `cluster` parameter for the `stderr()` metric.
