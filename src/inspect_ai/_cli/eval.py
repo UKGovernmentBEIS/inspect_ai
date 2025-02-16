@@ -41,6 +41,7 @@ LOG_IMAGES_HELP = (
     "Include base64 encoded versions of filename or URL based images in the log file."
 )
 LOG_BUFFER_HELP = "Number of samples to buffer before writing log file. If not specified, an appropriate default for the format and filesystem is chosen (10 for most all cases, 100 for JSON logs on remote filesystems)."
+LOG_SHARED_HELP = "Indicate that the log directory is shared, which results in additional syncing of realtime log data for Inspect View."
 NO_SCORE_HELP = (
     "Do not score model output (use the inspect score command to score output later)"
 )
@@ -265,6 +266,13 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
     )
     @click.option(
         "--log-buffer", type=int, help=LOG_BUFFER_HELP, envvar="INSPECT_EVAL_LOG_BUFFER"
+    )
+    @click.option(
+        "--log-shared",
+        type=bool,
+        is_flag=True,
+        help=LOG_SHARED_HELP,
+        envvar=["INSPECT_LOG_SHARED", "INSPECT_EVAL_LOG_SHARED"],
     )
     @click.option(
         "--no-score",
@@ -503,6 +511,7 @@ def eval_command(
     no_log_samples: bool | None,
     log_images: bool | None,
     log_buffer: int | None,
+    log_shared: bool | None,
     no_score: bool | None,
     no_score_display: bool | None,
     log_format: Literal["eval", "json"] | None,
@@ -556,6 +565,7 @@ def eval_command(
         no_log_samples=no_log_samples,
         log_images=log_images,
         log_buffer=log_buffer,
+        log_shared=log_shared,
         no_score=no_score,
         no_score_display=no_score_display,
         is_eval_set=False,
@@ -670,6 +680,7 @@ def eval_set_command(
     no_log_samples: bool | None,
     log_images: bool | None,
     log_buffer: int | None,
+    log_shared: bool | None,
     no_score: bool | None,
     no_score_display: bool | None,
     bundle_dir: str | None,
@@ -728,6 +739,7 @@ def eval_set_command(
         no_log_samples=no_log_samples,
         log_images=log_images,
         log_buffer=log_buffer,
+        log_shared=log_shared,
         no_score=no_score,
         no_score_display=no_score_display,
         is_eval_set=True,
@@ -783,6 +795,7 @@ def eval_exec(
     no_log_samples: bool | None,
     log_images: bool | None,
     log_buffer: int | None,
+    log_shared: bool | None,
     no_score: bool | None,
     no_score_display: bool | None,
     is_eval_set: bool = False,
@@ -865,6 +878,7 @@ def eval_exec(
             log_samples=log_samples,
             log_images=log_images,
             log_buffer=log_buffer,
+            log_shared=log_shared,
             score=score,
             score_display=score_display,
         )
@@ -1005,6 +1019,13 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
     "--log-buffer", type=int, help=LOG_BUFFER_HELP, envvar="INSPECT_EVAL_LOG_BUFFER"
 )
 @click.option(
+    "--log-shared",
+    type=bool,
+    is_flag=True,
+    help=LOG_SHARED_HELP,
+    envvar=["INSPECT_LOG_SHARED", "INSPECT_EVAL_LOG_SHARED"],
+)
+@click.option(
     "--no-score",
     type=bool,
     is_flag=True,
@@ -1052,6 +1073,7 @@ def eval_retry_command(
     no_log_samples: bool | None,
     log_images: bool | None,
     log_buffer: int | None,
+    log_shared: bool | None,
     no_score: bool | None,
     no_score_display: bool | None,
     max_connections: int | None,
@@ -1099,6 +1121,7 @@ def eval_retry_command(
         log_samples=log_samples,
         log_images=log_images,
         log_buffer=log_buffer,
+        log_shared=log_shared,
         score=score,
         score_display=score_display,
         max_retries=max_retries,
