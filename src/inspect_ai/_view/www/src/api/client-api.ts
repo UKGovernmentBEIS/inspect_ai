@@ -8,6 +8,8 @@ import {
   LogContents,
   LogFiles,
   LogViewAPI,
+  SampleData,
+  SampleSummary,
 } from "./types";
 
 const isEvalFile = (file: string) => {
@@ -263,6 +265,27 @@ export const clientApi = (api: LogViewAPI, log_file?: string): ClientAPI => {
     throw new Error("Unable to determine log paths.");
   };
 
+  const get_log_pending_samples = (
+    log_file: string,
+  ): Promise<SampleSummary[]> => {
+    return api.eval_pending_samples(log_file);
+  };
+  const get_log_sample_data = (
+    log_file: string,
+    id: string | number,
+    epoch: number,
+    last_event?: number,
+    last_attachment?: number,
+  ): Promise<SampleData> => {
+    return api.eval_log_sample_data(
+      log_file,
+      id,
+      epoch,
+      last_event,
+      last_attachment,
+    );
+  };
+
   return {
     client_events: () => {
       return api.client_events();
@@ -284,5 +307,7 @@ export const clientApi = (api: LogViewAPI, log_file?: string): ClientAPI => {
     ) => {
       return api.download_file(download_file, file_contents);
     },
+    get_log_pending_samples,
+    get_log_sample_data,
   };
 };

@@ -1,7 +1,7 @@
 import { Capabilities } from "../types";
 import { asyncJsonParse } from "../utils/json-worker";
 import { download_file } from "./api-shared";
-import { LogContents, LogViewAPI } from "./types";
+import { LogContents, LogViewAPI, SampleData, SampleSummary } from "./types";
 
 const loaded_time = Date.now();
 let last_eval_time = 0;
@@ -47,6 +47,32 @@ async function eval_log_headers(files: string[]) {
     params.append("file", file);
   }
   return (await api("GET", `/api/log-headers?${params.toString()}`)).parsed;
+}
+
+async function eval_pending_samples(
+  log_file: string,
+): Promise<SampleSummary[]> {
+  const params = new URLSearchParams();
+  params.append("log", log_file);
+  // TODO: ETag
+  return (await api("GET", `/api/pending-samples?${params.toString()}`)).parsed;
+}
+
+async function eval_log_sample_data(
+  log_file: string,
+  id: string | number,
+  epoch: number,
+  last_event?: number,
+  last_attachment?: number,
+): Promise<SampleData> {
+  const params = new URLSearchParams();
+  params.append("log", log_file);
+  params.append("id", String(id));
+  params.append("epoch", String(epoch));
+  params.append("last-event-id", String(last_event));
+  params.append("after-attachment-id", String(last_attachment));
+  return (await api("GET", `/api/pending-sample-data?${params.toString()}`))
+    .parsed;
 }
 
 async function api(
@@ -121,5 +147,7 @@ const browserApi: LogViewAPI = {
   eval_log_headers,
   download_file,
   open_log_file,
+  eval_pending_samples,
+  eval_log_sample_data,
 };
 export default browserApi;
