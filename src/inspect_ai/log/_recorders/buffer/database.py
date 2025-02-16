@@ -2,6 +2,7 @@ import hashlib
 import json
 import os
 import sqlite3
+import time
 from contextlib import contextmanager
 from logging import getLogger
 from pathlib import Path
@@ -21,6 +22,8 @@ from ..._condense import (
     walk_json_dict,
 )
 from ..types import SampleEvent, SampleSummary
+from .filestore import SampleBufferFilestore
+from .sync import sync_to_filestore
 from .types import (
     AttachmentData,
     EventData,
@@ -78,6 +81,7 @@ class SampleBufferDatabase(SampleBuffer):
         *,
         create: bool = True,
         log_images: bool = True,
+        log_shared: bool = False,
         db_dir: Path | None = None,
     ):
         self.location = location
@@ -95,11 +99,15 @@ class SampleBufferDatabase(SampleBuffer):
                 conn.executescript(self.SCHEMA)
                 conn.commit()
 
+        # create sync filestore if log_shared
+        self._sync_filestore = SampleBufferFilestore(location) if log_shared else None
+        self._sync_time = time.monotonic()
+
     def exists(self) -> bool:
         return self.db_path.exists()
 
     def start_sample(self, sample: SampleSummary) -> None:
-        with self._get_connection(increment_version=True) as conn:
+        with self._get_connection(write=True) as conn:
             sample = self._consense_sample(conn, sample)
             conn.execute(
                 """
@@ -110,7 +118,7 @@ class SampleBufferDatabase(SampleBuffer):
             )
 
     def log_events(self, events: list[SampleEvent]) -> None:
-        with self._get_connection(increment_version=True) as conn:
+        with self._get_connection(write=True) as conn:
             # collect the values for all events
             values: list[str | int] = []
             for event in events:
@@ -135,7 +143,7 @@ class SampleBufferDatabase(SampleBuffer):
             conn.execute(sql, values)
 
     def complete_sample(self, summary: SampleSummary) -> None:
-        with self._get_connection(increment_version=True) as conn:
+        with self._get_connection(write=True) as conn:
             summary = self._consense_sample(conn, summary)
             conn.execute(
                 """
@@ -145,7 +153,7 @@ class SampleBufferDatabase(SampleBuffer):
             )
 
     def remove_samples(self, samples: list[tuple[str | int, int]]) -> None:
-        with self._get_connection(increment_version=True) as conn:
+        with self._get_connection(write=True) as conn:
             cursor = conn.cursor()
             try:
                 # Convert list of tuples into a string for SQL IN clause
@@ -169,6 +177,11 @@ class SampleBufferDatabase(SampleBuffer):
                 cursor.execute(samples_query)
             finally:
                 cursor.close()
+
+    def cleanup(self) -> None:
+        cleanup_sample_buffer_db(self.db_path)
+        if self._sync_filestore is not None:
+            self._sync_filestore.cleanup()
 
     @override
     def get_samples(
@@ -213,13 +226,8 @@ class SampleBufferDatabase(SampleBuffer):
         except FileNotFoundError:
             return None
 
-    def cleanup(self) -> None:
-        cleanup_sample_buffer_db(self.db_path)
-
     @contextmanager
-    def _get_connection(
-        self, *, increment_version: bool = False
-    ) -> Iterator[Connection]:
+    def _get_connection(self, *, write: bool = False) -> Iterator[Connection]:
         """Get a database connection."""
         conn = sqlite3.connect(self.db_path, timeout=10)
         conn.row_factory = sqlite3.Row  # Enable row factory for named columns
@@ -236,7 +244,7 @@ class SampleBufferDatabase(SampleBuffer):
             yield conn
 
             # if this was for a write then bump the version
-            if increment_version:
+            if write:
                 conn.execute("""
                 UPDATE database_version
                 SET version = version + 1,
@@ -245,12 +253,25 @@ class SampleBufferDatabase(SampleBuffer):
 
             # commit
             conn.commit()
+
         except Exception:
             # rollback on any error
             conn.rollback()
             raise
         finally:
+            # close the connection
             conn.close()
+
+            # if this was for write then sync (throttled)
+            if write:
+                self._sync()
+
+    def _sync(self) -> None:
+        if self._sync_filestore is not None:
+            # sync no more than every 10 seconds
+            if (time.monotonic() - self._sync_time) > 10:
+                sync_to_filestore(self, self._sync_filestore)
+                self._sync_time = time.monotonic()
 
     def _increment_version(self, conn: Connection) -> None:
         conn.execute("""
