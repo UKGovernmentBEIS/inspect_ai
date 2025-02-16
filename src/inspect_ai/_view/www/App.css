@@ -65,15 +65,15 @@ body[class^="vscode-"] .app-main-grid {
 
 /* Inspect Text Styles */
 .text-style-label {
-  text-transform: uppercase;
+  text-transform: uppercase !important;
 }
 
 .text-style-secondary {
-  color: var(--bs-secondary);
+  color: var(--bs-secondary) !important;
 }
 
 .text-style-tertiary {
-  color: var(--bs-tertiary-color);
+  color: var(--bs-tertiary-color) !important;
 }
 
 /* Inspect Font Size Styles */
