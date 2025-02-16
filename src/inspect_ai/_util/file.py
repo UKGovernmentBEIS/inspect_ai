@@ -13,7 +13,7 @@ from urllib.parse import urlparse
 import fsspec  # type: ignore  # type: ignore
 from fsspec.core import split_protocol  # type: ignore  # type: ignore
 from fsspec.implementations.local import make_path_posix  # type: ignore
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from s3fs import S3FileSystem  # type: ignore
 from shortuuid import uuid
 
@@ -158,6 +158,9 @@ class FileInfo(BaseModel):
     mtime: float | None
     """File modification time (None if the file is a directory on S3)."""
 
+    etag: str | None = Field(default=None)
+    """Etag (provided by some remote filesystems)"""
+
 
 class FileSystem:
     def __init__(self, fs: Any) -> None:
@@ -270,11 +273,18 @@ class FileSystem:
         else:
             file["mtime"] = None
 
+        # S3 filesystems provided an ETag
+        if "ETag" in file.keys():
+            etag: str | None = file["ETag"].strip('"')
+        else:
+            etag = None
+
         return FileInfo(
             name=file["name"],
             type=file["type"],
             size=file["size"],
             mtime=file["mtime"],
+            etag=etag,
         )
 
 

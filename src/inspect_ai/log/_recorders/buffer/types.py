@@ -60,7 +60,7 @@ class SampleBuffer(abc.ABC):
         epoch: int,
         after_event_id: int | None = None,
         after_attachment_id: int | None = None,
-    ) -> SampleData:
+    ) -> SampleData | None:
         """Get event and attachment data for a sample.
 
         Args:
@@ -70,6 +70,7 @@ class SampleBuffer(abc.ABC):
           after_attachment_id: Optioinal. Fetch only attachment data greater than this id.
 
         Returns:
-          SampleData with event and attachment data.
+          - `SampleData` with event and attachment data.
+          - None if the database no longer exists
         """
         ...
