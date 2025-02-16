@@ -189,14 +189,20 @@ class SampleBufferDatabase(SampleBuffer):
         epoch: int,
         after_event_id: int | None = None,
         after_attachment_id: int | None = None,
-    ) -> SampleData:
-        with self._get_connection() as conn:
-            return SampleData(
-                events=list(self._get_events(conn, id, epoch, after_event_id)),
-                attachments=list(
-                    self._get_attachments(conn, id, epoch, after_attachment_id)
-                ),
-            )
+    ) -> SampleData | None:
+        if not self.db_path.exists():
+            return None
+
+        try:
+            with self._get_connection() as conn:
+                return SampleData(
+                    events=list(self._get_events(conn, id, epoch, after_event_id)),
+                    attachments=list(
+                        self._get_attachments(conn, id, epoch, after_attachment_id)
+                    ),
+                )
+        except FileNotFoundError:
+            return None
 
     def cleanup(self) -> None:
         cleanup_sample_buffer_db(self.db_path)
