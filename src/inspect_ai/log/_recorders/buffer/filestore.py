@@ -4,7 +4,7 @@ from logging import getLogger
 from typing import Literal
 from zipfile import ZIP_DEFLATED, ZipFile
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing_extensions import override
 
 from inspect_ai._util.constants import EVAL_LOG_FORMAT
@@ -12,7 +12,7 @@ from inspect_ai._util.file import FileSystem, basename, dirname, file, filesyste
 from inspect_ai.log._file import read_eval_log
 
 from ..types import SampleSummary
-from .types import AttachmentData, EventData, SampleBuffer, SampleData, Samples
+from .types import SampleBuffer, SampleData, Samples
 
 logger = getLogger(__name__)
 
@@ -23,25 +23,20 @@ class Segment(BaseModel):
     last_attachment_id: int
 
 
-class SegmentData(BaseModel):
-    events: list[EventData]
-    attachments: list[AttachmentData]
-
-
 class SegmentFile(BaseModel):
     id: str | int
     epoch: int
-    data: SegmentData
+    data: SampleData
 
 
 class SampleManifest(BaseModel):
     summary: SampleSummary
-    segments: list[int]
+    segments: list[int] = Field(default_factory=list)
 
 
 class Manifest(BaseModel):
-    samples: list[SampleManifest]
-    segments: list[Segment]
+    samples: list[SampleManifest] = Field(default_factory=list)
+    segments: list[Segment] = Field(default_factory=list)
 
 
 MANIFEST = "manifest.json"
@@ -102,12 +97,12 @@ class SampleBufferFilestore(SampleBuffer):
 
     def read_segment_data(
         self, id: int, sample_id: str | int, epoch_id: int
-    ) -> SegmentData:
+    ) -> SampleData:
         segment_file = f"{self._dir}{segment_name(id)}"
         with file(segment_file, "rb") as f:
             with ZipFile(f, mode="r") as zip:
                 with zip.open(segment_file_name(sample_id, epoch_id), "r") as sf:
-                    return SegmentData.model_validate_json(sf.read())
+                    return SampleData.model_validate_json(sf.read())
 
     def cleanup(self) -> None:
         cleanup_sample_buffer_filestore(self._dir, self._fs)
