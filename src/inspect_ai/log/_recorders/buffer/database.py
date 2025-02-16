@@ -73,7 +73,12 @@ class SampleBufferDatabase(SampleBuffer):
     """
 
     def __init__(
-        self, location: str, log_images: bool = True, db_dir: Path | None = None
+        self,
+        location: str,
+        *,
+        create: bool = True,
+        log_images: bool = True,
+        db_dir: Path | None = None,
     ):
         self.location = location
         self.log_images = log_images
@@ -85,9 +90,13 @@ class SampleBufferDatabase(SampleBuffer):
         )
 
         # initialize the database schema
-        with self._get_connection() as conn:
-            conn.executescript(self.SCHEMA)
-            conn.commit()
+        if create:
+            with self._get_connection() as conn:
+                conn.executescript(self.SCHEMA)
+                conn.commit()
+
+    def exists(self) -> bool:
+        return self.db_path.exists()
 
     def start_sample(self, sample: SampleSummary) -> None:
         with self._get_connection(increment_version=True) as conn:
