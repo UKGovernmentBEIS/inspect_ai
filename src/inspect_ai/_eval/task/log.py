@@ -168,7 +168,9 @@ class TaskLogger:
     async def init(self) -> None:
         self._location = await self.recorder.log_init(self.eval)
         self._buffer_db = SampleBufferDatabase(
-            self._location, log_images=self.eval.config.log_images is not False
+            location=self._location,
+            log_images=self.eval.config.log_images is not False,
+            log_shared=self.eval.config.log_shared is True,
         )
         self._sample_events_pending: list[SampleEvent] = []
         self._sample_events_last_write: float = time.monotonic()
