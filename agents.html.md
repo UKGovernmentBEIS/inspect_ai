@@ -9,7 +9,7 @@ Flag](https://en.wikipedia.org/wiki/Capture_the_flag_(cybersecurity))
 challenge). Agents are an area of active research, and many schemes for
 implementing them have been developed, including
 [AutoGPT](https://arxiv.org/abs/2306.02224),
-[ReAct](https://arxiv.org/pdf/2303.11366.pdf), and
+[ReAct](https://arxiv.org/abs/2210.03629), and
 [Reflexion](https://arxiv.org/pdf/2303.11366.pdf).
 
 An agent isn’t a special construct within Inspect, it’s merely a solver
