@@ -1,3 +1,4 @@
+import os
 import tempfile
 from logging import getLogger
 from typing import Literal
@@ -16,8 +17,8 @@ logger = getLogger(__name__)
 
 class Segment(BaseModel):
     id: int
-    last_events: int
-    last_attachments: int
+    last_event_id: int
+    last_attachment_id: int
 
 
 class SegmentData(BaseModel):
@@ -51,31 +52,41 @@ class SampleBufferFilestore(SampleBuffer):
         self._fs.mkdir(self._dir, exist_ok=True)
 
     def write_manifest(self, manifest: Manifest) -> None:
-        with tempfile.NamedTemporaryFile(mode="w") as manifest_file:
-            # write the file locally
-            with file(manifest_file.name, "w") as f:
-                f.write(manifest.model_dump_json(indent=2))
+        # write the file locally
+        with tempfile.NamedTemporaryFile(mode="w", delete=False) as manifest_file:
+            name = manifest_file.name
+            manifest_file.write(manifest.model_dump_json(indent=2))
+            manifest_file.flush()
+            os.fsync(manifest_file.fileno())
 
-            # transfer it up (use a mv so it's atomic)
-            manifest_target = f"{self._dir}{MANIFEST}"
-            manifest_temp = f"{manifest_target}.temp"
+        # transfer it up (use a mv so it's atomic)
+        try:
+            manifest_temp = f"{self._manifest_file()}.temp"
             self._fs.put_file(manifest_file.name, manifest_temp)
-            self._fs.mv(manifest_temp, manifest_target)
+            self._fs.mv(manifest_temp, self._manifest_file())
+        finally:
+            os.unlink(name)
 
     def write_segment(self, id: int, files: list[SegmentFile]) -> None:
-        with tempfile.NamedTemporaryFile(mode="w+b") as segment_file:
-            # write the segment file locally
+        # write the file locally
+        with tempfile.NamedTemporaryFile(mode="w+b", delete=False) as segment_file:
+            name = segment_file.name
             with ZipFile(
-                segment_file, mode="a", compression=ZIP_DEFLATED, compresslevel=5
+                segment_file, mode="w", compression=ZIP_DEFLATED, compresslevel=5
             ) as zip:
                 for file in files:
                     zip.writestr(
                         segment_file_name(file.id, file.epoch),
                         file.data.model_dump_json(),
                     )
+            segment_file.flush()
+            os.fsync(segment_file.fileno())
 
-            # transfer it
+        # transfer it
+        try:
             self._fs.put_file(segment_file.name, f"{self._dir}{segment_name(id)}")
+        finally:
+            os.unlink(name)
 
     def read_manifest(self) -> Manifest | None:
         try:
@@ -141,7 +152,7 @@ class SampleBufferFilestore(SampleBuffer):
         # find this sample in the manifest
         sample = next(
             (
-                sample.summary
+                sample
                 for sample in manifest.samples
                 if sample.summary.id == id and sample.summary.epoch == epoch
             ),
@@ -155,10 +166,13 @@ class SampleBufferFilestore(SampleBuffer):
         after_event_id = after_event_id or -1
         after_attachment_id = after_attachment_id or -1
         segments = [
+            segment for segment in manifest.segments if segment.id in sample.segments
+        ]
+        segments = [
             segment
-            for segment in manifest.segments
-            if segment.last_events > after_event_id
-            or segment.last_attachments > after_attachment_id
+            for segment in segments
+            if segment.last_event_id > after_event_id
+            or segment.last_attachment_id > after_attachment_id
         ]
 
         # collect data from the segments
