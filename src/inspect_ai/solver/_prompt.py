@@ -39,7 +39,7 @@ def prompt_template(template: str, **params: Any) -> Solver:
 
 
 @solver
-def system_message(template: str, **params: Any) -> Solver:
+def system_message(template: str, format_template: bool = True, **params: Any) -> Solver:
     """Solver which inserts a system message into the conversation.
 
     System message template containing any number of optional `params`.
@@ -52,6 +52,7 @@ def system_message(template: str, **params: Any) -> Solver:
 
     Args:
       template: Template for system message.
+      format_template: Whether to format the template. Set to 'False' if the template is already formatted, and contains placeholders which you wish to pass directly to the model.
       **params: Parameters to fill into the template.
 
     Returns:
@@ -61,10 +62,12 @@ def system_message(template: str, **params: Any) -> Solver:
     content = resource(template)
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
-        kwargs = state.metadata | state.store._data | params
-        append_system_message(
-            state.messages, ChatMessageSystem(content=content.format(**kwargs))
-        )
+        message_content = content
+        if format_template:
+            kwargs = state.metadata | state.store._data | params
+            message_content = message_content.format(**kwargs)
+        
+        append_system_message(state.messages, ChatMessageSystem(content=message_content))
         return state
 
     return solve
