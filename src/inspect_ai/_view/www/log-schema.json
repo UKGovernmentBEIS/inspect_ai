@@ -1003,6 +1003,18 @@
           "default": null,
           "title": "Log Buffer"
         },
+        "log_shared": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Log Shared"
+        },
         "score_display": {
           "anyOf": [
             {
@@ -1037,6 +1049,7 @@
         "log_samples",
         "log_images",
         "log_buffer",
+        "log_shared",
         "score_display"
       ],
       "additionalProperties": false

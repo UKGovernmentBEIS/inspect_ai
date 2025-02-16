@@ -44,6 +44,7 @@ export type SandboxCleanup = boolean | null;
 export type LogSamples = boolean | null;
 export type LogImages = boolean | null;
 export type LogBuffer = number | null;
+export type LogShared = boolean | null;
 export type ScoreDisplay = boolean | null;
 export type Type1 = "git";
 export type Origin = string;
@@ -624,6 +625,7 @@ export interface EvalConfig {
   log_samples: LogSamples;
   log_images: LogImages;
   log_buffer: LogBuffer;
+  log_shared: LogShared;
   score_display: ScoreDisplay;
 }
 export interface ApprovalPolicyConfig {

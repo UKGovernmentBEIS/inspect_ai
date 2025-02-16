@@ -92,6 +92,7 @@ def eval(
     log_samples: bool | None = None,
     log_images: bool | None = None,
     log_buffer: int | None = None,
+    log_shared: bool | None = None,
     score: bool = True,
     score_display: bool | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
@@ -160,6 +161,7 @@ def eval(
         log_buffer: Number of samples to buffer before writing log file.
             If not specified, an appropriate default for the format and filesystem is
             chosen (10 for most all cases, 100 for JSON logs on remote filesystems).
+        log_shared: Indicate that the log directory is shared, which results in additional syncing of realtime log data for Inspect View.
         score: Score output (defaults to True)
         score_display: Show scoring metrics in realtime (defaults to True)
         **kwargs: Model generation options.
@@ -208,6 +210,7 @@ def eval(
                 log_samples=log_samples,
                 log_images=log_images,
                 log_buffer=log_buffer,
+                log_shared=log_shared,
                 score=score,
                 score_display=score_display,
                 **kwargs,
@@ -257,6 +260,7 @@ async def eval_async(
     log_samples: bool | None = None,
     log_images: bool | None = None,
     log_buffer: int | None = None,
+    log_shared: bool | None = None,
     score: bool = True,
     score_display: bool | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
@@ -308,6 +312,7 @@ async def eval_async(
         log_buffer: Number of samples to buffer before writing log file.
            If not specified, an appropriate default for the format and filesystem is
            chosen (10 for most all cases, 100 for JSON logs on remote filesystems).
+        log_shared: Indicate that the log directory is shared, which results in additional syncing of realtime log data for Inspect View.
         score: Score output (defaults to True)
         score_display: Show scoring metrics in realtime (defaults to True)
         **kwargs: Model generation options.
@@ -424,6 +429,7 @@ async def eval_async(
             log_samples=log_samples,
             log_images=log_images,
             log_buffer=log_buffer,
+            log_shared=log_shared,
             score_display=score_display,
         )
 
@@ -506,6 +512,7 @@ def eval_retry(
     log_samples: bool | None = None,
     log_images: bool | None = None,
     log_buffer: int | None = None,
+    log_shared: bool | None = None,
     score: bool = True,
     score_display: bool | None = None,
     max_retries: int | None = None,
@@ -547,6 +554,8 @@ def eval_retry(
         log_buffer: Number of samples to buffer before writing log file.
             If not specified, an appropriate default for the format and filesystem is
             chosen (10 for most all cases, 100 for JSON logs on remote filesystems).
+        log_shared: Indicate that the log directory is shared, which results in
+            additional syncing of realtime log data for Inspect View.
         score: Score output (defaults to True)
         score_display: Show scoring metrics in realtime (defaults to True)
         max_retries:
@@ -582,6 +591,7 @@ def eval_retry(
             log_samples=log_samples,
             log_images=log_images,
             log_buffer=log_buffer,
+            log_shared=log_shared,
             score=score,
             score_display=score_display,
             max_retries=max_retries,
@@ -608,6 +618,7 @@ async def eval_retry_async(
     log_samples: bool | None = None,
     log_images: bool | None = None,
     log_buffer: int | None = None,
+    log_shared: bool | None = None,
     score: bool = True,
     score_display: bool | None = None,
     max_retries: int | None = None,
@@ -647,6 +658,8 @@ async def eval_retry_async(
         log_buffer: (int | None): Number of samples to buffer before writing log file.
            If not specified, an appropriate default for the format and filesystem is
            chosen (10 for most all cases, 100 for JSON logs on remote filesystems).
+        log_shared: Indicate that the log directory is shared, which results in
+            additional syncing of realtime log data for Inspect View.
         score (bool): Score output (defaults to True)
         score_display (bool | None): Show scoring metrics in realtime (defaults to True)
         max_retries (int | None):
@@ -746,6 +759,9 @@ async def eval_retry_async(
         log_buffer = (
             log_buffer if log_buffer is not None else eval_log.eval.config.log_buffer
         )
+        log_shared = (
+            log_shared if log_shared is not None else eval_log.eval.config.log_shared
+        )
         score_display = (
             score_display
             if score_display is not None
@@ -792,6 +808,7 @@ async def eval_retry_async(
                 log_samples=log_samples,
                 log_images=log_images,
                 log_buffer=log_buffer,
+                log_shared=log_shared,
                 score=score,
                 score_display=score_display,
                 **dict(config),
