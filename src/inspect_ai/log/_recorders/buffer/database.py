@@ -13,6 +13,7 @@ import psutil
 from typing_extensions import override
 
 from inspect_ai._util.appdirs import inspect_data_dir
+from inspect_ai._util.trace import trace_action
 
 from ..._condense import (
     ATTACHMENT_PROTOCOL,
@@ -270,7 +271,8 @@ class SampleBufferDatabase(SampleBuffer):
         if self._sync_filestore is not None:
             # sync no more than every 10 seconds
             if (time.monotonic() - self._sync_time) > 10:
-                sync_to_filestore(self, self._sync_filestore)
+                with trace_action(logger, "Log Sync", self.location):
+                    sync_to_filestore(self, self._sync_filestore)
                 self._sync_time = time.monotonic()
 
     def _increment_version(self, conn: Connection) -> None:
