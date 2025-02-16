@@ -213,7 +213,11 @@ export const SampleDisplay: React.FC<SampleDisplayProps> = ({
             selected={selectedTab === kSampleJsonTabId}
           >
             <div className={clsx(styles.padded, styles.fullWidth)}>
-              <JSONPanel data={sample} simple={true} />
+              <JSONPanel
+                data={sample}
+                simple={true}
+                className={clsx("text-size-small")}
+              />
             </div>
           </TabPanel>
         ) : null}
