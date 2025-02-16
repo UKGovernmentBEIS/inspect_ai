@@ -47,12 +47,36 @@ export type SandboxCleanup = boolean | null;
 export type LogSamples = boolean | null;
 export type LogImages = boolean | null;
 export type LogBuffer = number | null;
+export type LogShared = boolean | null;
 export type ScoreDisplay = boolean | null;
 export type Type = "git";
 export type Origin = string;
 export type Commit = string;
 export type Metadata = {} | null;
+export type Scorers = EvalScorer[] | null;
 export type Name2 = string;
+export type Options = {} | null;
+export type Metrics =
+  | (
+      | EvalMetricDefinition
+      | {
+          [k: string]: EvalMetricDefinition[];
+        }
+    )[]
+  | {
+      [k: string]: EvalMetricDefinition[];
+    }
+  | null;
+export type Name3 = string;
+export type Options1 = {} | null;
+export type Metadata1 = {} | null;
+export type Metrics1 =
+  | EvalMetricDefinition[]
+  | {
+      [k: string]: EvalMetricDefinition[];
+    }
+  | null;
+export type Name4 = string;
 export type Solver1 = string;
 export type Steps = EvalPlanStep[];
 export type MaxRetries = number | null;
@@ -82,15 +106,15 @@ export type ReasoningEffort = ("low" | "medium" | "high") | null;
 export type ReasoningHistory = boolean | null;
 export type TotalSamples = number;
 export type CompletedSamples = number;
-export type Name3 = string;
+export type Name5 = string;
 export type Scorer = string;
 export type Reducer = string | null;
-export type Name4 = string;
+export type Name6 = string;
 export type Value = number;
-export type Metadata1 = {} | null;
 export type Metadata2 = {} | null;
-export type Scores = EvalScore[];
 export type Metadata3 = {} | null;
+export type Scores = EvalScore[];
+export type Metadata4 = {} | null;
 export type StartedAt = string;
 export type CompletedAt = string;
 export type InputTokens = number;
@@ -194,7 +218,7 @@ export type Bytes1 = number[] | null;
 export type Content5 = Logprob[];
 export type Choices1 = ChatCompletionChoice[];
 export type Time = number | null;
-export type Metadata4 = {} | null;
+export type Metadata5 = {} | null;
 export type Error = string | null;
 export type Scores1 = {
   [k: string]: Score;
@@ -209,7 +233,7 @@ export type Value1 =
     };
 export type Answer = string | null;
 export type Explanation = string | null;
-export type Metadata5 = {} | null;
+export type Metadata6 = {} | null;
 export type Timestamp = string;
 export type Pending = boolean | null;
 export type Event = "sample_init";
@@ -224,7 +248,7 @@ export type Input1 =
 export type Choices2 = string[] | null;
 export type Target1 = string | string[];
 export type Id2 = number | string | null;
-export type Metadata7 = {} | null;
+export type Metadata8 = {} | null;
 export type Files1 = {
   [k: string]: string;
 } | null;
@@ -257,7 +281,7 @@ export type Input2 = (
   | ChatMessageAssistant
   | ChatMessageTool
 )[];
-export type Name5 = string;
+export type Name7 = string;
 export type Description = string;
 export type Type8 = "object";
 export type Type9 =
@@ -275,7 +299,7 @@ export type Required1 = string[];
 export type Additionalproperties1 = boolean;
 export type Tools1 = ToolInfo[];
 export type ToolChoice = ("auto" | "any" | "none") | ToolFunction;
-export type Name6 = string;
+export type Name8 = string;
 export type Error1 = string | null;
 export type Cache = ("read" | "write") | null;
 export type Timestamp5 = string;
@@ -322,7 +346,7 @@ export type Event9 = "error";
 export type Timestamp10 = string;
 export type Pending10 = boolean | null;
 export type Event10 = "logger";
-export type Name7 = string | null;
+export type Name9 = string | null;
 export type Level =
   | "debug"
   | "trace"
@@ -346,11 +370,11 @@ export type Pending12 = boolean | null;
 export type Event12 = "step";
 export type Action = "begin" | "end";
 export type Type11 = string | null;
-export type Name8 = string;
+export type Name10 = string;
 export type Timestamp13 = string;
 export type Pending13 = boolean | null;
 export type Event13 = "subtask";
-export type Name9 = string;
+export type Name11 = string;
 export type Type12 = string | null;
 export type Events2 = (
   | SampleInitEvent
@@ -421,7 +445,7 @@ export type Value2 =
     };
 export type Answer1 = string | null;
 export type Explanation2 = string | null;
-export type Metadata8 = {} | null;
+export type Metadata9 = {} | null;
 export type SampleId1 = string | number | null;
 export type Samples2 = EvalSampleScore[];
 export type Location1 = string;
@@ -465,6 +489,8 @@ export interface EvalSpec {
   revision: EvalRevision | null;
   packages: Packages;
   metadata: Metadata;
+  scorers: Scorers;
+  metrics: Metrics1;
 }
 export interface TaskAttribs {}
 export interface TaskArgs {}
@@ -500,6 +526,7 @@ export interface EvalConfig {
   log_samples: LogSamples;
   log_images: LogImages;
   log_buffer: LogBuffer;
+  log_shared: LogShared;
   score_display: ScoreDisplay;
 }
 export interface ApprovalPolicyConfig {
@@ -538,11 +565,21 @@ export interface EvalRevision {
 export interface Packages {
   [k: string]: string;
 }
+export interface EvalScorer {
+  name: Name2;
+  options: Options;
+  metrics: Metrics;
+  metadata: Metadata1;
+}
+export interface EvalMetricDefinition {
+  name: Name3;
+  options: Options1;
+}
 /**
  * Plan (solvers) used in evaluation.
  */
 export interface EvalPlan {
-  name: Name2;
+  name: Name4;
   steps: Steps;
   finish: EvalPlanStep | null;
   config: GenerateConfig;
@@ -590,31 +627,31 @@ export interface EvalResults {
   total_samples: TotalSamples;
   completed_samples: CompletedSamples;
   scores: Scores;
-  metadata: Metadata3;
+  metadata: Metadata4;
 }
 /**
  * Score for evaluation task.
  */
 export interface EvalScore {
-  name: Name3;
+  name: Name5;
   scorer: Scorer;
   reducer: Reducer;
   params: Params2;
-  metrics: Metrics;
-  metadata: Metadata2;
+  metrics: Metrics2;
+  metadata: Metadata3;
 }
 export interface Params2 {}
-export interface Metrics {
+export interface Metrics2 {
   [k: string]: EvalMetric;
 }
 /**
  * Metric for evaluation score.
  */
 export interface EvalMetric {
-  name: Name4;
+  name: Name6;
   value: Value;
   params: Params3;
-  metadata: Metadata1;
+  metadata: Metadata2;
 }
 export interface Params3 {}
 /**
@@ -661,7 +698,7 @@ export interface EvalSample {
   messages: Messages;
   output: ModelOutput;
   scores: Scores1;
-  metadata: Metadata6;
+  metadata: Metadata7;
   store: Store;
   events: Events;
   model_usage: ModelUsage2;
@@ -767,7 +804,7 @@ export interface ModelOutput {
   choices: Choices1;
   usage: ModelUsage1 | null;
   time: Time;
-  metadata: Metadata4;
+  metadata: Metadata5;
   error: Error;
 }
 /**
@@ -808,9 +845,9 @@ export interface Score {
   value: Value1;
   answer: Answer;
   explanation: Explanation;
-  metadata: Metadata5;
+  metadata: Metadata6;
 }
-export interface Metadata6 {}
+export interface Metadata7 {}
 export interface Store {}
 /**
  * Beginning of processing a Sample.
@@ -830,7 +867,7 @@ export interface Sample {
   choices: Choices2;
   target: Target1;
   id: Id2;
-  metadata: Metadata7;
+  metadata: Metadata8;
   sandbox: SandboxEnvironmentSpec | null;
   files: Files1;
   setup: Setup1;
@@ -922,7 +959,7 @@ export interface ModelEvent {
  * ```
  */
 export interface ToolInfo {
-  name: Name5;
+  name: Name7;
   description: Description;
   parameters: ToolParams;
 }
@@ -956,7 +993,7 @@ export interface Default {
   [k: string]: unknown;
 }
 export interface ToolFunction {
-  name: Name6;
+  name: Name8;
 }
 /**
  * Model generation options.
@@ -1090,7 +1127,7 @@ export interface LoggerEvent {
  * Message written to Python log.
  */
 export interface LoggingMessage {
-  name: Name7;
+  name: Name9;
   level: Level;
   message: Message4;
   created: Created1;
@@ -1117,7 +1154,7 @@ export interface StepEvent {
   event: Event12;
   action: Action;
   type: Type11;
-  name: Name8;
+  name: Name10;
 }
 /**
  * Subtask spawned.
@@ -1126,7 +1163,7 @@ export interface SubtaskEvent {
   timestamp: Timestamp13;
   pending: Pending13;
   event: Event13;
-  name: Name9;
+  name: Name11;
   type: Type12;
   input: Input4;
   result: Result1;
@@ -1164,6 +1201,6 @@ export interface EvalSampleScore {
   value: Value2;
   answer: Answer1;
   explanation: Explanation2;
-  metadata: Metadata8;
+  metadata: Metadata9;
   sample_id: SampleId1;
 }
