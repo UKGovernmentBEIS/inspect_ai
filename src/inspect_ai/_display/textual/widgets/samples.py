@@ -16,7 +16,7 @@ from textual.widgets import (
     OptionList,
     Static,
 )
-from textual.widgets.option_list import Option, Separator
+from textual.widgets.option_list import Option
 
 from inspect_ai._display.textual.widgets.port_mappings import get_url
 from inspect_ai._util.format import format_progress_time
@@ -142,7 +142,7 @@ class SamplesList(OptionList):
 
         # rebuild the list
         self.clear_options()
-        options: list[Option | Separator] = []
+        options: list[Option] = []
         for sample in self.samples:
             table = Table.grid(expand=True)
             table.add_column(width=20)

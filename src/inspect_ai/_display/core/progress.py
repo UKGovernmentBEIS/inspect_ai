@@ -130,7 +130,7 @@ def progress_count(complete: int, total: int, width: int | None = None) -> str:
     total_str = f"{total:,}"
     complete_str = f"{complete:,}"
     padding = max(0, len(total_str) - len(complete_str))
-    padded = " " * padding + f"[{complete_str}/{total_str}]"
+    padded = " " * padding + f"{complete_str}/{total_str}"
 
     # If a width has ben specified, pad up to this width as well
     if width is not None:
