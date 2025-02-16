@@ -39,7 +39,9 @@ def prompt_template(template: str, **params: Any) -> Solver:
 
 
 @solver
-def system_message(template: str, format_template: bool = True, **params: Any) -> Solver:
+def system_message(
+    template: str, format_template: bool = True, **params: Any
+) -> Solver:
     """Solver which inserts a system message into the conversation.
 
     System message template containing any number of optional `params`.
@@ -66,8 +68,10 @@ def system_message(template: str, format_template: bool = True, **params: Any) -
         if format_template:
             kwargs = state.metadata | state.store._data | params
             message_content = message_content.format(**kwargs)
-        
-        append_system_message(state.messages, ChatMessageSystem(content=message_content))
+
+        append_system_message(
+            state.messages, ChatMessageSystem(content=message_content)
+        )
         return state
 
     return solve
