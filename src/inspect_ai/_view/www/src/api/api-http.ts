@@ -8,6 +8,8 @@ import {
   LogFiles,
   LogFilesFetchResponse,
   LogViewAPI,
+  SampleData,
+  SampleSummary,
 } from "./types";
 
 interface LogInfo {
@@ -117,6 +119,30 @@ function simpleHttpAPI(logInfo: LogInfo): LogViewAPI {
     },
     download_file,
     open_log_file,
+    eval_pending_samples: async function (
+      log_file: string,
+    ): Promise<SampleSummary[]> {
+      const url = "";
+      const summaries = await fetchFile<SampleSummary[]>(
+        url,
+        (text: string): Promise<SampleSummary[]> => {
+          return Promise.resolve([]);
+        },
+        (response: Response) => {
+          return true;
+        },
+      );
+      return summaries || [];
+    },
+    eval_log_sample_data: function (
+      log_file: string,
+      id: string | number,
+      epoch: number,
+      last_event?: number,
+      last_attachment?: number,
+    ): Promise<SampleData> {
+      throw new Error("Function not implemented.");
+    },
   };
 }
 

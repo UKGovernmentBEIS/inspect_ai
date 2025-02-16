@@ -46535,6 +46535,20 @@ self.onmessage = function (e) {
       }
       return (await api$2("GET", `/api/log-headers?${params2.toString()}`)).parsed;
     }
+    async function eval_pending_samples$1(log_file) {
+      const params2 = new URLSearchParams();
+      params2.append("log", log_file);
+      return (await api$2("GET", `/api/pending-samples?${params2.toString()}`)).parsed;
+    }
+    async function eval_log_sample_data$1(log_file, id, epoch, last_event, last_attachment) {
+      const params2 = new URLSearchParams();
+      params2.append("log", log_file);
+      params2.append("id", String(id));
+      params2.append("epoch", String(epoch));
+      params2.append("last-event-id", String(last_event));
+      params2.append("after-attachment-id", String(last_attachment));
+      return (await api$2("GET", `/api/pending-sample-data?${params2.toString()}`)).parsed;
+    }
     async function api$2(method, path, body2) {
       const headers = {
         Accept: "application/json",
@@ -46586,7 +46600,9 @@ self.onmessage = function (e) {
       eval_log_bytes: eval_log_bytes$1,
       eval_log_headers: eval_log_headers$1,
       download_file: download_file$1,
-      open_log_file: open_log_file$1
+      open_log_file: open_log_file$1,
+      eval_pending_samples: eval_pending_samples$1,
+      eval_log_sample_data: eval_log_sample_data$1
     };
     var ch2 = {};
     var wk = function(c2, id, msg, transfer, cb) {
@@ -47361,7 +47377,23 @@ self.onmessage = function (e) {
           );
         },
         download_file: download_file$1,
-        open_log_file: open_log_file2
+        open_log_file: open_log_file2,
+        eval_pending_samples: async function(log_file) {
+          const url = "";
+          const summaries = await fetchFile(
+            url,
+            (text2) => {
+              return Promise.resolve([]);
+            },
+            (response) => {
+              return true;
+            }
+          );
+          return summaries || [];
+        },
+        eval_log_sample_data: function(log_file, id, epoch, last_event, last_attachment) {
+          throw new Error("Function not implemented.");
+        }
       };
     }
     async function fetchFile(url, parse2, handleError2) {
@@ -48648,6 +48680,12 @@ self.onmessage = function (e) {
       };
       (_a2 = getVscodeApi()) == null ? void 0 : _a2.postMessage(msg);
     }
+    async function eval_pending_samples(log_file) {
+      throw new Error("Function not implemented.");
+    }
+    async function eval_log_sample_data(log_file, id, epoch, last_event, last_attachment) {
+      throw new Error("Function not implemented.");
+    }
     const api$1 = {
       client_events,
       eval_logs,
@@ -48656,7 +48694,9 @@ self.onmessage = function (e) {
       eval_log_bytes,
       eval_log_headers,
       download_file,
-      open_log_file
+      open_log_file,
+      eval_pending_samples,
+      eval_log_sample_data
     };
     class AsyncQueue {
       constructor(concurrentLimit = 6) {
@@ -49026,6 +49066,18 @@ self.onmessage = function (e) {
         }
         throw new Error("Unable to determine log paths.");
       };
+      const get_log_pending_samples = (log_file2) => {
+        return api2.eval_pending_samples(log_file2);
+      };
+      const get_log_sample_data = (log_file2, id, epoch, last_event, last_attachment) => {
+        return api2.eval_log_sample_data(
+          log_file2,
+          id,
+          epoch,
+          last_event,
+          last_attachment
+        );
+      };
       return {
         client_events: () => {
           return api2.client_events();
@@ -49043,7 +49095,9 @@ self.onmessage = function (e) {
         },
         download_file: (download_file2, file_contents) => {
           return api2.download_file(download_file2, file_contents);
-        }
+        },
+        get_log_pending_samples,
+        get_log_sample_data
       };
     };
     const resolveApi = () => {
