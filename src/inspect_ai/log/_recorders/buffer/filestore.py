@@ -7,7 +7,9 @@ from zipfile import ZIP_DEFLATED, ZipFile
 from pydantic import BaseModel
 from typing_extensions import override
 
-from inspect_ai._util.file import basename, dirname, file, filesystem
+from inspect_ai._util.constants import EVAL_LOG_FORMAT
+from inspect_ai._util.file import FileSystem, basename, dirname, file, filesystem
+from inspect_ai.log._file import read_eval_log
 
 from ..types import SampleSummary
 from .types import AttachmentData, EventData, SampleBuffer, SampleData, Samples
@@ -48,7 +50,7 @@ MANIFEST = "manifest.json"
 class SampleBufferFilestore(SampleBuffer):
     def __init__(self, location: str, *, create: bool = True) -> None:
         self._fs = filesystem(location)
-        self._dir = f"{dirname(location)}{self._fs.sep}.buffer{self._fs.sep}{basename(location)}{self._fs.sep}"
+        self._dir = f"{sample_buffer_dir(dirname(location), self._fs)}{self._fs.sep}{basename(location)}{self._fs.sep}"
 
         if create:
             self._fs.mkdir(self._dir, exist_ok=True)
@@ -108,12 +110,7 @@ class SampleBufferFilestore(SampleBuffer):
                     return SegmentData.model_validate_json(sf.read())
 
     def cleanup(self) -> None:
-        try:
-            self._fs.rm(self._dir, recursive=True)
-        except Exception as ex:
-            logger.warning(
-                f"Error cleaning up sample buffer database at {self._dir}: {ex}"
-            )
+        cleanup_sample_buffer_filestore(self._dir, self._fs)
 
     @override
     def get_samples(
@@ -190,9 +187,49 @@ class SampleBufferFilestore(SampleBuffer):
         return f"{self._dir}{MANIFEST}"
 
 
+def cleanup_sample_buffer_filestores(log_dir: str) -> None:
+    # read log buffer dirs
+    fs = filesystem(log_dir)
+    buffer_dir = sample_buffer_dir(log_dir, fs)
+    try:
+        log_buffers = [
+            buffer for buffer in fs.ls(buffer_dir) if buffer.type == "directory"
+        ]
+    except FileNotFoundError:
+        log_buffers = []
+
+    # for each buffer dir, confirm there is a running .eval file
+    # (remove the buffer dir if there is no .eval or the eval is finished)
+    for log_buffer in log_buffers:
+        try:
+            log_header = read_eval_log(
+                f"{log_dir}{fs.sep}{log_buffer.name}.{EVAL_LOG_FORMAT}",
+                header_only=True,
+            )
+            if log_header.status != "started":
+                cleanup_sample_buffer_filestore(log_buffer.name, fs)
+
+        except FileNotFoundError:
+            cleanup_sample_buffer_filestore(log_buffer.name, fs)
+
+
+def cleanup_sample_buffer_filestore(buffer_dir: str, fs: FileSystem) -> None:
+    try:
+        fs.rm(buffer_dir, recursive=True)
+    except Exception as ex:
+        logger.warning(
+            f"Error cleaning up sample buffer database at {buffer_dir}: {ex}"
+        )
+
+
 def segment_name(id: int) -> str:
     return f"segment.{id}.zip"
 
 
 def segment_file_name(id: str | int, epoch: int) -> str:
     return f"{id}_{epoch}.json"
+
+
+def sample_buffer_dir(log_dir: str, fs: FileSystem | None = None) -> str:
+    fs = fs or filesystem(log_dir)
+    return f"{log_dir}{fs.sep}.buffer"
