@@ -1,7 +1,7 @@
 
 ## v0.3.65 (16 February 2025)
 
-- Compatibility with textual 2.0 (which had several breaking changes and some new defects).
+- Compatibility with textual 2.0 (which had several breaking changes).
 - Inspect View: Improve scorer display formatting.
 - Bugfix: Inspect view now correctly renders arrays with embedded `null` values.
 - Bugfix: Inspect view now correctly handles scorers with no metrics.
