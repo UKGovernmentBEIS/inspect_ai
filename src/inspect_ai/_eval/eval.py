@@ -390,8 +390,6 @@ async def eval_async(
             raise PrerequisiteError(
                 f"ERROR: You do not have write permission for the log_dir '{log_dir}'"
             )
-        # periodic inline gc of orphaned sample buffers
-        cleanup_sample_buffers(log_dir)
 
         # resolve solver
         solver = chain(solver) if isinstance(solver, list) else solver
@@ -486,6 +484,9 @@ async def eval_async(
                 **kwargs,
             )
             logs = EvalLogs(results)
+
+        # cleanup sample buffers if required
+        cleanup_sample_buffers(log_dir)
 
     finally:
         _eval_async_running = False

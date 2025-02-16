@@ -183,7 +183,7 @@ class SampleBufferFilestore(SampleBuffer):
 
 
 def cleanup_sample_buffer_filestores(log_dir: str) -> None:
-    # read log buffer dirs
+    # read log buffer dirs (bail if there is no buffer_dir)
     fs = filesystem(log_dir)
     buffer_dir = sample_buffer_dir(log_dir, fs)
     try:
@@ -191,21 +191,26 @@ def cleanup_sample_buffer_filestores(log_dir: str) -> None:
             buffer for buffer in fs.ls(buffer_dir) if buffer.type == "directory"
         ]
     except FileNotFoundError:
-        log_buffers = []
+        return
 
     # for each buffer dir, confirm there is a running .eval file
     # (remove the buffer dir if there is no .eval or the eval is finished)
     for log_buffer in log_buffers:
         try:
-            log_header = read_eval_log(
-                f"{log_dir}{fs.sep}{log_buffer.name}.{EVAL_LOG_FORMAT}",
-                header_only=True,
-            )
+            log_file = f"{log_dir}{fs.sep}{basename(log_buffer.name)}"
+            log_header = read_eval_log(log_file, header_only=True)
             if log_header.status != "started":
                 cleanup_sample_buffer_filestore(log_buffer.name, fs)
 
         except FileNotFoundError:
             cleanup_sample_buffer_filestore(log_buffer.name, fs)
+
+    # remove the .buffer dir if it's empty
+    try:
+        if len(fs.ls(buffer_dir)) == 0:
+            fs.rm(buffer_dir, recursive=True)
+    except FileNotFoundError:
+        pass
 
 
 def cleanup_sample_buffer_filestore(buffer_dir: str, fs: FileSystem) -> None:
