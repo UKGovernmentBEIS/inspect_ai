@@ -46,10 +46,12 @@ MANIFEST = "manifest.json"
 
 
 class SampleBufferFilestore(SampleBuffer):
-    def __init__(self, location: str) -> None:
+    def __init__(self, location: str, *, create: bool = True) -> None:
         self._fs = filesystem(location)
         self._dir = f"{dirname(location)}{self._fs.sep}.buffer{self._fs.sep}{basename(location)}{self._fs.sep}"
-        self._fs.mkdir(self._dir, exist_ok=True)
+
+        if create:
+            self._fs.mkdir(self._dir, exist_ok=True)
 
     def write_manifest(self, manifest: Manifest) -> None:
         # write the file locally
