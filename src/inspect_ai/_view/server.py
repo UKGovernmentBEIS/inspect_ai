@@ -171,7 +171,7 @@ def view_server(
 
         # get sync info
         after_event_id = int_param_optional("last-event-id", request)
-        after_attachment_id = int_param_optional("after_attachment_id", request)
+        after_attachment_id = int_param_optional("after-attachment-id", request)
 
         # get samples
         buffer = SampleBufferDatabase(file)

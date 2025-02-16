@@ -25,6 +25,27 @@ export interface EvalSummary {
   sampleSummaries: SampleSummary[];
 }
 
+export interface SampleData {
+  events: EventData;
+  attachments: AttachmentData;
+}
+
+export interface EventData {
+  id: number;
+  event_id: string;
+  sample_id: string;
+  epoch: number;
+  event: Event;
+}
+
+export interface AttachmentData {
+  id: number;
+  sample_id: string;
+  epoch: number;
+  hash: string;
+  content: string;
+}
+
 export interface EvalLogHeader {
   version?: Version;
   status?: Status;
@@ -43,6 +64,7 @@ export interface SampleSummary {
   scores: Scores1;
   error?: string;
   limit?: Type11;
+  complete?: boolean;
 }
 
 export interface BasicSampleData {
@@ -77,6 +99,14 @@ export interface LogViewAPI {
     filecontents: string | Blob | ArrayBuffer | ArrayBufferView,
   ) => Promise<void>;
   open_log_file: (logFile: string, log_dir: string) => Promise<void>;
+  eval_pending_samples: (log_file: string) => Promise<SampleSummary[]>;
+  eval_log_sample_data: (
+    log_file: string,
+    id: string | number,
+    epoch: number,
+    last_event?: number,
+    last_attachment?: number,
+  ) => Promise<SampleData>;
 }
 
 export interface ClientAPI {
@@ -94,6 +124,15 @@ export interface ClientAPI {
     file_contents: string | Blob | ArrayBuffer | ArrayBufferView,
   ) => Promise<void>;
   open_log_file: (log_file: string, log_dir: string) => Promise<void>;
+
+  get_log_pending_samples: (log_file: string) => Promise<SampleSummary[]>;
+  get_log_sample_data: (
+    log_file: string,
+    id: string | number,
+    epoch: number,
+    last_event?: number,
+    last_attachment?: number,
+  ) => Promise<SampleData>;
 }
 
 export interface FetchResponse {
