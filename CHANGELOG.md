@@ -1,7 +1,7 @@
 
 ## Unreleased
 
-- Compatiblity with textual 2.0 (which had several breaking changes and some new defects). 
+- Compatibility with textual 2.0 (which had several breaking changes and some new defects). 
 
 ## v0.3.64 (14 February 2025)
 
