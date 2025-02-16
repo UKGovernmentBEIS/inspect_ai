@@ -1,6 +1,10 @@
+from logging import getLogger
+
 from .database import SampleBufferDatabase, cleanup_sample_buffer_databases
 from .filestore import SampleBufferFilestore, cleanup_sample_buffer_filestores
 from .types import SampleBuffer
+
+logger = getLogger(__name__)
 
 
 def sample_buffer(location: str) -> SampleBuffer:
@@ -12,5 +16,8 @@ def sample_buffer(location: str) -> SampleBuffer:
 
 
 def cleanup_sample_buffers(log_dir: str) -> None:
-    cleanup_sample_buffer_databases()
-    cleanup_sample_buffer_filestores(log_dir)
+    try:
+        cleanup_sample_buffer_databases()
+        cleanup_sample_buffer_filestores(log_dir)
+    except Exception as ex:
+        logger.warning(f"Unexpected error cleaning up sample buffers: {ex}")
