@@ -220,6 +220,7 @@ class TaskLogger:
                 epoch=sample.epoch,
                 input=sample.input,
                 target=sample.target,
+                completed=True,
                 scores=sample.scores,
                 error=sample.error.message if sample.error is not None else None,
                 limit=f"{sample.limit.type}" if sample.limit is not None else None,
