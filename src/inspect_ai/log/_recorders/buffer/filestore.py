@@ -108,6 +108,11 @@ class SampleBufferFilestore(SampleBuffer):
     def cleanup(self) -> None:
         cleanup_sample_buffer_filestore(self._dir, self._fs)
 
+    @classmethod
+    @override
+    def running_tasks(cls, log_dir: str) -> list[str] | None:
+        return None
+
     @override
     def get_samples(
         self, etag: str | None = None

@@ -39,6 +39,10 @@ class SampleData(BaseModel):
 
 
 class SampleBuffer(abc.ABC):
+    @classmethod
+    @abc.abstractmethod
+    def running_tasks(cls, log_dir: str) -> list[str] | None: ...
+
     @abc.abstractmethod
     def get_samples(
         self, etag: str | None = None
