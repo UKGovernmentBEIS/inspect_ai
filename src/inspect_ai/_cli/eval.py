@@ -27,11 +27,6 @@ from .common import (
     process_common_options,
 )
 from .util import (
-    IntOrBool,
-    IntOrBoolFlag,
-    IntOrBoolOption,
-    PassthroughParam,
-    int_or_bool_flag,
     int_or_bool_flag_callback,
     parse_cli_args,
     parse_cli_config,
@@ -273,10 +268,10 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
     )
     @click.option(
         "--log-shared",
-        type=PassthroughParam(),
+        is_flag=False,
+        flag_value="true",
+        default=None,
         callback=int_or_bool_flag_callback(DEFAULT_LOG_SHARED),
-        is_eager=True,
-        multiple=True,
         help=LOG_SHARED_HELP,
         envvar=["INSPECT_LOG_SHARED", "INSPECT_EVAL_LOG_SHARED"],
     )
@@ -1017,10 +1012,10 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
 )
 @click.option(
     "--log-shared",
-    type=PassthroughParam(),
+    is_flag=False,
+    flag_value="true",
+    default=None,
     callback=int_or_bool_flag_callback(DEFAULT_LOG_SHARED),
-    is_eager=True,
-    multiple=True,
     help=LOG_SHARED_HELP,
     envvar=["INSPECT_LOG_SHARED", "INSPECT_EVAL_LOG_SHARED"],
 )
