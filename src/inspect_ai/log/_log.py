@@ -121,9 +121,8 @@ class EvalConfig(BaseModel):
     log_buffer: int | None = Field(default=None)
     """Number of samples to buffer before writing log file."""
 
-    log_shared: bool | None = Field(default=None)
-    """Indicate that the log directory is shared, which results in
-    in additional syncing of realtime log data for Inspect View."""
+    log_shared: int | None = Field(default=None)
+    """Interval (in seconds) for syncing sample events to log directory."""
 
     score_display: bool | None = Field(default=None)
     """Display scoring metrics realtime."""
