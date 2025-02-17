@@ -87,6 +87,10 @@ class GroqAPI(ModelAPI):
             http_client=httpx.AsyncClient(limits=httpx.Limits(max_connections=None)),
         )
 
+    @override
+    async def close(self) -> None:
+        await self.client.close()
+
     async def generate(
         self,
         input: list[ChatMessage],
