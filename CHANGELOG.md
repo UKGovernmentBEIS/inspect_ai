@@ -1,3 +1,10 @@
+## Unreleased
+
+- Inspect View: Improve the display of subtasks with no inputs or events.
+
+## Unreleased
+
+- Prompt templates: Ignore template placeholders that don't map to passed parameters in `prompt_template()`, `user_message()`, and `system_message()`.
 
 ## Unreleased
 
