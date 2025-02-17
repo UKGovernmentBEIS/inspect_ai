@@ -7,150 +7,46 @@ from inspect_ai._util.config import resolve_args
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
 
 
-class PassthroughParam(click.ParamType):
-    name = "passthrough"
-
-    def convert(
-        self, value: Any, param: click.Parameter | None, ctx: click.Context | None
-    ) -> Any:
-        if isinstance(value, tuple) and len(value) == 0:
-            return None
-        return value
-
-
 def int_or_bool_flag_callback(
     true_value: int, false_value: int = 0
-) -> Callable[[click.Context, click.Parameter | None, Any], int]:
-    def callback(ctx: click.Context, param: click.Parameter | None, value: Any) -> int:
-        if (
-            param
-            and param.name
-            and (
-                ctx.get_parameter_source(param.name)
-                != click.core.ParameterSource.DEFAULT
-            )
-        ):
-            if value is None:
-                return true_value
-            else:
-                try:
-                    print(value)
-                    value = value[0] if isinstance(value, tuple) else value
-                    return int(value)
-                except ValueError:
-                    value = str(value).lower()
-                    if value in ("true", "t", "yes", "y"):
-                        return true_value
-                    if value in ("false", "f", "no", "n"):
-                        return false_value
-                    raise click.BadParameter("Not a valid integer or boolean value")
+) -> Callable[[click.Context, click.Parameter, Any], int]:
+    def callback(ctx: click.Context, param: click.Parameter, value: Any) -> int:
+        """Callback to parse the an option that can either be a boolean flag or integer.
+
+        Desired behavior:
+        - Not specified at all -> false_value
+        - Specified with no value -> true_value
+        - Specified with "true"/"false" -> true_value or false_value respectively
+        - Specified with an integer -> that integer
+        """
+        # 1. If this parameter was never given on the command line,
+        #    then we return 0.
+        source = ctx.get_parameter_source(param.name) if param.name else ""
+        if source == click.core.ParameterSource.DEFAULT:
+            # Means the user did NOT specify the flag at all
+            return false_value
+
+        # 2. The user did specify the flag. If value is None,
+        #    that means they used the flag with no argument, e.g. --my-flag
+        if value is None:
+            return true_value
+
+        # 3. If there is a value, try to parse booleans or an integer.
+        lower_val = value.lower()
+        if lower_val in ("true", "yes", "1"):
+            return true_value
+        elif lower_val in ("false", "no", "0"):
+            return false_value
         else:
-            return value
+            # 4. Otherwise, assume it is an integer
+            try:
+                return int(value)
+            except ValueError:
+                raise click.BadParameter(
+                    f"Expected 'true', 'false', or an integer for --{param.name}. Got: {value}"
+                )
 
     return callback
-
-
-class IntOrBoolOption(click.Option):
-    def __init__(self, *args: Any, **kwargs: Any):
-        kwargs["type"] = click.UNPROCESSED
-        kwargs["is_flag"] = True  # Allow flag behavior
-        kwargs["flag_value"] = "flag"  # Special value when used as flag
-        super().__init__(*args, **kwargs)
-
-    def parse_value(self, ctx: click.Context, value: Any) -> int | None:
-        if value is None:
-            return 0  # Default when not specified
-        if value == "flag":  # When used as bare flag
-            return 10
-        try:
-            return int(value)
-        except ValueError:
-            value = str(value).lower()
-            if value in ("true", "t", "yes", "y"):
-                return 10
-            if value in ("false", "f", "no", "n"):
-                return 0
-            raise click.BadParameter("Not a valid integer or boolean value")
-
-
-def int_or_bool_flag(
-    ctx: click.Context, param: click.Parameter | None, value: Any
-) -> int:
-    if value is True:  # Flag used without value
-        return 10
-    if value is False:  # Flag not used
-        return 0
-    try:
-        return int(value)
-    except (TypeError, ValueError):
-        value = str(value).lower()
-        if value in ("true", "t", "yes", "y"):
-            return 10
-        if value in ("false", "f", "no", "n"):
-            return 0
-        raise click.BadParameter("Not a valid integer or boolean value")
-
-
-class IntOrBoolFlag(click.ParamType):
-    name = "integer_or_boolean_flag"
-
-    def __init__(self, true_value: int = 10, false_value: int = 0) -> None:
-        self.true_value = true_value
-        self.false_value = false_value
-
-    def convert(
-        self, value: Any, param: click.Parameter | None, ctx: click.Context | None
-    ) -> int:
-        if value is None:
-            return self.false_value
-        if (
-            param is not None
-            and hasattr(param, "flag_value")
-            and value == getattr(param, "flag_value")
-        ):
-            return self.true_value
-        if isinstance(value, bool):
-            return self.true_value if value else self.false_value
-        if isinstance(value, int):
-            return value
-
-        try:
-            return int(value)
-        except ValueError:
-            value = value.lower()
-            if value in ("true", "t", "yes", "y"):
-                return self.true_value
-            if value in ("false", "f", "no", "n"):
-                return self.false_value
-            self.fail(f"{value} is not a valid integer or boolean", param, ctx)
-
-
-class IntOrBool(click.ParamType):
-    name = "integer_or_boolean"
-
-    def __init__(self, true_value: int = 10, false_value: int = 0) -> None:
-        self.true_value = true_value
-        self.false_value = false_value
-
-    def convert(
-        self, value: Any, param: click.Parameter | None, ctx: click.Context | None
-    ) -> int:
-        if isinstance(value, bool):
-            return self.true_value if value else self.false_value
-        if isinstance(value, int):
-            return value
-
-        try:
-            # Try converting to int first
-            return int(value)
-        except ValueError:
-            # If not an int, try converting to bool and then to int
-            value = value.lower()
-            if value in ("true", "t", "yes", "y"):
-                return self.true_value
-            if value in ("false", "f", "no", "n"):
-                return self.false_value
-            self.fail(f"{value} is not a valid integer or boolean", param, ctx)
 
 
 def parse_cli_config(
