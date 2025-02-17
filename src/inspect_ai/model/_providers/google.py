@@ -398,12 +398,12 @@ def prepend_system_messages(
 ) -> None:
     # create system_parts
     system_parts: list[PartType] = [
-        Part(text=message.content) for message in system_messages
+        Part(text=message.text) for message in system_messages
     ]
 
     # we want the system messages to be prepended to the first user message
     # (if there is no first user message then prepend one)
-    if messages[0].get("role") == "user":
+    if len(messages) > 0 and messages[0].get("role") == "user":
         messages[0]["parts"] = system_parts + messages[0].get("parts", [])
     else:
         messages.insert(0, ContentDict(role="user", parts=system_parts))
