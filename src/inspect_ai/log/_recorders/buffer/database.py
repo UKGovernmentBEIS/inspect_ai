@@ -277,15 +277,7 @@ class SampleBufferDatabase(SampleBuffer):
         if self.log_shared is not None and self._sync_filestore is not None:
             if (time.monotonic() - self._sync_time) > self.log_shared:
                 with trace_action(logger, "Log Sync", self.location):
-                    try:
-                        sync_to_filestore(self, self._sync_filestore)
-                    except Exception as ex:
-                        logger.warning(
-                            f"Unexpected exception syncing to shared log dir: {ex}. "
-                            + "Log syncing will be disabled for this task."
-                        )
-                        self._sync_filestore.cleanup()
-                        self._sync_filestore = None
+                    sync_to_filestore(self, self._sync_filestore)
 
                 self._sync_time = time.monotonic()
 
