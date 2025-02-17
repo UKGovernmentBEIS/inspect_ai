@@ -59,11 +59,8 @@ class SampleBufferFilestore(SampleBuffer):
             self._fs.mkdir(self._dir, exist_ok=True)
 
     def write_manifest(self, manifest: Manifest) -> None:
-        # transfer it up (use a mv so it's atomic)
-        manifest_temp = f"{self._manifest_file()}.temp"
-        with file(manifest_temp, "wb") as f:
+        with file(self._manifest_file(), "wb") as f:
             f.write(to_json_safe(manifest))
-        self._fs.mv(manifest_temp, self._manifest_file())
 
     def write_segment(self, id: int, files: list[SegmentFile]) -> None:
         # write the file locally
@@ -81,13 +78,11 @@ class SampleBufferFilestore(SampleBuffer):
             os.fsync(segment_file.fileno())
 
         # write then move for atomicity
-        segment_temp = f"{self._dir}{segment_name(id)}.temp"
         try:
             with open(name, "rb") as zf:
-                with file(segment_temp, "wb") as f:
+                with file(f"{self._dir}{segment_name(id)}", "wb") as f:
                     f.write(zf.read())
                     f.flush()
-            self._fs.mv(segment_temp, f"{self._dir}{segment_name(id)}")
         finally:
             os.unlink(name)
 
