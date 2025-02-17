@@ -189,6 +189,28 @@ results = await fork(state, [
 
 The `state` will be deep copied so that each `explore()` solver instance gets it own copy of the `state` to work on. The `results` contain a list of `TaskState` with the value returned from each of the solvers.
 
+### Loop
+
+Inspect's `loop()` function provides a way to repeatedly apply a solver until a condition is met or a maximum number of iterations is reached.
+
+For example, let's say you have a solver named `improve()` that refines a solution based on feedback. You might want to run this solver repeatedly until a quality threshold is met:
+
+```python
+from inspect_ai.solver import loop, chain
+
+quality_solver = loop(
+    solver=chain(
+        get_feedback(),
+        improve(),
+        check_quality(),
+    ),
+    condition=lambda s: s.store.get("quality_score", 0) >= 0.8,
+    max_iterations=3,
+)
+```
+
+The loop will run until either the condition returns `True`, the state is marked as completed, or the maximum number of iterations is reached.
+
 ## Sandboxing
 
 Many agents provide models with the ability to execute arbitrary code. It's important that this code be sandboxed so that it executes in an isolated context. Inspect supports this through the `SandboxEnvironment` (which in turn may be implemented using Docker or various other schemes). Enable sandboxing for a task with the `sandbox` parameter. For example:
@@ -199,7 +221,7 @@ def file_probe()
     return Task(
         dataset=dataset,
         solver=[
-            use_tools([list_files()]), 
+            use_tools([list_files()]),
             generate()
         ],
         sandbox="docker",
