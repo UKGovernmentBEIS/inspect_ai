@@ -691,14 +691,18 @@ def get_model(
             raise ValueError("No model specified (and no INSPECT_EVAL_MODEL defined)")
 
     # see if we can return a memoized model instance
-    model_cache_key = (
-        model
-        + config.model_dump_json(exclude_none=True)
-        + str(base_url)
-        + str(api_key)
-        + str(to_jsonable_python(model_args, fallback=lambda _: None))
-    )
+    # (exclude mockllm since custom_outputs is an infinite generator)
+    model_cache_key: str = ""  # for mypy below
+    if model.startswith("mockllm/"):
+        memoize = False
     if memoize:
+        model_cache_key = (
+            model
+            + config.model_dump_json(exclude_none=True)
+            + str(base_url)
+            + str(api_key)
+            + str(to_jsonable_python(model_args, fallback=lambda _: None))
+        )
         cached = cached_model(model_cache_key)
         if cached is not None:
             return cached
