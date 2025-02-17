@@ -1,3 +1,6 @@
+## Unreleased
+
+- Inspect View: Improve the display of subtasks with no inputs or events.
 
 ## Unreleased
 
