@@ -1,7 +1,7 @@
 
 ## Unreleased
 
-- User and system message solvers: Ignore template placeholders that don't map to passed parameters.
+- Prompt templates: Ignore template placeholders that don't map to passed parameters in `prompt_template()`, `user_message()`, and `system_message()`.
 
 ## v0.3.66 (17 February 2025)
 
