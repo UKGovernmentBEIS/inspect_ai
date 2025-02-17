@@ -10,8 +10,10 @@ from sqlite3 import Connection
 from typing import Callable, Iterator, Literal
 
 import psutil
+from pydantic import BaseModel
 from typing_extensions import override
 
+from inspect_ai._display.core.display import TaskDisplayMetric
 from inspect_ai._util.appdirs import inspect_data_dir
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.trace import trace_action
@@ -43,15 +45,21 @@ from .types import (
 logger = getLogger(__name__)
 
 
+class TaskData(BaseModel):
+    version: int
+    metrics: list[TaskDisplayMetric]
+
+
 class SampleBufferDatabase(SampleBuffer):
     SCHEMA = """
 
-    CREATE TABLE IF NOT EXISTS database_version (
+    CREATE TABLE IF NOT EXISTS task_database (
         version INTEGER PRIMARY KEY DEFAULT 1,
+        metrics TEXT DEFAULT '[]',
         last_updated DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
-    INSERT INTO database_version (version) VALUES (1);
+    INSERT INTO task_database (version) VALUES (1);
 
     CREATE TABLE samples (
         id TEXT,
@@ -166,6 +174,17 @@ class SampleBufferDatabase(SampleBuffer):
                 (to_json_str_safe(summary), str(summary.id), summary.epoch),
             )
 
+    def update_metrics(self, metrics: list[TaskDisplayMetric]) -> None:
+        with self._get_connection(write=True) as conn:
+            conn.execute(
+                """
+                UPDATE task_database
+                SET metrics = ?,
+                    last_updated = CURRENT_TIMESTAMP;
+                """,
+                [to_json_str_safe(metrics)],
+            )
+
     def remove_samples(self, samples: list[tuple[str | int, int]]) -> None:
         with self._get_connection(write=True) as conn:
             cursor = conn.cursor()
@@ -207,17 +226,18 @@ class SampleBufferDatabase(SampleBuffer):
         try:
             with self._get_connection() as conn:
                 # note version
-                version = self._get_version(conn)
+                task_data = self._get_task_data(conn)
 
                 # apply etag if requested
-                if etag == str(version):
+                if etag == str(task_data.version):
                     return "NotModified"
 
                 # fetch data
                 return Samples(
                     samples=list(self._get_samples(conn)),
+                    metrics=task_data.metrics,
                     refresh=self.update_interval,
-                    etag=str(version),
+                    etag=str(task_data.version),
                 )
         except FileNotFoundError:
             return None
@@ -264,7 +284,7 @@ class SampleBufferDatabase(SampleBuffer):
             # if this was for a write then bump the version
             if write:
                 conn.execute("""
-                UPDATE database_version
+                UPDATE task_database
                 SET version = version + 1,
                     last_updated = CURRENT_TIMESTAMP;
                 """)
@@ -294,20 +314,15 @@ class SampleBufferDatabase(SampleBuffer):
 
     def _increment_version(self, conn: Connection) -> None:
         conn.execute("""
-        UPDATE database_version
+        UPDATE task_database
         SET version = version + 1,
             last_updated = CURRENT_TIMESTAMP;
         """)
 
-    def _get_version(self, conn: Connection) -> int:
-        cursor = conn.cursor()
-        try:
-            version = cursor.execute("SELECT version FROM database_version").fetchone()[
-                0
-            ]
-            return int(version)
-        finally:
-            cursor.close()
+    def _get_task_data(self, conn: Connection) -> TaskData:
+        row = conn.execute("SELECT version, metrics FROM task_database").fetchone()
+        task_data = dict(version=row["version"], metrics=json.loads(row["metrics"]))
+        return TaskData(**task_data)
 
     def _get_samples(
         self, conn: Connection, resolve_attachments: bool = False
@@ -524,6 +539,7 @@ def sync_to_filestore(
         sample_manifests.append(SampleManifest(summary=sample, segments=segments))
 
     # draft of new manifest has the new sample list and the existing segments
+    manifest.metrics = samples.metrics
     manifest.samples = sample_manifests
 
     # determine what segment data we already have so we can limit
