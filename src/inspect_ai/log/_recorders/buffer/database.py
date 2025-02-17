@@ -88,11 +88,13 @@ class SampleBufferDatabase(SampleBuffer):
         create: bool = True,
         log_images: bool = True,
         log_shared: int | None = None,
+        update_interval: int = 2,
         db_dir: Path | None = None,
     ):
         self.location = location
         self.log_images = log_images
         self.log_shared = log_shared
+        self.update_interval = update_interval
 
         # set path
         db_dir = resolve_db_dir(db_dir)
@@ -107,7 +109,11 @@ class SampleBufferDatabase(SampleBuffer):
                 conn.commit()
 
         # create sync filestore if log_shared
-        self._sync_filestore = SampleBufferFilestore(location) if log_shared else None
+        self._sync_filestore = (
+            SampleBufferFilestore(location, update_interval=log_shared)
+            if log_shared
+            else None
+        )
         self._sync_time = time.monotonic()
 
     def exists(self) -> bool:
@@ -207,7 +213,11 @@ class SampleBufferDatabase(SampleBuffer):
                     return "NotModified"
 
                 # fetch data
-                return Samples(samples=list(self._get_samples(conn)), etag=str(version))
+                return Samples(
+                    samples=list(self._get_samples(conn)),
+                    refresh=self.update_interval,
+                    etag=str(version),
+                )
         except FileNotFoundError:
             return None
 
