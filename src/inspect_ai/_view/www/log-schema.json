@@ -1006,7 +1006,7 @@
         "log_shared": {
           "anyOf": [
             {
-              "type": "boolean"
+              "type": "integer"
             },
             {
               "type": "null"

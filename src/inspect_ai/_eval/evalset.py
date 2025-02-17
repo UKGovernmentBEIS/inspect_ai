@@ -91,7 +91,7 @@ def eval_set(
     log_samples: bool | None = None,
     log_images: bool | None = None,
     log_buffer: int | None = None,
-    log_shared: bool | None = None,
+    log_shared: bool | int | None = None,
     bundle_dir: str | None = None,
     bundle_overwrite: bool = False,
     **kwargs: Unpack[GenerateConfigArgs],
@@ -170,8 +170,9 @@ def eval_set(
         log_buffer: Number of samples to buffer before writing log file.
             If not specified, an appropriate default for the format and filesystem is
             chosen (10 for most all cases, 100 for JSON logs on remote filesystems).
-        log_shared: Indicate that the log directory is shared, which results in
-            additional syncing of realtime log data for Inspect View.
+        log_shared: Sync sample events to log directory so that users on other systems
+            can see log updates in realtime (defaults to no syncing). Specify `True`
+            to sync every 10 seconds, otherwise an integer to sync every `n` seconds.
         bundle_dir: If specified, the log viewer and logs generated
             by this eval set will be bundled into this directory.
         bundle_overwrite: Whether to overwrite files in the bundle_dir.

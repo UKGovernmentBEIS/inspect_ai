@@ -15,7 +15,11 @@ from typing_extensions import Unpack
 from inspect_ai._cli.util import parse_cli_args
 from inspect_ai._display.core.active import display as task_display
 from inspect_ai._util.config import resolve_args
-from inspect_ai._util.constants import DEFAULT_LOG_FORMAT, JSON_LOG_FORMAT
+from inspect_ai._util.constants import (
+    DEFAULT_LOG_FORMAT,
+    DEFAULT_LOG_SHARED,
+    JSON_LOG_FORMAT,
+)
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.file import absolute_file_path
 from inspect_ai._util.logger import warn_once
@@ -92,7 +96,7 @@ def eval(
     log_samples: bool | None = None,
     log_images: bool | None = None,
     log_buffer: int | None = None,
-    log_shared: bool | None = None,
+    log_shared: bool | int | None = None,
     score: bool = True,
     score_display: bool | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
@@ -161,7 +165,9 @@ def eval(
         log_buffer: Number of samples to buffer before writing log file.
             If not specified, an appropriate default for the format and filesystem is
             chosen (10 for most all cases, 100 for JSON logs on remote filesystems).
-        log_shared: Indicate that the log directory is shared, which results in additional syncing of realtime log data for Inspect View.
+        log_shared: Sync sample events to log directory so that users on other systems
+            can see log updates in realtime (defaults to no syncing). Specify `True`
+            to sync every 10 seconds, otherwise an integer to sync every `n` seconds.
         score: Score output (defaults to True)
         score_display: Show scoring metrics in realtime (defaults to True)
         **kwargs: Model generation options.
@@ -260,7 +266,7 @@ async def eval_async(
     log_samples: bool | None = None,
     log_images: bool | None = None,
     log_buffer: int | None = None,
-    log_shared: bool | None = None,
+    log_shared: bool | int | None = None,
     score: bool = True,
     score_display: bool | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
@@ -391,6 +397,9 @@ async def eval_async(
                 f"ERROR: You do not have write permission for the log_dir '{log_dir}'"
             )
 
+        # resolve log_shared
+        log_shared = DEFAULT_LOG_SHARED if log_shared is True else log_shared
+
         # validate that --log-shared can't use used with 'json' format
         if log_shared and log_format == JSON_LOG_FORMAT:
             raise PrerequisiteError(
@@ -519,7 +528,7 @@ def eval_retry(
     log_samples: bool | None = None,
     log_images: bool | None = None,
     log_buffer: int | None = None,
-    log_shared: bool | None = None,
+    log_shared: bool | int | None = None,
     score: bool = True,
     score_display: bool | None = None,
     max_retries: int | None = None,
@@ -561,8 +570,9 @@ def eval_retry(
         log_buffer: Number of samples to buffer before writing log file.
             If not specified, an appropriate default for the format and filesystem is
             chosen (10 for most all cases, 100 for JSON logs on remote filesystems).
-        log_shared: Indicate that the log directory is shared, which results in
-            additional syncing of realtime log data for Inspect View.
+        log_shared: Sync sample events to log directory so that users on other systems
+            can see log updates in realtime (defaults to no syncing). Specify `True`
+            to sync every 10 seconds, otherwise an integer to sync every `n` seconds.
         score: Score output (defaults to True)
         score_display: Show scoring metrics in realtime (defaults to True)
         max_retries:
@@ -625,7 +635,7 @@ async def eval_retry_async(
     log_samples: bool | None = None,
     log_images: bool | None = None,
     log_buffer: int | None = None,
-    log_shared: bool | None = None,
+    log_shared: bool | int | None = None,
     score: bool = True,
     score_display: bool | None = None,
     max_retries: int | None = None,
