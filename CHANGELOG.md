@@ -2,6 +2,10 @@
 
 - Inspect View: Improve the display of subtasks with no inputs or events.
 
+## Unreleased
+
+- Prompt templates: Ignore template placeholders that don't map to passed parameters in `prompt_template()`, `user_message()`, and `system_message()`.
+
 ## v0.3.66 (17 February 2025)
 
 - Docker: Correct compose file generation for Dockerfiles w/ custom stem or extension.
