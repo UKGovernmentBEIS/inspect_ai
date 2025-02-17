@@ -30,19 +30,6 @@ export const SubtaskEventView: React.FC<SubtaskEventViewProps> = ({
   className,
 }) => {
   // Render Forks specially
-
-  const transcript =
-    event.events.length > 0 ? (
-      <TranscriptView
-        id={`${id}-subtask`}
-        data-name="Transcript"
-        events={event.events}
-        depth={depth + 1}
-      />
-    ) : (
-      ""
-    );
-
   const body =
     event.type === "fork" ? (
       <div title="Summary" className={clsx(styles.summary)}>
@@ -51,7 +38,16 @@ export const SubtaskEventView: React.FC<SubtaskEventViewProps> = ({
           <Rendered values={event.input} />
         </div>
         <div className={clsx("text-style-label")}>Transcript</div>
-        {transcript}
+        {event.events.length > 0 ? (
+          <TranscriptView
+            id={`${id}-subtask`}
+            data-name="Transcript"
+            events={event.events}
+            depth={depth + 1}
+          />
+        ) : (
+          <None />
+        )}
       </div>
     ) : (
       <Fragment>
@@ -60,7 +56,14 @@ export const SubtaskEventView: React.FC<SubtaskEventViewProps> = ({
           input={event.input}
           result={event.result}
         />
-        {transcript}
+        {event.events.length > 0 ? (
+          <TranscriptView
+            id={`${id}-subtask`}
+            data-name="Transcript"
+            events={event.events}
+            depth={depth + 1}
+          />
+        ) : undefined}
       </Fragment>
     );
 
@@ -126,8 +129,20 @@ const Rendered: React.FC<RenderedProps> = ({ values }) => {
       return <Rendered values={val} />;
     });
   } else if (values && typeof values === "object") {
-    return <MetaDataView entries={values as Record<string, unknown>} />;
+    if (Object.keys(values).length === 0) {
+      return <None />;
+    } else {
+      return <MetaDataView entries={values as Record<string, unknown>} />;
+    }
   } else {
     return values;
   }
+};
+
+const None: React.FC = () => {
+  return (
+    <span className={clsx("text-size-small", "text-style-secondary")}>
+      [None]
+    </span>
+  );
 };

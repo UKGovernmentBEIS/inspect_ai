@@ -13,6 +13,10 @@ Please answer this question.
 {variable}
 
 {prompt}
+
+{unknown}
+
+{{escaped}}
 """
 
 PARAM_VALUE = "param_value"
@@ -46,6 +50,8 @@ def check_template_variables(template_solver: Solver, index: int = 0):
 
     assert VARIABLE_VALUE in message
     assert PARAM_VALUE in message
+    assert "{unknown}" in message
+    assert "{escaped}" in message
 
     return message
 
