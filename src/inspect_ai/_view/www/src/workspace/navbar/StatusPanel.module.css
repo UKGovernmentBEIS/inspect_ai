@@ -5,6 +5,7 @@
   font-size: var(--inspect-font-size-smaller);
   display: grid;
   grid-template-columns: auto auto;
+  justify-content: end;
 }
 
 .statusIcon {

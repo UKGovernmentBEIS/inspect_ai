@@ -1,11 +1,9 @@
 ## Unreleased
 
+- Prompt templates: Ignore template placeholders that don't map to passed parameters in `prompt_template()`, `user_message()`, and `system_message()`.
 - Inspect View: Improve the display of subtasks with no inputs or events.
 - Inspect View: Fix transcript display of phantom subtask or other phantom events.
-
-## Unreleased
-
-- Prompt templates: Ignore template placeholders that don't map to passed parameters in `prompt_template()`, `user_message()`, and `system_message()`.
+- Inspect View: Fix formatting issues in sample error display
 
 ## v0.3.66 (17 February 2025)
 
