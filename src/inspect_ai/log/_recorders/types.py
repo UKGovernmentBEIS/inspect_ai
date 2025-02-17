@@ -16,6 +16,7 @@ class SampleSummary(BaseModel):
     epoch: int
     input: str | list[ChatMessage]
     target: str | list[str]
+    completed: bool = Field(default=False)
     scores: dict[str, Score] | None = Field(default=None)
     error: str | None = Field(default=None)
     limit: str | None = Field(default=None)
