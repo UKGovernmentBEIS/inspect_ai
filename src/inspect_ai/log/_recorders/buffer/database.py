@@ -87,11 +87,12 @@ class SampleBufferDatabase(SampleBuffer):
         *,
         create: bool = True,
         log_images: bool = True,
-        log_shared: bool = False,
+        log_shared: int | None = None,
         db_dir: Path | None = None,
     ):
         self.location = location
         self.log_images = log_images
+        self.log_shared = log_shared
 
         # set path
         db_dir = resolve_db_dir(db_dir)
@@ -273,9 +274,8 @@ class SampleBufferDatabase(SampleBuffer):
                 self._sync()
 
     def _sync(self) -> None:
-        if self._sync_filestore is not None:
-            # sync no more than every 10 seconds
-            if (time.monotonic() - self._sync_time) > 10:
+        if self.log_shared is not None and self._sync_filestore is not None:
+            if (time.monotonic() - self._sync_time) > self.log_shared:
                 with trace_action(logger, "Log Sync", self.location):
                     sync_to_filestore(self, self._sync_filestore)
                 self._sync_time = time.monotonic()
