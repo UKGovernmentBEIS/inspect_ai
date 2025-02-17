@@ -15,6 +15,14 @@ def sample_buffer(location: str) -> SampleBuffer:
         return SampleBufferFilestore(location, create=False)
 
 
+def running_tasks(log_dir: str) -> list[str]:
+    tasks = SampleBufferDatabase.running_tasks(log_dir)
+    if tasks is not None:
+        return tasks
+    else:
+        return SampleBufferFilestore.running_tasks(log_dir) or []
+
+
 def cleanup_sample_buffers(log_dir: str) -> None:
     try:
         cleanup_sample_buffer_databases()
