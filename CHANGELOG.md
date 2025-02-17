@@ -1,5 +1,5 @@
 
-## Unreleased
+## v0.3.66 (17 February 2025)
 
 - Docker: Correct compose file generation for Dockerfiles w/ custom stem or extension.
 - Escape brackets when rendering task config (another textual 2.0 fix)
