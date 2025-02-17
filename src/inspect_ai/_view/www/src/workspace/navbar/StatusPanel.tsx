@@ -51,9 +51,9 @@ const StatusPanel: React.FC<StatusPanelProps> = ({
     <div className={styles.statusPanel}>
       <i className={clsx(icon, styles.statusIcon)} style={{}} />
       <div>
-        <div>${status}</div>
+        <div>{status}</div>
         <div>
-          (${sampleCount} ${sampleCount === 1 ? "sample" : "samples"})
+          ({sampleCount} {sampleCount === 1 ? "sample" : "samples"})
         </div>
       </div>
     </div>

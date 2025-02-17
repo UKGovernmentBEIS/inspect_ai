@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Inspect View: Improve the display of subtasks with no inputs or events.
+- Inspect View: Fix formatting issues in sample error display
 
 ## Unreleased
 
