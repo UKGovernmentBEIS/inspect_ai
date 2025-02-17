@@ -10,6 +10,7 @@ JsonData: TypeAlias = dict[str, JsonValue]
 
 class Samples(BaseModel):
     samples: list[SampleSummary]
+    refresh: int
     etag: str
 
 

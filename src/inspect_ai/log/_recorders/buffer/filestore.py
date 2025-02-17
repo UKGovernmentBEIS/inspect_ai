@@ -7,6 +7,7 @@ from zipfile import ZIP_DEFLATED, ZipFile
 from pydantic import BaseModel, Field
 from typing_extensions import override
 
+from inspect_ai._util.constants import DEFAULT_LOG_SHARED
 from inspect_ai._util.file import FileSystem, basename, dirname, file, filesystem
 from inspect_ai.log._file import read_eval_log
 
@@ -42,9 +43,16 @@ MANIFEST = "manifest.json"
 
 
 class SampleBufferFilestore(SampleBuffer):
-    def __init__(self, location: str, *, create: bool = True) -> None:
+    def __init__(
+        self,
+        location: str,
+        *,
+        create: bool = True,
+        update_interval: int = DEFAULT_LOG_SHARED,
+    ) -> None:
         self._fs = filesystem(location)
         self._dir = f"{sample_buffer_dir(dirname(location), self._fs)}{self._fs.sep}{basename(location)}{self._fs.sep}"
+        self.update_interval = update_interval
 
         if create:
             self._fs.mkdir(self._dir, exist_ok=True)
@@ -127,7 +135,11 @@ class SampleBufferFilestore(SampleBuffer):
             return None
 
         # provide samples + etag from the manifest
-        return Samples(samples=[sm.summary for sm in manifest.samples], etag=fs_etag)
+        return Samples(
+            samples=[sm.summary for sm in manifest.samples],
+            refresh=self.update_interval,
+            etag=fs_etag,
+        )
 
     @override
     def get_sample_data(
