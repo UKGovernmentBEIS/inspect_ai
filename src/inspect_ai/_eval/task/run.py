@@ -27,6 +27,7 @@ from inspect_ai._util.constants import (
 from inspect_ai._util.datetime import iso_now
 from inspect_ai._util.error import exception_message
 from inspect_ai._util.hooks import send_telemetry
+from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.registry import (
     is_registry_object,
     registry_log_name,
@@ -818,7 +819,7 @@ async def log_sample(
     id = sample.id
     if id is None:
         raise ValueError(
-            f"Samples without IDs cannot be logged: {sample.model_dump_json()}"
+            f"Samples without IDs cannot be logged: {to_json_str_safe(sample)}"
         )
 
     # construct sample for logging
