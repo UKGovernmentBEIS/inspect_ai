@@ -387,7 +387,10 @@ const fixupEventStream = (events: Events) => {
   });
   const initEvent = events[initEventIndex];
 
-  const fixedUp = [...events];
+  // Filter pending events
+  const finalEvents = events.filter((e) => !e.pending);
+
+  const fixedUp = [...finalEvents];
   if (initEvent) {
     fixedUp.splice(initEventIndex, 0, {
       timestamp: initEvent.timestamp,
