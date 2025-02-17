@@ -1,3 +1,6 @@
+## Unreleased
+
+- Inspect View: Improve the display of subtasks with no inputs or events.
 
 ## v0.3.66 (17 February 2025)
 

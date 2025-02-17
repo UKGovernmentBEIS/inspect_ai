@@ -58144,20 +58144,19 @@ ${events}
       depth,
       className: className2
     }) => {
-      const transcript = event.events.length > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
-        TranscriptView,
-        {
-          id: `${id}-subtask`,
-          "data-name": "Transcript",
-          events: event.events,
-          depth: depth + 1
-        }
-      ) : "";
       const body2 = event.type === "fork" ? /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { title: "Summary", className: clsx(styles$l.summary), children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-label"), children: "Inputs" }),
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$l.summaryRendered), children: /* @__PURE__ */ jsxRuntimeExports.jsx(Rendered, { values: event.input }) }),
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-label"), children: "Transcript" }),
-        transcript
+        event.events.length > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+          TranscriptView,
+          {
+            id: `${id}-subtask`,
+            "data-name": "Transcript",
+            events: event.events,
+            depth: depth + 1
+          }
+        ) : /* @__PURE__ */ jsxRuntimeExports.jsx(None, {})
       ] }) : /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx(
           SubtaskSummary,
@@ -58167,7 +58166,15 @@ ${events}
             result: event.result
           }
         ),
-        transcript
+        event.events.length > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+          TranscriptView,
+          {
+            id: `${id}-subtask`,
+            "data-name": "Transcript",
+            events: event.events,
+            depth: depth + 1
+          }
+        ) : void 0
       ] });
       const type = event.type === "fork" ? "Fork" : "Subtask";
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -58207,10 +58214,17 @@ ${events}
           return /* @__PURE__ */ jsxRuntimeExports.jsx(Rendered, { values: val });
         });
       } else if (values && typeof values === "object") {
-        return /* @__PURE__ */ jsxRuntimeExports.jsx(MetaDataView, { entries: values });
+        if (Object.keys(values).length === 0) {
+          return /* @__PURE__ */ jsxRuntimeExports.jsx(None, {});
+        } else {
+          return /* @__PURE__ */ jsxRuntimeExports.jsx(MetaDataView, { entries: values });
+        }
       } else {
         return values;
       }
+    };
+    const None = () => {
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx("text-size-small", "text-style-secondary"), children: "[None]" });
     };
     const summary = "_summary_1qkjz_1";
     const approval = "_approval_1qkjz_6";
