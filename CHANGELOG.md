@@ -1,4 +1,8 @@
 
+## Unreleased
+
+- Docker: Correct compose file generation for Dockerfiles w/ custom stem or extension.
+
 ## v0.3.65 (16 February 2025)
 
 - Compatibility with textual 2.0 (which had several breaking changes).
