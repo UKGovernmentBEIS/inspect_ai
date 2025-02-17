@@ -5,6 +5,7 @@
 - New `assistant_message()` solver.
 - Prompt templates: Ignore template placeholders that don't map to passed parameters in `prompt_template()`, and system/user/assistant solvers.
 - Inspect View: Improve the display of subtasks with no inputs or events.
+- Inspect View: Fix transcript display of phantom subtask or other phantom events.
 - Inspect View: Fix formatting issues in sample error display
 
 ## v0.3.66 (17 February 2025)
