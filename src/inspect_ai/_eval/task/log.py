@@ -170,7 +170,7 @@ class TaskLogger:
         self._buffer_db = SampleBufferDatabase(
             location=self._location,
             log_images=self.eval.config.log_images is not False,
-            log_shared=self.eval.config.log_shared is True,
+            log_shared=self.eval.config.log_shared,
         )
         self._sample_events_pending: list[SampleEvent] = []
         self._sample_events_last_write: float = time.monotonic()
@@ -194,10 +194,10 @@ class TaskLogger:
         # collect in pending queue
         self._sample_events_pending.append(SampleEvent(id=id, epoch=epoch, event=event))
 
-        # flush pending if its been more than 2 seconds or we have 100 events:
-        if (time.monotonic() - self._sample_events_last_write) > 2 or len(
-            self._sample_events_pending
-        ) >= 50:
+        # flush pending if its been more than the update interval
+        if (
+            time.monotonic() - self._sample_events_last_write
+        ) > self._buffer_db.update_interval:
             self.flush_pending_sample_events()
 
     def flush_pending_sample_events(self) -> None:
