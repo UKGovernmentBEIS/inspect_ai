@@ -4,6 +4,11 @@
 - Memoize calls to `get_model()` so that model instances with the same parameters are cached and re-used (pass `memoize=False` to disable).
 - Async context manager for `Model` class for optional scoped usage of model clients.
 
+## v0.3.66 (17 February 2025)
+
+- Docker: Correct compose file generation for Dockerfiles w/ custom stem or extension.
+- Escape brackets when rendering task config (another textual 2.0 fix)
+
 ## v0.3.65 (16 February 2025)
 
 - Compatibility with textual 2.0 (which had several breaking changes).
