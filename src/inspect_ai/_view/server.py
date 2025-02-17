@@ -13,7 +13,7 @@ from fsspec.core import split_protocol  # type: ignore
 from pydantic_core import to_jsonable_python
 
 from inspect_ai._display import display
-from inspect_ai._util.constants import DEFAULT_SERVER_HOST, DEFAULT_VIEW_PORT
+from inspect_ai._util.constants import DEFAULT_SERVER_HOST, DEFAULT_VIEW_PORT, HTTP
 from inspect_ai._util.file import filesystem, size_in_mb
 from inspect_ai.log._file import (
     EvalLogInfo,
@@ -136,7 +136,10 @@ def view_server(
     @routes.get("/api/pending-samples")
     async def api_pending_samples(request: web.Request) -> web.Response:
         # log file requested
-        file = request.match_info["log"]
+        file = request.query.get("log")
+        if file is None:
+            raise web.HTTPBadRequest()
+
         file = urllib.parse.unquote(file)
         validate_log_file_request(file)
 
