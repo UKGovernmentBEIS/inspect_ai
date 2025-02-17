@@ -15,6 +15,7 @@ from typing import (
 )
 
 import rich
+from pydantic import BaseModel, Field
 from rich.console import Console
 
 from inspect_ai.log import EvalConfig, EvalResults, EvalStats
@@ -104,12 +105,11 @@ class TaskScreen(contextlib.AbstractContextManager["TaskScreen"]):
         raise NotImplementedError("input_panel not implemented by current display")
 
 
-@dataclass
-class TaskDisplayMetric:
+class TaskDisplayMetric(BaseModel):
     scorer: str
     name: str
     value: float | int
-    reducer: str | None
+    reducer: str | None = Field(default=None)
 
 
 @runtime_checkable

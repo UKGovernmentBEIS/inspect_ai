@@ -19,7 +19,7 @@ from inspect_ai._display import (
     TaskSuccess,
     display,
 )
-from inspect_ai._display.core.display import TaskDisplay, TaskDisplayMetric
+from inspect_ai._display.core.display import TaskDisplayMetric
 from inspect_ai._util._async import tg_collect
 from inspect_ai._util.constants import (
     DEFAULT_EPOCHS,
@@ -269,8 +269,13 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
 
                     # track when samples complete and update progress as we go
                     progress_results: list[dict[str, SampleScore]] = []
+
+                    def update_metrics(metrics: list[TaskDisplayMetric]) -> None:
+                        td.update_metrics(metrics)
+                        logger.update_metrics(metrics)
+
                     update_metrics_display = update_metrics_display_fn(
-                        td,
+                        update_metrics,
                         display_metrics=profile.eval_config.score_display is not False,
                     )
 
@@ -428,7 +433,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
 
 
 def update_metrics_display_fn(
-    td: TaskDisplay,
+    update_fn: Callable[[list[TaskDisplayMetric]], None],
     initial_interval: float = 0,
     min_interval: float = 0.9,
     display_metrics: bool = True,
@@ -468,7 +473,7 @@ def update_metrics_display_fn(
             )
 
             # Name, reducer, value
-            task_metrics = []
+            task_metrics: list[TaskDisplayMetric] = []
             if len(results.scores) > 0:
                 for score in results.scores:
                     for key, metric in score.metrics.items():
@@ -480,7 +485,7 @@ def update_metrics_display_fn(
                                 reducer=score.reducer,
                             )
                         )
-                td.update_metrics(task_metrics)
+                update_fn(task_metrics)
 
             # determine how long to wait before recomputing metrics
             time_end = time.perf_counter()
