@@ -132,9 +132,11 @@ const contentRenderers: Record<string, ContentRenderer> = {
       const isArray = Array.isArray(entry.value);
       if (isArray) {
         const types = new Set(
-          entry.value.map((e: unknown) => {
-            return typeof e;
-          }),
+          entry.value
+            .filter((e: unknown) => e !== null)
+            .map((e: unknown) => {
+              return typeof e;
+            }),
         );
         return types.size === 1;
       } else {
@@ -235,16 +237,7 @@ const contentRenderers: Record<string, ContentRenderer> = {
     },
     render: (id, entry) => {
       // Generate a json preview
-      const summary = [];
-      const keys = Object.keys(entry.value);
-      if (keys.length > 4) {
-        summary.push(...keys.slice(0, 2));
-        summary.push("...");
-        summary.push(...keys.slice(keys.length - 2));
-      } else {
-        summary.push(...keys);
-      }
-
+      console.log({ entry });
       return {
         rendered: (
           <MetaDataView

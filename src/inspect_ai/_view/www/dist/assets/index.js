@@ -22146,7 +22146,7 @@ var require_assets = __commonJS({
           const isArray = Array.isArray(entry2.value);
           if (isArray) {
             const types2 = new Set(
-              entry2.value.map((e) => {
+              entry2.value.filter((e) => e !== null).map((e) => {
                 return typeof e;
               })
             );
@@ -22243,15 +22243,7 @@ var require_assets = __commonJS({
           return typeof entry2.value === "object";
         },
         render: (id, entry2) => {
-          const summary2 = [];
-          const keys = Object.keys(entry2.value);
-          if (keys.length > 4) {
-            summary2.push(...keys.slice(0, 2));
-            summary2.push("...");
-            summary2.push(...keys.slice(keys.length - 2));
-          } else {
-            summary2.push(...keys);
-          }
+          console.log({ entry: entry2 });
           return {
             rendered: /* @__PURE__ */ jsxRuntimeExports.jsx(
               MetaDataView,
@@ -49507,17 +49499,17 @@ self.onmessage = function (e) {
         return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$G.grid, children: rows });
       }
     };
-    const container$9 = "_container_43lfg_1";
-    const label$1 = "_label_43lfg_6";
-    const wordBreak = "_wordBreak_43lfg_14";
-    const scoreTable = "_scoreTable_43lfg_18";
-    const bottomBorder = "_bottomBorder_43lfg_23";
-    const headerScore = "_headerScore_43lfg_27";
-    const targetValue = "_targetValue_43lfg_31";
-    const answerValue = "_answerValue_43lfg_37";
-    const scoreValue = "_scoreValue_43lfg_42";
-    const noLeft$1 = "_noLeft_43lfg_47";
-    const noTop$1 = "_noTop_43lfg_51";
+    const container$9 = "_container_1jqar_1";
+    const label$1 = "_label_1jqar_6";
+    const wordBreak = "_wordBreak_1jqar_14";
+    const scoreTable = "_scoreTable_1jqar_18";
+    const bottomBorder = "_bottomBorder_1jqar_23";
+    const headerScore = "_headerScore_1jqar_27";
+    const targetValue = "_targetValue_1jqar_31";
+    const answerValue = "_answerValue_1jqar_37";
+    const scoreValue = "_scoreValue_1jqar_42";
+    const noLeft$1 = "_noLeft_1jqar_47";
+    const noTop$1 = "_noTop_1jqar_51";
     const styles$F = {
       container: container$9,
       label: label$1,
@@ -58199,20 +58191,19 @@ ${events}
       depth,
       className: className2
     }) => {
-      const transcript = event.events.length > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
-        TranscriptView,
-        {
-          id: `${id}-subtask`,
-          "data-name": "Transcript",
-          events: event.events,
-          depth: depth + 1
-        }
-      ) : "";
       const body2 = event.type === "fork" ? /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { title: "Summary", className: clsx(styles$l.summary), children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-label"), children: "Inputs" }),
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$l.summaryRendered), children: /* @__PURE__ */ jsxRuntimeExports.jsx(Rendered, { values: event.input }) }),
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-label"), children: "Transcript" }),
-        transcript
+        event.events.length > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+          TranscriptView,
+          {
+            id: `${id}-subtask`,
+            "data-name": "Transcript",
+            events: event.events,
+            depth: depth + 1
+          }
+        ) : /* @__PURE__ */ jsxRuntimeExports.jsx(None, {})
       ] }) : /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx(
           SubtaskSummary,
@@ -58222,7 +58213,15 @@ ${events}
             result: event.result
           }
         ),
-        transcript
+        event.events.length > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+          TranscriptView,
+          {
+            id: `${id}-subtask`,
+            "data-name": "Transcript",
+            events: event.events,
+            depth: depth + 1
+          }
+        ) : void 0
       ] });
       const type = event.type === "fork" ? "Fork" : "Subtask";
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -58262,10 +58261,17 @@ ${events}
           return /* @__PURE__ */ jsxRuntimeExports.jsx(Rendered, { values: val });
         });
       } else if (values && typeof values === "object") {
-        return /* @__PURE__ */ jsxRuntimeExports.jsx(MetaDataView, { entries: values });
+        if (Object.keys(values).length === 0) {
+          return /* @__PURE__ */ jsxRuntimeExports.jsx(None, {});
+        } else {
+          return /* @__PURE__ */ jsxRuntimeExports.jsx(MetaDataView, { entries: values });
+        }
       } else {
         return values;
       }
+    };
+    const None = () => {
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx("text-size-small", "text-style-secondary"), children: "[None]" });
     };
     const summary = "_summary_1qkjz_1";
     const approval = "_approval_1qkjz_6";
@@ -58896,7 +58902,14 @@ ${events}
                   title: "JSON",
                   onSelected: onSelectedTab,
                   selected: selectedTab === kSampleJsonTabId,
-                  children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$A.padded, styles$A.fullWidth), children: /* @__PURE__ */ jsxRuntimeExports.jsx(JSONPanel, { data: sample2, simple: true }) })
+                  children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$A.padded, styles$A.fullWidth), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+                    JSONPanel,
+                    {
+                      data: sample2,
+                      simple: true,
+                      className: clsx("text-size-small")
+                    }
+                  ) })
                 }
               ) : null
             ]
@@ -60589,7 +60602,7 @@ ${events}
           });
         });
         const metrics = Object.values(scorers)[0];
-        const showReducer = !!metrics[0].reducer;
+        const showReducer = metrics && metrics.length > 0 && !!metrics[0].reducer;
         return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$3.simpleMetricsRows, children: metrics.map((metric2, i2) => {
           return /* @__PURE__ */ jsxRuntimeExports.jsx(
             VerticalMetric,
