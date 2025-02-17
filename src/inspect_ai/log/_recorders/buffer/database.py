@@ -13,6 +13,7 @@ import psutil
 from typing_extensions import override
 
 from inspect_ai._util.appdirs import inspect_data_dir
+from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.trace import trace_action
 
 from ..._condense import (
@@ -127,7 +128,7 @@ class SampleBufferDatabase(SampleBuffer):
                 INSERT INTO samples (id, epoch, data)
                 VALUES (?, ?, ?)
             """,
-                (str(sample.id), sample.epoch, sample.model_dump_json()),
+                (str(sample.id), sample.epoch, to_json_str_safe(sample)),
             )
 
     def log_events(self, events: list[SampleEvent]) -> None:
@@ -141,7 +142,7 @@ class SampleBufferDatabase(SampleBuffer):
                         event.event._id,
                         str(event.id),
                         event.epoch,
-                        event.event.model_dump_json(),
+                        to_json_str_safe(event.event),
                     )
                 )
 
@@ -162,7 +163,7 @@ class SampleBufferDatabase(SampleBuffer):
                 """
                 UPDATE samples SET data = ? WHERE id = ? and epoch = ?
             """,
-                (summary.model_dump_json(), str(summary.id), summary.epoch),
+                (to_json_str_safe(summary), str(summary.id), summary.epoch),
             )
 
     def remove_samples(self, samples: list[tuple[str | int, int]]) -> None:

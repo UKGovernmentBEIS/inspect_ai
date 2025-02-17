@@ -9,6 +9,7 @@ from typing_extensions import override
 
 from inspect_ai._util.constants import DEFAULT_LOG_SHARED, EVAL_LOG_FORMAT
 from inspect_ai._util.file import FileSystem, basename, dirname, file, filesystem
+from inspect_ai._util.json import to_json_safe, to_json_str_safe
 from inspect_ai.log._file import read_eval_log
 
 from ..types import SampleSummary
@@ -61,7 +62,7 @@ class SampleBufferFilestore(SampleBuffer):
         # transfer it up (use a mv so it's atomic)
         manifest_temp = f"{self._manifest_file()}.temp"
         with file(manifest_temp, "wb") as f:
-            f.write(manifest.model_dump_json(indent=2).encode())
+            f.write(to_json_safe(manifest))
         self._fs.mv(manifest_temp, self._manifest_file())
 
     def write_segment(self, id: int, files: list[SegmentFile]) -> None:
@@ -74,7 +75,7 @@ class SampleBufferFilestore(SampleBuffer):
                 for sf in files:
                     zip.writestr(
                         segment_file_name(sf.id, sf.epoch),
-                        sf.data.model_dump_json(),
+                        to_json_str_safe(sf.data),
                     )
             segment_file.flush()
             os.fsync(segment_file.fileno())
