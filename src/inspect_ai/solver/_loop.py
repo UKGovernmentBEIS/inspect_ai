@@ -55,10 +55,7 @@ class Loop(Solver):
             ) or state.completed
 
         iteration = 0
-        while iteration < self._max_iterations:
-            if should_exit(state):
-                break
-
+        while iteration < self._max_iterations and not should_exit(state):
             if not isinstance(self._solver, Chain):
                 with solver_transcript(self._solver, state) as st:
                     state = await self._solver(state, generate)
@@ -67,8 +64,5 @@ class Loop(Solver):
                 state = await self._solver(state, generate)
 
             iteration += 1
-
-            if should_exit(state):
-                break
 
         return state
