@@ -58,39 +58,35 @@ class SampleBufferFilestore(SampleBuffer):
             self._fs.mkdir(self._dir, exist_ok=True)
 
     def write_manifest(self, manifest: Manifest) -> None:
-        # write the file locally
-        with tempfile.NamedTemporaryFile(mode="w", delete=False) as manifest_file:
-            name = manifest_file.name
-            manifest_file.write(manifest.model_dump_json(indent=2))
-            manifest_file.flush()
-            os.fsync(manifest_file.fileno())
-
         # transfer it up (use a mv so it's atomic)
-        try:
-            manifest_temp = f"{self._manifest_file()}.temp"
-            self._fs.put_file(manifest_file.name, manifest_temp)
-            self._fs.mv(manifest_temp, self._manifest_file())
-        finally:
-            os.unlink(name)
+        manifest_temp = f"{self._manifest_file()}.temp"
+        with file(manifest_temp, "wb") as f:
+            f.write(manifest.model_dump_json(indent=2).encode())
+        self._fs.mv(manifest_temp, self._manifest_file())
 
     def write_segment(self, id: int, files: list[SegmentFile]) -> None:
         # write the file locally
-        with tempfile.NamedTemporaryFile(mode="w+b", delete=False) as segment_file:
+        with tempfile.NamedTemporaryFile(mode="wb", delete=False) as segment_file:
             name = segment_file.name
             with ZipFile(
                 segment_file, mode="w", compression=ZIP_DEFLATED, compresslevel=5
             ) as zip:
-                for file in files:
+                for sf in files:
                     zip.writestr(
-                        segment_file_name(file.id, file.epoch),
-                        file.data.model_dump_json(),
+                        segment_file_name(sf.id, sf.epoch),
+                        sf.data.model_dump_json(),
                     )
             segment_file.flush()
             os.fsync(segment_file.fileno())
 
-        # transfer it
+        # write then move for atomicity
+        segment_temp = f"{self._dir}{segment_name(id)}.temp"
         try:
-            self._fs.put_file(segment_file.name, f"{self._dir}{segment_name(id)}")
+            with open(name, "rb") as zf:
+                with file(segment_temp, "wb") as f:
+                    f.write(zf.read())
+                    f.flush()
+            self._fs.mv(segment_temp, f"{self._dir}{segment_name(id)}")
         finally:
             os.unlink(name)
 
