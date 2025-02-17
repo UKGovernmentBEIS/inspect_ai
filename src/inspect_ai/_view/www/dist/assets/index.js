@@ -1,10 +1,10 @@
 var __defProp = Object.defineProperty;
 var __getOwnPropNames = Object.getOwnPropertyNames;
-var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
-var __commonJS = (cb, mod) => function __require() {
-  return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
+var __defNormalProp = (obj, key2, value2) => key2 in obj ? __defProp(obj, key2, { enumerable: true, configurable: true, writable: true, value: value2 }) : obj[key2] = value2;
+var __commonJS = (cb, mod2) => function __require() {
+  return mod2 || (0, cb[__getOwnPropNames(cb)[0]])((mod2 = { exports: {} }).exports, mod2), mod2.exports;
 };
-var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
+var __publicField = (obj, key2, value2) => __defNormalProp(obj, typeof key2 !== "symbol" ? key2 + "" : key2, value2);
 var require_assets = __commonJS({
   "assets/index.js"(exports) {
     (function polyfill() {
@@ -1682,7 +1682,7 @@ var require_assets = __commonJS({
       var valueField = isCheckable(node2) ? "checked" : "value", descriptor = Object.getOwnPropertyDescriptor(
         node2.constructor.prototype,
         valueField
-      ), currentValue = "" + node2[valueField];
+      ), currentValue2 = "" + node2[valueField];
       if (!node2.hasOwnProperty(valueField) && "undefined" !== typeof descriptor && "function" === typeof descriptor.get && "function" === typeof descriptor.set) {
         var get2 = descriptor.get, set = descriptor.set;
         Object.defineProperty(node2, valueField, {
@@ -1691,7 +1691,7 @@ var require_assets = __commonJS({
             return get2.call(this);
           },
           set: function(value2) {
-            currentValue = "" + value2;
+            currentValue2 = "" + value2;
             set.call(this, value2);
           }
         });
@@ -1700,10 +1700,10 @@ var require_assets = __commonJS({
         });
         return {
           getValue: function() {
-            return currentValue;
+            return currentValue2;
           },
           setValue: function(value2) {
-            currentValue = "" + value2;
+            currentValue2 = "" + value2;
           },
           stopTracking: function() {
             node2._valueTracker = null;
@@ -3900,12 +3900,12 @@ var require_assets = __commonJS({
       }
     }
     function runActionStateAction(actionQueue, node2) {
-      var action = node2.action, payload = node2.payload, prevState = actionQueue.state;
+      var action = node2.action, payload = node2.payload, prevState2 = actionQueue.state;
       if (node2.isTransition) {
         var prevTransition = ReactSharedInternals.T, currentTransition = {};
         ReactSharedInternals.T = currentTransition;
         try {
-          var returnValue = action(prevState, payload), onStartTransitionFinish = ReactSharedInternals.S;
+          var returnValue = action(prevState2, payload), onStartTransitionFinish = ReactSharedInternals.S;
           null !== onStartTransitionFinish && onStartTransitionFinish(currentTransition, returnValue);
           handleActionReturnValue(actionQueue, node2, returnValue);
         } catch (error2) {
@@ -3915,7 +3915,7 @@ var require_assets = __commonJS({
         }
       } else
         try {
-          prevTransition = action(prevState, payload), handleActionReturnValue(actionQueue, node2, prevTransition);
+          prevTransition = action(prevState2, payload), handleActionReturnValue(actionQueue, node2, prevTransition);
         } catch (error$60) {
           onActionError(actionQueue, node2, error$60);
         }
@@ -4135,19 +4135,19 @@ var require_assets = __commonJS({
     function updateCallback(callback, deps) {
       var hook = updateWorkInProgressHook();
       deps = void 0 === deps ? null : deps;
-      var prevState = hook.memoizedState;
-      if (null !== deps && areHookInputsEqual(deps, prevState[1]))
-        return prevState[0];
+      var prevState2 = hook.memoizedState;
+      if (null !== deps && areHookInputsEqual(deps, prevState2[1]))
+        return prevState2[0];
       hook.memoizedState = [callback, deps];
       return callback;
     }
     function updateMemo(nextCreate, deps) {
       var hook = updateWorkInProgressHook();
       deps = void 0 === deps ? null : deps;
-      var prevState = hook.memoizedState;
-      if (null !== deps && areHookInputsEqual(deps, prevState[1]))
-        return prevState[0];
-      prevState = nextCreate();
+      var prevState2 = hook.memoizedState;
+      if (null !== deps && areHookInputsEqual(deps, prevState2[1]))
+        return prevState2[0];
+      prevState2 = nextCreate();
       if (shouldDoubleInvokeUserFnsInHooksDEV) {
         setIsStrictModeForDevtools(true);
         try {
@@ -4156,8 +4156,8 @@ var require_assets = __commonJS({
           setIsStrictModeForDevtools(false);
         }
       }
-      hook.memoizedState = [prevState, deps];
-      return prevState;
+      hook.memoizedState = [prevState2, deps];
+      return prevState2;
     }
     function mountDeferredValueImpl(hook, value2, initialValue) {
       if (void 0 === initialValue || 0 !== (renderLanes & 1073741824))
@@ -4168,16 +4168,16 @@ var require_assets = __commonJS({
       workInProgressRootSkippedLanes |= hook;
       return initialValue;
     }
-    function updateDeferredValueImpl(hook, prevValue, value2, initialValue) {
-      if (objectIs(value2, prevValue)) return value2;
+    function updateDeferredValueImpl(hook, prevValue2, value2, initialValue) {
+      if (objectIs(value2, prevValue2)) return value2;
       if (null !== currentTreeHiddenStackCursor.current)
-        return hook = mountDeferredValueImpl(hook, value2, initialValue), objectIs(hook, prevValue) || (didReceiveUpdate = true), hook;
+        return hook = mountDeferredValueImpl(hook, value2, initialValue), objectIs(hook, prevValue2) || (didReceiveUpdate = true), hook;
       if (0 === (renderLanes & 42))
         return didReceiveUpdate = true, hook.memoizedState = value2;
       hook = requestDeferredLane();
       currentlyRenderingFiber$1.lanes |= hook;
       workInProgressRootSkippedLanes |= hook;
-      return prevValue;
+      return prevValue2;
     }
     function startTransition(fiber, queue, pendingState, finishedState, callback) {
       var previousPriority = ReactDOMSharedInternals.p;
@@ -4966,11 +4966,11 @@ var require_assets = __commonJS({
       );
     }
     function updateOffscreenComponent(current, workInProgress2, renderLanes2) {
-      var nextProps = workInProgress2.pendingProps, nextChildren = nextProps.children, nextIsDetached = 0 !== (workInProgress2.stateNode._pendingVisibility & 2), prevState = null !== current ? current.memoizedState : null;
+      var nextProps = workInProgress2.pendingProps, nextChildren = nextProps.children, nextIsDetached = 0 !== (workInProgress2.stateNode._pendingVisibility & 2), prevState2 = null !== current ? current.memoizedState : null;
       markRef(current, workInProgress2);
       if ("hidden" === nextProps.mode || nextIsDetached) {
         if (0 !== (workInProgress2.flags & 128)) {
-          nextProps = null !== prevState ? prevState.baseLanes | renderLanes2 : renderLanes2;
+          nextProps = null !== prevState2 ? prevState2.baseLanes | renderLanes2 : renderLanes2;
           if (null !== current) {
             nextChildren = workInProgress2.child = current.child;
             for (nextIsDetached = 0; null !== nextChildren; )
@@ -4987,17 +4987,17 @@ var require_assets = __commonJS({
         if (0 !== (renderLanes2 & 536870912))
           workInProgress2.memoizedState = { baseLanes: 0, cachePool: null }, null !== current && pushTransition(
             workInProgress2,
-            null !== prevState ? prevState.cachePool : null
-          ), null !== prevState ? pushHiddenContext(workInProgress2, prevState) : reuseHiddenContextOnStack(), pushOffscreenSuspenseHandler(workInProgress2);
+            null !== prevState2 ? prevState2.cachePool : null
+          ), null !== prevState2 ? pushHiddenContext(workInProgress2, prevState2) : reuseHiddenContextOnStack(), pushOffscreenSuspenseHandler(workInProgress2);
         else
           return workInProgress2.lanes = workInProgress2.childLanes = 536870912, deferHiddenOffscreenComponent(
             current,
             workInProgress2,
-            null !== prevState ? prevState.baseLanes | renderLanes2 : renderLanes2,
+            null !== prevState2 ? prevState2.baseLanes | renderLanes2 : renderLanes2,
             renderLanes2
           );
       } else
-        null !== prevState ? (pushTransition(workInProgress2, prevState.cachePool), pushHiddenContext(workInProgress2, prevState), reuseSuspenseHandlerOnStack(), workInProgress2.memoizedState = null) : (null !== current && pushTransition(workInProgress2, null), reuseHiddenContextOnStack(), reuseSuspenseHandlerOnStack());
+        null !== prevState2 ? (pushTransition(workInProgress2, prevState2.cachePool), pushHiddenContext(workInProgress2, prevState2), reuseSuspenseHandlerOnStack(), workInProgress2.memoizedState = null) : (null !== current && pushTransition(workInProgress2, null), reuseHiddenContextOnStack(), reuseSuspenseHandlerOnStack());
       reconcileChildren(current, workInProgress2, nextChildren, renderLanes2);
       return workInProgress2.child;
     }
@@ -9773,7 +9773,7 @@ var require_assets = __commonJS({
     }
     function noop$1() {
     }
-    function setProp(domElement, tag, key2, value2, props, prevValue) {
+    function setProp(domElement, tag, key2, value2, props, prevValue2) {
       switch (key2) {
         case "children":
           "string" === typeof value2 ? "body" === tag || "textarea" === tag && "" === value2 || setTextContent(domElement, value2) : ("number" === typeof value2 || "bigint" === typeof value2) && "body" !== tag && setTextContent(domElement, "" + value2);
@@ -9792,7 +9792,7 @@ var require_assets = __commonJS({
           setValueForKnownAttribute(domElement, key2, value2);
           break;
         case "style":
-          setValueForStyles(domElement, value2, prevValue);
+          setValueForStyles(domElement, value2, prevValue2);
           break;
         case "data":
           if ("object" !== tag) {
@@ -9821,7 +9821,7 @@ var require_assets = __commonJS({
             );
             break;
           } else
-            "function" === typeof prevValue && ("formAction" === key2 ? ("input" !== tag && setProp(domElement, tag, "name", props.name, props, null), setProp(
+            "function" === typeof prevValue2 && ("formAction" === key2 ? ("input" !== tag && setProp(domElement, tag, "name", props.name, props, null), setProp(
               domElement,
               tag,
               "formEncType",
@@ -10034,10 +10034,10 @@ var require_assets = __commonJS({
             key2 = aliases.get(key2) || key2, setValueForAttribute(domElement, key2, value2);
       }
     }
-    function setPropOnCustomElement(domElement, tag, key2, value2, props, prevValue) {
+    function setPropOnCustomElement(domElement, tag, key2, value2, props, prevValue2) {
       switch (key2) {
         case "style":
-          setValueForStyles(domElement, value2, prevValue);
+          setValueForStyles(domElement, value2, prevValue2);
           break;
         case "dangerouslySetInnerHTML":
           if (null != value2) {
@@ -10073,8 +10073,8 @@ var require_assets = __commonJS({
         default:
           if (!registrationNameDependencies.hasOwnProperty(key2))
             a: {
-              if ("o" === key2[0] && "n" === key2[1] && (props = key2.endsWith("Capture"), tag = key2.slice(2, props ? key2.length - 7 : void 0), prevValue = domElement[internalPropsKey] || null, prevValue = null != prevValue ? prevValue[key2] : null, "function" === typeof prevValue && domElement.removeEventListener(tag, prevValue, props), "function" === typeof value2)) {
-                "function" !== typeof prevValue && null !== prevValue && (key2 in domElement ? domElement[key2] = null : domElement.hasAttribute(key2) && domElement.removeAttribute(key2));
+              if ("o" === key2[0] && "n" === key2[1] && (props = key2.endsWith("Capture"), tag = key2.slice(2, props ? key2.length - 7 : void 0), prevValue2 = domElement[internalPropsKey] || null, prevValue2 = null != prevValue2 ? prevValue2[key2] : null, "function" === typeof prevValue2 && domElement.removeEventListener(tag, prevValue2, props), "function" === typeof value2)) {
+                "function" !== typeof prevValue2 && null !== prevValue2 && (key2 in domElement ? domElement[key2] = null : domElement.hasAttribute(key2) && domElement.removeAttribute(key2));
                 domElement.addEventListener(tag, value2, props);
                 break a;
               }
@@ -13206,8 +13206,8 @@ var require_assets = __commonJS({
           Element.prototype.matches = Element.prototype.msMatchesSelector || Element.prototype.webkitMatchesSelector;
         }
         var LOADING_MESSAGE = "Loading…";
-        var FAILURE_MESSAGE = function(status, message2) {
-          return "✖ Error " + status + " while fetching file: " + message2;
+        var FAILURE_MESSAGE = function(status2, message2) {
+          return "✖ Error " + status2 + " while fetching file: " + message2;
         };
         var FAILURE_EMPTY_MESSAGE = "✖ Error: File does not exist or is empty";
         var EXTENSIONS = {
@@ -13872,8 +13872,8 @@ var require_assets = __commonJS({
       config: "bi bi-gear",
       confirm: "bi bi-check",
       copy: "bi bi-copy",
-      epoch: (epoch) => {
-        return `bi bi-${epoch}-circle`;
+      epoch: (epoch2) => {
+        return `bi bi-${epoch2}-circle`;
       },
       error: "bi bi-exclamation-circle",
       "expand-all": "bi bi-arrows-expand",
@@ -14227,8443 +14227,6 @@ var require_assets = __commonJS({
     const kScoreAscVal = "score-asc";
     const kScoreDescVal = "score-desc";
     const kDefaultSort = kSampleAscVal;
-    const arrayToString = (val) => {
-      val = Array.isArray(val) ? val : [val];
-      return val.join(", ");
-    };
-    const inputString = (input2) => {
-      if (typeof input2 === "string") {
-        return [input2];
-      } else {
-        return input2.map((inp) => {
-          if (typeof inp === "string") {
-            return inp;
-          } else {
-            const content2 = inp.content;
-            if (typeof content2 === "string") {
-              return content2;
-            } else {
-              const result = content2.map((con) => {
-                if (con.type === "text") {
-                  return con.text;
-                } else {
-                  return "";
-                }
-              });
-              return result.join("\n");
-            }
-          }
-        });
-      }
-    };
-    const formatDataset = (samples, epochs, name2) => {
-      const perEpochSamples = epochs > 0 ? samples / epochs : samples;
-      const namePrefix = name2 ? `${name2} — ` : "";
-      const terms = [
-        namePrefix,
-        String(perEpochSamples),
-        epochs > 1 ? `x ${epochs} ` : "",
-        samples === 1 ? "sample" : "samples"
-      ];
-      return terms.join(" ");
-    };
-    const formatTime$1 = (seconds) => {
-      if (seconds < 60) {
-        return `${seconds} sec`;
-      } else if (seconds < 60 * 60) {
-        return `${Math.floor(seconds / 60)} min ${seconds % 60} sec`;
-      } else if (seconds < 60 * 60 * 24) {
-        const hours = Math.floor(seconds / (60 * 60));
-        const minutes = Math.floor(seconds % (60 * 60) / 60);
-        const remainingSeconds = seconds % 60;
-        return `${hours} hr ${minutes} min ${remainingSeconds} sec`;
-      } else {
-        const days = Math.floor(seconds / (60 * 60 * 24));
-        const hours = Math.floor(seconds % (60 * 60 * 24) / (60 * 60));
-        const minutes = Math.floor(seconds % (60 * 60) / 60);
-        const remainingSeconds = seconds % 60;
-        return `${days} days ${hours} hr ${minutes} min ${remainingSeconds} sec`;
-      }
-    };
-    function formatPrettyDecimal(num2) {
-      const numDecimalPlaces = num2.toString().includes(".") ? num2.toString().split(".")[1].length : 0;
-      if (numDecimalPlaces === 0) {
-        return num2.toFixed(1);
-      } else if (numDecimalPlaces > 3) {
-        return num2.toFixed(3);
-      } else {
-        return num2.toString();
-      }
-    }
-    function formatDecimalNoTrailingZeroes(num2) {
-      if (typeof num2 !== "number") {
-        return num2;
-      }
-      if (num2.toString().includes(".")) {
-        const decimal = num2.toString().split(".")[1];
-        const trimmed = decimal.replace(/\.?0+$/, "");
-        return num2.toFixed(trimmed.length);
-      } else {
-        return num2.toFixed(0);
-      }
-    }
-    function toTitleCase(str2) {
-      return str2.split(" ").map((w) => w[0].toUpperCase() + w.substr(1).toLowerCase()).join(" ");
-    }
-    function formatNoDecimal(num2) {
-      if (typeof num2 !== "number") {
-        return num2;
-      }
-      const rounded = Math.round(num2);
-      return rounded.toFixed(0);
-    }
-    function formatNumber(num2) {
-      return num2.toLocaleString(navigator.language, {
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 5
-      });
-    }
-    function formatDateTime(date) {
-      const options2 = {
-        year: "2-digit",
-        month: "2-digit",
-        day: "2-digit",
-        hour: "numeric",
-        minute: "2-digit",
-        second: "2-digit",
-        hour12: true
-      };
-      return new Intl.DateTimeFormat(void 0, options2).format(date);
-    }
-    function formatDuration(start, end) {
-      const durationMs = end.getTime() - start.getTime();
-      const durationSec = durationMs / 1e3;
-      return formatTime$1(durationSec);
-    }
-    function r(e) {
-      var t2, f, n = "";
-      if ("string" == typeof e || "number" == typeof e) n += e;
-      else if ("object" == typeof e) if (Array.isArray(e)) {
-        var o = e.length;
-        for (t2 = 0; t2 < o; t2++) e[t2] && (f = r(e[t2])) && (n && (n += " "), n += f);
-      } else for (f in e) e[f] && (n && (n += " "), n += f);
-      return n;
-    }
-    function clsx() {
-      for (var e, t2, f = 0, n = "", o = arguments.length; f < o; f++) (e = arguments[f]) && (t2 = r(e)) && (n && (n += " "), n += t2);
-      return n;
-    }
-    const circle$1 = "_circle_upui3_1";
-    const green$1 = "_green_upui3_12";
-    const red$1 = "_red_upui3_18";
-    const styles$13 = {
-      circle: circle$1,
-      green: green$1,
-      red: red$1
-    };
-    const booleanScoreDescriptor = () => {
-      return {
-        scoreType: "boolean",
-        compare: (a, b) => {
-          return Number(a.value) - Number(b.value);
-        },
-        render: (score2) => {
-          return /* @__PURE__ */ jsxRuntimeExports.jsx(
-            "span",
-            {
-              className: clsx(
-                styles$13.circle,
-                "text-size-small",
-                score2 ? "green" : "red"
-              ),
-              children: String(score2)
-            }
-          );
-        }
-      };
-    };
-    const categoricalScoreDescriptor = (values) => {
-      return {
-        scoreType: kScoreTypeCategorical,
-        categories: values,
-        compare: (a, b) => {
-          return String(a).localeCompare(String(b));
-        },
-        render: (score2) => {
-          return String(score2);
-        }
-      };
-    };
-    const numericScoreDescriptor = (values) => {
-      const onlyNumeric = values.filter((val) => {
-        return typeof val === "number";
-      });
-      return {
-        scoreType: kScoreTypeNumeric,
-        min: Math.min(...onlyNumeric),
-        max: Math.max(...onlyNumeric),
-        compare: (a, b) => {
-          if (typeof a === "number" && typeof b === "number") {
-            return a - b;
-          } else {
-            console.warn("Comparing non-numerics using a numeric score descriptor");
-            return 0;
-          }
-        },
-        render: (score2) => {
-          return formatDecimalNoTrailingZeroes(Number(score2));
-        }
-      };
-    };
-    const isNumeric = (n) => {
-      return !isNaN(parseFloat(n)) && isFinite(n);
-    };
-    const toArray = (val) => {
-      if (Array.isArray(val)) {
-        return val;
-      } else {
-        return [val];
-      }
-    };
-    const container$d = "_container_w37fs_1";
-    const padded$1 = "_padded_w37fs_8";
-    const key$1 = "_key_w37fs_12";
-    const value$1 = "_value_w37fs_16";
-    const styles$12 = {
-      container: container$d,
-      padded: padded$1,
-      key: key$1,
-      value: value$1
-    };
-    const objectScoreDescriptor = (values) => {
-      const buckets = values.map((val) => {
-        return JSON.stringify(val);
-      });
-      const vals = new Set(buckets);
-      let categories = void 0;
-      if (vals.size < 10) {
-        categories = Array.from(vals).map((val) => {
-          return {
-            val,
-            text: val
-          };
-        });
-      }
-      return {
-        scoreType: kScoreTypeObject,
-        categories,
-        compare: () => {
-          return 0;
-        },
-        render: (score2) => {
-          if (score2 === null || score2 === void 0) {
-            return "[null]";
-          }
-          const scores2 = [];
-          const keys = Object.keys(score2);
-          keys.forEach((key2, index2) => {
-            if (typeof score2 !== "object" || Array.isArray(score2)) {
-              throw new Error(
-                "Unexpected us of object score descriptor for non-score object"
-              );
-            }
-            const value2 = score2[key2];
-            const formattedValue = value2 && isNumeric(value2) ? formatPrettyDecimal(
-              typeof value2 === "number" ? value2 : parseFloat(value2 === true ? "1" : value2)
-            ) : value2;
-            scores2.push(
-              /* @__PURE__ */ jsxRuntimeExports.jsxs(
-                "div",
-                {
-                  className: clsx(
-                    styles$12.container,
-                    index2 + 1 < keys.length ? styles$12.padded : void 0
-                  ),
-                  children: [
-                    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$12.key, "text-size-smaller"), children: key2 }),
-                    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$12.value, "text-size-title"), children: formattedValue })
-                  ]
-                }
-              )
-            );
-          });
-          return scores2;
-        }
-      };
-    };
-    function commonjsRequire(path) {
-      throw new Error('Could not dynamically require "' + path + '". Please configure the dynamicRequireTargets or/and ignoreDynamicRequires option of @rollup/plugin-commonjs appropriately for this require call to work.');
-    }
-    var ansiOutput = { exports: {} };
-    (function(module2, exports2) {
-      (function(factory) {
-        {
-          var v = factory(commonjsRequire, exports2);
-          if (v !== void 0) module2.exports = v;
-        }
-      })(function(require2, exports3) {
-        Object.defineProperty(exports3, "__esModule", { value: true });
-        exports3.ANSIOutput = exports3.ANSIColor = exports3.ANSIFont = exports3.ANSIStyle = void 0;
-        let counter = 0;
-        const generateId = () => {
-          return `${++counter}`.padStart(16, "0");
-        };
-        var ANSIStyle;
-        (function(ANSIStyle2) {
-          ANSIStyle2["Bold"] = "ansiBold";
-          ANSIStyle2["Dim"] = "ansiDim";
-          ANSIStyle2["Italic"] = "ansiItalic";
-          ANSIStyle2["Underlined"] = "ansiUnderlined";
-          ANSIStyle2["SlowBlink"] = "ansiSlowBlink";
-          ANSIStyle2["RapidBlink"] = "ansiRapidBlink";
-          ANSIStyle2["Hidden"] = "ansiHidden";
-          ANSIStyle2["CrossedOut"] = "ansiCrossedOut";
-          ANSIStyle2["Fraktur"] = "ansiFraktur";
-          ANSIStyle2["DoubleUnderlined"] = "ansiDoubleUnderlined";
-          ANSIStyle2["Framed"] = "ansiFramed";
-          ANSIStyle2["Encircled"] = "ansiEncircled";
-          ANSIStyle2["Overlined"] = "ansiOverlined";
-          ANSIStyle2["Superscript"] = "ansiSuperscript";
-          ANSIStyle2["Subscript"] = "ansiSubscript";
-        })(ANSIStyle || (exports3.ANSIStyle = ANSIStyle = {}));
-        var ANSIFont;
-        (function(ANSIFont2) {
-          ANSIFont2["AlternativeFont1"] = "ansiAlternativeFont1";
-          ANSIFont2["AlternativeFont2"] = "ansiAlternativeFont2";
-          ANSIFont2["AlternativeFont3"] = "ansiAlternativeFont3";
-          ANSIFont2["AlternativeFont4"] = "ansiAlternativeFont4";
-          ANSIFont2["AlternativeFont5"] = "ansiAlternativeFont5";
-          ANSIFont2["AlternativeFont6"] = "ansiAlternativeFont6";
-          ANSIFont2["AlternativeFont7"] = "ansiAlternativeFont7";
-          ANSIFont2["AlternativeFont8"] = "ansiAlternativeFont8";
-          ANSIFont2["AlternativeFont9"] = "ansiAlternativeFont9";
-        })(ANSIFont || (exports3.ANSIFont = ANSIFont = {}));
-        var ANSIColor;
-        (function(ANSIColor2) {
-          ANSIColor2["Black"] = "ansiBlack";
-          ANSIColor2["Red"] = "ansiRed";
-          ANSIColor2["Green"] = "ansiGreen";
-          ANSIColor2["Yellow"] = "ansiYellow";
-          ANSIColor2["Blue"] = "ansiBlue";
-          ANSIColor2["Magenta"] = "ansiMagenta";
-          ANSIColor2["Cyan"] = "ansiCyan";
-          ANSIColor2["White"] = "ansiWhite";
-          ANSIColor2["BrightBlack"] = "ansiBrightBlack";
-          ANSIColor2["BrightRed"] = "ansiBrightRed";
-          ANSIColor2["BrightGreen"] = "ansiBrightGreen";
-          ANSIColor2["BrightYellow"] = "ansiBrightYellow";
-          ANSIColor2["BrightBlue"] = "ansiBrightBlue";
-          ANSIColor2["BrightMagenta"] = "ansiBrightMagenta";
-          ANSIColor2["BrightCyan"] = "ansiBrightCyan";
-          ANSIColor2["BrightWhite"] = "ansiBrightWhite";
-        })(ANSIColor || (exports3.ANSIColor = ANSIColor = {}));
-        class ANSIOutput {
-          constructor() {
-            //#region Private Properties
-            /**
-             * Gets or sets the parser state.
-             */
-            __publicField(this, "_parserState", ParserState.BufferingOutput);
-            /**
-             * Gets or sets the control sequence that's being parsed.
-             */
-            __publicField(this, "_controlSequence", "");
-            /**
-             * Gets or sets the SGR state.
-             */
-            __publicField(this, "_sgrState");
-            /**
-             * Gets or sets the current set of output lines.
-             */
-            __publicField(this, "_outputLines", []);
-            /**
-             * Gets or sets the output line.
-             */
-            __publicField(this, "_outputLine", 0);
-            /**
-             * Gets or sets the output column.
-             */
-            __publicField(this, "_outputColumn", 0);
-            /**
-             * Gets or sets the buffer.
-             */
-            __publicField(this, "_buffer", "");
-            /**
-             * Gets or sets a value which indicates whether there is a pending newline.
-             */
-            __publicField(this, "_pendingNewline", false);
-          }
-          //#endregion Private Properties
-          //#region Public Properties
-          /**
-           * Gets the output lines.
-           */
-          get outputLines() {
-            this.flushBuffer();
-            return this._outputLines;
-          }
-          //#endregion Public Properties
-          //#region Public Static Methods
-          /**
-           * Processes output and returns the ANSIOutput lines of the output.
-           * @param output The output to process.
-           * @returns The ANSIOutput lines of the output.
-           */
-          static processOutput(output2) {
-            const ansiOutput2 = new ANSIOutput();
-            ansiOutput2.processOutput(output2);
-            return ansiOutput2.outputLines;
-          }
-          //#endregion Public Static Methods
-          //#region Public Methods
-          /**
-           * Processes output.
-           * @param output The output to process.
-           */
-          processOutput(output2) {
-            for (let i2 = 0; i2 < output2.length; i2++) {
-              if (this._pendingNewline) {
-                this.flushBuffer();
-                this._outputLine++;
-                this._outputColumn = 0;
-                this._pendingNewline = false;
-              }
-              const char = output2.charAt(i2);
-              if (this._parserState === ParserState.BufferingOutput) {
-                if (char === "\x1B") {
-                  this.flushBuffer();
-                  this._parserState = ParserState.ControlSequenceStarted;
-                } else if (char === "") {
-                  this.flushBuffer();
-                  this._parserState = ParserState.ParsingControlSequence;
-                } else {
-                  this.processCharacter(char);
-                }
-              } else if (this._parserState === ParserState.ControlSequenceStarted) {
-                if (char === "[") {
-                  this._parserState = ParserState.ParsingControlSequence;
-                } else {
-                  this._parserState = ParserState.BufferingOutput;
-                  this.processCharacter(char);
-                }
-              } else if (this._parserState === ParserState.ParsingControlSequence) {
-                this._controlSequence += char;
-                if (char.match(/^[A-Za-z]$/)) {
-                  this.processControlSequence();
-                }
-              }
-            }
-            this.flushBuffer();
-          }
-          //#endregion Public Methods
-          //#region Private Methods
-          /**
-           * Flushes the buffer to the output line.
-           */
-          flushBuffer() {
-            for (let i2 = this._outputLines.length; i2 < this._outputLine + 1; i2++) {
-              this._outputLines.push(new OutputLine());
-            }
-            if (this._buffer) {
-              const outputLine = this._outputLines[this._outputLine];
-              outputLine.insert(this._buffer, this._outputColumn, this._sgrState);
-              this._outputColumn += this._buffer.length;
-              this._buffer = "";
-            }
-          }
-          /**
-           * Processes a character.
-           * @param char The character.
-           */
-          processCharacter(char) {
-            switch (char) {
-              case "\n":
-                this._pendingNewline = true;
-                break;
-              case "\r":
-                this.flushBuffer();
-                this._outputColumn = 0;
-                break;
-              default:
-                this._buffer += char;
-                break;
-            }
-          }
-          /**
-           * Processes a control sequence.
-           */
-          processControlSequence() {
-            switch (this._controlSequence.charAt(this._controlSequence.length - 1)) {
-              case "A":
-                this.processCUU();
-                break;
-              case "B":
-                this.processCUD();
-                break;
-              case "C":
-                this.processCUF();
-                break;
-              case "D":
-                this.processCUB();
-                break;
-              case "H":
-                this.processCUP();
-                break;
-              case "J":
-                this.processED();
-                break;
-              case "K":
-                this.processEL();
-                break;
-              case "m":
-                this.processSGR();
-                break;
-            }
-            this._controlSequence = "";
-            this._parserState = ParserState.BufferingOutput;
-          }
-          /**
-           * Processes a CUU (Cursor Up) control sequence.
-           */
-          processCUU() {
-            const match = this._controlSequence.match(/^([0-9]*)A$/);
-            if (match) {
-              this._outputLine = Math.max(this._outputLine - rangeParam(match[1], 1, 1), 0);
-            }
-          }
-          /**
-           * Processes a CUD (Cursor Down) control sequence.
-           */
-          processCUD() {
-            const match = this._controlSequence.match(/^([0-9]*)B$/);
-            if (match) {
-              this._outputLine = this._outputLine + rangeParam(match[1], 1, 1);
-            }
-          }
-          /**
-           * Processes a CUF (Cursor Forward) control sequence.
-           */
-          processCUF() {
-            const match = this._controlSequence.match(/^([0-9]*)C$/);
-            if (match) {
-              this._outputColumn = this._outputColumn + rangeParam(match[1], 1, 1);
-            }
-          }
-          /**
-           * Processes a CUB (Cursor Backward) control sequence.
-           */
-          processCUB() {
-            const match = this._controlSequence.match(/^([0-9]*)D$/);
-            if (match) {
-              this._outputColumn = Math.max(this._outputColumn - rangeParam(match[1], 1, 1), 0);
-            }
-          }
-          /**
-           * Processes a CUP (Cursor Position) control sequence.
-           */
-          processCUP() {
-            const match = this._controlSequence.match(/^([0-9]*)(?:;?([0-9]*))H$/);
-            if (match) {
-              this._outputLine = rangeParam(match[1], 1, 1) - 1;
-              this._outputColumn = rangeParam(match[2], 1, 1) - 1;
-            }
-          }
-          /**
-           * Processes an ED (Erase in Display) control sequence.
-           */
-          processED() {
-            const match = this._controlSequence.match(/^([0-9]*)J$/);
-            if (match) {
-              switch (getParam(match[1], 0)) {
-                case 0:
-                  this._outputLines[this._outputLine].clearToEndOfLine(this._outputColumn);
-                  for (let i2 = this._outputLine + 1; i2 < this._outputLines.length; i2++) {
-                    this._outputLines[i2].clearEntireLine();
-                  }
-                  break;
-                case 1:
-                  this._outputLines[this._outputLine].clearToBeginningOfLine(this._outputColumn);
-                  for (let i2 = 0; i2 < this._outputLine; i2++) {
-                    this._outputLines[i2].clearEntireLine();
-                  }
-                  break;
-                case 2:
-                  for (let i2 = 0; i2 < this._outputLines.length; i2++) {
-                    this._outputLines[i2].clearEntireLine();
-                  }
-                  break;
-              }
-            }
-          }
-          /**
-           * Processes an EL (Erase in Line) control sequence.
-           */
-          processEL() {
-            const match = this._controlSequence.match(/^([0-9]*)K$/);
-            if (match) {
-              const outputLine = this._outputLines[this._outputLine];
-              switch (getParam(match[1], 0)) {
-                case 0:
-                  outputLine.clearToEndOfLine(this._outputColumn);
-                  break;
-                case 1:
-                  outputLine.clearToBeginningOfLine(this._outputColumn);
-                  break;
-                case 2:
-                  outputLine.clearEntireLine();
-                  break;
-              }
-            }
-          }
-          /**
-           * Processes an SGR (Select Graphic Rendition) control sequence.
-           */
-          processSGR() {
-            const sgrState = this._sgrState ? this._sgrState.copy() : new SGRState();
-            const sgrParams = this._controlSequence.slice(0, -1).split(";").map((sgrParam) => sgrParam === "" ? SGRParam.Reset : parseInt(sgrParam, 10));
-            for (let index2 = 0; index2 < sgrParams.length; index2++) {
-              const sgrParam = sgrParams[index2];
-              const processSetColor = () => {
-                if (index2 + 1 === sgrParams.length) {
-                  return void 0;
-                }
-                switch (sgrParams[++index2]) {
-                  case SGRParamColor.Color256: {
-                    if (index2 + 1 === sgrParams.length) {
-                      return void 0;
-                    }
-                    const colorIndex = sgrParams[++index2];
-                    switch (colorIndex) {
-                      case SGRParamIndexedColor.Black:
-                        return ANSIColor.Black;
-                      case SGRParamIndexedColor.Red:
-                        return ANSIColor.Red;
-                      case SGRParamIndexedColor.Green:
-                        return ANSIColor.Green;
-                      case SGRParamIndexedColor.Yellow:
-                        return ANSIColor.Yellow;
-                      case SGRParamIndexedColor.Blue:
-                        return ANSIColor.Blue;
-                      case SGRParamIndexedColor.Magenta:
-                        return ANSIColor.Magenta;
-                      case SGRParamIndexedColor.Cyan:
-                        return ANSIColor.Cyan;
-                      case SGRParamIndexedColor.White:
-                        return ANSIColor.White;
-                      case SGRParamIndexedColor.BrightBlack:
-                        return ANSIColor.BrightBlack;
-                      case SGRParamIndexedColor.BrightRed:
-                        return ANSIColor.BrightRed;
-                      case SGRParamIndexedColor.BrightGreen:
-                        return ANSIColor.BrightGreen;
-                      case SGRParamIndexedColor.BrightYellow:
-                        return ANSIColor.BrightYellow;
-                      case SGRParamIndexedColor.BrightBlue:
-                        return ANSIColor.BrightBlue;
-                      case SGRParamIndexedColor.BrightMagenta:
-                        return ANSIColor.BrightMagenta;
-                      case SGRParamIndexedColor.BrightCyan:
-                        return ANSIColor.BrightCyan;
-                      case SGRParamIndexedColor.BrightWhite:
-                        return ANSIColor.BrightWhite;
-                      default:
-                        if (colorIndex % 1 !== 0) {
-                          return void 0;
-                        }
-                        if (colorIndex >= 16 && colorIndex <= 231) {
-                          let colorNumber = colorIndex - 16;
-                          let blue = colorNumber % 6;
-                          colorNumber = (colorNumber - blue) / 6;
-                          let green2 = colorNumber % 6;
-                          colorNumber = (colorNumber - green2) / 6;
-                          let red2 = colorNumber;
-                          blue = Math.round(blue * 255 / 5);
-                          green2 = Math.round(green2 * 255 / 5);
-                          red2 = Math.round(red2 * 255 / 5);
-                          return "#" + twoDigitHex(red2) + twoDigitHex(green2) + twoDigitHex(blue);
-                        } else if (colorIndex >= 232 && colorIndex <= 255) {
-                          const rgb = Math.round((colorIndex - 232) / 23 * 255);
-                          const grayscale = twoDigitHex(rgb);
-                          return "#" + grayscale + grayscale + grayscale;
-                        } else {
-                          return void 0;
-                        }
-                    }
-                  }
-                  case SGRParamColor.ColorRGB: {
-                    const rgb = [0, 0, 0];
-                    for (let i2 = 0; i2 < 3 && index2 + 1 < sgrParams.length; i2++) {
-                      rgb[i2] = sgrParams[++index2];
-                    }
-                    return "#" + twoDigitHex(rgb[0]) + twoDigitHex(rgb[1]) + twoDigitHex(rgb[2]);
-                  }
-                }
-                return void 0;
-              };
-              switch (sgrParam) {
-                case SGRParam.Reset:
-                  sgrState.reset();
-                  break;
-                case SGRParam.Bold:
-                  sgrState.setStyle(ANSIStyle.Bold);
-                  break;
-                case SGRParam.Dim:
-                  sgrState.setStyle(ANSIStyle.Dim);
-                  break;
-                case SGRParam.Italic:
-                  sgrState.setStyle(ANSIStyle.Italic);
-                  break;
-                case SGRParam.Underlined:
-                  sgrState.setStyle(ANSIStyle.Underlined, ANSIStyle.DoubleUnderlined);
-                  break;
-                case SGRParam.SlowBlink:
-                  sgrState.setStyle(ANSIStyle.SlowBlink, ANSIStyle.RapidBlink);
-                  break;
-                case SGRParam.RapidBlink:
-                  sgrState.setStyle(ANSIStyle.RapidBlink, ANSIStyle.SlowBlink);
-                  break;
-                case SGRParam.Reversed:
-                  sgrState.setReversed(true);
-                  break;
-                case SGRParam.Hidden:
-                  sgrState.setStyle(ANSIStyle.Hidden);
-                  break;
-                case SGRParam.CrossedOut:
-                  sgrState.setStyle(ANSIStyle.CrossedOut);
-                  break;
-                case SGRParam.PrimaryFont:
-                  sgrState.setFont();
-                  break;
-                case SGRParam.AlternativeFont1:
-                  sgrState.setFont(ANSIFont.AlternativeFont1);
-                  break;
-                case SGRParam.AlternativeFont2:
-                  sgrState.setFont(ANSIFont.AlternativeFont2);
-                  break;
-                case SGRParam.AlternativeFont3:
-                  sgrState.setFont(ANSIFont.AlternativeFont3);
-                  break;
-                case SGRParam.AlternativeFont4:
-                  sgrState.setFont(ANSIFont.AlternativeFont4);
-                  break;
-                case SGRParam.AlternativeFont5:
-                  sgrState.setFont(ANSIFont.AlternativeFont5);
-                  break;
-                case SGRParam.AlternativeFont6:
-                  sgrState.setFont(ANSIFont.AlternativeFont6);
-                  break;
-                case SGRParam.AlternativeFont7:
-                  sgrState.setFont(ANSIFont.AlternativeFont7);
-                  break;
-                case SGRParam.AlternativeFont8:
-                  sgrState.setFont(ANSIFont.AlternativeFont8);
-                  break;
-                case SGRParam.AlternativeFont9:
-                  sgrState.setFont(ANSIFont.AlternativeFont9);
-                  break;
-                case SGRParam.Fraktur:
-                  sgrState.setStyle(ANSIStyle.Fraktur);
-                  break;
-                case SGRParam.DoubleUnderlined:
-                  sgrState.setStyle(ANSIStyle.DoubleUnderlined, ANSIStyle.Underlined);
-                  break;
-                case SGRParam.NormalIntensity:
-                  sgrState.deleteStyles(ANSIStyle.Bold, ANSIStyle.Dim);
-                  break;
-                case SGRParam.NotItalicNotFraktur:
-                  sgrState.deleteStyles(ANSIStyle.Italic, ANSIStyle.Fraktur);
-                  break;
-                case SGRParam.NotUnderlined:
-                  sgrState.deleteStyles(ANSIStyle.Underlined, ANSIStyle.DoubleUnderlined);
-                  break;
-                case SGRParam.NotBlinking:
-                  sgrState.deleteStyles(ANSIStyle.SlowBlink, ANSIStyle.RapidBlink);
-                  break;
-                case SGRParam.ProportionalSpacing:
-                  break;
-                case SGRParam.NotReversed:
-                  sgrState.setReversed(false);
-                  break;
-                case SGRParam.Reveal:
-                  sgrState.deleteStyles(ANSIStyle.Hidden);
-                  break;
-                case SGRParam.NotCrossedOut:
-                  sgrState.deleteStyles(ANSIStyle.CrossedOut);
-                  break;
-                case SGRParam.ForegroundBlack:
-                  sgrState.setForegroundColor(ANSIColor.Black);
-                  break;
-                case SGRParam.ForegroundRed:
-                  sgrState.setForegroundColor(ANSIColor.Red);
-                  break;
-                case SGRParam.ForegroundGreen:
-                  sgrState.setForegroundColor(ANSIColor.Green);
-                  break;
-                case SGRParam.ForegroundYellow:
-                  sgrState.setForegroundColor(ANSIColor.Yellow);
-                  break;
-                case SGRParam.ForegroundBlue:
-                  sgrState.setForegroundColor(ANSIColor.Blue);
-                  break;
-                case SGRParam.ForegroundMagenta:
-                  sgrState.setForegroundColor(ANSIColor.Magenta);
-                  break;
-                case SGRParam.ForegroundCyan:
-                  sgrState.setForegroundColor(ANSIColor.Cyan);
-                  break;
-                case SGRParam.ForegroundWhite:
-                  sgrState.setForegroundColor(ANSIColor.White);
-                  break;
-                case SGRParam.SetForeground: {
-                  const foregroundColor = processSetColor();
-                  if (foregroundColor) {
-                    sgrState.setForegroundColor(foregroundColor);
-                  }
-                  break;
-                }
-                case SGRParam.DefaultForeground:
-                  sgrState.setForegroundColor();
-                  break;
-                case SGRParam.BackgroundBlack:
-                  sgrState.setBackgroundColor(ANSIColor.Black);
-                  break;
-                case SGRParam.BackgroundRed:
-                  sgrState.setBackgroundColor(ANSIColor.Red);
-                  break;
-                case SGRParam.BackgroundGreen:
-                  sgrState.setBackgroundColor(ANSIColor.Green);
-                  break;
-                case SGRParam.BackgroundYellow:
-                  sgrState.setBackgroundColor(ANSIColor.Yellow);
-                  break;
-                case SGRParam.BackgroundBlue:
-                  sgrState.setBackgroundColor(ANSIColor.Blue);
-                  break;
-                case SGRParam.BackgroundMagenta:
-                  sgrState.setBackgroundColor(ANSIColor.Magenta);
-                  break;
-                case SGRParam.BackgroundCyan:
-                  sgrState.setBackgroundColor(ANSIColor.Cyan);
-                  break;
-                case SGRParam.BackgroundWhite:
-                  sgrState.setBackgroundColor(ANSIColor.White);
-                  break;
-                case SGRParam.SetBackground: {
-                  const backgroundColor = processSetColor();
-                  if (backgroundColor) {
-                    sgrState.setBackgroundColor(backgroundColor);
-                  }
-                  break;
-                }
-                case SGRParam.DefaultBackground:
-                  sgrState.setBackgroundColor();
-                  break;
-                case SGRParam.ForegroundBrightBlack:
-                  sgrState.setForegroundColor(ANSIColor.BrightBlack);
-                  break;
-                case SGRParam.ForegroundBrightRed:
-                  sgrState.setForegroundColor(ANSIColor.BrightRed);
-                  break;
-                case SGRParam.ForegroundBrightGreen:
-                  sgrState.setForegroundColor(ANSIColor.BrightGreen);
-                  break;
-                case SGRParam.ForegroundBrightYellow:
-                  sgrState.setForegroundColor(ANSIColor.BrightYellow);
-                  break;
-                case SGRParam.ForegroundBrightBlue:
-                  sgrState.setForegroundColor(ANSIColor.BrightBlue);
-                  break;
-                case SGRParam.ForegroundBrightMagenta:
-                  sgrState.setForegroundColor(ANSIColor.BrightMagenta);
-                  break;
-                case SGRParam.ForegroundBrightCyan:
-                  sgrState.setForegroundColor(ANSIColor.BrightCyan);
-                  break;
-                case SGRParam.ForegroundBrightWhite:
-                  sgrState.setForegroundColor(ANSIColor.BrightWhite);
-                  break;
-                case SGRParam.BackgroundBrightBlack:
-                  sgrState.setBackgroundColor(ANSIColor.BrightBlack);
-                  break;
-                case SGRParam.BackgroundBrightRed:
-                  sgrState.setBackgroundColor(ANSIColor.BrightRed);
-                  break;
-                case SGRParam.BackgroundBrightGreen:
-                  sgrState.setBackgroundColor(ANSIColor.BrightGreen);
-                  break;
-                case SGRParam.BackgroundBrightYellow:
-                  sgrState.setBackgroundColor(ANSIColor.BrightYellow);
-                  break;
-                case SGRParam.BackgroundBrightBlue:
-                  sgrState.setBackgroundColor(ANSIColor.BrightBlue);
-                  break;
-                case SGRParam.BackgroundBrightMagenta:
-                  sgrState.setBackgroundColor(ANSIColor.BrightMagenta);
-                  break;
-                case SGRParam.BackgroundBrightCyan:
-                  sgrState.setBackgroundColor(ANSIColor.BrightCyan);
-                  break;
-                case SGRParam.BackgroundBrightWhite:
-                  sgrState.setBackgroundColor(ANSIColor.BrightWhite);
-                  break;
-              }
-            }
-            if (!SGRState.equivalent(sgrState, this._sgrState)) {
-              this._sgrState = sgrState;
-            }
-          }
-        }
-        exports3.ANSIOutput = ANSIOutput;
-        var SGRParam;
-        (function(SGRParam2) {
-          SGRParam2[SGRParam2["Reset"] = 0] = "Reset";
-          SGRParam2[SGRParam2["Bold"] = 1] = "Bold";
-          SGRParam2[SGRParam2["Dim"] = 2] = "Dim";
-          SGRParam2[SGRParam2["Italic"] = 3] = "Italic";
-          SGRParam2[SGRParam2["Underlined"] = 4] = "Underlined";
-          SGRParam2[SGRParam2["SlowBlink"] = 5] = "SlowBlink";
-          SGRParam2[SGRParam2["RapidBlink"] = 6] = "RapidBlink";
-          SGRParam2[SGRParam2["Reversed"] = 7] = "Reversed";
-          SGRParam2[SGRParam2["Hidden"] = 8] = "Hidden";
-          SGRParam2[SGRParam2["CrossedOut"] = 9] = "CrossedOut";
-          SGRParam2[SGRParam2["PrimaryFont"] = 10] = "PrimaryFont";
-          SGRParam2[SGRParam2["AlternativeFont1"] = 11] = "AlternativeFont1";
-          SGRParam2[SGRParam2["AlternativeFont2"] = 12] = "AlternativeFont2";
-          SGRParam2[SGRParam2["AlternativeFont3"] = 13] = "AlternativeFont3";
-          SGRParam2[SGRParam2["AlternativeFont4"] = 14] = "AlternativeFont4";
-          SGRParam2[SGRParam2["AlternativeFont5"] = 15] = "AlternativeFont5";
-          SGRParam2[SGRParam2["AlternativeFont6"] = 16] = "AlternativeFont6";
-          SGRParam2[SGRParam2["AlternativeFont7"] = 17] = "AlternativeFont7";
-          SGRParam2[SGRParam2["AlternativeFont8"] = 18] = "AlternativeFont8";
-          SGRParam2[SGRParam2["AlternativeFont9"] = 19] = "AlternativeFont9";
-          SGRParam2[SGRParam2["Fraktur"] = 20] = "Fraktur";
-          SGRParam2[SGRParam2["DoubleUnderlined"] = 21] = "DoubleUnderlined";
-          SGRParam2[SGRParam2["NormalIntensity"] = 22] = "NormalIntensity";
-          SGRParam2[SGRParam2["NotItalicNotFraktur"] = 23] = "NotItalicNotFraktur";
-          SGRParam2[SGRParam2["NotUnderlined"] = 24] = "NotUnderlined";
-          SGRParam2[SGRParam2["NotBlinking"] = 25] = "NotBlinking";
-          SGRParam2[SGRParam2["ProportionalSpacing"] = 26] = "ProportionalSpacing";
-          SGRParam2[SGRParam2["NotReversed"] = 27] = "NotReversed";
-          SGRParam2[SGRParam2["Reveal"] = 28] = "Reveal";
-          SGRParam2[SGRParam2["NotCrossedOut"] = 29] = "NotCrossedOut";
-          SGRParam2[SGRParam2["ForegroundBlack"] = 30] = "ForegroundBlack";
-          SGRParam2[SGRParam2["ForegroundRed"] = 31] = "ForegroundRed";
-          SGRParam2[SGRParam2["ForegroundGreen"] = 32] = "ForegroundGreen";
-          SGRParam2[SGRParam2["ForegroundYellow"] = 33] = "ForegroundYellow";
-          SGRParam2[SGRParam2["ForegroundBlue"] = 34] = "ForegroundBlue";
-          SGRParam2[SGRParam2["ForegroundMagenta"] = 35] = "ForegroundMagenta";
-          SGRParam2[SGRParam2["ForegroundCyan"] = 36] = "ForegroundCyan";
-          SGRParam2[SGRParam2["ForegroundWhite"] = 37] = "ForegroundWhite";
-          SGRParam2[SGRParam2["SetForeground"] = 38] = "SetForeground";
-          SGRParam2[SGRParam2["DefaultForeground"] = 39] = "DefaultForeground";
-          SGRParam2[SGRParam2["BackgroundBlack"] = 40] = "BackgroundBlack";
-          SGRParam2[SGRParam2["BackgroundRed"] = 41] = "BackgroundRed";
-          SGRParam2[SGRParam2["BackgroundGreen"] = 42] = "BackgroundGreen";
-          SGRParam2[SGRParam2["BackgroundYellow"] = 43] = "BackgroundYellow";
-          SGRParam2[SGRParam2["BackgroundBlue"] = 44] = "BackgroundBlue";
-          SGRParam2[SGRParam2["BackgroundMagenta"] = 45] = "BackgroundMagenta";
-          SGRParam2[SGRParam2["BackgroundCyan"] = 46] = "BackgroundCyan";
-          SGRParam2[SGRParam2["BackgroundWhite"] = 47] = "BackgroundWhite";
-          SGRParam2[SGRParam2["SetBackground"] = 48] = "SetBackground";
-          SGRParam2[SGRParam2["DefaultBackground"] = 49] = "DefaultBackground";
-          SGRParam2[SGRParam2["DisableProportionalSpacing"] = 50] = "DisableProportionalSpacing";
-          SGRParam2[SGRParam2["Framed"] = 51] = "Framed";
-          SGRParam2[SGRParam2["Encircled"] = 52] = "Encircled";
-          SGRParam2[SGRParam2["Overlined"] = 53] = "Overlined";
-          SGRParam2[SGRParam2["NotFramedNotEncircled"] = 54] = "NotFramedNotEncircled";
-          SGRParam2[SGRParam2["NotOverlined"] = 55] = "NotOverlined";
-          SGRParam2[SGRParam2["SetUnderline"] = 58] = "SetUnderline";
-          SGRParam2[SGRParam2["DefaultUnderline"] = 59] = "DefaultUnderline";
-          SGRParam2[SGRParam2["IdeogramUnderlineOrRightSideLine"] = 60] = "IdeogramUnderlineOrRightSideLine";
-          SGRParam2[SGRParam2["IdeogramDoubleUnderlineOrDoubleRightSideLine"] = 61] = "IdeogramDoubleUnderlineOrDoubleRightSideLine";
-          SGRParam2[SGRParam2["IdeogramOverlineOrLeftSideLine"] = 62] = "IdeogramOverlineOrLeftSideLine";
-          SGRParam2[SGRParam2["IdeogramDoubleOverlineOrDoubleLeftSideLine"] = 63] = "IdeogramDoubleOverlineOrDoubleLeftSideLine";
-          SGRParam2[SGRParam2["IdeogramStressMarking"] = 64] = "IdeogramStressMarking";
-          SGRParam2[SGRParam2["NoIdeogramAttributes"] = 65] = "NoIdeogramAttributes";
-          SGRParam2[SGRParam2["Superscript"] = 73] = "Superscript";
-          SGRParam2[SGRParam2["Subscript"] = 74] = "Subscript";
-          SGRParam2[SGRParam2["NotSuperscriptNotSubscript"] = 75] = "NotSuperscriptNotSubscript";
-          SGRParam2[SGRParam2["ForegroundBrightBlack"] = 90] = "ForegroundBrightBlack";
-          SGRParam2[SGRParam2["ForegroundBrightRed"] = 91] = "ForegroundBrightRed";
-          SGRParam2[SGRParam2["ForegroundBrightGreen"] = 92] = "ForegroundBrightGreen";
-          SGRParam2[SGRParam2["ForegroundBrightYellow"] = 93] = "ForegroundBrightYellow";
-          SGRParam2[SGRParam2["ForegroundBrightBlue"] = 94] = "ForegroundBrightBlue";
-          SGRParam2[SGRParam2["ForegroundBrightMagenta"] = 95] = "ForegroundBrightMagenta";
-          SGRParam2[SGRParam2["ForegroundBrightCyan"] = 96] = "ForegroundBrightCyan";
-          SGRParam2[SGRParam2["ForegroundBrightWhite"] = 97] = "ForegroundBrightWhite";
-          SGRParam2[SGRParam2["BackgroundBrightBlack"] = 100] = "BackgroundBrightBlack";
-          SGRParam2[SGRParam2["BackgroundBrightRed"] = 101] = "BackgroundBrightRed";
-          SGRParam2[SGRParam2["BackgroundBrightGreen"] = 102] = "BackgroundBrightGreen";
-          SGRParam2[SGRParam2["BackgroundBrightYellow"] = 103] = "BackgroundBrightYellow";
-          SGRParam2[SGRParam2["BackgroundBrightBlue"] = 104] = "BackgroundBrightBlue";
-          SGRParam2[SGRParam2["BackgroundBrightMagenta"] = 105] = "BackgroundBrightMagenta";
-          SGRParam2[SGRParam2["BackgroundBrightCyan"] = 106] = "BackgroundBrightCyan";
-          SGRParam2[SGRParam2["BackgroundBrightWhite"] = 107] = "BackgroundBrightWhite";
-        })(SGRParam || (SGRParam = {}));
-        var SGRParamColor;
-        (function(SGRParamColor2) {
-          SGRParamColor2[SGRParamColor2["Color256"] = 5] = "Color256";
-          SGRParamColor2[SGRParamColor2["ColorRGB"] = 2] = "ColorRGB";
-        })(SGRParamColor || (SGRParamColor = {}));
-        var SGRParamIndexedColor;
-        (function(SGRParamIndexedColor2) {
-          SGRParamIndexedColor2[SGRParamIndexedColor2["Black"] = 0] = "Black";
-          SGRParamIndexedColor2[SGRParamIndexedColor2["Red"] = 1] = "Red";
-          SGRParamIndexedColor2[SGRParamIndexedColor2["Green"] = 2] = "Green";
-          SGRParamIndexedColor2[SGRParamIndexedColor2["Yellow"] = 3] = "Yellow";
-          SGRParamIndexedColor2[SGRParamIndexedColor2["Blue"] = 4] = "Blue";
-          SGRParamIndexedColor2[SGRParamIndexedColor2["Magenta"] = 5] = "Magenta";
-          SGRParamIndexedColor2[SGRParamIndexedColor2["Cyan"] = 6] = "Cyan";
-          SGRParamIndexedColor2[SGRParamIndexedColor2["White"] = 7] = "White";
-          SGRParamIndexedColor2[SGRParamIndexedColor2["BrightBlack"] = 8] = "BrightBlack";
-          SGRParamIndexedColor2[SGRParamIndexedColor2["BrightRed"] = 9] = "BrightRed";
-          SGRParamIndexedColor2[SGRParamIndexedColor2["BrightGreen"] = 10] = "BrightGreen";
-          SGRParamIndexedColor2[SGRParamIndexedColor2["BrightYellow"] = 11] = "BrightYellow";
-          SGRParamIndexedColor2[SGRParamIndexedColor2["BrightBlue"] = 12] = "BrightBlue";
-          SGRParamIndexedColor2[SGRParamIndexedColor2["BrightMagenta"] = 13] = "BrightMagenta";
-          SGRParamIndexedColor2[SGRParamIndexedColor2["BrightCyan"] = 14] = "BrightCyan";
-          SGRParamIndexedColor2[SGRParamIndexedColor2["BrightWhite"] = 15] = "BrightWhite";
-        })(SGRParamIndexedColor || (SGRParamIndexedColor = {}));
-        var ParserState;
-        (function(ParserState2) {
-          ParserState2[ParserState2["BufferingOutput"] = 0] = "BufferingOutput";
-          ParserState2[ParserState2["ControlSequenceStarted"] = 1] = "ControlSequenceStarted";
-          ParserState2[ParserState2["ParsingControlSequence"] = 2] = "ParsingControlSequence";
-        })(ParserState || (ParserState = {}));
-        class SGRState {
-          constructor() {
-            //#region Private Properties.
-            /**
-             * Gets or sets the styles.
-             */
-            __publicField(this, "_styles");
-            /**
-             * Gets or sets the foreground color.
-             */
-            __publicField(this, "_foregroundColor");
-            /**
-             * Gets or sets the background color.
-             */
-            __publicField(this, "_backgroundColor");
-            /**
-             * Gets or sets the underlined color.
-             */
-            __publicField(this, "_underlinedColor");
-            /**
-             * Gets or sets a value which indicates whether the foreground and background colors are
-             * reversed.
-             */
-            __publicField(this, "_reversed");
-            /**
-             * Gets or sets the font.
-             */
-            __publicField(this, "_font");
-          }
-          //#endregion Private Properties.
-          //#region Public Methods
-          /**
-           * Resets the SGRState.
-           */
-          reset() {
-            this._styles = void 0;
-            this._foregroundColor = void 0;
-            this._backgroundColor = void 0;
-            this._underlinedColor = void 0;
-            this._reversed = void 0;
-            this._font = void 0;
-          }
-          /**
-           * Creates a copy of the SGRState.
-           * @returns The copy of the SGRState.
-           */
-          copy() {
-            const copy = new SGRState();
-            if (this._styles && this._styles.size) {
-              const styles2 = /* @__PURE__ */ new Set();
-              this._styles.forEach((style2) => styles2.add(style2));
-              copy._styles = styles2;
-            }
-            copy._foregroundColor = this._foregroundColor;
-            copy._backgroundColor = this._backgroundColor;
-            copy._underlinedColor = this._underlinedColor;
-            copy._reversed = this._reversed;
-            copy._font = this._font;
-            return copy;
-          }
-          /**
-           * Sets a style.
-           * @param style The style to set.
-           * @param stylesToDelete The styles to delete.
-           */
-          setStyle(style2, ...stylesToDelete) {
-            if (this._styles) {
-              for (const style3 of stylesToDelete) {
-                this._styles.delete(style3);
-              }
-            } else {
-              this._styles = /* @__PURE__ */ new Set();
-            }
-            this._styles.add(style2);
-          }
-          /**
-           * Deletes styles.
-           * @param stylesToDelete The styles to delete.
-           */
-          deleteStyles(...stylesToDelete) {
-            if (this._styles) {
-              for (const style2 of stylesToDelete) {
-                this._styles.delete(style2);
-              }
-              if (!this._styles.size) {
-                this._styles = void 0;
-              }
-            }
-          }
-          /**
-           * Sets the foreground color.
-           * @param color The foreground color.
-           */
-          setForegroundColor(color) {
-            if (!this._reversed) {
-              this._foregroundColor = color;
-            } else {
-              this._backgroundColor = color;
-            }
-          }
-          /**
-           * Sets the background color.
-           * @param color The background color.
-           */
-          setBackgroundColor(color) {
-            if (!this._reversed) {
-              this._backgroundColor = color;
-            } else {
-              this._foregroundColor = color;
-            }
-          }
-          /**
-           * Sets reversed.
-           * @param reversed A value which indicates whether the foreground and background colors are
-           * reversed.
-           */
-          setReversed(reversed) {
-            if (reversed) {
-              if (!this._reversed) {
-                this._reversed = true;
-                this.reverseForegroundAndBackgroundColors();
-              }
-            } else {
-              if (this._reversed) {
-                this._reversed = void 0;
-                this.reverseForegroundAndBackgroundColors();
-              }
-            }
-          }
-          /**
-           * Sets the font.
-           * @param font The font.
-           */
-          setFont(font) {
-            this._font = font;
-          }
-          /**
-           *
-           * @param left
-           * @param right
-           * @returns
-           */
-          static equivalent(left, right) {
-            const setReplacer = (_, value2) => value2 instanceof Set ? !value2.size ? void 0 : [...value2] : value2;
-            return left === right || JSON.stringify(left, setReplacer) === JSON.stringify(right, setReplacer);
-          }
-          //#endregion Public Methods
-          //#region ANSIFormat Implementation
-          /**
-           * Gets the styles.
-           */
-          get styles() {
-            return !this._styles ? void 0 : [...this._styles];
-          }
-          /**
-           * Gets the foreground color.
-           */
-          get foregroundColor() {
-            if (this._backgroundColor && !this._foregroundColor) {
-              switch (this._backgroundColor) {
-                case ANSIColor.Black:
-                case ANSIColor.BrightBlack:
-                case ANSIColor.Red:
-                case ANSIColor.BrightRed:
-                  return ANSIColor.White;
-                case ANSIColor.Green:
-                case ANSIColor.BrightGreen:
-                case ANSIColor.Yellow:
-                case ANSIColor.BrightYellow:
-                case ANSIColor.Blue:
-                case ANSIColor.BrightBlue:
-                case ANSIColor.Magenta:
-                case ANSIColor.BrightMagenta:
-                case ANSIColor.Cyan:
-                case ANSIColor.BrightCyan:
-                case ANSIColor.White:
-                case ANSIColor.BrightWhite:
-                  return ANSIColor.Black;
-              }
-            }
-            return this._foregroundColor;
-          }
-          /**
-           * Gets the background color.
-           */
-          get backgroundColor() {
-            return this._backgroundColor;
-          }
-          /**
-           * Gets the underlined color.
-           */
-          get underlinedColor() {
-            return this._underlinedColor;
-          }
-          /**
-           * Gets the font.
-           */
-          get font() {
-            return this._font;
-          }
-          //#endregion ANSIFormat Implementation
-          //#region Private Methods
-          /**
-           * Reverses the foreground and background colors.
-           */
-          reverseForegroundAndBackgroundColors() {
-            const foregroundColor = this._foregroundColor;
-            this._foregroundColor = this._backgroundColor;
-            this._backgroundColor = foregroundColor;
-          }
-        }
-        class OutputLine {
-          constructor() {
-            //#region Private Properties
-            /**
-             * Gets the identifier.
-             */
-            __publicField(this, "_id", generateId());
-            /**
-             * Gets or sets the output runs.
-             */
-            __publicField(this, "_outputRuns", []);
-            /**
-             * Gets or sets the total length.
-             */
-            __publicField(this, "_totalLength", 0);
-          }
-          //#endregion Private Properties
-          //#region Public Methods
-          /**
-           * Clears the entire output line.
-           */
-          clearEntireLine() {
-            if (this._totalLength) {
-              this._outputRuns = [new OutputRun2(" ".repeat(this._totalLength))];
-            }
-          }
-          /**
-           * Clears to the end of the output line.
-           * @param column The column at which to clear from.
-           */
-          clearToEndOfLine(column2) {
-            column2 = Math.max(column2, 0);
-            if (column2 >= this._totalLength) {
-              return;
-            }
-            if (column2 === 0) {
-              this.clearEntireLine();
-              return;
-            }
-            let leftOffset = 0;
-            let leftOutputRun;
-            let leftOutputRunIndex = void 0;
-            for (let index2 = 0; index2 < this._outputRuns.length; index2++) {
-              const outputRun = this._outputRuns[index2];
-              if (column2 < leftOffset + outputRun.text.length) {
-                leftOutputRun = outputRun;
-                leftOutputRunIndex = index2;
-                break;
-              }
-              leftOffset += outputRun.text.length;
-            }
-            if (leftOutputRun === void 0 || leftOutputRunIndex === void 0) {
-              return;
-            }
-            const leftTextLength = column2 - leftOffset;
-            const erasureText = " ".repeat(this._totalLength - column2);
-            const outputRuns = [];
-            if (!leftTextLength) {
-              outputRuns.push(new OutputRun2(erasureText));
-            } else {
-              const leftText = leftOutputRun.text.slice(0, leftTextLength);
-              outputRuns.push(new OutputRun2(leftText, leftOutputRun.sgrState));
-              outputRuns.push(new OutputRun2(erasureText));
-            }
-            this.outputRuns.splice(leftOutputRunIndex, this._outputRuns.length - leftOutputRunIndex, ...outputRuns);
-          }
-          /**
-           * Clears to the beginning of the output line.
-           * @param column The column at which to clear from.
-           */
-          clearToBeginningOfLine(column2) {
-            column2 = Math.max(column2, 0);
-            if (column2 === 0) {
-              return;
-            }
-            if (column2 >= this._totalLength) {
-              this.clearEntireLine();
-              return;
-            }
-            let rightOffset = 0;
-            let rightOutputRun;
-            let rightOutputRunIndex = void 0;
-            for (let index2 = this._outputRuns.length - 1; index2 >= 0; index2--) {
-              const outputRun = this._outputRuns[index2];
-              if (column2 >= rightOffset - outputRun.text.length) {
-                rightOutputRun = outputRun;
-                rightOutputRunIndex = index2;
-                break;
-              }
-              rightOffset -= outputRun.text.length;
-            }
-            if (rightOutputRun === void 0 || rightOutputRunIndex === void 0) {
-              return;
-            }
-            const rightTextLength = rightOffset - column2;
-            const erasureText = " ".repeat(column2);
-            const outputRuns = [new OutputRun2(erasureText)];
-            if (rightTextLength) {
-              const rightOutputRunText = rightOutputRun.text.slice(-rightTextLength);
-              outputRuns.push(new OutputRun2(rightOutputRunText, rightOutputRun.sgrState));
-            }
-            this.outputRuns.splice(0, this._outputRuns.length - rightOutputRunIndex, ...outputRuns);
-          }
-          /**
-           * Inserts text into the output line.
-           * @param text The text to insert.
-           * @param column The column at which to insert the text.
-           * @param sgrState The SGR state.
-           */
-          insert(text2, column2, sgrState) {
-            if (!text2.length) {
-              return;
-            }
-            if (column2 === this._totalLength) {
-              this._totalLength += text2.length;
-              if (this._outputRuns.length) {
-                const lastOutputRun = this._outputRuns[this._outputRuns.length - 1];
-                if (SGRState.equivalent(lastOutputRun.sgrState, sgrState)) {
-                  lastOutputRun.appendText(text2);
-                  return;
-                }
-              }
-              this._outputRuns.push(new OutputRun2(text2, sgrState));
-              return;
-            }
-            if (column2 > this._totalLength) {
-              const spacer = " ".repeat(column2 - this._totalLength);
-              this._totalLength += spacer.length + text2.length;
-              if (!sgrState && this._outputRuns.length) {
-                const lastOutputRun = this._outputRuns[this._outputRuns.length - 1];
-                if (!lastOutputRun.sgrState) {
-                  lastOutputRun.appendText(spacer);
-                  lastOutputRun.appendText(text2);
-                  return;
-                }
-              }
-              if (!sgrState) {
-                this._outputRuns.push(new OutputRun2(spacer + text2));
-              } else {
-                this._outputRuns.push(new OutputRun2(spacer));
-                this._outputRuns.push(new OutputRun2(text2, sgrState));
-              }
-            }
-            let leftOffset = 0;
-            let leftOutputRunIndex = void 0;
-            for (let index2 = 0; index2 < this._outputRuns.length; index2++) {
-              const outputRun = this._outputRuns[index2];
-              if (column2 < leftOffset + outputRun.text.length) {
-                leftOutputRunIndex = index2;
-                break;
-              }
-              leftOffset += outputRun.text.length;
-            }
-            if (leftOutputRunIndex === void 0) {
-              this._outputRuns.push(new OutputRun2(text2, sgrState));
-              return;
-            }
-            if (column2 + text2.length >= this._totalLength) {
-              const leftTextLength = column2 - leftOffset;
-              const outputRuns2 = [];
-              if (!leftTextLength) {
-                outputRuns2.push(new OutputRun2(text2, sgrState));
-              } else {
-                const leftOutputRun = this._outputRuns[leftOutputRunIndex];
-                const leftText = leftOutputRun.text.slice(0, leftTextLength);
-                if (SGRState.equivalent(leftOutputRun.sgrState, sgrState)) {
-                  outputRuns2.push(new OutputRun2(leftText + text2, sgrState));
-                } else {
-                  outputRuns2.push(new OutputRun2(leftText, leftOutputRun.sgrState));
-                  outputRuns2.push(new OutputRun2(text2, sgrState));
-                }
-              }
-              this.outputRuns.splice(leftOutputRunIndex, 1, ...outputRuns2);
-              this._totalLength = leftOffset + leftTextLength + text2.length;
-              return;
-            }
-            let rightOffset = this._totalLength;
-            let rightOutputRunIndex = void 0;
-            for (let index2 = this._outputRuns.length - 1; index2 >= 0; index2--) {
-              const outputRun = this._outputRuns[index2];
-              if (column2 + text2.length > rightOffset - outputRun.text.length) {
-                rightOutputRunIndex = index2;
-                break;
-              }
-              rightOffset -= outputRun.text.length;
-            }
-            if (rightOutputRunIndex === void 0) {
-              this._outputRuns.push(new OutputRun2(text2, sgrState));
-              return;
-            }
-            const outputRuns = [];
-            const leftOutputRunTextLength = column2 - leftOffset;
-            if (leftOutputRunTextLength) {
-              const leftOutputRun = this._outputRuns[leftOutputRunIndex];
-              const leftOutputRunText = leftOutputRun.text.slice(0, leftOutputRunTextLength);
-              outputRuns.push(new OutputRun2(leftOutputRunText, leftOutputRun.sgrState));
-            }
-            outputRuns.push(new OutputRun2(text2, sgrState));
-            const rightOutputRunTextLength = rightOffset - (column2 + text2.length);
-            if (rightOutputRunTextLength) {
-              const rightOutputRun = this._outputRuns[rightOutputRunIndex];
-              const rightOutputRunText = rightOutputRun.text.slice(-rightOutputRunTextLength);
-              outputRuns.push(new OutputRun2(rightOutputRunText, rightOutputRun.sgrState));
-            }
-            this._outputRuns.splice(leftOutputRunIndex, rightOutputRunIndex - leftOutputRunIndex + 1, ...outputRuns);
-            if (this._outputRuns.length > 1) {
-              this._outputRuns = OutputRun2.optimizeOutputRuns(this._outputRuns);
-            }
-            this._totalLength = this._outputRuns.reduce((totalLength, outputRun) => totalLength + outputRun.text.length, 0);
-          }
-          //#endregion Public Methods
-          //#region ANSIOutputLine Implementation
-          /**
-           * Gets the identifier.
-           */
-          get id() {
-            return this._id;
-          }
-          /**
-           * Gets the output runs.
-           */
-          get outputRuns() {
-            return this._outputRuns;
-          }
-        }
-        class OutputRun2 {
-          //#endregion Public Properties
-          //#region Constructor
-          /**
-           * Constructor.
-           * @param text The text.
-           * @param sgrState The SGR state.
-           */
-          constructor(text2, sgrState) {
-            //#region Private Properties
-            /**
-             * Gets the identifier.
-             */
-            __publicField(this, "_id", generateId());
-            /**
-             * Gets the SGR state.
-             */
-            __publicField(this, "_sgrState");
-            /**
-             * Gets or sets the text.
-             */
-            __publicField(this, "_text");
-            this._sgrState = sgrState;
-            this._text = text2;
-          }
-          //#endregion Private Properties
-          //#region Public Properties
-          get sgrState() {
-            return this._sgrState;
-          }
-          //#endregion Constructor
-          //#region Public Methods
-          /**
-           * Optimizes a an array of output runs by combining adjacent output runs with equivalent SGR
-           * states.
-           * @param outputRunsIn The output runs to optimize.
-           * @returns The optimized output runs.
-           */
-          static optimizeOutputRuns(outputRunsIn) {
-            const outputRunsOut = [outputRunsIn[0]];
-            for (let i2 = 1, o = 0; i2 < outputRunsIn.length; i2++) {
-              const outputRun = outputRunsIn[i2];
-              if (SGRState.equivalent(outputRunsOut[o].sgrState, outputRun.sgrState)) {
-                outputRunsOut[o]._text += outputRun.text;
-              } else {
-                outputRunsOut[++o] = outputRun;
-              }
-            }
-            return outputRunsOut;
-          }
-          /**
-           * Appends text to the end of the output run.
-           * @param text The text to append.
-           */
-          appendText(text2) {
-            this._text += text2;
-          }
-          //#endregion Public Methods
-          //#region ANSIOutputRun Implementation
-          /**
-           * Gets the identifier.
-           */
-          get id() {
-            return this._id;
-          }
-          /**
-           * Gets the format.
-           */
-          get format() {
-            return this._sgrState;
-          }
-          /**
-           * Gets the text.
-           */
-          get text() {
-            return this._text;
-          }
-        }
-        const rangeParam = (value2, defaultValue, minValue) => {
-          const param = getParam(value2, defaultValue);
-          return Math.max(param, minValue);
-        };
-        const getParam = (value2, defaultValue) => {
-          const param = parseInt(value2);
-          return Number.isNaN(param) ? defaultValue : param;
-        };
-        const twoDigitHex = (value2) => {
-          const hex = Math.max(Math.min(255, value2), 0).toString(16);
-          return hex.length === 2 ? hex : "0" + hex;
-        };
-      });
-    })(ansiOutput, ansiOutput.exports);
-    var ansiOutputExports = ansiOutput.exports;
-    const ANSIDisplay = ({
-      output: output2,
-      style: style2,
-      className: className2
-    }) => {
-      const ansiOutput2 = new ansiOutputExports.ANSIOutput();
-      ansiOutput2.processOutput(output2);
-      let firstOutput = false;
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("ansi-display", className2), style: { ...style2 }, children: ansiOutput2.outputLines.map((line2) => {
-        firstOutput = firstOutput || !!line2.outputRuns.length;
-        return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "ansi-display-line", children: !line2.outputRuns.length ? firstOutput ? /* @__PURE__ */ jsxRuntimeExports.jsx("br", {}) : null : line2.outputRuns.map((outputRun) => /* @__PURE__ */ jsxRuntimeExports.jsx(OutputRun, { run: outputRun }, outputRun.id)) });
-      }) });
-    };
-    const kForeground = 0;
-    const kBackground = 1;
-    const OutputRun = ({ run }) => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("span", { style: computeCSSProperties(run), children: run.text });
-    };
-    const computeCSSProperties = (outputRun) => {
-      return !outputRun.format ? {} : {
-        ...computeStyles(outputRun.format.styles || []),
-        ...computeForegroundBackgroundColor(
-          kForeground,
-          outputRun.format.foregroundColor
-        ),
-        ...computeForegroundBackgroundColor(
-          kBackground,
-          outputRun.format.backgroundColor
-        )
-      };
-    };
-    const computeStyles = (styles2) => {
-      let cssProperties = {};
-      {
-        styles2.forEach((style2) => {
-          switch (style2) {
-            case ansiOutputExports.ANSIStyle.Bold:
-              cssProperties = { ...cssProperties, ...{ fontWeight: "bold" } };
-              break;
-            case ansiOutputExports.ANSIStyle.Dim:
-              cssProperties = { ...cssProperties, ...{ fontWeight: "lighter" } };
-              break;
-            case ansiOutputExports.ANSIStyle.Italic:
-              cssProperties = { ...cssProperties, ...{ fontStyle: "italic" } };
-              break;
-            case ansiOutputExports.ANSIStyle.Underlined:
-              cssProperties = {
-                ...cssProperties,
-                ...{
-                  textDecorationLine: "underline",
-                  textDecorationStyle: "solid"
-                }
-              };
-              break;
-            case ansiOutputExports.ANSIStyle.SlowBlink:
-              cssProperties = {
-                ...cssProperties,
-                ...{ animation: "ansi-display-run-blink 1s linear infinite" }
-              };
-              break;
-            case ansiOutputExports.ANSIStyle.RapidBlink:
-              cssProperties = {
-                ...cssProperties,
-                ...{ animation: "ansi-display-run-blink 0.5s linear infinite" }
-              };
-              break;
-            case ansiOutputExports.ANSIStyle.Hidden:
-              cssProperties = { ...cssProperties, ...{ visibility: "hidden" } };
-              break;
-            case ansiOutputExports.ANSIStyle.CrossedOut:
-              cssProperties = {
-                ...cssProperties,
-                ...{
-                  textDecorationLine: "line-through",
-                  textDecorationStyle: "solid"
-                }
-              };
-              break;
-            case ansiOutputExports.ANSIStyle.DoubleUnderlined:
-              cssProperties = {
-                ...cssProperties,
-                ...{
-                  textDecorationLine: "underline",
-                  textDecorationStyle: "double"
-                }
-              };
-              break;
-          }
-        });
-      }
-      return cssProperties;
-    };
-    const computeForegroundBackgroundColor = (colorType, color) => {
-      switch (color) {
-        case void 0:
-          return {};
-        case ansiOutputExports.ANSIColor.Black:
-        case ansiOutputExports.ANSIColor.Red:
-        case ansiOutputExports.ANSIColor.Green:
-        case ansiOutputExports.ANSIColor.Yellow:
-        case ansiOutputExports.ANSIColor.Blue:
-        case ansiOutputExports.ANSIColor.Magenta:
-        case ansiOutputExports.ANSIColor.Cyan:
-        case ansiOutputExports.ANSIColor.White:
-        case ansiOutputExports.ANSIColor.BrightBlack:
-        case ansiOutputExports.ANSIColor.BrightRed:
-        case ansiOutputExports.ANSIColor.BrightGreen:
-        case ansiOutputExports.ANSIColor.BrightYellow:
-        case ansiOutputExports.ANSIColor.BrightBlue:
-        case ansiOutputExports.ANSIColor.BrightMagenta:
-        case ansiOutputExports.ANSIColor.BrightCyan:
-        case ansiOutputExports.ANSIColor.BrightWhite:
-          if (colorType === kForeground) {
-            return { color: `var(--${color})` };
-          } else {
-            return { background: `var(--${color})` };
-          }
-        default:
-          if (colorType === kForeground) {
-            return { color };
-          } else {
-            return { background: color };
-          }
-      }
-    };
-    const visible = "_visible_tm52u_1";
-    const hidden$3 = "_hidden_tm52u_5";
-    const pills = "_pills_tm52u_9";
-    const pill = "_pill_tm52u_9";
-    const styles$11 = {
-      visible,
-      hidden: hidden$3,
-      pills,
-      pill
-    };
-    const NavPills = ({ children: children2 }) => {
-      if (!(children2 == null ? void 0 : children2.length)) {
-        return null;
-      }
-      const [activeItem, setActiveItem] = reactExports.useState(children2[0].props["title"]);
-      const navPills = children2.map((nav2, idx) => {
-        var _a2;
-        const title2 = typeof nav2 === "object" ? ((_a2 = nav2["props"]) == null ? void 0 : _a2.title) || `Tab ${idx}` : `Tab ${idx}`;
-        return /* @__PURE__ */ jsxRuntimeExports.jsx(
-          NavPill,
-          {
-            title: title2,
-            activeItem,
-            setActiveItem
-          },
-          `nav-pill-contents-${idx}`
-        );
-      });
-      const navBodies = children2.map((child, idx) => {
-        var _a2;
-        return /* @__PURE__ */ jsxRuntimeExports.jsx(
-          "div",
-          {
-            className: ((_a2 = child["props"]) == null ? void 0 : _a2.title) === activeItem ? styles$11.visible : styles$11.hidden,
-            children: child
-          },
-          `nav-pill-container-${idx}`
-        );
-      });
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx(
-          "ul",
-          {
-            className: clsx("nav", "nav-pills", styles$11.pills),
-            role: "tablist",
-            "aria-orientation": "horizontal",
-            children: navPills
-          }
-        ),
-        navBodies
-      ] });
-    };
-    const NavPill = ({
-      title: title2,
-      activeItem,
-      setActiveItem,
-      children: children2
-    }) => {
-      const active2 = activeItem === title2;
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs("li", { className: "nav-item", children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx(
-          "button",
-          {
-            type: "button",
-            role: "tab",
-            "aria-selected": active2,
-            className: clsx(
-              "nav-link",
-              "text-style-label",
-              active2 ? "active " : "",
-              styles$11.pill
-            ),
-            onClick: () => {
-              setActiveItem(title2);
-            },
-            children: title2
-          }
-        ),
-        children2
-      ] });
-    };
-    const Buckets = {
-      first: 0,
-      intermediate: 10,
-      final: 1e3
-    };
-    const useResizeObserver = (callback) => {
-      const elementRef = reactExports.useRef(null);
-      const observerRef = reactExports.useRef(null);
-      reactExports.useEffect(() => {
-        const element = elementRef.current;
-        if (!element) return;
-        observerRef.current = new ResizeObserver((entries) => {
-          if (entries[0]) {
-            callback(entries[0]);
-          }
-        });
-        observerRef.current.observe(element);
-        return () => {
-          if (observerRef.current) {
-            observerRef.current.disconnect();
-          }
-        };
-      }, [callback]);
-      return elementRef;
-    };
-    const ExpandablePanel = ({
-      collapse,
-      border,
-      lines = 15,
-      children: children2,
-      className: className2
-    }) => {
-      const [isCollapsed, setIsCollapsed] = reactExports.useState(collapse);
-      const [showToggle, setShowToggle] = reactExports.useState(false);
-      const lineHeightRef = reactExports.useRef(0);
-      reactExports.useEffect(() => {
-        setIsCollapsed(collapse);
-      }, [collapse]);
-      const checkOverflow = reactExports.useCallback(
-        (entry2) => {
-          const element = entry2.target;
-          if (!lineHeightRef.current) {
-            const computedStyle = window.getComputedStyle(element);
-            lineHeightRef.current = parseInt(computedStyle.lineHeight) || 16;
-          }
-          const maxCollapsedHeight = lines * lineHeightRef.current;
-          const contentHeight = element.scrollHeight;
-          setShowToggle(contentHeight > maxCollapsedHeight);
-        },
-        [lines]
-      );
-      const contentRef = useResizeObserver(checkOverflow);
-      const baseStyles = {
-        overflow: "hidden",
-        ...isCollapsed && {
-          maxHeight: `${lines}em`
-        }
-      };
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(className2), children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx(
-          "div",
-          {
-            style: baseStyles,
-            ref: contentRef,
-            className: clsx(
-              "expandable-panel",
-              isCollapsed ? "expandable-collapsed" : void 0,
-              border ? "expandable-bordered" : void 0
-            ),
-            children: children2
-          }
-        ),
-        showToggle && /* @__PURE__ */ jsxRuntimeExports.jsx(
-          MoreToggle,
-          {
-            collapsed: isCollapsed,
-            setCollapsed: setIsCollapsed,
-            border: !border
-          }
-        )
-      ] });
-    };
-    const MoreToggle = ({
-      collapsed,
-      border,
-      setCollapsed,
-      style: style2
-    }) => {
-      const text2 = collapsed ? "more" : "less";
-      const icon = collapsed ? ApplicationIcons["expand-down"] : ApplicationIcons.collapse.up;
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: `more-toggle ${border ? "bordered" : ""}`, style: style2, children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "more-toggle-container", children: /* @__PURE__ */ jsxRuntimeExports.jsxs(
-        "button",
-        {
-          className: "btn more-toggle-button",
-          onClick: () => setCollapsed(!collapsed),
-          children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: icon }),
-            text2
-          ]
-        }
-      ) }) });
-    };
-    const decodeCache = {};
-    function getDecodeCache(exclude) {
-      let cache = decodeCache[exclude];
-      if (cache) {
-        return cache;
-      }
-      cache = decodeCache[exclude] = [];
-      for (let i2 = 0; i2 < 128; i2++) {
-        const ch3 = String.fromCharCode(i2);
-        cache.push(ch3);
-      }
-      for (let i2 = 0; i2 < exclude.length; i2++) {
-        const ch3 = exclude.charCodeAt(i2);
-        cache[ch3] = "%" + ("0" + ch3.toString(16).toUpperCase()).slice(-2);
-      }
-      return cache;
-    }
-    function decode$1(string2, exclude) {
-      if (typeof exclude !== "string") {
-        exclude = decode$1.defaultChars;
-      }
-      const cache = getDecodeCache(exclude);
-      return string2.replace(/(%[a-f0-9]{2})+/gi, function(seq) {
-        let result = "";
-        for (let i2 = 0, l = seq.length; i2 < l; i2 += 3) {
-          const b1 = parseInt(seq.slice(i2 + 1, i2 + 3), 16);
-          if (b1 < 128) {
-            result += cache[b1];
-            continue;
-          }
-          if ((b1 & 224) === 192 && i2 + 3 < l) {
-            const b2 = parseInt(seq.slice(i2 + 4, i2 + 6), 16);
-            if ((b2 & 192) === 128) {
-              const chr = b1 << 6 & 1984 | b2 & 63;
-              if (chr < 128) {
-                result += "��";
-              } else {
-                result += String.fromCharCode(chr);
-              }
-              i2 += 3;
-              continue;
-            }
-          }
-          if ((b1 & 240) === 224 && i2 + 6 < l) {
-            const b2 = parseInt(seq.slice(i2 + 4, i2 + 6), 16);
-            const b3 = parseInt(seq.slice(i2 + 7, i2 + 9), 16);
-            if ((b2 & 192) === 128 && (b3 & 192) === 128) {
-              const chr = b1 << 12 & 61440 | b2 << 6 & 4032 | b3 & 63;
-              if (chr < 2048 || chr >= 55296 && chr <= 57343) {
-                result += "���";
-              } else {
-                result += String.fromCharCode(chr);
-              }
-              i2 += 6;
-              continue;
-            }
-          }
-          if ((b1 & 248) === 240 && i2 + 9 < l) {
-            const b2 = parseInt(seq.slice(i2 + 4, i2 + 6), 16);
-            const b3 = parseInt(seq.slice(i2 + 7, i2 + 9), 16);
-            const b4 = parseInt(seq.slice(i2 + 10, i2 + 12), 16);
-            if ((b2 & 192) === 128 && (b3 & 192) === 128 && (b4 & 192) === 128) {
-              let chr = b1 << 18 & 1835008 | b2 << 12 & 258048 | b3 << 6 & 4032 | b4 & 63;
-              if (chr < 65536 || chr > 1114111) {
-                result += "����";
-              } else {
-                chr -= 65536;
-                result += String.fromCharCode(55296 + (chr >> 10), 56320 + (chr & 1023));
-              }
-              i2 += 9;
-              continue;
-            }
-          }
-          result += "�";
-        }
-        return result;
-      });
-    }
-    decode$1.defaultChars = ";/?:@&=+$,#";
-    decode$1.componentChars = "";
-    const encodeCache = {};
-    function getEncodeCache(exclude) {
-      let cache = encodeCache[exclude];
-      if (cache) {
-        return cache;
-      }
-      cache = encodeCache[exclude] = [];
-      for (let i2 = 0; i2 < 128; i2++) {
-        const ch3 = String.fromCharCode(i2);
-        if (/^[0-9a-z]$/i.test(ch3)) {
-          cache.push(ch3);
-        } else {
-          cache.push("%" + ("0" + i2.toString(16).toUpperCase()).slice(-2));
-        }
-      }
-      for (let i2 = 0; i2 < exclude.length; i2++) {
-        cache[exclude.charCodeAt(i2)] = exclude[i2];
-      }
-      return cache;
-    }
-    function encode$1(string2, exclude, keepEscaped) {
-      if (typeof exclude !== "string") {
-        keepEscaped = exclude;
-        exclude = encode$1.defaultChars;
-      }
-      if (typeof keepEscaped === "undefined") {
-        keepEscaped = true;
-      }
-      const cache = getEncodeCache(exclude);
-      let result = "";
-      for (let i2 = 0, l = string2.length; i2 < l; i2++) {
-        const code2 = string2.charCodeAt(i2);
-        if (keepEscaped && code2 === 37 && i2 + 2 < l) {
-          if (/^[0-9a-f]{2}$/i.test(string2.slice(i2 + 1, i2 + 3))) {
-            result += string2.slice(i2, i2 + 3);
-            i2 += 2;
-            continue;
-          }
-        }
-        if (code2 < 128) {
-          result += cache[code2];
-          continue;
-        }
-        if (code2 >= 55296 && code2 <= 57343) {
-          if (code2 >= 55296 && code2 <= 56319 && i2 + 1 < l) {
-            const nextCode = string2.charCodeAt(i2 + 1);
-            if (nextCode >= 56320 && nextCode <= 57343) {
-              result += encodeURIComponent(string2[i2] + string2[i2 + 1]);
-              i2++;
-              continue;
-            }
-          }
-          result += "%EF%BF%BD";
-          continue;
-        }
-        result += encodeURIComponent(string2[i2]);
-      }
-      return result;
-    }
-    encode$1.defaultChars = ";/?:@&=+$,-_.!~*'()#";
-    encode$1.componentChars = "-_.!~*'()";
-    function format$1(url) {
-      let result = "";
-      result += url.protocol || "";
-      result += url.slashes ? "//" : "";
-      result += url.auth ? url.auth + "@" : "";
-      if (url.hostname && url.hostname.indexOf(":") !== -1) {
-        result += "[" + url.hostname + "]";
-      } else {
-        result += url.hostname || "";
-      }
-      result += url.port ? ":" + url.port : "";
-      result += url.pathname || "";
-      result += url.search || "";
-      result += url.hash || "";
-      return result;
-    }
-    function Url() {
-      this.protocol = null;
-      this.slashes = null;
-      this.auth = null;
-      this.port = null;
-      this.hostname = null;
-      this.hash = null;
-      this.search = null;
-      this.pathname = null;
-    }
-    const protocolPattern = /^([a-z0-9.+-]+:)/i;
-    const portPattern = /:[0-9]*$/;
-    const simplePathPattern = /^(\/\/?(?!\/)[^\?\s]*)(\?[^\s]*)?$/;
-    const delims = ["<", ">", '"', "`", " ", "\r", "\n", "	"];
-    const unwise = ["{", "}", "|", "\\", "^", "`"].concat(delims);
-    const autoEscape = ["'"].concat(unwise);
-    const nonHostChars = ["%", "/", "?", ";", "#"].concat(autoEscape);
-    const hostEndingChars = ["/", "?", "#"];
-    const hostnameMaxLen = 255;
-    const hostnamePartPattern = /^[+a-z0-9A-Z_-]{0,63}$/;
-    const hostnamePartStart = /^([+a-z0-9A-Z_-]{0,63})(.*)$/;
-    const hostlessProtocol = {
-      javascript: true,
-      "javascript:": true
-    };
-    const slashedProtocol = {
-      http: true,
-      https: true,
-      ftp: true,
-      gopher: true,
-      file: true,
-      "http:": true,
-      "https:": true,
-      "ftp:": true,
-      "gopher:": true,
-      "file:": true
-    };
-    function urlParse(url, slashesDenoteHost) {
-      if (url && url instanceof Url) return url;
-      const u = new Url();
-      u.parse(url, slashesDenoteHost);
-      return u;
-    }
-    Url.prototype.parse = function(url, slashesDenoteHost) {
-      let lowerProto, hec, slashes;
-      let rest = url;
-      rest = rest.trim();
-      if (!slashesDenoteHost && url.split("#").length === 1) {
-        const simplePath = simplePathPattern.exec(rest);
-        if (simplePath) {
-          this.pathname = simplePath[1];
-          if (simplePath[2]) {
-            this.search = simplePath[2];
-          }
-          return this;
-        }
-      }
-      let proto = protocolPattern.exec(rest);
-      if (proto) {
-        proto = proto[0];
-        lowerProto = proto.toLowerCase();
-        this.protocol = proto;
-        rest = rest.substr(proto.length);
-      }
-      if (slashesDenoteHost || proto || rest.match(/^\/\/[^@\/]+@[^@\/]+/)) {
-        slashes = rest.substr(0, 2) === "//";
-        if (slashes && !(proto && hostlessProtocol[proto])) {
-          rest = rest.substr(2);
-          this.slashes = true;
-        }
-      }
-      if (!hostlessProtocol[proto] && (slashes || proto && !slashedProtocol[proto])) {
-        let hostEnd = -1;
-        for (let i2 = 0; i2 < hostEndingChars.length; i2++) {
-          hec = rest.indexOf(hostEndingChars[i2]);
-          if (hec !== -1 && (hostEnd === -1 || hec < hostEnd)) {
-            hostEnd = hec;
-          }
-        }
-        let auth, atSign;
-        if (hostEnd === -1) {
-          atSign = rest.lastIndexOf("@");
-        } else {
-          atSign = rest.lastIndexOf("@", hostEnd);
-        }
-        if (atSign !== -1) {
-          auth = rest.slice(0, atSign);
-          rest = rest.slice(atSign + 1);
-          this.auth = auth;
-        }
-        hostEnd = -1;
-        for (let i2 = 0; i2 < nonHostChars.length; i2++) {
-          hec = rest.indexOf(nonHostChars[i2]);
-          if (hec !== -1 && (hostEnd === -1 || hec < hostEnd)) {
-            hostEnd = hec;
-          }
-        }
-        if (hostEnd === -1) {
-          hostEnd = rest.length;
-        }
-        if (rest[hostEnd - 1] === ":") {
-          hostEnd--;
-        }
-        const host = rest.slice(0, hostEnd);
-        rest = rest.slice(hostEnd);
-        this.parseHost(host);
-        this.hostname = this.hostname || "";
-        const ipv6Hostname = this.hostname[0] === "[" && this.hostname[this.hostname.length - 1] === "]";
-        if (!ipv6Hostname) {
-          const hostparts = this.hostname.split(/\./);
-          for (let i2 = 0, l = hostparts.length; i2 < l; i2++) {
-            const part = hostparts[i2];
-            if (!part) {
-              continue;
-            }
-            if (!part.match(hostnamePartPattern)) {
-              let newpart = "";
-              for (let j = 0, k = part.length; j < k; j++) {
-                if (part.charCodeAt(j) > 127) {
-                  newpart += "x";
-                } else {
-                  newpart += part[j];
-                }
-              }
-              if (!newpart.match(hostnamePartPattern)) {
-                const validParts = hostparts.slice(0, i2);
-                const notHost = hostparts.slice(i2 + 1);
-                const bit = part.match(hostnamePartStart);
-                if (bit) {
-                  validParts.push(bit[1]);
-                  notHost.unshift(bit[2]);
-                }
-                if (notHost.length) {
-                  rest = notHost.join(".") + rest;
-                }
-                this.hostname = validParts.join(".");
-                break;
-              }
-            }
-          }
-        }
-        if (this.hostname.length > hostnameMaxLen) {
-          this.hostname = "";
-        }
-        if (ipv6Hostname) {
-          this.hostname = this.hostname.substr(1, this.hostname.length - 2);
-        }
-      }
-      const hash = rest.indexOf("#");
-      if (hash !== -1) {
-        this.hash = rest.substr(hash);
-        rest = rest.slice(0, hash);
-      }
-      const qm = rest.indexOf("?");
-      if (qm !== -1) {
-        this.search = rest.substr(qm);
-        rest = rest.slice(0, qm);
-      }
-      if (rest) {
-        this.pathname = rest;
-      }
-      if (slashedProtocol[lowerProto] && this.hostname && !this.pathname) {
-        this.pathname = "";
-      }
-      return this;
-    };
-    Url.prototype.parseHost = function(host) {
-      let port = portPattern.exec(host);
-      if (port) {
-        port = port[0];
-        if (port !== ":") {
-          this.port = port.substr(1);
-        }
-        host = host.substr(0, host.length - port.length);
-      }
-      if (host) {
-        this.hostname = host;
-      }
-    };
-    const mdurl = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
-      __proto__: null,
-      decode: decode$1,
-      encode: encode$1,
-      format: format$1,
-      parse: urlParse
-    }, Symbol.toStringTag, { value: "Module" }));
-    const Any = /[\0-\uD7FF\uE000-\uFFFF]|[\uD800-\uDBFF][\uDC00-\uDFFF]|[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?:[^\uD800-\uDBFF]|^)[\uDC00-\uDFFF]/;
-    const Cc = /[\0-\x1F\x7F-\x9F]/;
-    const regex$1 = /[\xAD\u0600-\u0605\u061C\u06DD\u070F\u0890\u0891\u08E2\u180E\u200B-\u200F\u202A-\u202E\u2060-\u2064\u2066-\u206F\uFEFF\uFFF9-\uFFFB]|\uD804[\uDCBD\uDCCD]|\uD80D[\uDC30-\uDC3F]|\uD82F[\uDCA0-\uDCA3]|\uD834[\uDD73-\uDD7A]|\uDB40[\uDC01\uDC20-\uDC7F]/;
-    const P = /[!-#%-\*,-\/:;\?@\[-\]_\{\}\xA1\xA7\xAB\xB6\xB7\xBB\xBF\u037E\u0387\u055A-\u055F\u0589\u058A\u05BE\u05C0\u05C3\u05C6\u05F3\u05F4\u0609\u060A\u060C\u060D\u061B\u061D-\u061F\u066A-\u066D\u06D4\u0700-\u070D\u07F7-\u07F9\u0830-\u083E\u085E\u0964\u0965\u0970\u09FD\u0A76\u0AF0\u0C77\u0C84\u0DF4\u0E4F\u0E5A\u0E5B\u0F04-\u0F12\u0F14\u0F3A-\u0F3D\u0F85\u0FD0-\u0FD4\u0FD9\u0FDA\u104A-\u104F\u10FB\u1360-\u1368\u1400\u166E\u169B\u169C\u16EB-\u16ED\u1735\u1736\u17D4-\u17D6\u17D8-\u17DA\u1800-\u180A\u1944\u1945\u1A1E\u1A1F\u1AA0-\u1AA6\u1AA8-\u1AAD\u1B5A-\u1B60\u1B7D\u1B7E\u1BFC-\u1BFF\u1C3B-\u1C3F\u1C7E\u1C7F\u1CC0-\u1CC7\u1CD3\u2010-\u2027\u2030-\u2043\u2045-\u2051\u2053-\u205E\u207D\u207E\u208D\u208E\u2308-\u230B\u2329\u232A\u2768-\u2775\u27C5\u27C6\u27E6-\u27EF\u2983-\u2998\u29D8-\u29DB\u29FC\u29FD\u2CF9-\u2CFC\u2CFE\u2CFF\u2D70\u2E00-\u2E2E\u2E30-\u2E4F\u2E52-\u2E5D\u3001-\u3003\u3008-\u3011\u3014-\u301F\u3030\u303D\u30A0\u30FB\uA4FE\uA4FF\uA60D-\uA60F\uA673\uA67E\uA6F2-\uA6F7\uA874-\uA877\uA8CE\uA8CF\uA8F8-\uA8FA\uA8FC\uA92E\uA92F\uA95F\uA9C1-\uA9CD\uA9DE\uA9DF\uAA5C-\uAA5F\uAADE\uAADF\uAAF0\uAAF1\uABEB\uFD3E\uFD3F\uFE10-\uFE19\uFE30-\uFE52\uFE54-\uFE61\uFE63\uFE68\uFE6A\uFE6B\uFF01-\uFF03\uFF05-\uFF0A\uFF0C-\uFF0F\uFF1A\uFF1B\uFF1F\uFF20\uFF3B-\uFF3D\uFF3F\uFF5B\uFF5D\uFF5F-\uFF65]|\uD800[\uDD00-\uDD02\uDF9F\uDFD0]|\uD801\uDD6F|\uD802[\uDC57\uDD1F\uDD3F\uDE50-\uDE58\uDE7F\uDEF0-\uDEF6\uDF39-\uDF3F\uDF99-\uDF9C]|\uD803[\uDEAD\uDF55-\uDF59\uDF86-\uDF89]|\uD804[\uDC47-\uDC4D\uDCBB\uDCBC\uDCBE-\uDCC1\uDD40-\uDD43\uDD74\uDD75\uDDC5-\uDDC8\uDDCD\uDDDB\uDDDD-\uDDDF\uDE38-\uDE3D\uDEA9]|\uD805[\uDC4B-\uDC4F\uDC5A\uDC5B\uDC5D\uDCC6\uDDC1-\uDDD7\uDE41-\uDE43\uDE60-\uDE6C\uDEB9\uDF3C-\uDF3E]|\uD806[\uDC3B\uDD44-\uDD46\uDDE2\uDE3F-\uDE46\uDE9A-\uDE9C\uDE9E-\uDEA2\uDF00-\uDF09]|\uD807[\uDC41-\uDC45\uDC70\uDC71\uDEF7\uDEF8\uDF43-\uDF4F\uDFFF]|\uD809[\uDC70-\uDC74]|\uD80B[\uDFF1\uDFF2]|\uD81A[\uDE6E\uDE6F\uDEF5\uDF37-\uDF3B\uDF44]|\uD81B[\uDE97-\uDE9A\uDFE2]|\uD82F\uDC9F|\uD836[\uDE87-\uDE8B]|\uD83A[\uDD5E\uDD5F]/;
-    const regex = /[\$\+<->\^`\|~\xA2-\xA6\xA8\xA9\xAC\xAE-\xB1\xB4\xB8\xD7\xF7\u02C2-\u02C5\u02D2-\u02DF\u02E5-\u02EB\u02ED\u02EF-\u02FF\u0375\u0384\u0385\u03F6\u0482\u058D-\u058F\u0606-\u0608\u060B\u060E\u060F\u06DE\u06E9\u06FD\u06FE\u07F6\u07FE\u07FF\u0888\u09F2\u09F3\u09FA\u09FB\u0AF1\u0B70\u0BF3-\u0BFA\u0C7F\u0D4F\u0D79\u0E3F\u0F01-\u0F03\u0F13\u0F15-\u0F17\u0F1A-\u0F1F\u0F34\u0F36\u0F38\u0FBE-\u0FC5\u0FC7-\u0FCC\u0FCE\u0FCF\u0FD5-\u0FD8\u109E\u109F\u1390-\u1399\u166D\u17DB\u1940\u19DE-\u19FF\u1B61-\u1B6A\u1B74-\u1B7C\u1FBD\u1FBF-\u1FC1\u1FCD-\u1FCF\u1FDD-\u1FDF\u1FED-\u1FEF\u1FFD\u1FFE\u2044\u2052\u207A-\u207C\u208A-\u208C\u20A0-\u20C0\u2100\u2101\u2103-\u2106\u2108\u2109\u2114\u2116-\u2118\u211E-\u2123\u2125\u2127\u2129\u212E\u213A\u213B\u2140-\u2144\u214A-\u214D\u214F\u218A\u218B\u2190-\u2307\u230C-\u2328\u232B-\u2426\u2440-\u244A\u249C-\u24E9\u2500-\u2767\u2794-\u27C4\u27C7-\u27E5\u27F0-\u2982\u2999-\u29D7\u29DC-\u29FB\u29FE-\u2B73\u2B76-\u2B95\u2B97-\u2BFF\u2CE5-\u2CEA\u2E50\u2E51\u2E80-\u2E99\u2E9B-\u2EF3\u2F00-\u2FD5\u2FF0-\u2FFF\u3004\u3012\u3013\u3020\u3036\u3037\u303E\u303F\u309B\u309C\u3190\u3191\u3196-\u319F\u31C0-\u31E3\u31EF\u3200-\u321E\u322A-\u3247\u3250\u3260-\u327F\u328A-\u32B0\u32C0-\u33FF\u4DC0-\u4DFF\uA490-\uA4C6\uA700-\uA716\uA720\uA721\uA789\uA78A\uA828-\uA82B\uA836-\uA839\uAA77-\uAA79\uAB5B\uAB6A\uAB6B\uFB29\uFBB2-\uFBC2\uFD40-\uFD4F\uFDCF\uFDFC-\uFDFF\uFE62\uFE64-\uFE66\uFE69\uFF04\uFF0B\uFF1C-\uFF1E\uFF3E\uFF40\uFF5C\uFF5E\uFFE0-\uFFE6\uFFE8-\uFFEE\uFFFC\uFFFD]|\uD800[\uDD37-\uDD3F\uDD79-\uDD89\uDD8C-\uDD8E\uDD90-\uDD9C\uDDA0\uDDD0-\uDDFC]|\uD802[\uDC77\uDC78\uDEC8]|\uD805\uDF3F|\uD807[\uDFD5-\uDFF1]|\uD81A[\uDF3C-\uDF3F\uDF45]|\uD82F\uDC9C|\uD833[\uDF50-\uDFC3]|\uD834[\uDC00-\uDCF5\uDD00-\uDD26\uDD29-\uDD64\uDD6A-\uDD6C\uDD83\uDD84\uDD8C-\uDDA9\uDDAE-\uDDEA\uDE00-\uDE41\uDE45\uDF00-\uDF56]|\uD835[\uDEC1\uDEDB\uDEFB\uDF15\uDF35\uDF4F\uDF6F\uDF89\uDFA9\uDFC3]|\uD836[\uDC00-\uDDFF\uDE37-\uDE3A\uDE6D-\uDE74\uDE76-\uDE83\uDE85\uDE86]|\uD838[\uDD4F\uDEFF]|\uD83B[\uDCAC\uDCB0\uDD2E\uDEF0\uDEF1]|\uD83C[\uDC00-\uDC2B\uDC30-\uDC93\uDCA0-\uDCAE\uDCB1-\uDCBF\uDCC1-\uDCCF\uDCD1-\uDCF5\uDD0D-\uDDAD\uDDE6-\uDE02\uDE10-\uDE3B\uDE40-\uDE48\uDE50\uDE51\uDE60-\uDE65\uDF00-\uDFFF]|\uD83D[\uDC00-\uDED7\uDEDC-\uDEEC\uDEF0-\uDEFC\uDF00-\uDF76\uDF7B-\uDFD9\uDFE0-\uDFEB\uDFF0]|\uD83E[\uDC00-\uDC0B\uDC10-\uDC47\uDC50-\uDC59\uDC60-\uDC87\uDC90-\uDCAD\uDCB0\uDCB1\uDD00-\uDE53\uDE60-\uDE6D\uDE70-\uDE7C\uDE80-\uDE88\uDE90-\uDEBD\uDEBF-\uDEC5\uDECE-\uDEDB\uDEE0-\uDEE8\uDEF0-\uDEF8\uDF00-\uDF92\uDF94-\uDFCA]/;
-    const Z = /[ \xA0\u1680\u2000-\u200A\u2028\u2029\u202F\u205F\u3000]/;
-    const ucmicro = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
-      __proto__: null,
-      Any,
-      Cc,
-      Cf: regex$1,
-      P,
-      S: regex,
-      Z
-    }, Symbol.toStringTag, { value: "Module" }));
-    const htmlDecodeTree = new Uint16Array(
-      // prettier-ignore
-      'ᵁ<Õıʊҝջאٵ۞ޢߖࠏ੊ઑඡ๭༉༦჊ረዡᐕᒝᓃᓟᔥ\0\0\0\0\0\0ᕫᛍᦍᰒᷝ὾⁠↰⊍⏀⏻⑂⠤⤒ⴈ⹈⿎〖㊺㘹㞬㣾㨨㩱㫠㬮ࠀEMabcfglmnoprstu\\bfms¦³¹ÈÏlig耻Æ䃆P耻&䀦cute耻Á䃁reve;䄂Āiyx}rc耻Â䃂;䐐r;쀀𝔄rave耻À䃀pha;䎑acr;䄀d;橓Āgp¡on;䄄f;쀀𝔸plyFunction;恡ing耻Å䃅Ācs¾Ãr;쀀𝒜ign;扔ilde耻Ã䃃ml耻Ä䃄ЀaceforsuåûþėĜĢħĪĀcrêòkslash;或Ŷöø;櫧ed;挆y;䐑ƀcrtąċĔause;戵noullis;愬a;䎒r;쀀𝔅pf;쀀𝔹eve;䋘còēmpeq;扎܀HOacdefhilorsuōőŖƀƞƢƵƷƺǜȕɳɸɾcy;䐧PY耻©䂩ƀcpyŝŢźute;䄆Ā;iŧŨ拒talDifferentialD;慅leys;愭ȀaeioƉƎƔƘron;䄌dil耻Ç䃇rc;䄈nint;戰ot;䄊ĀdnƧƭilla;䂸terDot;䂷òſi;䎧rcleȀDMPTǇǋǑǖot;抙inus;抖lus;投imes;抗oĀcsǢǸkwiseContourIntegral;戲eCurlyĀDQȃȏoubleQuote;思uote;怙ȀlnpuȞȨɇɕonĀ;eȥȦ户;橴ƀgitȯȶȺruent;扡nt;戯ourIntegral;戮ĀfrɌɎ;愂oduct;成nterClockwiseContourIntegral;戳oss;樯cr;쀀𝒞pĀ;Cʄʅ拓ap;才րDJSZacefiosʠʬʰʴʸˋ˗ˡ˦̳ҍĀ;oŹʥtrahd;椑cy;䐂cy;䐅cy;䐏ƀgrsʿ˄ˇger;怡r;憡hv;櫤Āayː˕ron;䄎;䐔lĀ;t˝˞戇a;䎔r;쀀𝔇Āaf˫̧Ācm˰̢riticalȀADGT̖̜̀̆cute;䂴oŴ̋̍;䋙bleAcute;䋝rave;䁠ilde;䋜ond;拄ferentialD;慆Ѱ̽\0\0\0͔͂\0Ѕf;쀀𝔻ƀ;DE͈͉͍䂨ot;惜qual;扐blèCDLRUVͣͲ΂ϏϢϸontourIntegraìȹoɴ͹\0\0ͻ»͉nArrow;懓Āeo·ΤftƀARTΐΖΡrrow;懐ightArrow;懔eåˊngĀLRΫτeftĀARγιrrow;柸ightArrow;柺ightArrow;柹ightĀATϘϞrrow;懒ee;抨pɁϩ\0\0ϯrrow;懑ownArrow;懕erticalBar;戥ǹABLRTaВЪаўѿͼrrowƀ;BUНОТ憓ar;椓pArrow;懵reve;䌑eft˒к\0ц\0ѐightVector;楐eeVector;楞ectorĀ;Bљњ憽ar;楖ightǔѧ\0ѱeeVector;楟ectorĀ;BѺѻ懁ar;楗eeĀ;A҆҇护rrow;憧ĀctҒҗr;쀀𝒟rok;䄐ࠀNTacdfglmopqstuxҽӀӄӋӞӢӧӮӵԡԯԶՒ՝ՠեG;䅊H耻Ð䃐cute耻É䃉ƀaiyӒӗӜron;䄚rc耻Ê䃊;䐭ot;䄖r;쀀𝔈rave耻È䃈ement;戈ĀapӺӾcr;䄒tyɓԆ\0\0ԒmallSquare;旻erySmallSquare;斫ĀgpԦԪon;䄘f;쀀𝔼silon;䎕uĀaiԼՉlĀ;TՂՃ橵ilde;扂librium;懌Āci՗՚r;愰m;橳a;䎗ml耻Ë䃋Āipժկsts;戃onentialE;慇ʀcfiosօֈ֍ֲ׌y;䐤r;쀀𝔉lledɓ֗\0\0֣mallSquare;旼erySmallSquare;斪Ͱֺ\0ֿ\0\0ׄf;쀀𝔽All;戀riertrf;愱cò׋؀JTabcdfgorstר׬ׯ׺؀ؒؖ؛؝أ٬ٲcy;䐃耻>䀾mmaĀ;d׷׸䎓;䏜reve;䄞ƀeiy؇،ؐdil;䄢rc;䄜;䐓ot;䄠r;쀀𝔊;拙pf;쀀𝔾eater̀EFGLSTصلَٖٛ٦qualĀ;Lؾؿ扥ess;招ullEqual;执reater;檢ess;扷lantEqual;橾ilde;扳cr;쀀𝒢;扫ЀAacfiosuڅڋږڛڞڪھۊRDcy;䐪Āctڐڔek;䋇;䁞irc;䄤r;愌lbertSpace;愋ǰگ\0ڲf;愍izontalLine;攀Āctۃۅòکrok;䄦mpńېۘownHumðįqual;扏܀EJOacdfgmnostuۺ۾܃܇܎ܚܞܡܨ݄ݸދޏޕcy;䐕lig;䄲cy;䐁cute耻Í䃍Āiyܓܘrc耻Î䃎;䐘ot;䄰r;愑rave耻Ì䃌ƀ;apܠܯܿĀcgܴܷr;䄪inaryI;慈lieóϝǴ݉\0ݢĀ;eݍݎ戬Āgrݓݘral;戫section;拂isibleĀCTݬݲomma;恣imes;恢ƀgptݿރވon;䄮f;쀀𝕀a;䎙cr;愐ilde;䄨ǫޚ\0ޞcy;䐆l耻Ï䃏ʀcfosuެ޷޼߂ߐĀiyޱ޵rc;䄴;䐙r;쀀𝔍pf;쀀𝕁ǣ߇\0ߌr;쀀𝒥rcy;䐈kcy;䐄΀HJacfosߤߨ߽߬߱ࠂࠈcy;䐥cy;䐌ppa;䎚Āey߶߻dil;䄶;䐚r;쀀𝔎pf;쀀𝕂cr;쀀𝒦րJTaceflmostࠥࠩࠬࡐࡣ঳সে্਷ੇcy;䐉耻<䀼ʀcmnpr࠷࠼ࡁࡄࡍute;䄹bda;䎛g;柪lacetrf;愒r;憞ƀaeyࡗ࡜ࡡron;䄽dil;䄻;䐛Āfsࡨ॰tԀACDFRTUVarࡾࢩࢱࣦ࣠ࣼयज़ΐ४Ānrࢃ࢏gleBracket;柨rowƀ;BR࢙࢚࢞憐ar;懤ightArrow;懆eiling;挈oǵࢷ\0ࣃbleBracket;柦nǔࣈ\0࣒eeVector;楡ectorĀ;Bࣛࣜ懃ar;楙loor;挊ightĀAV࣯ࣵrrow;憔ector;楎Āerँगeƀ;AVउऊऐ抣rrow;憤ector;楚iangleƀ;BEतथऩ抲ar;槏qual;抴pƀDTVषूौownVector;楑eeVector;楠ectorĀ;Bॖॗ憿ar;楘ectorĀ;B॥०憼ar;楒ightáΜs̀EFGLSTॾঋকঝঢভqualGreater;拚ullEqual;扦reater;扶ess;檡lantEqual;橽ilde;扲r;쀀𝔏Ā;eঽা拘ftarrow;懚idot;䄿ƀnpw৔ਖਛgȀLRlr৞৷ਂਐeftĀAR০৬rrow;柵ightArrow;柷ightArrow;柶eftĀarγਊightáοightáϊf;쀀𝕃erĀLRਢਬeftArrow;憙ightArrow;憘ƀchtਾੀੂòࡌ;憰rok;䅁;扪Ѐacefiosuਗ਼੝੠੷੼અઋ઎p;椅y;䐜Ādl੥੯iumSpace;恟lintrf;愳r;쀀𝔐nusPlus;戓pf;쀀𝕄cò੶;䎜ҀJacefostuણધભીଔଙඑ඗ඞcy;䐊cute;䅃ƀaey઴હાron;䅇dil;䅅;䐝ƀgswે૰଎ativeƀMTV૓૟૨ediumSpace;怋hiĀcn૦૘ë૙eryThiî૙tedĀGL૸ଆreaterGreateòٳessLesóੈLine;䀊r;쀀𝔑ȀBnptଢନଷ଺reak;恠BreakingSpace;䂠f;愕ڀ;CDEGHLNPRSTV୕ୖ୪୼஡௫ఄ౞಄ದ೘ൡඅ櫬Āou୛୤ngruent;扢pCap;扭oubleVerticalBar;戦ƀlqxஃஊ஛ement;戉ualĀ;Tஒஓ扠ilde;쀀≂̸ists;戄reater΀;EFGLSTஶஷ஽௉௓௘௥扯qual;扱ullEqual;쀀≧̸reater;쀀≫̸ess;批lantEqual;쀀⩾̸ilde;扵umpń௲௽ownHump;쀀≎̸qual;쀀≏̸eĀfsఊధtTriangleƀ;BEచఛడ拪ar;쀀⧏̸qual;括s̀;EGLSTవశ఼ౄోౘ扮qual;扰reater;扸ess;쀀≪̸lantEqual;쀀⩽̸ilde;扴estedĀGL౨౹reaterGreater;쀀⪢̸essLess;쀀⪡̸recedesƀ;ESಒಓಛ技qual;쀀⪯̸lantEqual;拠ĀeiಫಹverseElement;戌ghtTriangleƀ;BEೋೌ೒拫ar;쀀⧐̸qual;拭ĀquೝഌuareSuĀbp೨೹setĀ;E೰ೳ쀀⊏̸qual;拢ersetĀ;Eഃആ쀀⊐̸qual;拣ƀbcpഓതൎsetĀ;Eഛഞ쀀⊂⃒qual;抈ceedsȀ;ESTലള഻െ抁qual;쀀⪰̸lantEqual;拡ilde;쀀≿̸ersetĀ;E൘൛쀀⊃⃒qual;抉ildeȀ;EFT൮൯൵ൿ扁qual;扄ullEqual;扇ilde;扉erticalBar;戤cr;쀀𝒩ilde耻Ñ䃑;䎝܀Eacdfgmoprstuvලෂ෉෕ෛ෠෧෼ขภยา฿ไlig;䅒cute耻Ó䃓Āiy෎ීrc耻Ô䃔;䐞blac;䅐r;쀀𝔒rave耻Ò䃒ƀaei෮ෲ෶cr;䅌ga;䎩cron;䎟pf;쀀𝕆enCurlyĀDQฎบoubleQuote;怜uote;怘;橔Āclวฬr;쀀𝒪ash耻Ø䃘iŬื฼de耻Õ䃕es;樷ml耻Ö䃖erĀBP๋๠Āar๐๓r;怾acĀek๚๜;揞et;掴arenthesis;揜Ҁacfhilors๿ງຊຏຒດຝະ໼rtialD;戂y;䐟r;쀀𝔓i;䎦;䎠usMinus;䂱Āipຢອncareplanåڝf;愙Ȁ;eio຺ູ໠໤檻cedesȀ;EST່້໏໚扺qual;檯lantEqual;扼ilde;找me;怳Ādp໩໮uct;戏ortionĀ;aȥ໹l;戝Āci༁༆r;쀀𝒫;䎨ȀUfos༑༖༛༟OT耻"䀢r;쀀𝔔pf;愚cr;쀀𝒬؀BEacefhiorsu༾གྷཇའཱིྦྷྪྭ႖ႩႴႾarr;椐G耻®䂮ƀcnrཎནབute;䅔g;柫rĀ;tཛྷཝ憠l;椖ƀaeyཧཬཱron;䅘dil;䅖;䐠Ā;vླྀཹ愜erseĀEUྂྙĀlq྇ྎement;戋uilibrium;懋pEquilibrium;楯r»ཹo;䎡ghtЀACDFTUVa࿁࿫࿳ဢဨၛႇϘĀnr࿆࿒gleBracket;柩rowƀ;BL࿜࿝࿡憒ar;懥eftArrow;懄eiling;按oǵ࿹\0စbleBracket;柧nǔည\0နeeVector;楝ectorĀ;Bဝသ懂ar;楕loor;挋Āerိ၃eƀ;AVဵံြ抢rrow;憦ector;楛iangleƀ;BEၐၑၕ抳ar;槐qual;抵pƀDTVၣၮၸownVector;楏eeVector;楜ectorĀ;Bႂႃ憾ar;楔ectorĀ;B႑႒懀ar;楓Āpuႛ႞f;愝ndImplies;楰ightarrow;懛ĀchႹႼr;愛;憱leDelayed;槴ڀHOacfhimoqstuფჱჷჽᄙᄞᅑᅖᅡᅧᆵᆻᆿĀCcჩხHcy;䐩y;䐨FTcy;䐬cute;䅚ʀ;aeiyᄈᄉᄎᄓᄗ檼ron;䅠dil;䅞rc;䅜;䐡r;쀀𝔖ortȀDLRUᄪᄴᄾᅉownArrow»ОeftArrow»࢚ightArrow»࿝pArrow;憑gma;䎣allCircle;战pf;쀀𝕊ɲᅭ\0\0ᅰt;戚areȀ;ISUᅻᅼᆉᆯ斡ntersection;抓uĀbpᆏᆞsetĀ;Eᆗᆘ抏qual;抑ersetĀ;Eᆨᆩ抐qual;抒nion;抔cr;쀀𝒮ar;拆ȀbcmpᇈᇛሉላĀ;sᇍᇎ拐etĀ;Eᇍᇕqual;抆ĀchᇠህeedsȀ;ESTᇭᇮᇴᇿ扻qual;檰lantEqual;扽ilde;承Tháྌ;我ƀ;esሒሓሣ拑rsetĀ;Eሜም抃qual;抇et»ሓրHRSacfhiorsሾቄ቉ቕ቞ቱቶኟዂወዑORN耻Þ䃞ADE;愢ĀHc቎ቒcy;䐋y;䐦Ābuቚቜ;䀉;䎤ƀaeyብቪቯron;䅤dil;䅢;䐢r;쀀𝔗Āeiቻ኉ǲኀ\0ኇefore;戴a;䎘Ācn኎ኘkSpace;쀀  Space;怉ldeȀ;EFTካኬኲኼ戼qual;扃ullEqual;扅ilde;扈pf;쀀𝕋ipleDot;惛Āctዖዛr;쀀𝒯rok;䅦ૡዷጎጚጦ\0ጬጱ\0\0\0\0\0ጸጽ፷ᎅ\0᏿ᐄᐊᐐĀcrዻጁute耻Ú䃚rĀ;oጇገ憟cir;楉rǣጓ\0጖y;䐎ve;䅬Āiyጞጣrc耻Û䃛;䐣blac;䅰r;쀀𝔘rave耻Ù䃙acr;䅪Ādiፁ፩erĀBPፈ፝Āarፍፐr;䁟acĀekፗፙ;揟et;掵arenthesis;揝onĀ;P፰፱拃lus;抎Āgp፻፿on;䅲f;쀀𝕌ЀADETadps᎕ᎮᎸᏄϨᏒᏗᏳrrowƀ;BDᅐᎠᎤar;椒ownArrow;懅ownArrow;憕quilibrium;楮eeĀ;AᏋᏌ报rrow;憥ownáϳerĀLRᏞᏨeftArrow;憖ightArrow;憗iĀ;lᏹᏺ䏒on;䎥ing;䅮cr;쀀𝒰ilde;䅨ml耻Ü䃜ҀDbcdefosvᐧᐬᐰᐳᐾᒅᒊᒐᒖash;披ar;櫫y;䐒ashĀ;lᐻᐼ抩;櫦Āerᑃᑅ;拁ƀbtyᑌᑐᑺar;怖Ā;iᑏᑕcalȀBLSTᑡᑥᑪᑴar;戣ine;䁼eparator;杘ilde;所ThinSpace;怊r;쀀𝔙pf;쀀𝕍cr;쀀𝒱dash;抪ʀcefosᒧᒬᒱᒶᒼirc;䅴dge;拀r;쀀𝔚pf;쀀𝕎cr;쀀𝒲Ȁfiosᓋᓐᓒᓘr;쀀𝔛;䎞pf;쀀𝕏cr;쀀𝒳ҀAIUacfosuᓱᓵᓹᓽᔄᔏᔔᔚᔠcy;䐯cy;䐇cy;䐮cute耻Ý䃝Āiyᔉᔍrc;䅶;䐫r;쀀𝔜pf;쀀𝕐cr;쀀𝒴ml;䅸ЀHacdefosᔵᔹᔿᕋᕏᕝᕠᕤcy;䐖cute;䅹Āayᕄᕉron;䅽;䐗ot;䅻ǲᕔ\0ᕛoWidtè૙a;䎖r;愨pf;愤cr;쀀𝒵௡ᖃᖊᖐ\0ᖰᖶᖿ\0\0\0\0ᗆᗛᗫᙟ᙭\0ᚕ᚛ᚲᚹ\0ᚾcute耻á䃡reve;䄃̀;Ediuyᖜᖝᖡᖣᖨᖭ戾;쀀∾̳;房rc耻â䃢te肻´̆;䐰lig耻æ䃦Ā;r²ᖺ;쀀𝔞rave耻à䃠ĀepᗊᗖĀfpᗏᗔsym;愵èᗓha;䎱ĀapᗟcĀclᗤᗧr;䄁g;樿ɤᗰ\0\0ᘊʀ;adsvᗺᗻᗿᘁᘇ戧nd;橕;橜lope;橘;橚΀;elmrszᘘᘙᘛᘞᘿᙏᙙ戠;榤e»ᘙsdĀ;aᘥᘦ戡ѡᘰᘲᘴᘶᘸᘺᘼᘾ;榨;榩;榪;榫;榬;榭;榮;榯tĀ;vᙅᙆ戟bĀ;dᙌᙍ抾;榝Āptᙔᙗh;戢»¹arr;捼Āgpᙣᙧon;䄅f;쀀𝕒΀;Eaeiop዁ᙻᙽᚂᚄᚇᚊ;橰cir;橯;扊d;手s;䀧roxĀ;e዁ᚒñᚃing耻å䃥ƀctyᚡᚦᚨr;쀀𝒶;䀪mpĀ;e዁ᚯñʈilde耻ã䃣ml耻ä䃤Āciᛂᛈoninôɲnt;樑ࠀNabcdefiklnoprsu᛭ᛱᜰ᜼ᝃᝈ᝸᝽០៦ᠹᡐᜍ᤽᥈ᥰot;櫭Ācrᛶ᜞kȀcepsᜀᜅᜍᜓong;扌psilon;䏶rime;怵imĀ;e᜚᜛戽q;拍Ŷᜢᜦee;抽edĀ;gᜬᜭ挅e»ᜭrkĀ;t፜᜷brk;掶Āoyᜁᝁ;䐱quo;怞ʀcmprtᝓ᝛ᝡᝤᝨausĀ;eĊĉptyv;榰séᜌnoõēƀahwᝯ᝱ᝳ;䎲;愶een;扬r;쀀𝔟g΀costuvwឍឝឳេ៕៛៞ƀaiuបពរðݠrc;旯p»፱ƀdptឤឨឭot;樀lus;樁imes;樂ɱឹ\0\0ើcup;樆ar;昅riangleĀdu៍្own;施p;斳plus;樄eåᑄåᒭarow;植ƀako៭ᠦᠵĀcn៲ᠣkƀlst៺֫᠂ozenge;槫riangleȀ;dlr᠒᠓᠘᠝斴own;斾eft;旂ight;斸k;搣Ʊᠫ\0ᠳƲᠯ\0ᠱ;斒;斑4;斓ck;斈ĀeoᠾᡍĀ;qᡃᡆ쀀=⃥uiv;쀀≡⃥t;挐Ȁptwxᡙᡞᡧᡬf;쀀𝕓Ā;tᏋᡣom»Ꮜtie;拈؀DHUVbdhmptuvᢅᢖᢪᢻᣗᣛᣬ᣿ᤅᤊᤐᤡȀLRlrᢎᢐᢒᢔ;敗;敔;敖;敓ʀ;DUduᢡᢢᢤᢦᢨ敐;敦;敩;敤;敧ȀLRlrᢳᢵᢷᢹ;敝;敚;敜;教΀;HLRhlrᣊᣋᣍᣏᣑᣓᣕ救;敬;散;敠;敫;敢;敟ox;槉ȀLRlrᣤᣦᣨᣪ;敕;敒;攐;攌ʀ;DUduڽ᣷᣹᣻᣽;敥;敨;攬;攴inus;抟lus;択imes;抠ȀLRlrᤙᤛᤝ᤟;敛;敘;攘;攔΀;HLRhlrᤰᤱᤳᤵᤷ᤻᤹攂;敪;敡;敞;攼;攤;攜Āevģ᥂bar耻¦䂦Ȁceioᥑᥖᥚᥠr;쀀𝒷mi;恏mĀ;e᜚᜜lƀ;bhᥨᥩᥫ䁜;槅sub;柈Ŭᥴ᥾lĀ;e᥹᥺怢t»᥺pƀ;Eeįᦅᦇ;檮Ā;qۜۛೡᦧ\0᧨ᨑᨕᨲ\0ᨷᩐ\0\0᪴\0\0᫁\0\0ᬡᬮ᭍᭒\0᯽\0ᰌƀcpr᦭ᦲ᧝ute;䄇̀;abcdsᦿᧀᧄ᧊᧕᧙戩nd;橄rcup;橉Āau᧏᧒p;橋p;橇ot;橀;쀀∩︀Āeo᧢᧥t;恁îړȀaeiu᧰᧻ᨁᨅǰ᧵\0᧸s;橍on;䄍dil耻ç䃧rc;䄉psĀ;sᨌᨍ橌m;橐ot;䄋ƀdmnᨛᨠᨦil肻¸ƭptyv;榲t脀¢;eᨭᨮ䂢räƲr;쀀𝔠ƀceiᨽᩀᩍy;䑇ckĀ;mᩇᩈ朓ark»ᩈ;䏇r΀;Ecefms᩟᩠ᩢᩫ᪤᪪᪮旋;槃ƀ;elᩩᩪᩭ䋆q;扗eɡᩴ\0\0᪈rrowĀlr᩼᪁eft;憺ight;憻ʀRSacd᪒᪔᪖᪚᪟»ཇ;擈st;抛irc;抚ash;抝nint;樐id;櫯cir;槂ubsĀ;u᪻᪼晣it»᪼ˬ᫇᫔᫺\0ᬊonĀ;eᫍᫎ䀺Ā;qÇÆɭ᫙\0\0᫢aĀ;t᫞᫟䀬;䁀ƀ;fl᫨᫩᫫戁îᅠeĀmx᫱᫶ent»᫩eóɍǧ᫾\0ᬇĀ;dኻᬂot;橭nôɆƀfryᬐᬔᬗ;쀀𝕔oäɔ脀©;sŕᬝr;愗Āaoᬥᬩrr;憵ss;朗Ācuᬲᬷr;쀀𝒸Ābpᬼ᭄Ā;eᭁᭂ櫏;櫑Ā;eᭉᭊ櫐;櫒dot;拯΀delprvw᭠᭬᭷ᮂᮬᯔ᯹arrĀlr᭨᭪;椸;椵ɰ᭲\0\0᭵r;拞c;拟arrĀ;p᭿ᮀ憶;椽̀;bcdosᮏᮐᮖᮡᮥᮨ截rcap;橈Āauᮛᮞp;橆p;橊ot;抍r;橅;쀀∪︀Ȁalrv᮵ᮿᯞᯣrrĀ;mᮼᮽ憷;椼yƀevwᯇᯔᯘqɰᯎ\0\0ᯒreã᭳uã᭵ee;拎edge;拏en耻¤䂤earrowĀlrᯮ᯳eft»ᮀight»ᮽeäᯝĀciᰁᰇoninôǷnt;戱lcty;挭ঀAHabcdefhijlorstuwz᰸᰻᰿ᱝᱩᱵᲊᲞᲬᲷ᳻᳿ᴍᵻᶑᶫᶻ᷆᷍rò΁ar;楥Ȁglrs᱈ᱍ᱒᱔ger;怠eth;愸òᄳhĀ;vᱚᱛ怐»ऊūᱡᱧarow;椏aã̕Āayᱮᱳron;䄏;䐴ƀ;ao̲ᱼᲄĀgrʿᲁr;懊tseq;橷ƀglmᲑᲔᲘ耻°䂰ta;䎴ptyv;榱ĀirᲣᲨsht;楿;쀀𝔡arĀlrᲳᲵ»ࣜ»သʀaegsv᳂͸᳖᳜᳠mƀ;oș᳊᳔ndĀ;ș᳑uit;晦amma;䏝in;拲ƀ;io᳧᳨᳸䃷de脀÷;o᳧ᳰntimes;拇nø᳷cy;䑒cɯᴆ\0\0ᴊrn;挞op;挍ʀlptuwᴘᴝᴢᵉᵕlar;䀤f;쀀𝕕ʀ;emps̋ᴭᴷᴽᵂqĀ;d͒ᴳot;扑inus;戸lus;戔quare;抡blebarwedgåúnƀadhᄮᵝᵧownarrowóᲃarpoonĀlrᵲᵶefôᲴighôᲶŢᵿᶅkaro÷གɯᶊ\0\0ᶎrn;挟op;挌ƀcotᶘᶣᶦĀryᶝᶡ;쀀𝒹;䑕l;槶rok;䄑Ādrᶰᶴot;拱iĀ;fᶺ᠖斿Āah᷀᷃ròЩaòྦangle;榦Āci᷒ᷕy;䑟grarr;柿ऀDacdefglmnopqrstuxḁḉḙḸոḼṉṡṾấắẽỡἪἷὄ὎὚ĀDoḆᴴoôᲉĀcsḎḔute耻é䃩ter;橮ȀaioyḢḧḱḶron;䄛rĀ;cḭḮ扖耻ê䃪lon;払;䑍ot;䄗ĀDrṁṅot;扒;쀀𝔢ƀ;rsṐṑṗ檚ave耻è䃨Ā;dṜṝ檖ot;檘Ȁ;ilsṪṫṲṴ檙nters;揧;愓Ā;dṹṺ檕ot;檗ƀapsẅẉẗcr;䄓tyƀ;svẒẓẕ戅et»ẓpĀ1;ẝẤĳạả;怄;怅怃ĀgsẪẬ;䅋p;怂ĀgpẴẸon;䄙f;쀀𝕖ƀalsỄỎỒrĀ;sỊị拕l;槣us;橱iƀ;lvỚớở䎵on»ớ;䏵ȀcsuvỪỳἋἣĀioữḱrc»Ḯɩỹ\0\0ỻíՈantĀglἂἆtr»ṝess»Ṻƀaeiἒ἖Ἒls;䀽st;扟vĀ;DȵἠD;橸parsl;槥ĀDaἯἳot;打rr;楱ƀcdiἾὁỸr;愯oô͒ĀahὉὋ;䎷耻ð䃰Āmrὓὗl耻ë䃫o;悬ƀcipὡὤὧl;䀡sôծĀeoὬὴctatioîՙnentialåչৡᾒ\0ᾞ\0ᾡᾧ\0\0ῆῌ\0ΐ\0ῦῪ \0 ⁚llingdotseñṄy;䑄male;晀ƀilrᾭᾳ῁lig;耀ﬃɩᾹ\0\0᾽g;耀ﬀig;耀ﬄ;쀀𝔣lig;耀ﬁlig;쀀fjƀaltῙ῜ῡt;晭ig;耀ﬂns;斱of;䆒ǰ΅\0ῳf;쀀𝕗ĀakֿῷĀ;vῼ´拔;櫙artint;樍Āao‌⁕Ācs‑⁒α‚‰‸⁅⁈\0⁐β•‥‧‪‬\0‮耻½䂽;慓耻¼䂼;慕;慙;慛Ƴ‴\0‶;慔;慖ʴ‾⁁\0\0⁃耻¾䂾;慗;慜5;慘ƶ⁌\0⁎;慚;慝8;慞l;恄wn;挢cr;쀀𝒻ࢀEabcdefgijlnorstv₂₉₟₥₰₴⃰⃵⃺⃿℃ℒℸ̗ℾ⅒↞Ā;lٍ₇;檌ƀcmpₐₕ₝ute;䇵maĀ;dₜ᳚䎳;檆reve;䄟Āiy₪₮rc;䄝;䐳ot;䄡Ȁ;lqsؾق₽⃉ƀ;qsؾٌ⃄lanô٥Ȁ;cdl٥⃒⃥⃕c;檩otĀ;o⃜⃝檀Ā;l⃢⃣檂;檄Ā;e⃪⃭쀀⋛︀s;檔r;쀀𝔤Ā;gٳ؛mel;愷cy;䑓Ȁ;Eajٚℌℎℐ;檒;檥;檤ȀEaesℛℝ℩ℴ;扩pĀ;p℣ℤ檊rox»ℤĀ;q℮ℯ檈Ā;q℮ℛim;拧pf;쀀𝕘Āci⅃ⅆr;愊mƀ;el٫ⅎ⅐;檎;檐茀>;cdlqr׮ⅠⅪⅮⅳⅹĀciⅥⅧ;檧r;橺ot;拗Par;榕uest;橼ʀadelsↄⅪ←ٖ↛ǰ↉\0↎proø₞r;楸qĀlqؿ↖lesó₈ií٫Āen↣↭rtneqq;쀀≩︀Å↪ԀAabcefkosy⇄⇇⇱⇵⇺∘∝∯≨≽ròΠȀilmr⇐⇔⇗⇛rsðᒄf»․ilôکĀdr⇠⇤cy;䑊ƀ;cwࣴ⇫⇯ir;楈;憭ar;意irc;䄥ƀalr∁∎∓rtsĀ;u∉∊晥it»∊lip;怦con;抹r;쀀𝔥sĀew∣∩arow;椥arow;椦ʀamopr∺∾≃≞≣rr;懿tht;戻kĀlr≉≓eftarrow;憩ightarrow;憪f;쀀𝕙bar;怕ƀclt≯≴≸r;쀀𝒽asè⇴rok;䄧Ābp⊂⊇ull;恃hen»ᱛૡ⊣\0⊪\0⊸⋅⋎\0⋕⋳\0\0⋸⌢⍧⍢⍿\0⎆⎪⎴cute耻í䃭ƀ;iyݱ⊰⊵rc耻î䃮;䐸Ācx⊼⊿y;䐵cl耻¡䂡ĀfrΟ⋉;쀀𝔦rave耻ì䃬Ȁ;inoܾ⋝⋩⋮Āin⋢⋦nt;樌t;戭fin;槜ta;愩lig;䄳ƀaop⋾⌚⌝ƀcgt⌅⌈⌗r;䄫ƀelpܟ⌏⌓inåގarôܠh;䄱f;抷ed;䆵ʀ;cfotӴ⌬⌱⌽⍁are;愅inĀ;t⌸⌹戞ie;槝doô⌙ʀ;celpݗ⍌⍐⍛⍡al;抺Āgr⍕⍙eróᕣã⍍arhk;樗rod;樼Ȁcgpt⍯⍲⍶⍻y;䑑on;䄯f;쀀𝕚a;䎹uest耻¿䂿Āci⎊⎏r;쀀𝒾nʀ;EdsvӴ⎛⎝⎡ӳ;拹ot;拵Ā;v⎦⎧拴;拳Ā;iݷ⎮lde;䄩ǫ⎸\0⎼cy;䑖l耻ï䃯̀cfmosu⏌⏗⏜⏡⏧⏵Āiy⏑⏕rc;䄵;䐹r;쀀𝔧ath;䈷pf;쀀𝕛ǣ⏬\0⏱r;쀀𝒿rcy;䑘kcy;䑔Ѐacfghjos␋␖␢␧␭␱␵␻ppaĀ;v␓␔䎺;䏰Āey␛␠dil;䄷;䐺r;쀀𝔨reen;䄸cy;䑅cy;䑜pf;쀀𝕜cr;쀀𝓀஀ABEHabcdefghjlmnoprstuv⑰⒁⒆⒍⒑┎┽╚▀♎♞♥♹♽⚚⚲⛘❝❨➋⟀⠁⠒ƀart⑷⑺⑼rò৆òΕail;椛arr;椎Ā;gঔ⒋;檋ar;楢ॣ⒥\0⒪\0⒱\0\0\0\0\0⒵Ⓔ\0ⓆⓈⓍ\0⓹ute;䄺mptyv;榴raîࡌbda;䎻gƀ;dlࢎⓁⓃ;榑åࢎ;檅uo耻«䂫rЀ;bfhlpst࢙ⓞⓦⓩ⓫⓮⓱⓵Ā;f࢝ⓣs;椟s;椝ë≒p;憫l;椹im;楳l;憢ƀ;ae⓿─┄檫il;椙Ā;s┉┊檭;쀀⪭︀ƀabr┕┙┝rr;椌rk;杲Āak┢┬cĀek┨┪;䁻;䁛Āes┱┳;榋lĀdu┹┻;榏;榍Ȁaeuy╆╋╖╘ron;䄾Ādi═╔il;䄼ìࢰâ┩;䐻Ȁcqrs╣╦╭╽a;椶uoĀ;rนᝆĀdu╲╷har;楧shar;楋h;憲ʀ;fgqs▋▌উ◳◿扤tʀahlrt▘▤▷◂◨rrowĀ;t࢙□aé⓶arpoonĀdu▯▴own»њp»०eftarrows;懇ightƀahs◍◖◞rrowĀ;sࣴࢧarpoonó྘quigarro÷⇰hreetimes;拋ƀ;qs▋ও◺lanôবʀ;cdgsব☊☍☝☨c;檨otĀ;o☔☕橿Ā;r☚☛檁;檃Ā;e☢☥쀀⋚︀s;檓ʀadegs☳☹☽♉♋pproøⓆot;拖qĀgq♃♅ôউgtò⒌ôছiíলƀilr♕࣡♚sht;楼;쀀𝔩Ā;Eজ♣;檑š♩♶rĀdu▲♮Ā;l॥♳;楪lk;斄cy;䑙ʀ;achtੈ⚈⚋⚑⚖rò◁orneòᴈard;楫ri;旺Āio⚟⚤dot;䅀ustĀ;a⚬⚭掰che»⚭ȀEaes⚻⚽⛉⛔;扨pĀ;p⛃⛄檉rox»⛄Ā;q⛎⛏檇Ā;q⛎⚻im;拦Ѐabnoptwz⛩⛴⛷✚✯❁❇❐Ānr⛮⛱g;柬r;懽rëࣁgƀlmr⛿✍✔eftĀar০✇ightá৲apsto;柼ightá৽parrowĀlr✥✩efô⓭ight;憬ƀafl✶✹✽r;榅;쀀𝕝us;樭imes;樴š❋❏st;戗áፎƀ;ef❗❘᠀旊nge»❘arĀ;l❤❥䀨t;榓ʀachmt❳❶❼➅➇ròࢨorneòᶌarĀ;d྘➃;業;怎ri;抿̀achiqt➘➝ੀ➢➮➻quo;怹r;쀀𝓁mƀ;egল➪➬;檍;檏Ābu┪➳oĀ;rฟ➹;怚rok;䅂萀<;cdhilqrࠫ⟒☹⟜⟠⟥⟪⟰Āci⟗⟙;檦r;橹reå◲mes;拉arr;楶uest;橻ĀPi⟵⟹ar;榖ƀ;ef⠀भ᠛旃rĀdu⠇⠍shar;楊har;楦Āen⠗⠡rtneqq;쀀≨︀Å⠞܀Dacdefhilnopsu⡀⡅⢂⢎⢓⢠⢥⢨⣚⣢⣤ઃ⣳⤂Dot;戺Ȁclpr⡎⡒⡣⡽r耻¯䂯Āet⡗⡙;時Ā;e⡞⡟朠se»⡟Ā;sျ⡨toȀ;dluျ⡳⡷⡻owîҌefôएðᏑker;斮Āoy⢇⢌mma;権;䐼ash;怔asuredangle»ᘦr;쀀𝔪o;愧ƀcdn⢯⢴⣉ro耻µ䂵Ȁ;acdᑤ⢽⣀⣄sôᚧir;櫰ot肻·Ƶusƀ;bd⣒ᤃ⣓戒Ā;uᴼ⣘;横ţ⣞⣡p;櫛ò−ðઁĀdp⣩⣮els;抧f;쀀𝕞Āct⣸⣽r;쀀𝓂pos»ᖝƀ;lm⤉⤊⤍䎼timap;抸ఀGLRVabcdefghijlmoprstuvw⥂⥓⥾⦉⦘⧚⧩⨕⨚⩘⩝⪃⪕⪤⪨⬄⬇⭄⭿⮮ⰴⱧⱼ⳩Āgt⥇⥋;쀀⋙̸Ā;v⥐௏쀀≫⃒ƀelt⥚⥲⥶ftĀar⥡⥧rrow;懍ightarrow;懎;쀀⋘̸Ā;v⥻ే쀀≪⃒ightarrow;懏ĀDd⦎⦓ash;抯ash;抮ʀbcnpt⦣⦧⦬⦱⧌la»˞ute;䅄g;쀀∠⃒ʀ;Eiop඄⦼⧀⧅⧈;쀀⩰̸d;쀀≋̸s;䅉roø඄urĀ;a⧓⧔普lĀ;s⧓ସǳ⧟\0⧣p肻 ଷmpĀ;e௹ఀʀaeouy⧴⧾⨃⨐⨓ǰ⧹\0⧻;橃on;䅈dil;䅆ngĀ;dൾ⨊ot;쀀⩭̸p;橂;䐽ash;怓΀;Aadqsxஒ⨩⨭⨻⩁⩅⩐rr;懗rĀhr⨳⨶k;椤Ā;oᏲᏰot;쀀≐̸uiöୣĀei⩊⩎ar;椨í஘istĀ;s஠டr;쀀𝔫ȀEest௅⩦⩹⩼ƀ;qs஼⩭௡ƀ;qs஼௅⩴lanô௢ií௪Ā;rஶ⪁»ஷƀAap⪊⪍⪑rò⥱rr;憮ar;櫲ƀ;svྍ⪜ྌĀ;d⪡⪢拼;拺cy;䑚΀AEadest⪷⪺⪾⫂⫅⫶⫹rò⥦;쀀≦̸rr;憚r;急Ȁ;fqs఻⫎⫣⫯tĀar⫔⫙rro÷⫁ightarro÷⪐ƀ;qs఻⪺⫪lanôౕĀ;sౕ⫴»శiíౝĀ;rవ⫾iĀ;eచథiäඐĀpt⬌⬑f;쀀𝕟膀¬;in⬙⬚⬶䂬nȀ;Edvஉ⬤⬨⬮;쀀⋹̸ot;쀀⋵̸ǡஉ⬳⬵;拷;拶iĀ;vಸ⬼ǡಸ⭁⭃;拾;拽ƀaor⭋⭣⭩rȀ;ast୻⭕⭚⭟lleì୻l;쀀⫽⃥;쀀∂̸lint;樔ƀ;ceಒ⭰⭳uåಥĀ;cಘ⭸Ā;eಒ⭽ñಘȀAait⮈⮋⮝⮧rò⦈rrƀ;cw⮔⮕⮙憛;쀀⤳̸;쀀↝̸ghtarrow»⮕riĀ;eೋೖ΀chimpqu⮽⯍⯙⬄୸⯤⯯Ȁ;cerല⯆ഷ⯉uå൅;쀀𝓃ortɭ⬅\0\0⯖ará⭖mĀ;e൮⯟Ā;q൴൳suĀbp⯫⯭å೸åഋƀbcp⯶ⰑⰙȀ;Ees⯿ⰀഢⰄ抄;쀀⫅̸etĀ;eഛⰋqĀ;qണⰀcĀ;eലⰗñസȀ;EesⰢⰣൟⰧ抅;쀀⫆̸etĀ;e൘ⰮqĀ;qൠⰣȀgilrⰽⰿⱅⱇìௗlde耻ñ䃱çృiangleĀlrⱒⱜeftĀ;eచⱚñదightĀ;eೋⱥñ೗Ā;mⱬⱭ䎽ƀ;esⱴⱵⱹ䀣ro;愖p;怇ҀDHadgilrsⲏⲔⲙⲞⲣⲰⲶⳓⳣash;抭arr;椄p;쀀≍⃒ash;抬ĀetⲨⲬ;쀀≥⃒;쀀>⃒nfin;槞ƀAetⲽⳁⳅrr;椂;쀀≤⃒Ā;rⳊⳍ쀀<⃒ie;쀀⊴⃒ĀAtⳘⳜrr;椃rie;쀀⊵⃒im;쀀∼⃒ƀAan⳰⳴ⴂrr;懖rĀhr⳺⳽k;椣Ā;oᏧᏥear;椧ቓ᪕\0\0\0\0\0\0\0\0\0\0\0\0\0ⴭ\0ⴸⵈⵠⵥ⵲ⶄᬇ\0\0ⶍⶫ\0ⷈⷎ\0ⷜ⸙⸫⸾⹃Ācsⴱ᪗ute耻ó䃳ĀiyⴼⵅrĀ;c᪞ⵂ耻ô䃴;䐾ʀabios᪠ⵒⵗǈⵚlac;䅑v;樸old;榼lig;䅓Ācr⵩⵭ir;榿;쀀𝔬ͯ⵹\0\0⵼\0ⶂn;䋛ave耻ò䃲;槁Ābmⶈ෴ar;榵Ȁacitⶕ⶘ⶥⶨrò᪀Āir⶝ⶠr;榾oss;榻nå๒;槀ƀaeiⶱⶵⶹcr;䅍ga;䏉ƀcdnⷀⷅǍron;䎿;榶pf;쀀𝕠ƀaelⷔ⷗ǒr;榷rp;榹΀;adiosvⷪⷫⷮ⸈⸍⸐⸖戨rò᪆Ȁ;efmⷷⷸ⸂⸅橝rĀ;oⷾⷿ愴f»ⷿ耻ª䂪耻º䂺gof;抶r;橖lope;橗;橛ƀclo⸟⸡⸧ò⸁ash耻ø䃸l;折iŬⸯ⸴de耻õ䃵esĀ;aǛ⸺s;樶ml耻ö䃶bar;挽ૡ⹞\0⹽\0⺀⺝\0⺢⺹\0\0⻋ຜ\0⼓\0\0⼫⾼\0⿈rȀ;astЃ⹧⹲຅脀¶;l⹭⹮䂶leìЃɩ⹸\0\0⹻m;櫳;櫽y;䐿rʀcimpt⺋⺏⺓ᡥ⺗nt;䀥od;䀮il;怰enk;怱r;쀀𝔭ƀimo⺨⺰⺴Ā;v⺭⺮䏆;䏕maô੶ne;明ƀ;tv⺿⻀⻈䏀chfork»´;䏖Āau⻏⻟nĀck⻕⻝kĀ;h⇴⻛;愎ö⇴sҀ;abcdemst⻳⻴ᤈ⻹⻽⼄⼆⼊⼎䀫cir;樣ir;樢Āouᵀ⼂;樥;橲n肻±ຝim;樦wo;樧ƀipu⼙⼠⼥ntint;樕f;쀀𝕡nd耻£䂣Ԁ;Eaceinosu່⼿⽁⽄⽇⾁⾉⾒⽾⾶;檳p;檷uå໙Ā;c໎⽌̀;acens່⽙⽟⽦⽨⽾pproø⽃urlyeñ໙ñ໎ƀaes⽯⽶⽺pprox;檹qq;檵im;拨iíໟmeĀ;s⾈ຮ怲ƀEas⽸⾐⽺ð⽵ƀdfp໬⾙⾯ƀals⾠⾥⾪lar;挮ine;挒urf;挓Ā;t໻⾴ï໻rel;抰Āci⿀⿅r;쀀𝓅;䏈ncsp;怈̀fiopsu⿚⋢⿟⿥⿫⿱r;쀀𝔮pf;쀀𝕢rime;恗cr;쀀𝓆ƀaeo⿸〉〓tĀei⿾々rnionóڰnt;樖stĀ;e【】䀿ñἙô༔઀ABHabcdefhilmnoprstux぀けさすムㄎㄫㅇㅢㅲㆎ㈆㈕㈤㈩㉘㉮㉲㊐㊰㊷ƀartぇおがròႳòϝail;検aròᱥar;楤΀cdenqrtとふへみわゔヌĀeuねぱ;쀀∽̱te;䅕iãᅮmptyv;榳gȀ;del࿑らるろ;榒;榥å࿑uo耻»䂻rր;abcfhlpstw࿜ガクシスゼゾダッデナp;極Ā;f࿠ゴs;椠;椳s;椞ë≝ð✮l;楅im;楴l;憣;憝Āaiパフil;椚oĀ;nホボ戶aló༞ƀabrョリヮrò៥rk;杳ĀakンヽcĀekヹ・;䁽;䁝Āes㄂㄄;榌lĀduㄊㄌ;榎;榐Ȁaeuyㄗㄜㄧㄩron;䅙Ādiㄡㄥil;䅗ì࿲âヺ;䑀Ȁclqsㄴㄷㄽㅄa;椷dhar;楩uoĀ;rȎȍh;憳ƀacgㅎㅟངlȀ;ipsླྀㅘㅛႜnåႻarôྩt;断ƀilrㅩဣㅮsht;楽;쀀𝔯ĀaoㅷㆆrĀduㅽㅿ»ѻĀ;l႑ㆄ;楬Ā;vㆋㆌ䏁;䏱ƀgns㆕ㇹㇼht̀ahlrstㆤㆰ㇂㇘㇤㇮rrowĀ;t࿜ㆭaéトarpoonĀduㆻㆿowîㅾp»႒eftĀah㇊㇐rrowó࿪arpoonóՑightarrows;應quigarro÷ニhreetimes;拌g;䋚ingdotseñἲƀahm㈍㈐㈓rò࿪aòՑ;怏oustĀ;a㈞㈟掱che»㈟mid;櫮Ȁabpt㈲㈽㉀㉒Ānr㈷㈺g;柭r;懾rëဃƀafl㉇㉊㉎r;榆;쀀𝕣us;樮imes;樵Āap㉝㉧rĀ;g㉣㉤䀩t;榔olint;樒arò㇣Ȁachq㉻㊀Ⴜ㊅quo;怺r;쀀𝓇Ābu・㊊oĀ;rȔȓƀhir㊗㊛㊠reåㇸmes;拊iȀ;efl㊪ၙᠡ㊫方tri;槎luhar;楨;愞ൡ㋕㋛㋟㌬㌸㍱\0㍺㎤\0\0㏬㏰\0㐨㑈㑚㒭㒱㓊㓱\0㘖\0\0㘳cute;䅛quï➺Ԁ;Eaceinpsyᇭ㋳㋵㋿㌂㌋㌏㌟㌦㌩;檴ǰ㋺\0㋼;檸on;䅡uåᇾĀ;dᇳ㌇il;䅟rc;䅝ƀEas㌖㌘㌛;檶p;檺im;择olint;樓iíሄ;䑁otƀ;be㌴ᵇ㌵担;橦΀Aacmstx㍆㍊㍗㍛㍞㍣㍭rr;懘rĀhr㍐㍒ë∨Ā;oਸ਼਴t耻§䂧i;䀻war;椩mĀin㍩ðnuóñt;朶rĀ;o㍶⁕쀀𝔰Ȁacoy㎂㎆㎑㎠rp;景Āhy㎋㎏cy;䑉;䑈rtɭ㎙\0\0㎜iäᑤaraì⹯耻­䂭Āgm㎨㎴maƀ;fv㎱㎲㎲䏃;䏂Ѐ;deglnprካ㏅㏉㏎㏖㏞㏡㏦ot;橪Ā;q኱ኰĀ;E㏓㏔檞;檠Ā;E㏛㏜檝;檟e;扆lus;樤arr;楲aròᄽȀaeit㏸㐈㐏㐗Āls㏽㐄lsetmé㍪hp;樳parsl;槤Ādlᑣ㐔e;挣Ā;e㐜㐝檪Ā;s㐢㐣檬;쀀⪬︀ƀflp㐮㐳㑂tcy;䑌Ā;b㐸㐹䀯Ā;a㐾㐿槄r;挿f;쀀𝕤aĀdr㑍ЂesĀ;u㑔㑕晠it»㑕ƀcsu㑠㑹㒟Āau㑥㑯pĀ;sᆈ㑫;쀀⊓︀pĀ;sᆴ㑵;쀀⊔︀uĀbp㑿㒏ƀ;esᆗᆜ㒆etĀ;eᆗ㒍ñᆝƀ;esᆨᆭ㒖etĀ;eᆨ㒝ñᆮƀ;afᅻ㒦ְrť㒫ֱ»ᅼaròᅈȀcemt㒹㒾㓂㓅r;쀀𝓈tmîñiì㐕aræᆾĀar㓎㓕rĀ;f㓔ឿ昆Āan㓚㓭ightĀep㓣㓪psiloîỠhé⺯s»⡒ʀbcmnp㓻㕞ሉ㖋㖎Ҁ;Edemnprs㔎㔏㔑㔕㔞㔣㔬㔱㔶抂;櫅ot;檽Ā;dᇚ㔚ot;櫃ult;櫁ĀEe㔨㔪;櫋;把lus;檿arr;楹ƀeiu㔽㕒㕕tƀ;en㔎㕅㕋qĀ;qᇚ㔏eqĀ;q㔫㔨m;櫇Ābp㕚㕜;櫕;櫓c̀;acensᇭ㕬㕲㕹㕻㌦pproø㋺urlyeñᇾñᇳƀaes㖂㖈㌛pproø㌚qñ㌗g;晪ڀ123;Edehlmnps㖩㖬㖯ሜ㖲㖴㗀㗉㗕㗚㗟㗨㗭耻¹䂹耻²䂲耻³䂳;櫆Āos㖹㖼t;檾ub;櫘Ā;dሢ㗅ot;櫄sĀou㗏㗒l;柉b;櫗arr;楻ult;櫂ĀEe㗤㗦;櫌;抋lus;櫀ƀeiu㗴㘉㘌tƀ;enሜ㗼㘂qĀ;qሢ㖲eqĀ;q㗧㗤m;櫈Ābp㘑㘓;櫔;櫖ƀAan㘜㘠㘭rr;懙rĀhr㘦㘨ë∮Ā;oਫ਩war;椪lig耻ß䃟௡㙑㙝㙠ዎ㙳㙹\0㙾㛂\0\0\0\0\0㛛㜃\0㜉㝬\0\0\0㞇ɲ㙖\0\0㙛get;挖;䏄rë๟ƀaey㙦㙫㙰ron;䅥dil;䅣;䑂lrec;挕r;쀀𝔱Ȁeiko㚆㚝㚵㚼ǲ㚋\0㚑eĀ4fኄኁaƀ;sv㚘㚙㚛䎸ym;䏑Ācn㚢㚲kĀas㚨㚮pproø዁im»ኬsðኞĀas㚺㚮ð዁rn耻þ䃾Ǭ̟㛆⋧es膀×;bd㛏㛐㛘䃗Ā;aᤏ㛕r;樱;樰ƀeps㛡㛣㜀á⩍Ȁ;bcf҆㛬㛰㛴ot;挶ir;櫱Ā;o㛹㛼쀀𝕥rk;櫚á㍢rime;怴ƀaip㜏㜒㝤dåቈ΀adempst㜡㝍㝀㝑㝗㝜㝟ngleʀ;dlqr㜰㜱㜶㝀㝂斵own»ᶻeftĀ;e⠀㜾ñम;扜ightĀ;e㊪㝋ñၚot;旬inus;樺lus;樹b;槍ime;樻ezium;揢ƀcht㝲㝽㞁Āry㝷㝻;쀀𝓉;䑆cy;䑛rok;䅧Āio㞋㞎xô᝷headĀlr㞗㞠eftarro÷ࡏightarrow»ཝऀAHabcdfghlmoprstuw㟐㟓㟗㟤㟰㟼㠎㠜㠣㠴㡑㡝㡫㢩㣌㣒㣪㣶ròϭar;楣Ācr㟜㟢ute耻ú䃺òᅐrǣ㟪\0㟭y;䑞ve;䅭Āiy㟵㟺rc耻û䃻;䑃ƀabh㠃㠆㠋ròᎭlac;䅱aòᏃĀir㠓㠘sht;楾;쀀𝔲rave耻ù䃹š㠧㠱rĀlr㠬㠮»ॗ»ႃlk;斀Āct㠹㡍ɯ㠿\0\0㡊rnĀ;e㡅㡆挜r»㡆op;挏ri;旸Āal㡖㡚cr;䅫肻¨͉Āgp㡢㡦on;䅳f;쀀𝕦̀adhlsuᅋ㡸㡽፲㢑㢠ownáᎳarpoonĀlr㢈㢌efô㠭ighô㠯iƀ;hl㢙㢚㢜䏅»ᏺon»㢚parrows;懈ƀcit㢰㣄㣈ɯ㢶\0\0㣁rnĀ;e㢼㢽挝r»㢽op;挎ng;䅯ri;旹cr;쀀𝓊ƀdir㣙㣝㣢ot;拰lde;䅩iĀ;f㜰㣨»᠓Āam㣯㣲rò㢨l耻ü䃼angle;榧ހABDacdeflnoprsz㤜㤟㤩㤭㦵㦸㦽㧟㧤㧨㧳㧹㧽㨁㨠ròϷarĀ;v㤦㤧櫨;櫩asèϡĀnr㤲㤷grt;榜΀eknprst㓣㥆㥋㥒㥝㥤㦖appá␕othinçẖƀhir㓫⻈㥙opô⾵Ā;hᎷ㥢ïㆍĀiu㥩㥭gmá㎳Ābp㥲㦄setneqĀ;q㥽㦀쀀⊊︀;쀀⫋︀setneqĀ;q㦏㦒쀀⊋︀;쀀⫌︀Āhr㦛㦟etá㚜iangleĀlr㦪㦯eft»थight»ၑy;䐲ash»ံƀelr㧄㧒㧗ƀ;beⷪ㧋㧏ar;抻q;扚lip;拮Ābt㧜ᑨaòᑩr;쀀𝔳tré㦮suĀbp㧯㧱»ജ»൙pf;쀀𝕧roð໻tré㦴Ācu㨆㨋r;쀀𝓋Ābp㨐㨘nĀEe㦀㨖»㥾nĀEe㦒㨞»㦐igzag;榚΀cefoprs㨶㨻㩖㩛㩔㩡㩪irc;䅵Ādi㩀㩑Ābg㩅㩉ar;機eĀ;qᗺ㩏;扙erp;愘r;쀀𝔴pf;쀀𝕨Ā;eᑹ㩦atèᑹcr;쀀𝓌ૣណ㪇\0㪋\0㪐㪛\0\0㪝㪨㪫㪯\0\0㫃㫎\0㫘ៜ៟tré៑r;쀀𝔵ĀAa㪔㪗ròσrò৶;䎾ĀAa㪡㪤ròθrò৫að✓is;拻ƀdptឤ㪵㪾Āfl㪺ឩ;쀀𝕩imåឲĀAa㫇㫊ròώròਁĀcq㫒ីr;쀀𝓍Āpt៖㫜ré។Ѐacefiosu㫰㫽㬈㬌㬑㬕㬛㬡cĀuy㫶㫻te耻ý䃽;䑏Āiy㬂㬆rc;䅷;䑋n耻¥䂥r;쀀𝔶cy;䑗pf;쀀𝕪cr;쀀𝓎Ācm㬦㬩y;䑎l耻ÿ䃿Ԁacdefhiosw㭂㭈㭔㭘㭤㭩㭭㭴㭺㮀cute;䅺Āay㭍㭒ron;䅾;䐷ot;䅼Āet㭝㭡træᕟa;䎶r;쀀𝔷cy;䐶grarr;懝pf;쀀𝕫cr;쀀𝓏Ājn㮅㮇;怍j;怌'.split("").map((c2) => c2.charCodeAt(0))
-    );
-    const xmlDecodeTree = new Uint16Array(
-      // prettier-ignore
-      "Ȁaglq	\x1Bɭ\0\0p;䀦os;䀧t;䀾t;䀼uot;䀢".split("").map((c2) => c2.charCodeAt(0))
-    );
-    var _a$2;
-    const decodeMap = /* @__PURE__ */ new Map([
-      [0, 65533],
-      // C1 Unicode control character reference replacements
-      [128, 8364],
-      [130, 8218],
-      [131, 402],
-      [132, 8222],
-      [133, 8230],
-      [134, 8224],
-      [135, 8225],
-      [136, 710],
-      [137, 8240],
-      [138, 352],
-      [139, 8249],
-      [140, 338],
-      [142, 381],
-      [145, 8216],
-      [146, 8217],
-      [147, 8220],
-      [148, 8221],
-      [149, 8226],
-      [150, 8211],
-      [151, 8212],
-      [152, 732],
-      [153, 8482],
-      [154, 353],
-      [155, 8250],
-      [156, 339],
-      [158, 382],
-      [159, 376]
-    ]);
-    const fromCodePoint$2 = (
-      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition, node/no-unsupported-features/es-builtins
-      (_a$2 = String.fromCodePoint) !== null && _a$2 !== void 0 ? _a$2 : function(codePoint) {
-        let output2 = "";
-        if (codePoint > 65535) {
-          codePoint -= 65536;
-          output2 += String.fromCharCode(codePoint >>> 10 & 1023 | 55296);
-          codePoint = 56320 | codePoint & 1023;
-        }
-        output2 += String.fromCharCode(codePoint);
-        return output2;
-      }
-    );
-    function replaceCodePoint(codePoint) {
-      var _a2;
-      if (codePoint >= 55296 && codePoint <= 57343 || codePoint > 1114111) {
-        return 65533;
-      }
-      return (_a2 = decodeMap.get(codePoint)) !== null && _a2 !== void 0 ? _a2 : codePoint;
-    }
-    var CharCodes;
-    (function(CharCodes2) {
-      CharCodes2[CharCodes2["NUM"] = 35] = "NUM";
-      CharCodes2[CharCodes2["SEMI"] = 59] = "SEMI";
-      CharCodes2[CharCodes2["EQUALS"] = 61] = "EQUALS";
-      CharCodes2[CharCodes2["ZERO"] = 48] = "ZERO";
-      CharCodes2[CharCodes2["NINE"] = 57] = "NINE";
-      CharCodes2[CharCodes2["LOWER_A"] = 97] = "LOWER_A";
-      CharCodes2[CharCodes2["LOWER_F"] = 102] = "LOWER_F";
-      CharCodes2[CharCodes2["LOWER_X"] = 120] = "LOWER_X";
-      CharCodes2[CharCodes2["LOWER_Z"] = 122] = "LOWER_Z";
-      CharCodes2[CharCodes2["UPPER_A"] = 65] = "UPPER_A";
-      CharCodes2[CharCodes2["UPPER_F"] = 70] = "UPPER_F";
-      CharCodes2[CharCodes2["UPPER_Z"] = 90] = "UPPER_Z";
-    })(CharCodes || (CharCodes = {}));
-    const TO_LOWER_BIT = 32;
-    var BinTrieFlags;
-    (function(BinTrieFlags2) {
-      BinTrieFlags2[BinTrieFlags2["VALUE_LENGTH"] = 49152] = "VALUE_LENGTH";
-      BinTrieFlags2[BinTrieFlags2["BRANCH_LENGTH"] = 16256] = "BRANCH_LENGTH";
-      BinTrieFlags2[BinTrieFlags2["JUMP_TABLE"] = 127] = "JUMP_TABLE";
-    })(BinTrieFlags || (BinTrieFlags = {}));
-    function isNumber(code2) {
-      return code2 >= CharCodes.ZERO && code2 <= CharCodes.NINE;
-    }
-    function isHexadecimalCharacter(code2) {
-      return code2 >= CharCodes.UPPER_A && code2 <= CharCodes.UPPER_F || code2 >= CharCodes.LOWER_A && code2 <= CharCodes.LOWER_F;
-    }
-    function isAsciiAlphaNumeric(code2) {
-      return code2 >= CharCodes.UPPER_A && code2 <= CharCodes.UPPER_Z || code2 >= CharCodes.LOWER_A && code2 <= CharCodes.LOWER_Z || isNumber(code2);
-    }
-    function isEntityInAttributeInvalidEnd(code2) {
-      return code2 === CharCodes.EQUALS || isAsciiAlphaNumeric(code2);
-    }
-    var EntityDecoderState;
-    (function(EntityDecoderState2) {
-      EntityDecoderState2[EntityDecoderState2["EntityStart"] = 0] = "EntityStart";
-      EntityDecoderState2[EntityDecoderState2["NumericStart"] = 1] = "NumericStart";
-      EntityDecoderState2[EntityDecoderState2["NumericDecimal"] = 2] = "NumericDecimal";
-      EntityDecoderState2[EntityDecoderState2["NumericHex"] = 3] = "NumericHex";
-      EntityDecoderState2[EntityDecoderState2["NamedEntity"] = 4] = "NamedEntity";
-    })(EntityDecoderState || (EntityDecoderState = {}));
-    var DecodingMode;
-    (function(DecodingMode2) {
-      DecodingMode2[DecodingMode2["Legacy"] = 0] = "Legacy";
-      DecodingMode2[DecodingMode2["Strict"] = 1] = "Strict";
-      DecodingMode2[DecodingMode2["Attribute"] = 2] = "Attribute";
-    })(DecodingMode || (DecodingMode = {}));
-    class EntityDecoder {
-      constructor(decodeTree, emitCodePoint, errors2) {
-        this.decodeTree = decodeTree;
-        this.emitCodePoint = emitCodePoint;
-        this.errors = errors2;
-        this.state = EntityDecoderState.EntityStart;
-        this.consumed = 1;
-        this.result = 0;
-        this.treeIndex = 0;
-        this.excess = 1;
-        this.decodeMode = DecodingMode.Strict;
-      }
-      /** Resets the instance to make it reusable. */
-      startEntity(decodeMode) {
-        this.decodeMode = decodeMode;
-        this.state = EntityDecoderState.EntityStart;
-        this.result = 0;
-        this.treeIndex = 0;
-        this.excess = 1;
-        this.consumed = 1;
-      }
-      /**
-       * Write an entity to the decoder. This can be called multiple times with partial entities.
-       * If the entity is incomplete, the decoder will return -1.
-       *
-       * Mirrors the implementation of `getDecoder`, but with the ability to stop decoding if the
-       * entity is incomplete, and resume when the next string is written.
-       *
-       * @param string The string containing the entity (or a continuation of the entity).
-       * @param offset The offset at which the entity begins. Should be 0 if this is not the first call.
-       * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
-       */
-      write(str2, offset) {
-        switch (this.state) {
-          case EntityDecoderState.EntityStart: {
-            if (str2.charCodeAt(offset) === CharCodes.NUM) {
-              this.state = EntityDecoderState.NumericStart;
-              this.consumed += 1;
-              return this.stateNumericStart(str2, offset + 1);
-            }
-            this.state = EntityDecoderState.NamedEntity;
-            return this.stateNamedEntity(str2, offset);
-          }
-          case EntityDecoderState.NumericStart: {
-            return this.stateNumericStart(str2, offset);
-          }
-          case EntityDecoderState.NumericDecimal: {
-            return this.stateNumericDecimal(str2, offset);
-          }
-          case EntityDecoderState.NumericHex: {
-            return this.stateNumericHex(str2, offset);
-          }
-          case EntityDecoderState.NamedEntity: {
-            return this.stateNamedEntity(str2, offset);
-          }
-        }
-      }
-      /**
-       * Switches between the numeric decimal and hexadecimal states.
-       *
-       * Equivalent to the `Numeric character reference state` in the HTML spec.
-       *
-       * @param str The string containing the entity (or a continuation of the entity).
-       * @param offset The current offset.
-       * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
-       */
-      stateNumericStart(str2, offset) {
-        if (offset >= str2.length) {
-          return -1;
-        }
-        if ((str2.charCodeAt(offset) | TO_LOWER_BIT) === CharCodes.LOWER_X) {
-          this.state = EntityDecoderState.NumericHex;
-          this.consumed += 1;
-          return this.stateNumericHex(str2, offset + 1);
-        }
-        this.state = EntityDecoderState.NumericDecimal;
-        return this.stateNumericDecimal(str2, offset);
-      }
-      addToNumericResult(str2, start, end, base2) {
-        if (start !== end) {
-          const digitCount = end - start;
-          this.result = this.result * Math.pow(base2, digitCount) + parseInt(str2.substr(start, digitCount), base2);
-          this.consumed += digitCount;
-        }
-      }
-      /**
-       * Parses a hexadecimal numeric entity.
-       *
-       * Equivalent to the `Hexademical character reference state` in the HTML spec.
-       *
-       * @param str The string containing the entity (or a continuation of the entity).
-       * @param offset The current offset.
-       * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
-       */
-      stateNumericHex(str2, offset) {
-        const startIdx = offset;
-        while (offset < str2.length) {
-          const char = str2.charCodeAt(offset);
-          if (isNumber(char) || isHexadecimalCharacter(char)) {
-            offset += 1;
-          } else {
-            this.addToNumericResult(str2, startIdx, offset, 16);
-            return this.emitNumericEntity(char, 3);
-          }
-        }
-        this.addToNumericResult(str2, startIdx, offset, 16);
-        return -1;
-      }
-      /**
-       * Parses a decimal numeric entity.
-       *
-       * Equivalent to the `Decimal character reference state` in the HTML spec.
-       *
-       * @param str The string containing the entity (or a continuation of the entity).
-       * @param offset The current offset.
-       * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
-       */
-      stateNumericDecimal(str2, offset) {
-        const startIdx = offset;
-        while (offset < str2.length) {
-          const char = str2.charCodeAt(offset);
-          if (isNumber(char)) {
-            offset += 1;
-          } else {
-            this.addToNumericResult(str2, startIdx, offset, 10);
-            return this.emitNumericEntity(char, 2);
-          }
-        }
-        this.addToNumericResult(str2, startIdx, offset, 10);
-        return -1;
-      }
-      /**
-       * Validate and emit a numeric entity.
-       *
-       * Implements the logic from the `Hexademical character reference start
-       * state` and `Numeric character reference end state` in the HTML spec.
-       *
-       * @param lastCp The last code point of the entity. Used to see if the
-       *               entity was terminated with a semicolon.
-       * @param expectedLength The minimum number of characters that should be
-       *                       consumed. Used to validate that at least one digit
-       *                       was consumed.
-       * @returns The number of characters that were consumed.
-       */
-      emitNumericEntity(lastCp, expectedLength) {
-        var _a2;
-        if (this.consumed <= expectedLength) {
-          (_a2 = this.errors) === null || _a2 === void 0 ? void 0 : _a2.absenceOfDigitsInNumericCharacterReference(this.consumed);
-          return 0;
-        }
-        if (lastCp === CharCodes.SEMI) {
-          this.consumed += 1;
-        } else if (this.decodeMode === DecodingMode.Strict) {
-          return 0;
-        }
-        this.emitCodePoint(replaceCodePoint(this.result), this.consumed);
-        if (this.errors) {
-          if (lastCp !== CharCodes.SEMI) {
-            this.errors.missingSemicolonAfterCharacterReference();
-          }
-          this.errors.validateNumericCharacterReference(this.result);
-        }
-        return this.consumed;
-      }
-      /**
-       * Parses a named entity.
-       *
-       * Equivalent to the `Named character reference state` in the HTML spec.
-       *
-       * @param str The string containing the entity (or a continuation of the entity).
-       * @param offset The current offset.
-       * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
-       */
-      stateNamedEntity(str2, offset) {
-        const { decodeTree } = this;
-        let current = decodeTree[this.treeIndex];
-        let valueLength = (current & BinTrieFlags.VALUE_LENGTH) >> 14;
-        for (; offset < str2.length; offset++, this.excess++) {
-          const char = str2.charCodeAt(offset);
-          this.treeIndex = determineBranch(decodeTree, current, this.treeIndex + Math.max(1, valueLength), char);
-          if (this.treeIndex < 0) {
-            return this.result === 0 || // If we are parsing an attribute
-            this.decodeMode === DecodingMode.Attribute && // We shouldn't have consumed any characters after the entity,
-            (valueLength === 0 || // And there should be no invalid characters.
-            isEntityInAttributeInvalidEnd(char)) ? 0 : this.emitNotTerminatedNamedEntity();
-          }
-          current = decodeTree[this.treeIndex];
-          valueLength = (current & BinTrieFlags.VALUE_LENGTH) >> 14;
-          if (valueLength !== 0) {
-            if (char === CharCodes.SEMI) {
-              return this.emitNamedEntityData(this.treeIndex, valueLength, this.consumed + this.excess);
-            }
-            if (this.decodeMode !== DecodingMode.Strict) {
-              this.result = this.treeIndex;
-              this.consumed += this.excess;
-              this.excess = 0;
-            }
-          }
-        }
-        return -1;
-      }
-      /**
-       * Emit a named entity that was not terminated with a semicolon.
-       *
-       * @returns The number of characters consumed.
-       */
-      emitNotTerminatedNamedEntity() {
-        var _a2;
-        const { result, decodeTree } = this;
-        const valueLength = (decodeTree[result] & BinTrieFlags.VALUE_LENGTH) >> 14;
-        this.emitNamedEntityData(result, valueLength, this.consumed);
-        (_a2 = this.errors) === null || _a2 === void 0 ? void 0 : _a2.missingSemicolonAfterCharacterReference();
-        return this.consumed;
-      }
-      /**
-       * Emit a named entity.
-       *
-       * @param result The index of the entity in the decode tree.
-       * @param valueLength The number of bytes in the entity.
-       * @param consumed The number of characters consumed.
-       *
-       * @returns The number of characters consumed.
-       */
-      emitNamedEntityData(result, valueLength, consumed) {
-        const { decodeTree } = this;
-        this.emitCodePoint(valueLength === 1 ? decodeTree[result] & ~BinTrieFlags.VALUE_LENGTH : decodeTree[result + 1], consumed);
-        if (valueLength === 3) {
-          this.emitCodePoint(decodeTree[result + 2], consumed);
-        }
-        return consumed;
-      }
-      /**
-       * Signal to the parser that the end of the input was reached.
-       *
-       * Remaining data will be emitted and relevant errors will be produced.
-       *
-       * @returns The number of characters consumed.
-       */
-      end() {
-        var _a2;
-        switch (this.state) {
-          case EntityDecoderState.NamedEntity: {
-            return this.result !== 0 && (this.decodeMode !== DecodingMode.Attribute || this.result === this.treeIndex) ? this.emitNotTerminatedNamedEntity() : 0;
-          }
-          case EntityDecoderState.NumericDecimal: {
-            return this.emitNumericEntity(0, 2);
-          }
-          case EntityDecoderState.NumericHex: {
-            return this.emitNumericEntity(0, 3);
-          }
-          case EntityDecoderState.NumericStart: {
-            (_a2 = this.errors) === null || _a2 === void 0 ? void 0 : _a2.absenceOfDigitsInNumericCharacterReference(this.consumed);
-            return 0;
-          }
-          case EntityDecoderState.EntityStart: {
-            return 0;
-          }
-        }
-      }
-    }
-    function getDecoder(decodeTree) {
-      let ret = "";
-      const decoder = new EntityDecoder(decodeTree, (str2) => ret += fromCodePoint$2(str2));
-      return function decodeWithTrie(str2, decodeMode) {
-        let lastIndex = 0;
-        let offset = 0;
-        while ((offset = str2.indexOf("&", offset)) >= 0) {
-          ret += str2.slice(lastIndex, offset);
-          decoder.startEntity(decodeMode);
-          const len = decoder.write(
-            str2,
-            // Skip the "&"
-            offset + 1
-          );
-          if (len < 0) {
-            lastIndex = offset + decoder.end();
-            break;
-          }
-          lastIndex = offset + len;
-          offset = len === 0 ? lastIndex + 1 : lastIndex;
-        }
-        const result = ret + str2.slice(lastIndex);
-        ret = "";
-        return result;
-      };
-    }
-    function determineBranch(decodeTree, current, nodeIdx, char) {
-      const branchCount = (current & BinTrieFlags.BRANCH_LENGTH) >> 7;
-      const jumpOffset = current & BinTrieFlags.JUMP_TABLE;
-      if (branchCount === 0) {
-        return jumpOffset !== 0 && char === jumpOffset ? nodeIdx : -1;
-      }
-      if (jumpOffset) {
-        const value2 = char - jumpOffset;
-        return value2 < 0 || value2 >= branchCount ? -1 : decodeTree[nodeIdx + value2] - 1;
-      }
-      let lo = nodeIdx;
-      let hi = lo + branchCount - 1;
-      while (lo <= hi) {
-        const mid = lo + hi >>> 1;
-        const midVal = decodeTree[mid];
-        if (midVal < char) {
-          lo = mid + 1;
-        } else if (midVal > char) {
-          hi = mid - 1;
-        } else {
-          return decodeTree[mid + branchCount];
-        }
-      }
-      return -1;
-    }
-    const htmlDecoder = getDecoder(htmlDecodeTree);
-    getDecoder(xmlDecodeTree);
-    function decodeHTML(str2, mode = DecodingMode.Legacy) {
-      return htmlDecoder(str2, mode);
-    }
-    function _class$1(obj) {
-      return Object.prototype.toString.call(obj);
-    }
-    function isString$1(obj) {
-      return _class$1(obj) === "[object String]";
-    }
-    const _hasOwnProperty = Object.prototype.hasOwnProperty;
-    function has(object, key2) {
-      return _hasOwnProperty.call(object, key2);
-    }
-    function assign$1(obj) {
-      const sources = Array.prototype.slice.call(arguments, 1);
-      sources.forEach(function(source2) {
-        if (!source2) {
-          return;
-        }
-        if (typeof source2 !== "object") {
-          throw new TypeError(source2 + "must be object");
-        }
-        Object.keys(source2).forEach(function(key2) {
-          obj[key2] = source2[key2];
-        });
-      });
-      return obj;
-    }
-    function arrayReplaceAt(src, pos2, newElements) {
-      return [].concat(src.slice(0, pos2), newElements, src.slice(pos2 + 1));
-    }
-    function isValidEntityCode(c2) {
-      if (c2 >= 55296 && c2 <= 57343) {
-        return false;
-      }
-      if (c2 >= 64976 && c2 <= 65007) {
-        return false;
-      }
-      if ((c2 & 65535) === 65535 || (c2 & 65535) === 65534) {
-        return false;
-      }
-      if (c2 >= 0 && c2 <= 8) {
-        return false;
-      }
-      if (c2 === 11) {
-        return false;
-      }
-      if (c2 >= 14 && c2 <= 31) {
-        return false;
-      }
-      if (c2 >= 127 && c2 <= 159) {
-        return false;
-      }
-      if (c2 > 1114111) {
-        return false;
-      }
-      return true;
-    }
-    function fromCodePoint$1(c2) {
-      if (c2 > 65535) {
-        c2 -= 65536;
-        const surrogate1 = 55296 + (c2 >> 10);
-        const surrogate2 = 56320 + (c2 & 1023);
-        return String.fromCharCode(surrogate1, surrogate2);
-      }
-      return String.fromCharCode(c2);
-    }
-    const UNESCAPE_MD_RE = /\\([!"#$%&'()*+,\-./:;<=>?@[\\\]^_`{|}~])/g;
-    const ENTITY_RE = /&([a-z#][a-z0-9]{1,31});/gi;
-    const UNESCAPE_ALL_RE = new RegExp(UNESCAPE_MD_RE.source + "|" + ENTITY_RE.source, "gi");
-    const DIGITAL_ENTITY_TEST_RE = /^#((?:x[a-f0-9]{1,8}|[0-9]{1,8}))$/i;
-    function replaceEntityPattern(match, name2) {
-      if (name2.charCodeAt(0) === 35 && DIGITAL_ENTITY_TEST_RE.test(name2)) {
-        const code2 = name2[1].toLowerCase() === "x" ? parseInt(name2.slice(2), 16) : parseInt(name2.slice(1), 10);
-        if (isValidEntityCode(code2)) {
-          return fromCodePoint$1(code2);
-        }
-        return match;
-      }
-      const decoded = decodeHTML(match);
-      if (decoded !== match) {
-        return decoded;
-      }
-      return match;
-    }
-    function unescapeMd(str2) {
-      if (str2.indexOf("\\") < 0) {
-        return str2;
-      }
-      return str2.replace(UNESCAPE_MD_RE, "$1");
-    }
-    function unescapeAll(str2) {
-      if (str2.indexOf("\\") < 0 && str2.indexOf("&") < 0) {
-        return str2;
-      }
-      return str2.replace(UNESCAPE_ALL_RE, function(match, escaped, entity2) {
-        if (escaped) {
-          return escaped;
-        }
-        return replaceEntityPattern(match, entity2);
-      });
-    }
-    const HTML_ESCAPE_TEST_RE = /[&<>"]/;
-    const HTML_ESCAPE_REPLACE_RE = /[&<>"]/g;
-    const HTML_REPLACEMENTS = {
-      "&": "&amp;",
-      "<": "&lt;",
-      ">": "&gt;",
-      '"': "&quot;"
-    };
-    function replaceUnsafeChar(ch3) {
-      return HTML_REPLACEMENTS[ch3];
-    }
-    function escapeHtml(str2) {
-      if (HTML_ESCAPE_TEST_RE.test(str2)) {
-        return str2.replace(HTML_ESCAPE_REPLACE_RE, replaceUnsafeChar);
-      }
-      return str2;
-    }
-    const REGEXP_ESCAPE_RE = /[.?*+^$[\]\\(){}|-]/g;
-    function escapeRE$1(str2) {
-      return str2.replace(REGEXP_ESCAPE_RE, "\\$&");
-    }
-    function isSpace(code2) {
-      switch (code2) {
-        case 9:
-        case 32:
-          return true;
-      }
-      return false;
-    }
-    function isWhiteSpace(code2) {
-      if (code2 >= 8192 && code2 <= 8202) {
-        return true;
-      }
-      switch (code2) {
-        case 9:
-        case 10:
-        case 11:
-        case 12:
-        case 13:
-        case 32:
-        case 160:
-        case 5760:
-        case 8239:
-        case 8287:
-        case 12288:
-          return true;
-      }
-      return false;
-    }
-    function isPunctChar(ch3) {
-      return P.test(ch3) || regex.test(ch3);
-    }
-    function isMdAsciiPunct(ch3) {
-      switch (ch3) {
-        case 33:
-        case 34:
-        case 35:
-        case 36:
-        case 37:
-        case 38:
-        case 39:
-        case 40:
-        case 41:
-        case 42:
-        case 43:
-        case 44:
-        case 45:
-        case 46:
-        case 47:
-        case 58:
-        case 59:
-        case 60:
-        case 61:
-        case 62:
-        case 63:
-        case 64:
-        case 91:
-        case 92:
-        case 93:
-        case 94:
-        case 95:
-        case 96:
-        case 123:
-        case 124:
-        case 125:
-        case 126:
-          return true;
-        default:
-          return false;
-      }
-    }
-    function normalizeReference(str2) {
-      str2 = str2.trim().replace(/\s+/g, " ");
-      if ("ẞ".toLowerCase() === "Ṿ") {
-        str2 = str2.replace(/ẞ/g, "ß");
-      }
-      return str2.toLowerCase().toUpperCase();
-    }
-    const lib$1 = { mdurl, ucmicro };
-    const utils = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
-      __proto__: null,
-      arrayReplaceAt,
-      assign: assign$1,
-      escapeHtml,
-      escapeRE: escapeRE$1,
-      fromCodePoint: fromCodePoint$1,
-      has,
-      isMdAsciiPunct,
-      isPunctChar,
-      isSpace,
-      isString: isString$1,
-      isValidEntityCode,
-      isWhiteSpace,
-      lib: lib$1,
-      normalizeReference,
-      unescapeAll,
-      unescapeMd
-    }, Symbol.toStringTag, { value: "Module" }));
-    function parseLinkLabel(state, start, disableNested) {
-      let level, found, marker, prevPos;
-      const max2 = state.posMax;
-      const oldPos = state.pos;
-      state.pos = start + 1;
-      level = 1;
-      while (state.pos < max2) {
-        marker = state.src.charCodeAt(state.pos);
-        if (marker === 93) {
-          level--;
-          if (level === 0) {
-            found = true;
-            break;
-          }
-        }
-        prevPos = state.pos;
-        state.md.inline.skipToken(state);
-        if (marker === 91) {
-          if (prevPos === state.pos - 1) {
-            level++;
-          } else if (disableNested) {
-            state.pos = oldPos;
-            return -1;
-          }
-        }
-      }
-      let labelEnd = -1;
-      if (found) {
-        labelEnd = state.pos;
-      }
-      state.pos = oldPos;
-      return labelEnd;
-    }
-    function parseLinkDestination(str2, start, max2) {
-      let code2;
-      let pos2 = start;
-      const result = {
-        ok: false,
-        pos: 0,
-        str: ""
-      };
-      if (str2.charCodeAt(pos2) === 60) {
-        pos2++;
-        while (pos2 < max2) {
-          code2 = str2.charCodeAt(pos2);
-          if (code2 === 10) {
-            return result;
-          }
-          if (code2 === 60) {
-            return result;
-          }
-          if (code2 === 62) {
-            result.pos = pos2 + 1;
-            result.str = unescapeAll(str2.slice(start + 1, pos2));
-            result.ok = true;
-            return result;
-          }
-          if (code2 === 92 && pos2 + 1 < max2) {
-            pos2 += 2;
-            continue;
-          }
-          pos2++;
-        }
-        return result;
-      }
-      let level = 0;
-      while (pos2 < max2) {
-        code2 = str2.charCodeAt(pos2);
-        if (code2 === 32) {
-          break;
-        }
-        if (code2 < 32 || code2 === 127) {
-          break;
-        }
-        if (code2 === 92 && pos2 + 1 < max2) {
-          if (str2.charCodeAt(pos2 + 1) === 32) {
-            break;
-          }
-          pos2 += 2;
-          continue;
-        }
-        if (code2 === 40) {
-          level++;
-          if (level > 32) {
-            return result;
-          }
-        }
-        if (code2 === 41) {
-          if (level === 0) {
-            break;
-          }
-          level--;
-        }
-        pos2++;
-      }
-      if (start === pos2) {
-        return result;
-      }
-      if (level !== 0) {
-        return result;
-      }
-      result.str = unescapeAll(str2.slice(start, pos2));
-      result.pos = pos2;
-      result.ok = true;
-      return result;
-    }
-    function parseLinkTitle(str2, start, max2, prev_state) {
-      let code2;
-      let pos2 = start;
-      const state = {
-        // if `true`, this is a valid link title
-        ok: false,
-        // if `true`, this link can be continued on the next line
-        can_continue: false,
-        // if `ok`, it's the position of the first character after the closing marker
-        pos: 0,
-        // if `ok`, it's the unescaped title
-        str: "",
-        // expected closing marker character code
-        marker: 0
-      };
-      if (prev_state) {
-        state.str = prev_state.str;
-        state.marker = prev_state.marker;
-      } else {
-        if (pos2 >= max2) {
-          return state;
-        }
-        let marker = str2.charCodeAt(pos2);
-        if (marker !== 34 && marker !== 39 && marker !== 40) {
-          return state;
-        }
-        start++;
-        pos2++;
-        if (marker === 40) {
-          marker = 41;
-        }
-        state.marker = marker;
-      }
-      while (pos2 < max2) {
-        code2 = str2.charCodeAt(pos2);
-        if (code2 === state.marker) {
-          state.pos = pos2 + 1;
-          state.str += unescapeAll(str2.slice(start, pos2));
-          state.ok = true;
-          return state;
-        } else if (code2 === 40 && state.marker === 41) {
-          return state;
-        } else if (code2 === 92 && pos2 + 1 < max2) {
-          pos2++;
-        }
-        pos2++;
-      }
-      state.can_continue = true;
-      state.str += unescapeAll(str2.slice(start, pos2));
-      return state;
-    }
-    const helpers = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
-      __proto__: null,
-      parseLinkDestination,
-      parseLinkLabel,
-      parseLinkTitle
-    }, Symbol.toStringTag, { value: "Module" }));
-    const default_rules = {};
-    default_rules.code_inline = function(tokens, idx, options2, env, slf) {
-      const token2 = tokens[idx];
-      return "<code" + slf.renderAttrs(token2) + ">" + escapeHtml(token2.content) + "</code>";
-    };
-    default_rules.code_block = function(tokens, idx, options2, env, slf) {
-      const token2 = tokens[idx];
-      return "<pre" + slf.renderAttrs(token2) + "><code>" + escapeHtml(tokens[idx].content) + "</code></pre>\n";
-    };
-    default_rules.fence = function(tokens, idx, options2, env, slf) {
-      const token2 = tokens[idx];
-      const info = token2.info ? unescapeAll(token2.info).trim() : "";
-      let langName = "";
-      let langAttrs = "";
-      if (info) {
-        const arr2 = info.split(/(\s+)/g);
-        langName = arr2[0];
-        langAttrs = arr2.slice(2).join("");
-      }
-      let highlighted;
-      if (options2.highlight) {
-        highlighted = options2.highlight(token2.content, langName, langAttrs) || escapeHtml(token2.content);
-      } else {
-        highlighted = escapeHtml(token2.content);
-      }
-      if (highlighted.indexOf("<pre") === 0) {
-        return highlighted + "\n";
-      }
-      if (info) {
-        const i2 = token2.attrIndex("class");
-        const tmpAttrs = token2.attrs ? token2.attrs.slice() : [];
-        if (i2 < 0) {
-          tmpAttrs.push(["class", options2.langPrefix + langName]);
-        } else {
-          tmpAttrs[i2] = tmpAttrs[i2].slice();
-          tmpAttrs[i2][1] += " " + options2.langPrefix + langName;
-        }
-        const tmpToken = {
-          attrs: tmpAttrs
-        };
-        return `<pre><code${slf.renderAttrs(tmpToken)}>${highlighted}</code></pre>
-`;
-      }
-      return `<pre><code${slf.renderAttrs(token2)}>${highlighted}</code></pre>
-`;
-    };
-    default_rules.image = function(tokens, idx, options2, env, slf) {
-      const token2 = tokens[idx];
-      token2.attrs[token2.attrIndex("alt")][1] = slf.renderInlineAsText(token2.children, options2, env);
-      return slf.renderToken(tokens, idx, options2);
-    };
-    default_rules.hardbreak = function(tokens, idx, options2) {
-      return options2.xhtmlOut ? "<br />\n" : "<br>\n";
-    };
-    default_rules.softbreak = function(tokens, idx, options2) {
-      return options2.breaks ? options2.xhtmlOut ? "<br />\n" : "<br>\n" : "\n";
-    };
-    default_rules.text = function(tokens, idx) {
-      return escapeHtml(tokens[idx].content);
-    };
-    default_rules.html_block = function(tokens, idx) {
-      return tokens[idx].content;
-    };
-    default_rules.html_inline = function(tokens, idx) {
-      return tokens[idx].content;
-    };
-    function Renderer() {
-      this.rules = assign$1({}, default_rules);
-    }
-    Renderer.prototype.renderAttrs = function renderAttrs(token2) {
-      let i2, l, result;
-      if (!token2.attrs) {
-        return "";
-      }
-      result = "";
-      for (i2 = 0, l = token2.attrs.length; i2 < l; i2++) {
-        result += " " + escapeHtml(token2.attrs[i2][0]) + '="' + escapeHtml(token2.attrs[i2][1]) + '"';
-      }
-      return result;
-    };
-    Renderer.prototype.renderToken = function renderToken(tokens, idx, options2) {
-      const token2 = tokens[idx];
-      let result = "";
-      if (token2.hidden) {
-        return "";
-      }
-      if (token2.block && token2.nesting !== -1 && idx && tokens[idx - 1].hidden) {
-        result += "\n";
-      }
-      result += (token2.nesting === -1 ? "</" : "<") + token2.tag;
-      result += this.renderAttrs(token2);
-      if (token2.nesting === 0 && options2.xhtmlOut) {
-        result += " /";
-      }
-      let needLf = false;
-      if (token2.block) {
-        needLf = true;
-        if (token2.nesting === 1) {
-          if (idx + 1 < tokens.length) {
-            const nextToken2 = tokens[idx + 1];
-            if (nextToken2.type === "inline" || nextToken2.hidden) {
-              needLf = false;
-            } else if (nextToken2.nesting === -1 && nextToken2.tag === token2.tag) {
-              needLf = false;
-            }
-          }
-        }
-      }
-      result += needLf ? ">\n" : ">";
-      return result;
-    };
-    Renderer.prototype.renderInline = function(tokens, options2, env) {
-      let result = "";
-      const rules = this.rules;
-      for (let i2 = 0, len = tokens.length; i2 < len; i2++) {
-        const type = tokens[i2].type;
-        if (typeof rules[type] !== "undefined") {
-          result += rules[type](tokens, i2, options2, env, this);
-        } else {
-          result += this.renderToken(tokens, i2, options2);
-        }
-      }
-      return result;
-    };
-    Renderer.prototype.renderInlineAsText = function(tokens, options2, env) {
-      let result = "";
-      for (let i2 = 0, len = tokens.length; i2 < len; i2++) {
-        switch (tokens[i2].type) {
-          case "text":
-            result += tokens[i2].content;
-            break;
-          case "image":
-            result += this.renderInlineAsText(tokens[i2].children, options2, env);
-            break;
-          case "html_inline":
-          case "html_block":
-            result += tokens[i2].content;
-            break;
-          case "softbreak":
-          case "hardbreak":
-            result += "\n";
-            break;
-        }
-      }
-      return result;
-    };
-    Renderer.prototype.render = function(tokens, options2, env) {
-      let result = "";
-      const rules = this.rules;
-      for (let i2 = 0, len = tokens.length; i2 < len; i2++) {
-        const type = tokens[i2].type;
-        if (type === "inline") {
-          result += this.renderInline(tokens[i2].children, options2, env);
-        } else if (typeof rules[type] !== "undefined") {
-          result += rules[type](tokens, i2, options2, env, this);
-        } else {
-          result += this.renderToken(tokens, i2, options2, env);
-        }
-      }
-      return result;
-    };
-    function Ruler() {
-      this.__rules__ = [];
-      this.__cache__ = null;
-    }
-    Ruler.prototype.__find__ = function(name2) {
-      for (let i2 = 0; i2 < this.__rules__.length; i2++) {
-        if (this.__rules__[i2].name === name2) {
-          return i2;
-        }
-      }
-      return -1;
-    };
-    Ruler.prototype.__compile__ = function() {
-      const self2 = this;
-      const chains = [""];
-      self2.__rules__.forEach(function(rule) {
-        if (!rule.enabled) {
-          return;
-        }
-        rule.alt.forEach(function(altName) {
-          if (chains.indexOf(altName) < 0) {
-            chains.push(altName);
-          }
-        });
-      });
-      self2.__cache__ = {};
-      chains.forEach(function(chain) {
-        self2.__cache__[chain] = [];
-        self2.__rules__.forEach(function(rule) {
-          if (!rule.enabled) {
-            return;
-          }
-          if (chain && rule.alt.indexOf(chain) < 0) {
-            return;
-          }
-          self2.__cache__[chain].push(rule.fn);
-        });
-      });
-    };
-    Ruler.prototype.at = function(name2, fn, options2) {
-      const index2 = this.__find__(name2);
-      const opt = options2 || {};
-      if (index2 === -1) {
-        throw new Error("Parser rule not found: " + name2);
-      }
-      this.__rules__[index2].fn = fn;
-      this.__rules__[index2].alt = opt.alt || [];
-      this.__cache__ = null;
-    };
-    Ruler.prototype.before = function(beforeName, ruleName, fn, options2) {
-      const index2 = this.__find__(beforeName);
-      const opt = options2 || {};
-      if (index2 === -1) {
-        throw new Error("Parser rule not found: " + beforeName);
-      }
-      this.__rules__.splice(index2, 0, {
-        name: ruleName,
-        enabled: true,
-        fn,
-        alt: opt.alt || []
-      });
-      this.__cache__ = null;
-    };
-    Ruler.prototype.after = function(afterName, ruleName, fn, options2) {
-      const index2 = this.__find__(afterName);
-      const opt = options2 || {};
-      if (index2 === -1) {
-        throw new Error("Parser rule not found: " + afterName);
-      }
-      this.__rules__.splice(index2 + 1, 0, {
-        name: ruleName,
-        enabled: true,
-        fn,
-        alt: opt.alt || []
-      });
-      this.__cache__ = null;
-    };
-    Ruler.prototype.push = function(ruleName, fn, options2) {
-      const opt = options2 || {};
-      this.__rules__.push({
-        name: ruleName,
-        enabled: true,
-        fn,
-        alt: opt.alt || []
-      });
-      this.__cache__ = null;
-    };
-    Ruler.prototype.enable = function(list2, ignoreInvalid) {
-      if (!Array.isArray(list2)) {
-        list2 = [list2];
-      }
-      const result = [];
-      list2.forEach(function(name2) {
-        const idx = this.__find__(name2);
-        if (idx < 0) {
-          if (ignoreInvalid) {
-            return;
-          }
-          throw new Error("Rules manager: invalid rule name " + name2);
-        }
-        this.__rules__[idx].enabled = true;
-        result.push(name2);
-      }, this);
-      this.__cache__ = null;
-      return result;
-    };
-    Ruler.prototype.enableOnly = function(list2, ignoreInvalid) {
-      if (!Array.isArray(list2)) {
-        list2 = [list2];
-      }
-      this.__rules__.forEach(function(rule) {
-        rule.enabled = false;
-      });
-      this.enable(list2, ignoreInvalid);
-    };
-    Ruler.prototype.disable = function(list2, ignoreInvalid) {
-      if (!Array.isArray(list2)) {
-        list2 = [list2];
-      }
-      const result = [];
-      list2.forEach(function(name2) {
-        const idx = this.__find__(name2);
-        if (idx < 0) {
-          if (ignoreInvalid) {
-            return;
-          }
-          throw new Error("Rules manager: invalid rule name " + name2);
-        }
-        this.__rules__[idx].enabled = false;
-        result.push(name2);
-      }, this);
-      this.__cache__ = null;
-      return result;
-    };
-    Ruler.prototype.getRules = function(chainName) {
-      if (this.__cache__ === null) {
-        this.__compile__();
-      }
-      return this.__cache__[chainName] || [];
-    };
-    function Token(type, tag, nesting) {
-      this.type = type;
-      this.tag = tag;
-      this.attrs = null;
-      this.map = null;
-      this.nesting = nesting;
-      this.level = 0;
-      this.children = null;
-      this.content = "";
-      this.markup = "";
-      this.info = "";
-      this.meta = null;
-      this.block = false;
-      this.hidden = false;
-    }
-    Token.prototype.attrIndex = function attrIndex(name2) {
-      if (!this.attrs) {
-        return -1;
-      }
-      const attrs = this.attrs;
-      for (let i2 = 0, len = attrs.length; i2 < len; i2++) {
-        if (attrs[i2][0] === name2) {
-          return i2;
-        }
-      }
-      return -1;
-    };
-    Token.prototype.attrPush = function attrPush(attrData) {
-      if (this.attrs) {
-        this.attrs.push(attrData);
-      } else {
-        this.attrs = [attrData];
-      }
-    };
-    Token.prototype.attrSet = function attrSet(name2, value2) {
-      const idx = this.attrIndex(name2);
-      const attrData = [name2, value2];
-      if (idx < 0) {
-        this.attrPush(attrData);
-      } else {
-        this.attrs[idx] = attrData;
-      }
-    };
-    Token.prototype.attrGet = function attrGet(name2) {
-      const idx = this.attrIndex(name2);
-      let value2 = null;
-      if (idx >= 0) {
-        value2 = this.attrs[idx][1];
-      }
-      return value2;
-    };
-    Token.prototype.attrJoin = function attrJoin(name2, value2) {
-      const idx = this.attrIndex(name2);
-      if (idx < 0) {
-        this.attrPush([name2, value2]);
-      } else {
-        this.attrs[idx][1] = this.attrs[idx][1] + " " + value2;
-      }
-    };
-    function StateCore(src, md, env) {
-      this.src = src;
-      this.env = env;
-      this.tokens = [];
-      this.inlineMode = false;
-      this.md = md;
-    }
-    StateCore.prototype.Token = Token;
-    const NEWLINES_RE = /\r\n?|\n/g;
-    const NULL_RE = /\0/g;
-    function normalize(state) {
-      let str2;
-      str2 = state.src.replace(NEWLINES_RE, "\n");
-      str2 = str2.replace(NULL_RE, "�");
-      state.src = str2;
-    }
-    function block(state) {
-      let token2;
-      if (state.inlineMode) {
-        token2 = new state.Token("inline", "", 0);
-        token2.content = state.src;
-        token2.map = [0, 1];
-        token2.children = [];
-        state.tokens.push(token2);
-      } else {
-        state.md.block.parse(state.src, state.md, state.env, state.tokens);
-      }
-    }
-    function inline(state) {
-      const tokens = state.tokens;
-      for (let i2 = 0, l = tokens.length; i2 < l; i2++) {
-        const tok = tokens[i2];
-        if (tok.type === "inline") {
-          state.md.inline.parse(tok.content, state.md, state.env, tok.children);
-        }
-      }
-    }
-    function isLinkOpen$1(str2) {
-      return /^<a[>\s]/i.test(str2);
-    }
-    function isLinkClose$1(str2) {
-      return /^<\/a\s*>/i.test(str2);
-    }
-    function linkify$1(state) {
-      const blockTokens = state.tokens;
-      if (!state.md.options.linkify) {
-        return;
-      }
-      for (let j = 0, l = blockTokens.length; j < l; j++) {
-        if (blockTokens[j].type !== "inline" || !state.md.linkify.pretest(blockTokens[j].content)) {
-          continue;
-        }
-        let tokens = blockTokens[j].children;
-        let htmlLinkLevel = 0;
-        for (let i2 = tokens.length - 1; i2 >= 0; i2--) {
-          const currentToken = tokens[i2];
-          if (currentToken.type === "link_close") {
-            i2--;
-            while (tokens[i2].level !== currentToken.level && tokens[i2].type !== "link_open") {
-              i2--;
-            }
-            continue;
-          }
-          if (currentToken.type === "html_inline") {
-            if (isLinkOpen$1(currentToken.content) && htmlLinkLevel > 0) {
-              htmlLinkLevel--;
-            }
-            if (isLinkClose$1(currentToken.content)) {
-              htmlLinkLevel++;
-            }
-          }
-          if (htmlLinkLevel > 0) {
-            continue;
-          }
-          if (currentToken.type === "text" && state.md.linkify.test(currentToken.content)) {
-            const text2 = currentToken.content;
-            let links = state.md.linkify.match(text2);
-            const nodes2 = [];
-            let level = currentToken.level;
-            let lastPos = 0;
-            if (links.length > 0 && links[0].index === 0 && i2 > 0 && tokens[i2 - 1].type === "text_special") {
-              links = links.slice(1);
-            }
-            for (let ln = 0; ln < links.length; ln++) {
-              const url = links[ln].url;
-              const fullUrl = state.md.normalizeLink(url);
-              if (!state.md.validateLink(fullUrl)) {
-                continue;
-              }
-              let urlText = links[ln].text;
-              if (!links[ln].schema) {
-                urlText = state.md.normalizeLinkText("http://" + urlText).replace(/^http:\/\//, "");
-              } else if (links[ln].schema === "mailto:" && !/^mailto:/i.test(urlText)) {
-                urlText = state.md.normalizeLinkText("mailto:" + urlText).replace(/^mailto:/, "");
-              } else {
-                urlText = state.md.normalizeLinkText(urlText);
-              }
-              const pos2 = links[ln].index;
-              if (pos2 > lastPos) {
-                const token2 = new state.Token("text", "", 0);
-                token2.content = text2.slice(lastPos, pos2);
-                token2.level = level;
-                nodes2.push(token2);
-              }
-              const token_o = new state.Token("link_open", "a", 1);
-              token_o.attrs = [["href", fullUrl]];
-              token_o.level = level++;
-              token_o.markup = "linkify";
-              token_o.info = "auto";
-              nodes2.push(token_o);
-              const token_t = new state.Token("text", "", 0);
-              token_t.content = urlText;
-              token_t.level = level;
-              nodes2.push(token_t);
-              const token_c = new state.Token("link_close", "a", -1);
-              token_c.level = --level;
-              token_c.markup = "linkify";
-              token_c.info = "auto";
-              nodes2.push(token_c);
-              lastPos = links[ln].lastIndex;
-            }
-            if (lastPos < text2.length) {
-              const token2 = new state.Token("text", "", 0);
-              token2.content = text2.slice(lastPos);
-              token2.level = level;
-              nodes2.push(token2);
-            }
-            blockTokens[j].children = tokens = arrayReplaceAt(tokens, i2, nodes2);
-          }
-        }
-      }
-    }
-    const RARE_RE = /\+-|\.\.|\?\?\?\?|!!!!|,,|--/;
-    const SCOPED_ABBR_TEST_RE = /\((c|tm|r)\)/i;
-    const SCOPED_ABBR_RE = /\((c|tm|r)\)/ig;
-    const SCOPED_ABBR = {
-      c: "©",
-      r: "®",
-      tm: "™"
-    };
-    function replaceFn(match, name2) {
-      return SCOPED_ABBR[name2.toLowerCase()];
-    }
-    function replace_scoped(inlineTokens) {
-      let inside_autolink = 0;
-      for (let i2 = inlineTokens.length - 1; i2 >= 0; i2--) {
-        const token2 = inlineTokens[i2];
-        if (token2.type === "text" && !inside_autolink) {
-          token2.content = token2.content.replace(SCOPED_ABBR_RE, replaceFn);
-        }
-        if (token2.type === "link_open" && token2.info === "auto") {
-          inside_autolink--;
-        }
-        if (token2.type === "link_close" && token2.info === "auto") {
-          inside_autolink++;
-        }
-      }
-    }
-    function replace_rare(inlineTokens) {
-      let inside_autolink = 0;
-      for (let i2 = inlineTokens.length - 1; i2 >= 0; i2--) {
-        const token2 = inlineTokens[i2];
-        if (token2.type === "text" && !inside_autolink) {
-          if (RARE_RE.test(token2.content)) {
-            token2.content = token2.content.replace(/\+-/g, "±").replace(/\.{2,}/g, "…").replace(/([?!])…/g, "$1..").replace(/([?!]){4,}/g, "$1$1$1").replace(/,{2,}/g, ",").replace(/(^|[^-])---(?=[^-]|$)/mg, "$1—").replace(/(^|\s)--(?=\s|$)/mg, "$1–").replace(/(^|[^-\s])--(?=[^-\s]|$)/mg, "$1–");
-          }
-        }
-        if (token2.type === "link_open" && token2.info === "auto") {
-          inside_autolink--;
-        }
-        if (token2.type === "link_close" && token2.info === "auto") {
-          inside_autolink++;
-        }
-      }
-    }
-    function replace$1(state) {
-      let blkIdx;
-      if (!state.md.options.typographer) {
-        return;
-      }
-      for (blkIdx = state.tokens.length - 1; blkIdx >= 0; blkIdx--) {
-        if (state.tokens[blkIdx].type !== "inline") {
-          continue;
-        }
-        if (SCOPED_ABBR_TEST_RE.test(state.tokens[blkIdx].content)) {
-          replace_scoped(state.tokens[blkIdx].children);
-        }
-        if (RARE_RE.test(state.tokens[blkIdx].content)) {
-          replace_rare(state.tokens[blkIdx].children);
-        }
-      }
-    }
-    const QUOTE_TEST_RE = /['"]/;
-    const QUOTE_RE = /['"]/g;
-    const APOSTROPHE = "’";
-    function replaceAt(str2, index2, ch3) {
-      return str2.slice(0, index2) + ch3 + str2.slice(index2 + 1);
-    }
-    function process_inlines(tokens, state) {
-      let j;
-      const stack2 = [];
-      for (let i2 = 0; i2 < tokens.length; i2++) {
-        const token2 = tokens[i2];
-        const thisLevel = tokens[i2].level;
-        for (j = stack2.length - 1; j >= 0; j--) {
-          if (stack2[j].level <= thisLevel) {
-            break;
-          }
-        }
-        stack2.length = j + 1;
-        if (token2.type !== "text") {
-          continue;
-        }
-        let text2 = token2.content;
-        let pos2 = 0;
-        let max2 = text2.length;
-        OUTER:
-          while (pos2 < max2) {
-            QUOTE_RE.lastIndex = pos2;
-            const t2 = QUOTE_RE.exec(text2);
-            if (!t2) {
-              break;
-            }
-            let canOpen = true;
-            let canClose = true;
-            pos2 = t2.index + 1;
-            const isSingle = t2[0] === "'";
-            let lastChar = 32;
-            if (t2.index - 1 >= 0) {
-              lastChar = text2.charCodeAt(t2.index - 1);
-            } else {
-              for (j = i2 - 1; j >= 0; j--) {
-                if (tokens[j].type === "softbreak" || tokens[j].type === "hardbreak") break;
-                if (!tokens[j].content) continue;
-                lastChar = tokens[j].content.charCodeAt(tokens[j].content.length - 1);
-                break;
-              }
-            }
-            let nextChar = 32;
-            if (pos2 < max2) {
-              nextChar = text2.charCodeAt(pos2);
-            } else {
-              for (j = i2 + 1; j < tokens.length; j++) {
-                if (tokens[j].type === "softbreak" || tokens[j].type === "hardbreak") break;
-                if (!tokens[j].content) continue;
-                nextChar = tokens[j].content.charCodeAt(0);
-                break;
-              }
-            }
-            const isLastPunctChar = isMdAsciiPunct(lastChar) || isPunctChar(String.fromCharCode(lastChar));
-            const isNextPunctChar = isMdAsciiPunct(nextChar) || isPunctChar(String.fromCharCode(nextChar));
-            const isLastWhiteSpace = isWhiteSpace(lastChar);
-            const isNextWhiteSpace = isWhiteSpace(nextChar);
-            if (isNextWhiteSpace) {
-              canOpen = false;
-            } else if (isNextPunctChar) {
-              if (!(isLastWhiteSpace || isLastPunctChar)) {
-                canOpen = false;
-              }
-            }
-            if (isLastWhiteSpace) {
-              canClose = false;
-            } else if (isLastPunctChar) {
-              if (!(isNextWhiteSpace || isNextPunctChar)) {
-                canClose = false;
-              }
-            }
-            if (nextChar === 34 && t2[0] === '"') {
-              if (lastChar >= 48 && lastChar <= 57) {
-                canClose = canOpen = false;
-              }
-            }
-            if (canOpen && canClose) {
-              canOpen = isLastPunctChar;
-              canClose = isNextPunctChar;
-            }
-            if (!canOpen && !canClose) {
-              if (isSingle) {
-                token2.content = replaceAt(token2.content, t2.index, APOSTROPHE);
-              }
-              continue;
-            }
-            if (canClose) {
-              for (j = stack2.length - 1; j >= 0; j--) {
-                let item2 = stack2[j];
-                if (stack2[j].level < thisLevel) {
-                  break;
-                }
-                if (item2.single === isSingle && stack2[j].level === thisLevel) {
-                  item2 = stack2[j];
-                  let openQuote;
-                  let closeQuote;
-                  if (isSingle) {
-                    openQuote = state.md.options.quotes[2];
-                    closeQuote = state.md.options.quotes[3];
-                  } else {
-                    openQuote = state.md.options.quotes[0];
-                    closeQuote = state.md.options.quotes[1];
-                  }
-                  token2.content = replaceAt(token2.content, t2.index, closeQuote);
-                  tokens[item2.token].content = replaceAt(
-                    tokens[item2.token].content,
-                    item2.pos,
-                    openQuote
-                  );
-                  pos2 += closeQuote.length - 1;
-                  if (item2.token === i2) {
-                    pos2 += openQuote.length - 1;
-                  }
-                  text2 = token2.content;
-                  max2 = text2.length;
-                  stack2.length = j;
-                  continue OUTER;
-                }
-              }
-            }
-            if (canOpen) {
-              stack2.push({
-                token: i2,
-                pos: t2.index,
-                single: isSingle,
-                level: thisLevel
-              });
-            } else if (canClose && isSingle) {
-              token2.content = replaceAt(token2.content, t2.index, APOSTROPHE);
-            }
-          }
-      }
-    }
-    function smartquotes(state) {
-      if (!state.md.options.typographer) {
-        return;
-      }
-      for (let blkIdx = state.tokens.length - 1; blkIdx >= 0; blkIdx--) {
-        if (state.tokens[blkIdx].type !== "inline" || !QUOTE_TEST_RE.test(state.tokens[blkIdx].content)) {
-          continue;
-        }
-        process_inlines(state.tokens[blkIdx].children, state);
-      }
-    }
-    function text_join(state) {
-      let curr, last;
-      const blockTokens = state.tokens;
-      const l = blockTokens.length;
-      for (let j = 0; j < l; j++) {
-        if (blockTokens[j].type !== "inline") continue;
-        const tokens = blockTokens[j].children;
-        const max2 = tokens.length;
-        for (curr = 0; curr < max2; curr++) {
-          if (tokens[curr].type === "text_special") {
-            tokens[curr].type = "text";
-          }
-        }
-        for (curr = last = 0; curr < max2; curr++) {
-          if (tokens[curr].type === "text" && curr + 1 < max2 && tokens[curr + 1].type === "text") {
-            tokens[curr + 1].content = tokens[curr].content + tokens[curr + 1].content;
-          } else {
-            if (curr !== last) {
-              tokens[last] = tokens[curr];
-            }
-            last++;
-          }
-        }
-        if (curr !== last) {
-          tokens.length = last;
-        }
-      }
-    }
-    const _rules$2 = [
-      ["normalize", normalize],
-      ["block", block],
-      ["inline", inline],
-      ["linkify", linkify$1],
-      ["replacements", replace$1],
-      ["smartquotes", smartquotes],
-      // `text_join` finds `text_special` tokens (for escape sequences)
-      // and joins them with the rest of the text
-      ["text_join", text_join]
-    ];
-    function Core$1() {
-      this.ruler = new Ruler();
-      for (let i2 = 0; i2 < _rules$2.length; i2++) {
-        this.ruler.push(_rules$2[i2][0], _rules$2[i2][1]);
-      }
-    }
-    Core$1.prototype.process = function(state) {
-      const rules = this.ruler.getRules("");
-      for (let i2 = 0, l = rules.length; i2 < l; i2++) {
-        rules[i2](state);
-      }
-    };
-    Core$1.prototype.State = StateCore;
-    function StateBlock(src, md, env, tokens) {
-      this.src = src;
-      this.md = md;
-      this.env = env;
-      this.tokens = tokens;
-      this.bMarks = [];
-      this.eMarks = [];
-      this.tShift = [];
-      this.sCount = [];
-      this.bsCount = [];
-      this.blkIndent = 0;
-      this.line = 0;
-      this.lineMax = 0;
-      this.tight = false;
-      this.ddIndent = -1;
-      this.listIndent = -1;
-      this.parentType = "root";
-      this.level = 0;
-      const s = this.src;
-      for (let start = 0, pos2 = 0, indent = 0, offset = 0, len = s.length, indent_found = false; pos2 < len; pos2++) {
-        const ch3 = s.charCodeAt(pos2);
-        if (!indent_found) {
-          if (isSpace(ch3)) {
-            indent++;
-            if (ch3 === 9) {
-              offset += 4 - offset % 4;
-            } else {
-              offset++;
-            }
-            continue;
-          } else {
-            indent_found = true;
-          }
-        }
-        if (ch3 === 10 || pos2 === len - 1) {
-          if (ch3 !== 10) {
-            pos2++;
-          }
-          this.bMarks.push(start);
-          this.eMarks.push(pos2);
-          this.tShift.push(indent);
-          this.sCount.push(offset);
-          this.bsCount.push(0);
-          indent_found = false;
-          indent = 0;
-          offset = 0;
-          start = pos2 + 1;
-        }
-      }
-      this.bMarks.push(s.length);
-      this.eMarks.push(s.length);
-      this.tShift.push(0);
-      this.sCount.push(0);
-      this.bsCount.push(0);
-      this.lineMax = this.bMarks.length - 1;
-    }
-    StateBlock.prototype.push = function(type, tag, nesting) {
-      const token2 = new Token(type, tag, nesting);
-      token2.block = true;
-      if (nesting < 0) this.level--;
-      token2.level = this.level;
-      if (nesting > 0) this.level++;
-      this.tokens.push(token2);
-      return token2;
-    };
-    StateBlock.prototype.isEmpty = function isEmpty(line2) {
-      return this.bMarks[line2] + this.tShift[line2] >= this.eMarks[line2];
-    };
-    StateBlock.prototype.skipEmptyLines = function skipEmptyLines(from) {
-      for (let max2 = this.lineMax; from < max2; from++) {
-        if (this.bMarks[from] + this.tShift[from] < this.eMarks[from]) {
-          break;
-        }
-      }
-      return from;
-    };
-    StateBlock.prototype.skipSpaces = function skipSpaces(pos2) {
-      for (let max2 = this.src.length; pos2 < max2; pos2++) {
-        const ch3 = this.src.charCodeAt(pos2);
-        if (!isSpace(ch3)) {
-          break;
-        }
-      }
-      return pos2;
-    };
-    StateBlock.prototype.skipSpacesBack = function skipSpacesBack(pos2, min2) {
-      if (pos2 <= min2) {
-        return pos2;
-      }
-      while (pos2 > min2) {
-        if (!isSpace(this.src.charCodeAt(--pos2))) {
-          return pos2 + 1;
-        }
-      }
-      return pos2;
-    };
-    StateBlock.prototype.skipChars = function skipChars(pos2, code2) {
-      for (let max2 = this.src.length; pos2 < max2; pos2++) {
-        if (this.src.charCodeAt(pos2) !== code2) {
-          break;
-        }
-      }
-      return pos2;
-    };
-    StateBlock.prototype.skipCharsBack = function skipCharsBack(pos2, code2, min2) {
-      if (pos2 <= min2) {
-        return pos2;
-      }
-      while (pos2 > min2) {
-        if (code2 !== this.src.charCodeAt(--pos2)) {
-          return pos2 + 1;
-        }
-      }
-      return pos2;
-    };
-    StateBlock.prototype.getLines = function getLines(begin, end, indent, keepLastLF) {
-      if (begin >= end) {
-        return "";
-      }
-      const queue = new Array(end - begin);
-      for (let i2 = 0, line2 = begin; line2 < end; line2++, i2++) {
-        let lineIndent = 0;
-        const lineStart = this.bMarks[line2];
-        let first2 = lineStart;
-        let last;
-        if (line2 + 1 < end || keepLastLF) {
-          last = this.eMarks[line2] + 1;
-        } else {
-          last = this.eMarks[line2];
-        }
-        while (first2 < last && lineIndent < indent) {
-          const ch3 = this.src.charCodeAt(first2);
-          if (isSpace(ch3)) {
-            if (ch3 === 9) {
-              lineIndent += 4 - (lineIndent + this.bsCount[line2]) % 4;
-            } else {
-              lineIndent++;
-            }
-          } else if (first2 - lineStart < this.tShift[line2]) {
-            lineIndent++;
-          } else {
-            break;
-          }
-          first2++;
-        }
-        if (lineIndent > indent) {
-          queue[i2] = new Array(lineIndent - indent + 1).join(" ") + this.src.slice(first2, last);
-        } else {
-          queue[i2] = this.src.slice(first2, last);
-        }
-      }
-      return queue.join("");
-    };
-    StateBlock.prototype.Token = Token;
-    const MAX_AUTOCOMPLETED_CELLS = 65536;
-    function getLine(state, line2) {
-      const pos2 = state.bMarks[line2] + state.tShift[line2];
-      const max2 = state.eMarks[line2];
-      return state.src.slice(pos2, max2);
-    }
-    function escapedSplit(str2) {
-      const result = [];
-      const max2 = str2.length;
-      let pos2 = 0;
-      let ch3 = str2.charCodeAt(pos2);
-      let isEscaped = false;
-      let lastPos = 0;
-      let current = "";
-      while (pos2 < max2) {
-        if (ch3 === 124) {
-          if (!isEscaped) {
-            result.push(current + str2.substring(lastPos, pos2));
-            current = "";
-            lastPos = pos2 + 1;
-          } else {
-            current += str2.substring(lastPos, pos2 - 1);
-            lastPos = pos2;
-          }
-        }
-        isEscaped = ch3 === 92;
-        pos2++;
-        ch3 = str2.charCodeAt(pos2);
-      }
-      result.push(current + str2.substring(lastPos));
-      return result;
-    }
-    function table$2(state, startLine, endLine, silent) {
-      if (startLine + 2 > endLine) {
-        return false;
-      }
-      let nextLine = startLine + 1;
-      if (state.sCount[nextLine] < state.blkIndent) {
-        return false;
-      }
-      if (state.sCount[nextLine] - state.blkIndent >= 4) {
-        return false;
-      }
-      let pos2 = state.bMarks[nextLine] + state.tShift[nextLine];
-      if (pos2 >= state.eMarks[nextLine]) {
-        return false;
-      }
-      const firstCh = state.src.charCodeAt(pos2++);
-      if (firstCh !== 124 && firstCh !== 45 && firstCh !== 58) {
-        return false;
-      }
-      if (pos2 >= state.eMarks[nextLine]) {
-        return false;
-      }
-      const secondCh = state.src.charCodeAt(pos2++);
-      if (secondCh !== 124 && secondCh !== 45 && secondCh !== 58 && !isSpace(secondCh)) {
-        return false;
-      }
-      if (firstCh === 45 && isSpace(secondCh)) {
-        return false;
-      }
-      while (pos2 < state.eMarks[nextLine]) {
-        const ch3 = state.src.charCodeAt(pos2);
-        if (ch3 !== 124 && ch3 !== 45 && ch3 !== 58 && !isSpace(ch3)) {
-          return false;
-        }
-        pos2++;
-      }
-      let lineText = getLine(state, startLine + 1);
-      let columns = lineText.split("|");
-      const aligns = [];
-      for (let i2 = 0; i2 < columns.length; i2++) {
-        const t2 = columns[i2].trim();
-        if (!t2) {
-          if (i2 === 0 || i2 === columns.length - 1) {
-            continue;
-          } else {
-            return false;
-          }
-        }
-        if (!/^:?-+:?$/.test(t2)) {
-          return false;
-        }
-        if (t2.charCodeAt(t2.length - 1) === 58) {
-          aligns.push(t2.charCodeAt(0) === 58 ? "center" : "right");
-        } else if (t2.charCodeAt(0) === 58) {
-          aligns.push("left");
-        } else {
-          aligns.push("");
-        }
-      }
-      lineText = getLine(state, startLine).trim();
-      if (lineText.indexOf("|") === -1) {
-        return false;
-      }
-      if (state.sCount[startLine] - state.blkIndent >= 4) {
-        return false;
-      }
-      columns = escapedSplit(lineText);
-      if (columns.length && columns[0] === "") columns.shift();
-      if (columns.length && columns[columns.length - 1] === "") columns.pop();
-      const columnCount = columns.length;
-      if (columnCount === 0 || columnCount !== aligns.length) {
-        return false;
-      }
-      if (silent) {
-        return true;
-      }
-      const oldParentType = state.parentType;
-      state.parentType = "table";
-      const terminatorRules = state.md.block.ruler.getRules("blockquote");
-      const token_to = state.push("table_open", "table", 1);
-      const tableLines = [startLine, 0];
-      token_to.map = tableLines;
-      const token_tho = state.push("thead_open", "thead", 1);
-      token_tho.map = [startLine, startLine + 1];
-      const token_htro = state.push("tr_open", "tr", 1);
-      token_htro.map = [startLine, startLine + 1];
-      for (let i2 = 0; i2 < columns.length; i2++) {
-        const token_ho = state.push("th_open", "th", 1);
-        if (aligns[i2]) {
-          token_ho.attrs = [["style", "text-align:" + aligns[i2]]];
-        }
-        const token_il = state.push("inline", "", 0);
-        token_il.content = columns[i2].trim();
-        token_il.children = [];
-        state.push("th_close", "th", -1);
-      }
-      state.push("tr_close", "tr", -1);
-      state.push("thead_close", "thead", -1);
-      let tbodyLines;
-      let autocompletedCells = 0;
-      for (nextLine = startLine + 2; nextLine < endLine; nextLine++) {
-        if (state.sCount[nextLine] < state.blkIndent) {
-          break;
-        }
-        let terminate = false;
-        for (let i2 = 0, l = terminatorRules.length; i2 < l; i2++) {
-          if (terminatorRules[i2](state, nextLine, endLine, true)) {
-            terminate = true;
-            break;
-          }
-        }
-        if (terminate) {
-          break;
-        }
-        lineText = getLine(state, nextLine).trim();
-        if (!lineText) {
-          break;
-        }
-        if (state.sCount[nextLine] - state.blkIndent >= 4) {
-          break;
-        }
-        columns = escapedSplit(lineText);
-        if (columns.length && columns[0] === "") columns.shift();
-        if (columns.length && columns[columns.length - 1] === "") columns.pop();
-        autocompletedCells += columnCount - columns.length;
-        if (autocompletedCells > MAX_AUTOCOMPLETED_CELLS) {
-          break;
-        }
-        if (nextLine === startLine + 2) {
-          const token_tbo = state.push("tbody_open", "tbody", 1);
-          token_tbo.map = tbodyLines = [startLine + 2, 0];
-        }
-        const token_tro = state.push("tr_open", "tr", 1);
-        token_tro.map = [nextLine, nextLine + 1];
-        for (let i2 = 0; i2 < columnCount; i2++) {
-          const token_tdo = state.push("td_open", "td", 1);
-          if (aligns[i2]) {
-            token_tdo.attrs = [["style", "text-align:" + aligns[i2]]];
-          }
-          const token_il = state.push("inline", "", 0);
-          token_il.content = columns[i2] ? columns[i2].trim() : "";
-          token_il.children = [];
-          state.push("td_close", "td", -1);
-        }
-        state.push("tr_close", "tr", -1);
-      }
-      if (tbodyLines) {
-        state.push("tbody_close", "tbody", -1);
-        tbodyLines[1] = nextLine;
-      }
-      state.push("table_close", "table", -1);
-      tableLines[1] = nextLine;
-      state.parentType = oldParentType;
-      state.line = nextLine;
-      return true;
-    }
-    function code$3(state, startLine, endLine) {
-      if (state.sCount[startLine] - state.blkIndent < 4) {
-        return false;
-      }
-      let nextLine = startLine + 1;
-      let last = nextLine;
-      while (nextLine < endLine) {
-        if (state.isEmpty(nextLine)) {
-          nextLine++;
-          continue;
-        }
-        if (state.sCount[nextLine] - state.blkIndent >= 4) {
-          nextLine++;
-          last = nextLine;
-          continue;
-        }
-        break;
-      }
-      state.line = last;
-      const token2 = state.push("code_block", "code", 0);
-      token2.content = state.getLines(startLine, last, 4 + state.blkIndent, false) + "\n";
-      token2.map = [startLine, state.line];
-      return true;
-    }
-    function fence(state, startLine, endLine, silent) {
-      let pos2 = state.bMarks[startLine] + state.tShift[startLine];
-      let max2 = state.eMarks[startLine];
-      if (state.sCount[startLine] - state.blkIndent >= 4) {
-        return false;
-      }
-      if (pos2 + 3 > max2) {
-        return false;
-      }
-      const marker = state.src.charCodeAt(pos2);
-      if (marker !== 126 && marker !== 96) {
-        return false;
-      }
-      let mem = pos2;
-      pos2 = state.skipChars(pos2, marker);
-      let len = pos2 - mem;
-      if (len < 3) {
-        return false;
-      }
-      const markup = state.src.slice(mem, pos2);
-      const params2 = state.src.slice(pos2, max2);
-      if (marker === 96) {
-        if (params2.indexOf(String.fromCharCode(marker)) >= 0) {
-          return false;
-        }
-      }
-      if (silent) {
-        return true;
-      }
-      let nextLine = startLine;
-      let haveEndMarker = false;
-      for (; ; ) {
-        nextLine++;
-        if (nextLine >= endLine) {
-          break;
-        }
-        pos2 = mem = state.bMarks[nextLine] + state.tShift[nextLine];
-        max2 = state.eMarks[nextLine];
-        if (pos2 < max2 && state.sCount[nextLine] < state.blkIndent) {
-          break;
-        }
-        if (state.src.charCodeAt(pos2) !== marker) {
-          continue;
-        }
-        if (state.sCount[nextLine] - state.blkIndent >= 4) {
-          continue;
-        }
-        pos2 = state.skipChars(pos2, marker);
-        if (pos2 - mem < len) {
-          continue;
-        }
-        pos2 = state.skipSpaces(pos2);
-        if (pos2 < max2) {
-          continue;
-        }
-        haveEndMarker = true;
-        break;
-      }
-      len = state.sCount[startLine];
-      state.line = nextLine + (haveEndMarker ? 1 : 0);
-      const token2 = state.push("fence", "code", 0);
-      token2.info = params2;
-      token2.content = state.getLines(startLine + 1, nextLine, len, true);
-      token2.markup = markup;
-      token2.map = [startLine, state.line];
-      return true;
-    }
-    function blockquote(state, startLine, endLine, silent) {
-      let pos2 = state.bMarks[startLine] + state.tShift[startLine];
-      let max2 = state.eMarks[startLine];
-      const oldLineMax = state.lineMax;
-      if (state.sCount[startLine] - state.blkIndent >= 4) {
-        return false;
-      }
-      if (state.src.charCodeAt(pos2) !== 62) {
-        return false;
-      }
-      if (silent) {
-        return true;
-      }
-      const oldBMarks = [];
-      const oldBSCount = [];
-      const oldSCount = [];
-      const oldTShift = [];
-      const terminatorRules = state.md.block.ruler.getRules("blockquote");
-      const oldParentType = state.parentType;
-      state.parentType = "blockquote";
-      let lastLineEmpty = false;
-      let nextLine;
-      for (nextLine = startLine; nextLine < endLine; nextLine++) {
-        const isOutdented = state.sCount[nextLine] < state.blkIndent;
-        pos2 = state.bMarks[nextLine] + state.tShift[nextLine];
-        max2 = state.eMarks[nextLine];
-        if (pos2 >= max2) {
-          break;
-        }
-        if (state.src.charCodeAt(pos2++) === 62 && !isOutdented) {
-          let initial = state.sCount[nextLine] + 1;
-          let spaceAfterMarker;
-          let adjustTab;
-          if (state.src.charCodeAt(pos2) === 32) {
-            pos2++;
-            initial++;
-            adjustTab = false;
-            spaceAfterMarker = true;
-          } else if (state.src.charCodeAt(pos2) === 9) {
-            spaceAfterMarker = true;
-            if ((state.bsCount[nextLine] + initial) % 4 === 3) {
-              pos2++;
-              initial++;
-              adjustTab = false;
-            } else {
-              adjustTab = true;
-            }
-          } else {
-            spaceAfterMarker = false;
-          }
-          let offset = initial;
-          oldBMarks.push(state.bMarks[nextLine]);
-          state.bMarks[nextLine] = pos2;
-          while (pos2 < max2) {
-            const ch3 = state.src.charCodeAt(pos2);
-            if (isSpace(ch3)) {
-              if (ch3 === 9) {
-                offset += 4 - (offset + state.bsCount[nextLine] + (adjustTab ? 1 : 0)) % 4;
-              } else {
-                offset++;
-              }
-            } else {
-              break;
-            }
-            pos2++;
-          }
-          lastLineEmpty = pos2 >= max2;
-          oldBSCount.push(state.bsCount[nextLine]);
-          state.bsCount[nextLine] = state.sCount[nextLine] + 1 + (spaceAfterMarker ? 1 : 0);
-          oldSCount.push(state.sCount[nextLine]);
-          state.sCount[nextLine] = offset - initial;
-          oldTShift.push(state.tShift[nextLine]);
-          state.tShift[nextLine] = pos2 - state.bMarks[nextLine];
-          continue;
-        }
-        if (lastLineEmpty) {
-          break;
-        }
-        let terminate = false;
-        for (let i2 = 0, l = terminatorRules.length; i2 < l; i2++) {
-          if (terminatorRules[i2](state, nextLine, endLine, true)) {
-            terminate = true;
-            break;
-          }
-        }
-        if (terminate) {
-          state.lineMax = nextLine;
-          if (state.blkIndent !== 0) {
-            oldBMarks.push(state.bMarks[nextLine]);
-            oldBSCount.push(state.bsCount[nextLine]);
-            oldTShift.push(state.tShift[nextLine]);
-            oldSCount.push(state.sCount[nextLine]);
-            state.sCount[nextLine] -= state.blkIndent;
-          }
-          break;
-        }
-        oldBMarks.push(state.bMarks[nextLine]);
-        oldBSCount.push(state.bsCount[nextLine]);
-        oldTShift.push(state.tShift[nextLine]);
-        oldSCount.push(state.sCount[nextLine]);
-        state.sCount[nextLine] = -1;
-      }
-      const oldIndent = state.blkIndent;
-      state.blkIndent = 0;
-      const token_o = state.push("blockquote_open", "blockquote", 1);
-      token_o.markup = ">";
-      const lines = [startLine, 0];
-      token_o.map = lines;
-      state.md.block.tokenize(state, startLine, nextLine);
-      const token_c = state.push("blockquote_close", "blockquote", -1);
-      token_c.markup = ">";
-      state.lineMax = oldLineMax;
-      state.parentType = oldParentType;
-      lines[1] = state.line;
-      for (let i2 = 0; i2 < oldTShift.length; i2++) {
-        state.bMarks[i2 + startLine] = oldBMarks[i2];
-        state.tShift[i2 + startLine] = oldTShift[i2];
-        state.sCount[i2 + startLine] = oldSCount[i2];
-        state.bsCount[i2 + startLine] = oldBSCount[i2];
-      }
-      state.blkIndent = oldIndent;
-      return true;
-    }
-    function hr(state, startLine, endLine, silent) {
-      const max2 = state.eMarks[startLine];
-      if (state.sCount[startLine] - state.blkIndent >= 4) {
-        return false;
-      }
-      let pos2 = state.bMarks[startLine] + state.tShift[startLine];
-      const marker = state.src.charCodeAt(pos2++);
-      if (marker !== 42 && marker !== 45 && marker !== 95) {
-        return false;
-      }
-      let cnt = 1;
-      while (pos2 < max2) {
-        const ch3 = state.src.charCodeAt(pos2++);
-        if (ch3 !== marker && !isSpace(ch3)) {
-          return false;
-        }
-        if (ch3 === marker) {
-          cnt++;
-        }
-      }
-      if (cnt < 3) {
-        return false;
-      }
-      if (silent) {
-        return true;
-      }
-      state.line = startLine + 1;
-      const token2 = state.push("hr", "hr", 0);
-      token2.map = [startLine, state.line];
-      token2.markup = Array(cnt + 1).join(String.fromCharCode(marker));
-      return true;
-    }
-    function skipBulletListMarker(state, startLine) {
-      const max2 = state.eMarks[startLine];
-      let pos2 = state.bMarks[startLine] + state.tShift[startLine];
-      const marker = state.src.charCodeAt(pos2++);
-      if (marker !== 42 && marker !== 45 && marker !== 43) {
-        return -1;
-      }
-      if (pos2 < max2) {
-        const ch3 = state.src.charCodeAt(pos2);
-        if (!isSpace(ch3)) {
-          return -1;
-        }
-      }
-      return pos2;
-    }
-    function skipOrderedListMarker(state, startLine) {
-      const start = state.bMarks[startLine] + state.tShift[startLine];
-      const max2 = state.eMarks[startLine];
-      let pos2 = start;
-      if (pos2 + 1 >= max2) {
-        return -1;
-      }
-      let ch3 = state.src.charCodeAt(pos2++);
-      if (ch3 < 48 || ch3 > 57) {
-        return -1;
-      }
-      for (; ; ) {
-        if (pos2 >= max2) {
-          return -1;
-        }
-        ch3 = state.src.charCodeAt(pos2++);
-        if (ch3 >= 48 && ch3 <= 57) {
-          if (pos2 - start >= 10) {
-            return -1;
-          }
-          continue;
-        }
-        if (ch3 === 41 || ch3 === 46) {
-          break;
-        }
-        return -1;
-      }
-      if (pos2 < max2) {
-        ch3 = state.src.charCodeAt(pos2);
-        if (!isSpace(ch3)) {
-          return -1;
-        }
-      }
-      return pos2;
-    }
-    function markTightParagraphs(state, idx) {
-      const level = state.level + 2;
-      for (let i2 = idx + 2, l = state.tokens.length - 2; i2 < l; i2++) {
-        if (state.tokens[i2].level === level && state.tokens[i2].type === "paragraph_open") {
-          state.tokens[i2 + 2].hidden = true;
-          state.tokens[i2].hidden = true;
-          i2 += 2;
-        }
-      }
-    }
-    function list$3(state, startLine, endLine, silent) {
-      let max2, pos2, start, token2;
-      let nextLine = startLine;
-      let tight = true;
-      if (state.sCount[nextLine] - state.blkIndent >= 4) {
-        return false;
-      }
-      if (state.listIndent >= 0 && state.sCount[nextLine] - state.listIndent >= 4 && state.sCount[nextLine] < state.blkIndent) {
-        return false;
-      }
-      let isTerminatingParagraph = false;
-      if (silent && state.parentType === "paragraph") {
-        if (state.sCount[nextLine] >= state.blkIndent) {
-          isTerminatingParagraph = true;
-        }
-      }
-      let isOrdered;
-      let markerValue;
-      let posAfterMarker;
-      if ((posAfterMarker = skipOrderedListMarker(state, nextLine)) >= 0) {
-        isOrdered = true;
-        start = state.bMarks[nextLine] + state.tShift[nextLine];
-        markerValue = Number(state.src.slice(start, posAfterMarker - 1));
-        if (isTerminatingParagraph && markerValue !== 1) return false;
-      } else if ((posAfterMarker = skipBulletListMarker(state, nextLine)) >= 0) {
-        isOrdered = false;
-      } else {
-        return false;
-      }
-      if (isTerminatingParagraph) {
-        if (state.skipSpaces(posAfterMarker) >= state.eMarks[nextLine]) return false;
-      }
-      if (silent) {
-        return true;
-      }
-      const markerCharCode = state.src.charCodeAt(posAfterMarker - 1);
-      const listTokIdx = state.tokens.length;
-      if (isOrdered) {
-        token2 = state.push("ordered_list_open", "ol", 1);
-        if (markerValue !== 1) {
-          token2.attrs = [["start", markerValue]];
-        }
-      } else {
-        token2 = state.push("bullet_list_open", "ul", 1);
-      }
-      const listLines = [nextLine, 0];
-      token2.map = listLines;
-      token2.markup = String.fromCharCode(markerCharCode);
-      let prevEmptyEnd = false;
-      const terminatorRules = state.md.block.ruler.getRules("list");
-      const oldParentType = state.parentType;
-      state.parentType = "list";
-      while (nextLine < endLine) {
-        pos2 = posAfterMarker;
-        max2 = state.eMarks[nextLine];
-        const initial = state.sCount[nextLine] + posAfterMarker - (state.bMarks[nextLine] + state.tShift[nextLine]);
-        let offset = initial;
-        while (pos2 < max2) {
-          const ch3 = state.src.charCodeAt(pos2);
-          if (ch3 === 9) {
-            offset += 4 - (offset + state.bsCount[nextLine]) % 4;
-          } else if (ch3 === 32) {
-            offset++;
-          } else {
-            break;
-          }
-          pos2++;
-        }
-        const contentStart = pos2;
-        let indentAfterMarker;
-        if (contentStart >= max2) {
-          indentAfterMarker = 1;
-        } else {
-          indentAfterMarker = offset - initial;
-        }
-        if (indentAfterMarker > 4) {
-          indentAfterMarker = 1;
-        }
-        const indent = initial + indentAfterMarker;
-        token2 = state.push("list_item_open", "li", 1);
-        token2.markup = String.fromCharCode(markerCharCode);
-        const itemLines = [nextLine, 0];
-        token2.map = itemLines;
-        if (isOrdered) {
-          token2.info = state.src.slice(start, posAfterMarker - 1);
-        }
-        const oldTight = state.tight;
-        const oldTShift = state.tShift[nextLine];
-        const oldSCount = state.sCount[nextLine];
-        const oldListIndent = state.listIndent;
-        state.listIndent = state.blkIndent;
-        state.blkIndent = indent;
-        state.tight = true;
-        state.tShift[nextLine] = contentStart - state.bMarks[nextLine];
-        state.sCount[nextLine] = offset;
-        if (contentStart >= max2 && state.isEmpty(nextLine + 1)) {
-          state.line = Math.min(state.line + 2, endLine);
-        } else {
-          state.md.block.tokenize(state, nextLine, endLine, true);
-        }
-        if (!state.tight || prevEmptyEnd) {
-          tight = false;
-        }
-        prevEmptyEnd = state.line - nextLine > 1 && state.isEmpty(state.line - 1);
-        state.blkIndent = state.listIndent;
-        state.listIndent = oldListIndent;
-        state.tShift[nextLine] = oldTShift;
-        state.sCount[nextLine] = oldSCount;
-        state.tight = oldTight;
-        token2 = state.push("list_item_close", "li", -1);
-        token2.markup = String.fromCharCode(markerCharCode);
-        nextLine = state.line;
-        itemLines[1] = nextLine;
-        if (nextLine >= endLine) {
-          break;
-        }
-        if (state.sCount[nextLine] < state.blkIndent) {
-          break;
-        }
-        if (state.sCount[nextLine] - state.blkIndent >= 4) {
-          break;
-        }
-        let terminate = false;
-        for (let i2 = 0, l = terminatorRules.length; i2 < l; i2++) {
-          if (terminatorRules[i2](state, nextLine, endLine, true)) {
-            terminate = true;
-            break;
-          }
-        }
-        if (terminate) {
-          break;
-        }
-        if (isOrdered) {
-          posAfterMarker = skipOrderedListMarker(state, nextLine);
-          if (posAfterMarker < 0) {
-            break;
-          }
-          start = state.bMarks[nextLine] + state.tShift[nextLine];
-        } else {
-          posAfterMarker = skipBulletListMarker(state, nextLine);
-          if (posAfterMarker < 0) {
-            break;
-          }
-        }
-        if (markerCharCode !== state.src.charCodeAt(posAfterMarker - 1)) {
-          break;
-        }
-      }
-      if (isOrdered) {
-        token2 = state.push("ordered_list_close", "ol", -1);
-      } else {
-        token2 = state.push("bullet_list_close", "ul", -1);
-      }
-      token2.markup = String.fromCharCode(markerCharCode);
-      listLines[1] = nextLine;
-      state.line = nextLine;
-      state.parentType = oldParentType;
-      if (tight) {
-        markTightParagraphs(state, listTokIdx);
-      }
-      return true;
-    }
-    function reference(state, startLine, _endLine, silent) {
-      let pos2 = state.bMarks[startLine] + state.tShift[startLine];
-      let max2 = state.eMarks[startLine];
-      let nextLine = startLine + 1;
-      if (state.sCount[startLine] - state.blkIndent >= 4) {
-        return false;
-      }
-      if (state.src.charCodeAt(pos2) !== 91) {
-        return false;
-      }
-      function getNextLine(nextLine2) {
-        const endLine = state.lineMax;
-        if (nextLine2 >= endLine || state.isEmpty(nextLine2)) {
-          return null;
-        }
-        let isContinuation = false;
-        if (state.sCount[nextLine2] - state.blkIndent > 3) {
-          isContinuation = true;
-        }
-        if (state.sCount[nextLine2] < 0) {
-          isContinuation = true;
-        }
-        if (!isContinuation) {
-          const terminatorRules = state.md.block.ruler.getRules("reference");
-          const oldParentType = state.parentType;
-          state.parentType = "reference";
-          let terminate = false;
-          for (let i2 = 0, l = terminatorRules.length; i2 < l; i2++) {
-            if (terminatorRules[i2](state, nextLine2, endLine, true)) {
-              terminate = true;
-              break;
-            }
-          }
-          state.parentType = oldParentType;
-          if (terminate) {
-            return null;
-          }
-        }
-        const pos3 = state.bMarks[nextLine2] + state.tShift[nextLine2];
-        const max3 = state.eMarks[nextLine2];
-        return state.src.slice(pos3, max3 + 1);
-      }
-      let str2 = state.src.slice(pos2, max2 + 1);
-      max2 = str2.length;
-      let labelEnd = -1;
-      for (pos2 = 1; pos2 < max2; pos2++) {
-        const ch3 = str2.charCodeAt(pos2);
-        if (ch3 === 91) {
-          return false;
-        } else if (ch3 === 93) {
-          labelEnd = pos2;
-          break;
-        } else if (ch3 === 10) {
-          const lineContent = getNextLine(nextLine);
-          if (lineContent !== null) {
-            str2 += lineContent;
-            max2 = str2.length;
-            nextLine++;
-          }
-        } else if (ch3 === 92) {
-          pos2++;
-          if (pos2 < max2 && str2.charCodeAt(pos2) === 10) {
-            const lineContent = getNextLine(nextLine);
-            if (lineContent !== null) {
-              str2 += lineContent;
-              max2 = str2.length;
-              nextLine++;
-            }
-          }
-        }
-      }
-      if (labelEnd < 0 || str2.charCodeAt(labelEnd + 1) !== 58) {
-        return false;
-      }
-      for (pos2 = labelEnd + 2; pos2 < max2; pos2++) {
-        const ch3 = str2.charCodeAt(pos2);
-        if (ch3 === 10) {
-          const lineContent = getNextLine(nextLine);
-          if (lineContent !== null) {
-            str2 += lineContent;
-            max2 = str2.length;
-            nextLine++;
-          }
-        } else if (isSpace(ch3)) ;
-        else {
-          break;
-        }
-      }
-      const destRes = state.md.helpers.parseLinkDestination(str2, pos2, max2);
-      if (!destRes.ok) {
-        return false;
-      }
-      const href = state.md.normalizeLink(destRes.str);
-      if (!state.md.validateLink(href)) {
-        return false;
-      }
-      pos2 = destRes.pos;
-      const destEndPos = pos2;
-      const destEndLineNo = nextLine;
-      const start = pos2;
-      for (; pos2 < max2; pos2++) {
-        const ch3 = str2.charCodeAt(pos2);
-        if (ch3 === 10) {
-          const lineContent = getNextLine(nextLine);
-          if (lineContent !== null) {
-            str2 += lineContent;
-            max2 = str2.length;
-            nextLine++;
-          }
-        } else if (isSpace(ch3)) ;
-        else {
-          break;
-        }
-      }
-      let titleRes = state.md.helpers.parseLinkTitle(str2, pos2, max2);
-      while (titleRes.can_continue) {
-        const lineContent = getNextLine(nextLine);
-        if (lineContent === null) break;
-        str2 += lineContent;
-        pos2 = max2;
-        max2 = str2.length;
-        nextLine++;
-        titleRes = state.md.helpers.parseLinkTitle(str2, pos2, max2, titleRes);
-      }
-      let title2;
-      if (pos2 < max2 && start !== pos2 && titleRes.ok) {
-        title2 = titleRes.str;
-        pos2 = titleRes.pos;
-      } else {
-        title2 = "";
-        pos2 = destEndPos;
-        nextLine = destEndLineNo;
-      }
-      while (pos2 < max2) {
-        const ch3 = str2.charCodeAt(pos2);
-        if (!isSpace(ch3)) {
-          break;
-        }
-        pos2++;
-      }
-      if (pos2 < max2 && str2.charCodeAt(pos2) !== 10) {
-        if (title2) {
-          title2 = "";
-          pos2 = destEndPos;
-          nextLine = destEndLineNo;
-          while (pos2 < max2) {
-            const ch3 = str2.charCodeAt(pos2);
-            if (!isSpace(ch3)) {
-              break;
-            }
-            pos2++;
-          }
-        }
-      }
-      if (pos2 < max2 && str2.charCodeAt(pos2) !== 10) {
-        return false;
-      }
-      const label2 = normalizeReference(str2.slice(1, labelEnd));
-      if (!label2) {
-        return false;
-      }
-      if (silent) {
-        return true;
-      }
-      if (typeof state.env.references === "undefined") {
-        state.env.references = {};
-      }
-      if (typeof state.env.references[label2] === "undefined") {
-        state.env.references[label2] = { title: title2, href };
-      }
-      state.line = nextLine;
-      return true;
-    }
-    const block_names = [
-      "address",
-      "article",
-      "aside",
-      "base",
-      "basefont",
-      "blockquote",
-      "body",
-      "caption",
-      "center",
-      "col",
-      "colgroup",
-      "dd",
-      "details",
-      "dialog",
-      "dir",
-      "div",
-      "dl",
-      "dt",
-      "fieldset",
-      "figcaption",
-      "figure",
-      "footer",
-      "form",
-      "frame",
-      "frameset",
-      "h1",
-      "h2",
-      "h3",
-      "h4",
-      "h5",
-      "h6",
-      "head",
-      "header",
-      "hr",
-      "html",
-      "iframe",
-      "legend",
-      "li",
-      "link",
-      "main",
-      "menu",
-      "menuitem",
-      "nav",
-      "noframes",
-      "ol",
-      "optgroup",
-      "option",
-      "p",
-      "param",
-      "search",
-      "section",
-      "summary",
-      "table",
-      "tbody",
-      "td",
-      "tfoot",
-      "th",
-      "thead",
-      "title",
-      "tr",
-      "track",
-      "ul"
-    ];
-    const attr_name = "[a-zA-Z_:][a-zA-Z0-9:._-]*";
-    const unquoted = "[^\"'=<>`\\x00-\\x20]+";
-    const single_quoted = "'[^']*'";
-    const double_quoted = '"[^"]*"';
-    const attr_value = "(?:" + unquoted + "|" + single_quoted + "|" + double_quoted + ")";
-    const attribute = "(?:\\s+" + attr_name + "(?:\\s*=\\s*" + attr_value + ")?)";
-    const open_tag = "<[A-Za-z][A-Za-z0-9\\-]*" + attribute + "*\\s*\\/?>";
-    const close_tag = "<\\/[A-Za-z][A-Za-z0-9\\-]*\\s*>";
-    const comment$1 = "<!---?>|<!--(?:[^-]|-[^-]|--[^>])*-->";
-    const processing = "<[?][\\s\\S]*?[?]>";
-    const declaration = "<![A-Za-z][^>]*>";
-    const cdata = "<!\\[CDATA\\[[\\s\\S]*?\\]\\]>";
-    const HTML_TAG_RE = new RegExp("^(?:" + open_tag + "|" + close_tag + "|" + comment$1 + "|" + processing + "|" + declaration + "|" + cdata + ")");
-    const HTML_OPEN_CLOSE_TAG_RE = new RegExp("^(?:" + open_tag + "|" + close_tag + ")");
-    const HTML_SEQUENCES = [
-      [/^<(script|pre|style|textarea)(?=(\s|>|$))/i, /<\/(script|pre|style|textarea)>/i, true],
-      [/^<!--/, /-->/, true],
-      [/^<\?/, /\?>/, true],
-      [/^<![A-Z]/, />/, true],
-      [/^<!\[CDATA\[/, /\]\]>/, true],
-      [new RegExp("^</?(" + block_names.join("|") + ")(?=(\\s|/?>|$))", "i"), /^$/, true],
-      [new RegExp(HTML_OPEN_CLOSE_TAG_RE.source + "\\s*$"), /^$/, false]
-    ];
-    function html_block(state, startLine, endLine, silent) {
-      let pos2 = state.bMarks[startLine] + state.tShift[startLine];
-      let max2 = state.eMarks[startLine];
-      if (state.sCount[startLine] - state.blkIndent >= 4) {
-        return false;
-      }
-      if (!state.md.options.html) {
-        return false;
-      }
-      if (state.src.charCodeAt(pos2) !== 60) {
-        return false;
-      }
-      let lineText = state.src.slice(pos2, max2);
-      let i2 = 0;
-      for (; i2 < HTML_SEQUENCES.length; i2++) {
-        if (HTML_SEQUENCES[i2][0].test(lineText)) {
-          break;
-        }
-      }
-      if (i2 === HTML_SEQUENCES.length) {
-        return false;
-      }
-      if (silent) {
-        return HTML_SEQUENCES[i2][2];
-      }
-      let nextLine = startLine + 1;
-      if (!HTML_SEQUENCES[i2][1].test(lineText)) {
-        for (; nextLine < endLine; nextLine++) {
-          if (state.sCount[nextLine] < state.blkIndent) {
-            break;
-          }
-          pos2 = state.bMarks[nextLine] + state.tShift[nextLine];
-          max2 = state.eMarks[nextLine];
-          lineText = state.src.slice(pos2, max2);
-          if (HTML_SEQUENCES[i2][1].test(lineText)) {
-            if (lineText.length !== 0) {
-              nextLine++;
-            }
-            break;
-          }
-        }
-      }
-      state.line = nextLine;
-      const token2 = state.push("html_block", "", 0);
-      token2.map = [startLine, nextLine];
-      token2.content = state.getLines(startLine, nextLine, state.blkIndent, true);
-      return true;
-    }
-    function heading$1(state, startLine, endLine, silent) {
-      let pos2 = state.bMarks[startLine] + state.tShift[startLine];
-      let max2 = state.eMarks[startLine];
-      if (state.sCount[startLine] - state.blkIndent >= 4) {
-        return false;
-      }
-      let ch3 = state.src.charCodeAt(pos2);
-      if (ch3 !== 35 || pos2 >= max2) {
-        return false;
-      }
-      let level = 1;
-      ch3 = state.src.charCodeAt(++pos2);
-      while (ch3 === 35 && pos2 < max2 && level <= 6) {
-        level++;
-        ch3 = state.src.charCodeAt(++pos2);
-      }
-      if (level > 6 || pos2 < max2 && !isSpace(ch3)) {
-        return false;
-      }
-      if (silent) {
-        return true;
-      }
-      max2 = state.skipSpacesBack(max2, pos2);
-      const tmp = state.skipCharsBack(max2, 35, pos2);
-      if (tmp > pos2 && isSpace(state.src.charCodeAt(tmp - 1))) {
-        max2 = tmp;
-      }
-      state.line = startLine + 1;
-      const token_o = state.push("heading_open", "h" + String(level), 1);
-      token_o.markup = "########".slice(0, level);
-      token_o.map = [startLine, state.line];
-      const token_i = state.push("inline", "", 0);
-      token_i.content = state.src.slice(pos2, max2).trim();
-      token_i.map = [startLine, state.line];
-      token_i.children = [];
-      const token_c = state.push("heading_close", "h" + String(level), -1);
-      token_c.markup = "########".slice(0, level);
-      return true;
-    }
-    function lheading(state, startLine, endLine) {
-      const terminatorRules = state.md.block.ruler.getRules("paragraph");
-      if (state.sCount[startLine] - state.blkIndent >= 4) {
-        return false;
-      }
-      const oldParentType = state.parentType;
-      state.parentType = "paragraph";
-      let level = 0;
-      let marker;
-      let nextLine = startLine + 1;
-      for (; nextLine < endLine && !state.isEmpty(nextLine); nextLine++) {
-        if (state.sCount[nextLine] - state.blkIndent > 3) {
-          continue;
-        }
-        if (state.sCount[nextLine] >= state.blkIndent) {
-          let pos2 = state.bMarks[nextLine] + state.tShift[nextLine];
-          const max2 = state.eMarks[nextLine];
-          if (pos2 < max2) {
-            marker = state.src.charCodeAt(pos2);
-            if (marker === 45 || marker === 61) {
-              pos2 = state.skipChars(pos2, marker);
-              pos2 = state.skipSpaces(pos2);
-              if (pos2 >= max2) {
-                level = marker === 61 ? 1 : 2;
-                break;
-              }
-            }
-          }
-        }
-        if (state.sCount[nextLine] < 0) {
-          continue;
-        }
-        let terminate = false;
-        for (let i2 = 0, l = terminatorRules.length; i2 < l; i2++) {
-          if (terminatorRules[i2](state, nextLine, endLine, true)) {
-            terminate = true;
-            break;
-          }
-        }
-        if (terminate) {
-          break;
-        }
-      }
-      if (!level) {
-        return false;
-      }
-      const content2 = state.getLines(startLine, nextLine, state.blkIndent, false).trim();
-      state.line = nextLine + 1;
-      const token_o = state.push("heading_open", "h" + String(level), 1);
-      token_o.markup = String.fromCharCode(marker);
-      token_o.map = [startLine, state.line];
-      const token_i = state.push("inline", "", 0);
-      token_i.content = content2;
-      token_i.map = [startLine, state.line - 1];
-      token_i.children = [];
-      const token_c = state.push("heading_close", "h" + String(level), -1);
-      token_c.markup = String.fromCharCode(marker);
-      state.parentType = oldParentType;
-      return true;
-    }
-    function paragraph(state, startLine, endLine) {
-      const terminatorRules = state.md.block.ruler.getRules("paragraph");
-      const oldParentType = state.parentType;
-      let nextLine = startLine + 1;
-      state.parentType = "paragraph";
-      for (; nextLine < endLine && !state.isEmpty(nextLine); nextLine++) {
-        if (state.sCount[nextLine] - state.blkIndent > 3) {
-          continue;
-        }
-        if (state.sCount[nextLine] < 0) {
-          continue;
-        }
-        let terminate = false;
-        for (let i2 = 0, l = terminatorRules.length; i2 < l; i2++) {
-          if (terminatorRules[i2](state, nextLine, endLine, true)) {
-            terminate = true;
-            break;
-          }
-        }
-        if (terminate) {
-          break;
-        }
-      }
-      const content2 = state.getLines(startLine, nextLine, state.blkIndent, false).trim();
-      state.line = nextLine;
-      const token_o = state.push("paragraph_open", "p", 1);
-      token_o.map = [startLine, state.line];
-      const token_i = state.push("inline", "", 0);
-      token_i.content = content2;
-      token_i.map = [startLine, state.line];
-      token_i.children = [];
-      state.push("paragraph_close", "p", -1);
-      state.parentType = oldParentType;
-      return true;
-    }
-    const _rules$1 = [
-      // First 2 params - rule name & source. Secondary array - list of rules,
-      // which can be terminated by this one.
-      ["table", table$2, ["paragraph", "reference"]],
-      ["code", code$3],
-      ["fence", fence, ["paragraph", "reference", "blockquote", "list"]],
-      ["blockquote", blockquote, ["paragraph", "reference", "blockquote", "list"]],
-      ["hr", hr, ["paragraph", "reference", "blockquote", "list"]],
-      ["list", list$3, ["paragraph", "reference", "blockquote"]],
-      ["reference", reference],
-      ["html_block", html_block, ["paragraph", "reference", "blockquote"]],
-      ["heading", heading$1, ["paragraph", "reference", "blockquote"]],
-      ["lheading", lheading],
-      ["paragraph", paragraph]
-    ];
-    function ParserBlock() {
-      this.ruler = new Ruler();
-      for (let i2 = 0; i2 < _rules$1.length; i2++) {
-        this.ruler.push(_rules$1[i2][0], _rules$1[i2][1], { alt: (_rules$1[i2][2] || []).slice() });
-      }
-    }
-    ParserBlock.prototype.tokenize = function(state, startLine, endLine) {
-      const rules = this.ruler.getRules("");
-      const len = rules.length;
-      const maxNesting = state.md.options.maxNesting;
-      let line2 = startLine;
-      let hasEmptyLines = false;
-      while (line2 < endLine) {
-        state.line = line2 = state.skipEmptyLines(line2);
-        if (line2 >= endLine) {
-          break;
-        }
-        if (state.sCount[line2] < state.blkIndent) {
-          break;
-        }
-        if (state.level >= maxNesting) {
-          state.line = endLine;
-          break;
-        }
-        const prevLine = state.line;
-        let ok = false;
-        for (let i2 = 0; i2 < len; i2++) {
-          ok = rules[i2](state, line2, endLine, false);
-          if (ok) {
-            if (prevLine >= state.line) {
-              throw new Error("block rule didn't increment state.line");
-            }
-            break;
-          }
-        }
-        if (!ok) throw new Error("none of the block rules matched");
-        state.tight = !hasEmptyLines;
-        if (state.isEmpty(state.line - 1)) {
-          hasEmptyLines = true;
-        }
-        line2 = state.line;
-        if (line2 < endLine && state.isEmpty(line2)) {
-          hasEmptyLines = true;
-          line2++;
-          state.line = line2;
-        }
-      }
-    };
-    ParserBlock.prototype.parse = function(src, md, env, outTokens) {
-      if (!src) {
-        return;
-      }
-      const state = new this.State(src, md, env, outTokens);
-      this.tokenize(state, state.line, state.lineMax);
-    };
-    ParserBlock.prototype.State = StateBlock;
-    function StateInline(src, md, env, outTokens) {
-      this.src = src;
-      this.env = env;
-      this.md = md;
-      this.tokens = outTokens;
-      this.tokens_meta = Array(outTokens.length);
-      this.pos = 0;
-      this.posMax = this.src.length;
-      this.level = 0;
-      this.pending = "";
-      this.pendingLevel = 0;
-      this.cache = {};
-      this.delimiters = [];
-      this._prev_delimiters = [];
-      this.backticks = {};
-      this.backticksScanned = false;
-      this.linkLevel = 0;
-    }
-    StateInline.prototype.pushPending = function() {
-      const token2 = new Token("text", "", 0);
-      token2.content = this.pending;
-      token2.level = this.pendingLevel;
-      this.tokens.push(token2);
-      this.pending = "";
-      return token2;
-    };
-    StateInline.prototype.push = function(type, tag, nesting) {
-      if (this.pending) {
-        this.pushPending();
-      }
-      const token2 = new Token(type, tag, nesting);
-      let token_meta = null;
-      if (nesting < 0) {
-        this.level--;
-        this.delimiters = this._prev_delimiters.pop();
-      }
-      token2.level = this.level;
-      if (nesting > 0) {
-        this.level++;
-        this._prev_delimiters.push(this.delimiters);
-        this.delimiters = [];
-        token_meta = { delimiters: this.delimiters };
-      }
-      this.pendingLevel = this.level;
-      this.tokens.push(token2);
-      this.tokens_meta.push(token_meta);
-      return token2;
-    };
-    StateInline.prototype.scanDelims = function(start, canSplitWord) {
-      const max2 = this.posMax;
-      const marker = this.src.charCodeAt(start);
-      const lastChar = start > 0 ? this.src.charCodeAt(start - 1) : 32;
-      let pos2 = start;
-      while (pos2 < max2 && this.src.charCodeAt(pos2) === marker) {
-        pos2++;
-      }
-      const count = pos2 - start;
-      const nextChar = pos2 < max2 ? this.src.charCodeAt(pos2) : 32;
-      const isLastPunctChar = isMdAsciiPunct(lastChar) || isPunctChar(String.fromCharCode(lastChar));
-      const isNextPunctChar = isMdAsciiPunct(nextChar) || isPunctChar(String.fromCharCode(nextChar));
-      const isLastWhiteSpace = isWhiteSpace(lastChar);
-      const isNextWhiteSpace = isWhiteSpace(nextChar);
-      const left_flanking = !isNextWhiteSpace && (!isNextPunctChar || isLastWhiteSpace || isLastPunctChar);
-      const right_flanking = !isLastWhiteSpace && (!isLastPunctChar || isNextWhiteSpace || isNextPunctChar);
-      const can_open = left_flanking && (canSplitWord || !right_flanking || isLastPunctChar);
-      const can_close = right_flanking && (canSplitWord || !left_flanking || isNextPunctChar);
-      return { can_open, can_close, length: count };
-    };
-    StateInline.prototype.Token = Token;
-    function isTerminatorChar(ch3) {
-      switch (ch3) {
-        case 10:
-        case 33:
-        case 35:
-        case 36:
-        case 37:
-        case 38:
-        case 42:
-        case 43:
-        case 45:
-        case 58:
-        case 60:
-        case 61:
-        case 62:
-        case 64:
-        case 91:
-        case 92:
-        case 93:
-        case 94:
-        case 95:
-        case 96:
-        case 123:
-        case 125:
-        case 126:
-          return true;
-        default:
-          return false;
-      }
-    }
-    function text(state, silent) {
-      let pos2 = state.pos;
-      while (pos2 < state.posMax && !isTerminatorChar(state.src.charCodeAt(pos2))) {
-        pos2++;
-      }
-      if (pos2 === state.pos) {
-        return false;
-      }
-      if (!silent) {
-        state.pending += state.src.slice(state.pos, pos2);
-      }
-      state.pos = pos2;
-      return true;
-    }
-    const SCHEME_RE = /(?:^|[^a-z0-9.+-])([a-z][a-z0-9.+-]*)$/i;
-    function linkify(state, silent) {
-      if (!state.md.options.linkify) return false;
-      if (state.linkLevel > 0) return false;
-      const pos2 = state.pos;
-      const max2 = state.posMax;
-      if (pos2 + 3 > max2) return false;
-      if (state.src.charCodeAt(pos2) !== 58) return false;
-      if (state.src.charCodeAt(pos2 + 1) !== 47) return false;
-      if (state.src.charCodeAt(pos2 + 2) !== 47) return false;
-      const match = state.pending.match(SCHEME_RE);
-      if (!match) return false;
-      const proto = match[1];
-      const link2 = state.md.linkify.matchAtStart(state.src.slice(pos2 - proto.length));
-      if (!link2) return false;
-      let url = link2.url;
-      if (url.length <= proto.length) return false;
-      url = url.replace(/\*+$/, "");
-      const fullUrl = state.md.normalizeLink(url);
-      if (!state.md.validateLink(fullUrl)) return false;
-      if (!silent) {
-        state.pending = state.pending.slice(0, -proto.length);
-        const token_o = state.push("link_open", "a", 1);
-        token_o.attrs = [["href", fullUrl]];
-        token_o.markup = "linkify";
-        token_o.info = "auto";
-        const token_t = state.push("text", "", 0);
-        token_t.content = state.md.normalizeLinkText(url);
-        const token_c = state.push("link_close", "a", -1);
-        token_c.markup = "linkify";
-        token_c.info = "auto";
-      }
-      state.pos += url.length - proto.length;
-      return true;
-    }
-    function newline(state, silent) {
-      let pos2 = state.pos;
-      if (state.src.charCodeAt(pos2) !== 10) {
-        return false;
-      }
-      const pmax = state.pending.length - 1;
-      const max2 = state.posMax;
-      if (!silent) {
-        if (pmax >= 0 && state.pending.charCodeAt(pmax) === 32) {
-          if (pmax >= 1 && state.pending.charCodeAt(pmax - 1) === 32) {
-            let ws = pmax - 1;
-            while (ws >= 1 && state.pending.charCodeAt(ws - 1) === 32) ws--;
-            state.pending = state.pending.slice(0, ws);
-            state.push("hardbreak", "br", 0);
-          } else {
-            state.pending = state.pending.slice(0, -1);
-            state.push("softbreak", "br", 0);
-          }
-        } else {
-          state.push("softbreak", "br", 0);
-        }
-      }
-      pos2++;
-      while (pos2 < max2 && isSpace(state.src.charCodeAt(pos2))) {
-        pos2++;
-      }
-      state.pos = pos2;
-      return true;
-    }
-    const ESCAPED = [];
-    for (let i2 = 0; i2 < 256; i2++) {
-      ESCAPED.push(0);
-    }
-    "\\!\"#$%&'()*+,./:;<=>?@[]^_`{|}~-".split("").forEach(function(ch3) {
-      ESCAPED[ch3.charCodeAt(0)] = 1;
-    });
-    function escape$2(state, silent) {
-      let pos2 = state.pos;
-      const max2 = state.posMax;
-      if (state.src.charCodeAt(pos2) !== 92) return false;
-      pos2++;
-      if (pos2 >= max2) return false;
-      let ch1 = state.src.charCodeAt(pos2);
-      if (ch1 === 10) {
-        if (!silent) {
-          state.push("hardbreak", "br", 0);
-        }
-        pos2++;
-        while (pos2 < max2) {
-          ch1 = state.src.charCodeAt(pos2);
-          if (!isSpace(ch1)) break;
-          pos2++;
-        }
-        state.pos = pos2;
-        return true;
-      }
-      let escapedStr = state.src[pos2];
-      if (ch1 >= 55296 && ch1 <= 56319 && pos2 + 1 < max2) {
-        const ch22 = state.src.charCodeAt(pos2 + 1);
-        if (ch22 >= 56320 && ch22 <= 57343) {
-          escapedStr += state.src[pos2 + 1];
-          pos2++;
-        }
-      }
-      const origStr = "\\" + escapedStr;
-      if (!silent) {
-        const token2 = state.push("text_special", "", 0);
-        if (ch1 < 256 && ESCAPED[ch1] !== 0) {
-          token2.content = escapedStr;
-        } else {
-          token2.content = origStr;
-        }
-        token2.markup = origStr;
-        token2.info = "escape";
-      }
-      state.pos = pos2 + 1;
-      return true;
-    }
-    function backtick(state, silent) {
-      let pos2 = state.pos;
-      const ch3 = state.src.charCodeAt(pos2);
-      if (ch3 !== 96) {
-        return false;
-      }
-      const start = pos2;
-      pos2++;
-      const max2 = state.posMax;
-      while (pos2 < max2 && state.src.charCodeAt(pos2) === 96) {
-        pos2++;
-      }
-      const marker = state.src.slice(start, pos2);
-      const openerLength = marker.length;
-      if (state.backticksScanned && (state.backticks[openerLength] || 0) <= start) {
-        if (!silent) state.pending += marker;
-        state.pos += openerLength;
-        return true;
-      }
-      let matchEnd = pos2;
-      let matchStart;
-      while ((matchStart = state.src.indexOf("`", matchEnd)) !== -1) {
-        matchEnd = matchStart + 1;
-        while (matchEnd < max2 && state.src.charCodeAt(matchEnd) === 96) {
-          matchEnd++;
-        }
-        const closerLength = matchEnd - matchStart;
-        if (closerLength === openerLength) {
-          if (!silent) {
-            const token2 = state.push("code_inline", "code", 0);
-            token2.markup = marker;
-            token2.content = state.src.slice(pos2, matchStart).replace(/\n/g, " ").replace(/^ (.+) $/, "$1");
-          }
-          state.pos = matchEnd;
-          return true;
-        }
-        state.backticks[closerLength] = matchStart;
-      }
-      state.backticksScanned = true;
-      if (!silent) state.pending += marker;
-      state.pos += openerLength;
-      return true;
-    }
-    function strikethrough_tokenize(state, silent) {
-      const start = state.pos;
-      const marker = state.src.charCodeAt(start);
-      if (silent) {
-        return false;
-      }
-      if (marker !== 126) {
-        return false;
-      }
-      const scanned = state.scanDelims(state.pos, true);
-      let len = scanned.length;
-      const ch3 = String.fromCharCode(marker);
-      if (len < 2) {
-        return false;
-      }
-      let token2;
-      if (len % 2) {
-        token2 = state.push("text", "", 0);
-        token2.content = ch3;
-        len--;
-      }
-      for (let i2 = 0; i2 < len; i2 += 2) {
-        token2 = state.push("text", "", 0);
-        token2.content = ch3 + ch3;
-        state.delimiters.push({
-          marker,
-          length: 0,
-          // disable "rule of 3" length checks meant for emphasis
-          token: state.tokens.length - 1,
-          end: -1,
-          open: scanned.can_open,
-          close: scanned.can_close
-        });
-      }
-      state.pos += scanned.length;
-      return true;
-    }
-    function postProcess$1(state, delimiters) {
-      let token2;
-      const loneMarkers = [];
-      const max2 = delimiters.length;
-      for (let i2 = 0; i2 < max2; i2++) {
-        const startDelim = delimiters[i2];
-        if (startDelim.marker !== 126) {
-          continue;
-        }
-        if (startDelim.end === -1) {
-          continue;
-        }
-        const endDelim = delimiters[startDelim.end];
-        token2 = state.tokens[startDelim.token];
-        token2.type = "s_open";
-        token2.tag = "s";
-        token2.nesting = 1;
-        token2.markup = "~~";
-        token2.content = "";
-        token2 = state.tokens[endDelim.token];
-        token2.type = "s_close";
-        token2.tag = "s";
-        token2.nesting = -1;
-        token2.markup = "~~";
-        token2.content = "";
-        if (state.tokens[endDelim.token - 1].type === "text" && state.tokens[endDelim.token - 1].content === "~") {
-          loneMarkers.push(endDelim.token - 1);
-        }
-      }
-      while (loneMarkers.length) {
-        const i2 = loneMarkers.pop();
-        let j = i2 + 1;
-        while (j < state.tokens.length && state.tokens[j].type === "s_close") {
-          j++;
-        }
-        j--;
-        if (i2 !== j) {
-          token2 = state.tokens[j];
-          state.tokens[j] = state.tokens[i2];
-          state.tokens[i2] = token2;
-        }
-      }
-    }
-    function strikethrough_postProcess(state) {
-      const tokens_meta = state.tokens_meta;
-      const max2 = state.tokens_meta.length;
-      postProcess$1(state, state.delimiters);
-      for (let curr = 0; curr < max2; curr++) {
-        if (tokens_meta[curr] && tokens_meta[curr].delimiters) {
-          postProcess$1(state, tokens_meta[curr].delimiters);
-        }
-      }
-    }
-    const r_strikethrough = {
-      tokenize: strikethrough_tokenize,
-      postProcess: strikethrough_postProcess
-    };
-    function emphasis_tokenize(state, silent) {
-      const start = state.pos;
-      const marker = state.src.charCodeAt(start);
-      if (silent) {
-        return false;
-      }
-      if (marker !== 95 && marker !== 42) {
-        return false;
-      }
-      const scanned = state.scanDelims(state.pos, marker === 42);
-      for (let i2 = 0; i2 < scanned.length; i2++) {
-        const token2 = state.push("text", "", 0);
-        token2.content = String.fromCharCode(marker);
-        state.delimiters.push({
-          // Char code of the starting marker (number).
-          //
-          marker,
-          // Total length of these series of delimiters.
-          //
-          length: scanned.length,
-          // A position of the token this delimiter corresponds to.
-          //
-          token: state.tokens.length - 1,
-          // If this delimiter is matched as a valid opener, `end` will be
-          // equal to its position, otherwise it's `-1`.
-          //
-          end: -1,
-          // Boolean flags that determine if this delimiter could open or close
-          // an emphasis.
-          //
-          open: scanned.can_open,
-          close: scanned.can_close
-        });
-      }
-      state.pos += scanned.length;
-      return true;
-    }
-    function postProcess(state, delimiters) {
-      const max2 = delimiters.length;
-      for (let i2 = max2 - 1; i2 >= 0; i2--) {
-        const startDelim = delimiters[i2];
-        if (startDelim.marker !== 95 && startDelim.marker !== 42) {
-          continue;
-        }
-        if (startDelim.end === -1) {
-          continue;
-        }
-        const endDelim = delimiters[startDelim.end];
-        const isStrong = i2 > 0 && delimiters[i2 - 1].end === startDelim.end + 1 && // check that first two markers match and adjacent
-        delimiters[i2 - 1].marker === startDelim.marker && delimiters[i2 - 1].token === startDelim.token - 1 && // check that last two markers are adjacent (we can safely assume they match)
-        delimiters[startDelim.end + 1].token === endDelim.token + 1;
-        const ch3 = String.fromCharCode(startDelim.marker);
-        const token_o = state.tokens[startDelim.token];
-        token_o.type = isStrong ? "strong_open" : "em_open";
-        token_o.tag = isStrong ? "strong" : "em";
-        token_o.nesting = 1;
-        token_o.markup = isStrong ? ch3 + ch3 : ch3;
-        token_o.content = "";
-        const token_c = state.tokens[endDelim.token];
-        token_c.type = isStrong ? "strong_close" : "em_close";
-        token_c.tag = isStrong ? "strong" : "em";
-        token_c.nesting = -1;
-        token_c.markup = isStrong ? ch3 + ch3 : ch3;
-        token_c.content = "";
-        if (isStrong) {
-          state.tokens[delimiters[i2 - 1].token].content = "";
-          state.tokens[delimiters[startDelim.end + 1].token].content = "";
-          i2--;
-        }
-      }
-    }
-    function emphasis_post_process(state) {
-      const tokens_meta = state.tokens_meta;
-      const max2 = state.tokens_meta.length;
-      postProcess(state, state.delimiters);
-      for (let curr = 0; curr < max2; curr++) {
-        if (tokens_meta[curr] && tokens_meta[curr].delimiters) {
-          postProcess(state, tokens_meta[curr].delimiters);
-        }
-      }
-    }
-    const r_emphasis = {
-      tokenize: emphasis_tokenize,
-      postProcess: emphasis_post_process
-    };
-    function link(state, silent) {
-      let code2, label2, res, ref;
-      let href = "";
-      let title2 = "";
-      let start = state.pos;
-      let parseReference = true;
-      if (state.src.charCodeAt(state.pos) !== 91) {
-        return false;
-      }
-      const oldPos = state.pos;
-      const max2 = state.posMax;
-      const labelStart = state.pos + 1;
-      const labelEnd = state.md.helpers.parseLinkLabel(state, state.pos, true);
-      if (labelEnd < 0) {
-        return false;
-      }
-      let pos2 = labelEnd + 1;
-      if (pos2 < max2 && state.src.charCodeAt(pos2) === 40) {
-        parseReference = false;
-        pos2++;
-        for (; pos2 < max2; pos2++) {
-          code2 = state.src.charCodeAt(pos2);
-          if (!isSpace(code2) && code2 !== 10) {
-            break;
-          }
-        }
-        if (pos2 >= max2) {
-          return false;
-        }
-        start = pos2;
-        res = state.md.helpers.parseLinkDestination(state.src, pos2, state.posMax);
-        if (res.ok) {
-          href = state.md.normalizeLink(res.str);
-          if (state.md.validateLink(href)) {
-            pos2 = res.pos;
-          } else {
-            href = "";
-          }
-          start = pos2;
-          for (; pos2 < max2; pos2++) {
-            code2 = state.src.charCodeAt(pos2);
-            if (!isSpace(code2) && code2 !== 10) {
-              break;
-            }
-          }
-          res = state.md.helpers.parseLinkTitle(state.src, pos2, state.posMax);
-          if (pos2 < max2 && start !== pos2 && res.ok) {
-            title2 = res.str;
-            pos2 = res.pos;
-            for (; pos2 < max2; pos2++) {
-              code2 = state.src.charCodeAt(pos2);
-              if (!isSpace(code2) && code2 !== 10) {
-                break;
-              }
-            }
-          }
-        }
-        if (pos2 >= max2 || state.src.charCodeAt(pos2) !== 41) {
-          parseReference = true;
-        }
-        pos2++;
-      }
-      if (parseReference) {
-        if (typeof state.env.references === "undefined") {
-          return false;
-        }
-        if (pos2 < max2 && state.src.charCodeAt(pos2) === 91) {
-          start = pos2 + 1;
-          pos2 = state.md.helpers.parseLinkLabel(state, pos2);
-          if (pos2 >= 0) {
-            label2 = state.src.slice(start, pos2++);
-          } else {
-            pos2 = labelEnd + 1;
-          }
-        } else {
-          pos2 = labelEnd + 1;
-        }
-        if (!label2) {
-          label2 = state.src.slice(labelStart, labelEnd);
-        }
-        ref = state.env.references[normalizeReference(label2)];
-        if (!ref) {
-          state.pos = oldPos;
-          return false;
-        }
-        href = ref.href;
-        title2 = ref.title;
-      }
-      if (!silent) {
-        state.pos = labelStart;
-        state.posMax = labelEnd;
-        const token_o = state.push("link_open", "a", 1);
-        const attrs = [["href", href]];
-        token_o.attrs = attrs;
-        if (title2) {
-          attrs.push(["title", title2]);
-        }
-        state.linkLevel++;
-        state.md.inline.tokenize(state);
-        state.linkLevel--;
-        state.push("link_close", "a", -1);
-      }
-      state.pos = pos2;
-      state.posMax = max2;
-      return true;
-    }
-    function image$1(state, silent) {
-      let code2, content2, label2, pos2, ref, res, title2, start;
-      let href = "";
-      const oldPos = state.pos;
-      const max2 = state.posMax;
-      if (state.src.charCodeAt(state.pos) !== 33) {
-        return false;
-      }
-      if (state.src.charCodeAt(state.pos + 1) !== 91) {
-        return false;
-      }
-      const labelStart = state.pos + 2;
-      const labelEnd = state.md.helpers.parseLinkLabel(state, state.pos + 1, false);
-      if (labelEnd < 0) {
-        return false;
-      }
-      pos2 = labelEnd + 1;
-      if (pos2 < max2 && state.src.charCodeAt(pos2) === 40) {
-        pos2++;
-        for (; pos2 < max2; pos2++) {
-          code2 = state.src.charCodeAt(pos2);
-          if (!isSpace(code2) && code2 !== 10) {
-            break;
-          }
-        }
-        if (pos2 >= max2) {
-          return false;
-        }
-        start = pos2;
-        res = state.md.helpers.parseLinkDestination(state.src, pos2, state.posMax);
-        if (res.ok) {
-          href = state.md.normalizeLink(res.str);
-          if (state.md.validateLink(href)) {
-            pos2 = res.pos;
-          } else {
-            href = "";
-          }
-        }
-        start = pos2;
-        for (; pos2 < max2; pos2++) {
-          code2 = state.src.charCodeAt(pos2);
-          if (!isSpace(code2) && code2 !== 10) {
-            break;
-          }
-        }
-        res = state.md.helpers.parseLinkTitle(state.src, pos2, state.posMax);
-        if (pos2 < max2 && start !== pos2 && res.ok) {
-          title2 = res.str;
-          pos2 = res.pos;
-          for (; pos2 < max2; pos2++) {
-            code2 = state.src.charCodeAt(pos2);
-            if (!isSpace(code2) && code2 !== 10) {
-              break;
-            }
-          }
-        } else {
-          title2 = "";
-        }
-        if (pos2 >= max2 || state.src.charCodeAt(pos2) !== 41) {
-          state.pos = oldPos;
-          return false;
-        }
-        pos2++;
-      } else {
-        if (typeof state.env.references === "undefined") {
-          return false;
-        }
-        if (pos2 < max2 && state.src.charCodeAt(pos2) === 91) {
-          start = pos2 + 1;
-          pos2 = state.md.helpers.parseLinkLabel(state, pos2);
-          if (pos2 >= 0) {
-            label2 = state.src.slice(start, pos2++);
-          } else {
-            pos2 = labelEnd + 1;
-          }
-        } else {
-          pos2 = labelEnd + 1;
-        }
-        if (!label2) {
-          label2 = state.src.slice(labelStart, labelEnd);
-        }
-        ref = state.env.references[normalizeReference(label2)];
-        if (!ref) {
-          state.pos = oldPos;
-          return false;
-        }
-        href = ref.href;
-        title2 = ref.title;
-      }
-      if (!silent) {
-        content2 = state.src.slice(labelStart, labelEnd);
-        const tokens = [];
-        state.md.inline.parse(
-          content2,
-          state.md,
-          state.env,
-          tokens
-        );
-        const token2 = state.push("image", "img", 0);
-        const attrs = [["src", href], ["alt", ""]];
-        token2.attrs = attrs;
-        token2.children = tokens;
-        token2.content = content2;
-        if (title2) {
-          attrs.push(["title", title2]);
-        }
-      }
-      state.pos = pos2;
-      state.posMax = max2;
-      return true;
-    }
-    const EMAIL_RE = /^([a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*)$/;
-    const AUTOLINK_RE = /^([a-zA-Z][a-zA-Z0-9+.-]{1,31}):([^<>\x00-\x20]*)$/;
-    function autolink(state, silent) {
-      let pos2 = state.pos;
-      if (state.src.charCodeAt(pos2) !== 60) {
-        return false;
-      }
-      const start = state.pos;
-      const max2 = state.posMax;
-      for (; ; ) {
-        if (++pos2 >= max2) return false;
-        const ch3 = state.src.charCodeAt(pos2);
-        if (ch3 === 60) return false;
-        if (ch3 === 62) break;
-      }
-      const url = state.src.slice(start + 1, pos2);
-      if (AUTOLINK_RE.test(url)) {
-        const fullUrl = state.md.normalizeLink(url);
-        if (!state.md.validateLink(fullUrl)) {
-          return false;
-        }
-        if (!silent) {
-          const token_o = state.push("link_open", "a", 1);
-          token_o.attrs = [["href", fullUrl]];
-          token_o.markup = "autolink";
-          token_o.info = "auto";
-          const token_t = state.push("text", "", 0);
-          token_t.content = state.md.normalizeLinkText(url);
-          const token_c = state.push("link_close", "a", -1);
-          token_c.markup = "autolink";
-          token_c.info = "auto";
-        }
-        state.pos += url.length + 2;
-        return true;
-      }
-      if (EMAIL_RE.test(url)) {
-        const fullUrl = state.md.normalizeLink("mailto:" + url);
-        if (!state.md.validateLink(fullUrl)) {
-          return false;
-        }
-        if (!silent) {
-          const token_o = state.push("link_open", "a", 1);
-          token_o.attrs = [["href", fullUrl]];
-          token_o.markup = "autolink";
-          token_o.info = "auto";
-          const token_t = state.push("text", "", 0);
-          token_t.content = state.md.normalizeLinkText(url);
-          const token_c = state.push("link_close", "a", -1);
-          token_c.markup = "autolink";
-          token_c.info = "auto";
-        }
-        state.pos += url.length + 2;
-        return true;
-      }
-      return false;
-    }
-    function isLinkOpen(str2) {
-      return /^<a[>\s]/i.test(str2);
-    }
-    function isLinkClose(str2) {
-      return /^<\/a\s*>/i.test(str2);
-    }
-    function isLetter(ch3) {
-      const lc = ch3 | 32;
-      return lc >= 97 && lc <= 122;
-    }
-    function html_inline(state, silent) {
-      if (!state.md.options.html) {
-        return false;
-      }
-      const max2 = state.posMax;
-      const pos2 = state.pos;
-      if (state.src.charCodeAt(pos2) !== 60 || pos2 + 2 >= max2) {
-        return false;
-      }
-      const ch3 = state.src.charCodeAt(pos2 + 1);
-      if (ch3 !== 33 && ch3 !== 63 && ch3 !== 47 && !isLetter(ch3)) {
-        return false;
-      }
-      const match = state.src.slice(pos2).match(HTML_TAG_RE);
-      if (!match) {
-        return false;
-      }
-      if (!silent) {
-        const token2 = state.push("html_inline", "", 0);
-        token2.content = match[0];
-        if (isLinkOpen(token2.content)) state.linkLevel++;
-        if (isLinkClose(token2.content)) state.linkLevel--;
-      }
-      state.pos += match[0].length;
-      return true;
-    }
-    const DIGITAL_RE = /^&#((?:x[a-f0-9]{1,6}|[0-9]{1,7}));/i;
-    const NAMED_RE = /^&([a-z][a-z0-9]{1,31});/i;
-    function entity(state, silent) {
-      const pos2 = state.pos;
-      const max2 = state.posMax;
-      if (state.src.charCodeAt(pos2) !== 38) return false;
-      if (pos2 + 1 >= max2) return false;
-      const ch3 = state.src.charCodeAt(pos2 + 1);
-      if (ch3 === 35) {
-        const match = state.src.slice(pos2).match(DIGITAL_RE);
-        if (match) {
-          if (!silent) {
-            const code2 = match[1][0].toLowerCase() === "x" ? parseInt(match[1].slice(1), 16) : parseInt(match[1], 10);
-            const token2 = state.push("text_special", "", 0);
-            token2.content = isValidEntityCode(code2) ? fromCodePoint$1(code2) : fromCodePoint$1(65533);
-            token2.markup = match[0];
-            token2.info = "entity";
-          }
-          state.pos += match[0].length;
-          return true;
-        }
-      } else {
-        const match = state.src.slice(pos2).match(NAMED_RE);
-        if (match) {
-          const decoded = decodeHTML(match[0]);
-          if (decoded !== match[0]) {
-            if (!silent) {
-              const token2 = state.push("text_special", "", 0);
-              token2.content = decoded;
-              token2.markup = match[0];
-              token2.info = "entity";
-            }
-            state.pos += match[0].length;
-            return true;
-          }
-        }
-      }
-      return false;
-    }
-    function processDelimiters(delimiters) {
-      const openersBottom = {};
-      const max2 = delimiters.length;
-      if (!max2) return;
-      let headerIdx = 0;
-      let lastTokenIdx = -2;
-      const jumps = [];
-      for (let closerIdx = 0; closerIdx < max2; closerIdx++) {
-        const closer = delimiters[closerIdx];
-        jumps.push(0);
-        if (delimiters[headerIdx].marker !== closer.marker || lastTokenIdx !== closer.token - 1) {
-          headerIdx = closerIdx;
-        }
-        lastTokenIdx = closer.token;
-        closer.length = closer.length || 0;
-        if (!closer.close) continue;
-        if (!openersBottom.hasOwnProperty(closer.marker)) {
-          openersBottom[closer.marker] = [-1, -1, -1, -1, -1, -1];
-        }
-        const minOpenerIdx = openersBottom[closer.marker][(closer.open ? 3 : 0) + closer.length % 3];
-        let openerIdx = headerIdx - jumps[headerIdx] - 1;
-        let newMinOpenerIdx = openerIdx;
-        for (; openerIdx > minOpenerIdx; openerIdx -= jumps[openerIdx] + 1) {
-          const opener = delimiters[openerIdx];
-          if (opener.marker !== closer.marker) continue;
-          if (opener.open && opener.end < 0) {
-            let isOddMatch = false;
-            if (opener.close || closer.open) {
-              if ((opener.length + closer.length) % 3 === 0) {
-                if (opener.length % 3 !== 0 || closer.length % 3 !== 0) {
-                  isOddMatch = true;
-                }
-              }
-            }
-            if (!isOddMatch) {
-              const lastJump = openerIdx > 0 && !delimiters[openerIdx - 1].open ? jumps[openerIdx - 1] + 1 : 0;
-              jumps[closerIdx] = closerIdx - openerIdx + lastJump;
-              jumps[openerIdx] = lastJump;
-              closer.open = false;
-              opener.end = closerIdx;
-              opener.close = false;
-              newMinOpenerIdx = -1;
-              lastTokenIdx = -2;
-              break;
-            }
-          }
-        }
-        if (newMinOpenerIdx !== -1) {
-          openersBottom[closer.marker][(closer.open ? 3 : 0) + (closer.length || 0) % 3] = newMinOpenerIdx;
-        }
-      }
-    }
-    function link_pairs(state) {
-      const tokens_meta = state.tokens_meta;
-      const max2 = state.tokens_meta.length;
-      processDelimiters(state.delimiters);
-      for (let curr = 0; curr < max2; curr++) {
-        if (tokens_meta[curr] && tokens_meta[curr].delimiters) {
-          processDelimiters(tokens_meta[curr].delimiters);
-        }
-      }
-    }
-    function fragments_join(state) {
-      let curr, last;
-      let level = 0;
-      const tokens = state.tokens;
-      const max2 = state.tokens.length;
-      for (curr = last = 0; curr < max2; curr++) {
-        if (tokens[curr].nesting < 0) level--;
-        tokens[curr].level = level;
-        if (tokens[curr].nesting > 0) level++;
-        if (tokens[curr].type === "text" && curr + 1 < max2 && tokens[curr + 1].type === "text") {
-          tokens[curr + 1].content = tokens[curr].content + tokens[curr + 1].content;
-        } else {
-          if (curr !== last) {
-            tokens[last] = tokens[curr];
-          }
-          last++;
-        }
-      }
-      if (curr !== last) {
-        tokens.length = last;
-      }
-    }
-    const _rules = [
-      ["text", text],
-      ["linkify", linkify],
-      ["newline", newline],
-      ["escape", escape$2],
-      ["backticks", backtick],
-      ["strikethrough", r_strikethrough.tokenize],
-      ["emphasis", r_emphasis.tokenize],
-      ["link", link],
-      ["image", image$1],
-      ["autolink", autolink],
-      ["html_inline", html_inline],
-      ["entity", entity]
-    ];
-    const _rules2 = [
-      ["balance_pairs", link_pairs],
-      ["strikethrough", r_strikethrough.postProcess],
-      ["emphasis", r_emphasis.postProcess],
-      // rules for pairs separate '**' into its own text tokens, which may be left unused,
-      // rule below merges unused segments back with the rest of the text
-      ["fragments_join", fragments_join]
-    ];
-    function ParserInline() {
-      this.ruler = new Ruler();
-      for (let i2 = 0; i2 < _rules.length; i2++) {
-        this.ruler.push(_rules[i2][0], _rules[i2][1]);
-      }
-      this.ruler2 = new Ruler();
-      for (let i2 = 0; i2 < _rules2.length; i2++) {
-        this.ruler2.push(_rules2[i2][0], _rules2[i2][1]);
-      }
-    }
-    ParserInline.prototype.skipToken = function(state) {
-      const pos2 = state.pos;
-      const rules = this.ruler.getRules("");
-      const len = rules.length;
-      const maxNesting = state.md.options.maxNesting;
-      const cache = state.cache;
-      if (typeof cache[pos2] !== "undefined") {
-        state.pos = cache[pos2];
-        return;
-      }
-      let ok = false;
-      if (state.level < maxNesting) {
-        for (let i2 = 0; i2 < len; i2++) {
-          state.level++;
-          ok = rules[i2](state, true);
-          state.level--;
-          if (ok) {
-            if (pos2 >= state.pos) {
-              throw new Error("inline rule didn't increment state.pos");
-            }
-            break;
-          }
-        }
-      } else {
-        state.pos = state.posMax;
-      }
-      if (!ok) {
-        state.pos++;
-      }
-      cache[pos2] = state.pos;
-    };
-    ParserInline.prototype.tokenize = function(state) {
-      const rules = this.ruler.getRules("");
-      const len = rules.length;
-      const end = state.posMax;
-      const maxNesting = state.md.options.maxNesting;
-      while (state.pos < end) {
-        const prevPos = state.pos;
-        let ok = false;
-        if (state.level < maxNesting) {
-          for (let i2 = 0; i2 < len; i2++) {
-            ok = rules[i2](state, false);
-            if (ok) {
-              if (prevPos >= state.pos) {
-                throw new Error("inline rule didn't increment state.pos");
-              }
-              break;
-            }
-          }
-        }
-        if (ok) {
-          if (state.pos >= end) {
-            break;
-          }
-          continue;
-        }
-        state.pending += state.src[state.pos++];
-      }
-      if (state.pending) {
-        state.pushPending();
-      }
-    };
-    ParserInline.prototype.parse = function(str2, md, env, outTokens) {
-      const state = new this.State(str2, md, env, outTokens);
-      this.tokenize(state);
-      const rules = this.ruler2.getRules("");
-      const len = rules.length;
-      for (let i2 = 0; i2 < len; i2++) {
-        rules[i2](state);
-      }
-    };
-    ParserInline.prototype.State = StateInline;
-    function reFactory(opts) {
-      const re = {};
-      opts = opts || {};
-      re.src_Any = Any.source;
-      re.src_Cc = Cc.source;
-      re.src_Z = Z.source;
-      re.src_P = P.source;
-      re.src_ZPCc = [re.src_Z, re.src_P, re.src_Cc].join("|");
-      re.src_ZCc = [re.src_Z, re.src_Cc].join("|");
-      const text_separators = "[><｜]";
-      re.src_pseudo_letter = "(?:(?!" + text_separators + "|" + re.src_ZPCc + ")" + re.src_Any + ")";
-      re.src_ip4 = "(?:(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)";
-      re.src_auth = "(?:(?:(?!" + re.src_ZCc + "|[@/\\[\\]()]).)+@)?";
-      re.src_port = "(?::(?:6(?:[0-4]\\d{3}|5(?:[0-4]\\d{2}|5(?:[0-2]\\d|3[0-5])))|[1-5]?\\d{1,4}))?";
-      re.src_host_terminator = "(?=$|" + text_separators + "|" + re.src_ZPCc + ")(?!" + (opts["---"] ? "-(?!--)|" : "-|") + "_|:\\d|\\.-|\\.(?!$|" + re.src_ZPCc + "))";
-      re.src_path = "(?:[/?#](?:(?!" + re.src_ZCc + "|" + text_separators + `|[()[\\]{}.,"'?!\\-;]).|\\[(?:(?!` + re.src_ZCc + "|\\]).)*\\]|\\((?:(?!" + re.src_ZCc + "|[)]).)*\\)|\\{(?:(?!" + re.src_ZCc + '|[}]).)*\\}|\\"(?:(?!' + re.src_ZCc + `|["]).)+\\"|\\'(?:(?!` + re.src_ZCc + "|[']).)+\\'|\\'(?=" + re.src_pseudo_letter + "|[-])|\\.{2,}[a-zA-Z0-9%/&]|\\.(?!" + re.src_ZCc + "|[.]|$)|" + (opts["---"] ? "\\-(?!--(?:[^-]|$))(?:-*)|" : "\\-+|") + // allow `,,,` in paths
-      ",(?!" + re.src_ZCc + "|$)|;(?!" + re.src_ZCc + "|$)|\\!+(?!" + re.src_ZCc + "|[!]|$)|\\?(?!" + re.src_ZCc + "|[?]|$))+|\\/)?";
-      re.src_email_name = '[\\-;:&=\\+\\$,\\.a-zA-Z0-9_][\\-;:&=\\+\\$,\\"\\.a-zA-Z0-9_]*';
-      re.src_xn = "xn--[a-z0-9\\-]{1,59}";
-      re.src_domain_root = // Allow letters & digits (http://test1)
-      "(?:" + re.src_xn + "|" + re.src_pseudo_letter + "{1,63})";
-      re.src_domain = "(?:" + re.src_xn + "|(?:" + re.src_pseudo_letter + ")|(?:" + re.src_pseudo_letter + "(?:-|" + re.src_pseudo_letter + "){0,61}" + re.src_pseudo_letter + "))";
-      re.src_host = "(?:(?:(?:(?:" + re.src_domain + ")\\.)*" + re.src_domain + "))";
-      re.tpl_host_fuzzy = "(?:" + re.src_ip4 + "|(?:(?:(?:" + re.src_domain + ")\\.)+(?:%TLDS%)))";
-      re.tpl_host_no_ip_fuzzy = "(?:(?:(?:" + re.src_domain + ")\\.)+(?:%TLDS%))";
-      re.src_host_strict = re.src_host + re.src_host_terminator;
-      re.tpl_host_fuzzy_strict = re.tpl_host_fuzzy + re.src_host_terminator;
-      re.src_host_port_strict = re.src_host + re.src_port + re.src_host_terminator;
-      re.tpl_host_port_fuzzy_strict = re.tpl_host_fuzzy + re.src_port + re.src_host_terminator;
-      re.tpl_host_port_no_ip_fuzzy_strict = re.tpl_host_no_ip_fuzzy + re.src_port + re.src_host_terminator;
-      re.tpl_host_fuzzy_test = "localhost|www\\.|\\.\\d{1,3}\\.|(?:\\.(?:%TLDS%)(?:" + re.src_ZPCc + "|>|$))";
-      re.tpl_email_fuzzy = "(^|" + text_separators + '|"|\\(|' + re.src_ZCc + ")(" + re.src_email_name + "@" + re.tpl_host_fuzzy_strict + ")";
-      re.tpl_link_fuzzy = // Fuzzy link can't be prepended with .:/\- and non punctuation.
-      // but can start with > (markdown blockquote)
-      "(^|(?![.:/\\-_@])(?:[$+<=>^`|｜]|" + re.src_ZPCc + "))((?![$+<=>^`|｜])" + re.tpl_host_port_fuzzy_strict + re.src_path + ")";
-      re.tpl_link_no_ip_fuzzy = // Fuzzy link can't be prepended with .:/\- and non punctuation.
-      // but can start with > (markdown blockquote)
-      "(^|(?![.:/\\-_@])(?:[$+<=>^`|｜]|" + re.src_ZPCc + "))((?![$+<=>^`|｜])" + re.tpl_host_port_no_ip_fuzzy_strict + re.src_path + ")";
-      return re;
-    }
-    function assign(obj) {
-      const sources = Array.prototype.slice.call(arguments, 1);
-      sources.forEach(function(source2) {
-        if (!source2) {
-          return;
-        }
-        Object.keys(source2).forEach(function(key2) {
-          obj[key2] = source2[key2];
-        });
-      });
-      return obj;
-    }
-    function _class(obj) {
-      return Object.prototype.toString.call(obj);
-    }
-    function isString(obj) {
-      return _class(obj) === "[object String]";
-    }
-    function isObject(obj) {
-      return _class(obj) === "[object Object]";
-    }
-    function isRegExp(obj) {
-      return _class(obj) === "[object RegExp]";
-    }
-    function isFunction(obj) {
-      return _class(obj) === "[object Function]";
-    }
-    function escapeRE(str2) {
-      return str2.replace(/[.?*+^$[\]\\(){}|-]/g, "\\$&");
-    }
-    const defaultOptions = {
-      fuzzyLink: true,
-      fuzzyEmail: true,
-      fuzzyIP: false
-    };
-    function isOptionsObj(obj) {
-      return Object.keys(obj || {}).reduce(function(acc, k) {
-        return acc || defaultOptions.hasOwnProperty(k);
-      }, false);
-    }
-    const defaultSchemas = {
-      "http:": {
-        validate: function(text2, pos2, self2) {
-          const tail = text2.slice(pos2);
-          if (!self2.re.http) {
-            self2.re.http = new RegExp(
-              "^\\/\\/" + self2.re.src_auth + self2.re.src_host_port_strict + self2.re.src_path,
-              "i"
-            );
-          }
-          if (self2.re.http.test(tail)) {
-            return tail.match(self2.re.http)[0].length;
-          }
-          return 0;
-        }
-      },
-      "https:": "http:",
-      "ftp:": "http:",
-      "//": {
-        validate: function(text2, pos2, self2) {
-          const tail = text2.slice(pos2);
-          if (!self2.re.no_http) {
-            self2.re.no_http = new RegExp(
-              "^" + self2.re.src_auth + // Don't allow single-level domains, because of false positives like '//test'
-              // with code comments
-              "(?:localhost|(?:(?:" + self2.re.src_domain + ")\\.)+" + self2.re.src_domain_root + ")" + self2.re.src_port + self2.re.src_host_terminator + self2.re.src_path,
-              "i"
-            );
-          }
-          if (self2.re.no_http.test(tail)) {
-            if (pos2 >= 3 && text2[pos2 - 3] === ":") {
-              return 0;
-            }
-            if (pos2 >= 3 && text2[pos2 - 3] === "/") {
-              return 0;
-            }
-            return tail.match(self2.re.no_http)[0].length;
-          }
-          return 0;
-        }
-      },
-      "mailto:": {
-        validate: function(text2, pos2, self2) {
-          const tail = text2.slice(pos2);
-          if (!self2.re.mailto) {
-            self2.re.mailto = new RegExp(
-              "^" + self2.re.src_email_name + "@" + self2.re.src_host_strict,
-              "i"
-            );
-          }
-          if (self2.re.mailto.test(tail)) {
-            return tail.match(self2.re.mailto)[0].length;
-          }
-          return 0;
-        }
-      }
-    };
-    const tlds_2ch_src_re = "a[cdefgilmnoqrstuwxz]|b[abdefghijmnorstvwyz]|c[acdfghiklmnoruvwxyz]|d[ejkmoz]|e[cegrstu]|f[ijkmor]|g[abdefghilmnpqrstuwy]|h[kmnrtu]|i[delmnoqrst]|j[emop]|k[eghimnprwyz]|l[abcikrstuvy]|m[acdeghklmnopqrstuvwxyz]|n[acefgilopruz]|om|p[aefghklmnrstwy]|qa|r[eosuw]|s[abcdeghijklmnortuvxyz]|t[cdfghjklmnortvwz]|u[agksyz]|v[aceginu]|w[fs]|y[et]|z[amw]";
-    const tlds_default = "biz|com|edu|gov|net|org|pro|web|xxx|aero|asia|coop|info|museum|name|shop|рф".split("|");
-    function resetScanCache(self2) {
-      self2.__index__ = -1;
-      self2.__text_cache__ = "";
-    }
-    function createValidator(re) {
-      return function(text2, pos2) {
-        const tail = text2.slice(pos2);
-        if (re.test(tail)) {
-          return tail.match(re)[0].length;
-        }
-        return 0;
-      };
-    }
-    function createNormalizer() {
-      return function(match, self2) {
-        self2.normalize(match);
-      };
-    }
-    function compile(self2) {
-      const re = self2.re = reFactory(self2.__opts__);
-      const tlds = self2.__tlds__.slice();
-      self2.onCompile();
-      if (!self2.__tlds_replaced__) {
-        tlds.push(tlds_2ch_src_re);
-      }
-      tlds.push(re.src_xn);
-      re.src_tlds = tlds.join("|");
-      function untpl(tpl) {
-        return tpl.replace("%TLDS%", re.src_tlds);
-      }
-      re.email_fuzzy = RegExp(untpl(re.tpl_email_fuzzy), "i");
-      re.link_fuzzy = RegExp(untpl(re.tpl_link_fuzzy), "i");
-      re.link_no_ip_fuzzy = RegExp(untpl(re.tpl_link_no_ip_fuzzy), "i");
-      re.host_fuzzy_test = RegExp(untpl(re.tpl_host_fuzzy_test), "i");
-      const aliases2 = [];
-      self2.__compiled__ = {};
-      function schemaError(name2, val) {
-        throw new Error('(LinkifyIt) Invalid schema "' + name2 + '": ' + val);
-      }
-      Object.keys(self2.__schemas__).forEach(function(name2) {
-        const val = self2.__schemas__[name2];
-        if (val === null) {
-          return;
-        }
-        const compiled = { validate: null, link: null };
-        self2.__compiled__[name2] = compiled;
-        if (isObject(val)) {
-          if (isRegExp(val.validate)) {
-            compiled.validate = createValidator(val.validate);
-          } else if (isFunction(val.validate)) {
-            compiled.validate = val.validate;
-          } else {
-            schemaError(name2, val);
-          }
-          if (isFunction(val.normalize)) {
-            compiled.normalize = val.normalize;
-          } else if (!val.normalize) {
-            compiled.normalize = createNormalizer();
-          } else {
-            schemaError(name2, val);
-          }
-          return;
-        }
-        if (isString(val)) {
-          aliases2.push(name2);
-          return;
-        }
-        schemaError(name2, val);
-      });
-      aliases2.forEach(function(alias) {
-        if (!self2.__compiled__[self2.__schemas__[alias]]) {
-          return;
-        }
-        self2.__compiled__[alias].validate = self2.__compiled__[self2.__schemas__[alias]].validate;
-        self2.__compiled__[alias].normalize = self2.__compiled__[self2.__schemas__[alias]].normalize;
-      });
-      self2.__compiled__[""] = { validate: null, normalize: createNormalizer() };
-      const slist = Object.keys(self2.__compiled__).filter(function(name2) {
-        return name2.length > 0 && self2.__compiled__[name2];
-      }).map(escapeRE).join("|");
-      self2.re.schema_test = RegExp("(^|(?!_)(?:[><｜]|" + re.src_ZPCc + "))(" + slist + ")", "i");
-      self2.re.schema_search = RegExp("(^|(?!_)(?:[><｜]|" + re.src_ZPCc + "))(" + slist + ")", "ig");
-      self2.re.schema_at_start = RegExp("^" + self2.re.schema_search.source, "i");
-      self2.re.pretest = RegExp(
-        "(" + self2.re.schema_test.source + ")|(" + self2.re.host_fuzzy_test.source + ")|@",
-        "i"
-      );
-      resetScanCache(self2);
-    }
-    function Match$1(self2, shift2) {
-      const start = self2.__index__;
-      const end = self2.__last_index__;
-      const text2 = self2.__text_cache__.slice(start, end);
-      this.schema = self2.__schema__.toLowerCase();
-      this.index = start + shift2;
-      this.lastIndex = end + shift2;
-      this.raw = text2;
-      this.text = text2;
-      this.url = text2;
-    }
-    function createMatch(self2, shift2) {
-      const match = new Match$1(self2, shift2);
-      self2.__compiled__[match.schema].normalize(match, self2);
-      return match;
-    }
-    function LinkifyIt(schemas, options2) {
-      if (!(this instanceof LinkifyIt)) {
-        return new LinkifyIt(schemas, options2);
-      }
-      if (!options2) {
-        if (isOptionsObj(schemas)) {
-          options2 = schemas;
-          schemas = {};
-        }
-      }
-      this.__opts__ = assign({}, defaultOptions, options2);
-      this.__index__ = -1;
-      this.__last_index__ = -1;
-      this.__schema__ = "";
-      this.__text_cache__ = "";
-      this.__schemas__ = assign({}, defaultSchemas, schemas);
-      this.__compiled__ = {};
-      this.__tlds__ = tlds_default;
-      this.__tlds_replaced__ = false;
-      this.re = {};
-      compile(this);
-    }
-    LinkifyIt.prototype.add = function add2(schema, definition) {
-      this.__schemas__[schema] = definition;
-      compile(this);
-      return this;
-    };
-    LinkifyIt.prototype.set = function set(options2) {
-      this.__opts__ = assign(this.__opts__, options2);
-      return this;
-    };
-    LinkifyIt.prototype.test = function test(text2) {
-      this.__text_cache__ = text2;
-      this.__index__ = -1;
-      if (!text2.length) {
-        return false;
-      }
-      let m, ml, me, len, shift2, next, re, tld_pos, at_pos;
-      if (this.re.schema_test.test(text2)) {
-        re = this.re.schema_search;
-        re.lastIndex = 0;
-        while ((m = re.exec(text2)) !== null) {
-          len = this.testSchemaAt(text2, m[2], re.lastIndex);
-          if (len) {
-            this.__schema__ = m[2];
-            this.__index__ = m.index + m[1].length;
-            this.__last_index__ = m.index + m[0].length + len;
-            break;
-          }
-        }
-      }
-      if (this.__opts__.fuzzyLink && this.__compiled__["http:"]) {
-        tld_pos = text2.search(this.re.host_fuzzy_test);
-        if (tld_pos >= 0) {
-          if (this.__index__ < 0 || tld_pos < this.__index__) {
-            if ((ml = text2.match(this.__opts__.fuzzyIP ? this.re.link_fuzzy : this.re.link_no_ip_fuzzy)) !== null) {
-              shift2 = ml.index + ml[1].length;
-              if (this.__index__ < 0 || shift2 < this.__index__) {
-                this.__schema__ = "";
-                this.__index__ = shift2;
-                this.__last_index__ = ml.index + ml[0].length;
-              }
-            }
-          }
-        }
-      }
-      if (this.__opts__.fuzzyEmail && this.__compiled__["mailto:"]) {
-        at_pos = text2.indexOf("@");
-        if (at_pos >= 0) {
-          if ((me = text2.match(this.re.email_fuzzy)) !== null) {
-            shift2 = me.index + me[1].length;
-            next = me.index + me[0].length;
-            if (this.__index__ < 0 || shift2 < this.__index__ || shift2 === this.__index__ && next > this.__last_index__) {
-              this.__schema__ = "mailto:";
-              this.__index__ = shift2;
-              this.__last_index__ = next;
-            }
-          }
-        }
-      }
-      return this.__index__ >= 0;
-    };
-    LinkifyIt.prototype.pretest = function pretest(text2) {
-      return this.re.pretest.test(text2);
-    };
-    LinkifyIt.prototype.testSchemaAt = function testSchemaAt(text2, schema, pos2) {
-      if (!this.__compiled__[schema.toLowerCase()]) {
-        return 0;
-      }
-      return this.__compiled__[schema.toLowerCase()].validate(text2, pos2, this);
-    };
-    LinkifyIt.prototype.match = function match(text2) {
-      const result = [];
-      let shift2 = 0;
-      if (this.__index__ >= 0 && this.__text_cache__ === text2) {
-        result.push(createMatch(this, shift2));
-        shift2 = this.__last_index__;
-      }
-      let tail = shift2 ? text2.slice(shift2) : text2;
-      while (this.test(tail)) {
-        result.push(createMatch(this, shift2));
-        tail = tail.slice(this.__last_index__);
-        shift2 += this.__last_index__;
-      }
-      if (result.length) {
-        return result;
-      }
-      return null;
-    };
-    LinkifyIt.prototype.matchAtStart = function matchAtStart(text2) {
-      this.__text_cache__ = text2;
-      this.__index__ = -1;
-      if (!text2.length) return null;
-      const m = this.re.schema_at_start.exec(text2);
-      if (!m) return null;
-      const len = this.testSchemaAt(text2, m[2], m[0].length);
-      if (!len) return null;
-      this.__schema__ = m[2];
-      this.__index__ = m.index + m[1].length;
-      this.__last_index__ = m.index + m[0].length + len;
-      return createMatch(this, 0);
-    };
-    LinkifyIt.prototype.tlds = function tlds(list2, keepOld) {
-      list2 = Array.isArray(list2) ? list2 : [list2];
-      if (!keepOld) {
-        this.__tlds__ = list2.slice();
-        this.__tlds_replaced__ = true;
-        compile(this);
-        return this;
-      }
-      this.__tlds__ = this.__tlds__.concat(list2).sort().filter(function(el, idx, arr2) {
-        return el !== arr2[idx - 1];
-      }).reverse();
-      compile(this);
-      return this;
-    };
-    LinkifyIt.prototype.normalize = function normalize2(match) {
-      if (!match.schema) {
-        match.url = "http://" + match.url;
-      }
-      if (match.schema === "mailto:" && !/^mailto:/i.test(match.url)) {
-        match.url = "mailto:" + match.url;
-      }
-    };
-    LinkifyIt.prototype.onCompile = function onCompile() {
-    };
-    const maxInt = 2147483647;
-    const base$1 = 36;
-    const tMin = 1;
-    const tMax = 26;
-    const skew = 38;
-    const damp = 700;
-    const initialBias = 72;
-    const initialN = 128;
-    const delimiter = "-";
-    const regexPunycode = /^xn--/;
-    const regexNonASCII = /[^\0-\x7F]/;
-    const regexSeparators = /[\x2E\u3002\uFF0E\uFF61]/g;
-    const errors = {
-      "overflow": "Overflow: input needs wider integers to process",
-      "not-basic": "Illegal input >= 0x80 (not a basic code point)",
-      "invalid-input": "Invalid input"
-    };
-    const baseMinusTMin = base$1 - tMin;
-    const floor = Math.floor;
-    const stringFromCharCode = String.fromCharCode;
-    function error$1(type) {
-      throw new RangeError(errors[type]);
-    }
-    function map(array, callback) {
-      const result = [];
-      let length = array.length;
-      while (length--) {
-        result[length] = callback(array[length]);
-      }
-      return result;
-    }
-    function mapDomain(domain, callback) {
-      const parts = domain.split("@");
-      let result = "";
-      if (parts.length > 1) {
-        result = parts[0] + "@";
-        domain = parts[1];
-      }
-      domain = domain.replace(regexSeparators, ".");
-      const labels = domain.split(".");
-      const encoded = map(labels, callback).join(".");
-      return result + encoded;
-    }
-    function ucs2decode(string2) {
-      const output2 = [];
-      let counter = 0;
-      const length = string2.length;
-      while (counter < length) {
-        const value2 = string2.charCodeAt(counter++);
-        if (value2 >= 55296 && value2 <= 56319 && counter < length) {
-          const extra = string2.charCodeAt(counter++);
-          if ((extra & 64512) == 56320) {
-            output2.push(((value2 & 1023) << 10) + (extra & 1023) + 65536);
-          } else {
-            output2.push(value2);
-            counter--;
-          }
-        } else {
-          output2.push(value2);
-        }
-      }
-      return output2;
-    }
-    const ucs2encode = (codePoints) => String.fromCodePoint(...codePoints);
-    const basicToDigit = function(codePoint) {
-      if (codePoint >= 48 && codePoint < 58) {
-        return 26 + (codePoint - 48);
-      }
-      if (codePoint >= 65 && codePoint < 91) {
-        return codePoint - 65;
-      }
-      if (codePoint >= 97 && codePoint < 123) {
-        return codePoint - 97;
-      }
-      return base$1;
-    };
-    const digitToBasic = function(digit, flag) {
-      return digit + 22 + 75 * (digit < 26) - ((flag != 0) << 5);
-    };
-    const adapt = function(delta, numPoints, firstTime) {
-      let k = 0;
-      delta = firstTime ? floor(delta / damp) : delta >> 1;
-      delta += floor(delta / numPoints);
-      for (; delta > baseMinusTMin * tMax >> 1; k += base$1) {
-        delta = floor(delta / baseMinusTMin);
-      }
-      return floor(k + (baseMinusTMin + 1) * delta / (delta + skew));
-    };
-    const decode = function(input2) {
-      const output2 = [];
-      const inputLength = input2.length;
-      let i2 = 0;
-      let n = initialN;
-      let bias = initialBias;
-      let basic = input2.lastIndexOf(delimiter);
-      if (basic < 0) {
-        basic = 0;
-      }
-      for (let j = 0; j < basic; ++j) {
-        if (input2.charCodeAt(j) >= 128) {
-          error$1("not-basic");
-        }
-        output2.push(input2.charCodeAt(j));
-      }
-      for (let index2 = basic > 0 ? basic + 1 : 0; index2 < inputLength; ) {
-        const oldi = i2;
-        for (let w = 1, k = base$1; ; k += base$1) {
-          if (index2 >= inputLength) {
-            error$1("invalid-input");
-          }
-          const digit = basicToDigit(input2.charCodeAt(index2++));
-          if (digit >= base$1) {
-            error$1("invalid-input");
-          }
-          if (digit > floor((maxInt - i2) / w)) {
-            error$1("overflow");
-          }
-          i2 += digit * w;
-          const t2 = k <= bias ? tMin : k >= bias + tMax ? tMax : k - bias;
-          if (digit < t2) {
-            break;
-          }
-          const baseMinusT = base$1 - t2;
-          if (w > floor(maxInt / baseMinusT)) {
-            error$1("overflow");
-          }
-          w *= baseMinusT;
-        }
-        const out = output2.length + 1;
-        bias = adapt(i2 - oldi, out, oldi == 0);
-        if (floor(i2 / out) > maxInt - n) {
-          error$1("overflow");
-        }
-        n += floor(i2 / out);
-        i2 %= out;
-        output2.splice(i2++, 0, n);
-      }
-      return String.fromCodePoint(...output2);
-    };
-    const encode = function(input2) {
-      const output2 = [];
-      input2 = ucs2decode(input2);
-      const inputLength = input2.length;
-      let n = initialN;
-      let delta = 0;
-      let bias = initialBias;
-      for (const currentValue of input2) {
-        if (currentValue < 128) {
-          output2.push(stringFromCharCode(currentValue));
-        }
-      }
-      const basicLength = output2.length;
-      let handledCPCount = basicLength;
-      if (basicLength) {
-        output2.push(delimiter);
-      }
-      while (handledCPCount < inputLength) {
-        let m = maxInt;
-        for (const currentValue of input2) {
-          if (currentValue >= n && currentValue < m) {
-            m = currentValue;
-          }
-        }
-        const handledCPCountPlusOne = handledCPCount + 1;
-        if (m - n > floor((maxInt - delta) / handledCPCountPlusOne)) {
-          error$1("overflow");
-        }
-        delta += (m - n) * handledCPCountPlusOne;
-        n = m;
-        for (const currentValue of input2) {
-          if (currentValue < n && ++delta > maxInt) {
-            error$1("overflow");
-          }
-          if (currentValue === n) {
-            let q = delta;
-            for (let k = base$1; ; k += base$1) {
-              const t2 = k <= bias ? tMin : k >= bias + tMax ? tMax : k - bias;
-              if (q < t2) {
-                break;
-              }
-              const qMinusT = q - t2;
-              const baseMinusT = base$1 - t2;
-              output2.push(
-                stringFromCharCode(digitToBasic(t2 + qMinusT % baseMinusT, 0))
-              );
-              q = floor(qMinusT / baseMinusT);
-            }
-            output2.push(stringFromCharCode(digitToBasic(q, 0)));
-            bias = adapt(delta, handledCPCountPlusOne, handledCPCount === basicLength);
-            delta = 0;
-            ++handledCPCount;
-          }
-        }
-        ++delta;
-        ++n;
-      }
-      return output2.join("");
-    };
-    const toUnicode = function(input2) {
-      return mapDomain(input2, function(string2) {
-        return regexPunycode.test(string2) ? decode(string2.slice(4).toLowerCase()) : string2;
-      });
-    };
-    const toASCII = function(input2) {
-      return mapDomain(input2, function(string2) {
-        return regexNonASCII.test(string2) ? "xn--" + encode(string2) : string2;
-      });
-    };
-    const punycode = {
-      /**
-       * A string representing the current Punycode.js version number.
-       * @memberOf punycode
-       * @type String
-       */
-      "version": "2.3.1",
-      /**
-       * An object of methods to convert from JavaScript's internal character
-       * representation (UCS-2) to Unicode code points, and back.
-       * @see <https://mathiasbynens.be/notes/javascript-encoding>
-       * @memberOf punycode
-       * @type Object
-       */
-      "ucs2": {
-        "decode": ucs2decode,
-        "encode": ucs2encode
-      },
-      "decode": decode,
-      "encode": encode,
-      "toASCII": toASCII,
-      "toUnicode": toUnicode
-    };
-    const cfg_default = {
-      options: {
-        // Enable HTML tags in source
-        html: false,
-        // Use '/' to close single tags (<br />)
-        xhtmlOut: false,
-        // Convert '\n' in paragraphs into <br>
-        breaks: false,
-        // CSS language prefix for fenced blocks
-        langPrefix: "language-",
-        // autoconvert URL-like texts to links
-        linkify: false,
-        // Enable some language-neutral replacements + quotes beautification
-        typographer: false,
-        // Double + single quotes replacement pairs, when typographer enabled,
-        // and smartquotes on. Could be either a String or an Array.
-        //
-        // For example, you can use '«»„“' for Russian, '„“‚‘' for German,
-        // and ['«\xA0', '\xA0»', '‹\xA0', '\xA0›'] for French (including nbsp).
-        quotes: "“”‘’",
-        /* “”‘’ */
-        // Highlighter function. Should return escaped HTML,
-        // or '' if the source string is not changed and should be escaped externaly.
-        // If result starts with <pre... internal wrapper is skipped.
-        //
-        // function (/*str, lang*/) { return ''; }
-        //
-        highlight: null,
-        // Internal protection, recursion limit
-        maxNesting: 100
-      },
-      components: {
-        core: {},
-        block: {},
-        inline: {}
-      }
-    };
-    const cfg_zero = {
-      options: {
-        // Enable HTML tags in source
-        html: false,
-        // Use '/' to close single tags (<br />)
-        xhtmlOut: false,
-        // Convert '\n' in paragraphs into <br>
-        breaks: false,
-        // CSS language prefix for fenced blocks
-        langPrefix: "language-",
-        // autoconvert URL-like texts to links
-        linkify: false,
-        // Enable some language-neutral replacements + quotes beautification
-        typographer: false,
-        // Double + single quotes replacement pairs, when typographer enabled,
-        // and smartquotes on. Could be either a String or an Array.
-        //
-        // For example, you can use '«»„“' for Russian, '„“‚‘' for German,
-        // and ['«\xA0', '\xA0»', '‹\xA0', '\xA0›'] for French (including nbsp).
-        quotes: "“”‘’",
-        /* “”‘’ */
-        // Highlighter function. Should return escaped HTML,
-        // or '' if the source string is not changed and should be escaped externaly.
-        // If result starts with <pre... internal wrapper is skipped.
-        //
-        // function (/*str, lang*/) { return ''; }
-        //
-        highlight: null,
-        // Internal protection, recursion limit
-        maxNesting: 20
-      },
-      components: {
-        core: {
-          rules: [
-            "normalize",
-            "block",
-            "inline",
-            "text_join"
-          ]
-        },
-        block: {
-          rules: [
-            "paragraph"
-          ]
-        },
-        inline: {
-          rules: [
-            "text"
-          ],
-          rules2: [
-            "balance_pairs",
-            "fragments_join"
-          ]
-        }
-      }
-    };
-    const cfg_commonmark = {
-      options: {
-        // Enable HTML tags in source
-        html: true,
-        // Use '/' to close single tags (<br />)
-        xhtmlOut: true,
-        // Convert '\n' in paragraphs into <br>
-        breaks: false,
-        // CSS language prefix for fenced blocks
-        langPrefix: "language-",
-        // autoconvert URL-like texts to links
-        linkify: false,
-        // Enable some language-neutral replacements + quotes beautification
-        typographer: false,
-        // Double + single quotes replacement pairs, when typographer enabled,
-        // and smartquotes on. Could be either a String or an Array.
-        //
-        // For example, you can use '«»„“' for Russian, '„“‚‘' for German,
-        // and ['«\xA0', '\xA0»', '‹\xA0', '\xA0›'] for French (including nbsp).
-        quotes: "“”‘’",
-        /* “”‘’ */
-        // Highlighter function. Should return escaped HTML,
-        // or '' if the source string is not changed and should be escaped externaly.
-        // If result starts with <pre... internal wrapper is skipped.
-        //
-        // function (/*str, lang*/) { return ''; }
-        //
-        highlight: null,
-        // Internal protection, recursion limit
-        maxNesting: 20
-      },
-      components: {
-        core: {
-          rules: [
-            "normalize",
-            "block",
-            "inline",
-            "text_join"
-          ]
-        },
-        block: {
-          rules: [
-            "blockquote",
-            "code",
-            "fence",
-            "heading",
-            "hr",
-            "html_block",
-            "lheading",
-            "list",
-            "reference",
-            "paragraph"
-          ]
-        },
-        inline: {
-          rules: [
-            "autolink",
-            "backticks",
-            "emphasis",
-            "entity",
-            "escape",
-            "html_inline",
-            "image",
-            "link",
-            "newline",
-            "text"
-          ],
-          rules2: [
-            "balance_pairs",
-            "emphasis",
-            "fragments_join"
-          ]
-        }
-      }
-    };
-    const config = {
-      default: cfg_default,
-      zero: cfg_zero,
-      commonmark: cfg_commonmark
-    };
-    const BAD_PROTO_RE = /^(vbscript|javascript|file|data):/;
-    const GOOD_DATA_RE = /^data:image\/(gif|png|jpeg|webp);/;
-    function validateLink(url) {
-      const str2 = url.trim().toLowerCase();
-      return BAD_PROTO_RE.test(str2) ? GOOD_DATA_RE.test(str2) : true;
-    }
-    const RECODE_HOSTNAME_FOR = ["http:", "https:", "mailto:"];
-    function normalizeLink(url) {
-      const parsed = urlParse(url, true);
-      if (parsed.hostname) {
-        if (!parsed.protocol || RECODE_HOSTNAME_FOR.indexOf(parsed.protocol) >= 0) {
-          try {
-            parsed.hostname = punycode.toASCII(parsed.hostname);
-          } catch (er) {
-          }
-        }
-      }
-      return encode$1(format$1(parsed));
-    }
-    function normalizeLinkText(url) {
-      const parsed = urlParse(url, true);
-      if (parsed.hostname) {
-        if (!parsed.protocol || RECODE_HOSTNAME_FOR.indexOf(parsed.protocol) >= 0) {
-          try {
-            parsed.hostname = punycode.toUnicode(parsed.hostname);
-          } catch (er) {
-          }
-        }
-      }
-      return decode$1(format$1(parsed), decode$1.defaultChars + "%");
-    }
-    function MarkdownIt(presetName, options2) {
-      if (!(this instanceof MarkdownIt)) {
-        return new MarkdownIt(presetName, options2);
-      }
-      if (!options2) {
-        if (!isString$1(presetName)) {
-          options2 = presetName || {};
-          presetName = "default";
-        }
-      }
-      this.inline = new ParserInline();
-      this.block = new ParserBlock();
-      this.core = new Core$1();
-      this.renderer = new Renderer();
-      this.linkify = new LinkifyIt();
-      this.validateLink = validateLink;
-      this.normalizeLink = normalizeLink;
-      this.normalizeLinkText = normalizeLinkText;
-      this.utils = utils;
-      this.helpers = assign$1({}, helpers);
-      this.options = {};
-      this.configure(presetName);
-      if (options2) {
-        this.set(options2);
-      }
-    }
-    MarkdownIt.prototype.set = function(options2) {
-      assign$1(this.options, options2);
-      return this;
-    };
-    MarkdownIt.prototype.configure = function(presets) {
-      const self2 = this;
-      if (isString$1(presets)) {
-        const presetName = presets;
-        presets = config[presetName];
-        if (!presets) {
-          throw new Error('Wrong `markdown-it` preset "' + presetName + '", check name');
-        }
-      }
-      if (!presets) {
-        throw new Error("Wrong `markdown-it` preset, can't be empty");
-      }
-      if (presets.options) {
-        self2.set(presets.options);
-      }
-      if (presets.components) {
-        Object.keys(presets.components).forEach(function(name2) {
-          if (presets.components[name2].rules) {
-            self2[name2].ruler.enableOnly(presets.components[name2].rules);
-          }
-          if (presets.components[name2].rules2) {
-            self2[name2].ruler2.enableOnly(presets.components[name2].rules2);
-          }
-        });
-      }
-      return this;
-    };
-    MarkdownIt.prototype.enable = function(list2, ignoreInvalid) {
-      let result = [];
-      if (!Array.isArray(list2)) {
-        list2 = [list2];
-      }
-      ["core", "block", "inline"].forEach(function(chain) {
-        result = result.concat(this[chain].ruler.enable(list2, true));
-      }, this);
-      result = result.concat(this.inline.ruler2.enable(list2, true));
-      const missed = list2.filter(function(name2) {
-        return result.indexOf(name2) < 0;
-      });
-      if (missed.length && !ignoreInvalid) {
-        throw new Error("MarkdownIt. Failed to enable unknown rule(s): " + missed);
-      }
-      return this;
-    };
-    MarkdownIt.prototype.disable = function(list2, ignoreInvalid) {
-      let result = [];
-      if (!Array.isArray(list2)) {
-        list2 = [list2];
-      }
-      ["core", "block", "inline"].forEach(function(chain) {
-        result = result.concat(this[chain].ruler.disable(list2, true));
-      }, this);
-      result = result.concat(this.inline.ruler2.disable(list2, true));
-      const missed = list2.filter(function(name2) {
-        return result.indexOf(name2) < 0;
-      });
-      if (missed.length && !ignoreInvalid) {
-        throw new Error("MarkdownIt. Failed to disable unknown rule(s): " + missed);
-      }
-      return this;
-    };
-    MarkdownIt.prototype.use = function(plugin) {
-      const args = [this].concat(Array.prototype.slice.call(arguments, 1));
-      plugin.apply(plugin, args);
-      return this;
-    };
-    MarkdownIt.prototype.parse = function(src, env) {
-      if (typeof src !== "string") {
-        throw new Error("Input data should be a String");
-      }
-      const state = new this.core.State(src, this, env);
-      this.core.process(state);
-      return state.tokens;
-    };
-    MarkdownIt.prototype.render = function(src, env) {
-      env = env || {};
-      return this.renderer.render(this.parse(src, env), this.options, env);
-    };
-    MarkdownIt.prototype.parseInline = function(src, env) {
-      const state = new this.core.State(src, this, env);
-      state.inlineMode = true;
-      this.core.process(state);
-      return state.tokens;
-    };
-    MarkdownIt.prototype.renderInline = function(src, env) {
-      env = env || {};
-      return this.renderer.render(this.parseInline(src, env), this.options, env);
-    };
-    const MarkdownDiv = React$2.forwardRef(
-      ({ markdown, style: style2, className: className2 }, ref) => {
-        const escaped = markdown ? escape$1(markdown) : "";
-        const preRendered = preRenderText(escaped);
-        const protectedText = protectMarkdown(preRendered);
-        let renderedHtml = protectedText;
-        try {
-          const md = MarkdownIt({
-            breaks: true,
-            html: true
-          });
-          renderedHtml = md.render(protectedText);
-        } catch (ex) {
-          console.log("Unable to markdown render content");
-          console.error(ex);
-        }
-        const unescaped = unprotectMarkdown(renderedHtml);
-        const withCode = unescapeCodeHtmlEntities(unescaped);
-        const markup = { __html: withCode };
-        return /* @__PURE__ */ jsxRuntimeExports.jsx(
-          "div",
-          {
-            ref,
-            dangerouslySetInnerHTML: markup,
-            style: style2,
-            className: clsx(className2, "markdown-content")
-          }
-        );
-      }
-    );
-    const kLetterListPattern = /^([a-zA-Z][).]\s.*?)$/gm;
-    const kCommonmarkReferenceLinkPattern = /\[([^\]]*)\]: (?!http)(.*)/g;
-    const preRenderText = (txt) => {
-      txt = txt.replace(/^[\u200B\u200C\u200D\u200E\u200F\uFEFF]/, "");
-      return txt.replaceAll(
-        kLetterListPattern,
-        "<p class='markdown-ordered-list-item'>$1</p>"
-      );
-    };
-    const protectMarkdown = (txt) => {
-      return txt.replaceAll(
-        kCommonmarkReferenceLinkPattern,
-        "(open:767A125E)$1(close:767A125E) $2 "
-      );
-    };
-    const unprotectMarkdown = (txt) => {
-      txt = txt.replaceAll("(open:767A125E)", "[");
-      txt = txt.replaceAll("(close:767A125E)", "]");
-      return txt;
-    };
-    const escape$1 = (content2) => {
-      return content2.replace(/[<>&'"]/g, (c2) => {
-        switch (c2) {
-          case "<":
-            return "&lt;";
-          case ">":
-            return "&gt;";
-          case "&":
-            return "&amp;";
-          case "'":
-            return "&apos;";
-          case '"':
-            return "&quot;";
-          default:
-            throw new Error("Matched a value that isn't replaceable");
-        }
-      });
-    };
-    function unescapeCodeHtmlEntities(str2) {
-      const htmlEntities = {
-        "&lt;": "<",
-        "&gt;": ">",
-        "&amp;": "&",
-        "&#x5C;": "\\",
-        "&quot;": '"'
-      };
-      return str2.replace(
-        /(<code[^>]*>)([\s\S]*?)(<\/code>)/gi,
-        (_match, starttag, content2, endtag) => {
-          return starttag + content2.replace(
-            /&(?:amp|lt|gt|quot|#39|#x2F|#x5C|#96);/g,
-            (entity2) => htmlEntities[entity2] || entity2
-          ) + endtag;
-        }
-      );
-    }
-    const message$1 = "_message_xh8qq_1";
-    const systemRole = "_systemRole_xh8qq_9";
-    const messageGrid = "_messageGrid_xh8qq_13";
-    const messageContents = "_messageContents_xh8qq_21";
-    const indented = "_indented_xh8qq_26";
-    const styles$10 = {
-      message: message$1,
-      systemRole,
-      messageGrid,
-      messageContents,
-      indented
-    };
-    const contentImage = "_contentImage_121dp_1";
-    const styles$$ = {
-      contentImage
-    };
-    const toolImage = "_toolImage_hw4du_1";
-    const output$1 = "_output_hw4du_6";
-    const textOutput = "_textOutput_hw4du_10";
-    const textCode = "_textCode_hw4du_17";
-    const styles$_ = {
-      toolImage,
-      output: output$1,
-      textOutput,
-      textCode
-    };
-    const ToolOutput = ({ output: output2 }) => {
-      if (!output2) {
-        return null;
-      }
-      const outputs = [];
-      if (Array.isArray(output2)) {
-        output2.forEach((out, idx) => {
-          const key2 = `tool-output-${idx}`;
-          if (out.type === "text") {
-            outputs.push(/* @__PURE__ */ jsxRuntimeExports.jsx(ToolTextOutput, { text: out.text }, key2));
-          } else {
-            if (out.image.startsWith("data:")) {
-              outputs.push(
-                /* @__PURE__ */ jsxRuntimeExports.jsx(
-                  "img",
-                  {
-                    className: clsx(styles$_.toolImage),
-                    src: out.image
-                  },
-                  key2
-                )
-              );
-            } else {
-              outputs.push(/* @__PURE__ */ jsxRuntimeExports.jsx(ToolTextOutput, { text: String(out.image) }, key2));
-            }
-          }
-        });
-      } else {
-        outputs.push(
-          /* @__PURE__ */ jsxRuntimeExports.jsx(ToolTextOutput, { text: String(output2) }, "tool-output-single")
-        );
-      }
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$_.output), children: outputs });
-    };
-    const ToolTextOutput = ({ text: text2 }) => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: clsx(styles$_.textOutput), children: /* @__PURE__ */ jsxRuntimeExports.jsx("code", { className: clsx("sourceCode", styles$_.textCode), children: text2.trim() }) });
-    };
-    const MessageContent = ({ contents: contents2 }) => {
-      if (Array.isArray(contents2)) {
-        return contents2.map((content2, index2) => {
-          if (typeof content2 === "string") {
-            return messageRenderers["text"].render(
-              `text-content-${index2}`,
-              {
-                type: "text",
-                text: content2
-              },
-              index2 === contents2.length - 1
-            );
-          } else {
-            if (content2) {
-              const renderer = messageRenderers[content2.type];
-              if (renderer) {
-                return renderer.render(
-                  `text-${content2.type}-${index2}`,
-                  content2,
-                  index2 === contents2.length - 1
-                );
-              } else {
-                console.error(`Unknown message content type '${content2.type}'`);
-              }
-            }
-          }
-        });
-      } else {
-        const contentText = {
-          type: "text",
-          text: contents2
-        };
-        return messageRenderers["text"].render(
-          "text-message-content",
-          contentText,
-          true
-        );
-      }
-    };
-    const messageRenderers = {
-      text: {
-        render: (key2, content2, isLast) => {
-          const c2 = content2;
-          return /* @__PURE__ */ jsxRuntimeExports.jsx(
-            MarkdownDiv,
-            {
-              markdown: c2.text,
-              className: isLast ? "no-last-para-padding" : ""
-            },
-            key2
-          );
-        }
-      },
-      image: {
-        render: (key2, content2) => {
-          const c2 = content2;
-          if (c2.image.startsWith("data:")) {
-            return /* @__PURE__ */ jsxRuntimeExports.jsx("img", { src: c2.image, className: styles$$.contentImage }, key2);
-          } else {
-            return /* @__PURE__ */ jsxRuntimeExports.jsx("code", { children: c2.image }, key2);
-          }
-        }
-      },
-      audio: {
-        render: (key2, content2) => {
-          const c2 = content2;
-          return /* @__PURE__ */ jsxRuntimeExports.jsx("audio", { controls: true, children: /* @__PURE__ */ jsxRuntimeExports.jsx("source", { src: c2.audio, type: mimeTypeForFormat(c2.format) }) }, key2);
-        }
-      },
-      video: {
-        render: (key2, content2) => {
-          const c2 = content2;
-          return /* @__PURE__ */ jsxRuntimeExports.jsx("video", { width: "500", height: "375", controls: true, children: /* @__PURE__ */ jsxRuntimeExports.jsx("source", { src: c2.video, type: mimeTypeForFormat(c2.format) }) }, key2);
-        }
-      },
-      tool: {
-        render: (key2, content2) => {
-          const c2 = content2;
-          return /* @__PURE__ */ jsxRuntimeExports.jsx(ToolOutput, { output: c2.content }, key2);
-        }
-      }
-    };
-    const mimeTypeForFormat = (format2) => {
-      switch (format2) {
-        case "mov":
-          return "video/quicktime";
-        case "wav":
-          return "audio/wav";
-        case "mp3":
-          return "audio/mpeg";
-        case "mp4":
-          return "video/mp4";
-        case "mpeg":
-          return "video/mpeg";
-      }
-    };
-    const resolveToolInput = (fn, toolArgs) => {
-      const toolName = fn;
-      const [inputKey, highlightLanguage] = extractInputMetadata(toolName);
-      const { input: input2, args } = extractInput(
-        toolArgs,
-        inputKey
-      );
-      const functionCall = args.length > 0 ? `${toolName}(${args.join(", ")})` : toolName;
-      return {
-        functionCall,
-        input: input2,
-        highlightLanguage
-      };
-    };
-    const extractInputMetadata = (toolName) => {
-      if (toolName === "bash") {
-        return ["cmd", "bash"];
-      } else if (toolName === "python") {
-        return ["code", "python"];
-      } else if (toolName === "web_search") {
-        return ["query", "text"];
-      } else {
-        return [void 0, void 0];
-      }
-    };
-    const extractInput = (args, inputKey) => {
-      const formatArg = (key2, value2) => {
-        const quotedValue = typeof value2 === "string" ? `"${value2}"` : typeof value2 === "object" || Array.isArray(value2) ? JSON.stringify(value2, void 0, 2) : String(value2);
-        return `${key2}: ${quotedValue}`;
-      };
-      if (args) {
-        if (inputKey && args[inputKey]) {
-          const input2 = args[inputKey];
-          const filteredArgs = Object.keys(args).filter((key2) => {
-            return key2 !== inputKey;
-          }).map((key2) => {
-            return formatArg(key2, args[key2]);
-          });
-          return {
-            input: String(input2),
-            args: filteredArgs
-          };
-        } else {
-          const formattedArgs = Object.keys(args).map((key2) => {
-            return formatArg(key2, args[key2]);
-          });
-          return {
-            input: void 0,
-            args: formattedArgs
-          };
-        }
-      }
-      return {
-        input: void 0,
-        args: []
-      };
-    };
-    const outputPre = "_outputPre_18agr_1";
-    const outputCode = "_outputCode_18agr_7";
-    const bottomMargin = "_bottomMargin_18agr_12";
-    const styles$Z = {
-      outputPre,
-      outputCode,
-      bottomMargin
-    };
-    const useCodeHighlight = (language2) => {
-      const codeRef = reactExports.useRef(null);
-      reactExports.useEffect(() => {
-        if (codeRef.current && language2) {
-          prismExports.highlightElement(codeRef.current);
-        }
-      }, [language2]);
-      return codeRef;
-    };
-    const ToolInput = reactExports.memo((props) => {
-      const { highlightLanguage, contents: contents2, toolCallView } = props;
-      const codeRef = useCodeHighlight(highlightLanguage);
-      if (!contents2 && !(toolCallView == null ? void 0 : toolCallView.content)) return null;
-      if (toolCallView) {
-        const toolViewRef = reactExports.useRef(null);
-        reactExports.useEffect(() => {
-          if ((toolCallView == null ? void 0 : toolCallView.content) && toolViewRef.current) {
-            requestAnimationFrame(() => {
-              const codeBlocks = toolViewRef.current.querySelectorAll("pre code");
-              codeBlocks.forEach((block2) => {
-                if (block2.className.includes("language-")) {
-                  block2.classList.add("sourceCode");
-                  prismExports.highlightElement(block2);
-                }
-              });
-            });
-          }
-        }, [toolCallView == null ? void 0 : toolCallView.content]);
-        return /* @__PURE__ */ jsxRuntimeExports.jsx(
-          MarkdownDiv,
-          {
-            markdown: toolCallView.content,
-            ref: toolViewRef,
-            className: clsx(styles$Z.bottomMargin, "text-size-small")
-          }
-        );
-      }
-      const formattedContent = typeof contents2 === "object" ? JSON.stringify(contents2) : contents2;
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: clsx("tool-output", styles$Z.outputPre, styles$Z.bottomMargin), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-        "code",
-        {
-          ref: codeRef,
-          className: clsx(
-            "source-code",
-            "sourceCode",
-            `language-${highlightLanguage}`,
-            styles$Z.outputCode
-          ),
-          children: formattedContent
-        }
-      ) });
-    });
-    const image = "_image_10saa_1";
-    const styles$Y = {
-      image
-    };
-    const ToolTitle = ({ title: title2 }) => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx("bi", "bi-tools", styles$Y.styles) }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("code", { className: "text-size-small", children: title2 })
-      ] });
-    };
-    const ToolCallView = ({
-      functionCall,
-      input: input2,
-      highlightLanguage,
-      view,
-      output: output2,
-      mode
-    }) => {
-      function isContentImage(value2) {
-        if (value2 && typeof value2 === "object") {
-          if (value2.type === "image") {
-            return true;
-          } else if (value2.type === "tool") {
-            if (Array.isArray(value2.content) && value2.content.some(isContentImage)) {
-              return true;
-            }
-          }
-        }
-        return false;
-      }
-      const collapse = Array.isArray(output2) ? output2.every((item2) => !isContentImage(item2)) : !isContentImage(output2);
-      const normalizedContent = reactExports.useMemo(() => normalizeContent$1(output2), [output2]);
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
-        mode !== "compact" && (!view || view.title) ? /* @__PURE__ */ jsxRuntimeExports.jsx(ToolTitle, { title: (view == null ? void 0 : view.title) || functionCall }) : "",
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx(
-            ToolInput,
-            {
-              highlightLanguage,
-              contents: input2,
-              toolCallView: view
-            }
-          ),
-          /* @__PURE__ */ jsxRuntimeExports.jsx(ExpandablePanel, { collapse, border: true, lines: 15, children: /* @__PURE__ */ jsxRuntimeExports.jsx(MessageContent, { contents: normalizedContent }) })
-        ] }) })
-      ] });
-    };
-    const normalizeContent$1 = (output2) => {
-      if (Array.isArray(output2)) {
-        return output2;
-      } else {
-        return [
-          {
-            type: "tool",
-            content: [
-              {
-                type: "text",
-                text: String(output2)
-              }
-            ]
-          }
-        ];
-      }
-    };
-    const content$3 = "_content_p4lvn_1";
-    const styles$X = {
-      content: content$3
-    };
-    const MessageContents = ({
-      message: message2,
-      toolMessages,
-      toolCallStyle
-    }) => {
-      if (message2.role === "assistant" && message2.tool_calls && message2.tool_calls.length) {
-        const toolCalls = message2.tool_calls.map((tool_call, idx) => {
-          const { input: input2, functionCall, highlightLanguage } = resolveToolInput(
-            tool_call.function,
-            tool_call.arguments
-          );
-          let toolMessage;
-          if (tool_call.id) {
-            toolMessage = toolMessages.find((msg) => {
-              return msg.tool_call_id === tool_call.id;
-            });
-          } else {
-            toolMessage = toolMessages[idx];
-          }
-          const resolvedToolOutput = resolveToolMessage(toolMessage);
-          if (toolCallStyle === "compact") {
-            return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsxs("code", { children: [
-              "tool: ",
-              functionCall
-            ] }) }, `tool-call-${idx}`);
-          } else {
-            return /* @__PURE__ */ jsxRuntimeExports.jsx(
-              ToolCallView,
-              {
-                functionCall,
-                input: input2,
-                highlightLanguage,
-                output: resolvedToolOutput
-              },
-              `tool-call-${idx}`
-            );
-          }
-        });
-        return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$X.content, children: message2.content ? /* @__PURE__ */ jsxRuntimeExports.jsx(MessageContent, { contents: message2.content }) : void 0 }),
-          toolCalls
-        ] });
-      } else {
-        return /* @__PURE__ */ jsxRuntimeExports.jsx(MessageContent, { contents: message2.content });
-      }
-    };
-    const resolveToolMessage = (toolMessage) => {
-      if (!toolMessage) {
-        return [];
-      }
-      const content2 = toolMessage.error !== null && toolMessage.error ? toolMessage.error.message : toolMessage.content;
-      if (typeof content2 === "string") {
-        return [
-          {
-            type: "tool",
-            content: [
-              {
-                type: "text",
-                text: content2
-              }
-            ]
-          }
-        ];
-      } else {
-        const result = content2.map((con) => {
-          if (typeof con === "string") {
-            return {
-              type: "tool",
-              content: [
-                {
-                  type: "text",
-                  text: con
-                }
-              ]
-            };
-          } else if (con.type === "text") {
-            return {
-              content: [con],
-              type: "tool"
-            };
-          } else if (con.type === "image") {
-            return {
-              content: [con],
-              type: "tool"
-            };
-          }
-        }).filter((con) => con !== void 0);
-        return result;
-      }
-    };
-    const resolveMessages = (messages) => {
-      const resolvedMessages = [];
-      for (const message2 of messages) {
-        if (message2.role === "tool") {
-          if (resolvedMessages.length > 0) {
-            const msg = resolvedMessages[resolvedMessages.length - 1];
-            msg.toolMessages = msg.toolMessages || [];
-            msg.toolMessages.push(message2);
-          }
-        } else {
-          resolvedMessages.push({ message: message2, toolMessages: [] });
-        }
-      }
-      const systemMessages = [];
-      const collapsedMessages = resolvedMessages.map((resolved) => {
-        if (resolved.message.role === "system") {
-          systemMessages.push(resolved.message);
-        }
-        return resolved;
-      }).filter((resolved) => {
-        return resolved.message.role !== "system";
-      });
-      const systemContent = [];
-      for (const systemMessage2 of systemMessages) {
-        const contents2 = Array.isArray(systemMessage2.content) ? systemMessage2.content : [systemMessage2.content];
-        systemContent.push(...contents2.map(normalizeContent));
-      }
-      const systemMessage = {
-        role: "system",
-        content: systemContent,
-        source: "input"
-      };
-      if (systemMessage.content.length > 0) {
-        collapsedMessages.unshift({ message: systemMessage, toolMessages: [] });
-      }
-      return collapsedMessages;
-    };
-    const iconForMsg = (msg) => {
-      if (msg.role === "user") {
-        return ApplicationIcons.role.user;
-      } else if (msg.role === "system") {
-        return ApplicationIcons.role.system;
-      } else if (msg.role === "tool") {
-        return ApplicationIcons.role.tool;
-      } else if (msg.role === "assistant") {
-        return ApplicationIcons.role.assistant;
-      } else {
-        return ApplicationIcons.role.unknown;
-      }
-    };
-    const normalizeContent = (content2) => {
-      if (typeof content2 === "string") {
-        return {
-          type: "text",
-          text: content2
-        };
-      } else {
-        return content2;
-      }
-    };
-    const ChatMessage = ({
-      id,
-      message: message2,
-      toolMessages,
-      indented: indented2,
-      toolCallStyle
-    }) => {
-      const collapse = message2.role === "system";
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs(
-        "div",
-        {
-          className: clsx(
-            message2.role,
-            "text-size-base",
-            styles$10.message,
-            message2.role === "system" ? styles$10.systemRole : void 0
-          ),
-          children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$10.messageGrid, "text-style-label"), children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: iconForMsg(message2) }),
-              message2.role
-            ] }),
-            message2.role === "assistant" && message2.reasoning ? /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-label", "text-style-secondary"), children: "Reasoning" }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx(ExpandablePanel, { collapse: true, children: /* @__PURE__ */ jsxRuntimeExports.jsx(MarkdownDiv, { markdown: message2.reasoning }) })
-            ] }, `${id}-response-label`) : void 0,
-            /* @__PURE__ */ jsxRuntimeExports.jsxs(
-              "div",
-              {
-                className: clsx(
-                  styles$10.messageContents,
-                  indented2 ? styles$10.indented : void 0
-                ),
-                children: [
-                  message2.role === "assistant" && message2.reasoning ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-label", "text-style-secondary"), children: "Response" }) : void 0,
-                  /* @__PURE__ */ jsxRuntimeExports.jsx(ExpandablePanel, { collapse, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-                    MessageContents,
-                    {
-                      message: message2,
-                      toolMessages,
-                      toolCallStyle
-                    },
-                    `${id}-contents`
-                  ) })
-                ]
-              }
-            )
-          ]
-        }
-      );
-    };
-    const grid$6 = "_grid_140x5_1";
-    const number$1 = "_number_140x5_7";
-    const styles$W = {
-      grid: grid$6,
-      number: number$1
-    };
-    const ChatMessageRow = ({
-      parentName,
-      number: number2,
-      resolvedMessage,
-      toolCallStyle,
-      indented: indented2
-    }) => {
-      if (number2) {
-        return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$W.grid, children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx(
-            "div",
-            {
-              className: clsx(
-                "text-size-smaller",
-                "text-style-secondary",
-                styles$W.number
-              ),
-              children: number2
-            }
-          ),
-          /* @__PURE__ */ jsxRuntimeExports.jsx(
-            ChatMessage,
-            {
-              id: `${parentName}-chat-messages`,
-              message: resolvedMessage.message,
-              toolMessages: resolvedMessage.toolMessages,
-              indented: indented2,
-              toolCallStyle
-            }
-          )
-        ] });
-      } else {
-        return /* @__PURE__ */ jsxRuntimeExports.jsx(
-          ChatMessage,
-          {
-            id: `${parentName}-chat-messages`,
-            message: resolvedMessage.message,
-            toolMessages: resolvedMessage.toolMessages,
-            indented: indented2,
-            toolCallStyle
-          }
-        );
-      }
-    };
-    const ChatView = ({
-      id,
-      messages,
-      toolCallStyle = "complete",
-      indented: indented2,
-      numbered = true,
-      className: className2
-    }) => {
-      const collapsedMessages = resolveMessages(messages);
-      const result = /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(className2), children: collapsedMessages.map((msg, index2) => {
-        const number2 = collapsedMessages.length > 1 && numbered ? index2 + 1 : void 0;
-        return /* @__PURE__ */ jsxRuntimeExports.jsx(
-          ChatMessageRow,
-          {
-            parentName: id || "chat-view",
-            number: number2,
-            resolvedMessage: msg,
-            indented: indented2,
-            toolCallStyle
-          },
-          `${id}-msg-${index2}`
-        );
-      }) });
-      return result;
-    };
-    const ChatMessageRenderer = {
-      bucket: Buckets.first,
-      canRender: (entry2) => {
-        var _a2, _b2;
-        const val = entry2.value;
-        return Array.isArray(val) && val.length > 0 && ((_a2 = val[0]) == null ? void 0 : _a2.role) !== void 0 && ((_b2 = val[0]) == null ? void 0 : _b2.content) !== void 0;
-      },
-      render: (id, entry2) => {
-        return {
-          rendered: /* @__PURE__ */ jsxRuntimeExports.jsxs(NavPills, { children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx(ChatSummary, { title: "Last Turn", id, messages: entry2.value }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx(ChatView, { title: "All", id, messages: entry2.value })
-          ] })
-        };
-      }
-    };
-    const ChatSummary = ({ id, messages }) => {
-      const summaryMessages = [];
-      for (const message2 of messages.slice().reverse()) {
-        summaryMessages.unshift(message2);
-        if (message2.role === "user") {
-          break;
-        }
-      }
-      return /* @__PURE__ */ jsxRuntimeExports.jsx(ChatView, { id, messages: summaryMessages });
-    };
-    const table$1 = "_table_1memb_1";
-    const th = "_th_1memb_7";
-    const cell$2 = "_cell_1memb_11";
-    const compact = "_compact_1memb_15";
-    const cellKey = "_cellKey_1memb_19";
-    const cellValue = "_cellValue_1memb_31";
-    const styles$V = {
-      table: table$1,
-      th,
-      cell: cell$2,
-      compact,
-      cellKey,
-      cellValue
-    };
-    const MetaDataView = ({
-      id,
-      style: style2,
-      entries,
-      tableOptions,
-      compact: compact2,
-      className: className2
-    }) => {
-      const baseId = "metadataview";
-      tableOptions = tableOptions || "sm";
-      const tblClz = (tableOptions || "").split(",").map((option) => {
-        return `table-${option}`;
-      });
-      const coercedEntries = toNameValues(entries);
-      const entryEls = (coercedEntries || []).map((entry2, index2) => {
-        const id2 = `${baseId}-value-${index2}`;
-        return /* @__PURE__ */ jsxRuntimeExports.jsxs("tr", { children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx(
-            "td",
-            {
-              className: clsx(
-                styles$V.cell,
-                styles$V.cellKey,
-                "text-size-small",
-                "text-style-label"
-              ),
-              children: entry2.name
-            }
-          ),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("td", { className: clsx(styles$V.cell, styles$V.cellValue, "text-size-small"), children: /* @__PURE__ */ jsxRuntimeExports.jsx(RenderedContent, { id: id2, entry: entry2 }) })
-        ] }, id2);
-      });
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs(
-        "table",
-        {
-          id,
-          className: clsx(
-            "table",
-            tblClz,
-            styles$V.table,
-            compact2 ? styles$V.compact : void 0,
-            className2
-          ),
-          style: style2,
-          children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx("thead", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("tr", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("th", { colSpan: 2, className: "th" }) }) }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("tbody", { children: entryEls })
-          ]
-        }
-      );
-    };
-    const toNameValues = (entries) => {
-      if (entries) {
-        if (Array.isArray(entries)) {
-          return entries;
-        } else {
-          return Object.entries(entries || {}).map(([key2, value2]) => {
-            return { name: key2, value: value2 };
-          });
-        }
-      } else {
-        return entries;
-      }
-    };
-    const query = "_query_9u9bt_1";
-    const summary$3 = "_summary_9u9bt_6";
-    const preWrap = "_preWrap_9u9bt_10";
-    const styles$U = {
-      query,
-      summary: summary$3,
-      preWrap
-    };
-    const RenderedContent = ({
-      id,
-      entry: entry2
-    }) => {
-      if (entry2.value === null) {
-        return /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "[null]" });
-      }
-      const renderer = Object.keys(contentRenderers).map((key2) => {
-        return contentRenderers[key2];
-      }).sort((a, b) => {
-        return a.bucket - b.bucket;
-      }).find((renderer2) => {
-        return renderer2.canRender(entry2);
-      });
-      if (renderer) {
-        const { rendered } = renderer.render(id, entry2);
-        if (rendered !== void 0 && React$2.isValidElement(rendered)) {
-          return rendered;
-        }
-      }
-      const displayValue = (() => {
-        try {
-          if (typeof entry2.value === "object") {
-            return JSON.stringify(entry2.value);
-          }
-          return String(entry2.value);
-        } catch (e) {
-          return "[Unable to display value]";
-        }
-      })();
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: displayValue });
-    };
-    const contentRenderers = {
-      AnsiString: {
-        bucket: Buckets.first,
-        canRender: (entry2) => {
-          return typeof entry2.value === "string" && entry2.value.indexOf("\x1B") > -1;
-        },
-        render: (_id, entry2) => {
-          return {
-            rendered: /* @__PURE__ */ jsxRuntimeExports.jsx(ANSIDisplay, { output: entry2.value })
-          };
-        }
-      },
-      Model: {
-        bucket: Buckets.intermediate,
-        canRender: (entry2) => {
-          return typeof entry2.value === "object" && entry2.value._model;
-        },
-        render: (_id, entry2) => {
-          return {
-            rendered: /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.model }),
-              " ",
-              entry2.value._model
-            ] })
-          };
-        }
-      },
-      Boolean: {
-        bucket: Buckets.intermediate,
-        canRender: (entry2) => {
-          return typeof entry2.value === "boolean";
-        },
-        render: (id, entry2) => {
-          entry2.value = entry2.value.toString();
-          return contentRenderers.String.render(id, entry2);
-        }
-      },
-      Number: {
-        bucket: Buckets.intermediate,
-        canRender: (entry2) => {
-          return typeof entry2.value === "number";
-        },
-        render: (id, entry2) => {
-          entry2.value = formatNumber(entry2.value);
-          return contentRenderers.String.render(id, entry2);
-        }
-      },
-      String: {
-        bucket: Buckets.final,
-        canRender: (entry2) => {
-          return typeof entry2.value === "string";
-        },
-        render: (_id, entry2) => {
-          const rendered = entry2.value.trim();
-          return {
-            rendered
-          };
-        }
-      },
-      Array: {
-        bucket: Buckets.intermediate,
-        canRender: (entry2) => {
-          const isArray = Array.isArray(entry2.value);
-          if (isArray) {
-            const types2 = new Set(
-              entry2.value.filter((e) => e !== null).map((e) => {
-                return typeof e;
-              })
-            );
-            return types2.size === 1;
-          } else {
-            return false;
-          }
-        },
-        render: (id, entry2) => {
-          const arrayMap = {};
-          entry2.value.forEach((e, index2) => {
-            arrayMap[`[${index2}]`] = e;
-          });
-          const arrayRendered = /* @__PURE__ */ jsxRuntimeExports.jsx(
-            MetaDataView,
-            {
-              id,
-              className: "font-size-small",
-              entries: arrayMap,
-              tableOptions: "borderless,sm",
-              compact: true
-            }
-          );
-          return { rendered: arrayRendered };
-        }
-      },
-      ChatMessage: ChatMessageRenderer,
-      web_search: {
-        bucket: Buckets.intermediate,
-        canRender: (entry2) => {
-          return typeof entry2.value === "object" && entry2.name === "web_search";
-        },
-        render: (_id, entry2) => {
-          const results = [];
-          results.push(
-            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$U.query, children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.search }),
-              " ",
-              entry2.value.query
-            ] })
-          );
-          entry2.value.results.forEach(
-            (result) => {
-              results.push(
-                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("a", { href: result.url, children: result.url }) })
-              );
-              results.push(
-                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-smaller", styles$U.summary), children: result.summary })
-              );
-            }
-          );
-          return {
-            rendered: results
-          };
-        }
-      },
-      web_browser: {
-        bucket: Buckets.intermediate,
-        canRender: (entry2) => {
-          var _a2;
-          return typeof entry2.value === "string" && ((_a2 = entry2.name) == null ? void 0 : _a2.startsWith("web_browser"));
-        },
-        render: (_id, entry2) => {
-          return {
-            rendered: /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: styles$U.preWrap, children: entry2.value })
-          };
-        }
-      },
-      Html: {
-        bucket: Buckets.intermediate,
-        canRender: (entry2) => {
-          return typeof entry2.value === "object" && entry2.value._html;
-        },
-        render: (_id, entry2) => {
-          return {
-            rendered: entry2.value._html
-          };
-        }
-      },
-      Image: {
-        bucket: Buckets.intermediate,
-        canRender: (entry2) => {
-          return typeof entry2.value === "string" && entry2.value.startsWith("data:image/");
-        },
-        render: (_id, entry2) => {
-          return {
-            rendered: /* @__PURE__ */ jsxRuntimeExports.jsx("img", { src: entry2.value })
-          };
-        }
-      },
-      Object: {
-        bucket: Buckets.intermediate,
-        canRender: (entry2) => {
-          return typeof entry2.value === "object";
-        },
-        render: (id, entry2) => {
-          console.log({ entry: entry2 });
-          return {
-            rendered: /* @__PURE__ */ jsxRuntimeExports.jsx(
-              MetaDataView,
-              {
-                id,
-                className: "text-size-smaller",
-                entries: entry2.value,
-                tableOptions: "borderless,sm",
-                compact: true
-              }
-            )
-          };
-        }
-      }
-    };
-    const otherScoreDescriptor = () => {
-      return {
-        scoreType: kScoreTypeOther,
-        compare: () => {
-          return 0;
-        },
-        render: (score2) => {
-          return /* @__PURE__ */ jsxRuntimeExports.jsx(
-            RenderedContent,
-            {
-              id: "other-score-value",
-              entry: { name: "other-score-value", value: score2 }
-            }
-          );
-        }
-      };
-    };
-    const circle = "_circle_1iagp_1";
-    const green = "_green_1iagp_12";
-    const red = "_red_1iagp_18";
-    const orange = "_orange_1iagp_24";
-    const styles$T = {
-      circle,
-      green,
-      red,
-      orange
-    };
-    const passFailScoreDescriptor = (values) => {
-      const categories = [];
-      if (values.includes("C")) {
-        categories.push({
-          val: "C",
-          text: "Correct"
-        });
-      }
-      if (values.includes("P")) {
-        categories.push({
-          val: "P",
-          text: "Partial"
-        });
-      }
-      if (values.includes("I")) {
-        categories.push({
-          val: "I",
-          text: "Incorrect"
-        });
-      }
-      if (values.includes("N")) {
-        categories.push({
-          val: "N",
-          text: "Refusal"
-        });
-      }
-      const order = ["C", "P", "I", "N"];
-      return {
-        scoreType: kScoreTypePassFail,
-        categories,
-        render: (score2) => {
-          if (score2 === "C") {
-            return /* @__PURE__ */ jsxRuntimeExports.jsx(
-              "span",
-              {
-                className: clsx("text-size-small", styles$T.circle, styles$T.green),
-                children: "C"
-              }
-            );
-          } else if (score2 === "I") {
-            return /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx("text-size-small", styles$T.circle, styles$T.red), children: "I" });
-          } else if (score2 === "P") {
-            return /* @__PURE__ */ jsxRuntimeExports.jsx(
-              "span",
-              {
-                className: clsx("text-size-small", styles$T.circle, styles$T.orange),
-                children: "P"
-              }
-            );
-          } else if (score2 === "N") {
-            return /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx("text-size-small", styles$T.circle, styles$T.red), children: "N" });
-          } else {
-            return String(score2);
-          }
-        },
-        compare: (a, b) => {
-          if (typeof a.value !== "string" || typeof b.value !== "string") {
-            throw new Error(
-              "Unexpectedly using the pass fail scorer on non-string values"
-            );
-          }
-          const sort = order.indexOf(a.value || "") - order.indexOf(b.value || "");
-          return sort;
-        }
-      };
-    };
-    const getScoreDescriptorForValues = (uniqScoreValues, uniqScoreTypes) => {
-      for (const categorizer of scoreCategorizers) {
-        const scoreDescriptor = categorizer.describe(
-          uniqScoreValues,
-          uniqScoreTypes
-        );
-        if (scoreDescriptor) {
-          return scoreDescriptor;
-        }
-      }
-    };
-    const scoreCategorizers = [
-      {
-        describe: (_values, types2) => {
-          if (types2 && types2.length === 1 && types2[0] === "boolean") {
-            return booleanScoreDescriptor();
-          }
-        }
-      },
-      {
-        describe: (values, _types) => {
-          if (values.length === 2 && values.every((val) => {
-            return val === 1 || val === 0;
-          })) {
-            return booleanScoreDescriptor();
-          }
-        }
-      },
-      {
-        describe: (values, types2) => {
-          if (types2 && types2[0] === "string" && types2.length === 1 && values.length < 5 && !values.find((val) => {
-            return val !== "I" && val !== "C" && val !== "P" && val !== "N";
-          })) {
-            return passFailScoreDescriptor(values);
-          }
-        }
-      },
-      {
-        describe: (values, types2) => {
-          if (values.length < 10 && types2 && types2.length === 1 && types2[0] === "string") {
-            return categoricalScoreDescriptor(values);
-          }
-        }
-      },
-      {
-        describe: (values, types2) => {
-          if (types2 && types2.length !== 0 && types2[0] === "number") {
-            return numericScoreDescriptor(values);
-          }
-        }
-      },
-      {
-        describe: (values, types2) => {
-          if (types2 && types2.length !== 0 && types2[0] === "object") {
-            return objectScoreDescriptor(values);
-          }
-        }
-      },
-      {
-        describe: (_values, _types) => {
-          return otherScoreDescriptor();
-        }
-      }
-    ];
-    const createEvalDescriptor = (scores2, epochs, samples) => {
-      if (!samples) {
-        return void 0;
-      }
-      const scoreValue2 = (sample2, scoreLabel) => {
-        if (sample2.scores === null || Object.keys(sample2.scores).length === 0 || !scoreLabel) {
-          return void 0;
-        }
-        if (scoreLabel.scorer !== scoreLabel.name && sample2.scores[scoreLabel.scorer] && sample2.scores[scoreLabel.scorer].value) {
-          return sample2.scores[scoreLabel.scorer].value;
-        } else if (sample2.scores[scoreLabel.name]) {
-          return sample2.scores[scoreLabel.name].value;
-        } else {
-          return void 0;
-        }
-      };
-      const scoreAnswer = (sample2, scorer) => {
-        if (sample2 && sample2.scores) {
-          const sampleScore = sample2.scores[scorer];
-          if (sampleScore && sampleScore.answer) {
-            return sampleScore.answer;
-          }
-        } else {
-          return void 0;
-        }
-      };
-      const scoreExplanation = (sample2, scorer) => {
-        if (sample2 && sample2.scores) {
-          const sampleScore = sample2.scores[scorer];
-          if (sampleScore && sampleScore.explanation) {
-            return sampleScore.explanation;
-          }
-        }
-        return void 0;
-      };
-      const scoreMetadata = (sample2, scorer) => {
-        if (sample2 && sample2.scores) {
-          const sampleScore = sample2.scores[scorer];
-          if (sampleScore && sampleScore.metadata) {
-            return sampleScore.metadata;
-          }
-        }
-        return void 0;
-      };
-      const scoreDescriptorMap = {};
-      for (const scoreLabel of scores2) {
-        const uniqScoreValues = [
-          ...new Set(
-            samples.filter((sample2) => !!sample2.scores).filter((sample2) => {
-              if (!scoreLabel) {
-                return true;
-              }
-              if (!sample2.scores) {
-                return false;
-              }
-              if (scoreLabel.scorer !== scoreLabel.name) {
-                return Object.keys(sample2.scores).includes(scoreLabel.scorer) && Object.keys(sample2.scores[scoreLabel.scorer].value).includes(
-                  scoreLabel.name
-                );
-              } else {
-                return Object.keys(sample2.scores).includes(scoreLabel.name);
-              }
-            }).map((sample2) => {
-              return scoreValue2(sample2, scoreLabel);
-            }).filter((value2) => {
-              return value2 !== null;
-            }).filter((value2) => {
-              return value2 !== void 0;
-            })
-          )
-        ];
-        const uniqScoreTypes = [
-          ...new Set(uniqScoreValues.map((scoreValue22) => typeof scoreValue22))
-        ];
-        const scoreDescriptor2 = getScoreDescriptorForValues(
-          uniqScoreValues,
-          uniqScoreTypes
-        );
-        if (scoreDescriptor2) {
-          scoreDescriptorMap[scoreLabelKey(scoreLabel)] = scoreDescriptor2;
-        }
-      }
-      const scoreDescriptor = (scoreLabel) => {
-        return scoreDescriptorMap[scoreLabelKey(scoreLabel)];
-      };
-      const scoreRendered = (sample2, scoreLabel) => {
-        const descriptor = scoreDescriptor(scoreLabel);
-        const score22 = scoreValue2(sample2, scoreLabel);
-        if (score22 === null) {
-          return "null";
-        } else if (score22 === void 0) {
-          return "";
-        } else if (score22 && descriptor && descriptor.render) {
-          return descriptor.render(score22);
-        } else {
-          return /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: String(score22) });
-        }
-      };
-      const scorerDescriptor = (sample2, scoreLabel) => {
-        return {
-          metadata: () => {
-            return scoreMetadata(sample2, scoreLabel.scorer) || {};
-          },
-          explanation: () => {
-            return scoreExplanation(sample2, scoreLabel.scorer) || "";
-          },
-          answer: () => {
-            return scoreAnswer(sample2, scoreLabel.scorer) || "";
-          },
-          scores: () => {
-            if (!sample2 || !sample2.scores) {
-              return [];
-            }
-            const myScoreDescriptor = scoreDescriptor(scoreLabel);
-            if (!myScoreDescriptor) {
-              return [];
-            }
-            const scoreNames = scores2.map((score22) => {
-              return score22.name;
-            });
-            const sampleScorer = sample2.scores[scoreLabel.scorer];
-            const scoreVal = sampleScorer.value;
-            if (typeof scoreVal === "object") {
-              const names = Object.keys(scoreVal);
-              if (names.find((name2) => {
-                return scoreNames.includes(name2);
-              })) {
-                const scores22 = names.map((name2) => {
-                  return {
-                    name: name2,
-                    rendered: () => {
-                      return myScoreDescriptor.render(scoreVal);
-                    }
-                  };
-                });
-                return scores22;
-              } else {
-                return [
-                  {
-                    name: scoreLabel.scorer,
-                    rendered: () => {
-                      return myScoreDescriptor.render(scoreVal);
-                    }
-                  }
-                ];
-              }
-            } else {
-              return [
-                {
-                  name: scoreLabel.scorer,
-                  rendered: () => {
-                    return myScoreDescriptor.render(scoreVal);
-                  }
-                }
-              ];
-            }
-          }
-        };
-      };
-      const score2 = (sample2, scoreLabel) => {
-        return {
-          value: scoreValue2(sample2, scoreLabel),
-          render: () => {
-            return scoreRendered(sample2, scoreLabel);
-          }
-        };
-      };
-      return {
-        epochs,
-        samples,
-        scores: scores2,
-        scorerDescriptor,
-        scoreDescriptor,
-        score: score2,
-        scoreAnswer
-      };
-    };
-    const createSamplesDescriptor = (evalDescriptor, selectedScore) => {
-      const sizes = evalDescriptor.samples.reduce(
-        (previous, current) => {
-          var _a2;
-          const text2 = inputString(current.input).join(" ");
-          const score2 = evalDescriptor.score(current, selectedScore);
-          const scoreValue2 = score2 == null ? void 0 : score2.value;
-          const scoreText = scoreValue2 ? String(scoreValue2) : current.error ? String(current.error) : "";
-          previous[0] = Math.min(Math.max(previous[0], text2.length), 300);
-          previous[1] = Math.min(
-            Math.max(previous[1], arrayToString(current.target).length),
-            300
-          );
-          previous[2] = Math.min(
-            Math.max(
-              previous[2],
-              ((_a2 = evalDescriptor.scoreAnswer(current, selectedScore == null ? void 0 : selectedScore.name)) == null ? void 0 : _a2.length) || 0
-            ),
-            300
-          );
-          previous[3] = Math.min(
-            Math.max(previous[3], current.limit ? current.limit.length : 0),
-            50
-          );
-          previous[4] = Math.min(
-            Math.max(previous[4], String(current.id).length),
-            10
-          );
-          previous[5] = Math.min(Math.max(previous[5], scoreText.length), 30);
-          return previous;
-        },
-        [0, 0, 0, 0, 0, 0]
-      );
-      const maxSizes = {
-        input: Math.min(sizes[0], 300),
-        target: Math.min(sizes[1], 300),
-        answer: Math.min(sizes[2], 300),
-        limit: Math.min(sizes[3], 50),
-        id: Math.min(sizes[4], 10),
-        score: Math.min(sizes[4], 30)
-      };
-      const base2 = maxSizes.input + maxSizes.target + maxSizes.answer + maxSizes.limit + maxSizes.id + maxSizes.score || 1;
-      const messageShape = {
-        raw: {
-          input: sizes[0],
-          target: sizes[1],
-          answer: sizes[2],
-          limit: sizes[3],
-          id: sizes[4],
-          score: sizes[5]
-        },
-        normalized: {
-          input: maxSizes.input / base2,
-          target: maxSizes.target / base2,
-          answer: maxSizes.answer / base2,
-          limit: maxSizes.limit / base2,
-          id: maxSizes.id / base2,
-          score: maxSizes.score / base2
-        }
-      };
-      return {
-        evalDescriptor,
-        messageShape,
-        selectedScoreDescriptor: evalDescriptor.scoreDescriptor(selectedScore),
-        selectedScore: (sample2) => evalDescriptor.score(sample2, selectedScore),
-        selectedScorerDescriptor: (sample2) => evalDescriptor.scorerDescriptor(sample2, selectedScore)
-      };
-    };
-    const scoreLabelKey = (scoreLabel) => {
-      return `${scoreLabel == null ? void 0 : scoreLabel.scorer}.${scoreLabel.name}`;
-    };
     var _parser = function() {
       var parser2 = {
         trace: function trace() {
@@ -25071,6 +16634,119 @@ var require_assets = __commonJS({
         }
       };
     }
+    const arrayToString = (val) => {
+      val = Array.isArray(val) ? val : [val];
+      return val.join(", ");
+    };
+    const inputString = (input2) => {
+      if (typeof input2 === "string") {
+        return [input2];
+      } else {
+        return input2.map((inp) => {
+          if (typeof inp === "string") {
+            return inp;
+          } else {
+            const content2 = inp.content;
+            if (typeof content2 === "string") {
+              return content2;
+            } else {
+              const result = content2.map((con) => {
+                if (con.type === "text") {
+                  return con.text;
+                } else {
+                  return "";
+                }
+              });
+              return result.join("\n");
+            }
+          }
+        });
+      }
+    };
+    const formatDataset = (samples, epochs, name2) => {
+      const perEpochSamples = epochs > 0 ? samples / epochs : samples;
+      const namePrefix = name2 ? `${name2} — ` : "";
+      const terms = [
+        namePrefix,
+        String(perEpochSamples),
+        epochs > 1 ? `x ${epochs} ` : "",
+        samples === 1 ? "sample" : "samples"
+      ];
+      return terms.join(" ");
+    };
+    const formatTime$1 = (seconds) => {
+      if (seconds < 60) {
+        return `${seconds} sec`;
+      } else if (seconds < 60 * 60) {
+        return `${Math.floor(seconds / 60)} min ${seconds % 60} sec`;
+      } else if (seconds < 60 * 60 * 24) {
+        const hours = Math.floor(seconds / (60 * 60));
+        const minutes = Math.floor(seconds % (60 * 60) / 60);
+        const remainingSeconds = seconds % 60;
+        return `${hours} hr ${minutes} min ${remainingSeconds} sec`;
+      } else {
+        const days = Math.floor(seconds / (60 * 60 * 24));
+        const hours = Math.floor(seconds % (60 * 60 * 24) / (60 * 60));
+        const minutes = Math.floor(seconds % (60 * 60) / 60);
+        const remainingSeconds = seconds % 60;
+        return `${days} days ${hours} hr ${minutes} min ${remainingSeconds} sec`;
+      }
+    };
+    function formatPrettyDecimal(num2) {
+      const numDecimalPlaces = num2.toString().includes(".") ? num2.toString().split(".")[1].length : 0;
+      if (numDecimalPlaces === 0) {
+        return num2.toFixed(1);
+      } else if (numDecimalPlaces > 3) {
+        return num2.toFixed(3);
+      } else {
+        return num2.toString();
+      }
+    }
+    function formatDecimalNoTrailingZeroes(num2) {
+      if (typeof num2 !== "number") {
+        return num2;
+      }
+      if (num2.toString().includes(".")) {
+        const decimal = num2.toString().split(".")[1];
+        const trimmed = decimal.replace(/\.?0+$/, "");
+        return num2.toFixed(trimmed.length);
+      } else {
+        return num2.toFixed(0);
+      }
+    }
+    function toTitleCase(str2) {
+      return str2.split(" ").map((w) => w[0].toUpperCase() + w.substr(1).toLowerCase()).join(" ");
+    }
+    function formatNoDecimal(num2) {
+      if (typeof num2 !== "number") {
+        return num2;
+      }
+      const rounded = Math.round(num2);
+      return rounded.toFixed(0);
+    }
+    function formatNumber(num2) {
+      return num2.toLocaleString(navigator.language, {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 5
+      });
+    }
+    function formatDateTime(date) {
+      const options2 = {
+        year: "2-digit",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "numeric",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: true
+      };
+      return new Intl.DateTimeFormat(void 0, options2).format(date);
+    }
+    function formatDuration(start, end) {
+      const durationMs = end.getTime() - start.getTime();
+      const durationSec = durationMs / 1e3;
+      return formatTime$1(durationSec);
+    }
     const coerceValue = (value2, descriptor) => {
       if (descriptor && descriptor.scoreType === kScoreTypeBoolean) {
         return Boolean(value2);
@@ -25092,13 +16768,13 @@ var require_assets = __commonJS({
       }
       return banned;
     };
-    const scoreVariables = (evalDescriptor, sampleScores) => {
-      const bannedShortNames = bannedShortScoreNames(evalDescriptor.scores);
+    const scoreVariables = (evalDescriptor2, sampleScores) => {
+      const bannedShortNames = bannedShortScoreNames(evalDescriptor2.scores);
       const variables = {};
       const addScore = (variableName, scoreLabel, value2) => {
         const coercedValue = coerceValue(
           value2,
-          evalDescriptor.scoreDescriptor(scoreLabel)
+          evalDescriptor2.scoreDescriptor(scoreLabel)
         );
         if (isFilteringSupportedForValue(coercedValue)) {
           variables[variableName] = coercedValue;
@@ -25117,16 +16793,16 @@ var require_assets = __commonJS({
       }
       return variables;
     };
-    const scoreFilterItems = (evalDescriptor) => {
+    const scoreFilterItems = (evalDescriptor2) => {
       const items = [];
-      const bannedShortNames = bannedShortScoreNames(evalDescriptor.scores);
+      const bannedShortNames = bannedShortScoreNames(evalDescriptor2.scores);
       const valueToString = (value2) => typeof value2 === "string" ? `"${value2}"` : String(value2);
       const addScore = (scoreLabel, shortName, qualifiedName) => {
         const canonicalName = shortName || qualifiedName;
         if (!canonicalName) {
           throw new Error("Unable to create a canonical name for a score");
         }
-        const descriptor = evalDescriptor.scoreDescriptor(scoreLabel);
+        const descriptor = evalDescriptor2.scoreDescriptor(scoreLabel);
         const scoreType = descriptor == null ? void 0 : descriptor.scoreType;
         if (!descriptor) {
           items.push({
@@ -25165,7 +16841,7 @@ categories: ${categories.join(" ")}`;
           scoreType
         });
       };
-      for (const { name: name2, scorer } of evalDescriptor.scores) {
+      for (const { name: name2, scorer } of evalDescriptor2.scores) {
         const hasShortName = name2 === scorer || !bannedShortNames.has(name2);
         const hasQualifiedName = name2 !== scorer;
         const shortName = hasShortName ? name2 : void 0;
@@ -25174,7 +16850,7 @@ categories: ${categories.join(" ")}`;
       }
       return items;
     };
-    const filterExpression = (evalDescriptor, sample2, filterValue) => {
+    const filterExpression = (evalDescriptor2, sample2, filterValue) => {
       var _a2, _b2;
       try {
         const inputContains = (regex2) => {
@@ -25191,7 +16867,7 @@ categories: ${categories.join(" ")}`;
           target_contains: targetContains
         };
         const expression = compileExpression(filterValue, { extraFunctions });
-        const vars = scoreVariables(evalDescriptor, sample2.scores);
+        const vars = scoreVariables(evalDescriptor2, sample2.scores);
         const result = expression(vars);
         if (typeof result === "boolean") {
           return { matches: result, error: void 0 };
@@ -25243,16 +16919,16 @@ categories: ${categories.join(" ")}`;
         };
       }
     };
-    const filterSamples = (evalDescriptor, samples, filterValue) => {
+    const filterSamples = (evalDescriptor2, samples, filterValue) => {
       var error2 = void 0;
       const result = samples.filter((sample2) => {
         if (filterValue) {
-          const { matches, error: sampleError } = filterExpression(
-            evalDescriptor,
+          const { matches, error: sampleError2 } = filterExpression(
+            evalDescriptor2,
             sample2,
             filterValue
           );
-          error2 || (error2 = sampleError);
+          error2 || (error2 = sampleError2);
           return matches;
         } else {
           return true;
@@ -25260,15 +16936,38 @@ categories: ${categories.join(" ")}`;
       });
       return { result, error: error2 };
     };
+    function r(e) {
+      var t2, f, n = "";
+      if ("string" == typeof e || "number" == typeof e) n += e;
+      else if ("object" == typeof e) if (Array.isArray(e)) {
+        var o = e.length;
+        for (t2 = 0; t2 < o; t2++) e[t2] && (f = r(e[t2])) && (n && (n += " "), n += f);
+      } else for (f in e) e[f] && (n && (n += " "), n += f);
+      return n;
+    }
+    function clsx() {
+      for (var e, t2, f = 0, n = "", o = arguments.length; f < o; f++) (e = arguments[f]) && (t2 = r(e)) && (n && (n += " "), n += t2);
+      return n;
+    }
+    const isNumeric = (n) => {
+      return !isNaN(parseFloat(n)) && isFinite(n);
+    };
+    const toArray = (val) => {
+      if (Array.isArray(val)) {
+        return val;
+      } else {
+        return [val];
+      }
+    };
     const flex$1 = "_flex_1kye9_1";
     const label$5 = "_label_1kye9_5";
-    const styles$S = {
+    const styles$13 = {
       flex: flex$1,
       label: label$5
     };
     const SortFilter = ({
-      sort,
-      setSort,
+      sort: sort2,
+      setSort: setSort2,
       epochs
     }) => {
       const options2 = [
@@ -25293,7 +16992,7 @@ categories: ${categories.join(" ")}`;
         label: "score desc",
         val: kScoreDescVal
       });
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$S.flex, children: [
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$13.flex, children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx(
           "span",
           {
@@ -25302,7 +17001,7 @@ categories: ${categories.join(" ")}`;
               "text-size-smaller",
               "text-style-label",
               "text-style-secondary",
-              styles$S.label
+              styles$13.label
             ),
             children: "Sort:"
           }
@@ -25312,10 +17011,10 @@ categories: ${categories.join(" ")}`;
           {
             className: clsx("form-select", "form-select-sm", "text-size-smaller"),
             "aria-label": ".sort-filter-label",
-            value: sort,
+            value: sort2,
             onChange: (e) => {
               const sel = e.target;
-              setSort(sel.value);
+              setSort2(sel.value);
             },
             children: options2.map((option) => {
               return /* @__PURE__ */ jsxRuntimeExports.jsx("option", { value: option.val, children: option.label }, option.val);
@@ -25324,11 +17023,11 @@ categories: ${categories.join(" ")}`;
         )
       ] });
     };
-    const byEpoch = (sort) => {
-      return sort === kEpochAscVal || sort === kEpochDescVal;
+    const byEpoch = (sort2) => {
+      return sort2 === kEpochAscVal || sort2 === kEpochDescVal;
     };
-    const bySample = (sort) => {
-      return sort === kSampleAscVal || sort === kSampleDescVal;
+    const bySample = (sort2) => {
+      return sort2 === kSampleAscVal || sort2 === kSampleDescVal;
     };
     const sortId = (a, b) => {
       if (isNumeric(a.id) && isNumeric(b.id)) {
@@ -25337,9 +17036,9 @@ categories: ${categories.join(" ")}`;
         return String(a.id).localeCompare(String(b.id));
       }
     };
-    const sortSamples = (sort, samples, samplesDescriptor) => {
+    const sortSamples = (sort2, samples, samplesDescriptor2) => {
       const sortedSamples = samples.sort((a, b) => {
-        switch (sort) {
+        switch (sort2) {
           case kSampleAscVal: {
             const result = sortId(a, b);
             if (result !== 0) {
@@ -25373,23 +17072,23 @@ categories: ${categories.join(" ")}`;
             }
           }
           case kScoreAscVal: {
-            const aScore = samplesDescriptor.selectedScore(a);
-            const bScore = samplesDescriptor.selectedScore(b);
-            if (aScore === void 0 || bScore === void 0 || samplesDescriptor.selectedScoreDescriptor == void 0) {
+            const aScore = samplesDescriptor2.selectedScore(a);
+            const bScore = samplesDescriptor2.selectedScore(b);
+            if (aScore === void 0 || bScore === void 0 || samplesDescriptor2.selectedScoreDescriptor == void 0) {
               return 0;
             }
-            return samplesDescriptor.selectedScoreDescriptor.compare(
+            return samplesDescriptor2.selectedScoreDescriptor.compare(
               aScore,
               bScore
             );
           }
           case kScoreDescVal: {
-            const aScore = samplesDescriptor.selectedScore(a);
-            const bScore = samplesDescriptor.selectedScore(b);
-            if (aScore === void 0 || bScore === void 0 || samplesDescriptor.selectedScoreDescriptor == void 0) {
+            const aScore = samplesDescriptor2.selectedScore(a);
+            const bScore = samplesDescriptor2.selectedScore(b);
+            if (aScore === void 0 || bScore === void 0 || samplesDescriptor2.selectedScoreDescriptor == void 0) {
               return 0;
             }
-            return samplesDescriptor.selectedScoreDescriptor.compare(
+            return samplesDescriptor2.selectedScoreDescriptor.compare(
               aScore,
               bScore
             );
@@ -25398,10 +17097,7 @@ categories: ${categories.join(" ")}`;
             return 0;
         }
       });
-      return {
-        sorted: sortedSamples,
-        order: sort === kSampleAscVal || sort === kEpochAscVal || sort === kScoreAscVal ? "asc" : "desc"
-      };
+      return sortedSamples;
     };
     const resolveAttachments = (value2, attachments) => {
       const kContentProtocol = "tc://";
@@ -25449,12 +17145,12 @@ categories: ${categories.join(" ")}`;
       });
     };
     const dirname$1 = "_dirname_16ra5_1";
-    const styles$R = {
+    const styles$12 = {
       dirname: dirname$1
     };
     const LogDirectoryTitleView = ({
       log_dir,
-      offcanvas
+      offcanvas: offcanvas2
     }) => {
       if (log_dir) {
         const displayDir = prettyDir(log_dir);
@@ -25474,13 +17170,13 @@ categories: ${categories.join(" ")}`;
             "span",
             {
               title: displayDir,
-              className: clsx("text-size-base", styles$R.dirname),
-              children: offcanvas ? displayDir : ""
+              className: clsx("text-size-base", styles$12.dirname),
+              children: offcanvas2 ? displayDir : ""
             }
           )
         ] });
       } else {
-        return /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx("text-size-title"), children: offcanvas ? "Log History" : "" });
+        return /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx("text-size-title"), children: offcanvas2 ? "Log History" : "" });
       }
     };
     const prettyDir = (path) => {
@@ -25501,27 +17197,27 @@ categories: ${categories.join(" ")}`;
     const header$2 = "_header_1u82r_23";
     const toggle$1 = "_toggle_1u82r_39";
     const progress = "_progress_1u82r_46";
-    const list$2 = "_list_1u82r_50";
+    const list$3 = "_list_1u82r_50";
     const backdrop = "_backdrop_1u82r_55";
     const active = "_active_1u82r_62";
     const item$2 = "_item_1u82r_66";
-    const styles$Q = {
+    const styles$11 = {
       sidebar,
       sidebarClosed,
       sidebarOpen,
       header: header$2,
       toggle: toggle$1,
       progress,
-      list: list$2,
+      list: list$3,
       backdrop,
       active,
       item: item$2
     };
-    const error = "_error_srruf_1";
+    const error$1 = "_error_srruf_1";
     const running = "_running_srruf_6";
     const cancelled = "_cancelled_srruf_13";
-    const styles$P = {
-      error,
+    const styles$10 = {
+      error: error$1,
       running,
       cancelled
     };
@@ -25547,20 +17243,20 @@ categories: ${categories.join(" ")}`;
       return clusterValue;
     };
     const metricModifiers = [clusterMetricModifier];
-    const container$c = "_container_1frsg_1";
+    const container$d = "_container_1frsg_1";
     const metric = "_metric_1frsg_8";
     const metricName$1 = "_metricName_1frsg_17";
     const metricReducer$1 = "_metricReducer_1frsg_21";
-    const styles$O = {
-      container: container$c,
+    const styles$$ = {
+      container: container$d,
       metric,
       metricName: metricName$1,
       metricReducer: metricReducer$1
     };
     const SidebarScoreView = ({ scorer }) => {
       const showReducer = !!scorer.reducer;
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$O.container, children: Object.keys(scorer.metrics).map((metric2) => {
-        return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$O.metric, children: [
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$$.container, children: Object.keys(scorer.metrics).map((metric2) => {
+        return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$$.metric, children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx(
             "div",
             {
@@ -25568,24 +17264,24 @@ categories: ${categories.join(" ")}`;
                 "text-style-secondary",
                 "text-style-label",
                 "text-size-small",
-                styles$O.metricName
+                styles$$.metricName
               ),
               children: metricDisplayName(scorer.metrics[metric2])
             }
           ),
-          showReducer ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-small", styles$O.metricReducer), children: scorer.reducer || "default" }) : "",
+          showReducer ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-small", styles$$.metricReducer), children: scorer.reducer || "default" }) : "",
           /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-size-title-secondary", children: formatPrettyDecimal(scorer.metrics[metric2].value) })
         ] }, metric2);
       }) });
     };
-    const container$b = "_container_5kpg1_1";
+    const container$c = "_container_5kpg1_1";
     const scoreWrapper = "_scoreWrapper_5kpg1_9";
     const metricName = "_metricName_5kpg1_16";
     const metricReducer = "_metricReducer_5kpg1_22";
     const metricValues = "_metricValues_5kpg1_27";
     const metricValue = "_metricValue_5kpg1_27";
-    const styles$N = {
-      container: container$b,
+    const styles$_ = {
+      container: container$c,
       scoreWrapper,
       metricName,
       metricReducer,
@@ -25594,10 +17290,10 @@ categories: ${categories.join(" ")}`;
     };
     const SidebarScoresView = ({ scores: scores2 }) => {
       const showReducer = scores2.findIndex((score2) => !!score2.reducer) !== -1;
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$N.container, children: scores2.map((score2, idx) => {
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$_.container, children: scores2.map((score2, idx) => {
         const name2 = score2.name;
         const reducer = score2.reducer;
-        return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$N.scoreWrapper, children: [
+        return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$_.scoreWrapper, children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx(
             "div",
             {
@@ -25605,7 +17301,7 @@ categories: ${categories.join(" ")}`;
                 "text-style-secondary",
                 "text-style-label",
                 "text-size-small",
-                styles$N.metricName
+                styles$_.metricName
               ),
               children: name2
             }
@@ -25617,16 +17313,16 @@ categories: ${categories.join(" ")}`;
                 "text-size-small",
                 "text-style-label",
                 "text-style-secondary",
-                styles$N.metricReducer
+                styles$_.metricReducer
               ),
               children: reducer || "default"
             }
           ) : "",
-          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-small", styles$N.metricValues), children: Object.keys(score2.metrics).map((key2) => {
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-small", styles$_.metricValues), children: Object.keys(score2.metrics).map((key2) => {
             const metric2 = score2.metrics[key2];
             return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
               /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(), children: metricDisplayName(metric2) }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$N.metricValue, children: formatPrettyDecimal(metric2.value) })
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$_.metricValue, children: formatPrettyDecimal(metric2.value) })
             ] }, key2);
           }) })
         ] }, `scorer-${name2}-${idx}`);
@@ -25661,7 +17357,7 @@ categories: ${categories.join(" ")}`;
             "text-style-secondary",
             "text-style-label",
             "text-size-small",
-            styles$P.cancelled
+            styles$10.cancelled
           ),
           children: message2
         }
@@ -25675,21 +17371,21 @@ categories: ${categories.join(" ")}`;
             "text-style-secondary",
             "text-style-label",
             "text-size-small",
-            styles$P.running
+            styles$10.running
           ),
           children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: message2 })
         }
       );
     };
     const StatusError = ({ message: message2 }) => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$P.error, "text-size-small"), children: message2 });
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$10.error, "text-size-small"), children: message2 });
     };
     const entry = "_entry_12m5n_1";
     const title$3 = "_title_12m5n_7";
     const task = "_task_12m5n_12";
     const params = "_params_12m5n_18";
     const scores = "_scores_12m5n_22";
-    const styles$M = {
+    const styles$Z = {
       entry,
       title: title$3,
       task,
@@ -25721,15 +17417,15 @@ categories: ${categories.join(" ")}`;
         minute: "2-digit"
       })}` : "";
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$M.entry, children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$M.title, children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$M.task, "text-size-title-secondary"), children: ((_i = logHeader == null ? void 0 : logHeader.eval) == null ? void 0 : _i.task) || task2 }),
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$Z.entry, children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$Z.title, children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$Z.task, "text-size-title-secondary"), children: ((_i = logHeader == null ? void 0 : logHeader.eval) == null ? void 0 : _i.task) || task2 }),
             /* @__PURE__ */ jsxRuntimeExports.jsx("small", { className: clsx("mb-1", "text-size-small"), children: timeStr }),
             model2 ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("small", { className: clsx("mb-1", "text-size-small"), children: model2 }) }) : ""
           ] }),
           /* @__PURE__ */ jsxRuntimeExports.jsx(EvalStatus, { logHeader })
         ] }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$M.params, "three-line-clamp"), children: /* @__PURE__ */ jsxRuntimeExports.jsx("small", { className: "mb-1", children: Object.keys(hyperparameters).map((key2) => {
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$Z.params, "three-line-clamp"), children: /* @__PURE__ */ jsxRuntimeExports.jsx("small", { className: "mb-1", children: Object.keys(hyperparameters).map((key2) => {
           const val = hyperparameters[key2];
           if (Array.isArray(val) || typeof val === "object") {
             return `${key2}: ${JSON.stringify(val)}`;
@@ -25740,13 +17436,13 @@ categories: ${categories.join(" ")}`;
         (((_j = logHeader == null ? void 0 : logHeader.eval) == null ? void 0 : _j.dataset) || ((_k = logHeader == null ? void 0 : logHeader.results) == null ? void 0 : _k.scores)) && (logHeader == null ? void 0 : logHeader.status) === "success" ? /* @__PURE__ */ jsxRuntimeExports.jsxs(
           "div",
           {
-            className: clsx("text-truncate", "text-size-small", styles$M.scores),
+            className: clsx("text-truncate", "text-size-small", styles$Z.scores),
             children: [
               /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
                 "dataset: ",
                 datasetName || "(samples)"
               ] }),
-              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("text-truncate", styles$M.scoreInfo), children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("text-truncate", styles$Z.scoreInfo), children: [
                 scorerLabel,
                 ": ",
                 scorerNames || "(none)"
@@ -25757,51 +17453,51 @@ categories: ${categories.join(" ")}`;
       ] });
     };
     const Sidebar = ({
-      logs,
-      logHeaders,
-      offcanvas,
-      setOffcanvas,
+      logs: logs2,
+      logHeaders: logHeaders2,
+      offcanvas: offcanvas2,
+      setOffcanvas: setOffcanvas2,
       loading,
       selectedIndex,
       onSelectedIndexChanged
     }) => {
       const handleToggle = () => {
-        setOffcanvas(!offcanvas);
+        setOffcanvas2(!offcanvas2);
       };
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
-        offcanvas && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$Q.backdrop, onClick: handleToggle }),
+        offcanvas2 && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$11.backdrop, onClick: handleToggle }),
         /* @__PURE__ */ jsxRuntimeExports.jsxs(
           "div",
           {
             className: clsx(
-              styles$Q.sidebar,
-              offcanvas ? styles$Q.sidebarOpen : styles$Q.sidebarClosed
+              styles$11.sidebar,
+              offcanvas2 ? styles$11.sidebarOpen : styles$11.sidebarClosed
             ),
             children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$Q.header, children: [
-                /* @__PURE__ */ jsxRuntimeExports.jsx(LogDirectoryTitleView, { log_dir: logs.log_dir, offcanvas }),
+              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$11.header, children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsx(LogDirectoryTitleView, { log_dir: logs2.log_dir, offcanvas: offcanvas2 }),
                 /* @__PURE__ */ jsxRuntimeExports.jsx(
                   "button",
                   {
                     onClick: handleToggle,
-                    className: clsx("btn", styles$Q.toggle),
+                    className: clsx("btn", styles$11.toggle),
                     type: "button",
                     "aria-label": "Close sidebar",
                     children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.close })
                   }
                 )
               ] }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$Q.progress, children: /* @__PURE__ */ jsxRuntimeExports.jsx(ProgressBar, { animating: loading }) }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx("ul", { className: clsx("list-group", styles$Q.list), children: logs.files.map((file, index2) => {
-                const logHeader = logHeaders[file.name];
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$11.progress, children: /* @__PURE__ */ jsxRuntimeExports.jsx(ProgressBar, { animating: loading }) }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("ul", { className: clsx("list-group", styles$11.list), children: logs2.files.map((file, index2) => {
+                const logHeader = logHeaders2[file.name];
                 return /* @__PURE__ */ jsxRuntimeExports.jsx(
                   "li",
                   {
                     className: clsx(
                       "list-group-item",
                       "list-group-item-action",
-                      styles$Q.item,
-                      selectedIndex === index2 ? styles$Q.active : void 0
+                      styles$11.item,
+                      selectedIndex === index2 ? styles$11.active : void 0
                     ),
                     onClick: () => onSelectedIndexChanged(index2),
                     children: /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -25830,16 +17526,16 @@ categories: ${categories.join(" ")}`;
       }
     );
     ToolButton.displayName = "ToolButton";
-    const container$a = "_container_15b4r_1";
+    const container$b = "_container_15b4r_1";
     const label$4 = "_label_15b4r_5";
-    const styles$L = {
-      container: container$a,
+    const styles$Y = {
+      container: container$b,
       label: label$4
     };
     const EpochFilter = ({
       epochs,
-      epoch,
-      setEpoch
+      epoch: epoch2,
+      setEpoch: setEpoch2
     }) => {
       const options2 = ["all"];
       for (let i2 = 1; i2 <= epochs; i2++) {
@@ -25847,9 +17543,9 @@ categories: ${categories.join(" ")}`;
       }
       const handleEpochChange = (e) => {
         const sel = e.target;
-        setEpoch(sel.value);
+        setEpoch2(sel.value);
       };
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$L.container, children: [
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$Y.container, children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx(
           "span",
           {
@@ -25858,7 +17554,7 @@ categories: ${categories.join(" ")}`;
               "text-size-smaller",
               "text-style-label",
               "text-style-secondary",
-              styles$L.label
+              styles$Y.label
             ),
             children: "Epochs:"
           }
@@ -25868,7 +17564,7 @@ categories: ${categories.join(" ")}`;
           {
             className: clsx("form-select", "form-select-sm", "text-size-smaller"),
             "aria-label": ".epoch-filter-label",
-            value: epoch,
+            value: epoch2,
             onChange: handleEpochChange,
             children: options2.map((option) => {
               return /* @__PURE__ */ jsxRuntimeExports.jsx("option", { value: option, children: option });
@@ -26516,7 +18212,7 @@ categories: ${categories.join(" ")}`;
         return code0;
       return (code0 - 55296 << 10) + (code1 - 56320) + 65536;
     }
-    function fromCodePoint(code2) {
+    function fromCodePoint$2(code2) {
       if (code2 <= 65535)
         return String.fromCharCode(code2);
       code2 -= 65536;
@@ -26842,7 +18538,7 @@ categories: ${categories.join(" ")}`;
       Create a change set for the given changes, for a document of the
       given length, using `lineSep` as line separator.
       */
-      static of(changes, length, lineSep) {
+      static of(changes2, length, lineSep) {
         let sections = [], inserted = [], pos2 = 0;
         let total = null;
         function flush(force = false) {
@@ -26882,7 +18578,7 @@ categories: ${categories.join(" ")}`;
             pos2 = to;
           }
         }
-        process2(changes);
+        process2(changes2);
         flush(!total);
         return total;
       }
@@ -27786,11 +19482,11 @@ categories: ${categories.join(" ")}`;
       if (addr & 1)
         return 2;
       let idx = addr >> 1;
-      let status = state.status[idx];
-      if (status == 4)
+      let status2 = state.status[idx];
+      if (status2 == 4)
         throw new Error("Cyclic dependency between fields and/or facets");
-      if (status & 2)
-        return status;
+      if (status2 & 2)
+        return status2;
       state.status[idx] = 4;
       let changed = state.computeSlot(state, state.config.dynamicSlots[idx]);
       return state.status[idx] = 2 | changed;
@@ -27902,9 +19598,9 @@ categories: ${categories.join(" ")}`;
     StateEffect.reconfigure = /* @__PURE__ */ StateEffect.define();
     StateEffect.appendConfig = /* @__PURE__ */ StateEffect.define();
     class Transaction {
-      constructor(startState, changes, selection, effects, annotations, scrollIntoView2) {
+      constructor(startState, changes2, selection, effects, annotations, scrollIntoView2) {
         this.startState = startState;
-        this.changes = changes;
+        this.changes = changes2;
         this.selection = selection;
         this.effects = effects;
         this.annotations = annotations;
@@ -27912,15 +19608,15 @@ categories: ${categories.join(" ")}`;
         this._doc = null;
         this._state = null;
         if (selection)
-          checkSelection(selection, changes.newLength);
+          checkSelection(selection, changes2.newLength);
         if (!annotations.some((a) => a.type == Transaction.time))
           this.annotations = annotations.concat(Transaction.time.of(Date.now()));
       }
       /**
       @internal
       */
-      static create(startState, changes, selection, effects, annotations, scrollIntoView2) {
-        return new Transaction(startState, changes, selection, effects, annotations, scrollIntoView2);
+      static create(startState, changes2, selection, effects, annotations, scrollIntoView2) {
+        return new Transaction(startState, changes2, selection, effects, annotations, scrollIntoView2);
       }
       /**
       The new document produced by the transaction. Contrary to
@@ -28013,18 +19709,18 @@ categories: ${categories.join(" ")}`;
     }
     function mergeTransaction(a, b, sequential) {
       var _a2;
-      let mapForA, mapForB, changes;
+      let mapForA, mapForB, changes2;
       if (sequential) {
         mapForA = b.changes;
         mapForB = ChangeSet.empty(b.changes.length);
-        changes = a.changes.compose(b.changes);
+        changes2 = a.changes.compose(b.changes);
       } else {
         mapForA = b.changes.map(a.changes);
         mapForB = a.changes.mapDesc(b.changes, true);
-        changes = a.changes.compose(mapForA);
+        changes2 = a.changes.compose(mapForA);
       }
       return {
-        changes,
+        changes: changes2,
         selection: b.selection ? b.selection.map(mapForB) : (_a2 = a.selection) === null || _a2 === void 0 ? void 0 : _a2.map(mapForA),
         effects: StateEffect.mapEffects(a.effects, mapForA).concat(StateEffect.mapEffects(b.effects, mapForB)),
         annotations: a.annotations.length ? a.annotations.concat(b.annotations) : b.annotations,
@@ -28043,24 +19739,24 @@ categories: ${categories.join(" ")}`;
         scrollIntoView: !!spec.scrollIntoView
       };
     }
-    function resolveTransaction(state, specs, filter) {
+    function resolveTransaction(state, specs, filter2) {
       let s = resolveTransactionInner(state, specs.length ? specs[0] : {}, state.doc.length);
       if (specs.length && specs[0].filter === false)
-        filter = false;
+        filter2 = false;
       for (let i2 = 1; i2 < specs.length; i2++) {
         if (specs[i2].filter === false)
-          filter = false;
+          filter2 = false;
         let seq = !!specs[i2].sequential;
         s = mergeTransaction(s, resolveTransactionInner(state, specs[i2], seq ? s.changes.newLength : state.doc.length), seq);
       }
       let tr = Transaction.create(state, s.changes, s.selection, s.effects, s.annotations, s.scrollIntoView);
-      return extendTransaction(filter ? filterTransaction(tr) : tr);
+      return extendTransaction(filter2 ? filterTransaction(tr) : tr);
     }
     function filterTransaction(tr) {
       let state = tr.startState;
       let result = true;
-      for (let filter of state.facet(changeFilter)) {
-        let value2 = filter(tr);
+      for (let filter2 of state.facet(changeFilter)) {
+        let value2 = filter2(tr);
         if (value2 === false) {
           result = false;
           break;
@@ -28069,16 +19765,16 @@ categories: ${categories.join(" ")}`;
           result = result === true ? value2 : joinRanges(result, value2);
       }
       if (result !== true) {
-        let changes, back;
+        let changes2, back;
         if (result === false) {
           back = tr.changes.invertedDesc;
-          changes = ChangeSet.empty(state.doc.length);
+          changes2 = ChangeSet.empty(state.doc.length);
         } else {
           let filtered = tr.changes.filter(result);
-          changes = filtered.changes;
+          changes2 = filtered.changes;
           back = filtered.filtered.mapDesc(filtered.changes).invertedDesc;
         }
-        tr = Transaction.create(state, changes, tr.selection && tr.selection.map(back), StateEffect.mapEffects(tr.effects, back), tr.annotations, tr.scrollIntoView);
+        tr = Transaction.create(state, changes2, tr.selection && tr.selection.map(back), StateEffect.mapEffects(tr.effects, back), tr.annotations, tr.scrollIntoView);
       }
       let filters = state.facet(transactionFilter);
       for (let i2 = filters.length - 1; i2 >= 0; i2--) {
@@ -28239,20 +19935,20 @@ categories: ${categories.join(" ")}`;
       changeByRange(f) {
         let sel = this.selection;
         let result1 = f(sel.ranges[0]);
-        let changes = this.changes(result1.changes), ranges = [result1.range];
+        let changes2 = this.changes(result1.changes), ranges = [result1.range];
         let effects = asArray(result1.effects);
         for (let i2 = 1; i2 < sel.ranges.length; i2++) {
           let result = f(sel.ranges[i2]);
-          let newChanges = this.changes(result.changes), newMapped = newChanges.map(changes);
+          let newChanges = this.changes(result.changes), newMapped = newChanges.map(changes2);
           for (let j = 0; j < i2; j++)
             ranges[j] = ranges[j].map(newMapped);
-          let mapBy = changes.mapDesc(newChanges, true);
+          let mapBy = changes2.mapDesc(newChanges, true);
           ranges.push(result.range.map(mapBy));
-          changes = changes.compose(newMapped);
+          changes2 = changes2.compose(newMapped);
           effects = StateEffect.mapEffects(effects, newMapped).concat(StateEffect.mapEffects(asArray(result.effects), mapBy));
         }
         return {
-          changes,
+          changes: changes2,
           selection: EditorSelection.create(ranges, sel.mainIndex),
           effects
         };
@@ -28562,23 +20258,23 @@ categories: ${categories.join(" ")}`;
           if (f(this.from[i2] + offset, this.to[i2] + offset, this.value[i2]) === false)
             return false;
       }
-      map(offset, changes) {
+      map(offset, changes2) {
         let value2 = [], from = [], to = [], newPos = -1, maxPoint = -1;
         for (let i2 = 0; i2 < this.value.length; i2++) {
           let val = this.value[i2], curFrom = this.from[i2] + offset, curTo = this.to[i2] + offset, newFrom, newTo;
           if (curFrom == curTo) {
-            let mapped = changes.mapPos(curFrom, val.startSide, val.mapMode);
+            let mapped = changes2.mapPos(curFrom, val.startSide, val.mapMode);
             if (mapped == null)
               continue;
             newFrom = newTo = mapped;
             if (val.startSide != val.endSide) {
-              newTo = changes.mapPos(curFrom, val.endSide);
+              newTo = changes2.mapPos(curFrom, val.endSide);
               if (newTo < newFrom)
                 continue;
             }
           } else {
-            newFrom = changes.mapPos(curFrom, val.startSide);
-            newTo = changes.mapPos(curTo, val.endSide);
+            newFrom = changes2.mapPos(curFrom, val.startSide);
+            newTo = changes2.mapPos(curTo, val.endSide);
             if (newFrom > newTo || newFrom == newTo && val.startSide > 0 && val.endSide <= 0)
               continue;
           }
@@ -28642,11 +20338,11 @@ categories: ${categories.join(" ")}`;
       `Y`.)
       */
       update(updateSpec) {
-        let { add: add2 = [], sort = false, filterFrom = 0, filterTo = this.length } = updateSpec;
-        let filter = updateSpec.filter;
-        if (add2.length == 0 && !filter)
+        let { add: add2 = [], sort: sort2 = false, filterFrom = 0, filterTo = this.length } = updateSpec;
+        let filter2 = updateSpec.filter;
+        if (add2.length == 0 && !filter2)
           return this;
-        if (sort)
+        if (sort2)
           add2 = add2.slice().sort(cmpRange);
         if (this.isEmpty)
           return add2.length ? RangeSet.of(add2) : this;
@@ -28657,34 +20353,34 @@ categories: ${categories.join(" ")}`;
             let range = add2[i2++];
             if (!builder.addInner(range.from, range.to, range.value))
               spill.push(range);
-          } else if (cur2.rangeIndex == 1 && cur2.chunkIndex < this.chunk.length && (i2 == add2.length || this.chunkEnd(cur2.chunkIndex) < add2[i2].from) && (!filter || filterFrom > this.chunkEnd(cur2.chunkIndex) || filterTo < this.chunkPos[cur2.chunkIndex]) && builder.addChunk(this.chunkPos[cur2.chunkIndex], this.chunk[cur2.chunkIndex])) {
+          } else if (cur2.rangeIndex == 1 && cur2.chunkIndex < this.chunk.length && (i2 == add2.length || this.chunkEnd(cur2.chunkIndex) < add2[i2].from) && (!filter2 || filterFrom > this.chunkEnd(cur2.chunkIndex) || filterTo < this.chunkPos[cur2.chunkIndex]) && builder.addChunk(this.chunkPos[cur2.chunkIndex], this.chunk[cur2.chunkIndex])) {
             cur2.nextChunk();
           } else {
-            if (!filter || filterFrom > cur2.to || filterTo < cur2.from || filter(cur2.from, cur2.to, cur2.value)) {
+            if (!filter2 || filterFrom > cur2.to || filterTo < cur2.from || filter2(cur2.from, cur2.to, cur2.value)) {
               if (!builder.addInner(cur2.from, cur2.to, cur2.value))
                 spill.push(Range$1.create(cur2.from, cur2.to, cur2.value));
             }
             cur2.next();
           }
         }
-        return builder.finishInner(this.nextLayer.isEmpty && !spill.length ? RangeSet.empty : this.nextLayer.update({ add: spill, filter, filterFrom, filterTo }));
+        return builder.finishInner(this.nextLayer.isEmpty && !spill.length ? RangeSet.empty : this.nextLayer.update({ add: spill, filter: filter2, filterFrom, filterTo }));
       }
       /**
       Map this range set through a set of changes, return the new set.
       */
-      map(changes) {
-        if (changes.empty || this.isEmpty)
+      map(changes2) {
+        if (changes2.empty || this.isEmpty)
           return this;
         let chunks = [], chunkPos = [], maxPoint = -1;
         for (let i2 = 0; i2 < this.chunk.length; i2++) {
           let start = this.chunkPos[i2], chunk = this.chunk[i2];
-          let touch = changes.touchesRange(start, start + chunk.length);
+          let touch = changes2.touchesRange(start, start + chunk.length);
           if (touch === false) {
             maxPoint = Math.max(maxPoint, chunk.maxPoint);
             chunks.push(chunk);
-            chunkPos.push(changes.mapPos(start));
+            chunkPos.push(changes2.mapPos(start));
           } else if (touch === true) {
-            let { mapped, pos: pos2 } = chunk.map(start, changes);
+            let { mapped, pos: pos2 } = chunk.map(start, changes2);
             if (mapped) {
               maxPoint = Math.max(maxPoint, mapped.maxPoint);
               chunks.push(mapped);
@@ -28692,7 +20388,7 @@ categories: ${categories.join(" ")}`;
             }
           }
         }
-        let next = this.nextLayer.map(changes);
+        let next = this.nextLayer.map(changes2);
         return chunks.length == 0 ? next : new RangeSet(chunkPos, chunks, next || RangeSet.empty, maxPoint);
       }
       /**
@@ -28803,9 +20499,9 @@ categories: ${categories.join(" ")}`;
       `value.startSide`). You can pass `true` as second argument to
       cause the method to sort them.
       */
-      static of(ranges, sort = false) {
+      static of(ranges, sort2 = false) {
         let build = new RangeSetBuilder();
-        for (let range of ranges instanceof Range$1 ? [ranges] : sort ? lazySort(ranges) : ranges)
+        for (let range of ranges instanceof Range$1 ? [ranges] : sort2 ? lazySort(ranges) : ranges)
           build.add(range.from, range.to, range.value);
         return build.finish();
       }
@@ -29412,7 +21108,7 @@ categories: ${categories.join(" ")}`;
           this.styleTag.setAttribute("nonce", nonce);
       }
     }
-    var base = {
+    var base$1 = {
       8: "Backspace",
       9: "Tab",
       10: "Enter",
@@ -29494,16 +21190,16 @@ categories: ${categories.join(" ")}`;
     };
     var mac = typeof navigator != "undefined" && /Mac/.test(navigator.platform);
     var ie$1 = typeof navigator != "undefined" && /MSIE \d|Trident\/(?:[7-9]|\d{2,})\..*rv:(\d+)/.exec(navigator.userAgent);
-    for (var i$1 = 0; i$1 < 10; i$1++) base[48 + i$1] = base[96 + i$1] = String(i$1);
-    for (var i$1 = 1; i$1 <= 24; i$1++) base[i$1 + 111] = "F" + i$1;
+    for (var i$1 = 0; i$1 < 10; i$1++) base$1[48 + i$1] = base$1[96 + i$1] = String(i$1);
+    for (var i$1 = 1; i$1 <= 24; i$1++) base$1[i$1 + 111] = "F" + i$1;
     for (var i$1 = 65; i$1 <= 90; i$1++) {
-      base[i$1] = String.fromCharCode(i$1 + 32);
+      base$1[i$1] = String.fromCharCode(i$1 + 32);
       shift[i$1] = String.fromCharCode(i$1);
     }
-    for (var code$2 in base) if (!shift.hasOwnProperty(code$2)) shift[code$2] = base[code$2];
+    for (var code$3 in base$1) if (!shift.hasOwnProperty(code$3)) shift[code$3] = base$1[code$3];
     function keyName(event) {
       var ignoreKey = mac && event.metaKey && event.shiftKey && !event.ctrlKey && !event.altKey || ie$1 && event.shiftKey && event.key && event.key.length == 1 || event.key == "Unidentified";
-      var name2 = !ignoreKey && event.key || (event.shiftKey ? shift : base)[event.keyCode] || event.key || "Unidentified";
+      var name2 = !ignoreKey && event.key || (event.shiftKey ? shift : base$1)[event.keyCode] || event.key || "Unidentified";
       if (name2 == "Esc") name2 = "Escape";
       if (name2 == "Del") name2 = "Delete";
       if (name2 == "Left") name2 = "ArrowLeft";
@@ -30797,8 +22493,8 @@ categories: ${categories.join(" ")}`;
       decorated range or ranges. If the ranges aren't already sorted,
       pass `true` for `sort` to make the library sort them for you.
       */
-      static set(of, sort = false) {
-        return RangeSet.of(of, sort);
+      static set(of, sort2 = false) {
+        return RangeSet.of(of, sort2);
       }
       /**
       @internal
@@ -31721,8 +23417,8 @@ categories: ${categories.join(" ")}`;
         this.xMargin = xMargin;
         this.isSnapshot = isSnapshot;
       }
-      map(changes) {
-        return changes.empty ? this : new ScrollTarget(this.range.map(changes), this.y, this.x, this.yMargin, this.xMargin, this.isSnapshot);
+      map(changes2) {
+        return changes2.empty ? this : new ScrollTarget(this.range.map(changes2), this.y, this.x, this.yMargin, this.xMargin, this.isSnapshot);
       }
       clip(state) {
         return this.range.to <= state.doc.length ? this : new ScrollTarget(EditorSelection.cursor(state.doc.length), this.y, this.x, this.yMargin, this.xMargin, this.isSnapshot);
@@ -32077,9 +23773,9 @@ categories: ${categories.join(" ")}`;
       }
       // Used by update and the constructor do perform the actual DOM
       // update
-      updateInner(changes, oldLength, composition) {
+      updateInner(changes2, oldLength, composition) {
         this.view.viewState.mustMeasureContent = true;
-        this.updateChildren(changes, oldLength, composition);
+        this.updateChildren(changes2, oldLength, composition);
         let { observer } = this.view;
         observer.ignore(() => {
           this.dom.style.height = this.view.viewState.contentHeight / this.view.scaleY + "px";
@@ -32103,8 +23799,8 @@ categories: ${categories.join(" ")}`;
         }
         observer.updateGaps(gaps);
       }
-      updateChildren(changes, oldLength, composition) {
-        let ranges = composition ? composition.range.addToSet(changes.slice()) : changes;
+      updateChildren(changes2, oldLength, composition) {
+        let ranges = composition ? composition.range.addToSet(changes2.slice()) : changes2;
         let cursor = this.childCursor(oldLength);
         for (let i2 = ranges.length - 1; ; i2--) {
           let next = i2 >= 0 ? ranges[i2] : null;
@@ -32536,7 +24232,7 @@ categories: ${categories.join(" ")}`;
       let from = headPos - textNode.offset;
       return { from, to: from + textNode.node.nodeValue.length, node: textNode.node };
     }
-    function findCompositionRange(view, changes, headPos) {
+    function findCompositionRange(view, changes2, headPos) {
       let found = findCompositionNode(view, headPos);
       if (!found)
         return null;
@@ -32545,7 +24241,7 @@ categories: ${categories.join(" ")}`;
         return null;
       if (view.state.doc.sliceString(found.from, found.to) != text2)
         return null;
-      let inv = changes.invertedDesc;
+      let inv = changes2.invertedDesc;
       let range = new ChangedRange(inv.mapPos(from), inv.mapPos(to), from, to);
       let marks = [];
       for (let parent = textNode.parentNode; ; parent = parent.parentNode) {
@@ -32596,10 +24292,10 @@ categories: ${categories.join(" ")}`;
       }
       return false;
     }
-    function touchesComposition(changes, composition) {
+    function touchesComposition(changes2, composition) {
       let touched = false;
       if (composition)
-        changes.iterChangedRanges((from, to) => {
+        changes2.iterChangedRanges((from, to) => {
           if (from < composition.to && to > composition.from)
             touched = true;
         });
@@ -33163,8 +24859,8 @@ categories: ${categories.join(" ")}`;
         let after = sel.to > change.to ? startState.sliceDoc(change.to, sel.to) : "";
         tr = startState.replaceSelection(view.state.toText(before + change.insert.sliceString(0, void 0, view.state.lineBreak) + after));
       } else {
-        let changes = startState.changes(change);
-        let mainSel = newSel && newSel.main.to <= changes.newLength ? newSel.main : void 0;
+        let changes2 = startState.changes(change);
+        let mainSel = newSel && newSel.main.to <= changes2.newLength ? newSel.main : void 0;
         if (startState.selection.ranges.length > 1 && view.inputState.composing >= 0 && change.to <= sel.to && change.to >= sel.to - 10) {
           let replaced = view.state.sliceDoc(change.from, change.to);
           let compositionRange, composition = newSel && findCompositionNode(view, newSel.main.head);
@@ -33177,7 +24873,7 @@ categories: ${categories.join(" ")}`;
           let offset = sel.to - change.to, size = sel.to - sel.from;
           tr = startState.changeByRange((range) => {
             if (range.from == sel.from && range.to == sel.to)
-              return { changes, range: mainSel || range.map(changes) };
+              return { changes: changes2, range: mainSel || range.map(changes2) };
             let to = range.to - offset, from = to - replaced.length;
             if (range.to - range.from != size || view.state.sliceDoc(from, to) != replaced || // Unfortunately, there's no way to make multiple
             // changes in the same node work without aborting
@@ -33193,7 +24889,7 @@ categories: ${categories.join(" ")}`;
           });
         } else {
           tr = {
-            changes,
+            changes: changes2,
             selection: mainSel && startState.selection.replaceRange(mainSel)
           };
         }
@@ -33612,18 +25308,18 @@ categories: ${categories.join(" ")}`;
       }, 50);
     }
     function textFilter(state, facet, text2) {
-      for (let filter of state.facet(facet))
-        text2 = filter(text2, state);
+      for (let filter2 of state.facet(facet))
+        text2 = filter2(text2, state);
       return text2;
     }
     function doPaste(view, input2) {
       input2 = textFilter(view.state, clipboardInputFilter, input2);
-      let { state } = view, changes, i2 = 1, text2 = state.toText(input2);
+      let { state } = view, changes2, i2 = 1, text2 = state.toText(input2);
       let byLine = text2.lines == state.selection.ranges.length;
       let linewise = lastLinewiseCopy != null && state.selection.ranges.every((r2) => r2.empty) && lastLinewiseCopy == text2.toString();
       if (linewise) {
         let lastLine = -1;
-        changes = state.changeByRange((range) => {
+        changes2 = state.changeByRange((range) => {
           let line2 = state.doc.lineAt(range.from);
           if (line2.from == lastLine)
             return { range };
@@ -33635,7 +25331,7 @@ categories: ${categories.join(" ")}`;
           };
         });
       } else if (byLine) {
-        changes = state.changeByRange((range) => {
+        changes2 = state.changeByRange((range) => {
           let line2 = text2.line(i2++);
           return {
             changes: { from: range.from, to: range.to, insert: line2.text },
@@ -33643,9 +25339,9 @@ categories: ${categories.join(" ")}`;
           };
         });
       } else {
-        changes = state.replaceSelection(text2);
+        changes2 = state.replaceSelection(text2);
       }
-      view.dispatch(changes, {
+      view.dispatch(changes2, {
         userEvent: "input.paste",
         scrollIntoView: true
       });
@@ -33811,11 +25507,11 @@ categories: ${categories.join(" ")}`;
       let { draggedContent } = view.inputState;
       let del = direct && draggedContent && dragMovesSelection(view, event) ? { from: draggedContent.from, to: draggedContent.to } : null;
       let ins = { from: dropPos, insert: text2 };
-      let changes = view.state.changes(del ? [del, ins] : ins);
+      let changes2 = view.state.changes(del ? [del, ins] : ins);
       view.focus();
       view.dispatch({
-        changes,
-        selection: { anchor: changes.mapPos(dropPos, -1), head: changes.mapPos(dropPos, 1) },
+        changes: changes2,
+        selection: { anchor: changes2.mapPos(dropPos, -1), head: changes2.mapPos(dropPos, 1) },
         userEvent: del ? "move.drop" : "input.drop"
       });
       view.inputState.draggedContent = null;
@@ -34200,17 +25896,17 @@ categories: ${categories.join(" ")}`;
       decomposeRight(_from, result) {
         result.push(this);
       }
-      applyChanges(decorations2, oldDoc, oracle, changes) {
+      applyChanges(decorations2, oldDoc, oracle, changes2) {
         let me = this, doc2 = oracle.doc;
-        for (let i2 = changes.length - 1; i2 >= 0; i2--) {
-          let { fromA, toA, fromB, toB } = changes[i2];
+        for (let i2 = changes2.length - 1; i2 >= 0; i2--) {
+          let { fromA, toA, fromB, toB } = changes2[i2];
           let start = me.lineAt(fromA, QueryType.ByPosNoHeight, oracle.setDoc(oldDoc), 0, 0);
           let end = start.to >= toA ? start : me.lineAt(toA, QueryType.ByPosNoHeight, oracle, 0, 0);
           toB += end.to - toA;
           toA = end.to;
-          while (i2 > 0 && start.from <= changes[i2 - 1].toA) {
-            fromA = changes[i2 - 1].fromA;
-            fromB = changes[i2 - 1].fromB;
+          while (i2 > 0 && start.from <= changes2[i2 - 1].toA) {
+            fromA = changes2[i2 - 1].fromA;
+            fromB = changes2[i2 - 1].fromB;
             i2--;
             if (fromA < start.from)
               start = me.lineAt(fromA, QueryType.ByPosNoHeight, oracle, 0, 0);
@@ -34218,7 +25914,7 @@ categories: ${categories.join(" ")}`;
           fromB += start.from - fromA;
           fromA = start.from;
           let nodes2 = NodeBuilder.build(oracle.setDoc(doc2), decorations2, fromB, toB);
-          me = replace(me, me.replace(fromA, toA, nodes2));
+          me = replace$1(me, me.replace(fromA, toA, nodes2));
         }
         return me.updateHeight(oracle, 0);
       }
@@ -34275,7 +25971,7 @@ categories: ${categories.join(" ")}`;
         return new HeightMapBranch(HeightMap.of(nodes2.slice(0, i2)), brk, HeightMap.of(nodes2.slice(j)));
       }
     }
-    function replace(old, val) {
+    function replace$1(old, val) {
       if (old == val)
         return old;
       if (old.constructor != val.constructor)
@@ -34453,7 +26149,7 @@ categories: ${categories.join(" ")}`;
           let result = HeightMap.of(nodes2);
           if (singleHeight < 0 || Math.abs(result.height - this.height) >= Epsilon || Math.abs(singleHeight - this.heightMetrics(oracle, offset).perLine) >= Epsilon)
             heightChangeFlag = true;
-          return replace(this, result);
+          return replace$1(this, result);
         } else if (force || this.outdated) {
           this.setHeight(oracle.heightForGap(offset, offset + this.length));
           this.outdated = false;
@@ -34554,8 +26250,8 @@ categories: ${categories.join(" ")}`;
       balanced(left, right) {
         if (left.size > 2 * right.size || right.size > 2 * left.size)
           return HeightMap.of(this.break ? [left, null, right] : [left, right]);
-        this.left = replace(this.left, left);
-        this.right = replace(this.right, right);
+        this.left = replace$1(this.left, left);
+        this.right = replace$1(this.right, right);
         this.setHeight(left.height + right.height);
         this.outdated = left.outdated || right.outdated;
         this.size = left.size + right.size;
@@ -35035,8 +26731,8 @@ categories: ${categories.join(" ")}`;
         }
         return viewport;
       }
-      mapViewport(viewport, changes) {
-        let from = changes.mapPos(viewport.from, -1), to = changes.mapPos(viewport.to, 1);
+      mapViewport(viewport, changes2) {
+        let from = changes2.mapPos(viewport.from, -1), to = changes2.mapPos(viewport.to, 1);
         return new Viewport(this.heightMap.lineAt(from, QueryType.ByPos, this.heightOracle, 0, 0).from, this.heightMap.lineAt(to, QueryType.ByPos, this.heightOracle, 0, 0).to);
       }
       // Checks if a given viewport covers the visible part of the
@@ -35057,13 +26753,13 @@ categories: ${categories.join(" ")}`;
           /* VP.MaxCoverMargin */
         ))) && (top2 > visibleTop - 2 * 1e3 && bottom < visibleBottom + 2 * 1e3);
       }
-      mapLineGaps(gaps, changes) {
-        if (!gaps.length || changes.empty)
+      mapLineGaps(gaps, changes2) {
+        if (!gaps.length || changes2.empty)
           return gaps;
         let mapped = [];
         for (let gap of gaps)
-          if (!changes.touchesRange(gap.from, gap.to))
-            mapped.push(new LineGap(changes.mapPos(gap.from), changes.mapPos(gap.to), gap.size, gap.displaySize));
+          if (!changes2.touchesRange(gap.from, gap.to))
+            mapped.push(new LineGap(changes2.mapPos(gap.from), changes2.mapPos(gap.to), gap.size, gap.displaySize));
         return mapped;
       }
       // Computes positions in the viewport where the start or end of a
@@ -35177,7 +26873,7 @@ categories: ${categories.join(" ")}`;
           this.lineGapDeco = Decoration.set(gaps.map((gap) => gap.draw(this, this.heightOracle.lineWrapping)));
         }
       }
-      computeVisibleRanges(changes) {
+      computeVisibleRanges(changes2) {
         let deco = this.stateDeco;
         if (this.lineGaps.length)
           deco = deco.concat(this.lineGapDeco);
@@ -35197,7 +26893,7 @@ categories: ${categories.join(" ")}`;
             let old = this.visibleRanges[i2], nw = ranges[i2];
             if (old.from != nw.from || old.to != nw.to) {
               changed |= 4;
-              if (!(changes && changes.mapPos(old.from, -1) == nw.from && changes.mapPos(old.to, 1) == nw.to))
+              if (!(changes2 && changes2.mapPos(old.from, -1) == nw.from && changes2.mapPos(old.to, 1) == nw.to))
                 changed |= 8;
             }
           }
@@ -37200,14 +28896,14 @@ categories: ${categories.join(" ")}`;
         this.fresh = fresh;
         this.order = order;
       }
-      static update(cache, changes) {
-        if (changes.empty && !cache.some((c2) => c2.fresh))
+      static update(cache, changes2) {
+        if (changes2.empty && !cache.some((c2) => c2.fresh))
           return cache;
         let result = [], lastDir = cache.length ? cache[cache.length - 1].dir : Direction.LTR;
         for (let i2 = Math.max(0, cache.length - 10); i2 < cache.length; i2++) {
           let entry2 = cache[i2];
-          if (entry2.dir == lastDir && !changes.touchesRange(entry2.from, entry2.to))
-            result.push(new CachedOrder(changes.mapPos(entry2.from, 1), changes.mapPos(entry2.to, -1), entry2.dir, entry2.isolates, false, entry2.order));
+          if (entry2.dir == lastDir && !changes2.touchesRange(entry2.from, entry2.to))
+            result.push(new CachedOrder(changes2.mapPos(entry2.from, 1), changes2.mapPos(entry2.to, -1), entry2.dir, entry2.isolates, false, entry2.order));
         }
         return result;
       }
@@ -37387,7 +29083,7 @@ categories: ${categories.join(" ")}`;
         if (runFor(scopeObj[prefix2 + modifiers(name2, event, !isChar)])) {
           handled = true;
         } else if (isChar && (event.altKey || event.metaKey || event.ctrlKey) && // Ctrl-Alt may be used for AltGr on Windows
-        !(browser.windows && event.ctrlKey && event.altKey) && (baseName = base[event.keyCode]) && baseName != name2) {
+        !(browser.windows && event.ctrlKey && event.altKey) && (baseName = base$1[event.keyCode]) && baseName != name2) {
           if (runFor(scopeObj[prefix2 + modifiers(baseName, event, true)])) {
             handled = true;
           } else if (event.shiftKey && (shiftName = shift[event.keyCode]) != name2 && shiftName != baseName && runFor(scopeObj[prefix2 + modifiers(shiftName, event, false)])) {
@@ -40341,13 +32037,13 @@ categories: ${categories.join(" ")}`;
       splitting fragments as necessary to remove edited ranges, and
       adjusting offsets for fragments that moved.
       */
-      static applyChanges(fragments, changes, minGap = 128) {
-        if (!changes.length)
+      static applyChanges(fragments, changes2, minGap = 128) {
+        if (!changes2.length)
           return fragments;
         let result = [];
         let fI = 1, nextF = fragments.length ? fragments[0] : null;
         for (let cI = 0, pos2 = 0, off = 0; ; cI++) {
-          let nextC = cI < changes.length ? changes[cI] : null;
+          let nextC = cI < changes2.length ? changes2[cI] : null;
           let nextPos = nextC ? nextC.fromA : 1e9;
           if (nextPos - pos2 >= minGap)
             while (nextF && nextF.from < nextPos) {
@@ -40700,24 +32396,24 @@ categories: ${categories.join(" ")}`;
       return rule || null;
     }
     const t = Tag.define;
-    const comment = t(), name = t(), typeName = t(name), propertyName = t(name), literal$1 = t(), string = t(literal$1), number = t(literal$1), content$2 = t(), heading = t(content$2), keyword = t(), operator = t(), punctuation = t(), bracket = t(punctuation), meta = t();
+    const comment$1 = t(), name = t(), typeName = t(name), propertyName = t(name), literal$1 = t(), string = t(literal$1), number$1 = t(literal$1), content$3 = t(), heading$1 = t(content$3), keyword = t(), operator = t(), punctuation = t(), bracket = t(punctuation), meta = t();
     const tags = {
       /**
       A comment.
       */
-      comment,
+      comment: comment$1,
       /**
       A line [comment](#highlight.tags.comment).
       */
-      lineComment: t(comment),
+      lineComment: t(comment$1),
       /**
       A block [comment](#highlight.tags.comment).
       */
-      blockComment: t(comment),
+      blockComment: t(comment$1),
       /**
       A documentation [comment](#highlight.tags.comment).
       */
-      docComment: t(comment),
+      docComment: t(comment$1),
       /**
       Any kind of identifier.
       */
@@ -40781,15 +32477,15 @@ categories: ${categories.join(" ")}`;
       /**
       A number [literal](#highlight.tags.literal).
       */
-      number,
+      number: number$1,
       /**
       An integer [number](#highlight.tags.number) literal.
       */
-      integer: t(number),
+      integer: t(number$1),
       /**
       A floating-point [number](#highlight.tags.number) literal.
       */
-      float: t(number),
+      float: t(number$1),
       /**
       A boolean [literal](#highlight.tags.literal).
       */
@@ -40929,69 +32625,69 @@ categories: ${categories.join(" ")}`;
       /**
       Content, for example plain text in XML or markup documents.
       */
-      content: content$2,
+      content: content$3,
       /**
       [Content](#highlight.tags.content) that represents a heading.
       */
-      heading,
+      heading: heading$1,
       /**
       A level 1 [heading](#highlight.tags.heading).
       */
-      heading1: t(heading),
+      heading1: t(heading$1),
       /**
       A level 2 [heading](#highlight.tags.heading).
       */
-      heading2: t(heading),
+      heading2: t(heading$1),
       /**
       A level 3 [heading](#highlight.tags.heading).
       */
-      heading3: t(heading),
+      heading3: t(heading$1),
       /**
       A level 4 [heading](#highlight.tags.heading).
       */
-      heading4: t(heading),
+      heading4: t(heading$1),
       /**
       A level 5 [heading](#highlight.tags.heading).
       */
-      heading5: t(heading),
+      heading5: t(heading$1),
       /**
       A level 6 [heading](#highlight.tags.heading).
       */
-      heading6: t(heading),
+      heading6: t(heading$1),
       /**
       A prose [content](#highlight.tags.content) separator (such as a horizontal rule).
       */
-      contentSeparator: t(content$2),
+      contentSeparator: t(content$3),
       /**
       [Content](#highlight.tags.content) that represents a list.
       */
-      list: t(content$2),
+      list: t(content$3),
       /**
       [Content](#highlight.tags.content) that represents a quote.
       */
-      quote: t(content$2),
+      quote: t(content$3),
       /**
       [Content](#highlight.tags.content) that is emphasized.
       */
-      emphasis: t(content$2),
+      emphasis: t(content$3),
       /**
       [Content](#highlight.tags.content) that is styled strong.
       */
-      strong: t(content$2),
+      strong: t(content$3),
       /**
       [Content](#highlight.tags.content) that is part of a link.
       */
-      link: t(content$2),
+      link: t(content$3),
       /**
       [Content](#highlight.tags.content) that is styled as code or
       monospace.
       */
-      monospace: t(content$2),
+      monospace: t(content$3),
       /**
       [Content](#highlight.tags.content) that has a strike-through
       style.
       */
-      strikethrough: t(content$2),
+      strikethrough: t(content$3),
       /**
       Inserted text in a change-tracking format.
       */
@@ -41104,7 +32800,7 @@ categories: ${categories.join(" ")}`;
       { tag: tags.invalid, class: "tok-invalid" },
       { tag: tags.punctuation, class: "tok-punctuation" }
     ]);
-    var _a$1;
+    var _a$2;
     const languageDataProp = /* @__PURE__ */ new NodeProp();
     function defineLanguageFacet(baseData) {
       return Facet.define({
@@ -41345,20 +33041,20 @@ categories: ${categories.join(" ")}`;
       /**
       @internal
       */
-      changes(changes, newState) {
+      changes(changes2, newState) {
         let { fragments, tree, treeLen, viewport, skipped } = this;
         this.takeTree();
-        if (!changes.empty) {
+        if (!changes2.empty) {
           let ranges = [];
-          changes.iterChangedRanges((fromA, toA, fromB, toB) => ranges.push({ fromA, toA, fromB, toB }));
+          changes2.iterChangedRanges((fromA, toA, fromB, toB) => ranges.push({ fromA, toA, fromB, toB }));
           fragments = TreeFragment.applyChanges(fragments, ranges);
           tree = Tree.empty;
           treeLen = 0;
-          viewport = { from: changes.mapPos(viewport.from, -1), to: changes.mapPos(viewport.to, 1) };
+          viewport = { from: changes2.mapPos(viewport.from, -1), to: changes2.mapPos(viewport.to, 1) };
           if (this.skipped.length) {
             skipped = [];
             for (let r2 of this.skipped) {
-              let from = changes.mapPos(r2.from, 1), to = changes.mapPos(r2.to, -1);
+              let from = changes2.mapPos(r2.from, 1), to = changes2.mapPos(r2.to, -1);
               if (from < to)
                 skipped.push({ from, to });
             }
@@ -41511,7 +33207,7 @@ categories: ${categories.join(" ")}`;
         );
         return () => idle < 0 ? clearTimeout(timeout) : cancelIdleCallback(idle);
       };
-    const isInputPending = typeof navigator != "undefined" && ((_a$1 = navigator.scheduling) === null || _a$1 === void 0 ? void 0 : _a$1.isInputPending) ? () => navigator.scheduling.isInputPending() : null;
+    const isInputPending = typeof navigator != "undefined" && ((_a$2 = navigator.scheduling) === null || _a$2 === void 0 ? void 0 : _a$2.isInputPending) ? () => navigator.scheduling.isInputPending() : null;
     const parseWorker = /* @__PURE__ */ ViewPlugin.fromClass(class ParseWorker {
       constructor(view) {
         this.view = view;
@@ -42930,7 +34626,7 @@ categories: ${categories.join(" ")}`;
               }
             }
           }
-          let ch3, type = next < 255 ? next >= 48 && next <= 57 || next >= 97 && next <= 122 ? 2 : next >= 65 && next <= 90 ? 1 : 0 : (ch3 = fromCodePoint(next)) != ch3.toLowerCase() ? 1 : ch3 != ch3.toUpperCase() ? 2 : 0;
+          let ch3, type = next < 255 ? next >= 48 && next <= 57 || next >= 97 && next <= 122 ? 2 : next >= 65 && next <= 90 ? 1 : 0 : (ch3 = fromCodePoint$2(next)) != ch3.toLowerCase() ? 1 : ch3 != ch3.toUpperCase() ? 2 : 0;
           if (!i2 || type == 1 && hasLower || prevType == 0 && type != 0) {
             if (chars[byWordTo] == next || folded[byWordTo] == next && (byWordFolded = true))
               byWord[byWordTo++] = i2;
@@ -43168,16 +34864,16 @@ categories: ${categories.join(" ")}`;
       update(update) {
         var _a2;
         let cState = update.state.field(this.stateField);
-        let prevState = update.startState.field(this.stateField);
+        let prevState2 = update.startState.field(this.stateField);
         this.updateTooltipClass(update.state);
-        if (cState != prevState) {
+        if (cState != prevState2) {
           let { options: options2, selected: selected2, disabled } = cState.open;
-          if (!prevState.open || prevState.open.options != options2) {
+          if (!prevState2.open || prevState2.open.options != options2) {
             this.range = rangeAroundSelected(options2.length, selected2, update.state.facet(completionConfig).maxRenderedOptions);
             this.showOptions(options2, cState.id);
           }
           this.updateSel();
-          if (disabled != ((_a2 = prevState.open) === null || _a2 === void 0 ? void 0 : _a2.disabled))
+          if (disabled != ((_a2 = prevState2.open) === null || _a2 === void 0 ? void 0 : _a2.disabled))
             this.dom.classList.toggle("cm-tooltip-autocomplete-disabled", !!disabled);
         }
       }
@@ -43443,8 +35139,8 @@ categories: ${categories.join(" ")}`;
           above: conf.aboveCursor
         }, prev ? prev.timestamp : Date.now(), selected2, false);
       }
-      map(changes) {
-        return new CompletionDialog(this.options, this.attrs, Object.assign(Object.assign({}, this.tooltip), { pos: changes.mapPos(this.tooltip.pos) }), this.timestamp, this.selected, this.disabled);
+      map(changes2) {
+        return new CompletionDialog(this.options, this.attrs, Object.assign(Object.assign({}, this.tooltip), { pos: changes2.mapPos(this.tooltip.pos) }), this.timestamp, this.selected, this.disabled);
       }
       setDisabled() {
         return new CompletionDialog(this.options, this.attrs, this.tooltip, this.timestamp, this.selected, true);
@@ -43586,7 +35282,7 @@ categories: ${categories.join(" ")}`;
       updateFor(tr, type) {
         return this.map(tr.changes);
       }
-      map(changes) {
+      map(changes2) {
         return this;
       }
       touches(tr) {
@@ -44764,13 +36460,13 @@ categories: ${categories.join(" ")}`;
           return [{ from: range.from, insert: tokens[i2].open + " " }, { from: range.to, insert: " " + tokens[i2].close }];
         })) };
       } else if (option != 1 && comments.some((c2) => c2)) {
-        let changes = [];
+        let changes2 = [];
         for (let i2 = 0, comment2; i2 < comments.length; i2++)
           if (comment2 = comments[i2]) {
             let token2 = tokens[i2], { open, close: close2 } = comment2;
-            changes.push({ from: open.pos - token2.open.length, to: open.pos + open.margin }, { from: close2.pos - close2.margin, to: close2.pos + token2.close.length });
+            changes2.push({ from: open.pos - token2.open.length, to: open.pos + open.margin }, { from: close2.pos - close2.margin, to: close2.pos + token2.close.length });
           }
-        return { changes };
+        return { changes: changes2 };
       }
       return null;
     }
@@ -44804,22 +36500,22 @@ categories: ${categories.join(" ")}`;
           lines[startI].single = true;
       }
       if (option != 2 && lines.some((l) => l.comment < 0 && (!l.empty || l.single))) {
-        let changes = [];
+        let changes2 = [];
         for (let { line: line2, token: token2, indent, empty, single } of lines)
           if (single || !empty)
-            changes.push({ from: line2.from + indent, insert: token2 + " " });
-        let changeSet = state.changes(changes);
+            changes2.push({ from: line2.from + indent, insert: token2 + " " });
+        let changeSet = state.changes(changes2);
         return { changes: changeSet, selection: state.selection.map(changeSet, 1) };
       } else if (option != 1 && lines.some((l) => l.comment >= 0)) {
-        let changes = [];
+        let changes2 = [];
         for (let { line: line2, comment: comment2, token: token2 } of lines)
           if (comment2 >= 0) {
             let from = line2.from + comment2, to = from + token2.length;
             if (line2.text[to - line2.from] == " ")
               to++;
-            changes.push({ from, to });
+            changes2.push({ from, to });
           }
-        return { changes };
+        return { changes: changes2 };
       }
       return null;
     }
@@ -44911,8 +36607,8 @@ categories: ${categories.join(" ")}`;
     const undoSelection = /* @__PURE__ */ cmd(0, true);
     const redoSelection = /* @__PURE__ */ cmd(1, true);
     class HistEvent {
-      constructor(changes, effects, mapped, startSelection, selectionsAfter) {
-        this.changes = changes;
+      constructor(changes2, effects, mapped, startSelection, selectionsAfter) {
+        this.changes = changes2;
         this.effects = effects;
         this.mapped = mapped;
         this.startSelection = startSelection;
@@ -45327,7 +37023,7 @@ categories: ${categories.join(" ")}`;
       if (target2.state.readOnly)
         return false;
       let event = "delete.selection", { state } = target2;
-      let changes = state.changeByRange((range) => {
+      let changes2 = state.changeByRange((range) => {
         let { from, to } = range;
         if (from == to) {
           let towards = by(range);
@@ -45346,9 +37042,9 @@ categories: ${categories.join(" ")}`;
         }
         return from == to ? { range } : { changes: { from, to }, range: EditorSelection.cursor(from, from < range.head ? -1 : 1) };
       });
-      if (changes.changes.empty)
+      if (changes2.changes.empty)
         return false;
-      target2.dispatch(state.update(changes, {
+      target2.dispatch(state.update(changes2, {
         scrollIntoView: true,
         userEvent: event,
         effects: event == "delete.selection" ? EditorView.announce.of(state.phrase("Selection deleted")) : void 0
@@ -45421,19 +37117,19 @@ categories: ${categories.join(" ")}`;
     const splitLine = ({ state, dispatch }) => {
       if (state.readOnly)
         return false;
-      let changes = state.changeByRange((range) => {
+      let changes2 = state.changeByRange((range) => {
         return {
           changes: { from: range.from, to: range.to, insert: Text.of(["", ""]) },
           range: EditorSelection.cursor(range.from)
         };
       });
-      dispatch(state.update(changes, { scrollIntoView: true, userEvent: "input" }));
+      dispatch(state.update(changes2, { scrollIntoView: true, userEvent: "input" }));
       return true;
     };
     const transposeChars = ({ state, dispatch }) => {
       if (state.readOnly)
         return false;
-      let changes = state.changeByRange((range) => {
+      let changes2 = state.changeByRange((range) => {
         if (!range.empty || range.from == 0 || range.from == state.doc.length)
           return { range };
         let pos2 = range.from, line2 = state.doc.lineAt(pos2);
@@ -45444,9 +37140,9 @@ categories: ${categories.join(" ")}`;
           range: EditorSelection.cursor(to)
         };
       });
-      if (changes.changes.empty)
+      if (changes2.changes.empty)
         return false;
-      dispatch(state.update(changes, { scrollIntoView: true, userEvent: "move.character" }));
+      dispatch(state.update(changes2, { scrollIntoView: true, userEvent: "move.character" }));
       return true;
     };
     function selectedLineBlocks(state) {
@@ -45469,26 +37165,26 @@ categories: ${categories.join(" ")}`;
     function moveLine(state, dispatch, forward) {
       if (state.readOnly)
         return false;
-      let changes = [], ranges = [];
+      let changes2 = [], ranges = [];
       for (let block2 of selectedLineBlocks(state)) {
         if (forward ? block2.to == state.doc.length : block2.from == 0)
           continue;
         let nextLine = state.doc.lineAt(forward ? block2.to + 1 : block2.from - 1);
         let size = nextLine.length + 1;
         if (forward) {
-          changes.push({ from: block2.to, to: nextLine.to }, { from: block2.from, insert: nextLine.text + state.lineBreak });
+          changes2.push({ from: block2.to, to: nextLine.to }, { from: block2.from, insert: nextLine.text + state.lineBreak });
           for (let r2 of block2.ranges)
             ranges.push(EditorSelection.range(Math.min(state.doc.length, r2.anchor + size), Math.min(state.doc.length, r2.head + size)));
         } else {
-          changes.push({ from: nextLine.from, to: block2.from }, { from: block2.to, insert: state.lineBreak + nextLine.text });
+          changes2.push({ from: nextLine.from, to: block2.from }, { from: block2.to, insert: state.lineBreak + nextLine.text });
           for (let r2 of block2.ranges)
             ranges.push(EditorSelection.range(r2.anchor - size, r2.head - size));
         }
       }
-      if (!changes.length)
+      if (!changes2.length)
         return false;
       dispatch(state.update({
-        changes,
+        changes: changes2,
         scrollIntoView: true,
         selection: EditorSelection.create(ranges, state.selection.mainIndex),
         userEvent: "move.line"
@@ -45500,14 +37196,14 @@ categories: ${categories.join(" ")}`;
     function copyLine(state, dispatch, forward) {
       if (state.readOnly)
         return false;
-      let changes = [];
+      let changes2 = [];
       for (let block2 of selectedLineBlocks(state)) {
         if (forward)
-          changes.push({ from: block2.from, insert: state.doc.slice(block2.from, block2.to) + state.lineBreak });
+          changes2.push({ from: block2.from, insert: state.doc.slice(block2.from, block2.to) + state.lineBreak });
         else
-          changes.push({ from: block2.to, insert: state.lineBreak + state.doc.slice(block2.from, block2.to) });
+          changes2.push({ from: block2.to, insert: state.lineBreak + state.doc.slice(block2.from, block2.to) });
       }
-      dispatch(state.update({ changes, scrollIntoView: true, userEvent: "input.copyline" }));
+      dispatch(state.update({ changes: changes2, scrollIntoView: true, userEvent: "input.copyline" }));
       return true;
     }
     const copyLineUp = ({ state, dispatch }) => copyLine(state, dispatch, false);
@@ -45515,7 +37211,7 @@ categories: ${categories.join(" ")}`;
     const deleteLine = (view) => {
       if (view.state.readOnly)
         return false;
-      let { state } = view, changes = state.changes(selectedLineBlocks(state).map(({ from, to }) => {
+      let { state } = view, changes2 = state.changes(selectedLineBlocks(state).map(({ from, to }) => {
         if (from > 0)
           from--;
         else if (to < state.doc.length)
@@ -45530,8 +37226,8 @@ categories: ${categories.join(" ")}`;
             dist2 = block2.bottom + view.documentTop - pos2.bottom + view.defaultLineHeight / 2;
         }
         return view.moveVertically(range, true, dist2);
-      }).map(changes);
-      view.dispatch({ changes, selection, scrollIntoView: true, userEvent: "delete.line" });
+      }).map(changes2);
+      view.dispatch({ changes: changes2, selection, scrollIntoView: true, userEvent: "delete.line" });
       return true;
     };
     function isBetweenBrackets(state, pos2) {
@@ -45549,7 +37245,7 @@ categories: ${categories.join(" ")}`;
       return ({ state, dispatch }) => {
         if (state.readOnly)
           return false;
-        let changes = state.changeByRange((range) => {
+        let changes2 = state.changeByRange((range) => {
           let { from, to } = range, line2 = state.doc.lineAt(from);
           let explode = !atEof && from == to && isBetweenBrackets(state, from);
           if (atEof)
@@ -45572,25 +37268,25 @@ categories: ${categories.join(" ")}`;
             range: EditorSelection.cursor(from + 1 + insert2[1].length)
           };
         });
-        dispatch(state.update(changes, { scrollIntoView: true, userEvent: "input" }));
+        dispatch(state.update(changes2, { scrollIntoView: true, userEvent: "input" }));
         return true;
       };
     }
     function changeBySelectedLine(state, f) {
       let atLine = -1;
       return state.changeByRange((range) => {
-        let changes = [];
+        let changes2 = [];
         for (let pos2 = range.from; pos2 <= range.to; ) {
           let line2 = state.doc.lineAt(pos2);
           if (line2.number > atLine && (range.empty || range.to > line2.from)) {
-            f(line2, changes, range);
+            f(line2, changes2, range);
             atLine = line2.number;
           }
           pos2 = line2.to + 1;
         }
-        let changeSet = state.changes(changes);
+        let changeSet = state.changes(changes2);
         return {
-          changes,
+          changes: changes2,
           range: EditorSelection.range(changeSet.mapPos(range.anchor, 1), changeSet.mapPos(range.head, 1))
         };
       });
@@ -45603,7 +37299,7 @@ categories: ${categories.join(" ")}`;
         let found = updated[start];
         return found == null ? -1 : found;
       } });
-      let changes = changeBySelectedLine(state, (line2, changes2, range) => {
+      let changes2 = changeBySelectedLine(state, (line2, changes3, range) => {
         let indent = getIndentation(context, line2.from);
         if (indent == null)
           return;
@@ -45613,25 +37309,25 @@ categories: ${categories.join(" ")}`;
         let norm = indentString(state, indent);
         if (cur2 != norm || range.from < line2.from + cur2.length) {
           updated[line2.from] = indent;
-          changes2.push({ from: line2.from, to: line2.from + cur2.length, insert: norm });
+          changes3.push({ from: line2.from, to: line2.from + cur2.length, insert: norm });
         }
       });
-      if (!changes.changes.empty)
-        dispatch(state.update(changes, { userEvent: "indent" }));
+      if (!changes2.changes.empty)
+        dispatch(state.update(changes2, { userEvent: "indent" }));
       return true;
     };
     const indentMore = ({ state, dispatch }) => {
       if (state.readOnly)
         return false;
-      dispatch(state.update(changeBySelectedLine(state, (line2, changes) => {
-        changes.push({ from: line2.from, insert: state.facet(indentUnit) });
+      dispatch(state.update(changeBySelectedLine(state, (line2, changes2) => {
+        changes2.push({ from: line2.from, insert: state.facet(indentUnit) });
       }), { userEvent: "input.indent" }));
       return true;
     };
     const indentLess = ({ state, dispatch }) => {
       if (state.readOnly)
         return false;
-      dispatch(state.update(changeBySelectedLine(state, (line2, changes) => {
+      dispatch(state.update(changeBySelectedLine(state, (line2, changes2) => {
         let space = /^\s*/.exec(line2.text)[0];
         if (!space)
           return;
@@ -45639,7 +37335,7 @@ categories: ${categories.join(" ")}`;
         let insert2 = indentString(state, Math.max(0, col - getIndentUnit(state)));
         while (keep < space.length && keep < insert2.length && space.charCodeAt(keep) == insert2.charCodeAt(keep))
           keep++;
-        changes.push({ from: line2.from + keep, to: line2.from + space.length, insert: insert2.slice(keep) });
+        changes2.push({ from: line2.from + keep, to: line2.from + space.length, insert: insert2.slice(keep) });
       }), { userEvent: "delete.dedent" }));
       return true;
     };
@@ -46011,7 +37707,7 @@ categories: ${categories.join(" ")}`;
     const label$3 = "_label_jbrqc_1";
     const input = "_input_jbrqc_7";
     const help = "_help_jbrqc_11";
-    const styles$K = {
+    const styles$X = {
       label: label$3,
       input,
       help
@@ -46076,10 +37772,10 @@ Supported expressions:
         overflow: "hidden"
       }
     });
-    const getFilteringResult = (evalDescriptor, filterValue) => {
+    const getFilteringResult = (evalDescriptor2, filterValue) => {
       const { result, error: error2 } = filterSamples(
-        evalDescriptor,
-        evalDescriptor.samples,
+        evalDescriptor2,
+        evalDescriptor2.samples,
         filterValue
       );
       return { numSamples: result.length, error: error2 };
@@ -46110,7 +37806,7 @@ Supported expressions:
       ];
     };
     const SampleFilter = ({
-      evalDescriptor,
+      evalDescriptor: evalDescriptor2,
       scoreFilter,
       setScoreFilter
     }) => {
@@ -46120,8 +37816,8 @@ Supported expressions:
       const autocompletionCompartment = reactExports.useRef(new Compartment());
       const updateListenerCompartment = reactExports.useRef(new Compartment());
       const filterItems = reactExports.useMemo(
-        () => scoreFilterItems(evalDescriptor),
-        [evalDescriptor]
+        () => scoreFilterItems(evalDescriptor2),
+        [evalDescriptor2]
       );
       const [filteringResultInstant, setFilteringResultInstant] = reactExports.useState(null);
       const handleFocus = (event, view) => {
@@ -46137,7 +37833,7 @@ Supported expressions:
       const makeUpdateListener = () => EditorView.updateListener.of((update) => {
         if (update.docChanged) {
           const newValue = update.state.doc.toString();
-          const filteringResult = getFilteringResult(evalDescriptor, newValue);
+          const filteringResult = getFilteringResult(evalDescriptor2, newValue);
           if (!filteringResult.error) {
             setScoreFilter({ value: newValue });
           }
@@ -46172,25 +37868,25 @@ Supported expressions:
       }, []);
       reactExports.useEffect(() => {
         if (!editorViewRef.current) return;
-        const currentValue = editorViewRef.current.state.doc.toString();
-        if (scoreFilter.value === currentValue) return;
+        const currentValue2 = editorViewRef.current.state.doc.toString();
+        if (scoreFilter.value === currentValue2) return;
         setFilteringResultInstant(
-          getFilteringResult(evalDescriptor, scoreFilter.value || "")
+          getFilteringResult(evalDescriptor2, scoreFilter.value || "")
         );
         editorViewRef.current.dispatch({
           changes: {
             from: 0,
-            to: currentValue.length,
+            to: currentValue2.length,
             insert: scoreFilter.value || ""
           }
         });
-      }, [evalDescriptor, scoreFilter.value]);
+      }, [evalDescriptor2, scoreFilter.value]);
       reactExports.useEffect(() => {
         var _a2;
         (_a2 = editorViewRef.current) == null ? void 0 : _a2.dispatch({
           effects: updateListenerCompartment.current.reconfigure(makeUpdateListener())
         });
-      }, [evalDescriptor]);
+      }, [evalDescriptor2]);
       reactExports.useEffect(() => {
         var _a2;
         (_a2 = editorViewRef.current) == null ? void 0 : _a2.dispatch({
@@ -46212,7 +37908,7 @@ Supported expressions:
               "text-size-smaller",
               "text-style-label",
               "text-style-secondary",
-              styles$K.label
+              styles$X.label
             ),
             children: "Filter:"
           }
@@ -46223,14 +37919,14 @@ Supported expressions:
             ref: editorRef,
             className: clsx(
               (filteringResultInstant == null ? void 0 : filteringResultInstant.error) && "filter-pending",
-              styles$K.input
+              styles$X.input
             )
           }
         ),
         /* @__PURE__ */ jsxRuntimeExports.jsx(
           "span",
           {
-            className: clsx("bi", "bi-question-circle", styles$K.help),
+            className: clsx("bi", "bi-question-circle", styles$X.help),
             "data-tooltip": FILTER_TOOLTIP,
             "data-tooltip-position": "bottom-left"
           }
@@ -46241,7 +37937,7 @@ Supported expressions:
     const label$2 = "_label_anstf_5";
     const secondSel = "_secondSel_anstf_9";
     const secondLabel = "_secondLabel_anstf_13";
-    const styles$J = {
+    const styles$W = {
       flex,
       label: label$2,
       secondSel,
@@ -46250,7 +37946,7 @@ Supported expressions:
     const SelectScorer = ({
       scores: scores2,
       score: score2,
-      setScore
+      setScore: setScore2
     }) => {
       const scorers = scores2.reduce((accum, scorer) => {
         if (!accum.find((sc) => {
@@ -46261,7 +37957,7 @@ Supported expressions:
         return accum;
       }, []);
       if (scorers.length === 1) {
-        return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$J.flex, children: [
+        return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$W.flex, children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx(
             "span",
             {
@@ -46270,7 +37966,7 @@ Supported expressions:
                 "text-size-smaller",
                 "text-style-label",
                 "text-style-secondary",
-                styles$J.label
+                styles$W.label
               ),
               children: "Score:"
             }
@@ -46281,7 +37977,7 @@ Supported expressions:
               scores: scores2,
               selectedIndex: scoreIndex(scores2, score2),
               setSelectedIndex: (index2) => {
-                setScore(scores2[index2]);
+                setScore2(scores2[index2]);
               }
             }
           )
@@ -46290,7 +37986,7 @@ Supported expressions:
         const scorerScores = scores2.filter((sc) => {
           return score2 && sc.scorer === score2.scorer;
         });
-        return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$J.flex, children: [
+        return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$W.flex, children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx(
             "span",
             {
@@ -46299,8 +37995,8 @@ Supported expressions:
                 "text-size-smaller",
                 "text-style-label",
                 "text-style-secondary",
-                styles$J.label,
-                styles$J.secondLabel
+                styles$W.label,
+                styles$W.secondLabel
               ),
               children: "Scorer:"
             }
@@ -46311,18 +38007,18 @@ Supported expressions:
               scorers,
               selectedIndex: scorerIndex(scorers, score2),
               setSelectedIndex: (index2) => {
-                setScore(scorers[index2]);
+                setScore2(scorers[index2]);
               }
             }
           ),
           scorerScores.length > 1 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
             ScoreSelector,
             {
-              className: clsx(styles$J.secondSel),
+              className: clsx(styles$W.secondSel),
               scores: scorerScores,
               selectedIndex: scoreIndex(scorerScores, score2),
               setSelectedIndex: (index2) => {
-                setScore(scorerScores[index2]);
+                setScore2(scorerScores[index2]);
               }
             }
           ) : void 0
@@ -46384,15 +38080,15 @@ Supported expressions:
       return score2 && sc.scorer === score2.scorer;
     });
     const SampleTools = ({
-      epoch,
-      setEpoch,
+      epoch: epoch2,
+      setEpoch: setEpoch2,
       epochs,
       scoreFilter,
       setScoreFilter,
-      sort,
-      setSort,
+      sort: sort2,
+      setSort: setSort2,
       score: score2,
-      setScore,
+      setScore: setScore2,
       scores: scores2,
       sampleDescriptor
     }) => {
@@ -46405,9 +38101,9 @@ Supported expressions:
             setScoreFilter
           }
         ),
-        scores2.length > 1 ? /* @__PURE__ */ jsxRuntimeExports.jsx(SelectScorer, { scores: scores2, score: score2, setScore }) : void 0,
-        epochs > 1 ? /* @__PURE__ */ jsxRuntimeExports.jsx(EpochFilter, { epoch, setEpoch, epochs }) : void 0,
-        /* @__PURE__ */ jsxRuntimeExports.jsx(SortFilter, { sort, setSort, epochs })
+        scores2.length > 1 ? /* @__PURE__ */ jsxRuntimeExports.jsx(SelectScorer, { scores: scores2, score: score2, setScore: setScore2 }) : void 0,
+        epochs > 1 ? /* @__PURE__ */ jsxRuntimeExports.jsx(EpochFilter, { epoch: epoch2, setEpoch: setEpoch2, epochs }) : void 0,
+        /* @__PURE__ */ jsxRuntimeExports.jsx(SortFilter, { sort: sort2, setSort: setSort2, epochs })
       ] });
     };
     const filename = (path) => {
@@ -46501,9 +38197,9 @@ self.onmessage = function (e) {
       return (await api$2("GET", `/api/events?${params2.toString()}`)).parsed;
     }
     async function eval_logs$1() {
-      const logs = await api$2("GET", `/api/logs`);
+      const logs2 = await api$2("GET", `/api/logs`);
       last_eval_time = Date.now();
-      return logs.parsed;
+      return logs2.parsed;
     }
     async function eval_log$1(file, headerOnly, _capabilities) {
       return await api$2(
@@ -46532,11 +38228,11 @@ self.onmessage = function (e) {
       params2.append("log", log_file);
       return (await api$2("GET", `/api/pending-samples?${params2.toString()}`)).parsed;
     }
-    async function eval_log_sample_data$1(log_file, id, epoch, last_event, last_attachment) {
+    async function eval_log_sample_data$1(log_file, id, epoch2, last_event, last_attachment) {
       const params2 = new URLSearchParams();
       params2.append("log", log_file);
       params2.append("id", String(id));
-      params2.append("epoch", String(epoch));
+      params2.append("epoch", String(epoch2));
       params2.append("last-event-id", String(last_event));
       params2.append("after-attachment-id", String(last_attachment));
       return (await api$2("GET", `/api/pending-sample-data?${params2.toString()}`)).parsed;
@@ -46700,7 +38396,7 @@ self.onmessage = function (e) {
       }
       return { b, r: r2 };
     };
-    var _a = freb(fleb, 2), fl = _a.b, revfl = _a.r;
+    var _a$1 = freb(fleb, 2), fl = _a$1.b, revfl = _a$1.r;
     fl[28] = 258, revfl[258] = 28;
     var _b = freb(fdeb, 0), fd = _b.b;
     var rev = new u16(32768);
@@ -47315,7 +39011,7 @@ self.onmessage = function (e) {
             const headers = await fetchLogHeaders(log_dir);
             if (headers) {
               const logRecord = headers.parsed;
-              const logs = Object.keys(logRecord).map((key2) => {
+              const logs2 = Object.keys(logRecord).map((key2) => {
                 return {
                   name: joinURI(log_dir, key2),
                   task: logRecord[key2].eval.task,
@@ -47323,7 +39019,7 @@ self.onmessage = function (e) {
                 };
               });
               return Promise.resolve({
-                files: logs,
+                files: logs2,
                 log_dir
               });
             }
@@ -47383,7 +39079,7 @@ self.onmessage = function (e) {
           );
           return summaries || [];
         },
-        eval_log_sample_data: function(log_file, id, epoch, last_event, last_attachment) {
+        eval_log_sample_data: function(log_file, id, epoch2, last_event, last_attachment) {
           throw new Error("Function not implemented.");
         }
       };
@@ -47433,7 +39129,7 @@ self.onmessage = function (e) {
       });
     };
     const fetchLogHeaders = async (log_dir) => {
-      const logs = await fetchFile(
+      const logs2 = await fetchFile(
         log_dir + "/logs.json",
         async (text2) => {
           const parsed = await asyncJsonParse(text2);
@@ -47450,7 +39146,7 @@ self.onmessage = function (e) {
           }
         }
       );
-      return logs;
+      return logs2;
     };
     function joinURI(...segments) {
       return segments.map((segment) => segment.replace(/(^\/+|\/+$)/g, "")).join("/");
@@ -47487,7 +39183,7 @@ self.onmessage = function (e) {
     let line;
     let column;
     let token;
-    let key;
+    let key$1;
     let root$1;
     var parse$3 = function parse2(text2, reviver) {
       source = String(text2);
@@ -47497,7 +39193,7 @@ self.onmessage = function (e) {
       line = 1;
       column = 0;
       token = void 0;
-      key = void 0;
+      key$1 = void 0;
       root$1 = void 0;
       do {
         token = lex();
@@ -47941,7 +39637,7 @@ self.onmessage = function (e) {
         switch (c) {
           case "\\":
             read();
-            buffer$1 += escape();
+            buffer$1 += escape$2();
             return;
           case '"':
             if (doubleQuote) {
@@ -48055,7 +39751,7 @@ self.onmessage = function (e) {
         read();
       }
     }
-    function escape() {
+    function escape$2() {
       const c2 = peek();
       switch (c2) {
         case "b":
@@ -48151,7 +39847,7 @@ self.onmessage = function (e) {
         switch (token.type) {
           case "identifier":
           case "string":
-            key = token.value;
+            key$1 = token.value;
             parseState = "afterPropertyName";
             return;
           case "punctuator":
@@ -48237,7 +39933,7 @@ self.onmessage = function (e) {
         if (Array.isArray(parent)) {
           parent.push(value2);
         } else {
-          Object.defineProperty(parent, key, {
+          Object.defineProperty(parent, key$1, {
             value: value2,
             writable: true,
             enumerable: true,
@@ -48536,7 +40232,7 @@ self.onmessage = function (e) {
       parse: parse$3,
       stringify
     };
-    var lib = JSON5;
+    var lib$1 = JSON5;
     const kMethodEvalLogs = "eval_logs";
     const kMethodEvalLog = "eval_log";
     const kMethodEvalLogSize = "eval_log_size";
@@ -48549,12 +40245,12 @@ self.onmessage = function (e) {
           vscode2.postMessage(data);
         },
         onMessage: (handler) => {
-          const onMessage = (ev) => {
+          const onMessage2 = (ev) => {
             handler(ev.data);
           };
-          window.addEventListener("message", onMessage);
+          window.addEventListener("message", onMessage2);
           return () => {
-            window.removeEventListener("message", onMessage);
+            window.removeEventListener("message", onMessage2);
           };
         }
       };
@@ -48616,7 +40312,7 @@ self.onmessage = function (e) {
     async function eval_logs() {
       const response = await vscodeClient(kMethodEvalLogs, []);
       if (response) {
-        const parsed = lib.parse(response);
+        const parsed = lib$1.parse(response);
         if (Array.isArray(parsed)) {
           return {
             log_dir: "",
@@ -48636,7 +40332,7 @@ self.onmessage = function (e) {
         if (capabilities2 == null ? void 0 : capabilities2.webWorkers) {
           json = await asyncJsonParse(response);
         } else {
-          json = lib.parse(response);
+          json = lib$1.parse(response);
         }
         return {
           parsed: json,
@@ -48655,7 +40351,7 @@ self.onmessage = function (e) {
     async function eval_log_headers(files) {
       const response = await vscodeClient(kMethodEvalLogHeaders, [files]);
       if (response) {
-        return lib.parse(response);
+        return lib$1.parse(response);
       } else {
         return void 0;
       }
@@ -48675,7 +40371,7 @@ self.onmessage = function (e) {
     async function eval_pending_samples(log_file) {
       throw new Error("Function not implemented.");
     }
-    async function eval_log_sample_data(log_file, id, epoch, last_event, last_attachment) {
+    async function eval_log_sample_data(log_file, id, epoch2, last_event, last_attachment) {
       throw new Error("Function not implemented.");
     }
     const api$1 = {
@@ -48771,8 +40467,8 @@ self.onmessage = function (e) {
           };
         });
       };
-      const readSample = async (sampleId, epoch) => {
-        const sampleFile = `samples/${sampleId}_epoch_${epoch}.json`;
+      const readSample = async (sampleId, epoch2) => {
+        const sampleFile = `samples/${sampleId}_epoch_${epoch2}.json`;
         if (remoteZipFile.centralDirectory.has(sampleFile)) {
           return await readJSONFile(sampleFile, MAX_BYTES);
         } else {
@@ -48833,7 +40529,7 @@ self.onmessage = function (e) {
       return {
         readHeader,
         readLogSummary: async () => {
-          const [header2, sampleSummaries] = await Promise.all([
+          const [header2, sampleSummaries2] = await Promise.all([
             readHeader(),
             readSampleSummaries()
           ]);
@@ -48844,7 +40540,7 @@ self.onmessage = function (e) {
             results: header2.results,
             stats: header2.stats,
             error: header2.error,
-            sampleSummaries
+            sampleSummaries: sampleSummaries2
           };
           return result;
         },
@@ -48858,7 +40554,7 @@ self.onmessage = function (e) {
             listSamples().then(
               (sampleIds) => Promise.all(
                 sampleIds.map(
-                  ({ sampleId, epoch }) => readSample(sampleId, epoch).then(
+                  ({ sampleId, epoch: epoch2 }) => readSample(sampleId, epoch2).then(
                     (sample2) => sample2
                   )
                 )
@@ -48881,9 +40577,9 @@ self.onmessage = function (e) {
       return file.endsWith(".eval");
     };
     class SampleSizeLimitedExceededError extends Error {
-      constructor(id, epoch, maxBytes) {
+      constructor(id, epoch2, maxBytes) {
         super(
-          `Sample ${id} in epoch ${epoch} exceeds the maximum supported size (${maxBytes / 1024 / 1024}MB) and cannot be loaded.`
+          `Sample ${id} in epoch ${epoch2} exceeds the maximum supported size (${maxBytes / 1024 / 1024}MB) and cannot be loaded.`
         );
         __publicField(this, "id");
         __publicField(this, "epoch");
@@ -48891,7 +40587,7 @@ self.onmessage = function (e) {
         __publicField(this, "displayStack");
         this.name = "SampleSizeLimitedExceededError";
         this.id = id;
-        this.epoch = epoch;
+        this.epoch = epoch2;
         this.maxBytes = maxBytes;
         this.displayStack = false;
         Object.setPrototypeOf(this, SampleSizeLimitedExceededError.prototype);
@@ -48945,7 +40641,7 @@ self.onmessage = function (e) {
           }
         } else {
           const logContents = await get_log(log_file2);
-          const sampleSummaries = logContents.parsed.samples ? (_a2 = logContents.parsed.samples) == null ? void 0 : _a2.map((sample2) => {
+          const sampleSummaries2 = logContents.parsed.samples ? (_a2 = logContents.parsed.samples) == null ? void 0 : _a2.map((sample2) => {
             var _a3;
             return {
               id: sample2.id,
@@ -48966,23 +40662,23 @@ self.onmessage = function (e) {
             results: parsed.results,
             stats: parsed.stats,
             error: parsed.error,
-            sampleSummaries
+            sampleSummaries: sampleSummaries2
           };
         }
       };
-      const get_log_sample = async (log_file2, id, epoch) => {
+      const get_log_sample = async (log_file2, id, epoch2) => {
         if (isEvalFile(log_file2)) {
           const remoteLogFile = await remoteEvalFile(log_file2, true);
           try {
             if (remoteLogFile) {
-              const sample2 = await remoteLogFile.readSample(String(id), epoch);
+              const sample2 = await remoteLogFile.readSample(String(id), epoch2);
               return sample2;
             } else {
               throw new Error(`Unable to read remove eval file ${log_file2}`);
             }
           } catch (error2) {
             if (error2 instanceof FileSizeLimitError) {
-              throw new SampleSizeLimitedExceededError(id, epoch, error2.maxBytes);
+              throw new SampleSizeLimitedExceededError(id, epoch2, error2.maxBytes);
             } else {
               throw error2;
             }
@@ -48991,7 +40687,7 @@ self.onmessage = function (e) {
           const logContents = await get_log(log_file2, true);
           if (logContents.parsed.samples && logContents.parsed.samples.length > 0) {
             return logContents.parsed.samples.find((sample2) => {
-              return sample2.id === id && sample2.epoch === epoch;
+              return sample2.id === id && sample2.epoch === epoch2;
             });
           }
         }
@@ -49061,11 +40757,11 @@ self.onmessage = function (e) {
       const get_log_pending_samples = (log_file2) => {
         return api2.eval_pending_samples(log_file2);
       };
-      const get_log_sample_data = (log_file2, id, epoch, last_event, last_attachment) => {
+      const get_log_sample_data = (log_file2, id, epoch2, last_event, last_attachment) => {
         return api2.eval_log_sample_data(
           log_file2,
           id,
-          epoch,
+          epoch2,
           last_event,
           last_attachment
         );
@@ -49212,7 +40908,7 @@ self.onmessage = function (e) {
       return value2;
     };
     const jsonTab = "_jsonTab_6pq03_1";
-    const styles$I = {
+    const styles$V = {
       jsonTab
     };
     const kJsonMaxSize = 1e7;
@@ -49223,7 +40919,7 @@ self.onmessage = function (e) {
     }) => {
       if (logFile && json.length > kJsonMaxSize && capabilities2.downloadFiles) {
         const file = `${filename(logFile)}.json`;
-        return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$I.jsonTab, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+        return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$V.jsonTab, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
           DownloadPanel,
           {
             message: "The JSON for this log file is too large to render.",
@@ -49233,7 +40929,7 @@ self.onmessage = function (e) {
           }
         ) });
       } else {
-        return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$I.jsonTab, children: /* @__PURE__ */ jsxRuntimeExports.jsx(JSONPanel, { id: "task-json-contents", json, simple: true }) });
+        return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$V.jsonTab, children: /* @__PURE__ */ jsxRuntimeExports.jsx(JSONPanel, { id: "task-json-contents", json, simple: true }) });
       }
     };
     const EmptyPanel = ({ children: children2 }) => {
@@ -49390,6 +41086,7773 @@ self.onmessage = function (e) {
         return [];
       });
     };
+    const table$2 = "_table_1memb_1";
+    const th = "_th_1memb_7";
+    const cell$2 = "_cell_1memb_11";
+    const compact = "_compact_1memb_15";
+    const cellKey = "_cellKey_1memb_19";
+    const cellValue = "_cellValue_1memb_31";
+    const styles$U = {
+      table: table$2,
+      th,
+      cell: cell$2,
+      compact,
+      cellKey,
+      cellValue
+    };
+    function commonjsRequire(path) {
+      throw new Error('Could not dynamically require "' + path + '". Please configure the dynamicRequireTargets or/and ignoreDynamicRequires option of @rollup/plugin-commonjs appropriately for this require call to work.');
+    }
+    var ansiOutput = { exports: {} };
+    (function(module2, exports2) {
+      (function(factory) {
+        {
+          var v = factory(commonjsRequire, exports2);
+          if (v !== void 0) module2.exports = v;
+        }
+      })(function(require2, exports3) {
+        Object.defineProperty(exports3, "__esModule", { value: true });
+        exports3.ANSIOutput = exports3.ANSIColor = exports3.ANSIFont = exports3.ANSIStyle = void 0;
+        let counter = 0;
+        const generateId = () => {
+          return `${++counter}`.padStart(16, "0");
+        };
+        var ANSIStyle;
+        (function(ANSIStyle2) {
+          ANSIStyle2["Bold"] = "ansiBold";
+          ANSIStyle2["Dim"] = "ansiDim";
+          ANSIStyle2["Italic"] = "ansiItalic";
+          ANSIStyle2["Underlined"] = "ansiUnderlined";
+          ANSIStyle2["SlowBlink"] = "ansiSlowBlink";
+          ANSIStyle2["RapidBlink"] = "ansiRapidBlink";
+          ANSIStyle2["Hidden"] = "ansiHidden";
+          ANSIStyle2["CrossedOut"] = "ansiCrossedOut";
+          ANSIStyle2["Fraktur"] = "ansiFraktur";
+          ANSIStyle2["DoubleUnderlined"] = "ansiDoubleUnderlined";
+          ANSIStyle2["Framed"] = "ansiFramed";
+          ANSIStyle2["Encircled"] = "ansiEncircled";
+          ANSIStyle2["Overlined"] = "ansiOverlined";
+          ANSIStyle2["Superscript"] = "ansiSuperscript";
+          ANSIStyle2["Subscript"] = "ansiSubscript";
+        })(ANSIStyle || (exports3.ANSIStyle = ANSIStyle = {}));
+        var ANSIFont;
+        (function(ANSIFont2) {
+          ANSIFont2["AlternativeFont1"] = "ansiAlternativeFont1";
+          ANSIFont2["AlternativeFont2"] = "ansiAlternativeFont2";
+          ANSIFont2["AlternativeFont3"] = "ansiAlternativeFont3";
+          ANSIFont2["AlternativeFont4"] = "ansiAlternativeFont4";
+          ANSIFont2["AlternativeFont5"] = "ansiAlternativeFont5";
+          ANSIFont2["AlternativeFont6"] = "ansiAlternativeFont6";
+          ANSIFont2["AlternativeFont7"] = "ansiAlternativeFont7";
+          ANSIFont2["AlternativeFont8"] = "ansiAlternativeFont8";
+          ANSIFont2["AlternativeFont9"] = "ansiAlternativeFont9";
+        })(ANSIFont || (exports3.ANSIFont = ANSIFont = {}));
+        var ANSIColor;
+        (function(ANSIColor2) {
+          ANSIColor2["Black"] = "ansiBlack";
+          ANSIColor2["Red"] = "ansiRed";
+          ANSIColor2["Green"] = "ansiGreen";
+          ANSIColor2["Yellow"] = "ansiYellow";
+          ANSIColor2["Blue"] = "ansiBlue";
+          ANSIColor2["Magenta"] = "ansiMagenta";
+          ANSIColor2["Cyan"] = "ansiCyan";
+          ANSIColor2["White"] = "ansiWhite";
+          ANSIColor2["BrightBlack"] = "ansiBrightBlack";
+          ANSIColor2["BrightRed"] = "ansiBrightRed";
+          ANSIColor2["BrightGreen"] = "ansiBrightGreen";
+          ANSIColor2["BrightYellow"] = "ansiBrightYellow";
+          ANSIColor2["BrightBlue"] = "ansiBrightBlue";
+          ANSIColor2["BrightMagenta"] = "ansiBrightMagenta";
+          ANSIColor2["BrightCyan"] = "ansiBrightCyan";
+          ANSIColor2["BrightWhite"] = "ansiBrightWhite";
+        })(ANSIColor || (exports3.ANSIColor = ANSIColor = {}));
+        class ANSIOutput {
+          constructor() {
+            //#region Private Properties
+            /**
+             * Gets or sets the parser state.
+             */
+            __publicField(this, "_parserState", ParserState.BufferingOutput);
+            /**
+             * Gets or sets the control sequence that's being parsed.
+             */
+            __publicField(this, "_controlSequence", "");
+            /**
+             * Gets or sets the SGR state.
+             */
+            __publicField(this, "_sgrState");
+            /**
+             * Gets or sets the current set of output lines.
+             */
+            __publicField(this, "_outputLines", []);
+            /**
+             * Gets or sets the output line.
+             */
+            __publicField(this, "_outputLine", 0);
+            /**
+             * Gets or sets the output column.
+             */
+            __publicField(this, "_outputColumn", 0);
+            /**
+             * Gets or sets the buffer.
+             */
+            __publicField(this, "_buffer", "");
+            /**
+             * Gets or sets a value which indicates whether there is a pending newline.
+             */
+            __publicField(this, "_pendingNewline", false);
+          }
+          //#endregion Private Properties
+          //#region Public Properties
+          /**
+           * Gets the output lines.
+           */
+          get outputLines() {
+            this.flushBuffer();
+            return this._outputLines;
+          }
+          //#endregion Public Properties
+          //#region Public Static Methods
+          /**
+           * Processes output and returns the ANSIOutput lines of the output.
+           * @param output The output to process.
+           * @returns The ANSIOutput lines of the output.
+           */
+          static processOutput(output2) {
+            const ansiOutput2 = new ANSIOutput();
+            ansiOutput2.processOutput(output2);
+            return ansiOutput2.outputLines;
+          }
+          //#endregion Public Static Methods
+          //#region Public Methods
+          /**
+           * Processes output.
+           * @param output The output to process.
+           */
+          processOutput(output2) {
+            for (let i2 = 0; i2 < output2.length; i2++) {
+              if (this._pendingNewline) {
+                this.flushBuffer();
+                this._outputLine++;
+                this._outputColumn = 0;
+                this._pendingNewline = false;
+              }
+              const char = output2.charAt(i2);
+              if (this._parserState === ParserState.BufferingOutput) {
+                if (char === "\x1B") {
+                  this.flushBuffer();
+                  this._parserState = ParserState.ControlSequenceStarted;
+                } else if (char === "") {
+                  this.flushBuffer();
+                  this._parserState = ParserState.ParsingControlSequence;
+                } else {
+                  this.processCharacter(char);
+                }
+              } else if (this._parserState === ParserState.ControlSequenceStarted) {
+                if (char === "[") {
+                  this._parserState = ParserState.ParsingControlSequence;
+                } else {
+                  this._parserState = ParserState.BufferingOutput;
+                  this.processCharacter(char);
+                }
+              } else if (this._parserState === ParserState.ParsingControlSequence) {
+                this._controlSequence += char;
+                if (char.match(/^[A-Za-z]$/)) {
+                  this.processControlSequence();
+                }
+              }
+            }
+            this.flushBuffer();
+          }
+          //#endregion Public Methods
+          //#region Private Methods
+          /**
+           * Flushes the buffer to the output line.
+           */
+          flushBuffer() {
+            for (let i2 = this._outputLines.length; i2 < this._outputLine + 1; i2++) {
+              this._outputLines.push(new OutputLine());
+            }
+            if (this._buffer) {
+              const outputLine = this._outputLines[this._outputLine];
+              outputLine.insert(this._buffer, this._outputColumn, this._sgrState);
+              this._outputColumn += this._buffer.length;
+              this._buffer = "";
+            }
+          }
+          /**
+           * Processes a character.
+           * @param char The character.
+           */
+          processCharacter(char) {
+            switch (char) {
+              case "\n":
+                this._pendingNewline = true;
+                break;
+              case "\r":
+                this.flushBuffer();
+                this._outputColumn = 0;
+                break;
+              default:
+                this._buffer += char;
+                break;
+            }
+          }
+          /**
+           * Processes a control sequence.
+           */
+          processControlSequence() {
+            switch (this._controlSequence.charAt(this._controlSequence.length - 1)) {
+              case "A":
+                this.processCUU();
+                break;
+              case "B":
+                this.processCUD();
+                break;
+              case "C":
+                this.processCUF();
+                break;
+              case "D":
+                this.processCUB();
+                break;
+              case "H":
+                this.processCUP();
+                break;
+              case "J":
+                this.processED();
+                break;
+              case "K":
+                this.processEL();
+                break;
+              case "m":
+                this.processSGR();
+                break;
+            }
+            this._controlSequence = "";
+            this._parserState = ParserState.BufferingOutput;
+          }
+          /**
+           * Processes a CUU (Cursor Up) control sequence.
+           */
+          processCUU() {
+            const match = this._controlSequence.match(/^([0-9]*)A$/);
+            if (match) {
+              this._outputLine = Math.max(this._outputLine - rangeParam(match[1], 1, 1), 0);
+            }
+          }
+          /**
+           * Processes a CUD (Cursor Down) control sequence.
+           */
+          processCUD() {
+            const match = this._controlSequence.match(/^([0-9]*)B$/);
+            if (match) {
+              this._outputLine = this._outputLine + rangeParam(match[1], 1, 1);
+            }
+          }
+          /**
+           * Processes a CUF (Cursor Forward) control sequence.
+           */
+          processCUF() {
+            const match = this._controlSequence.match(/^([0-9]*)C$/);
+            if (match) {
+              this._outputColumn = this._outputColumn + rangeParam(match[1], 1, 1);
+            }
+          }
+          /**
+           * Processes a CUB (Cursor Backward) control sequence.
+           */
+          processCUB() {
+            const match = this._controlSequence.match(/^([0-9]*)D$/);
+            if (match) {
+              this._outputColumn = Math.max(this._outputColumn - rangeParam(match[1], 1, 1), 0);
+            }
+          }
+          /**
+           * Processes a CUP (Cursor Position) control sequence.
+           */
+          processCUP() {
+            const match = this._controlSequence.match(/^([0-9]*)(?:;?([0-9]*))H$/);
+            if (match) {
+              this._outputLine = rangeParam(match[1], 1, 1) - 1;
+              this._outputColumn = rangeParam(match[2], 1, 1) - 1;
+            }
+          }
+          /**
+           * Processes an ED (Erase in Display) control sequence.
+           */
+          processED() {
+            const match = this._controlSequence.match(/^([0-9]*)J$/);
+            if (match) {
+              switch (getParam(match[1], 0)) {
+                case 0:
+                  this._outputLines[this._outputLine].clearToEndOfLine(this._outputColumn);
+                  for (let i2 = this._outputLine + 1; i2 < this._outputLines.length; i2++) {
+                    this._outputLines[i2].clearEntireLine();
+                  }
+                  break;
+                case 1:
+                  this._outputLines[this._outputLine].clearToBeginningOfLine(this._outputColumn);
+                  for (let i2 = 0; i2 < this._outputLine; i2++) {
+                    this._outputLines[i2].clearEntireLine();
+                  }
+                  break;
+                case 2:
+                  for (let i2 = 0; i2 < this._outputLines.length; i2++) {
+                    this._outputLines[i2].clearEntireLine();
+                  }
+                  break;
+              }
+            }
+          }
+          /**
+           * Processes an EL (Erase in Line) control sequence.
+           */
+          processEL() {
+            const match = this._controlSequence.match(/^([0-9]*)K$/);
+            if (match) {
+              const outputLine = this._outputLines[this._outputLine];
+              switch (getParam(match[1], 0)) {
+                case 0:
+                  outputLine.clearToEndOfLine(this._outputColumn);
+                  break;
+                case 1:
+                  outputLine.clearToBeginningOfLine(this._outputColumn);
+                  break;
+                case 2:
+                  outputLine.clearEntireLine();
+                  break;
+              }
+            }
+          }
+          /**
+           * Processes an SGR (Select Graphic Rendition) control sequence.
+           */
+          processSGR() {
+            const sgrState = this._sgrState ? this._sgrState.copy() : new SGRState();
+            const sgrParams = this._controlSequence.slice(0, -1).split(";").map((sgrParam) => sgrParam === "" ? SGRParam.Reset : parseInt(sgrParam, 10));
+            for (let index2 = 0; index2 < sgrParams.length; index2++) {
+              const sgrParam = sgrParams[index2];
+              const processSetColor = () => {
+                if (index2 + 1 === sgrParams.length) {
+                  return void 0;
+                }
+                switch (sgrParams[++index2]) {
+                  case SGRParamColor.Color256: {
+                    if (index2 + 1 === sgrParams.length) {
+                      return void 0;
+                    }
+                    const colorIndex = sgrParams[++index2];
+                    switch (colorIndex) {
+                      case SGRParamIndexedColor.Black:
+                        return ANSIColor.Black;
+                      case SGRParamIndexedColor.Red:
+                        return ANSIColor.Red;
+                      case SGRParamIndexedColor.Green:
+                        return ANSIColor.Green;
+                      case SGRParamIndexedColor.Yellow:
+                        return ANSIColor.Yellow;
+                      case SGRParamIndexedColor.Blue:
+                        return ANSIColor.Blue;
+                      case SGRParamIndexedColor.Magenta:
+                        return ANSIColor.Magenta;
+                      case SGRParamIndexedColor.Cyan:
+                        return ANSIColor.Cyan;
+                      case SGRParamIndexedColor.White:
+                        return ANSIColor.White;
+                      case SGRParamIndexedColor.BrightBlack:
+                        return ANSIColor.BrightBlack;
+                      case SGRParamIndexedColor.BrightRed:
+                        return ANSIColor.BrightRed;
+                      case SGRParamIndexedColor.BrightGreen:
+                        return ANSIColor.BrightGreen;
+                      case SGRParamIndexedColor.BrightYellow:
+                        return ANSIColor.BrightYellow;
+                      case SGRParamIndexedColor.BrightBlue:
+                        return ANSIColor.BrightBlue;
+                      case SGRParamIndexedColor.BrightMagenta:
+                        return ANSIColor.BrightMagenta;
+                      case SGRParamIndexedColor.BrightCyan:
+                        return ANSIColor.BrightCyan;
+                      case SGRParamIndexedColor.BrightWhite:
+                        return ANSIColor.BrightWhite;
+                      default:
+                        if (colorIndex % 1 !== 0) {
+                          return void 0;
+                        }
+                        if (colorIndex >= 16 && colorIndex <= 231) {
+                          let colorNumber = colorIndex - 16;
+                          let blue = colorNumber % 6;
+                          colorNumber = (colorNumber - blue) / 6;
+                          let green2 = colorNumber % 6;
+                          colorNumber = (colorNumber - green2) / 6;
+                          let red2 = colorNumber;
+                          blue = Math.round(blue * 255 / 5);
+                          green2 = Math.round(green2 * 255 / 5);
+                          red2 = Math.round(red2 * 255 / 5);
+                          return "#" + twoDigitHex(red2) + twoDigitHex(green2) + twoDigitHex(blue);
+                        } else if (colorIndex >= 232 && colorIndex <= 255) {
+                          const rgb = Math.round((colorIndex - 232) / 23 * 255);
+                          const grayscale = twoDigitHex(rgb);
+                          return "#" + grayscale + grayscale + grayscale;
+                        } else {
+                          return void 0;
+                        }
+                    }
+                  }
+                  case SGRParamColor.ColorRGB: {
+                    const rgb = [0, 0, 0];
+                    for (let i2 = 0; i2 < 3 && index2 + 1 < sgrParams.length; i2++) {
+                      rgb[i2] = sgrParams[++index2];
+                    }
+                    return "#" + twoDigitHex(rgb[0]) + twoDigitHex(rgb[1]) + twoDigitHex(rgb[2]);
+                  }
+                }
+                return void 0;
+              };
+              switch (sgrParam) {
+                case SGRParam.Reset:
+                  sgrState.reset();
+                  break;
+                case SGRParam.Bold:
+                  sgrState.setStyle(ANSIStyle.Bold);
+                  break;
+                case SGRParam.Dim:
+                  sgrState.setStyle(ANSIStyle.Dim);
+                  break;
+                case SGRParam.Italic:
+                  sgrState.setStyle(ANSIStyle.Italic);
+                  break;
+                case SGRParam.Underlined:
+                  sgrState.setStyle(ANSIStyle.Underlined, ANSIStyle.DoubleUnderlined);
+                  break;
+                case SGRParam.SlowBlink:
+                  sgrState.setStyle(ANSIStyle.SlowBlink, ANSIStyle.RapidBlink);
+                  break;
+                case SGRParam.RapidBlink:
+                  sgrState.setStyle(ANSIStyle.RapidBlink, ANSIStyle.SlowBlink);
+                  break;
+                case SGRParam.Reversed:
+                  sgrState.setReversed(true);
+                  break;
+                case SGRParam.Hidden:
+                  sgrState.setStyle(ANSIStyle.Hidden);
+                  break;
+                case SGRParam.CrossedOut:
+                  sgrState.setStyle(ANSIStyle.CrossedOut);
+                  break;
+                case SGRParam.PrimaryFont:
+                  sgrState.setFont();
+                  break;
+                case SGRParam.AlternativeFont1:
+                  sgrState.setFont(ANSIFont.AlternativeFont1);
+                  break;
+                case SGRParam.AlternativeFont2:
+                  sgrState.setFont(ANSIFont.AlternativeFont2);
+                  break;
+                case SGRParam.AlternativeFont3:
+                  sgrState.setFont(ANSIFont.AlternativeFont3);
+                  break;
+                case SGRParam.AlternativeFont4:
+                  sgrState.setFont(ANSIFont.AlternativeFont4);
+                  break;
+                case SGRParam.AlternativeFont5:
+                  sgrState.setFont(ANSIFont.AlternativeFont5);
+                  break;
+                case SGRParam.AlternativeFont6:
+                  sgrState.setFont(ANSIFont.AlternativeFont6);
+                  break;
+                case SGRParam.AlternativeFont7:
+                  sgrState.setFont(ANSIFont.AlternativeFont7);
+                  break;
+                case SGRParam.AlternativeFont8:
+                  sgrState.setFont(ANSIFont.AlternativeFont8);
+                  break;
+                case SGRParam.AlternativeFont9:
+                  sgrState.setFont(ANSIFont.AlternativeFont9);
+                  break;
+                case SGRParam.Fraktur:
+                  sgrState.setStyle(ANSIStyle.Fraktur);
+                  break;
+                case SGRParam.DoubleUnderlined:
+                  sgrState.setStyle(ANSIStyle.DoubleUnderlined, ANSIStyle.Underlined);
+                  break;
+                case SGRParam.NormalIntensity:
+                  sgrState.deleteStyles(ANSIStyle.Bold, ANSIStyle.Dim);
+                  break;
+                case SGRParam.NotItalicNotFraktur:
+                  sgrState.deleteStyles(ANSIStyle.Italic, ANSIStyle.Fraktur);
+                  break;
+                case SGRParam.NotUnderlined:
+                  sgrState.deleteStyles(ANSIStyle.Underlined, ANSIStyle.DoubleUnderlined);
+                  break;
+                case SGRParam.NotBlinking:
+                  sgrState.deleteStyles(ANSIStyle.SlowBlink, ANSIStyle.RapidBlink);
+                  break;
+                case SGRParam.ProportionalSpacing:
+                  break;
+                case SGRParam.NotReversed:
+                  sgrState.setReversed(false);
+                  break;
+                case SGRParam.Reveal:
+                  sgrState.deleteStyles(ANSIStyle.Hidden);
+                  break;
+                case SGRParam.NotCrossedOut:
+                  sgrState.deleteStyles(ANSIStyle.CrossedOut);
+                  break;
+                case SGRParam.ForegroundBlack:
+                  sgrState.setForegroundColor(ANSIColor.Black);
+                  break;
+                case SGRParam.ForegroundRed:
+                  sgrState.setForegroundColor(ANSIColor.Red);
+                  break;
+                case SGRParam.ForegroundGreen:
+                  sgrState.setForegroundColor(ANSIColor.Green);
+                  break;
+                case SGRParam.ForegroundYellow:
+                  sgrState.setForegroundColor(ANSIColor.Yellow);
+                  break;
+                case SGRParam.ForegroundBlue:
+                  sgrState.setForegroundColor(ANSIColor.Blue);
+                  break;
+                case SGRParam.ForegroundMagenta:
+                  sgrState.setForegroundColor(ANSIColor.Magenta);
+                  break;
+                case SGRParam.ForegroundCyan:
+                  sgrState.setForegroundColor(ANSIColor.Cyan);
+                  break;
+                case SGRParam.ForegroundWhite:
+                  sgrState.setForegroundColor(ANSIColor.White);
+                  break;
+                case SGRParam.SetForeground: {
+                  const foregroundColor = processSetColor();
+                  if (foregroundColor) {
+                    sgrState.setForegroundColor(foregroundColor);
+                  }
+                  break;
+                }
+                case SGRParam.DefaultForeground:
+                  sgrState.setForegroundColor();
+                  break;
+                case SGRParam.BackgroundBlack:
+                  sgrState.setBackgroundColor(ANSIColor.Black);
+                  break;
+                case SGRParam.BackgroundRed:
+                  sgrState.setBackgroundColor(ANSIColor.Red);
+                  break;
+                case SGRParam.BackgroundGreen:
+                  sgrState.setBackgroundColor(ANSIColor.Green);
+                  break;
+                case SGRParam.BackgroundYellow:
+                  sgrState.setBackgroundColor(ANSIColor.Yellow);
+                  break;
+                case SGRParam.BackgroundBlue:
+                  sgrState.setBackgroundColor(ANSIColor.Blue);
+                  break;
+                case SGRParam.BackgroundMagenta:
+                  sgrState.setBackgroundColor(ANSIColor.Magenta);
+                  break;
+                case SGRParam.BackgroundCyan:
+                  sgrState.setBackgroundColor(ANSIColor.Cyan);
+                  break;
+                case SGRParam.BackgroundWhite:
+                  sgrState.setBackgroundColor(ANSIColor.White);
+                  break;
+                case SGRParam.SetBackground: {
+                  const backgroundColor = processSetColor();
+                  if (backgroundColor) {
+                    sgrState.setBackgroundColor(backgroundColor);
+                  }
+                  break;
+                }
+                case SGRParam.DefaultBackground:
+                  sgrState.setBackgroundColor();
+                  break;
+                case SGRParam.ForegroundBrightBlack:
+                  sgrState.setForegroundColor(ANSIColor.BrightBlack);
+                  break;
+                case SGRParam.ForegroundBrightRed:
+                  sgrState.setForegroundColor(ANSIColor.BrightRed);
+                  break;
+                case SGRParam.ForegroundBrightGreen:
+                  sgrState.setForegroundColor(ANSIColor.BrightGreen);
+                  break;
+                case SGRParam.ForegroundBrightYellow:
+                  sgrState.setForegroundColor(ANSIColor.BrightYellow);
+                  break;
+                case SGRParam.ForegroundBrightBlue:
+                  sgrState.setForegroundColor(ANSIColor.BrightBlue);
+                  break;
+                case SGRParam.ForegroundBrightMagenta:
+                  sgrState.setForegroundColor(ANSIColor.BrightMagenta);
+                  break;
+                case SGRParam.ForegroundBrightCyan:
+                  sgrState.setForegroundColor(ANSIColor.BrightCyan);
+                  break;
+                case SGRParam.ForegroundBrightWhite:
+                  sgrState.setForegroundColor(ANSIColor.BrightWhite);
+                  break;
+                case SGRParam.BackgroundBrightBlack:
+                  sgrState.setBackgroundColor(ANSIColor.BrightBlack);
+                  break;
+                case SGRParam.BackgroundBrightRed:
+                  sgrState.setBackgroundColor(ANSIColor.BrightRed);
+                  break;
+                case SGRParam.BackgroundBrightGreen:
+                  sgrState.setBackgroundColor(ANSIColor.BrightGreen);
+                  break;
+                case SGRParam.BackgroundBrightYellow:
+                  sgrState.setBackgroundColor(ANSIColor.BrightYellow);
+                  break;
+                case SGRParam.BackgroundBrightBlue:
+                  sgrState.setBackgroundColor(ANSIColor.BrightBlue);
+                  break;
+                case SGRParam.BackgroundBrightMagenta:
+                  sgrState.setBackgroundColor(ANSIColor.BrightMagenta);
+                  break;
+                case SGRParam.BackgroundBrightCyan:
+                  sgrState.setBackgroundColor(ANSIColor.BrightCyan);
+                  break;
+                case SGRParam.BackgroundBrightWhite:
+                  sgrState.setBackgroundColor(ANSIColor.BrightWhite);
+                  break;
+              }
+            }
+            if (!SGRState.equivalent(sgrState, this._sgrState)) {
+              this._sgrState = sgrState;
+            }
+          }
+        }
+        exports3.ANSIOutput = ANSIOutput;
+        var SGRParam;
+        (function(SGRParam2) {
+          SGRParam2[SGRParam2["Reset"] = 0] = "Reset";
+          SGRParam2[SGRParam2["Bold"] = 1] = "Bold";
+          SGRParam2[SGRParam2["Dim"] = 2] = "Dim";
+          SGRParam2[SGRParam2["Italic"] = 3] = "Italic";
+          SGRParam2[SGRParam2["Underlined"] = 4] = "Underlined";
+          SGRParam2[SGRParam2["SlowBlink"] = 5] = "SlowBlink";
+          SGRParam2[SGRParam2["RapidBlink"] = 6] = "RapidBlink";
+          SGRParam2[SGRParam2["Reversed"] = 7] = "Reversed";
+          SGRParam2[SGRParam2["Hidden"] = 8] = "Hidden";
+          SGRParam2[SGRParam2["CrossedOut"] = 9] = "CrossedOut";
+          SGRParam2[SGRParam2["PrimaryFont"] = 10] = "PrimaryFont";
+          SGRParam2[SGRParam2["AlternativeFont1"] = 11] = "AlternativeFont1";
+          SGRParam2[SGRParam2["AlternativeFont2"] = 12] = "AlternativeFont2";
+          SGRParam2[SGRParam2["AlternativeFont3"] = 13] = "AlternativeFont3";
+          SGRParam2[SGRParam2["AlternativeFont4"] = 14] = "AlternativeFont4";
+          SGRParam2[SGRParam2["AlternativeFont5"] = 15] = "AlternativeFont5";
+          SGRParam2[SGRParam2["AlternativeFont6"] = 16] = "AlternativeFont6";
+          SGRParam2[SGRParam2["AlternativeFont7"] = 17] = "AlternativeFont7";
+          SGRParam2[SGRParam2["AlternativeFont8"] = 18] = "AlternativeFont8";
+          SGRParam2[SGRParam2["AlternativeFont9"] = 19] = "AlternativeFont9";
+          SGRParam2[SGRParam2["Fraktur"] = 20] = "Fraktur";
+          SGRParam2[SGRParam2["DoubleUnderlined"] = 21] = "DoubleUnderlined";
+          SGRParam2[SGRParam2["NormalIntensity"] = 22] = "NormalIntensity";
+          SGRParam2[SGRParam2["NotItalicNotFraktur"] = 23] = "NotItalicNotFraktur";
+          SGRParam2[SGRParam2["NotUnderlined"] = 24] = "NotUnderlined";
+          SGRParam2[SGRParam2["NotBlinking"] = 25] = "NotBlinking";
+          SGRParam2[SGRParam2["ProportionalSpacing"] = 26] = "ProportionalSpacing";
+          SGRParam2[SGRParam2["NotReversed"] = 27] = "NotReversed";
+          SGRParam2[SGRParam2["Reveal"] = 28] = "Reveal";
+          SGRParam2[SGRParam2["NotCrossedOut"] = 29] = "NotCrossedOut";
+          SGRParam2[SGRParam2["ForegroundBlack"] = 30] = "ForegroundBlack";
+          SGRParam2[SGRParam2["ForegroundRed"] = 31] = "ForegroundRed";
+          SGRParam2[SGRParam2["ForegroundGreen"] = 32] = "ForegroundGreen";
+          SGRParam2[SGRParam2["ForegroundYellow"] = 33] = "ForegroundYellow";
+          SGRParam2[SGRParam2["ForegroundBlue"] = 34] = "ForegroundBlue";
+          SGRParam2[SGRParam2["ForegroundMagenta"] = 35] = "ForegroundMagenta";
+          SGRParam2[SGRParam2["ForegroundCyan"] = 36] = "ForegroundCyan";
+          SGRParam2[SGRParam2["ForegroundWhite"] = 37] = "ForegroundWhite";
+          SGRParam2[SGRParam2["SetForeground"] = 38] = "SetForeground";
+          SGRParam2[SGRParam2["DefaultForeground"] = 39] = "DefaultForeground";
+          SGRParam2[SGRParam2["BackgroundBlack"] = 40] = "BackgroundBlack";
+          SGRParam2[SGRParam2["BackgroundRed"] = 41] = "BackgroundRed";
+          SGRParam2[SGRParam2["BackgroundGreen"] = 42] = "BackgroundGreen";
+          SGRParam2[SGRParam2["BackgroundYellow"] = 43] = "BackgroundYellow";
+          SGRParam2[SGRParam2["BackgroundBlue"] = 44] = "BackgroundBlue";
+          SGRParam2[SGRParam2["BackgroundMagenta"] = 45] = "BackgroundMagenta";
+          SGRParam2[SGRParam2["BackgroundCyan"] = 46] = "BackgroundCyan";
+          SGRParam2[SGRParam2["BackgroundWhite"] = 47] = "BackgroundWhite";
+          SGRParam2[SGRParam2["SetBackground"] = 48] = "SetBackground";
+          SGRParam2[SGRParam2["DefaultBackground"] = 49] = "DefaultBackground";
+          SGRParam2[SGRParam2["DisableProportionalSpacing"] = 50] = "DisableProportionalSpacing";
+          SGRParam2[SGRParam2["Framed"] = 51] = "Framed";
+          SGRParam2[SGRParam2["Encircled"] = 52] = "Encircled";
+          SGRParam2[SGRParam2["Overlined"] = 53] = "Overlined";
+          SGRParam2[SGRParam2["NotFramedNotEncircled"] = 54] = "NotFramedNotEncircled";
+          SGRParam2[SGRParam2["NotOverlined"] = 55] = "NotOverlined";
+          SGRParam2[SGRParam2["SetUnderline"] = 58] = "SetUnderline";
+          SGRParam2[SGRParam2["DefaultUnderline"] = 59] = "DefaultUnderline";
+          SGRParam2[SGRParam2["IdeogramUnderlineOrRightSideLine"] = 60] = "IdeogramUnderlineOrRightSideLine";
+          SGRParam2[SGRParam2["IdeogramDoubleUnderlineOrDoubleRightSideLine"] = 61] = "IdeogramDoubleUnderlineOrDoubleRightSideLine";
+          SGRParam2[SGRParam2["IdeogramOverlineOrLeftSideLine"] = 62] = "IdeogramOverlineOrLeftSideLine";
+          SGRParam2[SGRParam2["IdeogramDoubleOverlineOrDoubleLeftSideLine"] = 63] = "IdeogramDoubleOverlineOrDoubleLeftSideLine";
+          SGRParam2[SGRParam2["IdeogramStressMarking"] = 64] = "IdeogramStressMarking";
+          SGRParam2[SGRParam2["NoIdeogramAttributes"] = 65] = "NoIdeogramAttributes";
+          SGRParam2[SGRParam2["Superscript"] = 73] = "Superscript";
+          SGRParam2[SGRParam2["Subscript"] = 74] = "Subscript";
+          SGRParam2[SGRParam2["NotSuperscriptNotSubscript"] = 75] = "NotSuperscriptNotSubscript";
+          SGRParam2[SGRParam2["ForegroundBrightBlack"] = 90] = "ForegroundBrightBlack";
+          SGRParam2[SGRParam2["ForegroundBrightRed"] = 91] = "ForegroundBrightRed";
+          SGRParam2[SGRParam2["ForegroundBrightGreen"] = 92] = "ForegroundBrightGreen";
+          SGRParam2[SGRParam2["ForegroundBrightYellow"] = 93] = "ForegroundBrightYellow";
+          SGRParam2[SGRParam2["ForegroundBrightBlue"] = 94] = "ForegroundBrightBlue";
+          SGRParam2[SGRParam2["ForegroundBrightMagenta"] = 95] = "ForegroundBrightMagenta";
+          SGRParam2[SGRParam2["ForegroundBrightCyan"] = 96] = "ForegroundBrightCyan";
+          SGRParam2[SGRParam2["ForegroundBrightWhite"] = 97] = "ForegroundBrightWhite";
+          SGRParam2[SGRParam2["BackgroundBrightBlack"] = 100] = "BackgroundBrightBlack";
+          SGRParam2[SGRParam2["BackgroundBrightRed"] = 101] = "BackgroundBrightRed";
+          SGRParam2[SGRParam2["BackgroundBrightGreen"] = 102] = "BackgroundBrightGreen";
+          SGRParam2[SGRParam2["BackgroundBrightYellow"] = 103] = "BackgroundBrightYellow";
+          SGRParam2[SGRParam2["BackgroundBrightBlue"] = 104] = "BackgroundBrightBlue";
+          SGRParam2[SGRParam2["BackgroundBrightMagenta"] = 105] = "BackgroundBrightMagenta";
+          SGRParam2[SGRParam2["BackgroundBrightCyan"] = 106] = "BackgroundBrightCyan";
+          SGRParam2[SGRParam2["BackgroundBrightWhite"] = 107] = "BackgroundBrightWhite";
+        })(SGRParam || (SGRParam = {}));
+        var SGRParamColor;
+        (function(SGRParamColor2) {
+          SGRParamColor2[SGRParamColor2["Color256"] = 5] = "Color256";
+          SGRParamColor2[SGRParamColor2["ColorRGB"] = 2] = "ColorRGB";
+        })(SGRParamColor || (SGRParamColor = {}));
+        var SGRParamIndexedColor;
+        (function(SGRParamIndexedColor2) {
+          SGRParamIndexedColor2[SGRParamIndexedColor2["Black"] = 0] = "Black";
+          SGRParamIndexedColor2[SGRParamIndexedColor2["Red"] = 1] = "Red";
+          SGRParamIndexedColor2[SGRParamIndexedColor2["Green"] = 2] = "Green";
+          SGRParamIndexedColor2[SGRParamIndexedColor2["Yellow"] = 3] = "Yellow";
+          SGRParamIndexedColor2[SGRParamIndexedColor2["Blue"] = 4] = "Blue";
+          SGRParamIndexedColor2[SGRParamIndexedColor2["Magenta"] = 5] = "Magenta";
+          SGRParamIndexedColor2[SGRParamIndexedColor2["Cyan"] = 6] = "Cyan";
+          SGRParamIndexedColor2[SGRParamIndexedColor2["White"] = 7] = "White";
+          SGRParamIndexedColor2[SGRParamIndexedColor2["BrightBlack"] = 8] = "BrightBlack";
+          SGRParamIndexedColor2[SGRParamIndexedColor2["BrightRed"] = 9] = "BrightRed";
+          SGRParamIndexedColor2[SGRParamIndexedColor2["BrightGreen"] = 10] = "BrightGreen";
+          SGRParamIndexedColor2[SGRParamIndexedColor2["BrightYellow"] = 11] = "BrightYellow";
+          SGRParamIndexedColor2[SGRParamIndexedColor2["BrightBlue"] = 12] = "BrightBlue";
+          SGRParamIndexedColor2[SGRParamIndexedColor2["BrightMagenta"] = 13] = "BrightMagenta";
+          SGRParamIndexedColor2[SGRParamIndexedColor2["BrightCyan"] = 14] = "BrightCyan";
+          SGRParamIndexedColor2[SGRParamIndexedColor2["BrightWhite"] = 15] = "BrightWhite";
+        })(SGRParamIndexedColor || (SGRParamIndexedColor = {}));
+        var ParserState;
+        (function(ParserState2) {
+          ParserState2[ParserState2["BufferingOutput"] = 0] = "BufferingOutput";
+          ParserState2[ParserState2["ControlSequenceStarted"] = 1] = "ControlSequenceStarted";
+          ParserState2[ParserState2["ParsingControlSequence"] = 2] = "ParsingControlSequence";
+        })(ParserState || (ParserState = {}));
+        class SGRState {
+          constructor() {
+            //#region Private Properties.
+            /**
+             * Gets or sets the styles.
+             */
+            __publicField(this, "_styles");
+            /**
+             * Gets or sets the foreground color.
+             */
+            __publicField(this, "_foregroundColor");
+            /**
+             * Gets or sets the background color.
+             */
+            __publicField(this, "_backgroundColor");
+            /**
+             * Gets or sets the underlined color.
+             */
+            __publicField(this, "_underlinedColor");
+            /**
+             * Gets or sets a value which indicates whether the foreground and background colors are
+             * reversed.
+             */
+            __publicField(this, "_reversed");
+            /**
+             * Gets or sets the font.
+             */
+            __publicField(this, "_font");
+          }
+          //#endregion Private Properties.
+          //#region Public Methods
+          /**
+           * Resets the SGRState.
+           */
+          reset() {
+            this._styles = void 0;
+            this._foregroundColor = void 0;
+            this._backgroundColor = void 0;
+            this._underlinedColor = void 0;
+            this._reversed = void 0;
+            this._font = void 0;
+          }
+          /**
+           * Creates a copy of the SGRState.
+           * @returns The copy of the SGRState.
+           */
+          copy() {
+            const copy = new SGRState();
+            if (this._styles && this._styles.size) {
+              const styles2 = /* @__PURE__ */ new Set();
+              this._styles.forEach((style2) => styles2.add(style2));
+              copy._styles = styles2;
+            }
+            copy._foregroundColor = this._foregroundColor;
+            copy._backgroundColor = this._backgroundColor;
+            copy._underlinedColor = this._underlinedColor;
+            copy._reversed = this._reversed;
+            copy._font = this._font;
+            return copy;
+          }
+          /**
+           * Sets a style.
+           * @param style The style to set.
+           * @param stylesToDelete The styles to delete.
+           */
+          setStyle(style2, ...stylesToDelete) {
+            if (this._styles) {
+              for (const style3 of stylesToDelete) {
+                this._styles.delete(style3);
+              }
+            } else {
+              this._styles = /* @__PURE__ */ new Set();
+            }
+            this._styles.add(style2);
+          }
+          /**
+           * Deletes styles.
+           * @param stylesToDelete The styles to delete.
+           */
+          deleteStyles(...stylesToDelete) {
+            if (this._styles) {
+              for (const style2 of stylesToDelete) {
+                this._styles.delete(style2);
+              }
+              if (!this._styles.size) {
+                this._styles = void 0;
+              }
+            }
+          }
+          /**
+           * Sets the foreground color.
+           * @param color The foreground color.
+           */
+          setForegroundColor(color) {
+            if (!this._reversed) {
+              this._foregroundColor = color;
+            } else {
+              this._backgroundColor = color;
+            }
+          }
+          /**
+           * Sets the background color.
+           * @param color The background color.
+           */
+          setBackgroundColor(color) {
+            if (!this._reversed) {
+              this._backgroundColor = color;
+            } else {
+              this._foregroundColor = color;
+            }
+          }
+          /**
+           * Sets reversed.
+           * @param reversed A value which indicates whether the foreground and background colors are
+           * reversed.
+           */
+          setReversed(reversed) {
+            if (reversed) {
+              if (!this._reversed) {
+                this._reversed = true;
+                this.reverseForegroundAndBackgroundColors();
+              }
+            } else {
+              if (this._reversed) {
+                this._reversed = void 0;
+                this.reverseForegroundAndBackgroundColors();
+              }
+            }
+          }
+          /**
+           * Sets the font.
+           * @param font The font.
+           */
+          setFont(font) {
+            this._font = font;
+          }
+          /**
+           *
+           * @param left
+           * @param right
+           * @returns
+           */
+          static equivalent(left, right) {
+            const setReplacer = (_, value2) => value2 instanceof Set ? !value2.size ? void 0 : [...value2] : value2;
+            return left === right || JSON.stringify(left, setReplacer) === JSON.stringify(right, setReplacer);
+          }
+          //#endregion Public Methods
+          //#region ANSIFormat Implementation
+          /**
+           * Gets the styles.
+           */
+          get styles() {
+            return !this._styles ? void 0 : [...this._styles];
+          }
+          /**
+           * Gets the foreground color.
+           */
+          get foregroundColor() {
+            if (this._backgroundColor && !this._foregroundColor) {
+              switch (this._backgroundColor) {
+                case ANSIColor.Black:
+                case ANSIColor.BrightBlack:
+                case ANSIColor.Red:
+                case ANSIColor.BrightRed:
+                  return ANSIColor.White;
+                case ANSIColor.Green:
+                case ANSIColor.BrightGreen:
+                case ANSIColor.Yellow:
+                case ANSIColor.BrightYellow:
+                case ANSIColor.Blue:
+                case ANSIColor.BrightBlue:
+                case ANSIColor.Magenta:
+                case ANSIColor.BrightMagenta:
+                case ANSIColor.Cyan:
+                case ANSIColor.BrightCyan:
+                case ANSIColor.White:
+                case ANSIColor.BrightWhite:
+                  return ANSIColor.Black;
+              }
+            }
+            return this._foregroundColor;
+          }
+          /**
+           * Gets the background color.
+           */
+          get backgroundColor() {
+            return this._backgroundColor;
+          }
+          /**
+           * Gets the underlined color.
+           */
+          get underlinedColor() {
+            return this._underlinedColor;
+          }
+          /**
+           * Gets the font.
+           */
+          get font() {
+            return this._font;
+          }
+          //#endregion ANSIFormat Implementation
+          //#region Private Methods
+          /**
+           * Reverses the foreground and background colors.
+           */
+          reverseForegroundAndBackgroundColors() {
+            const foregroundColor = this._foregroundColor;
+            this._foregroundColor = this._backgroundColor;
+            this._backgroundColor = foregroundColor;
+          }
+        }
+        class OutputLine {
+          constructor() {
+            //#region Private Properties
+            /**
+             * Gets the identifier.
+             */
+            __publicField(this, "_id", generateId());
+            /**
+             * Gets or sets the output runs.
+             */
+            __publicField(this, "_outputRuns", []);
+            /**
+             * Gets or sets the total length.
+             */
+            __publicField(this, "_totalLength", 0);
+          }
+          //#endregion Private Properties
+          //#region Public Methods
+          /**
+           * Clears the entire output line.
+           */
+          clearEntireLine() {
+            if (this._totalLength) {
+              this._outputRuns = [new OutputRun2(" ".repeat(this._totalLength))];
+            }
+          }
+          /**
+           * Clears to the end of the output line.
+           * @param column The column at which to clear from.
+           */
+          clearToEndOfLine(column2) {
+            column2 = Math.max(column2, 0);
+            if (column2 >= this._totalLength) {
+              return;
+            }
+            if (column2 === 0) {
+              this.clearEntireLine();
+              return;
+            }
+            let leftOffset = 0;
+            let leftOutputRun;
+            let leftOutputRunIndex = void 0;
+            for (let index2 = 0; index2 < this._outputRuns.length; index2++) {
+              const outputRun = this._outputRuns[index2];
+              if (column2 < leftOffset + outputRun.text.length) {
+                leftOutputRun = outputRun;
+                leftOutputRunIndex = index2;
+                break;
+              }
+              leftOffset += outputRun.text.length;
+            }
+            if (leftOutputRun === void 0 || leftOutputRunIndex === void 0) {
+              return;
+            }
+            const leftTextLength = column2 - leftOffset;
+            const erasureText = " ".repeat(this._totalLength - column2);
+            const outputRuns = [];
+            if (!leftTextLength) {
+              outputRuns.push(new OutputRun2(erasureText));
+            } else {
+              const leftText = leftOutputRun.text.slice(0, leftTextLength);
+              outputRuns.push(new OutputRun2(leftText, leftOutputRun.sgrState));
+              outputRuns.push(new OutputRun2(erasureText));
+            }
+            this.outputRuns.splice(leftOutputRunIndex, this._outputRuns.length - leftOutputRunIndex, ...outputRuns);
+          }
+          /**
+           * Clears to the beginning of the output line.
+           * @param column The column at which to clear from.
+           */
+          clearToBeginningOfLine(column2) {
+            column2 = Math.max(column2, 0);
+            if (column2 === 0) {
+              return;
+            }
+            if (column2 >= this._totalLength) {
+              this.clearEntireLine();
+              return;
+            }
+            let rightOffset = 0;
+            let rightOutputRun;
+            let rightOutputRunIndex = void 0;
+            for (let index2 = this._outputRuns.length - 1; index2 >= 0; index2--) {
+              const outputRun = this._outputRuns[index2];
+              if (column2 >= rightOffset - outputRun.text.length) {
+                rightOutputRun = outputRun;
+                rightOutputRunIndex = index2;
+                break;
+              }
+              rightOffset -= outputRun.text.length;
+            }
+            if (rightOutputRun === void 0 || rightOutputRunIndex === void 0) {
+              return;
+            }
+            const rightTextLength = rightOffset - column2;
+            const erasureText = " ".repeat(column2);
+            const outputRuns = [new OutputRun2(erasureText)];
+            if (rightTextLength) {
+              const rightOutputRunText = rightOutputRun.text.slice(-rightTextLength);
+              outputRuns.push(new OutputRun2(rightOutputRunText, rightOutputRun.sgrState));
+            }
+            this.outputRuns.splice(0, this._outputRuns.length - rightOutputRunIndex, ...outputRuns);
+          }
+          /**
+           * Inserts text into the output line.
+           * @param text The text to insert.
+           * @param column The column at which to insert the text.
+           * @param sgrState The SGR state.
+           */
+          insert(text2, column2, sgrState) {
+            if (!text2.length) {
+              return;
+            }
+            if (column2 === this._totalLength) {
+              this._totalLength += text2.length;
+              if (this._outputRuns.length) {
+                const lastOutputRun = this._outputRuns[this._outputRuns.length - 1];
+                if (SGRState.equivalent(lastOutputRun.sgrState, sgrState)) {
+                  lastOutputRun.appendText(text2);
+                  return;
+                }
+              }
+              this._outputRuns.push(new OutputRun2(text2, sgrState));
+              return;
+            }
+            if (column2 > this._totalLength) {
+              const spacer = " ".repeat(column2 - this._totalLength);
+              this._totalLength += spacer.length + text2.length;
+              if (!sgrState && this._outputRuns.length) {
+                const lastOutputRun = this._outputRuns[this._outputRuns.length - 1];
+                if (!lastOutputRun.sgrState) {
+                  lastOutputRun.appendText(spacer);
+                  lastOutputRun.appendText(text2);
+                  return;
+                }
+              }
+              if (!sgrState) {
+                this._outputRuns.push(new OutputRun2(spacer + text2));
+              } else {
+                this._outputRuns.push(new OutputRun2(spacer));
+                this._outputRuns.push(new OutputRun2(text2, sgrState));
+              }
+            }
+            let leftOffset = 0;
+            let leftOutputRunIndex = void 0;
+            for (let index2 = 0; index2 < this._outputRuns.length; index2++) {
+              const outputRun = this._outputRuns[index2];
+              if (column2 < leftOffset + outputRun.text.length) {
+                leftOutputRunIndex = index2;
+                break;
+              }
+              leftOffset += outputRun.text.length;
+            }
+            if (leftOutputRunIndex === void 0) {
+              this._outputRuns.push(new OutputRun2(text2, sgrState));
+              return;
+            }
+            if (column2 + text2.length >= this._totalLength) {
+              const leftTextLength = column2 - leftOffset;
+              const outputRuns2 = [];
+              if (!leftTextLength) {
+                outputRuns2.push(new OutputRun2(text2, sgrState));
+              } else {
+                const leftOutputRun = this._outputRuns[leftOutputRunIndex];
+                const leftText = leftOutputRun.text.slice(0, leftTextLength);
+                if (SGRState.equivalent(leftOutputRun.sgrState, sgrState)) {
+                  outputRuns2.push(new OutputRun2(leftText + text2, sgrState));
+                } else {
+                  outputRuns2.push(new OutputRun2(leftText, leftOutputRun.sgrState));
+                  outputRuns2.push(new OutputRun2(text2, sgrState));
+                }
+              }
+              this.outputRuns.splice(leftOutputRunIndex, 1, ...outputRuns2);
+              this._totalLength = leftOffset + leftTextLength + text2.length;
+              return;
+            }
+            let rightOffset = this._totalLength;
+            let rightOutputRunIndex = void 0;
+            for (let index2 = this._outputRuns.length - 1; index2 >= 0; index2--) {
+              const outputRun = this._outputRuns[index2];
+              if (column2 + text2.length > rightOffset - outputRun.text.length) {
+                rightOutputRunIndex = index2;
+                break;
+              }
+              rightOffset -= outputRun.text.length;
+            }
+            if (rightOutputRunIndex === void 0) {
+              this._outputRuns.push(new OutputRun2(text2, sgrState));
+              return;
+            }
+            const outputRuns = [];
+            const leftOutputRunTextLength = column2 - leftOffset;
+            if (leftOutputRunTextLength) {
+              const leftOutputRun = this._outputRuns[leftOutputRunIndex];
+              const leftOutputRunText = leftOutputRun.text.slice(0, leftOutputRunTextLength);
+              outputRuns.push(new OutputRun2(leftOutputRunText, leftOutputRun.sgrState));
+            }
+            outputRuns.push(new OutputRun2(text2, sgrState));
+            const rightOutputRunTextLength = rightOffset - (column2 + text2.length);
+            if (rightOutputRunTextLength) {
+              const rightOutputRun = this._outputRuns[rightOutputRunIndex];
+              const rightOutputRunText = rightOutputRun.text.slice(-rightOutputRunTextLength);
+              outputRuns.push(new OutputRun2(rightOutputRunText, rightOutputRun.sgrState));
+            }
+            this._outputRuns.splice(leftOutputRunIndex, rightOutputRunIndex - leftOutputRunIndex + 1, ...outputRuns);
+            if (this._outputRuns.length > 1) {
+              this._outputRuns = OutputRun2.optimizeOutputRuns(this._outputRuns);
+            }
+            this._totalLength = this._outputRuns.reduce((totalLength, outputRun) => totalLength + outputRun.text.length, 0);
+          }
+          //#endregion Public Methods
+          //#region ANSIOutputLine Implementation
+          /**
+           * Gets the identifier.
+           */
+          get id() {
+            return this._id;
+          }
+          /**
+           * Gets the output runs.
+           */
+          get outputRuns() {
+            return this._outputRuns;
+          }
+        }
+        class OutputRun2 {
+          //#endregion Public Properties
+          //#region Constructor
+          /**
+           * Constructor.
+           * @param text The text.
+           * @param sgrState The SGR state.
+           */
+          constructor(text2, sgrState) {
+            //#region Private Properties
+            /**
+             * Gets the identifier.
+             */
+            __publicField(this, "_id", generateId());
+            /**
+             * Gets the SGR state.
+             */
+            __publicField(this, "_sgrState");
+            /**
+             * Gets or sets the text.
+             */
+            __publicField(this, "_text");
+            this._sgrState = sgrState;
+            this._text = text2;
+          }
+          //#endregion Private Properties
+          //#region Public Properties
+          get sgrState() {
+            return this._sgrState;
+          }
+          //#endregion Constructor
+          //#region Public Methods
+          /**
+           * Optimizes a an array of output runs by combining adjacent output runs with equivalent SGR
+           * states.
+           * @param outputRunsIn The output runs to optimize.
+           * @returns The optimized output runs.
+           */
+          static optimizeOutputRuns(outputRunsIn) {
+            const outputRunsOut = [outputRunsIn[0]];
+            for (let i2 = 1, o = 0; i2 < outputRunsIn.length; i2++) {
+              const outputRun = outputRunsIn[i2];
+              if (SGRState.equivalent(outputRunsOut[o].sgrState, outputRun.sgrState)) {
+                outputRunsOut[o]._text += outputRun.text;
+              } else {
+                outputRunsOut[++o] = outputRun;
+              }
+            }
+            return outputRunsOut;
+          }
+          /**
+           * Appends text to the end of the output run.
+           * @param text The text to append.
+           */
+          appendText(text2) {
+            this._text += text2;
+          }
+          //#endregion Public Methods
+          //#region ANSIOutputRun Implementation
+          /**
+           * Gets the identifier.
+           */
+          get id() {
+            return this._id;
+          }
+          /**
+           * Gets the format.
+           */
+          get format() {
+            return this._sgrState;
+          }
+          /**
+           * Gets the text.
+           */
+          get text() {
+            return this._text;
+          }
+        }
+        const rangeParam = (value2, defaultValue, minValue) => {
+          const param = getParam(value2, defaultValue);
+          return Math.max(param, minValue);
+        };
+        const getParam = (value2, defaultValue) => {
+          const param = parseInt(value2);
+          return Number.isNaN(param) ? defaultValue : param;
+        };
+        const twoDigitHex = (value2) => {
+          const hex = Math.max(Math.min(255, value2), 0).toString(16);
+          return hex.length === 2 ? hex : "0" + hex;
+        };
+      });
+    })(ansiOutput, ansiOutput.exports);
+    var ansiOutputExports = ansiOutput.exports;
+    const ANSIDisplay = ({
+      output: output2,
+      style: style2,
+      className: className2
+    }) => {
+      const ansiOutput2 = new ansiOutputExports.ANSIOutput();
+      ansiOutput2.processOutput(output2);
+      let firstOutput = false;
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("ansi-display", className2), style: { ...style2 }, children: ansiOutput2.outputLines.map((line2) => {
+        firstOutput = firstOutput || !!line2.outputRuns.length;
+        return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "ansi-display-line", children: !line2.outputRuns.length ? firstOutput ? /* @__PURE__ */ jsxRuntimeExports.jsx("br", {}) : null : line2.outputRuns.map((outputRun) => /* @__PURE__ */ jsxRuntimeExports.jsx(OutputRun, { run: outputRun }, outputRun.id)) });
+      }) });
+    };
+    const kForeground = 0;
+    const kBackground = 1;
+    const OutputRun = ({ run }) => {
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("span", { style: computeCSSProperties(run), children: run.text });
+    };
+    const computeCSSProperties = (outputRun) => {
+      return !outputRun.format ? {} : {
+        ...computeStyles(outputRun.format.styles || []),
+        ...computeForegroundBackgroundColor(
+          kForeground,
+          outputRun.format.foregroundColor
+        ),
+        ...computeForegroundBackgroundColor(
+          kBackground,
+          outputRun.format.backgroundColor
+        )
+      };
+    };
+    const computeStyles = (styles2) => {
+      let cssProperties = {};
+      {
+        styles2.forEach((style2) => {
+          switch (style2) {
+            case ansiOutputExports.ANSIStyle.Bold:
+              cssProperties = { ...cssProperties, ...{ fontWeight: "bold" } };
+              break;
+            case ansiOutputExports.ANSIStyle.Dim:
+              cssProperties = { ...cssProperties, ...{ fontWeight: "lighter" } };
+              break;
+            case ansiOutputExports.ANSIStyle.Italic:
+              cssProperties = { ...cssProperties, ...{ fontStyle: "italic" } };
+              break;
+            case ansiOutputExports.ANSIStyle.Underlined:
+              cssProperties = {
+                ...cssProperties,
+                ...{
+                  textDecorationLine: "underline",
+                  textDecorationStyle: "solid"
+                }
+              };
+              break;
+            case ansiOutputExports.ANSIStyle.SlowBlink:
+              cssProperties = {
+                ...cssProperties,
+                ...{ animation: "ansi-display-run-blink 1s linear infinite" }
+              };
+              break;
+            case ansiOutputExports.ANSIStyle.RapidBlink:
+              cssProperties = {
+                ...cssProperties,
+                ...{ animation: "ansi-display-run-blink 0.5s linear infinite" }
+              };
+              break;
+            case ansiOutputExports.ANSIStyle.Hidden:
+              cssProperties = { ...cssProperties, ...{ visibility: "hidden" } };
+              break;
+            case ansiOutputExports.ANSIStyle.CrossedOut:
+              cssProperties = {
+                ...cssProperties,
+                ...{
+                  textDecorationLine: "line-through",
+                  textDecorationStyle: "solid"
+                }
+              };
+              break;
+            case ansiOutputExports.ANSIStyle.DoubleUnderlined:
+              cssProperties = {
+                ...cssProperties,
+                ...{
+                  textDecorationLine: "underline",
+                  textDecorationStyle: "double"
+                }
+              };
+              break;
+          }
+        });
+      }
+      return cssProperties;
+    };
+    const computeForegroundBackgroundColor = (colorType, color) => {
+      switch (color) {
+        case void 0:
+          return {};
+        case ansiOutputExports.ANSIColor.Black:
+        case ansiOutputExports.ANSIColor.Red:
+        case ansiOutputExports.ANSIColor.Green:
+        case ansiOutputExports.ANSIColor.Yellow:
+        case ansiOutputExports.ANSIColor.Blue:
+        case ansiOutputExports.ANSIColor.Magenta:
+        case ansiOutputExports.ANSIColor.Cyan:
+        case ansiOutputExports.ANSIColor.White:
+        case ansiOutputExports.ANSIColor.BrightBlack:
+        case ansiOutputExports.ANSIColor.BrightRed:
+        case ansiOutputExports.ANSIColor.BrightGreen:
+        case ansiOutputExports.ANSIColor.BrightYellow:
+        case ansiOutputExports.ANSIColor.BrightBlue:
+        case ansiOutputExports.ANSIColor.BrightMagenta:
+        case ansiOutputExports.ANSIColor.BrightCyan:
+        case ansiOutputExports.ANSIColor.BrightWhite:
+          if (colorType === kForeground) {
+            return { color: `var(--${color})` };
+          } else {
+            return { background: `var(--${color})` };
+          }
+        default:
+          if (colorType === kForeground) {
+            return { color };
+          } else {
+            return { background: color };
+          }
+      }
+    };
+    const visible = "_visible_tm52u_1";
+    const hidden$3 = "_hidden_tm52u_5";
+    const pills = "_pills_tm52u_9";
+    const pill = "_pill_tm52u_9";
+    const styles$T = {
+      visible,
+      hidden: hidden$3,
+      pills,
+      pill
+    };
+    const NavPills = ({ children: children2 }) => {
+      if (!(children2 == null ? void 0 : children2.length)) {
+        return null;
+      }
+      const [activeItem, setActiveItem] = reactExports.useState(children2[0].props["title"]);
+      const navPills = children2.map((nav2, idx) => {
+        var _a2;
+        const title2 = typeof nav2 === "object" ? ((_a2 = nav2["props"]) == null ? void 0 : _a2.title) || `Tab ${idx}` : `Tab ${idx}`;
+        return /* @__PURE__ */ jsxRuntimeExports.jsx(
+          NavPill,
+          {
+            title: title2,
+            activeItem,
+            setActiveItem
+          },
+          `nav-pill-contents-${idx}`
+        );
+      });
+      const navBodies = children2.map((child, idx) => {
+        var _a2;
+        return /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "div",
+          {
+            className: ((_a2 = child["props"]) == null ? void 0 : _a2.title) === activeItem ? styles$T.visible : styles$T.hidden,
+            children: child
+          },
+          `nav-pill-container-${idx}`
+        );
+      });
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "ul",
+          {
+            className: clsx("nav", "nav-pills", styles$T.pills),
+            role: "tablist",
+            "aria-orientation": "horizontal",
+            children: navPills
+          }
+        ),
+        navBodies
+      ] });
+    };
+    const NavPill = ({
+      title: title2,
+      activeItem,
+      setActiveItem,
+      children: children2
+    }) => {
+      const active2 = activeItem === title2;
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs("li", { className: "nav-item", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "button",
+          {
+            type: "button",
+            role: "tab",
+            "aria-selected": active2,
+            className: clsx(
+              "nav-link",
+              "text-style-label",
+              active2 ? "active " : "",
+              styles$T.pill
+            ),
+            onClick: () => {
+              setActiveItem(title2);
+            },
+            children: title2
+          }
+        ),
+        children2
+      ] });
+    };
+    const Buckets = {
+      first: 0,
+      intermediate: 10,
+      final: 1e3
+    };
+    const useResizeObserver = (callback) => {
+      const elementRef = reactExports.useRef(null);
+      const observerRef = reactExports.useRef(null);
+      reactExports.useEffect(() => {
+        const element = elementRef.current;
+        if (!element) return;
+        observerRef.current = new ResizeObserver((entries) => {
+          if (entries[0]) {
+            callback(entries[0]);
+          }
+        });
+        observerRef.current.observe(element);
+        return () => {
+          if (observerRef.current) {
+            observerRef.current.disconnect();
+          }
+        };
+      }, [callback]);
+      return elementRef;
+    };
+    const ExpandablePanel = ({
+      collapse,
+      border,
+      lines = 15,
+      children: children2,
+      className: className2
+    }) => {
+      const [isCollapsed, setIsCollapsed] = reactExports.useState(collapse);
+      const [showToggle2, setShowToggle] = reactExports.useState(false);
+      const lineHeightRef = reactExports.useRef(0);
+      reactExports.useEffect(() => {
+        setIsCollapsed(collapse);
+      }, [collapse]);
+      const checkOverflow = reactExports.useCallback(
+        (entry2) => {
+          const element = entry2.target;
+          if (!lineHeightRef.current) {
+            const computedStyle = window.getComputedStyle(element);
+            lineHeightRef.current = parseInt(computedStyle.lineHeight) || 16;
+          }
+          const maxCollapsedHeight = lines * lineHeightRef.current;
+          const contentHeight = element.scrollHeight;
+          setShowToggle(contentHeight > maxCollapsedHeight);
+        },
+        [lines]
+      );
+      const contentRef = useResizeObserver(checkOverflow);
+      const baseStyles = {
+        overflow: "hidden",
+        ...isCollapsed && {
+          maxHeight: `${lines}em`
+        }
+      };
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(className2), children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "div",
+          {
+            style: baseStyles,
+            ref: contentRef,
+            className: clsx(
+              "expandable-panel",
+              isCollapsed ? "expandable-collapsed" : void 0,
+              border ? "expandable-bordered" : void 0
+            ),
+            children: children2
+          }
+        ),
+        showToggle2 && /* @__PURE__ */ jsxRuntimeExports.jsx(
+          MoreToggle,
+          {
+            collapsed: isCollapsed,
+            setCollapsed: setIsCollapsed,
+            border: !border
+          }
+        )
+      ] });
+    };
+    const MoreToggle = ({
+      collapsed,
+      border,
+      setCollapsed,
+      style: style2
+    }) => {
+      const text2 = collapsed ? "more" : "less";
+      const icon = collapsed ? ApplicationIcons["expand-down"] : ApplicationIcons.collapse.up;
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: `more-toggle ${border ? "bordered" : ""}`, style: style2, children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "more-toggle-container", children: /* @__PURE__ */ jsxRuntimeExports.jsxs(
+        "button",
+        {
+          className: "btn more-toggle-button",
+          onClick: () => setCollapsed(!collapsed),
+          children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: icon }),
+            text2
+          ]
+        }
+      ) }) });
+    };
+    const decodeCache = {};
+    function getDecodeCache(exclude) {
+      let cache = decodeCache[exclude];
+      if (cache) {
+        return cache;
+      }
+      cache = decodeCache[exclude] = [];
+      for (let i2 = 0; i2 < 128; i2++) {
+        const ch3 = String.fromCharCode(i2);
+        cache.push(ch3);
+      }
+      for (let i2 = 0; i2 < exclude.length; i2++) {
+        const ch3 = exclude.charCodeAt(i2);
+        cache[ch3] = "%" + ("0" + ch3.toString(16).toUpperCase()).slice(-2);
+      }
+      return cache;
+    }
+    function decode$1(string2, exclude) {
+      if (typeof exclude !== "string") {
+        exclude = decode$1.defaultChars;
+      }
+      const cache = getDecodeCache(exclude);
+      return string2.replace(/(%[a-f0-9]{2})+/gi, function(seq) {
+        let result = "";
+        for (let i2 = 0, l = seq.length; i2 < l; i2 += 3) {
+          const b1 = parseInt(seq.slice(i2 + 1, i2 + 3), 16);
+          if (b1 < 128) {
+            result += cache[b1];
+            continue;
+          }
+          if ((b1 & 224) === 192 && i2 + 3 < l) {
+            const b2 = parseInt(seq.slice(i2 + 4, i2 + 6), 16);
+            if ((b2 & 192) === 128) {
+              const chr = b1 << 6 & 1984 | b2 & 63;
+              if (chr < 128) {
+                result += "��";
+              } else {
+                result += String.fromCharCode(chr);
+              }
+              i2 += 3;
+              continue;
+            }
+          }
+          if ((b1 & 240) === 224 && i2 + 6 < l) {
+            const b2 = parseInt(seq.slice(i2 + 4, i2 + 6), 16);
+            const b3 = parseInt(seq.slice(i2 + 7, i2 + 9), 16);
+            if ((b2 & 192) === 128 && (b3 & 192) === 128) {
+              const chr = b1 << 12 & 61440 | b2 << 6 & 4032 | b3 & 63;
+              if (chr < 2048 || chr >= 55296 && chr <= 57343) {
+                result += "���";
+              } else {
+                result += String.fromCharCode(chr);
+              }
+              i2 += 6;
+              continue;
+            }
+          }
+          if ((b1 & 248) === 240 && i2 + 9 < l) {
+            const b2 = parseInt(seq.slice(i2 + 4, i2 + 6), 16);
+            const b3 = parseInt(seq.slice(i2 + 7, i2 + 9), 16);
+            const b4 = parseInt(seq.slice(i2 + 10, i2 + 12), 16);
+            if ((b2 & 192) === 128 && (b3 & 192) === 128 && (b4 & 192) === 128) {
+              let chr = b1 << 18 & 1835008 | b2 << 12 & 258048 | b3 << 6 & 4032 | b4 & 63;
+              if (chr < 65536 || chr > 1114111) {
+                result += "����";
+              } else {
+                chr -= 65536;
+                result += String.fromCharCode(55296 + (chr >> 10), 56320 + (chr & 1023));
+              }
+              i2 += 9;
+              continue;
+            }
+          }
+          result += "�";
+        }
+        return result;
+      });
+    }
+    decode$1.defaultChars = ";/?:@&=+$,#";
+    decode$1.componentChars = "";
+    const encodeCache = {};
+    function getEncodeCache(exclude) {
+      let cache = encodeCache[exclude];
+      if (cache) {
+        return cache;
+      }
+      cache = encodeCache[exclude] = [];
+      for (let i2 = 0; i2 < 128; i2++) {
+        const ch3 = String.fromCharCode(i2);
+        if (/^[0-9a-z]$/i.test(ch3)) {
+          cache.push(ch3);
+        } else {
+          cache.push("%" + ("0" + i2.toString(16).toUpperCase()).slice(-2));
+        }
+      }
+      for (let i2 = 0; i2 < exclude.length; i2++) {
+        cache[exclude.charCodeAt(i2)] = exclude[i2];
+      }
+      return cache;
+    }
+    function encode$1(string2, exclude, keepEscaped) {
+      if (typeof exclude !== "string") {
+        keepEscaped = exclude;
+        exclude = encode$1.defaultChars;
+      }
+      if (typeof keepEscaped === "undefined") {
+        keepEscaped = true;
+      }
+      const cache = getEncodeCache(exclude);
+      let result = "";
+      for (let i2 = 0, l = string2.length; i2 < l; i2++) {
+        const code2 = string2.charCodeAt(i2);
+        if (keepEscaped && code2 === 37 && i2 + 2 < l) {
+          if (/^[0-9a-f]{2}$/i.test(string2.slice(i2 + 1, i2 + 3))) {
+            result += string2.slice(i2, i2 + 3);
+            i2 += 2;
+            continue;
+          }
+        }
+        if (code2 < 128) {
+          result += cache[code2];
+          continue;
+        }
+        if (code2 >= 55296 && code2 <= 57343) {
+          if (code2 >= 55296 && code2 <= 56319 && i2 + 1 < l) {
+            const nextCode = string2.charCodeAt(i2 + 1);
+            if (nextCode >= 56320 && nextCode <= 57343) {
+              result += encodeURIComponent(string2[i2] + string2[i2 + 1]);
+              i2++;
+              continue;
+            }
+          }
+          result += "%EF%BF%BD";
+          continue;
+        }
+        result += encodeURIComponent(string2[i2]);
+      }
+      return result;
+    }
+    encode$1.defaultChars = ";/?:@&=+$,-_.!~*'()#";
+    encode$1.componentChars = "-_.!~*'()";
+    function format$1(url) {
+      let result = "";
+      result += url.protocol || "";
+      result += url.slashes ? "//" : "";
+      result += url.auth ? url.auth + "@" : "";
+      if (url.hostname && url.hostname.indexOf(":") !== -1) {
+        result += "[" + url.hostname + "]";
+      } else {
+        result += url.hostname || "";
+      }
+      result += url.port ? ":" + url.port : "";
+      result += url.pathname || "";
+      result += url.search || "";
+      result += url.hash || "";
+      return result;
+    }
+    function Url() {
+      this.protocol = null;
+      this.slashes = null;
+      this.auth = null;
+      this.port = null;
+      this.hostname = null;
+      this.hash = null;
+      this.search = null;
+      this.pathname = null;
+    }
+    const protocolPattern = /^([a-z0-9.+-]+:)/i;
+    const portPattern = /:[0-9]*$/;
+    const simplePathPattern = /^(\/\/?(?!\/)[^\?\s]*)(\?[^\s]*)?$/;
+    const delims = ["<", ">", '"', "`", " ", "\r", "\n", "	"];
+    const unwise = ["{", "}", "|", "\\", "^", "`"].concat(delims);
+    const autoEscape = ["'"].concat(unwise);
+    const nonHostChars = ["%", "/", "?", ";", "#"].concat(autoEscape);
+    const hostEndingChars = ["/", "?", "#"];
+    const hostnameMaxLen = 255;
+    const hostnamePartPattern = /^[+a-z0-9A-Z_-]{0,63}$/;
+    const hostnamePartStart = /^([+a-z0-9A-Z_-]{0,63})(.*)$/;
+    const hostlessProtocol = {
+      javascript: true,
+      "javascript:": true
+    };
+    const slashedProtocol = {
+      http: true,
+      https: true,
+      ftp: true,
+      gopher: true,
+      file: true,
+      "http:": true,
+      "https:": true,
+      "ftp:": true,
+      "gopher:": true,
+      "file:": true
+    };
+    function urlParse(url, slashesDenoteHost) {
+      if (url && url instanceof Url) return url;
+      const u = new Url();
+      u.parse(url, slashesDenoteHost);
+      return u;
+    }
+    Url.prototype.parse = function(url, slashesDenoteHost) {
+      let lowerProto, hec, slashes;
+      let rest = url;
+      rest = rest.trim();
+      if (!slashesDenoteHost && url.split("#").length === 1) {
+        const simplePath = simplePathPattern.exec(rest);
+        if (simplePath) {
+          this.pathname = simplePath[1];
+          if (simplePath[2]) {
+            this.search = simplePath[2];
+          }
+          return this;
+        }
+      }
+      let proto = protocolPattern.exec(rest);
+      if (proto) {
+        proto = proto[0];
+        lowerProto = proto.toLowerCase();
+        this.protocol = proto;
+        rest = rest.substr(proto.length);
+      }
+      if (slashesDenoteHost || proto || rest.match(/^\/\/[^@\/]+@[^@\/]+/)) {
+        slashes = rest.substr(0, 2) === "//";
+        if (slashes && !(proto && hostlessProtocol[proto])) {
+          rest = rest.substr(2);
+          this.slashes = true;
+        }
+      }
+      if (!hostlessProtocol[proto] && (slashes || proto && !slashedProtocol[proto])) {
+        let hostEnd = -1;
+        for (let i2 = 0; i2 < hostEndingChars.length; i2++) {
+          hec = rest.indexOf(hostEndingChars[i2]);
+          if (hec !== -1 && (hostEnd === -1 || hec < hostEnd)) {
+            hostEnd = hec;
+          }
+        }
+        let auth, atSign;
+        if (hostEnd === -1) {
+          atSign = rest.lastIndexOf("@");
+        } else {
+          atSign = rest.lastIndexOf("@", hostEnd);
+        }
+        if (atSign !== -1) {
+          auth = rest.slice(0, atSign);
+          rest = rest.slice(atSign + 1);
+          this.auth = auth;
+        }
+        hostEnd = -1;
+        for (let i2 = 0; i2 < nonHostChars.length; i2++) {
+          hec = rest.indexOf(nonHostChars[i2]);
+          if (hec !== -1 && (hostEnd === -1 || hec < hostEnd)) {
+            hostEnd = hec;
+          }
+        }
+        if (hostEnd === -1) {
+          hostEnd = rest.length;
+        }
+        if (rest[hostEnd - 1] === ":") {
+          hostEnd--;
+        }
+        const host = rest.slice(0, hostEnd);
+        rest = rest.slice(hostEnd);
+        this.parseHost(host);
+        this.hostname = this.hostname || "";
+        const ipv6Hostname = this.hostname[0] === "[" && this.hostname[this.hostname.length - 1] === "]";
+        if (!ipv6Hostname) {
+          const hostparts = this.hostname.split(/\./);
+          for (let i2 = 0, l = hostparts.length; i2 < l; i2++) {
+            const part = hostparts[i2];
+            if (!part) {
+              continue;
+            }
+            if (!part.match(hostnamePartPattern)) {
+              let newpart = "";
+              for (let j = 0, k = part.length; j < k; j++) {
+                if (part.charCodeAt(j) > 127) {
+                  newpart += "x";
+                } else {
+                  newpart += part[j];
+                }
+              }
+              if (!newpart.match(hostnamePartPattern)) {
+                const validParts = hostparts.slice(0, i2);
+                const notHost = hostparts.slice(i2 + 1);
+                const bit = part.match(hostnamePartStart);
+                if (bit) {
+                  validParts.push(bit[1]);
+                  notHost.unshift(bit[2]);
+                }
+                if (notHost.length) {
+                  rest = notHost.join(".") + rest;
+                }
+                this.hostname = validParts.join(".");
+                break;
+              }
+            }
+          }
+        }
+        if (this.hostname.length > hostnameMaxLen) {
+          this.hostname = "";
+        }
+        if (ipv6Hostname) {
+          this.hostname = this.hostname.substr(1, this.hostname.length - 2);
+        }
+      }
+      const hash = rest.indexOf("#");
+      if (hash !== -1) {
+        this.hash = rest.substr(hash);
+        rest = rest.slice(0, hash);
+      }
+      const qm = rest.indexOf("?");
+      if (qm !== -1) {
+        this.search = rest.substr(qm);
+        rest = rest.slice(0, qm);
+      }
+      if (rest) {
+        this.pathname = rest;
+      }
+      if (slashedProtocol[lowerProto] && this.hostname && !this.pathname) {
+        this.pathname = "";
+      }
+      return this;
+    };
+    Url.prototype.parseHost = function(host) {
+      let port = portPattern.exec(host);
+      if (port) {
+        port = port[0];
+        if (port !== ":") {
+          this.port = port.substr(1);
+        }
+        host = host.substr(0, host.length - port.length);
+      }
+      if (host) {
+        this.hostname = host;
+      }
+    };
+    const mdurl = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+      __proto__: null,
+      decode: decode$1,
+      encode: encode$1,
+      format: format$1,
+      parse: urlParse
+    }, Symbol.toStringTag, { value: "Module" }));
+    const Any = /[\0-\uD7FF\uE000-\uFFFF]|[\uD800-\uDBFF][\uDC00-\uDFFF]|[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?:[^\uD800-\uDBFF]|^)[\uDC00-\uDFFF]/;
+    const Cc = /[\0-\x1F\x7F-\x9F]/;
+    const regex$1 = /[\xAD\u0600-\u0605\u061C\u06DD\u070F\u0890\u0891\u08E2\u180E\u200B-\u200F\u202A-\u202E\u2060-\u2064\u2066-\u206F\uFEFF\uFFF9-\uFFFB]|\uD804[\uDCBD\uDCCD]|\uD80D[\uDC30-\uDC3F]|\uD82F[\uDCA0-\uDCA3]|\uD834[\uDD73-\uDD7A]|\uDB40[\uDC01\uDC20-\uDC7F]/;
+    const P = /[!-#%-\*,-\/:;\?@\[-\]_\{\}\xA1\xA7\xAB\xB6\xB7\xBB\xBF\u037E\u0387\u055A-\u055F\u0589\u058A\u05BE\u05C0\u05C3\u05C6\u05F3\u05F4\u0609\u060A\u060C\u060D\u061B\u061D-\u061F\u066A-\u066D\u06D4\u0700-\u070D\u07F7-\u07F9\u0830-\u083E\u085E\u0964\u0965\u0970\u09FD\u0A76\u0AF0\u0C77\u0C84\u0DF4\u0E4F\u0E5A\u0E5B\u0F04-\u0F12\u0F14\u0F3A-\u0F3D\u0F85\u0FD0-\u0FD4\u0FD9\u0FDA\u104A-\u104F\u10FB\u1360-\u1368\u1400\u166E\u169B\u169C\u16EB-\u16ED\u1735\u1736\u17D4-\u17D6\u17D8-\u17DA\u1800-\u180A\u1944\u1945\u1A1E\u1A1F\u1AA0-\u1AA6\u1AA8-\u1AAD\u1B5A-\u1B60\u1B7D\u1B7E\u1BFC-\u1BFF\u1C3B-\u1C3F\u1C7E\u1C7F\u1CC0-\u1CC7\u1CD3\u2010-\u2027\u2030-\u2043\u2045-\u2051\u2053-\u205E\u207D\u207E\u208D\u208E\u2308-\u230B\u2329\u232A\u2768-\u2775\u27C5\u27C6\u27E6-\u27EF\u2983-\u2998\u29D8-\u29DB\u29FC\u29FD\u2CF9-\u2CFC\u2CFE\u2CFF\u2D70\u2E00-\u2E2E\u2E30-\u2E4F\u2E52-\u2E5D\u3001-\u3003\u3008-\u3011\u3014-\u301F\u3030\u303D\u30A0\u30FB\uA4FE\uA4FF\uA60D-\uA60F\uA673\uA67E\uA6F2-\uA6F7\uA874-\uA877\uA8CE\uA8CF\uA8F8-\uA8FA\uA8FC\uA92E\uA92F\uA95F\uA9C1-\uA9CD\uA9DE\uA9DF\uAA5C-\uAA5F\uAADE\uAADF\uAAF0\uAAF1\uABEB\uFD3E\uFD3F\uFE10-\uFE19\uFE30-\uFE52\uFE54-\uFE61\uFE63\uFE68\uFE6A\uFE6B\uFF01-\uFF03\uFF05-\uFF0A\uFF0C-\uFF0F\uFF1A\uFF1B\uFF1F\uFF20\uFF3B-\uFF3D\uFF3F\uFF5B\uFF5D\uFF5F-\uFF65]|\uD800[\uDD00-\uDD02\uDF9F\uDFD0]|\uD801\uDD6F|\uD802[\uDC57\uDD1F\uDD3F\uDE50-\uDE58\uDE7F\uDEF0-\uDEF6\uDF39-\uDF3F\uDF99-\uDF9C]|\uD803[\uDEAD\uDF55-\uDF59\uDF86-\uDF89]|\uD804[\uDC47-\uDC4D\uDCBB\uDCBC\uDCBE-\uDCC1\uDD40-\uDD43\uDD74\uDD75\uDDC5-\uDDC8\uDDCD\uDDDB\uDDDD-\uDDDF\uDE38-\uDE3D\uDEA9]|\uD805[\uDC4B-\uDC4F\uDC5A\uDC5B\uDC5D\uDCC6\uDDC1-\uDDD7\uDE41-\uDE43\uDE60-\uDE6C\uDEB9\uDF3C-\uDF3E]|\uD806[\uDC3B\uDD44-\uDD46\uDDE2\uDE3F-\uDE46\uDE9A-\uDE9C\uDE9E-\uDEA2\uDF00-\uDF09]|\uD807[\uDC41-\uDC45\uDC70\uDC71\uDEF7\uDEF8\uDF43-\uDF4F\uDFFF]|\uD809[\uDC70-\uDC74]|\uD80B[\uDFF1\uDFF2]|\uD81A[\uDE6E\uDE6F\uDEF5\uDF37-\uDF3B\uDF44]|\uD81B[\uDE97-\uDE9A\uDFE2]|\uD82F\uDC9F|\uD836[\uDE87-\uDE8B]|\uD83A[\uDD5E\uDD5F]/;
+    const regex = /[\$\+<->\^`\|~\xA2-\xA6\xA8\xA9\xAC\xAE-\xB1\xB4\xB8\xD7\xF7\u02C2-\u02C5\u02D2-\u02DF\u02E5-\u02EB\u02ED\u02EF-\u02FF\u0375\u0384\u0385\u03F6\u0482\u058D-\u058F\u0606-\u0608\u060B\u060E\u060F\u06DE\u06E9\u06FD\u06FE\u07F6\u07FE\u07FF\u0888\u09F2\u09F3\u09FA\u09FB\u0AF1\u0B70\u0BF3-\u0BFA\u0C7F\u0D4F\u0D79\u0E3F\u0F01-\u0F03\u0F13\u0F15-\u0F17\u0F1A-\u0F1F\u0F34\u0F36\u0F38\u0FBE-\u0FC5\u0FC7-\u0FCC\u0FCE\u0FCF\u0FD5-\u0FD8\u109E\u109F\u1390-\u1399\u166D\u17DB\u1940\u19DE-\u19FF\u1B61-\u1B6A\u1B74-\u1B7C\u1FBD\u1FBF-\u1FC1\u1FCD-\u1FCF\u1FDD-\u1FDF\u1FED-\u1FEF\u1FFD\u1FFE\u2044\u2052\u207A-\u207C\u208A-\u208C\u20A0-\u20C0\u2100\u2101\u2103-\u2106\u2108\u2109\u2114\u2116-\u2118\u211E-\u2123\u2125\u2127\u2129\u212E\u213A\u213B\u2140-\u2144\u214A-\u214D\u214F\u218A\u218B\u2190-\u2307\u230C-\u2328\u232B-\u2426\u2440-\u244A\u249C-\u24E9\u2500-\u2767\u2794-\u27C4\u27C7-\u27E5\u27F0-\u2982\u2999-\u29D7\u29DC-\u29FB\u29FE-\u2B73\u2B76-\u2B95\u2B97-\u2BFF\u2CE5-\u2CEA\u2E50\u2E51\u2E80-\u2E99\u2E9B-\u2EF3\u2F00-\u2FD5\u2FF0-\u2FFF\u3004\u3012\u3013\u3020\u3036\u3037\u303E\u303F\u309B\u309C\u3190\u3191\u3196-\u319F\u31C0-\u31E3\u31EF\u3200-\u321E\u322A-\u3247\u3250\u3260-\u327F\u328A-\u32B0\u32C0-\u33FF\u4DC0-\u4DFF\uA490-\uA4C6\uA700-\uA716\uA720\uA721\uA789\uA78A\uA828-\uA82B\uA836-\uA839\uAA77-\uAA79\uAB5B\uAB6A\uAB6B\uFB29\uFBB2-\uFBC2\uFD40-\uFD4F\uFDCF\uFDFC-\uFDFF\uFE62\uFE64-\uFE66\uFE69\uFF04\uFF0B\uFF1C-\uFF1E\uFF3E\uFF40\uFF5C\uFF5E\uFFE0-\uFFE6\uFFE8-\uFFEE\uFFFC\uFFFD]|\uD800[\uDD37-\uDD3F\uDD79-\uDD89\uDD8C-\uDD8E\uDD90-\uDD9C\uDDA0\uDDD0-\uDDFC]|\uD802[\uDC77\uDC78\uDEC8]|\uD805\uDF3F|\uD807[\uDFD5-\uDFF1]|\uD81A[\uDF3C-\uDF3F\uDF45]|\uD82F\uDC9C|\uD833[\uDF50-\uDFC3]|\uD834[\uDC00-\uDCF5\uDD00-\uDD26\uDD29-\uDD64\uDD6A-\uDD6C\uDD83\uDD84\uDD8C-\uDDA9\uDDAE-\uDDEA\uDE00-\uDE41\uDE45\uDF00-\uDF56]|\uD835[\uDEC1\uDEDB\uDEFB\uDF15\uDF35\uDF4F\uDF6F\uDF89\uDFA9\uDFC3]|\uD836[\uDC00-\uDDFF\uDE37-\uDE3A\uDE6D-\uDE74\uDE76-\uDE83\uDE85\uDE86]|\uD838[\uDD4F\uDEFF]|\uD83B[\uDCAC\uDCB0\uDD2E\uDEF0\uDEF1]|\uD83C[\uDC00-\uDC2B\uDC30-\uDC93\uDCA0-\uDCAE\uDCB1-\uDCBF\uDCC1-\uDCCF\uDCD1-\uDCF5\uDD0D-\uDDAD\uDDE6-\uDE02\uDE10-\uDE3B\uDE40-\uDE48\uDE50\uDE51\uDE60-\uDE65\uDF00-\uDFFF]|\uD83D[\uDC00-\uDED7\uDEDC-\uDEEC\uDEF0-\uDEFC\uDF00-\uDF76\uDF7B-\uDFD9\uDFE0-\uDFEB\uDFF0]|\uD83E[\uDC00-\uDC0B\uDC10-\uDC47\uDC50-\uDC59\uDC60-\uDC87\uDC90-\uDCAD\uDCB0\uDCB1\uDD00-\uDE53\uDE60-\uDE6D\uDE70-\uDE7C\uDE80-\uDE88\uDE90-\uDEBD\uDEBF-\uDEC5\uDECE-\uDEDB\uDEE0-\uDEE8\uDEF0-\uDEF8\uDF00-\uDF92\uDF94-\uDFCA]/;
+    const Z = /[ \xA0\u1680\u2000-\u200A\u2028\u2029\u202F\u205F\u3000]/;
+    const ucmicro = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+      __proto__: null,
+      Any,
+      Cc,
+      Cf: regex$1,
+      P,
+      S: regex,
+      Z
+    }, Symbol.toStringTag, { value: "Module" }));
+    const htmlDecodeTree = new Uint16Array(
+      // prettier-ignore
+      'ᵁ<Õıʊҝջאٵ۞ޢߖࠏ੊ઑඡ๭༉༦჊ረዡᐕᒝᓃᓟᔥ\0\0\0\0\0\0ᕫᛍᦍᰒᷝ὾⁠↰⊍⏀⏻⑂⠤⤒ⴈ⹈⿎〖㊺㘹㞬㣾㨨㩱㫠㬮ࠀEMabcfglmnoprstu\\bfms¦³¹ÈÏlig耻Æ䃆P耻&䀦cute耻Á䃁reve;䄂Āiyx}rc耻Â䃂;䐐r;쀀𝔄rave耻À䃀pha;䎑acr;䄀d;橓Āgp¡on;䄄f;쀀𝔸plyFunction;恡ing耻Å䃅Ācs¾Ãr;쀀𝒜ign;扔ilde耻Ã䃃ml耻Ä䃄ЀaceforsuåûþėĜĢħĪĀcrêòkslash;或Ŷöø;櫧ed;挆y;䐑ƀcrtąċĔause;戵noullis;愬a;䎒r;쀀𝔅pf;쀀𝔹eve;䋘còēmpeq;扎܀HOacdefhilorsuōőŖƀƞƢƵƷƺǜȕɳɸɾcy;䐧PY耻©䂩ƀcpyŝŢźute;䄆Ā;iŧŨ拒talDifferentialD;慅leys;愭ȀaeioƉƎƔƘron;䄌dil耻Ç䃇rc;䄈nint;戰ot;䄊ĀdnƧƭilla;䂸terDot;䂷òſi;䎧rcleȀDMPTǇǋǑǖot;抙inus;抖lus;投imes;抗oĀcsǢǸkwiseContourIntegral;戲eCurlyĀDQȃȏoubleQuote;思uote;怙ȀlnpuȞȨɇɕonĀ;eȥȦ户;橴ƀgitȯȶȺruent;扡nt;戯ourIntegral;戮ĀfrɌɎ;愂oduct;成nterClockwiseContourIntegral;戳oss;樯cr;쀀𝒞pĀ;Cʄʅ拓ap;才րDJSZacefiosʠʬʰʴʸˋ˗ˡ˦̳ҍĀ;oŹʥtrahd;椑cy;䐂cy;䐅cy;䐏ƀgrsʿ˄ˇger;怡r;憡hv;櫤Āayː˕ron;䄎;䐔lĀ;t˝˞戇a;䎔r;쀀𝔇Āaf˫̧Ācm˰̢riticalȀADGT̖̜̀̆cute;䂴oŴ̋̍;䋙bleAcute;䋝rave;䁠ilde;䋜ond;拄ferentialD;慆Ѱ̽\0\0\0͔͂\0Ѕf;쀀𝔻ƀ;DE͈͉͍䂨ot;惜qual;扐blèCDLRUVͣͲ΂ϏϢϸontourIntegraìȹoɴ͹\0\0ͻ»͉nArrow;懓Āeo·ΤftƀARTΐΖΡrrow;懐ightArrow;懔eåˊngĀLRΫτeftĀARγιrrow;柸ightArrow;柺ightArrow;柹ightĀATϘϞrrow;懒ee;抨pɁϩ\0\0ϯrrow;懑ownArrow;懕erticalBar;戥ǹABLRTaВЪаўѿͼrrowƀ;BUНОТ憓ar;椓pArrow;懵reve;䌑eft˒к\0ц\0ѐightVector;楐eeVector;楞ectorĀ;Bљњ憽ar;楖ightǔѧ\0ѱeeVector;楟ectorĀ;BѺѻ懁ar;楗eeĀ;A҆҇护rrow;憧ĀctҒҗr;쀀𝒟rok;䄐ࠀNTacdfglmopqstuxҽӀӄӋӞӢӧӮӵԡԯԶՒ՝ՠեG;䅊H耻Ð䃐cute耻É䃉ƀaiyӒӗӜron;䄚rc耻Ê䃊;䐭ot;䄖r;쀀𝔈rave耻È䃈ement;戈ĀapӺӾcr;䄒tyɓԆ\0\0ԒmallSquare;旻erySmallSquare;斫ĀgpԦԪon;䄘f;쀀𝔼silon;䎕uĀaiԼՉlĀ;TՂՃ橵ilde;扂librium;懌Āci՗՚r;愰m;橳a;䎗ml耻Ë䃋Āipժկsts;戃onentialE;慇ʀcfiosօֈ֍ֲ׌y;䐤r;쀀𝔉lledɓ֗\0\0֣mallSquare;旼erySmallSquare;斪Ͱֺ\0ֿ\0\0ׄf;쀀𝔽All;戀riertrf;愱cò׋؀JTabcdfgorstר׬ׯ׺؀ؒؖ؛؝أ٬ٲcy;䐃耻>䀾mmaĀ;d׷׸䎓;䏜reve;䄞ƀeiy؇،ؐdil;䄢rc;䄜;䐓ot;䄠r;쀀𝔊;拙pf;쀀𝔾eater̀EFGLSTصلَٖٛ٦qualĀ;Lؾؿ扥ess;招ullEqual;执reater;檢ess;扷lantEqual;橾ilde;扳cr;쀀𝒢;扫ЀAacfiosuڅڋږڛڞڪھۊRDcy;䐪Āctڐڔek;䋇;䁞irc;䄤r;愌lbertSpace;愋ǰگ\0ڲf;愍izontalLine;攀Āctۃۅòکrok;䄦mpńېۘownHumðįqual;扏܀EJOacdfgmnostuۺ۾܃܇܎ܚܞܡܨ݄ݸދޏޕcy;䐕lig;䄲cy;䐁cute耻Í䃍Āiyܓܘrc耻Î䃎;䐘ot;䄰r;愑rave耻Ì䃌ƀ;apܠܯܿĀcgܴܷr;䄪inaryI;慈lieóϝǴ݉\0ݢĀ;eݍݎ戬Āgrݓݘral;戫section;拂isibleĀCTݬݲomma;恣imes;恢ƀgptݿރވon;䄮f;쀀𝕀a;䎙cr;愐ilde;䄨ǫޚ\0ޞcy;䐆l耻Ï䃏ʀcfosuެ޷޼߂ߐĀiyޱ޵rc;䄴;䐙r;쀀𝔍pf;쀀𝕁ǣ߇\0ߌr;쀀𝒥rcy;䐈kcy;䐄΀HJacfosߤߨ߽߬߱ࠂࠈcy;䐥cy;䐌ppa;䎚Āey߶߻dil;䄶;䐚r;쀀𝔎pf;쀀𝕂cr;쀀𝒦րJTaceflmostࠥࠩࠬࡐࡣ঳সে্਷ੇcy;䐉耻<䀼ʀcmnpr࠷࠼ࡁࡄࡍute;䄹bda;䎛g;柪lacetrf;愒r;憞ƀaeyࡗ࡜ࡡron;䄽dil;䄻;䐛Āfsࡨ॰tԀACDFRTUVarࡾࢩࢱࣦ࣠ࣼयज़ΐ४Ānrࢃ࢏gleBracket;柨rowƀ;BR࢙࢚࢞憐ar;懤ightArrow;懆eiling;挈oǵࢷ\0ࣃbleBracket;柦nǔࣈ\0࣒eeVector;楡ectorĀ;Bࣛࣜ懃ar;楙loor;挊ightĀAV࣯ࣵrrow;憔ector;楎Āerँगeƀ;AVउऊऐ抣rrow;憤ector;楚iangleƀ;BEतथऩ抲ar;槏qual;抴pƀDTVषूौownVector;楑eeVector;楠ectorĀ;Bॖॗ憿ar;楘ectorĀ;B॥०憼ar;楒ightáΜs̀EFGLSTॾঋকঝঢভqualGreater;拚ullEqual;扦reater;扶ess;檡lantEqual;橽ilde;扲r;쀀𝔏Ā;eঽা拘ftarrow;懚idot;䄿ƀnpw৔ਖਛgȀLRlr৞৷ਂਐeftĀAR০৬rrow;柵ightArrow;柷ightArrow;柶eftĀarγਊightáοightáϊf;쀀𝕃erĀLRਢਬeftArrow;憙ightArrow;憘ƀchtਾੀੂòࡌ;憰rok;䅁;扪Ѐacefiosuਗ਼੝੠੷੼અઋ઎p;椅y;䐜Ādl੥੯iumSpace;恟lintrf;愳r;쀀𝔐nusPlus;戓pf;쀀𝕄cò੶;䎜ҀJacefostuણધભીଔଙඑ඗ඞcy;䐊cute;䅃ƀaey઴હાron;䅇dil;䅅;䐝ƀgswે૰଎ativeƀMTV૓૟૨ediumSpace;怋hiĀcn૦૘ë૙eryThiî૙tedĀGL૸ଆreaterGreateòٳessLesóੈLine;䀊r;쀀𝔑ȀBnptଢନଷ଺reak;恠BreakingSpace;䂠f;愕ڀ;CDEGHLNPRSTV୕ୖ୪୼஡௫ఄ౞಄ದ೘ൡඅ櫬Āou୛୤ngruent;扢pCap;扭oubleVerticalBar;戦ƀlqxஃஊ஛ement;戉ualĀ;Tஒஓ扠ilde;쀀≂̸ists;戄reater΀;EFGLSTஶஷ஽௉௓௘௥扯qual;扱ullEqual;쀀≧̸reater;쀀≫̸ess;批lantEqual;쀀⩾̸ilde;扵umpń௲௽ownHump;쀀≎̸qual;쀀≏̸eĀfsఊధtTriangleƀ;BEచఛడ拪ar;쀀⧏̸qual;括s̀;EGLSTవశ఼ౄోౘ扮qual;扰reater;扸ess;쀀≪̸lantEqual;쀀⩽̸ilde;扴estedĀGL౨౹reaterGreater;쀀⪢̸essLess;쀀⪡̸recedesƀ;ESಒಓಛ技qual;쀀⪯̸lantEqual;拠ĀeiಫಹverseElement;戌ghtTriangleƀ;BEೋೌ೒拫ar;쀀⧐̸qual;拭ĀquೝഌuareSuĀbp೨೹setĀ;E೰ೳ쀀⊏̸qual;拢ersetĀ;Eഃആ쀀⊐̸qual;拣ƀbcpഓതൎsetĀ;Eഛഞ쀀⊂⃒qual;抈ceedsȀ;ESTലള഻െ抁qual;쀀⪰̸lantEqual;拡ilde;쀀≿̸ersetĀ;E൘൛쀀⊃⃒qual;抉ildeȀ;EFT൮൯൵ൿ扁qual;扄ullEqual;扇ilde;扉erticalBar;戤cr;쀀𝒩ilde耻Ñ䃑;䎝܀Eacdfgmoprstuvලෂ෉෕ෛ෠෧෼ขภยา฿ไlig;䅒cute耻Ó䃓Āiy෎ීrc耻Ô䃔;䐞blac;䅐r;쀀𝔒rave耻Ò䃒ƀaei෮ෲ෶cr;䅌ga;䎩cron;䎟pf;쀀𝕆enCurlyĀDQฎบoubleQuote;怜uote;怘;橔Āclวฬr;쀀𝒪ash耻Ø䃘iŬื฼de耻Õ䃕es;樷ml耻Ö䃖erĀBP๋๠Āar๐๓r;怾acĀek๚๜;揞et;掴arenthesis;揜Ҁacfhilors๿ງຊຏຒດຝະ໼rtialD;戂y;䐟r;쀀𝔓i;䎦;䎠usMinus;䂱Āipຢອncareplanåڝf;愙Ȁ;eio຺ູ໠໤檻cedesȀ;EST່້໏໚扺qual;檯lantEqual;扼ilde;找me;怳Ādp໩໮uct;戏ortionĀ;aȥ໹l;戝Āci༁༆r;쀀𝒫;䎨ȀUfos༑༖༛༟OT耻"䀢r;쀀𝔔pf;愚cr;쀀𝒬؀BEacefhiorsu༾གྷཇའཱིྦྷྪྭ႖ႩႴႾarr;椐G耻®䂮ƀcnrཎནབute;䅔g;柫rĀ;tཛྷཝ憠l;椖ƀaeyཧཬཱron;䅘dil;䅖;䐠Ā;vླྀཹ愜erseĀEUྂྙĀlq྇ྎement;戋uilibrium;懋pEquilibrium;楯r»ཹo;䎡ghtЀACDFTUVa࿁࿫࿳ဢဨၛႇϘĀnr࿆࿒gleBracket;柩rowƀ;BL࿜࿝࿡憒ar;懥eftArrow;懄eiling;按oǵ࿹\0စbleBracket;柧nǔည\0နeeVector;楝ectorĀ;Bဝသ懂ar;楕loor;挋Āerိ၃eƀ;AVဵံြ抢rrow;憦ector;楛iangleƀ;BEၐၑၕ抳ar;槐qual;抵pƀDTVၣၮၸownVector;楏eeVector;楜ectorĀ;Bႂႃ憾ar;楔ectorĀ;B႑႒懀ar;楓Āpuႛ႞f;愝ndImplies;楰ightarrow;懛ĀchႹႼr;愛;憱leDelayed;槴ڀHOacfhimoqstuფჱჷჽᄙᄞᅑᅖᅡᅧᆵᆻᆿĀCcჩხHcy;䐩y;䐨FTcy;䐬cute;䅚ʀ;aeiyᄈᄉᄎᄓᄗ檼ron;䅠dil;䅞rc;䅜;䐡r;쀀𝔖ortȀDLRUᄪᄴᄾᅉownArrow»ОeftArrow»࢚ightArrow»࿝pArrow;憑gma;䎣allCircle;战pf;쀀𝕊ɲᅭ\0\0ᅰt;戚areȀ;ISUᅻᅼᆉᆯ斡ntersection;抓uĀbpᆏᆞsetĀ;Eᆗᆘ抏qual;抑ersetĀ;Eᆨᆩ抐qual;抒nion;抔cr;쀀𝒮ar;拆ȀbcmpᇈᇛሉላĀ;sᇍᇎ拐etĀ;Eᇍᇕqual;抆ĀchᇠህeedsȀ;ESTᇭᇮᇴᇿ扻qual;檰lantEqual;扽ilde;承Tháྌ;我ƀ;esሒሓሣ拑rsetĀ;Eሜም抃qual;抇et»ሓրHRSacfhiorsሾቄ቉ቕ቞ቱቶኟዂወዑORN耻Þ䃞ADE;愢ĀHc቎ቒcy;䐋y;䐦Ābuቚቜ;䀉;䎤ƀaeyብቪቯron;䅤dil;䅢;䐢r;쀀𝔗Āeiቻ኉ǲኀ\0ኇefore;戴a;䎘Ācn኎ኘkSpace;쀀  Space;怉ldeȀ;EFTካኬኲኼ戼qual;扃ullEqual;扅ilde;扈pf;쀀𝕋ipleDot;惛Āctዖዛr;쀀𝒯rok;䅦ૡዷጎጚጦ\0ጬጱ\0\0\0\0\0ጸጽ፷ᎅ\0᏿ᐄᐊᐐĀcrዻጁute耻Ú䃚rĀ;oጇገ憟cir;楉rǣጓ\0጖y;䐎ve;䅬Āiyጞጣrc耻Û䃛;䐣blac;䅰r;쀀𝔘rave耻Ù䃙acr;䅪Ādiፁ፩erĀBPፈ፝Āarፍፐr;䁟acĀekፗፙ;揟et;掵arenthesis;揝onĀ;P፰፱拃lus;抎Āgp፻፿on;䅲f;쀀𝕌ЀADETadps᎕ᎮᎸᏄϨᏒᏗᏳrrowƀ;BDᅐᎠᎤar;椒ownArrow;懅ownArrow;憕quilibrium;楮eeĀ;AᏋᏌ报rrow;憥ownáϳerĀLRᏞᏨeftArrow;憖ightArrow;憗iĀ;lᏹᏺ䏒on;䎥ing;䅮cr;쀀𝒰ilde;䅨ml耻Ü䃜ҀDbcdefosvᐧᐬᐰᐳᐾᒅᒊᒐᒖash;披ar;櫫y;䐒ashĀ;lᐻᐼ抩;櫦Āerᑃᑅ;拁ƀbtyᑌᑐᑺar;怖Ā;iᑏᑕcalȀBLSTᑡᑥᑪᑴar;戣ine;䁼eparator;杘ilde;所ThinSpace;怊r;쀀𝔙pf;쀀𝕍cr;쀀𝒱dash;抪ʀcefosᒧᒬᒱᒶᒼirc;䅴dge;拀r;쀀𝔚pf;쀀𝕎cr;쀀𝒲Ȁfiosᓋᓐᓒᓘr;쀀𝔛;䎞pf;쀀𝕏cr;쀀𝒳ҀAIUacfosuᓱᓵᓹᓽᔄᔏᔔᔚᔠcy;䐯cy;䐇cy;䐮cute耻Ý䃝Āiyᔉᔍrc;䅶;䐫r;쀀𝔜pf;쀀𝕐cr;쀀𝒴ml;䅸ЀHacdefosᔵᔹᔿᕋᕏᕝᕠᕤcy;䐖cute;䅹Āayᕄᕉron;䅽;䐗ot;䅻ǲᕔ\0ᕛoWidtè૙a;䎖r;愨pf;愤cr;쀀𝒵௡ᖃᖊᖐ\0ᖰᖶᖿ\0\0\0\0ᗆᗛᗫᙟ᙭\0ᚕ᚛ᚲᚹ\0ᚾcute耻á䃡reve;䄃̀;Ediuyᖜᖝᖡᖣᖨᖭ戾;쀀∾̳;房rc耻â䃢te肻´̆;䐰lig耻æ䃦Ā;r²ᖺ;쀀𝔞rave耻à䃠ĀepᗊᗖĀfpᗏᗔsym;愵èᗓha;䎱ĀapᗟcĀclᗤᗧr;䄁g;樿ɤᗰ\0\0ᘊʀ;adsvᗺᗻᗿᘁᘇ戧nd;橕;橜lope;橘;橚΀;elmrszᘘᘙᘛᘞᘿᙏᙙ戠;榤e»ᘙsdĀ;aᘥᘦ戡ѡᘰᘲᘴᘶᘸᘺᘼᘾ;榨;榩;榪;榫;榬;榭;榮;榯tĀ;vᙅᙆ戟bĀ;dᙌᙍ抾;榝Āptᙔᙗh;戢»¹arr;捼Āgpᙣᙧon;䄅f;쀀𝕒΀;Eaeiop዁ᙻᙽᚂᚄᚇᚊ;橰cir;橯;扊d;手s;䀧roxĀ;e዁ᚒñᚃing耻å䃥ƀctyᚡᚦᚨr;쀀𝒶;䀪mpĀ;e዁ᚯñʈilde耻ã䃣ml耻ä䃤Āciᛂᛈoninôɲnt;樑ࠀNabcdefiklnoprsu᛭ᛱᜰ᜼ᝃᝈ᝸᝽០៦ᠹᡐᜍ᤽᥈ᥰot;櫭Ācrᛶ᜞kȀcepsᜀᜅᜍᜓong;扌psilon;䏶rime;怵imĀ;e᜚᜛戽q;拍Ŷᜢᜦee;抽edĀ;gᜬᜭ挅e»ᜭrkĀ;t፜᜷brk;掶Āoyᜁᝁ;䐱quo;怞ʀcmprtᝓ᝛ᝡᝤᝨausĀ;eĊĉptyv;榰séᜌnoõēƀahwᝯ᝱ᝳ;䎲;愶een;扬r;쀀𝔟g΀costuvwឍឝឳេ៕៛៞ƀaiuបពរðݠrc;旯p»፱ƀdptឤឨឭot;樀lus;樁imes;樂ɱឹ\0\0ើcup;樆ar;昅riangleĀdu៍្own;施p;斳plus;樄eåᑄåᒭarow;植ƀako៭ᠦᠵĀcn៲ᠣkƀlst៺֫᠂ozenge;槫riangleȀ;dlr᠒᠓᠘᠝斴own;斾eft;旂ight;斸k;搣Ʊᠫ\0ᠳƲᠯ\0ᠱ;斒;斑4;斓ck;斈ĀeoᠾᡍĀ;qᡃᡆ쀀=⃥uiv;쀀≡⃥t;挐Ȁptwxᡙᡞᡧᡬf;쀀𝕓Ā;tᏋᡣom»Ꮜtie;拈؀DHUVbdhmptuvᢅᢖᢪᢻᣗᣛᣬ᣿ᤅᤊᤐᤡȀLRlrᢎᢐᢒᢔ;敗;敔;敖;敓ʀ;DUduᢡᢢᢤᢦᢨ敐;敦;敩;敤;敧ȀLRlrᢳᢵᢷᢹ;敝;敚;敜;教΀;HLRhlrᣊᣋᣍᣏᣑᣓᣕ救;敬;散;敠;敫;敢;敟ox;槉ȀLRlrᣤᣦᣨᣪ;敕;敒;攐;攌ʀ;DUduڽ᣷᣹᣻᣽;敥;敨;攬;攴inus;抟lus;択imes;抠ȀLRlrᤙᤛᤝ᤟;敛;敘;攘;攔΀;HLRhlrᤰᤱᤳᤵᤷ᤻᤹攂;敪;敡;敞;攼;攤;攜Āevģ᥂bar耻¦䂦Ȁceioᥑᥖᥚᥠr;쀀𝒷mi;恏mĀ;e᜚᜜lƀ;bhᥨᥩᥫ䁜;槅sub;柈Ŭᥴ᥾lĀ;e᥹᥺怢t»᥺pƀ;Eeįᦅᦇ;檮Ā;qۜۛೡᦧ\0᧨ᨑᨕᨲ\0ᨷᩐ\0\0᪴\0\0᫁\0\0ᬡᬮ᭍᭒\0᯽\0ᰌƀcpr᦭ᦲ᧝ute;䄇̀;abcdsᦿᧀᧄ᧊᧕᧙戩nd;橄rcup;橉Āau᧏᧒p;橋p;橇ot;橀;쀀∩︀Āeo᧢᧥t;恁îړȀaeiu᧰᧻ᨁᨅǰ᧵\0᧸s;橍on;䄍dil耻ç䃧rc;䄉psĀ;sᨌᨍ橌m;橐ot;䄋ƀdmnᨛᨠᨦil肻¸ƭptyv;榲t脀¢;eᨭᨮ䂢räƲr;쀀𝔠ƀceiᨽᩀᩍy;䑇ckĀ;mᩇᩈ朓ark»ᩈ;䏇r΀;Ecefms᩟᩠ᩢᩫ᪤᪪᪮旋;槃ƀ;elᩩᩪᩭ䋆q;扗eɡᩴ\0\0᪈rrowĀlr᩼᪁eft;憺ight;憻ʀRSacd᪒᪔᪖᪚᪟»ཇ;擈st;抛irc;抚ash;抝nint;樐id;櫯cir;槂ubsĀ;u᪻᪼晣it»᪼ˬ᫇᫔᫺\0ᬊonĀ;eᫍᫎ䀺Ā;qÇÆɭ᫙\0\0᫢aĀ;t᫞᫟䀬;䁀ƀ;fl᫨᫩᫫戁îᅠeĀmx᫱᫶ent»᫩eóɍǧ᫾\0ᬇĀ;dኻᬂot;橭nôɆƀfryᬐᬔᬗ;쀀𝕔oäɔ脀©;sŕᬝr;愗Āaoᬥᬩrr;憵ss;朗Ācuᬲᬷr;쀀𝒸Ābpᬼ᭄Ā;eᭁᭂ櫏;櫑Ā;eᭉᭊ櫐;櫒dot;拯΀delprvw᭠᭬᭷ᮂᮬᯔ᯹arrĀlr᭨᭪;椸;椵ɰ᭲\0\0᭵r;拞c;拟arrĀ;p᭿ᮀ憶;椽̀;bcdosᮏᮐᮖᮡᮥᮨ截rcap;橈Āauᮛᮞp;橆p;橊ot;抍r;橅;쀀∪︀Ȁalrv᮵ᮿᯞᯣrrĀ;mᮼᮽ憷;椼yƀevwᯇᯔᯘqɰᯎ\0\0ᯒreã᭳uã᭵ee;拎edge;拏en耻¤䂤earrowĀlrᯮ᯳eft»ᮀight»ᮽeäᯝĀciᰁᰇoninôǷnt;戱lcty;挭ঀAHabcdefhijlorstuwz᰸᰻᰿ᱝᱩᱵᲊᲞᲬᲷ᳻᳿ᴍᵻᶑᶫᶻ᷆᷍rò΁ar;楥Ȁglrs᱈ᱍ᱒᱔ger;怠eth;愸òᄳhĀ;vᱚᱛ怐»ऊūᱡᱧarow;椏aã̕Āayᱮᱳron;䄏;䐴ƀ;ao̲ᱼᲄĀgrʿᲁr;懊tseq;橷ƀglmᲑᲔᲘ耻°䂰ta;䎴ptyv;榱ĀirᲣᲨsht;楿;쀀𝔡arĀlrᲳᲵ»ࣜ»သʀaegsv᳂͸᳖᳜᳠mƀ;oș᳊᳔ndĀ;ș᳑uit;晦amma;䏝in;拲ƀ;io᳧᳨᳸䃷de脀÷;o᳧ᳰntimes;拇nø᳷cy;䑒cɯᴆ\0\0ᴊrn;挞op;挍ʀlptuwᴘᴝᴢᵉᵕlar;䀤f;쀀𝕕ʀ;emps̋ᴭᴷᴽᵂqĀ;d͒ᴳot;扑inus;戸lus;戔quare;抡blebarwedgåúnƀadhᄮᵝᵧownarrowóᲃarpoonĀlrᵲᵶefôᲴighôᲶŢᵿᶅkaro÷གɯᶊ\0\0ᶎrn;挟op;挌ƀcotᶘᶣᶦĀryᶝᶡ;쀀𝒹;䑕l;槶rok;䄑Ādrᶰᶴot;拱iĀ;fᶺ᠖斿Āah᷀᷃ròЩaòྦangle;榦Āci᷒ᷕy;䑟grarr;柿ऀDacdefglmnopqrstuxḁḉḙḸոḼṉṡṾấắẽỡἪἷὄ὎὚ĀDoḆᴴoôᲉĀcsḎḔute耻é䃩ter;橮ȀaioyḢḧḱḶron;䄛rĀ;cḭḮ扖耻ê䃪lon;払;䑍ot;䄗ĀDrṁṅot;扒;쀀𝔢ƀ;rsṐṑṗ檚ave耻è䃨Ā;dṜṝ檖ot;檘Ȁ;ilsṪṫṲṴ檙nters;揧;愓Ā;dṹṺ檕ot;檗ƀapsẅẉẗcr;䄓tyƀ;svẒẓẕ戅et»ẓpĀ1;ẝẤĳạả;怄;怅怃ĀgsẪẬ;䅋p;怂ĀgpẴẸon;䄙f;쀀𝕖ƀalsỄỎỒrĀ;sỊị拕l;槣us;橱iƀ;lvỚớở䎵on»ớ;䏵ȀcsuvỪỳἋἣĀioữḱrc»Ḯɩỹ\0\0ỻíՈantĀglἂἆtr»ṝess»Ṻƀaeiἒ἖Ἒls;䀽st;扟vĀ;DȵἠD;橸parsl;槥ĀDaἯἳot;打rr;楱ƀcdiἾὁỸr;愯oô͒ĀahὉὋ;䎷耻ð䃰Āmrὓὗl耻ë䃫o;悬ƀcipὡὤὧl;䀡sôծĀeoὬὴctatioîՙnentialåչৡᾒ\0ᾞ\0ᾡᾧ\0\0ῆῌ\0ΐ\0ῦῪ \0 ⁚llingdotseñṄy;䑄male;晀ƀilrᾭᾳ῁lig;耀ﬃɩᾹ\0\0᾽g;耀ﬀig;耀ﬄ;쀀𝔣lig;耀ﬁlig;쀀fjƀaltῙ῜ῡt;晭ig;耀ﬂns;斱of;䆒ǰ΅\0ῳf;쀀𝕗ĀakֿῷĀ;vῼ´拔;櫙artint;樍Āao‌⁕Ācs‑⁒α‚‰‸⁅⁈\0⁐β•‥‧‪‬\0‮耻½䂽;慓耻¼䂼;慕;慙;慛Ƴ‴\0‶;慔;慖ʴ‾⁁\0\0⁃耻¾䂾;慗;慜5;慘ƶ⁌\0⁎;慚;慝8;慞l;恄wn;挢cr;쀀𝒻ࢀEabcdefgijlnorstv₂₉₟₥₰₴⃰⃵⃺⃿℃ℒℸ̗ℾ⅒↞Ā;lٍ₇;檌ƀcmpₐₕ₝ute;䇵maĀ;dₜ᳚䎳;檆reve;䄟Āiy₪₮rc;䄝;䐳ot;䄡Ȁ;lqsؾق₽⃉ƀ;qsؾٌ⃄lanô٥Ȁ;cdl٥⃒⃥⃕c;檩otĀ;o⃜⃝檀Ā;l⃢⃣檂;檄Ā;e⃪⃭쀀⋛︀s;檔r;쀀𝔤Ā;gٳ؛mel;愷cy;䑓Ȁ;Eajٚℌℎℐ;檒;檥;檤ȀEaesℛℝ℩ℴ;扩pĀ;p℣ℤ檊rox»ℤĀ;q℮ℯ檈Ā;q℮ℛim;拧pf;쀀𝕘Āci⅃ⅆr;愊mƀ;el٫ⅎ⅐;檎;檐茀>;cdlqr׮ⅠⅪⅮⅳⅹĀciⅥⅧ;檧r;橺ot;拗Par;榕uest;橼ʀadelsↄⅪ←ٖ↛ǰ↉\0↎proø₞r;楸qĀlqؿ↖lesó₈ií٫Āen↣↭rtneqq;쀀≩︀Å↪ԀAabcefkosy⇄⇇⇱⇵⇺∘∝∯≨≽ròΠȀilmr⇐⇔⇗⇛rsðᒄf»․ilôکĀdr⇠⇤cy;䑊ƀ;cwࣴ⇫⇯ir;楈;憭ar;意irc;䄥ƀalr∁∎∓rtsĀ;u∉∊晥it»∊lip;怦con;抹r;쀀𝔥sĀew∣∩arow;椥arow;椦ʀamopr∺∾≃≞≣rr;懿tht;戻kĀlr≉≓eftarrow;憩ightarrow;憪f;쀀𝕙bar;怕ƀclt≯≴≸r;쀀𝒽asè⇴rok;䄧Ābp⊂⊇ull;恃hen»ᱛૡ⊣\0⊪\0⊸⋅⋎\0⋕⋳\0\0⋸⌢⍧⍢⍿\0⎆⎪⎴cute耻í䃭ƀ;iyݱ⊰⊵rc耻î䃮;䐸Ācx⊼⊿y;䐵cl耻¡䂡ĀfrΟ⋉;쀀𝔦rave耻ì䃬Ȁ;inoܾ⋝⋩⋮Āin⋢⋦nt;樌t;戭fin;槜ta;愩lig;䄳ƀaop⋾⌚⌝ƀcgt⌅⌈⌗r;䄫ƀelpܟ⌏⌓inåގarôܠh;䄱f;抷ed;䆵ʀ;cfotӴ⌬⌱⌽⍁are;愅inĀ;t⌸⌹戞ie;槝doô⌙ʀ;celpݗ⍌⍐⍛⍡al;抺Āgr⍕⍙eróᕣã⍍arhk;樗rod;樼Ȁcgpt⍯⍲⍶⍻y;䑑on;䄯f;쀀𝕚a;䎹uest耻¿䂿Āci⎊⎏r;쀀𝒾nʀ;EdsvӴ⎛⎝⎡ӳ;拹ot;拵Ā;v⎦⎧拴;拳Ā;iݷ⎮lde;䄩ǫ⎸\0⎼cy;䑖l耻ï䃯̀cfmosu⏌⏗⏜⏡⏧⏵Āiy⏑⏕rc;䄵;䐹r;쀀𝔧ath;䈷pf;쀀𝕛ǣ⏬\0⏱r;쀀𝒿rcy;䑘kcy;䑔Ѐacfghjos␋␖␢␧␭␱␵␻ppaĀ;v␓␔䎺;䏰Āey␛␠dil;䄷;䐺r;쀀𝔨reen;䄸cy;䑅cy;䑜pf;쀀𝕜cr;쀀𝓀஀ABEHabcdefghjlmnoprstuv⑰⒁⒆⒍⒑┎┽╚▀♎♞♥♹♽⚚⚲⛘❝❨➋⟀⠁⠒ƀart⑷⑺⑼rò৆òΕail;椛arr;椎Ā;gঔ⒋;檋ar;楢ॣ⒥\0⒪\0⒱\0\0\0\0\0⒵Ⓔ\0ⓆⓈⓍ\0⓹ute;䄺mptyv;榴raîࡌbda;䎻gƀ;dlࢎⓁⓃ;榑åࢎ;檅uo耻«䂫rЀ;bfhlpst࢙ⓞⓦⓩ⓫⓮⓱⓵Ā;f࢝ⓣs;椟s;椝ë≒p;憫l;椹im;楳l;憢ƀ;ae⓿─┄檫il;椙Ā;s┉┊檭;쀀⪭︀ƀabr┕┙┝rr;椌rk;杲Āak┢┬cĀek┨┪;䁻;䁛Āes┱┳;榋lĀdu┹┻;榏;榍Ȁaeuy╆╋╖╘ron;䄾Ādi═╔il;䄼ìࢰâ┩;䐻Ȁcqrs╣╦╭╽a;椶uoĀ;rนᝆĀdu╲╷har;楧shar;楋h;憲ʀ;fgqs▋▌উ◳◿扤tʀahlrt▘▤▷◂◨rrowĀ;t࢙□aé⓶arpoonĀdu▯▴own»њp»०eftarrows;懇ightƀahs◍◖◞rrowĀ;sࣴࢧarpoonó྘quigarro÷⇰hreetimes;拋ƀ;qs▋ও◺lanôবʀ;cdgsব☊☍☝☨c;檨otĀ;o☔☕橿Ā;r☚☛檁;檃Ā;e☢☥쀀⋚︀s;檓ʀadegs☳☹☽♉♋pproøⓆot;拖qĀgq♃♅ôউgtò⒌ôছiíলƀilr♕࣡♚sht;楼;쀀𝔩Ā;Eজ♣;檑š♩♶rĀdu▲♮Ā;l॥♳;楪lk;斄cy;䑙ʀ;achtੈ⚈⚋⚑⚖rò◁orneòᴈard;楫ri;旺Āio⚟⚤dot;䅀ustĀ;a⚬⚭掰che»⚭ȀEaes⚻⚽⛉⛔;扨pĀ;p⛃⛄檉rox»⛄Ā;q⛎⛏檇Ā;q⛎⚻im;拦Ѐabnoptwz⛩⛴⛷✚✯❁❇❐Ānr⛮⛱g;柬r;懽rëࣁgƀlmr⛿✍✔eftĀar০✇ightá৲apsto;柼ightá৽parrowĀlr✥✩efô⓭ight;憬ƀafl✶✹✽r;榅;쀀𝕝us;樭imes;樴š❋❏st;戗áፎƀ;ef❗❘᠀旊nge»❘arĀ;l❤❥䀨t;榓ʀachmt❳❶❼➅➇ròࢨorneòᶌarĀ;d྘➃;業;怎ri;抿̀achiqt➘➝ੀ➢➮➻quo;怹r;쀀𝓁mƀ;egল➪➬;檍;檏Ābu┪➳oĀ;rฟ➹;怚rok;䅂萀<;cdhilqrࠫ⟒☹⟜⟠⟥⟪⟰Āci⟗⟙;檦r;橹reå◲mes;拉arr;楶uest;橻ĀPi⟵⟹ar;榖ƀ;ef⠀भ᠛旃rĀdu⠇⠍shar;楊har;楦Āen⠗⠡rtneqq;쀀≨︀Å⠞܀Dacdefhilnopsu⡀⡅⢂⢎⢓⢠⢥⢨⣚⣢⣤ઃ⣳⤂Dot;戺Ȁclpr⡎⡒⡣⡽r耻¯䂯Āet⡗⡙;時Ā;e⡞⡟朠se»⡟Ā;sျ⡨toȀ;dluျ⡳⡷⡻owîҌefôएðᏑker;斮Āoy⢇⢌mma;権;䐼ash;怔asuredangle»ᘦr;쀀𝔪o;愧ƀcdn⢯⢴⣉ro耻µ䂵Ȁ;acdᑤ⢽⣀⣄sôᚧir;櫰ot肻·Ƶusƀ;bd⣒ᤃ⣓戒Ā;uᴼ⣘;横ţ⣞⣡p;櫛ò−ðઁĀdp⣩⣮els;抧f;쀀𝕞Āct⣸⣽r;쀀𝓂pos»ᖝƀ;lm⤉⤊⤍䎼timap;抸ఀGLRVabcdefghijlmoprstuvw⥂⥓⥾⦉⦘⧚⧩⨕⨚⩘⩝⪃⪕⪤⪨⬄⬇⭄⭿⮮ⰴⱧⱼ⳩Āgt⥇⥋;쀀⋙̸Ā;v⥐௏쀀≫⃒ƀelt⥚⥲⥶ftĀar⥡⥧rrow;懍ightarrow;懎;쀀⋘̸Ā;v⥻ే쀀≪⃒ightarrow;懏ĀDd⦎⦓ash;抯ash;抮ʀbcnpt⦣⦧⦬⦱⧌la»˞ute;䅄g;쀀∠⃒ʀ;Eiop඄⦼⧀⧅⧈;쀀⩰̸d;쀀≋̸s;䅉roø඄urĀ;a⧓⧔普lĀ;s⧓ସǳ⧟\0⧣p肻 ଷmpĀ;e௹ఀʀaeouy⧴⧾⨃⨐⨓ǰ⧹\0⧻;橃on;䅈dil;䅆ngĀ;dൾ⨊ot;쀀⩭̸p;橂;䐽ash;怓΀;Aadqsxஒ⨩⨭⨻⩁⩅⩐rr;懗rĀhr⨳⨶k;椤Ā;oᏲᏰot;쀀≐̸uiöୣĀei⩊⩎ar;椨í஘istĀ;s஠டr;쀀𝔫ȀEest௅⩦⩹⩼ƀ;qs஼⩭௡ƀ;qs஼௅⩴lanô௢ií௪Ā;rஶ⪁»ஷƀAap⪊⪍⪑rò⥱rr;憮ar;櫲ƀ;svྍ⪜ྌĀ;d⪡⪢拼;拺cy;䑚΀AEadest⪷⪺⪾⫂⫅⫶⫹rò⥦;쀀≦̸rr;憚r;急Ȁ;fqs఻⫎⫣⫯tĀar⫔⫙rro÷⫁ightarro÷⪐ƀ;qs఻⪺⫪lanôౕĀ;sౕ⫴»శiíౝĀ;rవ⫾iĀ;eచథiäඐĀpt⬌⬑f;쀀𝕟膀¬;in⬙⬚⬶䂬nȀ;Edvஉ⬤⬨⬮;쀀⋹̸ot;쀀⋵̸ǡஉ⬳⬵;拷;拶iĀ;vಸ⬼ǡಸ⭁⭃;拾;拽ƀaor⭋⭣⭩rȀ;ast୻⭕⭚⭟lleì୻l;쀀⫽⃥;쀀∂̸lint;樔ƀ;ceಒ⭰⭳uåಥĀ;cಘ⭸Ā;eಒ⭽ñಘȀAait⮈⮋⮝⮧rò⦈rrƀ;cw⮔⮕⮙憛;쀀⤳̸;쀀↝̸ghtarrow»⮕riĀ;eೋೖ΀chimpqu⮽⯍⯙⬄୸⯤⯯Ȁ;cerല⯆ഷ⯉uå൅;쀀𝓃ortɭ⬅\0\0⯖ará⭖mĀ;e൮⯟Ā;q൴൳suĀbp⯫⯭å೸åഋƀbcp⯶ⰑⰙȀ;Ees⯿ⰀഢⰄ抄;쀀⫅̸etĀ;eഛⰋqĀ;qണⰀcĀ;eലⰗñസȀ;EesⰢⰣൟⰧ抅;쀀⫆̸etĀ;e൘ⰮqĀ;qൠⰣȀgilrⰽⰿⱅⱇìௗlde耻ñ䃱çృiangleĀlrⱒⱜeftĀ;eచⱚñదightĀ;eೋⱥñ೗Ā;mⱬⱭ䎽ƀ;esⱴⱵⱹ䀣ro;愖p;怇ҀDHadgilrsⲏⲔⲙⲞⲣⲰⲶⳓⳣash;抭arr;椄p;쀀≍⃒ash;抬ĀetⲨⲬ;쀀≥⃒;쀀>⃒nfin;槞ƀAetⲽⳁⳅrr;椂;쀀≤⃒Ā;rⳊⳍ쀀<⃒ie;쀀⊴⃒ĀAtⳘⳜrr;椃rie;쀀⊵⃒im;쀀∼⃒ƀAan⳰⳴ⴂrr;懖rĀhr⳺⳽k;椣Ā;oᏧᏥear;椧ቓ᪕\0\0\0\0\0\0\0\0\0\0\0\0\0ⴭ\0ⴸⵈⵠⵥ⵲ⶄᬇ\0\0ⶍⶫ\0ⷈⷎ\0ⷜ⸙⸫⸾⹃Ācsⴱ᪗ute耻ó䃳ĀiyⴼⵅrĀ;c᪞ⵂ耻ô䃴;䐾ʀabios᪠ⵒⵗǈⵚlac;䅑v;樸old;榼lig;䅓Ācr⵩⵭ir;榿;쀀𝔬ͯ⵹\0\0⵼\0ⶂn;䋛ave耻ò䃲;槁Ābmⶈ෴ar;榵Ȁacitⶕ⶘ⶥⶨrò᪀Āir⶝ⶠr;榾oss;榻nå๒;槀ƀaeiⶱⶵⶹcr;䅍ga;䏉ƀcdnⷀⷅǍron;䎿;榶pf;쀀𝕠ƀaelⷔ⷗ǒr;榷rp;榹΀;adiosvⷪⷫⷮ⸈⸍⸐⸖戨rò᪆Ȁ;efmⷷⷸ⸂⸅橝rĀ;oⷾⷿ愴f»ⷿ耻ª䂪耻º䂺gof;抶r;橖lope;橗;橛ƀclo⸟⸡⸧ò⸁ash耻ø䃸l;折iŬⸯ⸴de耻õ䃵esĀ;aǛ⸺s;樶ml耻ö䃶bar;挽ૡ⹞\0⹽\0⺀⺝\0⺢⺹\0\0⻋ຜ\0⼓\0\0⼫⾼\0⿈rȀ;astЃ⹧⹲຅脀¶;l⹭⹮䂶leìЃɩ⹸\0\0⹻m;櫳;櫽y;䐿rʀcimpt⺋⺏⺓ᡥ⺗nt;䀥od;䀮il;怰enk;怱r;쀀𝔭ƀimo⺨⺰⺴Ā;v⺭⺮䏆;䏕maô੶ne;明ƀ;tv⺿⻀⻈䏀chfork»´;䏖Āau⻏⻟nĀck⻕⻝kĀ;h⇴⻛;愎ö⇴sҀ;abcdemst⻳⻴ᤈ⻹⻽⼄⼆⼊⼎䀫cir;樣ir;樢Āouᵀ⼂;樥;橲n肻±ຝim;樦wo;樧ƀipu⼙⼠⼥ntint;樕f;쀀𝕡nd耻£䂣Ԁ;Eaceinosu່⼿⽁⽄⽇⾁⾉⾒⽾⾶;檳p;檷uå໙Ā;c໎⽌̀;acens່⽙⽟⽦⽨⽾pproø⽃urlyeñ໙ñ໎ƀaes⽯⽶⽺pprox;檹qq;檵im;拨iíໟmeĀ;s⾈ຮ怲ƀEas⽸⾐⽺ð⽵ƀdfp໬⾙⾯ƀals⾠⾥⾪lar;挮ine;挒urf;挓Ā;t໻⾴ï໻rel;抰Āci⿀⿅r;쀀𝓅;䏈ncsp;怈̀fiopsu⿚⋢⿟⿥⿫⿱r;쀀𝔮pf;쀀𝕢rime;恗cr;쀀𝓆ƀaeo⿸〉〓tĀei⿾々rnionóڰnt;樖stĀ;e【】䀿ñἙô༔઀ABHabcdefhilmnoprstux぀けさすムㄎㄫㅇㅢㅲㆎ㈆㈕㈤㈩㉘㉮㉲㊐㊰㊷ƀartぇおがròႳòϝail;検aròᱥar;楤΀cdenqrtとふへみわゔヌĀeuねぱ;쀀∽̱te;䅕iãᅮmptyv;榳gȀ;del࿑らるろ;榒;榥å࿑uo耻»䂻rր;abcfhlpstw࿜ガクシスゼゾダッデナp;極Ā;f࿠ゴs;椠;椳s;椞ë≝ð✮l;楅im;楴l;憣;憝Āaiパフil;椚oĀ;nホボ戶aló༞ƀabrョリヮrò៥rk;杳ĀakンヽcĀekヹ・;䁽;䁝Āes㄂㄄;榌lĀduㄊㄌ;榎;榐Ȁaeuyㄗㄜㄧㄩron;䅙Ādiㄡㄥil;䅗ì࿲âヺ;䑀Ȁclqsㄴㄷㄽㅄa;椷dhar;楩uoĀ;rȎȍh;憳ƀacgㅎㅟངlȀ;ipsླྀㅘㅛႜnåႻarôྩt;断ƀilrㅩဣㅮsht;楽;쀀𝔯ĀaoㅷㆆrĀduㅽㅿ»ѻĀ;l႑ㆄ;楬Ā;vㆋㆌ䏁;䏱ƀgns㆕ㇹㇼht̀ahlrstㆤㆰ㇂㇘㇤㇮rrowĀ;t࿜ㆭaéトarpoonĀduㆻㆿowîㅾp»႒eftĀah㇊㇐rrowó࿪arpoonóՑightarrows;應quigarro÷ニhreetimes;拌g;䋚ingdotseñἲƀahm㈍㈐㈓rò࿪aòՑ;怏oustĀ;a㈞㈟掱che»㈟mid;櫮Ȁabpt㈲㈽㉀㉒Ānr㈷㈺g;柭r;懾rëဃƀafl㉇㉊㉎r;榆;쀀𝕣us;樮imes;樵Āap㉝㉧rĀ;g㉣㉤䀩t;榔olint;樒arò㇣Ȁachq㉻㊀Ⴜ㊅quo;怺r;쀀𝓇Ābu・㊊oĀ;rȔȓƀhir㊗㊛㊠reåㇸmes;拊iȀ;efl㊪ၙᠡ㊫方tri;槎luhar;楨;愞ൡ㋕㋛㋟㌬㌸㍱\0㍺㎤\0\0㏬㏰\0㐨㑈㑚㒭㒱㓊㓱\0㘖\0\0㘳cute;䅛quï➺Ԁ;Eaceinpsyᇭ㋳㋵㋿㌂㌋㌏㌟㌦㌩;檴ǰ㋺\0㋼;檸on;䅡uåᇾĀ;dᇳ㌇il;䅟rc;䅝ƀEas㌖㌘㌛;檶p;檺im;择olint;樓iíሄ;䑁otƀ;be㌴ᵇ㌵担;橦΀Aacmstx㍆㍊㍗㍛㍞㍣㍭rr;懘rĀhr㍐㍒ë∨Ā;oਸ਼਴t耻§䂧i;䀻war;椩mĀin㍩ðnuóñt;朶rĀ;o㍶⁕쀀𝔰Ȁacoy㎂㎆㎑㎠rp;景Āhy㎋㎏cy;䑉;䑈rtɭ㎙\0\0㎜iäᑤaraì⹯耻­䂭Āgm㎨㎴maƀ;fv㎱㎲㎲䏃;䏂Ѐ;deglnprካ㏅㏉㏎㏖㏞㏡㏦ot;橪Ā;q኱ኰĀ;E㏓㏔檞;檠Ā;E㏛㏜檝;檟e;扆lus;樤arr;楲aròᄽȀaeit㏸㐈㐏㐗Āls㏽㐄lsetmé㍪hp;樳parsl;槤Ādlᑣ㐔e;挣Ā;e㐜㐝檪Ā;s㐢㐣檬;쀀⪬︀ƀflp㐮㐳㑂tcy;䑌Ā;b㐸㐹䀯Ā;a㐾㐿槄r;挿f;쀀𝕤aĀdr㑍ЂesĀ;u㑔㑕晠it»㑕ƀcsu㑠㑹㒟Āau㑥㑯pĀ;sᆈ㑫;쀀⊓︀pĀ;sᆴ㑵;쀀⊔︀uĀbp㑿㒏ƀ;esᆗᆜ㒆etĀ;eᆗ㒍ñᆝƀ;esᆨᆭ㒖etĀ;eᆨ㒝ñᆮƀ;afᅻ㒦ְrť㒫ֱ»ᅼaròᅈȀcemt㒹㒾㓂㓅r;쀀𝓈tmîñiì㐕aræᆾĀar㓎㓕rĀ;f㓔ឿ昆Āan㓚㓭ightĀep㓣㓪psiloîỠhé⺯s»⡒ʀbcmnp㓻㕞ሉ㖋㖎Ҁ;Edemnprs㔎㔏㔑㔕㔞㔣㔬㔱㔶抂;櫅ot;檽Ā;dᇚ㔚ot;櫃ult;櫁ĀEe㔨㔪;櫋;把lus;檿arr;楹ƀeiu㔽㕒㕕tƀ;en㔎㕅㕋qĀ;qᇚ㔏eqĀ;q㔫㔨m;櫇Ābp㕚㕜;櫕;櫓c̀;acensᇭ㕬㕲㕹㕻㌦pproø㋺urlyeñᇾñᇳƀaes㖂㖈㌛pproø㌚qñ㌗g;晪ڀ123;Edehlmnps㖩㖬㖯ሜ㖲㖴㗀㗉㗕㗚㗟㗨㗭耻¹䂹耻²䂲耻³䂳;櫆Āos㖹㖼t;檾ub;櫘Ā;dሢ㗅ot;櫄sĀou㗏㗒l;柉b;櫗arr;楻ult;櫂ĀEe㗤㗦;櫌;抋lus;櫀ƀeiu㗴㘉㘌tƀ;enሜ㗼㘂qĀ;qሢ㖲eqĀ;q㗧㗤m;櫈Ābp㘑㘓;櫔;櫖ƀAan㘜㘠㘭rr;懙rĀhr㘦㘨ë∮Ā;oਫ਩war;椪lig耻ß䃟௡㙑㙝㙠ዎ㙳㙹\0㙾㛂\0\0\0\0\0㛛㜃\0㜉㝬\0\0\0㞇ɲ㙖\0\0㙛get;挖;䏄rë๟ƀaey㙦㙫㙰ron;䅥dil;䅣;䑂lrec;挕r;쀀𝔱Ȁeiko㚆㚝㚵㚼ǲ㚋\0㚑eĀ4fኄኁaƀ;sv㚘㚙㚛䎸ym;䏑Ācn㚢㚲kĀas㚨㚮pproø዁im»ኬsðኞĀas㚺㚮ð዁rn耻þ䃾Ǭ̟㛆⋧es膀×;bd㛏㛐㛘䃗Ā;aᤏ㛕r;樱;樰ƀeps㛡㛣㜀á⩍Ȁ;bcf҆㛬㛰㛴ot;挶ir;櫱Ā;o㛹㛼쀀𝕥rk;櫚á㍢rime;怴ƀaip㜏㜒㝤dåቈ΀adempst㜡㝍㝀㝑㝗㝜㝟ngleʀ;dlqr㜰㜱㜶㝀㝂斵own»ᶻeftĀ;e⠀㜾ñम;扜ightĀ;e㊪㝋ñၚot;旬inus;樺lus;樹b;槍ime;樻ezium;揢ƀcht㝲㝽㞁Āry㝷㝻;쀀𝓉;䑆cy;䑛rok;䅧Āio㞋㞎xô᝷headĀlr㞗㞠eftarro÷ࡏightarrow»ཝऀAHabcdfghlmoprstuw㟐㟓㟗㟤㟰㟼㠎㠜㠣㠴㡑㡝㡫㢩㣌㣒㣪㣶ròϭar;楣Ācr㟜㟢ute耻ú䃺òᅐrǣ㟪\0㟭y;䑞ve;䅭Āiy㟵㟺rc耻û䃻;䑃ƀabh㠃㠆㠋ròᎭlac;䅱aòᏃĀir㠓㠘sht;楾;쀀𝔲rave耻ù䃹š㠧㠱rĀlr㠬㠮»ॗ»ႃlk;斀Āct㠹㡍ɯ㠿\0\0㡊rnĀ;e㡅㡆挜r»㡆op;挏ri;旸Āal㡖㡚cr;䅫肻¨͉Āgp㡢㡦on;䅳f;쀀𝕦̀adhlsuᅋ㡸㡽፲㢑㢠ownáᎳarpoonĀlr㢈㢌efô㠭ighô㠯iƀ;hl㢙㢚㢜䏅»ᏺon»㢚parrows;懈ƀcit㢰㣄㣈ɯ㢶\0\0㣁rnĀ;e㢼㢽挝r»㢽op;挎ng;䅯ri;旹cr;쀀𝓊ƀdir㣙㣝㣢ot;拰lde;䅩iĀ;f㜰㣨»᠓Āam㣯㣲rò㢨l耻ü䃼angle;榧ހABDacdeflnoprsz㤜㤟㤩㤭㦵㦸㦽㧟㧤㧨㧳㧹㧽㨁㨠ròϷarĀ;v㤦㤧櫨;櫩asèϡĀnr㤲㤷grt;榜΀eknprst㓣㥆㥋㥒㥝㥤㦖appá␕othinçẖƀhir㓫⻈㥙opô⾵Ā;hᎷ㥢ïㆍĀiu㥩㥭gmá㎳Ābp㥲㦄setneqĀ;q㥽㦀쀀⊊︀;쀀⫋︀setneqĀ;q㦏㦒쀀⊋︀;쀀⫌︀Āhr㦛㦟etá㚜iangleĀlr㦪㦯eft»थight»ၑy;䐲ash»ံƀelr㧄㧒㧗ƀ;beⷪ㧋㧏ar;抻q;扚lip;拮Ābt㧜ᑨaòᑩr;쀀𝔳tré㦮suĀbp㧯㧱»ജ»൙pf;쀀𝕧roð໻tré㦴Ācu㨆㨋r;쀀𝓋Ābp㨐㨘nĀEe㦀㨖»㥾nĀEe㦒㨞»㦐igzag;榚΀cefoprs㨶㨻㩖㩛㩔㩡㩪irc;䅵Ādi㩀㩑Ābg㩅㩉ar;機eĀ;qᗺ㩏;扙erp;愘r;쀀𝔴pf;쀀𝕨Ā;eᑹ㩦atèᑹcr;쀀𝓌ૣណ㪇\0㪋\0㪐㪛\0\0㪝㪨㪫㪯\0\0㫃㫎\0㫘ៜ៟tré៑r;쀀𝔵ĀAa㪔㪗ròσrò৶;䎾ĀAa㪡㪤ròθrò৫að✓is;拻ƀdptឤ㪵㪾Āfl㪺ឩ;쀀𝕩imåឲĀAa㫇㫊ròώròਁĀcq㫒ីr;쀀𝓍Āpt៖㫜ré។Ѐacefiosu㫰㫽㬈㬌㬑㬕㬛㬡cĀuy㫶㫻te耻ý䃽;䑏Āiy㬂㬆rc;䅷;䑋n耻¥䂥r;쀀𝔶cy;䑗pf;쀀𝕪cr;쀀𝓎Ācm㬦㬩y;䑎l耻ÿ䃿Ԁacdefhiosw㭂㭈㭔㭘㭤㭩㭭㭴㭺㮀cute;䅺Āay㭍㭒ron;䅾;䐷ot;䅼Āet㭝㭡træᕟa;䎶r;쀀𝔷cy;䐶grarr;懝pf;쀀𝕫cr;쀀𝓏Ājn㮅㮇;怍j;怌'.split("").map((c2) => c2.charCodeAt(0))
+    );
+    const xmlDecodeTree = new Uint16Array(
+      // prettier-ignore
+      "Ȁaglq	\x1Bɭ\0\0p;䀦os;䀧t;䀾t;䀼uot;䀢".split("").map((c2) => c2.charCodeAt(0))
+    );
+    var _a;
+    const decodeMap = /* @__PURE__ */ new Map([
+      [0, 65533],
+      // C1 Unicode control character reference replacements
+      [128, 8364],
+      [130, 8218],
+      [131, 402],
+      [132, 8222],
+      [133, 8230],
+      [134, 8224],
+      [135, 8225],
+      [136, 710],
+      [137, 8240],
+      [138, 352],
+      [139, 8249],
+      [140, 338],
+      [142, 381],
+      [145, 8216],
+      [146, 8217],
+      [147, 8220],
+      [148, 8221],
+      [149, 8226],
+      [150, 8211],
+      [151, 8212],
+      [152, 732],
+      [153, 8482],
+      [154, 353],
+      [155, 8250],
+      [156, 339],
+      [158, 382],
+      [159, 376]
+    ]);
+    const fromCodePoint$1 = (
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition, node/no-unsupported-features/es-builtins
+      (_a = String.fromCodePoint) !== null && _a !== void 0 ? _a : function(codePoint) {
+        let output2 = "";
+        if (codePoint > 65535) {
+          codePoint -= 65536;
+          output2 += String.fromCharCode(codePoint >>> 10 & 1023 | 55296);
+          codePoint = 56320 | codePoint & 1023;
+        }
+        output2 += String.fromCharCode(codePoint);
+        return output2;
+      }
+    );
+    function replaceCodePoint(codePoint) {
+      var _a2;
+      if (codePoint >= 55296 && codePoint <= 57343 || codePoint > 1114111) {
+        return 65533;
+      }
+      return (_a2 = decodeMap.get(codePoint)) !== null && _a2 !== void 0 ? _a2 : codePoint;
+    }
+    var CharCodes;
+    (function(CharCodes2) {
+      CharCodes2[CharCodes2["NUM"] = 35] = "NUM";
+      CharCodes2[CharCodes2["SEMI"] = 59] = "SEMI";
+      CharCodes2[CharCodes2["EQUALS"] = 61] = "EQUALS";
+      CharCodes2[CharCodes2["ZERO"] = 48] = "ZERO";
+      CharCodes2[CharCodes2["NINE"] = 57] = "NINE";
+      CharCodes2[CharCodes2["LOWER_A"] = 97] = "LOWER_A";
+      CharCodes2[CharCodes2["LOWER_F"] = 102] = "LOWER_F";
+      CharCodes2[CharCodes2["LOWER_X"] = 120] = "LOWER_X";
+      CharCodes2[CharCodes2["LOWER_Z"] = 122] = "LOWER_Z";
+      CharCodes2[CharCodes2["UPPER_A"] = 65] = "UPPER_A";
+      CharCodes2[CharCodes2["UPPER_F"] = 70] = "UPPER_F";
+      CharCodes2[CharCodes2["UPPER_Z"] = 90] = "UPPER_Z";
+    })(CharCodes || (CharCodes = {}));
+    const TO_LOWER_BIT = 32;
+    var BinTrieFlags;
+    (function(BinTrieFlags2) {
+      BinTrieFlags2[BinTrieFlags2["VALUE_LENGTH"] = 49152] = "VALUE_LENGTH";
+      BinTrieFlags2[BinTrieFlags2["BRANCH_LENGTH"] = 16256] = "BRANCH_LENGTH";
+      BinTrieFlags2[BinTrieFlags2["JUMP_TABLE"] = 127] = "JUMP_TABLE";
+    })(BinTrieFlags || (BinTrieFlags = {}));
+    function isNumber(code2) {
+      return code2 >= CharCodes.ZERO && code2 <= CharCodes.NINE;
+    }
+    function isHexadecimalCharacter(code2) {
+      return code2 >= CharCodes.UPPER_A && code2 <= CharCodes.UPPER_F || code2 >= CharCodes.LOWER_A && code2 <= CharCodes.LOWER_F;
+    }
+    function isAsciiAlphaNumeric(code2) {
+      return code2 >= CharCodes.UPPER_A && code2 <= CharCodes.UPPER_Z || code2 >= CharCodes.LOWER_A && code2 <= CharCodes.LOWER_Z || isNumber(code2);
+    }
+    function isEntityInAttributeInvalidEnd(code2) {
+      return code2 === CharCodes.EQUALS || isAsciiAlphaNumeric(code2);
+    }
+    var EntityDecoderState;
+    (function(EntityDecoderState2) {
+      EntityDecoderState2[EntityDecoderState2["EntityStart"] = 0] = "EntityStart";
+      EntityDecoderState2[EntityDecoderState2["NumericStart"] = 1] = "NumericStart";
+      EntityDecoderState2[EntityDecoderState2["NumericDecimal"] = 2] = "NumericDecimal";
+      EntityDecoderState2[EntityDecoderState2["NumericHex"] = 3] = "NumericHex";
+      EntityDecoderState2[EntityDecoderState2["NamedEntity"] = 4] = "NamedEntity";
+    })(EntityDecoderState || (EntityDecoderState = {}));
+    var DecodingMode;
+    (function(DecodingMode2) {
+      DecodingMode2[DecodingMode2["Legacy"] = 0] = "Legacy";
+      DecodingMode2[DecodingMode2["Strict"] = 1] = "Strict";
+      DecodingMode2[DecodingMode2["Attribute"] = 2] = "Attribute";
+    })(DecodingMode || (DecodingMode = {}));
+    class EntityDecoder {
+      constructor(decodeTree, emitCodePoint, errors2) {
+        this.decodeTree = decodeTree;
+        this.emitCodePoint = emitCodePoint;
+        this.errors = errors2;
+        this.state = EntityDecoderState.EntityStart;
+        this.consumed = 1;
+        this.result = 0;
+        this.treeIndex = 0;
+        this.excess = 1;
+        this.decodeMode = DecodingMode.Strict;
+      }
+      /** Resets the instance to make it reusable. */
+      startEntity(decodeMode) {
+        this.decodeMode = decodeMode;
+        this.state = EntityDecoderState.EntityStart;
+        this.result = 0;
+        this.treeIndex = 0;
+        this.excess = 1;
+        this.consumed = 1;
+      }
+      /**
+       * Write an entity to the decoder. This can be called multiple times with partial entities.
+       * If the entity is incomplete, the decoder will return -1.
+       *
+       * Mirrors the implementation of `getDecoder`, but with the ability to stop decoding if the
+       * entity is incomplete, and resume when the next string is written.
+       *
+       * @param string The string containing the entity (or a continuation of the entity).
+       * @param offset The offset at which the entity begins. Should be 0 if this is not the first call.
+       * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
+       */
+      write(str2, offset) {
+        switch (this.state) {
+          case EntityDecoderState.EntityStart: {
+            if (str2.charCodeAt(offset) === CharCodes.NUM) {
+              this.state = EntityDecoderState.NumericStart;
+              this.consumed += 1;
+              return this.stateNumericStart(str2, offset + 1);
+            }
+            this.state = EntityDecoderState.NamedEntity;
+            return this.stateNamedEntity(str2, offset);
+          }
+          case EntityDecoderState.NumericStart: {
+            return this.stateNumericStart(str2, offset);
+          }
+          case EntityDecoderState.NumericDecimal: {
+            return this.stateNumericDecimal(str2, offset);
+          }
+          case EntityDecoderState.NumericHex: {
+            return this.stateNumericHex(str2, offset);
+          }
+          case EntityDecoderState.NamedEntity: {
+            return this.stateNamedEntity(str2, offset);
+          }
+        }
+      }
+      /**
+       * Switches between the numeric decimal and hexadecimal states.
+       *
+       * Equivalent to the `Numeric character reference state` in the HTML spec.
+       *
+       * @param str The string containing the entity (or a continuation of the entity).
+       * @param offset The current offset.
+       * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
+       */
+      stateNumericStart(str2, offset) {
+        if (offset >= str2.length) {
+          return -1;
+        }
+        if ((str2.charCodeAt(offset) | TO_LOWER_BIT) === CharCodes.LOWER_X) {
+          this.state = EntityDecoderState.NumericHex;
+          this.consumed += 1;
+          return this.stateNumericHex(str2, offset + 1);
+        }
+        this.state = EntityDecoderState.NumericDecimal;
+        return this.stateNumericDecimal(str2, offset);
+      }
+      addToNumericResult(str2, start, end, base2) {
+        if (start !== end) {
+          const digitCount = end - start;
+          this.result = this.result * Math.pow(base2, digitCount) + parseInt(str2.substr(start, digitCount), base2);
+          this.consumed += digitCount;
+        }
+      }
+      /**
+       * Parses a hexadecimal numeric entity.
+       *
+       * Equivalent to the `Hexademical character reference state` in the HTML spec.
+       *
+       * @param str The string containing the entity (or a continuation of the entity).
+       * @param offset The current offset.
+       * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
+       */
+      stateNumericHex(str2, offset) {
+        const startIdx = offset;
+        while (offset < str2.length) {
+          const char = str2.charCodeAt(offset);
+          if (isNumber(char) || isHexadecimalCharacter(char)) {
+            offset += 1;
+          } else {
+            this.addToNumericResult(str2, startIdx, offset, 16);
+            return this.emitNumericEntity(char, 3);
+          }
+        }
+        this.addToNumericResult(str2, startIdx, offset, 16);
+        return -1;
+      }
+      /**
+       * Parses a decimal numeric entity.
+       *
+       * Equivalent to the `Decimal character reference state` in the HTML spec.
+       *
+       * @param str The string containing the entity (or a continuation of the entity).
+       * @param offset The current offset.
+       * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
+       */
+      stateNumericDecimal(str2, offset) {
+        const startIdx = offset;
+        while (offset < str2.length) {
+          const char = str2.charCodeAt(offset);
+          if (isNumber(char)) {
+            offset += 1;
+          } else {
+            this.addToNumericResult(str2, startIdx, offset, 10);
+            return this.emitNumericEntity(char, 2);
+          }
+        }
+        this.addToNumericResult(str2, startIdx, offset, 10);
+        return -1;
+      }
+      /**
+       * Validate and emit a numeric entity.
+       *
+       * Implements the logic from the `Hexademical character reference start
+       * state` and `Numeric character reference end state` in the HTML spec.
+       *
+       * @param lastCp The last code point of the entity. Used to see if the
+       *               entity was terminated with a semicolon.
+       * @param expectedLength The minimum number of characters that should be
+       *                       consumed. Used to validate that at least one digit
+       *                       was consumed.
+       * @returns The number of characters that were consumed.
+       */
+      emitNumericEntity(lastCp, expectedLength) {
+        var _a2;
+        if (this.consumed <= expectedLength) {
+          (_a2 = this.errors) === null || _a2 === void 0 ? void 0 : _a2.absenceOfDigitsInNumericCharacterReference(this.consumed);
+          return 0;
+        }
+        if (lastCp === CharCodes.SEMI) {
+          this.consumed += 1;
+        } else if (this.decodeMode === DecodingMode.Strict) {
+          return 0;
+        }
+        this.emitCodePoint(replaceCodePoint(this.result), this.consumed);
+        if (this.errors) {
+          if (lastCp !== CharCodes.SEMI) {
+            this.errors.missingSemicolonAfterCharacterReference();
+          }
+          this.errors.validateNumericCharacterReference(this.result);
+        }
+        return this.consumed;
+      }
+      /**
+       * Parses a named entity.
+       *
+       * Equivalent to the `Named character reference state` in the HTML spec.
+       *
+       * @param str The string containing the entity (or a continuation of the entity).
+       * @param offset The current offset.
+       * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
+       */
+      stateNamedEntity(str2, offset) {
+        const { decodeTree } = this;
+        let current = decodeTree[this.treeIndex];
+        let valueLength = (current & BinTrieFlags.VALUE_LENGTH) >> 14;
+        for (; offset < str2.length; offset++, this.excess++) {
+          const char = str2.charCodeAt(offset);
+          this.treeIndex = determineBranch(decodeTree, current, this.treeIndex + Math.max(1, valueLength), char);
+          if (this.treeIndex < 0) {
+            return this.result === 0 || // If we are parsing an attribute
+            this.decodeMode === DecodingMode.Attribute && // We shouldn't have consumed any characters after the entity,
+            (valueLength === 0 || // And there should be no invalid characters.
+            isEntityInAttributeInvalidEnd(char)) ? 0 : this.emitNotTerminatedNamedEntity();
+          }
+          current = decodeTree[this.treeIndex];
+          valueLength = (current & BinTrieFlags.VALUE_LENGTH) >> 14;
+          if (valueLength !== 0) {
+            if (char === CharCodes.SEMI) {
+              return this.emitNamedEntityData(this.treeIndex, valueLength, this.consumed + this.excess);
+            }
+            if (this.decodeMode !== DecodingMode.Strict) {
+              this.result = this.treeIndex;
+              this.consumed += this.excess;
+              this.excess = 0;
+            }
+          }
+        }
+        return -1;
+      }
+      /**
+       * Emit a named entity that was not terminated with a semicolon.
+       *
+       * @returns The number of characters consumed.
+       */
+      emitNotTerminatedNamedEntity() {
+        var _a2;
+        const { result, decodeTree } = this;
+        const valueLength = (decodeTree[result] & BinTrieFlags.VALUE_LENGTH) >> 14;
+        this.emitNamedEntityData(result, valueLength, this.consumed);
+        (_a2 = this.errors) === null || _a2 === void 0 ? void 0 : _a2.missingSemicolonAfterCharacterReference();
+        return this.consumed;
+      }
+      /**
+       * Emit a named entity.
+       *
+       * @param result The index of the entity in the decode tree.
+       * @param valueLength The number of bytes in the entity.
+       * @param consumed The number of characters consumed.
+       *
+       * @returns The number of characters consumed.
+       */
+      emitNamedEntityData(result, valueLength, consumed) {
+        const { decodeTree } = this;
+        this.emitCodePoint(valueLength === 1 ? decodeTree[result] & ~BinTrieFlags.VALUE_LENGTH : decodeTree[result + 1], consumed);
+        if (valueLength === 3) {
+          this.emitCodePoint(decodeTree[result + 2], consumed);
+        }
+        return consumed;
+      }
+      /**
+       * Signal to the parser that the end of the input was reached.
+       *
+       * Remaining data will be emitted and relevant errors will be produced.
+       *
+       * @returns The number of characters consumed.
+       */
+      end() {
+        var _a2;
+        switch (this.state) {
+          case EntityDecoderState.NamedEntity: {
+            return this.result !== 0 && (this.decodeMode !== DecodingMode.Attribute || this.result === this.treeIndex) ? this.emitNotTerminatedNamedEntity() : 0;
+          }
+          case EntityDecoderState.NumericDecimal: {
+            return this.emitNumericEntity(0, 2);
+          }
+          case EntityDecoderState.NumericHex: {
+            return this.emitNumericEntity(0, 3);
+          }
+          case EntityDecoderState.NumericStart: {
+            (_a2 = this.errors) === null || _a2 === void 0 ? void 0 : _a2.absenceOfDigitsInNumericCharacterReference(this.consumed);
+            return 0;
+          }
+          case EntityDecoderState.EntityStart: {
+            return 0;
+          }
+        }
+      }
+    }
+    function getDecoder(decodeTree) {
+      let ret = "";
+      const decoder = new EntityDecoder(decodeTree, (str2) => ret += fromCodePoint$1(str2));
+      return function decodeWithTrie(str2, decodeMode) {
+        let lastIndex = 0;
+        let offset = 0;
+        while ((offset = str2.indexOf("&", offset)) >= 0) {
+          ret += str2.slice(lastIndex, offset);
+          decoder.startEntity(decodeMode);
+          const len = decoder.write(
+            str2,
+            // Skip the "&"
+            offset + 1
+          );
+          if (len < 0) {
+            lastIndex = offset + decoder.end();
+            break;
+          }
+          lastIndex = offset + len;
+          offset = len === 0 ? lastIndex + 1 : lastIndex;
+        }
+        const result = ret + str2.slice(lastIndex);
+        ret = "";
+        return result;
+      };
+    }
+    function determineBranch(decodeTree, current, nodeIdx, char) {
+      const branchCount = (current & BinTrieFlags.BRANCH_LENGTH) >> 7;
+      const jumpOffset = current & BinTrieFlags.JUMP_TABLE;
+      if (branchCount === 0) {
+        return jumpOffset !== 0 && char === jumpOffset ? nodeIdx : -1;
+      }
+      if (jumpOffset) {
+        const value2 = char - jumpOffset;
+        return value2 < 0 || value2 >= branchCount ? -1 : decodeTree[nodeIdx + value2] - 1;
+      }
+      let lo = nodeIdx;
+      let hi = lo + branchCount - 1;
+      while (lo <= hi) {
+        const mid = lo + hi >>> 1;
+        const midVal = decodeTree[mid];
+        if (midVal < char) {
+          lo = mid + 1;
+        } else if (midVal > char) {
+          hi = mid - 1;
+        } else {
+          return decodeTree[mid + branchCount];
+        }
+      }
+      return -1;
+    }
+    const htmlDecoder = getDecoder(htmlDecodeTree);
+    getDecoder(xmlDecodeTree);
+    function decodeHTML(str2, mode = DecodingMode.Legacy) {
+      return htmlDecoder(str2, mode);
+    }
+    function _class$1(obj) {
+      return Object.prototype.toString.call(obj);
+    }
+    function isString$1(obj) {
+      return _class$1(obj) === "[object String]";
+    }
+    const _hasOwnProperty = Object.prototype.hasOwnProperty;
+    function has(object, key2) {
+      return _hasOwnProperty.call(object, key2);
+    }
+    function assign$1(obj) {
+      const sources = Array.prototype.slice.call(arguments, 1);
+      sources.forEach(function(source2) {
+        if (!source2) {
+          return;
+        }
+        if (typeof source2 !== "object") {
+          throw new TypeError(source2 + "must be object");
+        }
+        Object.keys(source2).forEach(function(key2) {
+          obj[key2] = source2[key2];
+        });
+      });
+      return obj;
+    }
+    function arrayReplaceAt(src, pos2, newElements) {
+      return [].concat(src.slice(0, pos2), newElements, src.slice(pos2 + 1));
+    }
+    function isValidEntityCode(c2) {
+      if (c2 >= 55296 && c2 <= 57343) {
+        return false;
+      }
+      if (c2 >= 64976 && c2 <= 65007) {
+        return false;
+      }
+      if ((c2 & 65535) === 65535 || (c2 & 65535) === 65534) {
+        return false;
+      }
+      if (c2 >= 0 && c2 <= 8) {
+        return false;
+      }
+      if (c2 === 11) {
+        return false;
+      }
+      if (c2 >= 14 && c2 <= 31) {
+        return false;
+      }
+      if (c2 >= 127 && c2 <= 159) {
+        return false;
+      }
+      if (c2 > 1114111) {
+        return false;
+      }
+      return true;
+    }
+    function fromCodePoint(c2) {
+      if (c2 > 65535) {
+        c2 -= 65536;
+        const surrogate1 = 55296 + (c2 >> 10);
+        const surrogate2 = 56320 + (c2 & 1023);
+        return String.fromCharCode(surrogate1, surrogate2);
+      }
+      return String.fromCharCode(c2);
+    }
+    const UNESCAPE_MD_RE = /\\([!"#$%&'()*+,\-./:;<=>?@[\\\]^_`{|}~])/g;
+    const ENTITY_RE = /&([a-z#][a-z0-9]{1,31});/gi;
+    const UNESCAPE_ALL_RE = new RegExp(UNESCAPE_MD_RE.source + "|" + ENTITY_RE.source, "gi");
+    const DIGITAL_ENTITY_TEST_RE = /^#((?:x[a-f0-9]{1,8}|[0-9]{1,8}))$/i;
+    function replaceEntityPattern(match, name2) {
+      if (name2.charCodeAt(0) === 35 && DIGITAL_ENTITY_TEST_RE.test(name2)) {
+        const code2 = name2[1].toLowerCase() === "x" ? parseInt(name2.slice(2), 16) : parseInt(name2.slice(1), 10);
+        if (isValidEntityCode(code2)) {
+          return fromCodePoint(code2);
+        }
+        return match;
+      }
+      const decoded = decodeHTML(match);
+      if (decoded !== match) {
+        return decoded;
+      }
+      return match;
+    }
+    function unescapeMd(str2) {
+      if (str2.indexOf("\\") < 0) {
+        return str2;
+      }
+      return str2.replace(UNESCAPE_MD_RE, "$1");
+    }
+    function unescapeAll(str2) {
+      if (str2.indexOf("\\") < 0 && str2.indexOf("&") < 0) {
+        return str2;
+      }
+      return str2.replace(UNESCAPE_ALL_RE, function(match, escaped, entity2) {
+        if (escaped) {
+          return escaped;
+        }
+        return replaceEntityPattern(match, entity2);
+      });
+    }
+    const HTML_ESCAPE_TEST_RE = /[&<>"]/;
+    const HTML_ESCAPE_REPLACE_RE = /[&<>"]/g;
+    const HTML_REPLACEMENTS = {
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;"
+    };
+    function replaceUnsafeChar(ch3) {
+      return HTML_REPLACEMENTS[ch3];
+    }
+    function escapeHtml(str2) {
+      if (HTML_ESCAPE_TEST_RE.test(str2)) {
+        return str2.replace(HTML_ESCAPE_REPLACE_RE, replaceUnsafeChar);
+      }
+      return str2;
+    }
+    const REGEXP_ESCAPE_RE = /[.?*+^$[\]\\(){}|-]/g;
+    function escapeRE$1(str2) {
+      return str2.replace(REGEXP_ESCAPE_RE, "\\$&");
+    }
+    function isSpace(code2) {
+      switch (code2) {
+        case 9:
+        case 32:
+          return true;
+      }
+      return false;
+    }
+    function isWhiteSpace(code2) {
+      if (code2 >= 8192 && code2 <= 8202) {
+        return true;
+      }
+      switch (code2) {
+        case 9:
+        case 10:
+        case 11:
+        case 12:
+        case 13:
+        case 32:
+        case 160:
+        case 5760:
+        case 8239:
+        case 8287:
+        case 12288:
+          return true;
+      }
+      return false;
+    }
+    function isPunctChar(ch3) {
+      return P.test(ch3) || regex.test(ch3);
+    }
+    function isMdAsciiPunct(ch3) {
+      switch (ch3) {
+        case 33:
+        case 34:
+        case 35:
+        case 36:
+        case 37:
+        case 38:
+        case 39:
+        case 40:
+        case 41:
+        case 42:
+        case 43:
+        case 44:
+        case 45:
+        case 46:
+        case 47:
+        case 58:
+        case 59:
+        case 60:
+        case 61:
+        case 62:
+        case 63:
+        case 64:
+        case 91:
+        case 92:
+        case 93:
+        case 94:
+        case 95:
+        case 96:
+        case 123:
+        case 124:
+        case 125:
+        case 126:
+          return true;
+        default:
+          return false;
+      }
+    }
+    function normalizeReference(str2) {
+      str2 = str2.trim().replace(/\s+/g, " ");
+      if ("ẞ".toLowerCase() === "Ṿ") {
+        str2 = str2.replace(/ẞ/g, "ß");
+      }
+      return str2.toLowerCase().toUpperCase();
+    }
+    const lib = { mdurl, ucmicro };
+    const utils = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+      __proto__: null,
+      arrayReplaceAt,
+      assign: assign$1,
+      escapeHtml,
+      escapeRE: escapeRE$1,
+      fromCodePoint,
+      has,
+      isMdAsciiPunct,
+      isPunctChar,
+      isSpace,
+      isString: isString$1,
+      isValidEntityCode,
+      isWhiteSpace,
+      lib,
+      normalizeReference,
+      unescapeAll,
+      unescapeMd
+    }, Symbol.toStringTag, { value: "Module" }));
+    function parseLinkLabel(state, start, disableNested) {
+      let level, found, marker, prevPos;
+      const max2 = state.posMax;
+      const oldPos = state.pos;
+      state.pos = start + 1;
+      level = 1;
+      while (state.pos < max2) {
+        marker = state.src.charCodeAt(state.pos);
+        if (marker === 93) {
+          level--;
+          if (level === 0) {
+            found = true;
+            break;
+          }
+        }
+        prevPos = state.pos;
+        state.md.inline.skipToken(state);
+        if (marker === 91) {
+          if (prevPos === state.pos - 1) {
+            level++;
+          } else if (disableNested) {
+            state.pos = oldPos;
+            return -1;
+          }
+        }
+      }
+      let labelEnd = -1;
+      if (found) {
+        labelEnd = state.pos;
+      }
+      state.pos = oldPos;
+      return labelEnd;
+    }
+    function parseLinkDestination(str2, start, max2) {
+      let code2;
+      let pos2 = start;
+      const result = {
+        ok: false,
+        pos: 0,
+        str: ""
+      };
+      if (str2.charCodeAt(pos2) === 60) {
+        pos2++;
+        while (pos2 < max2) {
+          code2 = str2.charCodeAt(pos2);
+          if (code2 === 10) {
+            return result;
+          }
+          if (code2 === 60) {
+            return result;
+          }
+          if (code2 === 62) {
+            result.pos = pos2 + 1;
+            result.str = unescapeAll(str2.slice(start + 1, pos2));
+            result.ok = true;
+            return result;
+          }
+          if (code2 === 92 && pos2 + 1 < max2) {
+            pos2 += 2;
+            continue;
+          }
+          pos2++;
+        }
+        return result;
+      }
+      let level = 0;
+      while (pos2 < max2) {
+        code2 = str2.charCodeAt(pos2);
+        if (code2 === 32) {
+          break;
+        }
+        if (code2 < 32 || code2 === 127) {
+          break;
+        }
+        if (code2 === 92 && pos2 + 1 < max2) {
+          if (str2.charCodeAt(pos2 + 1) === 32) {
+            break;
+          }
+          pos2 += 2;
+          continue;
+        }
+        if (code2 === 40) {
+          level++;
+          if (level > 32) {
+            return result;
+          }
+        }
+        if (code2 === 41) {
+          if (level === 0) {
+            break;
+          }
+          level--;
+        }
+        pos2++;
+      }
+      if (start === pos2) {
+        return result;
+      }
+      if (level !== 0) {
+        return result;
+      }
+      result.str = unescapeAll(str2.slice(start, pos2));
+      result.pos = pos2;
+      result.ok = true;
+      return result;
+    }
+    function parseLinkTitle(str2, start, max2, prev_state) {
+      let code2;
+      let pos2 = start;
+      const state = {
+        // if `true`, this is a valid link title
+        ok: false,
+        // if `true`, this link can be continued on the next line
+        can_continue: false,
+        // if `ok`, it's the position of the first character after the closing marker
+        pos: 0,
+        // if `ok`, it's the unescaped title
+        str: "",
+        // expected closing marker character code
+        marker: 0
+      };
+      if (prev_state) {
+        state.str = prev_state.str;
+        state.marker = prev_state.marker;
+      } else {
+        if (pos2 >= max2) {
+          return state;
+        }
+        let marker = str2.charCodeAt(pos2);
+        if (marker !== 34 && marker !== 39 && marker !== 40) {
+          return state;
+        }
+        start++;
+        pos2++;
+        if (marker === 40) {
+          marker = 41;
+        }
+        state.marker = marker;
+      }
+      while (pos2 < max2) {
+        code2 = str2.charCodeAt(pos2);
+        if (code2 === state.marker) {
+          state.pos = pos2 + 1;
+          state.str += unescapeAll(str2.slice(start, pos2));
+          state.ok = true;
+          return state;
+        } else if (code2 === 40 && state.marker === 41) {
+          return state;
+        } else if (code2 === 92 && pos2 + 1 < max2) {
+          pos2++;
+        }
+        pos2++;
+      }
+      state.can_continue = true;
+      state.str += unescapeAll(str2.slice(start, pos2));
+      return state;
+    }
+    const helpers = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+      __proto__: null,
+      parseLinkDestination,
+      parseLinkLabel,
+      parseLinkTitle
+    }, Symbol.toStringTag, { value: "Module" }));
+    const default_rules = {};
+    default_rules.code_inline = function(tokens, idx, options2, env, slf) {
+      const token2 = tokens[idx];
+      return "<code" + slf.renderAttrs(token2) + ">" + escapeHtml(token2.content) + "</code>";
+    };
+    default_rules.code_block = function(tokens, idx, options2, env, slf) {
+      const token2 = tokens[idx];
+      return "<pre" + slf.renderAttrs(token2) + "><code>" + escapeHtml(tokens[idx].content) + "</code></pre>\n";
+    };
+    default_rules.fence = function(tokens, idx, options2, env, slf) {
+      const token2 = tokens[idx];
+      const info = token2.info ? unescapeAll(token2.info).trim() : "";
+      let langName = "";
+      let langAttrs = "";
+      if (info) {
+        const arr2 = info.split(/(\s+)/g);
+        langName = arr2[0];
+        langAttrs = arr2.slice(2).join("");
+      }
+      let highlighted;
+      if (options2.highlight) {
+        highlighted = options2.highlight(token2.content, langName, langAttrs) || escapeHtml(token2.content);
+      } else {
+        highlighted = escapeHtml(token2.content);
+      }
+      if (highlighted.indexOf("<pre") === 0) {
+        return highlighted + "\n";
+      }
+      if (info) {
+        const i2 = token2.attrIndex("class");
+        const tmpAttrs = token2.attrs ? token2.attrs.slice() : [];
+        if (i2 < 0) {
+          tmpAttrs.push(["class", options2.langPrefix + langName]);
+        } else {
+          tmpAttrs[i2] = tmpAttrs[i2].slice();
+          tmpAttrs[i2][1] += " " + options2.langPrefix + langName;
+        }
+        const tmpToken = {
+          attrs: tmpAttrs
+        };
+        return `<pre><code${slf.renderAttrs(tmpToken)}>${highlighted}</code></pre>
+`;
+      }
+      return `<pre><code${slf.renderAttrs(token2)}>${highlighted}</code></pre>
+`;
+    };
+    default_rules.image = function(tokens, idx, options2, env, slf) {
+      const token2 = tokens[idx];
+      token2.attrs[token2.attrIndex("alt")][1] = slf.renderInlineAsText(token2.children, options2, env);
+      return slf.renderToken(tokens, idx, options2);
+    };
+    default_rules.hardbreak = function(tokens, idx, options2) {
+      return options2.xhtmlOut ? "<br />\n" : "<br>\n";
+    };
+    default_rules.softbreak = function(tokens, idx, options2) {
+      return options2.breaks ? options2.xhtmlOut ? "<br />\n" : "<br>\n" : "\n";
+    };
+    default_rules.text = function(tokens, idx) {
+      return escapeHtml(tokens[idx].content);
+    };
+    default_rules.html_block = function(tokens, idx) {
+      return tokens[idx].content;
+    };
+    default_rules.html_inline = function(tokens, idx) {
+      return tokens[idx].content;
+    };
+    function Renderer() {
+      this.rules = assign$1({}, default_rules);
+    }
+    Renderer.prototype.renderAttrs = function renderAttrs(token2) {
+      let i2, l, result;
+      if (!token2.attrs) {
+        return "";
+      }
+      result = "";
+      for (i2 = 0, l = token2.attrs.length; i2 < l; i2++) {
+        result += " " + escapeHtml(token2.attrs[i2][0]) + '="' + escapeHtml(token2.attrs[i2][1]) + '"';
+      }
+      return result;
+    };
+    Renderer.prototype.renderToken = function renderToken(tokens, idx, options2) {
+      const token2 = tokens[idx];
+      let result = "";
+      if (token2.hidden) {
+        return "";
+      }
+      if (token2.block && token2.nesting !== -1 && idx && tokens[idx - 1].hidden) {
+        result += "\n";
+      }
+      result += (token2.nesting === -1 ? "</" : "<") + token2.tag;
+      result += this.renderAttrs(token2);
+      if (token2.nesting === 0 && options2.xhtmlOut) {
+        result += " /";
+      }
+      let needLf = false;
+      if (token2.block) {
+        needLf = true;
+        if (token2.nesting === 1) {
+          if (idx + 1 < tokens.length) {
+            const nextToken2 = tokens[idx + 1];
+            if (nextToken2.type === "inline" || nextToken2.hidden) {
+              needLf = false;
+            } else if (nextToken2.nesting === -1 && nextToken2.tag === token2.tag) {
+              needLf = false;
+            }
+          }
+        }
+      }
+      result += needLf ? ">\n" : ">";
+      return result;
+    };
+    Renderer.prototype.renderInline = function(tokens, options2, env) {
+      let result = "";
+      const rules = this.rules;
+      for (let i2 = 0, len = tokens.length; i2 < len; i2++) {
+        const type = tokens[i2].type;
+        if (typeof rules[type] !== "undefined") {
+          result += rules[type](tokens, i2, options2, env, this);
+        } else {
+          result += this.renderToken(tokens, i2, options2);
+        }
+      }
+      return result;
+    };
+    Renderer.prototype.renderInlineAsText = function(tokens, options2, env) {
+      let result = "";
+      for (let i2 = 0, len = tokens.length; i2 < len; i2++) {
+        switch (tokens[i2].type) {
+          case "text":
+            result += tokens[i2].content;
+            break;
+          case "image":
+            result += this.renderInlineAsText(tokens[i2].children, options2, env);
+            break;
+          case "html_inline":
+          case "html_block":
+            result += tokens[i2].content;
+            break;
+          case "softbreak":
+          case "hardbreak":
+            result += "\n";
+            break;
+        }
+      }
+      return result;
+    };
+    Renderer.prototype.render = function(tokens, options2, env) {
+      let result = "";
+      const rules = this.rules;
+      for (let i2 = 0, len = tokens.length; i2 < len; i2++) {
+        const type = tokens[i2].type;
+        if (type === "inline") {
+          result += this.renderInline(tokens[i2].children, options2, env);
+        } else if (typeof rules[type] !== "undefined") {
+          result += rules[type](tokens, i2, options2, env, this);
+        } else {
+          result += this.renderToken(tokens, i2, options2, env);
+        }
+      }
+      return result;
+    };
+    function Ruler() {
+      this.__rules__ = [];
+      this.__cache__ = null;
+    }
+    Ruler.prototype.__find__ = function(name2) {
+      for (let i2 = 0; i2 < this.__rules__.length; i2++) {
+        if (this.__rules__[i2].name === name2) {
+          return i2;
+        }
+      }
+      return -1;
+    };
+    Ruler.prototype.__compile__ = function() {
+      const self2 = this;
+      const chains = [""];
+      self2.__rules__.forEach(function(rule) {
+        if (!rule.enabled) {
+          return;
+        }
+        rule.alt.forEach(function(altName) {
+          if (chains.indexOf(altName) < 0) {
+            chains.push(altName);
+          }
+        });
+      });
+      self2.__cache__ = {};
+      chains.forEach(function(chain) {
+        self2.__cache__[chain] = [];
+        self2.__rules__.forEach(function(rule) {
+          if (!rule.enabled) {
+            return;
+          }
+          if (chain && rule.alt.indexOf(chain) < 0) {
+            return;
+          }
+          self2.__cache__[chain].push(rule.fn);
+        });
+      });
+    };
+    Ruler.prototype.at = function(name2, fn, options2) {
+      const index2 = this.__find__(name2);
+      const opt = options2 || {};
+      if (index2 === -1) {
+        throw new Error("Parser rule not found: " + name2);
+      }
+      this.__rules__[index2].fn = fn;
+      this.__rules__[index2].alt = opt.alt || [];
+      this.__cache__ = null;
+    };
+    Ruler.prototype.before = function(beforeName, ruleName, fn, options2) {
+      const index2 = this.__find__(beforeName);
+      const opt = options2 || {};
+      if (index2 === -1) {
+        throw new Error("Parser rule not found: " + beforeName);
+      }
+      this.__rules__.splice(index2, 0, {
+        name: ruleName,
+        enabled: true,
+        fn,
+        alt: opt.alt || []
+      });
+      this.__cache__ = null;
+    };
+    Ruler.prototype.after = function(afterName, ruleName, fn, options2) {
+      const index2 = this.__find__(afterName);
+      const opt = options2 || {};
+      if (index2 === -1) {
+        throw new Error("Parser rule not found: " + afterName);
+      }
+      this.__rules__.splice(index2 + 1, 0, {
+        name: ruleName,
+        enabled: true,
+        fn,
+        alt: opt.alt || []
+      });
+      this.__cache__ = null;
+    };
+    Ruler.prototype.push = function(ruleName, fn, options2) {
+      const opt = options2 || {};
+      this.__rules__.push({
+        name: ruleName,
+        enabled: true,
+        fn,
+        alt: opt.alt || []
+      });
+      this.__cache__ = null;
+    };
+    Ruler.prototype.enable = function(list2, ignoreInvalid) {
+      if (!Array.isArray(list2)) {
+        list2 = [list2];
+      }
+      const result = [];
+      list2.forEach(function(name2) {
+        const idx = this.__find__(name2);
+        if (idx < 0) {
+          if (ignoreInvalid) {
+            return;
+          }
+          throw new Error("Rules manager: invalid rule name " + name2);
+        }
+        this.__rules__[idx].enabled = true;
+        result.push(name2);
+      }, this);
+      this.__cache__ = null;
+      return result;
+    };
+    Ruler.prototype.enableOnly = function(list2, ignoreInvalid) {
+      if (!Array.isArray(list2)) {
+        list2 = [list2];
+      }
+      this.__rules__.forEach(function(rule) {
+        rule.enabled = false;
+      });
+      this.enable(list2, ignoreInvalid);
+    };
+    Ruler.prototype.disable = function(list2, ignoreInvalid) {
+      if (!Array.isArray(list2)) {
+        list2 = [list2];
+      }
+      const result = [];
+      list2.forEach(function(name2) {
+        const idx = this.__find__(name2);
+        if (idx < 0) {
+          if (ignoreInvalid) {
+            return;
+          }
+          throw new Error("Rules manager: invalid rule name " + name2);
+        }
+        this.__rules__[idx].enabled = false;
+        result.push(name2);
+      }, this);
+      this.__cache__ = null;
+      return result;
+    };
+    Ruler.prototype.getRules = function(chainName) {
+      if (this.__cache__ === null) {
+        this.__compile__();
+      }
+      return this.__cache__[chainName] || [];
+    };
+    function Token(type, tag, nesting) {
+      this.type = type;
+      this.tag = tag;
+      this.attrs = null;
+      this.map = null;
+      this.nesting = nesting;
+      this.level = 0;
+      this.children = null;
+      this.content = "";
+      this.markup = "";
+      this.info = "";
+      this.meta = null;
+      this.block = false;
+      this.hidden = false;
+    }
+    Token.prototype.attrIndex = function attrIndex(name2) {
+      if (!this.attrs) {
+        return -1;
+      }
+      const attrs = this.attrs;
+      for (let i2 = 0, len = attrs.length; i2 < len; i2++) {
+        if (attrs[i2][0] === name2) {
+          return i2;
+        }
+      }
+      return -1;
+    };
+    Token.prototype.attrPush = function attrPush(attrData) {
+      if (this.attrs) {
+        this.attrs.push(attrData);
+      } else {
+        this.attrs = [attrData];
+      }
+    };
+    Token.prototype.attrSet = function attrSet(name2, value2) {
+      const idx = this.attrIndex(name2);
+      const attrData = [name2, value2];
+      if (idx < 0) {
+        this.attrPush(attrData);
+      } else {
+        this.attrs[idx] = attrData;
+      }
+    };
+    Token.prototype.attrGet = function attrGet(name2) {
+      const idx = this.attrIndex(name2);
+      let value2 = null;
+      if (idx >= 0) {
+        value2 = this.attrs[idx][1];
+      }
+      return value2;
+    };
+    Token.prototype.attrJoin = function attrJoin(name2, value2) {
+      const idx = this.attrIndex(name2);
+      if (idx < 0) {
+        this.attrPush([name2, value2]);
+      } else {
+        this.attrs[idx][1] = this.attrs[idx][1] + " " + value2;
+      }
+    };
+    function StateCore(src, md, env) {
+      this.src = src;
+      this.env = env;
+      this.tokens = [];
+      this.inlineMode = false;
+      this.md = md;
+    }
+    StateCore.prototype.Token = Token;
+    const NEWLINES_RE = /\r\n?|\n/g;
+    const NULL_RE = /\0/g;
+    function normalize(state) {
+      let str2;
+      str2 = state.src.replace(NEWLINES_RE, "\n");
+      str2 = str2.replace(NULL_RE, "�");
+      state.src = str2;
+    }
+    function block(state) {
+      let token2;
+      if (state.inlineMode) {
+        token2 = new state.Token("inline", "", 0);
+        token2.content = state.src;
+        token2.map = [0, 1];
+        token2.children = [];
+        state.tokens.push(token2);
+      } else {
+        state.md.block.parse(state.src, state.md, state.env, state.tokens);
+      }
+    }
+    function inline(state) {
+      const tokens = state.tokens;
+      for (let i2 = 0, l = tokens.length; i2 < l; i2++) {
+        const tok = tokens[i2];
+        if (tok.type === "inline") {
+          state.md.inline.parse(tok.content, state.md, state.env, tok.children);
+        }
+      }
+    }
+    function isLinkOpen$1(str2) {
+      return /^<a[>\s]/i.test(str2);
+    }
+    function isLinkClose$1(str2) {
+      return /^<\/a\s*>/i.test(str2);
+    }
+    function linkify$1(state) {
+      const blockTokens = state.tokens;
+      if (!state.md.options.linkify) {
+        return;
+      }
+      for (let j = 0, l = blockTokens.length; j < l; j++) {
+        if (blockTokens[j].type !== "inline" || !state.md.linkify.pretest(blockTokens[j].content)) {
+          continue;
+        }
+        let tokens = blockTokens[j].children;
+        let htmlLinkLevel = 0;
+        for (let i2 = tokens.length - 1; i2 >= 0; i2--) {
+          const currentToken = tokens[i2];
+          if (currentToken.type === "link_close") {
+            i2--;
+            while (tokens[i2].level !== currentToken.level && tokens[i2].type !== "link_open") {
+              i2--;
+            }
+            continue;
+          }
+          if (currentToken.type === "html_inline") {
+            if (isLinkOpen$1(currentToken.content) && htmlLinkLevel > 0) {
+              htmlLinkLevel--;
+            }
+            if (isLinkClose$1(currentToken.content)) {
+              htmlLinkLevel++;
+            }
+          }
+          if (htmlLinkLevel > 0) {
+            continue;
+          }
+          if (currentToken.type === "text" && state.md.linkify.test(currentToken.content)) {
+            const text2 = currentToken.content;
+            let links = state.md.linkify.match(text2);
+            const nodes2 = [];
+            let level = currentToken.level;
+            let lastPos = 0;
+            if (links.length > 0 && links[0].index === 0 && i2 > 0 && tokens[i2 - 1].type === "text_special") {
+              links = links.slice(1);
+            }
+            for (let ln = 0; ln < links.length; ln++) {
+              const url = links[ln].url;
+              const fullUrl = state.md.normalizeLink(url);
+              if (!state.md.validateLink(fullUrl)) {
+                continue;
+              }
+              let urlText = links[ln].text;
+              if (!links[ln].schema) {
+                urlText = state.md.normalizeLinkText("http://" + urlText).replace(/^http:\/\//, "");
+              } else if (links[ln].schema === "mailto:" && !/^mailto:/i.test(urlText)) {
+                urlText = state.md.normalizeLinkText("mailto:" + urlText).replace(/^mailto:/, "");
+              } else {
+                urlText = state.md.normalizeLinkText(urlText);
+              }
+              const pos2 = links[ln].index;
+              if (pos2 > lastPos) {
+                const token2 = new state.Token("text", "", 0);
+                token2.content = text2.slice(lastPos, pos2);
+                token2.level = level;
+                nodes2.push(token2);
+              }
+              const token_o = new state.Token("link_open", "a", 1);
+              token_o.attrs = [["href", fullUrl]];
+              token_o.level = level++;
+              token_o.markup = "linkify";
+              token_o.info = "auto";
+              nodes2.push(token_o);
+              const token_t = new state.Token("text", "", 0);
+              token_t.content = urlText;
+              token_t.level = level;
+              nodes2.push(token_t);
+              const token_c = new state.Token("link_close", "a", -1);
+              token_c.level = --level;
+              token_c.markup = "linkify";
+              token_c.info = "auto";
+              nodes2.push(token_c);
+              lastPos = links[ln].lastIndex;
+            }
+            if (lastPos < text2.length) {
+              const token2 = new state.Token("text", "", 0);
+              token2.content = text2.slice(lastPos);
+              token2.level = level;
+              nodes2.push(token2);
+            }
+            blockTokens[j].children = tokens = arrayReplaceAt(tokens, i2, nodes2);
+          }
+        }
+      }
+    }
+    const RARE_RE = /\+-|\.\.|\?\?\?\?|!!!!|,,|--/;
+    const SCOPED_ABBR_TEST_RE = /\((c|tm|r)\)/i;
+    const SCOPED_ABBR_RE = /\((c|tm|r)\)/ig;
+    const SCOPED_ABBR = {
+      c: "©",
+      r: "®",
+      tm: "™"
+    };
+    function replaceFn(match, name2) {
+      return SCOPED_ABBR[name2.toLowerCase()];
+    }
+    function replace_scoped(inlineTokens) {
+      let inside_autolink = 0;
+      for (let i2 = inlineTokens.length - 1; i2 >= 0; i2--) {
+        const token2 = inlineTokens[i2];
+        if (token2.type === "text" && !inside_autolink) {
+          token2.content = token2.content.replace(SCOPED_ABBR_RE, replaceFn);
+        }
+        if (token2.type === "link_open" && token2.info === "auto") {
+          inside_autolink--;
+        }
+        if (token2.type === "link_close" && token2.info === "auto") {
+          inside_autolink++;
+        }
+      }
+    }
+    function replace_rare(inlineTokens) {
+      let inside_autolink = 0;
+      for (let i2 = inlineTokens.length - 1; i2 >= 0; i2--) {
+        const token2 = inlineTokens[i2];
+        if (token2.type === "text" && !inside_autolink) {
+          if (RARE_RE.test(token2.content)) {
+            token2.content = token2.content.replace(/\+-/g, "±").replace(/\.{2,}/g, "…").replace(/([?!])…/g, "$1..").replace(/([?!]){4,}/g, "$1$1$1").replace(/,{2,}/g, ",").replace(/(^|[^-])---(?=[^-]|$)/mg, "$1—").replace(/(^|\s)--(?=\s|$)/mg, "$1–").replace(/(^|[^-\s])--(?=[^-\s]|$)/mg, "$1–");
+          }
+        }
+        if (token2.type === "link_open" && token2.info === "auto") {
+          inside_autolink--;
+        }
+        if (token2.type === "link_close" && token2.info === "auto") {
+          inside_autolink++;
+        }
+      }
+    }
+    function replace(state) {
+      let blkIdx;
+      if (!state.md.options.typographer) {
+        return;
+      }
+      for (blkIdx = state.tokens.length - 1; blkIdx >= 0; blkIdx--) {
+        if (state.tokens[blkIdx].type !== "inline") {
+          continue;
+        }
+        if (SCOPED_ABBR_TEST_RE.test(state.tokens[blkIdx].content)) {
+          replace_scoped(state.tokens[blkIdx].children);
+        }
+        if (RARE_RE.test(state.tokens[blkIdx].content)) {
+          replace_rare(state.tokens[blkIdx].children);
+        }
+      }
+    }
+    const QUOTE_TEST_RE = /['"]/;
+    const QUOTE_RE = /['"]/g;
+    const APOSTROPHE = "’";
+    function replaceAt(str2, index2, ch3) {
+      return str2.slice(0, index2) + ch3 + str2.slice(index2 + 1);
+    }
+    function process_inlines(tokens, state) {
+      let j;
+      const stack2 = [];
+      for (let i2 = 0; i2 < tokens.length; i2++) {
+        const token2 = tokens[i2];
+        const thisLevel = tokens[i2].level;
+        for (j = stack2.length - 1; j >= 0; j--) {
+          if (stack2[j].level <= thisLevel) {
+            break;
+          }
+        }
+        stack2.length = j + 1;
+        if (token2.type !== "text") {
+          continue;
+        }
+        let text2 = token2.content;
+        let pos2 = 0;
+        let max2 = text2.length;
+        OUTER:
+          while (pos2 < max2) {
+            QUOTE_RE.lastIndex = pos2;
+            const t2 = QUOTE_RE.exec(text2);
+            if (!t2) {
+              break;
+            }
+            let canOpen = true;
+            let canClose = true;
+            pos2 = t2.index + 1;
+            const isSingle = t2[0] === "'";
+            let lastChar = 32;
+            if (t2.index - 1 >= 0) {
+              lastChar = text2.charCodeAt(t2.index - 1);
+            } else {
+              for (j = i2 - 1; j >= 0; j--) {
+                if (tokens[j].type === "softbreak" || tokens[j].type === "hardbreak") break;
+                if (!tokens[j].content) continue;
+                lastChar = tokens[j].content.charCodeAt(tokens[j].content.length - 1);
+                break;
+              }
+            }
+            let nextChar = 32;
+            if (pos2 < max2) {
+              nextChar = text2.charCodeAt(pos2);
+            } else {
+              for (j = i2 + 1; j < tokens.length; j++) {
+                if (tokens[j].type === "softbreak" || tokens[j].type === "hardbreak") break;
+                if (!tokens[j].content) continue;
+                nextChar = tokens[j].content.charCodeAt(0);
+                break;
+              }
+            }
+            const isLastPunctChar = isMdAsciiPunct(lastChar) || isPunctChar(String.fromCharCode(lastChar));
+            const isNextPunctChar = isMdAsciiPunct(nextChar) || isPunctChar(String.fromCharCode(nextChar));
+            const isLastWhiteSpace = isWhiteSpace(lastChar);
+            const isNextWhiteSpace = isWhiteSpace(nextChar);
+            if (isNextWhiteSpace) {
+              canOpen = false;
+            } else if (isNextPunctChar) {
+              if (!(isLastWhiteSpace || isLastPunctChar)) {
+                canOpen = false;
+              }
+            }
+            if (isLastWhiteSpace) {
+              canClose = false;
+            } else if (isLastPunctChar) {
+              if (!(isNextWhiteSpace || isNextPunctChar)) {
+                canClose = false;
+              }
+            }
+            if (nextChar === 34 && t2[0] === '"') {
+              if (lastChar >= 48 && lastChar <= 57) {
+                canClose = canOpen = false;
+              }
+            }
+            if (canOpen && canClose) {
+              canOpen = isLastPunctChar;
+              canClose = isNextPunctChar;
+            }
+            if (!canOpen && !canClose) {
+              if (isSingle) {
+                token2.content = replaceAt(token2.content, t2.index, APOSTROPHE);
+              }
+              continue;
+            }
+            if (canClose) {
+              for (j = stack2.length - 1; j >= 0; j--) {
+                let item2 = stack2[j];
+                if (stack2[j].level < thisLevel) {
+                  break;
+                }
+                if (item2.single === isSingle && stack2[j].level === thisLevel) {
+                  item2 = stack2[j];
+                  let openQuote;
+                  let closeQuote;
+                  if (isSingle) {
+                    openQuote = state.md.options.quotes[2];
+                    closeQuote = state.md.options.quotes[3];
+                  } else {
+                    openQuote = state.md.options.quotes[0];
+                    closeQuote = state.md.options.quotes[1];
+                  }
+                  token2.content = replaceAt(token2.content, t2.index, closeQuote);
+                  tokens[item2.token].content = replaceAt(
+                    tokens[item2.token].content,
+                    item2.pos,
+                    openQuote
+                  );
+                  pos2 += closeQuote.length - 1;
+                  if (item2.token === i2) {
+                    pos2 += openQuote.length - 1;
+                  }
+                  text2 = token2.content;
+                  max2 = text2.length;
+                  stack2.length = j;
+                  continue OUTER;
+                }
+              }
+            }
+            if (canOpen) {
+              stack2.push({
+                token: i2,
+                pos: t2.index,
+                single: isSingle,
+                level: thisLevel
+              });
+            } else if (canClose && isSingle) {
+              token2.content = replaceAt(token2.content, t2.index, APOSTROPHE);
+            }
+          }
+      }
+    }
+    function smartquotes(state) {
+      if (!state.md.options.typographer) {
+        return;
+      }
+      for (let blkIdx = state.tokens.length - 1; blkIdx >= 0; blkIdx--) {
+        if (state.tokens[blkIdx].type !== "inline" || !QUOTE_TEST_RE.test(state.tokens[blkIdx].content)) {
+          continue;
+        }
+        process_inlines(state.tokens[blkIdx].children, state);
+      }
+    }
+    function text_join(state) {
+      let curr, last;
+      const blockTokens = state.tokens;
+      const l = blockTokens.length;
+      for (let j = 0; j < l; j++) {
+        if (blockTokens[j].type !== "inline") continue;
+        const tokens = blockTokens[j].children;
+        const max2 = tokens.length;
+        for (curr = 0; curr < max2; curr++) {
+          if (tokens[curr].type === "text_special") {
+            tokens[curr].type = "text";
+          }
+        }
+        for (curr = last = 0; curr < max2; curr++) {
+          if (tokens[curr].type === "text" && curr + 1 < max2 && tokens[curr + 1].type === "text") {
+            tokens[curr + 1].content = tokens[curr].content + tokens[curr + 1].content;
+          } else {
+            if (curr !== last) {
+              tokens[last] = tokens[curr];
+            }
+            last++;
+          }
+        }
+        if (curr !== last) {
+          tokens.length = last;
+        }
+      }
+    }
+    const _rules$2 = [
+      ["normalize", normalize],
+      ["block", block],
+      ["inline", inline],
+      ["linkify", linkify$1],
+      ["replacements", replace],
+      ["smartquotes", smartquotes],
+      // `text_join` finds `text_special` tokens (for escape sequences)
+      // and joins them with the rest of the text
+      ["text_join", text_join]
+    ];
+    function Core$1() {
+      this.ruler = new Ruler();
+      for (let i2 = 0; i2 < _rules$2.length; i2++) {
+        this.ruler.push(_rules$2[i2][0], _rules$2[i2][1]);
+      }
+    }
+    Core$1.prototype.process = function(state) {
+      const rules = this.ruler.getRules("");
+      for (let i2 = 0, l = rules.length; i2 < l; i2++) {
+        rules[i2](state);
+      }
+    };
+    Core$1.prototype.State = StateCore;
+    function StateBlock(src, md, env, tokens) {
+      this.src = src;
+      this.md = md;
+      this.env = env;
+      this.tokens = tokens;
+      this.bMarks = [];
+      this.eMarks = [];
+      this.tShift = [];
+      this.sCount = [];
+      this.bsCount = [];
+      this.blkIndent = 0;
+      this.line = 0;
+      this.lineMax = 0;
+      this.tight = false;
+      this.ddIndent = -1;
+      this.listIndent = -1;
+      this.parentType = "root";
+      this.level = 0;
+      const s = this.src;
+      for (let start = 0, pos2 = 0, indent = 0, offset = 0, len = s.length, indent_found = false; pos2 < len; pos2++) {
+        const ch3 = s.charCodeAt(pos2);
+        if (!indent_found) {
+          if (isSpace(ch3)) {
+            indent++;
+            if (ch3 === 9) {
+              offset += 4 - offset % 4;
+            } else {
+              offset++;
+            }
+            continue;
+          } else {
+            indent_found = true;
+          }
+        }
+        if (ch3 === 10 || pos2 === len - 1) {
+          if (ch3 !== 10) {
+            pos2++;
+          }
+          this.bMarks.push(start);
+          this.eMarks.push(pos2);
+          this.tShift.push(indent);
+          this.sCount.push(offset);
+          this.bsCount.push(0);
+          indent_found = false;
+          indent = 0;
+          offset = 0;
+          start = pos2 + 1;
+        }
+      }
+      this.bMarks.push(s.length);
+      this.eMarks.push(s.length);
+      this.tShift.push(0);
+      this.sCount.push(0);
+      this.bsCount.push(0);
+      this.lineMax = this.bMarks.length - 1;
+    }
+    StateBlock.prototype.push = function(type, tag, nesting) {
+      const token2 = new Token(type, tag, nesting);
+      token2.block = true;
+      if (nesting < 0) this.level--;
+      token2.level = this.level;
+      if (nesting > 0) this.level++;
+      this.tokens.push(token2);
+      return token2;
+    };
+    StateBlock.prototype.isEmpty = function isEmpty(line2) {
+      return this.bMarks[line2] + this.tShift[line2] >= this.eMarks[line2];
+    };
+    StateBlock.prototype.skipEmptyLines = function skipEmptyLines(from) {
+      for (let max2 = this.lineMax; from < max2; from++) {
+        if (this.bMarks[from] + this.tShift[from] < this.eMarks[from]) {
+          break;
+        }
+      }
+      return from;
+    };
+    StateBlock.prototype.skipSpaces = function skipSpaces(pos2) {
+      for (let max2 = this.src.length; pos2 < max2; pos2++) {
+        const ch3 = this.src.charCodeAt(pos2);
+        if (!isSpace(ch3)) {
+          break;
+        }
+      }
+      return pos2;
+    };
+    StateBlock.prototype.skipSpacesBack = function skipSpacesBack(pos2, min2) {
+      if (pos2 <= min2) {
+        return pos2;
+      }
+      while (pos2 > min2) {
+        if (!isSpace(this.src.charCodeAt(--pos2))) {
+          return pos2 + 1;
+        }
+      }
+      return pos2;
+    };
+    StateBlock.prototype.skipChars = function skipChars(pos2, code2) {
+      for (let max2 = this.src.length; pos2 < max2; pos2++) {
+        if (this.src.charCodeAt(pos2) !== code2) {
+          break;
+        }
+      }
+      return pos2;
+    };
+    StateBlock.prototype.skipCharsBack = function skipCharsBack(pos2, code2, min2) {
+      if (pos2 <= min2) {
+        return pos2;
+      }
+      while (pos2 > min2) {
+        if (code2 !== this.src.charCodeAt(--pos2)) {
+          return pos2 + 1;
+        }
+      }
+      return pos2;
+    };
+    StateBlock.prototype.getLines = function getLines(begin, end, indent, keepLastLF) {
+      if (begin >= end) {
+        return "";
+      }
+      const queue = new Array(end - begin);
+      for (let i2 = 0, line2 = begin; line2 < end; line2++, i2++) {
+        let lineIndent = 0;
+        const lineStart = this.bMarks[line2];
+        let first2 = lineStart;
+        let last;
+        if (line2 + 1 < end || keepLastLF) {
+          last = this.eMarks[line2] + 1;
+        } else {
+          last = this.eMarks[line2];
+        }
+        while (first2 < last && lineIndent < indent) {
+          const ch3 = this.src.charCodeAt(first2);
+          if (isSpace(ch3)) {
+            if (ch3 === 9) {
+              lineIndent += 4 - (lineIndent + this.bsCount[line2]) % 4;
+            } else {
+              lineIndent++;
+            }
+          } else if (first2 - lineStart < this.tShift[line2]) {
+            lineIndent++;
+          } else {
+            break;
+          }
+          first2++;
+        }
+        if (lineIndent > indent) {
+          queue[i2] = new Array(lineIndent - indent + 1).join(" ") + this.src.slice(first2, last);
+        } else {
+          queue[i2] = this.src.slice(first2, last);
+        }
+      }
+      return queue.join("");
+    };
+    StateBlock.prototype.Token = Token;
+    const MAX_AUTOCOMPLETED_CELLS = 65536;
+    function getLine(state, line2) {
+      const pos2 = state.bMarks[line2] + state.tShift[line2];
+      const max2 = state.eMarks[line2];
+      return state.src.slice(pos2, max2);
+    }
+    function escapedSplit(str2) {
+      const result = [];
+      const max2 = str2.length;
+      let pos2 = 0;
+      let ch3 = str2.charCodeAt(pos2);
+      let isEscaped = false;
+      let lastPos = 0;
+      let current = "";
+      while (pos2 < max2) {
+        if (ch3 === 124) {
+          if (!isEscaped) {
+            result.push(current + str2.substring(lastPos, pos2));
+            current = "";
+            lastPos = pos2 + 1;
+          } else {
+            current += str2.substring(lastPos, pos2 - 1);
+            lastPos = pos2;
+          }
+        }
+        isEscaped = ch3 === 92;
+        pos2++;
+        ch3 = str2.charCodeAt(pos2);
+      }
+      result.push(current + str2.substring(lastPos));
+      return result;
+    }
+    function table$1(state, startLine, endLine, silent) {
+      if (startLine + 2 > endLine) {
+        return false;
+      }
+      let nextLine = startLine + 1;
+      if (state.sCount[nextLine] < state.blkIndent) {
+        return false;
+      }
+      if (state.sCount[nextLine] - state.blkIndent >= 4) {
+        return false;
+      }
+      let pos2 = state.bMarks[nextLine] + state.tShift[nextLine];
+      if (pos2 >= state.eMarks[nextLine]) {
+        return false;
+      }
+      const firstCh = state.src.charCodeAt(pos2++);
+      if (firstCh !== 124 && firstCh !== 45 && firstCh !== 58) {
+        return false;
+      }
+      if (pos2 >= state.eMarks[nextLine]) {
+        return false;
+      }
+      const secondCh = state.src.charCodeAt(pos2++);
+      if (secondCh !== 124 && secondCh !== 45 && secondCh !== 58 && !isSpace(secondCh)) {
+        return false;
+      }
+      if (firstCh === 45 && isSpace(secondCh)) {
+        return false;
+      }
+      while (pos2 < state.eMarks[nextLine]) {
+        const ch3 = state.src.charCodeAt(pos2);
+        if (ch3 !== 124 && ch3 !== 45 && ch3 !== 58 && !isSpace(ch3)) {
+          return false;
+        }
+        pos2++;
+      }
+      let lineText = getLine(state, startLine + 1);
+      let columns = lineText.split("|");
+      const aligns = [];
+      for (let i2 = 0; i2 < columns.length; i2++) {
+        const t2 = columns[i2].trim();
+        if (!t2) {
+          if (i2 === 0 || i2 === columns.length - 1) {
+            continue;
+          } else {
+            return false;
+          }
+        }
+        if (!/^:?-+:?$/.test(t2)) {
+          return false;
+        }
+        if (t2.charCodeAt(t2.length - 1) === 58) {
+          aligns.push(t2.charCodeAt(0) === 58 ? "center" : "right");
+        } else if (t2.charCodeAt(0) === 58) {
+          aligns.push("left");
+        } else {
+          aligns.push("");
+        }
+      }
+      lineText = getLine(state, startLine).trim();
+      if (lineText.indexOf("|") === -1) {
+        return false;
+      }
+      if (state.sCount[startLine] - state.blkIndent >= 4) {
+        return false;
+      }
+      columns = escapedSplit(lineText);
+      if (columns.length && columns[0] === "") columns.shift();
+      if (columns.length && columns[columns.length - 1] === "") columns.pop();
+      const columnCount = columns.length;
+      if (columnCount === 0 || columnCount !== aligns.length) {
+        return false;
+      }
+      if (silent) {
+        return true;
+      }
+      const oldParentType = state.parentType;
+      state.parentType = "table";
+      const terminatorRules = state.md.block.ruler.getRules("blockquote");
+      const token_to = state.push("table_open", "table", 1);
+      const tableLines = [startLine, 0];
+      token_to.map = tableLines;
+      const token_tho = state.push("thead_open", "thead", 1);
+      token_tho.map = [startLine, startLine + 1];
+      const token_htro = state.push("tr_open", "tr", 1);
+      token_htro.map = [startLine, startLine + 1];
+      for (let i2 = 0; i2 < columns.length; i2++) {
+        const token_ho = state.push("th_open", "th", 1);
+        if (aligns[i2]) {
+          token_ho.attrs = [["style", "text-align:" + aligns[i2]]];
+        }
+        const token_il = state.push("inline", "", 0);
+        token_il.content = columns[i2].trim();
+        token_il.children = [];
+        state.push("th_close", "th", -1);
+      }
+      state.push("tr_close", "tr", -1);
+      state.push("thead_close", "thead", -1);
+      let tbodyLines;
+      let autocompletedCells = 0;
+      for (nextLine = startLine + 2; nextLine < endLine; nextLine++) {
+        if (state.sCount[nextLine] < state.blkIndent) {
+          break;
+        }
+        let terminate = false;
+        for (let i2 = 0, l = terminatorRules.length; i2 < l; i2++) {
+          if (terminatorRules[i2](state, nextLine, endLine, true)) {
+            terminate = true;
+            break;
+          }
+        }
+        if (terminate) {
+          break;
+        }
+        lineText = getLine(state, nextLine).trim();
+        if (!lineText) {
+          break;
+        }
+        if (state.sCount[nextLine] - state.blkIndent >= 4) {
+          break;
+        }
+        columns = escapedSplit(lineText);
+        if (columns.length && columns[0] === "") columns.shift();
+        if (columns.length && columns[columns.length - 1] === "") columns.pop();
+        autocompletedCells += columnCount - columns.length;
+        if (autocompletedCells > MAX_AUTOCOMPLETED_CELLS) {
+          break;
+        }
+        if (nextLine === startLine + 2) {
+          const token_tbo = state.push("tbody_open", "tbody", 1);
+          token_tbo.map = tbodyLines = [startLine + 2, 0];
+        }
+        const token_tro = state.push("tr_open", "tr", 1);
+        token_tro.map = [nextLine, nextLine + 1];
+        for (let i2 = 0; i2 < columnCount; i2++) {
+          const token_tdo = state.push("td_open", "td", 1);
+          if (aligns[i2]) {
+            token_tdo.attrs = [["style", "text-align:" + aligns[i2]]];
+          }
+          const token_il = state.push("inline", "", 0);
+          token_il.content = columns[i2] ? columns[i2].trim() : "";
+          token_il.children = [];
+          state.push("td_close", "td", -1);
+        }
+        state.push("tr_close", "tr", -1);
+      }
+      if (tbodyLines) {
+        state.push("tbody_close", "tbody", -1);
+        tbodyLines[1] = nextLine;
+      }
+      state.push("table_close", "table", -1);
+      tableLines[1] = nextLine;
+      state.parentType = oldParentType;
+      state.line = nextLine;
+      return true;
+    }
+    function code$2(state, startLine, endLine) {
+      if (state.sCount[startLine] - state.blkIndent < 4) {
+        return false;
+      }
+      let nextLine = startLine + 1;
+      let last = nextLine;
+      while (nextLine < endLine) {
+        if (state.isEmpty(nextLine)) {
+          nextLine++;
+          continue;
+        }
+        if (state.sCount[nextLine] - state.blkIndent >= 4) {
+          nextLine++;
+          last = nextLine;
+          continue;
+        }
+        break;
+      }
+      state.line = last;
+      const token2 = state.push("code_block", "code", 0);
+      token2.content = state.getLines(startLine, last, 4 + state.blkIndent, false) + "\n";
+      token2.map = [startLine, state.line];
+      return true;
+    }
+    function fence(state, startLine, endLine, silent) {
+      let pos2 = state.bMarks[startLine] + state.tShift[startLine];
+      let max2 = state.eMarks[startLine];
+      if (state.sCount[startLine] - state.blkIndent >= 4) {
+        return false;
+      }
+      if (pos2 + 3 > max2) {
+        return false;
+      }
+      const marker = state.src.charCodeAt(pos2);
+      if (marker !== 126 && marker !== 96) {
+        return false;
+      }
+      let mem = pos2;
+      pos2 = state.skipChars(pos2, marker);
+      let len = pos2 - mem;
+      if (len < 3) {
+        return false;
+      }
+      const markup = state.src.slice(mem, pos2);
+      const params2 = state.src.slice(pos2, max2);
+      if (marker === 96) {
+        if (params2.indexOf(String.fromCharCode(marker)) >= 0) {
+          return false;
+        }
+      }
+      if (silent) {
+        return true;
+      }
+      let nextLine = startLine;
+      let haveEndMarker = false;
+      for (; ; ) {
+        nextLine++;
+        if (nextLine >= endLine) {
+          break;
+        }
+        pos2 = mem = state.bMarks[nextLine] + state.tShift[nextLine];
+        max2 = state.eMarks[nextLine];
+        if (pos2 < max2 && state.sCount[nextLine] < state.blkIndent) {
+          break;
+        }
+        if (state.src.charCodeAt(pos2) !== marker) {
+          continue;
+        }
+        if (state.sCount[nextLine] - state.blkIndent >= 4) {
+          continue;
+        }
+        pos2 = state.skipChars(pos2, marker);
+        if (pos2 - mem < len) {
+          continue;
+        }
+        pos2 = state.skipSpaces(pos2);
+        if (pos2 < max2) {
+          continue;
+        }
+        haveEndMarker = true;
+        break;
+      }
+      len = state.sCount[startLine];
+      state.line = nextLine + (haveEndMarker ? 1 : 0);
+      const token2 = state.push("fence", "code", 0);
+      token2.info = params2;
+      token2.content = state.getLines(startLine + 1, nextLine, len, true);
+      token2.markup = markup;
+      token2.map = [startLine, state.line];
+      return true;
+    }
+    function blockquote(state, startLine, endLine, silent) {
+      let pos2 = state.bMarks[startLine] + state.tShift[startLine];
+      let max2 = state.eMarks[startLine];
+      const oldLineMax = state.lineMax;
+      if (state.sCount[startLine] - state.blkIndent >= 4) {
+        return false;
+      }
+      if (state.src.charCodeAt(pos2) !== 62) {
+        return false;
+      }
+      if (silent) {
+        return true;
+      }
+      const oldBMarks = [];
+      const oldBSCount = [];
+      const oldSCount = [];
+      const oldTShift = [];
+      const terminatorRules = state.md.block.ruler.getRules("blockquote");
+      const oldParentType = state.parentType;
+      state.parentType = "blockquote";
+      let lastLineEmpty = false;
+      let nextLine;
+      for (nextLine = startLine; nextLine < endLine; nextLine++) {
+        const isOutdented = state.sCount[nextLine] < state.blkIndent;
+        pos2 = state.bMarks[nextLine] + state.tShift[nextLine];
+        max2 = state.eMarks[nextLine];
+        if (pos2 >= max2) {
+          break;
+        }
+        if (state.src.charCodeAt(pos2++) === 62 && !isOutdented) {
+          let initial = state.sCount[nextLine] + 1;
+          let spaceAfterMarker;
+          let adjustTab;
+          if (state.src.charCodeAt(pos2) === 32) {
+            pos2++;
+            initial++;
+            adjustTab = false;
+            spaceAfterMarker = true;
+          } else if (state.src.charCodeAt(pos2) === 9) {
+            spaceAfterMarker = true;
+            if ((state.bsCount[nextLine] + initial) % 4 === 3) {
+              pos2++;
+              initial++;
+              adjustTab = false;
+            } else {
+              adjustTab = true;
+            }
+          } else {
+            spaceAfterMarker = false;
+          }
+          let offset = initial;
+          oldBMarks.push(state.bMarks[nextLine]);
+          state.bMarks[nextLine] = pos2;
+          while (pos2 < max2) {
+            const ch3 = state.src.charCodeAt(pos2);
+            if (isSpace(ch3)) {
+              if (ch3 === 9) {
+                offset += 4 - (offset + state.bsCount[nextLine] + (adjustTab ? 1 : 0)) % 4;
+              } else {
+                offset++;
+              }
+            } else {
+              break;
+            }
+            pos2++;
+          }
+          lastLineEmpty = pos2 >= max2;
+          oldBSCount.push(state.bsCount[nextLine]);
+          state.bsCount[nextLine] = state.sCount[nextLine] + 1 + (spaceAfterMarker ? 1 : 0);
+          oldSCount.push(state.sCount[nextLine]);
+          state.sCount[nextLine] = offset - initial;
+          oldTShift.push(state.tShift[nextLine]);
+          state.tShift[nextLine] = pos2 - state.bMarks[nextLine];
+          continue;
+        }
+        if (lastLineEmpty) {
+          break;
+        }
+        let terminate = false;
+        for (let i2 = 0, l = terminatorRules.length; i2 < l; i2++) {
+          if (terminatorRules[i2](state, nextLine, endLine, true)) {
+            terminate = true;
+            break;
+          }
+        }
+        if (terminate) {
+          state.lineMax = nextLine;
+          if (state.blkIndent !== 0) {
+            oldBMarks.push(state.bMarks[nextLine]);
+            oldBSCount.push(state.bsCount[nextLine]);
+            oldTShift.push(state.tShift[nextLine]);
+            oldSCount.push(state.sCount[nextLine]);
+            state.sCount[nextLine] -= state.blkIndent;
+          }
+          break;
+        }
+        oldBMarks.push(state.bMarks[nextLine]);
+        oldBSCount.push(state.bsCount[nextLine]);
+        oldTShift.push(state.tShift[nextLine]);
+        oldSCount.push(state.sCount[nextLine]);
+        state.sCount[nextLine] = -1;
+      }
+      const oldIndent = state.blkIndent;
+      state.blkIndent = 0;
+      const token_o = state.push("blockquote_open", "blockquote", 1);
+      token_o.markup = ">";
+      const lines = [startLine, 0];
+      token_o.map = lines;
+      state.md.block.tokenize(state, startLine, nextLine);
+      const token_c = state.push("blockquote_close", "blockquote", -1);
+      token_c.markup = ">";
+      state.lineMax = oldLineMax;
+      state.parentType = oldParentType;
+      lines[1] = state.line;
+      for (let i2 = 0; i2 < oldTShift.length; i2++) {
+        state.bMarks[i2 + startLine] = oldBMarks[i2];
+        state.tShift[i2 + startLine] = oldTShift[i2];
+        state.sCount[i2 + startLine] = oldSCount[i2];
+        state.bsCount[i2 + startLine] = oldBSCount[i2];
+      }
+      state.blkIndent = oldIndent;
+      return true;
+    }
+    function hr(state, startLine, endLine, silent) {
+      const max2 = state.eMarks[startLine];
+      if (state.sCount[startLine] - state.blkIndent >= 4) {
+        return false;
+      }
+      let pos2 = state.bMarks[startLine] + state.tShift[startLine];
+      const marker = state.src.charCodeAt(pos2++);
+      if (marker !== 42 && marker !== 45 && marker !== 95) {
+        return false;
+      }
+      let cnt = 1;
+      while (pos2 < max2) {
+        const ch3 = state.src.charCodeAt(pos2++);
+        if (ch3 !== marker && !isSpace(ch3)) {
+          return false;
+        }
+        if (ch3 === marker) {
+          cnt++;
+        }
+      }
+      if (cnt < 3) {
+        return false;
+      }
+      if (silent) {
+        return true;
+      }
+      state.line = startLine + 1;
+      const token2 = state.push("hr", "hr", 0);
+      token2.map = [startLine, state.line];
+      token2.markup = Array(cnt + 1).join(String.fromCharCode(marker));
+      return true;
+    }
+    function skipBulletListMarker(state, startLine) {
+      const max2 = state.eMarks[startLine];
+      let pos2 = state.bMarks[startLine] + state.tShift[startLine];
+      const marker = state.src.charCodeAt(pos2++);
+      if (marker !== 42 && marker !== 45 && marker !== 43) {
+        return -1;
+      }
+      if (pos2 < max2) {
+        const ch3 = state.src.charCodeAt(pos2);
+        if (!isSpace(ch3)) {
+          return -1;
+        }
+      }
+      return pos2;
+    }
+    function skipOrderedListMarker(state, startLine) {
+      const start = state.bMarks[startLine] + state.tShift[startLine];
+      const max2 = state.eMarks[startLine];
+      let pos2 = start;
+      if (pos2 + 1 >= max2) {
+        return -1;
+      }
+      let ch3 = state.src.charCodeAt(pos2++);
+      if (ch3 < 48 || ch3 > 57) {
+        return -1;
+      }
+      for (; ; ) {
+        if (pos2 >= max2) {
+          return -1;
+        }
+        ch3 = state.src.charCodeAt(pos2++);
+        if (ch3 >= 48 && ch3 <= 57) {
+          if (pos2 - start >= 10) {
+            return -1;
+          }
+          continue;
+        }
+        if (ch3 === 41 || ch3 === 46) {
+          break;
+        }
+        return -1;
+      }
+      if (pos2 < max2) {
+        ch3 = state.src.charCodeAt(pos2);
+        if (!isSpace(ch3)) {
+          return -1;
+        }
+      }
+      return pos2;
+    }
+    function markTightParagraphs(state, idx) {
+      const level = state.level + 2;
+      for (let i2 = idx + 2, l = state.tokens.length - 2; i2 < l; i2++) {
+        if (state.tokens[i2].level === level && state.tokens[i2].type === "paragraph_open") {
+          state.tokens[i2 + 2].hidden = true;
+          state.tokens[i2].hidden = true;
+          i2 += 2;
+        }
+      }
+    }
+    function list$2(state, startLine, endLine, silent) {
+      let max2, pos2, start, token2;
+      let nextLine = startLine;
+      let tight = true;
+      if (state.sCount[nextLine] - state.blkIndent >= 4) {
+        return false;
+      }
+      if (state.listIndent >= 0 && state.sCount[nextLine] - state.listIndent >= 4 && state.sCount[nextLine] < state.blkIndent) {
+        return false;
+      }
+      let isTerminatingParagraph = false;
+      if (silent && state.parentType === "paragraph") {
+        if (state.sCount[nextLine] >= state.blkIndent) {
+          isTerminatingParagraph = true;
+        }
+      }
+      let isOrdered;
+      let markerValue;
+      let posAfterMarker;
+      if ((posAfterMarker = skipOrderedListMarker(state, nextLine)) >= 0) {
+        isOrdered = true;
+        start = state.bMarks[nextLine] + state.tShift[nextLine];
+        markerValue = Number(state.src.slice(start, posAfterMarker - 1));
+        if (isTerminatingParagraph && markerValue !== 1) return false;
+      } else if ((posAfterMarker = skipBulletListMarker(state, nextLine)) >= 0) {
+        isOrdered = false;
+      } else {
+        return false;
+      }
+      if (isTerminatingParagraph) {
+        if (state.skipSpaces(posAfterMarker) >= state.eMarks[nextLine]) return false;
+      }
+      if (silent) {
+        return true;
+      }
+      const markerCharCode = state.src.charCodeAt(posAfterMarker - 1);
+      const listTokIdx = state.tokens.length;
+      if (isOrdered) {
+        token2 = state.push("ordered_list_open", "ol", 1);
+        if (markerValue !== 1) {
+          token2.attrs = [["start", markerValue]];
+        }
+      } else {
+        token2 = state.push("bullet_list_open", "ul", 1);
+      }
+      const listLines = [nextLine, 0];
+      token2.map = listLines;
+      token2.markup = String.fromCharCode(markerCharCode);
+      let prevEmptyEnd = false;
+      const terminatorRules = state.md.block.ruler.getRules("list");
+      const oldParentType = state.parentType;
+      state.parentType = "list";
+      while (nextLine < endLine) {
+        pos2 = posAfterMarker;
+        max2 = state.eMarks[nextLine];
+        const initial = state.sCount[nextLine] + posAfterMarker - (state.bMarks[nextLine] + state.tShift[nextLine]);
+        let offset = initial;
+        while (pos2 < max2) {
+          const ch3 = state.src.charCodeAt(pos2);
+          if (ch3 === 9) {
+            offset += 4 - (offset + state.bsCount[nextLine]) % 4;
+          } else if (ch3 === 32) {
+            offset++;
+          } else {
+            break;
+          }
+          pos2++;
+        }
+        const contentStart = pos2;
+        let indentAfterMarker;
+        if (contentStart >= max2) {
+          indentAfterMarker = 1;
+        } else {
+          indentAfterMarker = offset - initial;
+        }
+        if (indentAfterMarker > 4) {
+          indentAfterMarker = 1;
+        }
+        const indent = initial + indentAfterMarker;
+        token2 = state.push("list_item_open", "li", 1);
+        token2.markup = String.fromCharCode(markerCharCode);
+        const itemLines = [nextLine, 0];
+        token2.map = itemLines;
+        if (isOrdered) {
+          token2.info = state.src.slice(start, posAfterMarker - 1);
+        }
+        const oldTight = state.tight;
+        const oldTShift = state.tShift[nextLine];
+        const oldSCount = state.sCount[nextLine];
+        const oldListIndent = state.listIndent;
+        state.listIndent = state.blkIndent;
+        state.blkIndent = indent;
+        state.tight = true;
+        state.tShift[nextLine] = contentStart - state.bMarks[nextLine];
+        state.sCount[nextLine] = offset;
+        if (contentStart >= max2 && state.isEmpty(nextLine + 1)) {
+          state.line = Math.min(state.line + 2, endLine);
+        } else {
+          state.md.block.tokenize(state, nextLine, endLine, true);
+        }
+        if (!state.tight || prevEmptyEnd) {
+          tight = false;
+        }
+        prevEmptyEnd = state.line - nextLine > 1 && state.isEmpty(state.line - 1);
+        state.blkIndent = state.listIndent;
+        state.listIndent = oldListIndent;
+        state.tShift[nextLine] = oldTShift;
+        state.sCount[nextLine] = oldSCount;
+        state.tight = oldTight;
+        token2 = state.push("list_item_close", "li", -1);
+        token2.markup = String.fromCharCode(markerCharCode);
+        nextLine = state.line;
+        itemLines[1] = nextLine;
+        if (nextLine >= endLine) {
+          break;
+        }
+        if (state.sCount[nextLine] < state.blkIndent) {
+          break;
+        }
+        if (state.sCount[nextLine] - state.blkIndent >= 4) {
+          break;
+        }
+        let terminate = false;
+        for (let i2 = 0, l = terminatorRules.length; i2 < l; i2++) {
+          if (terminatorRules[i2](state, nextLine, endLine, true)) {
+            terminate = true;
+            break;
+          }
+        }
+        if (terminate) {
+          break;
+        }
+        if (isOrdered) {
+          posAfterMarker = skipOrderedListMarker(state, nextLine);
+          if (posAfterMarker < 0) {
+            break;
+          }
+          start = state.bMarks[nextLine] + state.tShift[nextLine];
+        } else {
+          posAfterMarker = skipBulletListMarker(state, nextLine);
+          if (posAfterMarker < 0) {
+            break;
+          }
+        }
+        if (markerCharCode !== state.src.charCodeAt(posAfterMarker - 1)) {
+          break;
+        }
+      }
+      if (isOrdered) {
+        token2 = state.push("ordered_list_close", "ol", -1);
+      } else {
+        token2 = state.push("bullet_list_close", "ul", -1);
+      }
+      token2.markup = String.fromCharCode(markerCharCode);
+      listLines[1] = nextLine;
+      state.line = nextLine;
+      state.parentType = oldParentType;
+      if (tight) {
+        markTightParagraphs(state, listTokIdx);
+      }
+      return true;
+    }
+    function reference(state, startLine, _endLine, silent) {
+      let pos2 = state.bMarks[startLine] + state.tShift[startLine];
+      let max2 = state.eMarks[startLine];
+      let nextLine = startLine + 1;
+      if (state.sCount[startLine] - state.blkIndent >= 4) {
+        return false;
+      }
+      if (state.src.charCodeAt(pos2) !== 91) {
+        return false;
+      }
+      function getNextLine(nextLine2) {
+        const endLine = state.lineMax;
+        if (nextLine2 >= endLine || state.isEmpty(nextLine2)) {
+          return null;
+        }
+        let isContinuation = false;
+        if (state.sCount[nextLine2] - state.blkIndent > 3) {
+          isContinuation = true;
+        }
+        if (state.sCount[nextLine2] < 0) {
+          isContinuation = true;
+        }
+        if (!isContinuation) {
+          const terminatorRules = state.md.block.ruler.getRules("reference");
+          const oldParentType = state.parentType;
+          state.parentType = "reference";
+          let terminate = false;
+          for (let i2 = 0, l = terminatorRules.length; i2 < l; i2++) {
+            if (terminatorRules[i2](state, nextLine2, endLine, true)) {
+              terminate = true;
+              break;
+            }
+          }
+          state.parentType = oldParentType;
+          if (terminate) {
+            return null;
+          }
+        }
+        const pos3 = state.bMarks[nextLine2] + state.tShift[nextLine2];
+        const max3 = state.eMarks[nextLine2];
+        return state.src.slice(pos3, max3 + 1);
+      }
+      let str2 = state.src.slice(pos2, max2 + 1);
+      max2 = str2.length;
+      let labelEnd = -1;
+      for (pos2 = 1; pos2 < max2; pos2++) {
+        const ch3 = str2.charCodeAt(pos2);
+        if (ch3 === 91) {
+          return false;
+        } else if (ch3 === 93) {
+          labelEnd = pos2;
+          break;
+        } else if (ch3 === 10) {
+          const lineContent = getNextLine(nextLine);
+          if (lineContent !== null) {
+            str2 += lineContent;
+            max2 = str2.length;
+            nextLine++;
+          }
+        } else if (ch3 === 92) {
+          pos2++;
+          if (pos2 < max2 && str2.charCodeAt(pos2) === 10) {
+            const lineContent = getNextLine(nextLine);
+            if (lineContent !== null) {
+              str2 += lineContent;
+              max2 = str2.length;
+              nextLine++;
+            }
+          }
+        }
+      }
+      if (labelEnd < 0 || str2.charCodeAt(labelEnd + 1) !== 58) {
+        return false;
+      }
+      for (pos2 = labelEnd + 2; pos2 < max2; pos2++) {
+        const ch3 = str2.charCodeAt(pos2);
+        if (ch3 === 10) {
+          const lineContent = getNextLine(nextLine);
+          if (lineContent !== null) {
+            str2 += lineContent;
+            max2 = str2.length;
+            nextLine++;
+          }
+        } else if (isSpace(ch3)) ;
+        else {
+          break;
+        }
+      }
+      const destRes = state.md.helpers.parseLinkDestination(str2, pos2, max2);
+      if (!destRes.ok) {
+        return false;
+      }
+      const href = state.md.normalizeLink(destRes.str);
+      if (!state.md.validateLink(href)) {
+        return false;
+      }
+      pos2 = destRes.pos;
+      const destEndPos = pos2;
+      const destEndLineNo = nextLine;
+      const start = pos2;
+      for (; pos2 < max2; pos2++) {
+        const ch3 = str2.charCodeAt(pos2);
+        if (ch3 === 10) {
+          const lineContent = getNextLine(nextLine);
+          if (lineContent !== null) {
+            str2 += lineContent;
+            max2 = str2.length;
+            nextLine++;
+          }
+        } else if (isSpace(ch3)) ;
+        else {
+          break;
+        }
+      }
+      let titleRes = state.md.helpers.parseLinkTitle(str2, pos2, max2);
+      while (titleRes.can_continue) {
+        const lineContent = getNextLine(nextLine);
+        if (lineContent === null) break;
+        str2 += lineContent;
+        pos2 = max2;
+        max2 = str2.length;
+        nextLine++;
+        titleRes = state.md.helpers.parseLinkTitle(str2, pos2, max2, titleRes);
+      }
+      let title2;
+      if (pos2 < max2 && start !== pos2 && titleRes.ok) {
+        title2 = titleRes.str;
+        pos2 = titleRes.pos;
+      } else {
+        title2 = "";
+        pos2 = destEndPos;
+        nextLine = destEndLineNo;
+      }
+      while (pos2 < max2) {
+        const ch3 = str2.charCodeAt(pos2);
+        if (!isSpace(ch3)) {
+          break;
+        }
+        pos2++;
+      }
+      if (pos2 < max2 && str2.charCodeAt(pos2) !== 10) {
+        if (title2) {
+          title2 = "";
+          pos2 = destEndPos;
+          nextLine = destEndLineNo;
+          while (pos2 < max2) {
+            const ch3 = str2.charCodeAt(pos2);
+            if (!isSpace(ch3)) {
+              break;
+            }
+            pos2++;
+          }
+        }
+      }
+      if (pos2 < max2 && str2.charCodeAt(pos2) !== 10) {
+        return false;
+      }
+      const label2 = normalizeReference(str2.slice(1, labelEnd));
+      if (!label2) {
+        return false;
+      }
+      if (silent) {
+        return true;
+      }
+      if (typeof state.env.references === "undefined") {
+        state.env.references = {};
+      }
+      if (typeof state.env.references[label2] === "undefined") {
+        state.env.references[label2] = { title: title2, href };
+      }
+      state.line = nextLine;
+      return true;
+    }
+    const block_names = [
+      "address",
+      "article",
+      "aside",
+      "base",
+      "basefont",
+      "blockquote",
+      "body",
+      "caption",
+      "center",
+      "col",
+      "colgroup",
+      "dd",
+      "details",
+      "dialog",
+      "dir",
+      "div",
+      "dl",
+      "dt",
+      "fieldset",
+      "figcaption",
+      "figure",
+      "footer",
+      "form",
+      "frame",
+      "frameset",
+      "h1",
+      "h2",
+      "h3",
+      "h4",
+      "h5",
+      "h6",
+      "head",
+      "header",
+      "hr",
+      "html",
+      "iframe",
+      "legend",
+      "li",
+      "link",
+      "main",
+      "menu",
+      "menuitem",
+      "nav",
+      "noframes",
+      "ol",
+      "optgroup",
+      "option",
+      "p",
+      "param",
+      "search",
+      "section",
+      "summary",
+      "table",
+      "tbody",
+      "td",
+      "tfoot",
+      "th",
+      "thead",
+      "title",
+      "tr",
+      "track",
+      "ul"
+    ];
+    const attr_name = "[a-zA-Z_:][a-zA-Z0-9:._-]*";
+    const unquoted = "[^\"'=<>`\\x00-\\x20]+";
+    const single_quoted = "'[^']*'";
+    const double_quoted = '"[^"]*"';
+    const attr_value = "(?:" + unquoted + "|" + single_quoted + "|" + double_quoted + ")";
+    const attribute = "(?:\\s+" + attr_name + "(?:\\s*=\\s*" + attr_value + ")?)";
+    const open_tag = "<[A-Za-z][A-Za-z0-9\\-]*" + attribute + "*\\s*\\/?>";
+    const close_tag = "<\\/[A-Za-z][A-Za-z0-9\\-]*\\s*>";
+    const comment = "<!---?>|<!--(?:[^-]|-[^-]|--[^>])*-->";
+    const processing = "<[?][\\s\\S]*?[?]>";
+    const declaration = "<![A-Za-z][^>]*>";
+    const cdata = "<!\\[CDATA\\[[\\s\\S]*?\\]\\]>";
+    const HTML_TAG_RE = new RegExp("^(?:" + open_tag + "|" + close_tag + "|" + comment + "|" + processing + "|" + declaration + "|" + cdata + ")");
+    const HTML_OPEN_CLOSE_TAG_RE = new RegExp("^(?:" + open_tag + "|" + close_tag + ")");
+    const HTML_SEQUENCES = [
+      [/^<(script|pre|style|textarea)(?=(\s|>|$))/i, /<\/(script|pre|style|textarea)>/i, true],
+      [/^<!--/, /-->/, true],
+      [/^<\?/, /\?>/, true],
+      [/^<![A-Z]/, />/, true],
+      [/^<!\[CDATA\[/, /\]\]>/, true],
+      [new RegExp("^</?(" + block_names.join("|") + ")(?=(\\s|/?>|$))", "i"), /^$/, true],
+      [new RegExp(HTML_OPEN_CLOSE_TAG_RE.source + "\\s*$"), /^$/, false]
+    ];
+    function html_block(state, startLine, endLine, silent) {
+      let pos2 = state.bMarks[startLine] + state.tShift[startLine];
+      let max2 = state.eMarks[startLine];
+      if (state.sCount[startLine] - state.blkIndent >= 4) {
+        return false;
+      }
+      if (!state.md.options.html) {
+        return false;
+      }
+      if (state.src.charCodeAt(pos2) !== 60) {
+        return false;
+      }
+      let lineText = state.src.slice(pos2, max2);
+      let i2 = 0;
+      for (; i2 < HTML_SEQUENCES.length; i2++) {
+        if (HTML_SEQUENCES[i2][0].test(lineText)) {
+          break;
+        }
+      }
+      if (i2 === HTML_SEQUENCES.length) {
+        return false;
+      }
+      if (silent) {
+        return HTML_SEQUENCES[i2][2];
+      }
+      let nextLine = startLine + 1;
+      if (!HTML_SEQUENCES[i2][1].test(lineText)) {
+        for (; nextLine < endLine; nextLine++) {
+          if (state.sCount[nextLine] < state.blkIndent) {
+            break;
+          }
+          pos2 = state.bMarks[nextLine] + state.tShift[nextLine];
+          max2 = state.eMarks[nextLine];
+          lineText = state.src.slice(pos2, max2);
+          if (HTML_SEQUENCES[i2][1].test(lineText)) {
+            if (lineText.length !== 0) {
+              nextLine++;
+            }
+            break;
+          }
+        }
+      }
+      state.line = nextLine;
+      const token2 = state.push("html_block", "", 0);
+      token2.map = [startLine, nextLine];
+      token2.content = state.getLines(startLine, nextLine, state.blkIndent, true);
+      return true;
+    }
+    function heading(state, startLine, endLine, silent) {
+      let pos2 = state.bMarks[startLine] + state.tShift[startLine];
+      let max2 = state.eMarks[startLine];
+      if (state.sCount[startLine] - state.blkIndent >= 4) {
+        return false;
+      }
+      let ch3 = state.src.charCodeAt(pos2);
+      if (ch3 !== 35 || pos2 >= max2) {
+        return false;
+      }
+      let level = 1;
+      ch3 = state.src.charCodeAt(++pos2);
+      while (ch3 === 35 && pos2 < max2 && level <= 6) {
+        level++;
+        ch3 = state.src.charCodeAt(++pos2);
+      }
+      if (level > 6 || pos2 < max2 && !isSpace(ch3)) {
+        return false;
+      }
+      if (silent) {
+        return true;
+      }
+      max2 = state.skipSpacesBack(max2, pos2);
+      const tmp = state.skipCharsBack(max2, 35, pos2);
+      if (tmp > pos2 && isSpace(state.src.charCodeAt(tmp - 1))) {
+        max2 = tmp;
+      }
+      state.line = startLine + 1;
+      const token_o = state.push("heading_open", "h" + String(level), 1);
+      token_o.markup = "########".slice(0, level);
+      token_o.map = [startLine, state.line];
+      const token_i = state.push("inline", "", 0);
+      token_i.content = state.src.slice(pos2, max2).trim();
+      token_i.map = [startLine, state.line];
+      token_i.children = [];
+      const token_c = state.push("heading_close", "h" + String(level), -1);
+      token_c.markup = "########".slice(0, level);
+      return true;
+    }
+    function lheading(state, startLine, endLine) {
+      const terminatorRules = state.md.block.ruler.getRules("paragraph");
+      if (state.sCount[startLine] - state.blkIndent >= 4) {
+        return false;
+      }
+      const oldParentType = state.parentType;
+      state.parentType = "paragraph";
+      let level = 0;
+      let marker;
+      let nextLine = startLine + 1;
+      for (; nextLine < endLine && !state.isEmpty(nextLine); nextLine++) {
+        if (state.sCount[nextLine] - state.blkIndent > 3) {
+          continue;
+        }
+        if (state.sCount[nextLine] >= state.blkIndent) {
+          let pos2 = state.bMarks[nextLine] + state.tShift[nextLine];
+          const max2 = state.eMarks[nextLine];
+          if (pos2 < max2) {
+            marker = state.src.charCodeAt(pos2);
+            if (marker === 45 || marker === 61) {
+              pos2 = state.skipChars(pos2, marker);
+              pos2 = state.skipSpaces(pos2);
+              if (pos2 >= max2) {
+                level = marker === 61 ? 1 : 2;
+                break;
+              }
+            }
+          }
+        }
+        if (state.sCount[nextLine] < 0) {
+          continue;
+        }
+        let terminate = false;
+        for (let i2 = 0, l = terminatorRules.length; i2 < l; i2++) {
+          if (terminatorRules[i2](state, nextLine, endLine, true)) {
+            terminate = true;
+            break;
+          }
+        }
+        if (terminate) {
+          break;
+        }
+      }
+      if (!level) {
+        return false;
+      }
+      const content2 = state.getLines(startLine, nextLine, state.blkIndent, false).trim();
+      state.line = nextLine + 1;
+      const token_o = state.push("heading_open", "h" + String(level), 1);
+      token_o.markup = String.fromCharCode(marker);
+      token_o.map = [startLine, state.line];
+      const token_i = state.push("inline", "", 0);
+      token_i.content = content2;
+      token_i.map = [startLine, state.line - 1];
+      token_i.children = [];
+      const token_c = state.push("heading_close", "h" + String(level), -1);
+      token_c.markup = String.fromCharCode(marker);
+      state.parentType = oldParentType;
+      return true;
+    }
+    function paragraph(state, startLine, endLine) {
+      const terminatorRules = state.md.block.ruler.getRules("paragraph");
+      const oldParentType = state.parentType;
+      let nextLine = startLine + 1;
+      state.parentType = "paragraph";
+      for (; nextLine < endLine && !state.isEmpty(nextLine); nextLine++) {
+        if (state.sCount[nextLine] - state.blkIndent > 3) {
+          continue;
+        }
+        if (state.sCount[nextLine] < 0) {
+          continue;
+        }
+        let terminate = false;
+        for (let i2 = 0, l = terminatorRules.length; i2 < l; i2++) {
+          if (terminatorRules[i2](state, nextLine, endLine, true)) {
+            terminate = true;
+            break;
+          }
+        }
+        if (terminate) {
+          break;
+        }
+      }
+      const content2 = state.getLines(startLine, nextLine, state.blkIndent, false).trim();
+      state.line = nextLine;
+      const token_o = state.push("paragraph_open", "p", 1);
+      token_o.map = [startLine, state.line];
+      const token_i = state.push("inline", "", 0);
+      token_i.content = content2;
+      token_i.map = [startLine, state.line];
+      token_i.children = [];
+      state.push("paragraph_close", "p", -1);
+      state.parentType = oldParentType;
+      return true;
+    }
+    const _rules$1 = [
+      // First 2 params - rule name & source. Secondary array - list of rules,
+      // which can be terminated by this one.
+      ["table", table$1, ["paragraph", "reference"]],
+      ["code", code$2],
+      ["fence", fence, ["paragraph", "reference", "blockquote", "list"]],
+      ["blockquote", blockquote, ["paragraph", "reference", "blockquote", "list"]],
+      ["hr", hr, ["paragraph", "reference", "blockquote", "list"]],
+      ["list", list$2, ["paragraph", "reference", "blockquote"]],
+      ["reference", reference],
+      ["html_block", html_block, ["paragraph", "reference", "blockquote"]],
+      ["heading", heading, ["paragraph", "reference", "blockquote"]],
+      ["lheading", lheading],
+      ["paragraph", paragraph]
+    ];
+    function ParserBlock() {
+      this.ruler = new Ruler();
+      for (let i2 = 0; i2 < _rules$1.length; i2++) {
+        this.ruler.push(_rules$1[i2][0], _rules$1[i2][1], { alt: (_rules$1[i2][2] || []).slice() });
+      }
+    }
+    ParserBlock.prototype.tokenize = function(state, startLine, endLine) {
+      const rules = this.ruler.getRules("");
+      const len = rules.length;
+      const maxNesting = state.md.options.maxNesting;
+      let line2 = startLine;
+      let hasEmptyLines = false;
+      while (line2 < endLine) {
+        state.line = line2 = state.skipEmptyLines(line2);
+        if (line2 >= endLine) {
+          break;
+        }
+        if (state.sCount[line2] < state.blkIndent) {
+          break;
+        }
+        if (state.level >= maxNesting) {
+          state.line = endLine;
+          break;
+        }
+        const prevLine = state.line;
+        let ok = false;
+        for (let i2 = 0; i2 < len; i2++) {
+          ok = rules[i2](state, line2, endLine, false);
+          if (ok) {
+            if (prevLine >= state.line) {
+              throw new Error("block rule didn't increment state.line");
+            }
+            break;
+          }
+        }
+        if (!ok) throw new Error("none of the block rules matched");
+        state.tight = !hasEmptyLines;
+        if (state.isEmpty(state.line - 1)) {
+          hasEmptyLines = true;
+        }
+        line2 = state.line;
+        if (line2 < endLine && state.isEmpty(line2)) {
+          hasEmptyLines = true;
+          line2++;
+          state.line = line2;
+        }
+      }
+    };
+    ParserBlock.prototype.parse = function(src, md, env, outTokens) {
+      if (!src) {
+        return;
+      }
+      const state = new this.State(src, md, env, outTokens);
+      this.tokenize(state, state.line, state.lineMax);
+    };
+    ParserBlock.prototype.State = StateBlock;
+    function StateInline(src, md, env, outTokens) {
+      this.src = src;
+      this.env = env;
+      this.md = md;
+      this.tokens = outTokens;
+      this.tokens_meta = Array(outTokens.length);
+      this.pos = 0;
+      this.posMax = this.src.length;
+      this.level = 0;
+      this.pending = "";
+      this.pendingLevel = 0;
+      this.cache = {};
+      this.delimiters = [];
+      this._prev_delimiters = [];
+      this.backticks = {};
+      this.backticksScanned = false;
+      this.linkLevel = 0;
+    }
+    StateInline.prototype.pushPending = function() {
+      const token2 = new Token("text", "", 0);
+      token2.content = this.pending;
+      token2.level = this.pendingLevel;
+      this.tokens.push(token2);
+      this.pending = "";
+      return token2;
+    };
+    StateInline.prototype.push = function(type, tag, nesting) {
+      if (this.pending) {
+        this.pushPending();
+      }
+      const token2 = new Token(type, tag, nesting);
+      let token_meta = null;
+      if (nesting < 0) {
+        this.level--;
+        this.delimiters = this._prev_delimiters.pop();
+      }
+      token2.level = this.level;
+      if (nesting > 0) {
+        this.level++;
+        this._prev_delimiters.push(this.delimiters);
+        this.delimiters = [];
+        token_meta = { delimiters: this.delimiters };
+      }
+      this.pendingLevel = this.level;
+      this.tokens.push(token2);
+      this.tokens_meta.push(token_meta);
+      return token2;
+    };
+    StateInline.prototype.scanDelims = function(start, canSplitWord) {
+      const max2 = this.posMax;
+      const marker = this.src.charCodeAt(start);
+      const lastChar = start > 0 ? this.src.charCodeAt(start - 1) : 32;
+      let pos2 = start;
+      while (pos2 < max2 && this.src.charCodeAt(pos2) === marker) {
+        pos2++;
+      }
+      const count = pos2 - start;
+      const nextChar = pos2 < max2 ? this.src.charCodeAt(pos2) : 32;
+      const isLastPunctChar = isMdAsciiPunct(lastChar) || isPunctChar(String.fromCharCode(lastChar));
+      const isNextPunctChar = isMdAsciiPunct(nextChar) || isPunctChar(String.fromCharCode(nextChar));
+      const isLastWhiteSpace = isWhiteSpace(lastChar);
+      const isNextWhiteSpace = isWhiteSpace(nextChar);
+      const left_flanking = !isNextWhiteSpace && (!isNextPunctChar || isLastWhiteSpace || isLastPunctChar);
+      const right_flanking = !isLastWhiteSpace && (!isLastPunctChar || isNextWhiteSpace || isNextPunctChar);
+      const can_open = left_flanking && (canSplitWord || !right_flanking || isLastPunctChar);
+      const can_close = right_flanking && (canSplitWord || !left_flanking || isNextPunctChar);
+      return { can_open, can_close, length: count };
+    };
+    StateInline.prototype.Token = Token;
+    function isTerminatorChar(ch3) {
+      switch (ch3) {
+        case 10:
+        case 33:
+        case 35:
+        case 36:
+        case 37:
+        case 38:
+        case 42:
+        case 43:
+        case 45:
+        case 58:
+        case 60:
+        case 61:
+        case 62:
+        case 64:
+        case 91:
+        case 92:
+        case 93:
+        case 94:
+        case 95:
+        case 96:
+        case 123:
+        case 125:
+        case 126:
+          return true;
+        default:
+          return false;
+      }
+    }
+    function text(state, silent) {
+      let pos2 = state.pos;
+      while (pos2 < state.posMax && !isTerminatorChar(state.src.charCodeAt(pos2))) {
+        pos2++;
+      }
+      if (pos2 === state.pos) {
+        return false;
+      }
+      if (!silent) {
+        state.pending += state.src.slice(state.pos, pos2);
+      }
+      state.pos = pos2;
+      return true;
+    }
+    const SCHEME_RE = /(?:^|[^a-z0-9.+-])([a-z][a-z0-9.+-]*)$/i;
+    function linkify(state, silent) {
+      if (!state.md.options.linkify) return false;
+      if (state.linkLevel > 0) return false;
+      const pos2 = state.pos;
+      const max2 = state.posMax;
+      if (pos2 + 3 > max2) return false;
+      if (state.src.charCodeAt(pos2) !== 58) return false;
+      if (state.src.charCodeAt(pos2 + 1) !== 47) return false;
+      if (state.src.charCodeAt(pos2 + 2) !== 47) return false;
+      const match = state.pending.match(SCHEME_RE);
+      if (!match) return false;
+      const proto = match[1];
+      const link2 = state.md.linkify.matchAtStart(state.src.slice(pos2 - proto.length));
+      if (!link2) return false;
+      let url = link2.url;
+      if (url.length <= proto.length) return false;
+      url = url.replace(/\*+$/, "");
+      const fullUrl = state.md.normalizeLink(url);
+      if (!state.md.validateLink(fullUrl)) return false;
+      if (!silent) {
+        state.pending = state.pending.slice(0, -proto.length);
+        const token_o = state.push("link_open", "a", 1);
+        token_o.attrs = [["href", fullUrl]];
+        token_o.markup = "linkify";
+        token_o.info = "auto";
+        const token_t = state.push("text", "", 0);
+        token_t.content = state.md.normalizeLinkText(url);
+        const token_c = state.push("link_close", "a", -1);
+        token_c.markup = "linkify";
+        token_c.info = "auto";
+      }
+      state.pos += url.length - proto.length;
+      return true;
+    }
+    function newline(state, silent) {
+      let pos2 = state.pos;
+      if (state.src.charCodeAt(pos2) !== 10) {
+        return false;
+      }
+      const pmax = state.pending.length - 1;
+      const max2 = state.posMax;
+      if (!silent) {
+        if (pmax >= 0 && state.pending.charCodeAt(pmax) === 32) {
+          if (pmax >= 1 && state.pending.charCodeAt(pmax - 1) === 32) {
+            let ws = pmax - 1;
+            while (ws >= 1 && state.pending.charCodeAt(ws - 1) === 32) ws--;
+            state.pending = state.pending.slice(0, ws);
+            state.push("hardbreak", "br", 0);
+          } else {
+            state.pending = state.pending.slice(0, -1);
+            state.push("softbreak", "br", 0);
+          }
+        } else {
+          state.push("softbreak", "br", 0);
+        }
+      }
+      pos2++;
+      while (pos2 < max2 && isSpace(state.src.charCodeAt(pos2))) {
+        pos2++;
+      }
+      state.pos = pos2;
+      return true;
+    }
+    const ESCAPED = [];
+    for (let i2 = 0; i2 < 256; i2++) {
+      ESCAPED.push(0);
+    }
+    "\\!\"#$%&'()*+,./:;<=>?@[]^_`{|}~-".split("").forEach(function(ch3) {
+      ESCAPED[ch3.charCodeAt(0)] = 1;
+    });
+    function escape$1(state, silent) {
+      let pos2 = state.pos;
+      const max2 = state.posMax;
+      if (state.src.charCodeAt(pos2) !== 92) return false;
+      pos2++;
+      if (pos2 >= max2) return false;
+      let ch1 = state.src.charCodeAt(pos2);
+      if (ch1 === 10) {
+        if (!silent) {
+          state.push("hardbreak", "br", 0);
+        }
+        pos2++;
+        while (pos2 < max2) {
+          ch1 = state.src.charCodeAt(pos2);
+          if (!isSpace(ch1)) break;
+          pos2++;
+        }
+        state.pos = pos2;
+        return true;
+      }
+      let escapedStr = state.src[pos2];
+      if (ch1 >= 55296 && ch1 <= 56319 && pos2 + 1 < max2) {
+        const ch22 = state.src.charCodeAt(pos2 + 1);
+        if (ch22 >= 56320 && ch22 <= 57343) {
+          escapedStr += state.src[pos2 + 1];
+          pos2++;
+        }
+      }
+      const origStr = "\\" + escapedStr;
+      if (!silent) {
+        const token2 = state.push("text_special", "", 0);
+        if (ch1 < 256 && ESCAPED[ch1] !== 0) {
+          token2.content = escapedStr;
+        } else {
+          token2.content = origStr;
+        }
+        token2.markup = origStr;
+        token2.info = "escape";
+      }
+      state.pos = pos2 + 1;
+      return true;
+    }
+    function backtick(state, silent) {
+      let pos2 = state.pos;
+      const ch3 = state.src.charCodeAt(pos2);
+      if (ch3 !== 96) {
+        return false;
+      }
+      const start = pos2;
+      pos2++;
+      const max2 = state.posMax;
+      while (pos2 < max2 && state.src.charCodeAt(pos2) === 96) {
+        pos2++;
+      }
+      const marker = state.src.slice(start, pos2);
+      const openerLength = marker.length;
+      if (state.backticksScanned && (state.backticks[openerLength] || 0) <= start) {
+        if (!silent) state.pending += marker;
+        state.pos += openerLength;
+        return true;
+      }
+      let matchEnd = pos2;
+      let matchStart;
+      while ((matchStart = state.src.indexOf("`", matchEnd)) !== -1) {
+        matchEnd = matchStart + 1;
+        while (matchEnd < max2 && state.src.charCodeAt(matchEnd) === 96) {
+          matchEnd++;
+        }
+        const closerLength = matchEnd - matchStart;
+        if (closerLength === openerLength) {
+          if (!silent) {
+            const token2 = state.push("code_inline", "code", 0);
+            token2.markup = marker;
+            token2.content = state.src.slice(pos2, matchStart).replace(/\n/g, " ").replace(/^ (.+) $/, "$1");
+          }
+          state.pos = matchEnd;
+          return true;
+        }
+        state.backticks[closerLength] = matchStart;
+      }
+      state.backticksScanned = true;
+      if (!silent) state.pending += marker;
+      state.pos += openerLength;
+      return true;
+    }
+    function strikethrough_tokenize(state, silent) {
+      const start = state.pos;
+      const marker = state.src.charCodeAt(start);
+      if (silent) {
+        return false;
+      }
+      if (marker !== 126) {
+        return false;
+      }
+      const scanned = state.scanDelims(state.pos, true);
+      let len = scanned.length;
+      const ch3 = String.fromCharCode(marker);
+      if (len < 2) {
+        return false;
+      }
+      let token2;
+      if (len % 2) {
+        token2 = state.push("text", "", 0);
+        token2.content = ch3;
+        len--;
+      }
+      for (let i2 = 0; i2 < len; i2 += 2) {
+        token2 = state.push("text", "", 0);
+        token2.content = ch3 + ch3;
+        state.delimiters.push({
+          marker,
+          length: 0,
+          // disable "rule of 3" length checks meant for emphasis
+          token: state.tokens.length - 1,
+          end: -1,
+          open: scanned.can_open,
+          close: scanned.can_close
+        });
+      }
+      state.pos += scanned.length;
+      return true;
+    }
+    function postProcess$1(state, delimiters) {
+      let token2;
+      const loneMarkers = [];
+      const max2 = delimiters.length;
+      for (let i2 = 0; i2 < max2; i2++) {
+        const startDelim = delimiters[i2];
+        if (startDelim.marker !== 126) {
+          continue;
+        }
+        if (startDelim.end === -1) {
+          continue;
+        }
+        const endDelim = delimiters[startDelim.end];
+        token2 = state.tokens[startDelim.token];
+        token2.type = "s_open";
+        token2.tag = "s";
+        token2.nesting = 1;
+        token2.markup = "~~";
+        token2.content = "";
+        token2 = state.tokens[endDelim.token];
+        token2.type = "s_close";
+        token2.tag = "s";
+        token2.nesting = -1;
+        token2.markup = "~~";
+        token2.content = "";
+        if (state.tokens[endDelim.token - 1].type === "text" && state.tokens[endDelim.token - 1].content === "~") {
+          loneMarkers.push(endDelim.token - 1);
+        }
+      }
+      while (loneMarkers.length) {
+        const i2 = loneMarkers.pop();
+        let j = i2 + 1;
+        while (j < state.tokens.length && state.tokens[j].type === "s_close") {
+          j++;
+        }
+        j--;
+        if (i2 !== j) {
+          token2 = state.tokens[j];
+          state.tokens[j] = state.tokens[i2];
+          state.tokens[i2] = token2;
+        }
+      }
+    }
+    function strikethrough_postProcess(state) {
+      const tokens_meta = state.tokens_meta;
+      const max2 = state.tokens_meta.length;
+      postProcess$1(state, state.delimiters);
+      for (let curr = 0; curr < max2; curr++) {
+        if (tokens_meta[curr] && tokens_meta[curr].delimiters) {
+          postProcess$1(state, tokens_meta[curr].delimiters);
+        }
+      }
+    }
+    const r_strikethrough = {
+      tokenize: strikethrough_tokenize,
+      postProcess: strikethrough_postProcess
+    };
+    function emphasis_tokenize(state, silent) {
+      const start = state.pos;
+      const marker = state.src.charCodeAt(start);
+      if (silent) {
+        return false;
+      }
+      if (marker !== 95 && marker !== 42) {
+        return false;
+      }
+      const scanned = state.scanDelims(state.pos, marker === 42);
+      for (let i2 = 0; i2 < scanned.length; i2++) {
+        const token2 = state.push("text", "", 0);
+        token2.content = String.fromCharCode(marker);
+        state.delimiters.push({
+          // Char code of the starting marker (number).
+          //
+          marker,
+          // Total length of these series of delimiters.
+          //
+          length: scanned.length,
+          // A position of the token this delimiter corresponds to.
+          //
+          token: state.tokens.length - 1,
+          // If this delimiter is matched as a valid opener, `end` will be
+          // equal to its position, otherwise it's `-1`.
+          //
+          end: -1,
+          // Boolean flags that determine if this delimiter could open or close
+          // an emphasis.
+          //
+          open: scanned.can_open,
+          close: scanned.can_close
+        });
+      }
+      state.pos += scanned.length;
+      return true;
+    }
+    function postProcess(state, delimiters) {
+      const max2 = delimiters.length;
+      for (let i2 = max2 - 1; i2 >= 0; i2--) {
+        const startDelim = delimiters[i2];
+        if (startDelim.marker !== 95 && startDelim.marker !== 42) {
+          continue;
+        }
+        if (startDelim.end === -1) {
+          continue;
+        }
+        const endDelim = delimiters[startDelim.end];
+        const isStrong = i2 > 0 && delimiters[i2 - 1].end === startDelim.end + 1 && // check that first two markers match and adjacent
+        delimiters[i2 - 1].marker === startDelim.marker && delimiters[i2 - 1].token === startDelim.token - 1 && // check that last two markers are adjacent (we can safely assume they match)
+        delimiters[startDelim.end + 1].token === endDelim.token + 1;
+        const ch3 = String.fromCharCode(startDelim.marker);
+        const token_o = state.tokens[startDelim.token];
+        token_o.type = isStrong ? "strong_open" : "em_open";
+        token_o.tag = isStrong ? "strong" : "em";
+        token_o.nesting = 1;
+        token_o.markup = isStrong ? ch3 + ch3 : ch3;
+        token_o.content = "";
+        const token_c = state.tokens[endDelim.token];
+        token_c.type = isStrong ? "strong_close" : "em_close";
+        token_c.tag = isStrong ? "strong" : "em";
+        token_c.nesting = -1;
+        token_c.markup = isStrong ? ch3 + ch3 : ch3;
+        token_c.content = "";
+        if (isStrong) {
+          state.tokens[delimiters[i2 - 1].token].content = "";
+          state.tokens[delimiters[startDelim.end + 1].token].content = "";
+          i2--;
+        }
+      }
+    }
+    function emphasis_post_process(state) {
+      const tokens_meta = state.tokens_meta;
+      const max2 = state.tokens_meta.length;
+      postProcess(state, state.delimiters);
+      for (let curr = 0; curr < max2; curr++) {
+        if (tokens_meta[curr] && tokens_meta[curr].delimiters) {
+          postProcess(state, tokens_meta[curr].delimiters);
+        }
+      }
+    }
+    const r_emphasis = {
+      tokenize: emphasis_tokenize,
+      postProcess: emphasis_post_process
+    };
+    function link(state, silent) {
+      let code2, label2, res, ref;
+      let href = "";
+      let title2 = "";
+      let start = state.pos;
+      let parseReference = true;
+      if (state.src.charCodeAt(state.pos) !== 91) {
+        return false;
+      }
+      const oldPos = state.pos;
+      const max2 = state.posMax;
+      const labelStart = state.pos + 1;
+      const labelEnd = state.md.helpers.parseLinkLabel(state, state.pos, true);
+      if (labelEnd < 0) {
+        return false;
+      }
+      let pos2 = labelEnd + 1;
+      if (pos2 < max2 && state.src.charCodeAt(pos2) === 40) {
+        parseReference = false;
+        pos2++;
+        for (; pos2 < max2; pos2++) {
+          code2 = state.src.charCodeAt(pos2);
+          if (!isSpace(code2) && code2 !== 10) {
+            break;
+          }
+        }
+        if (pos2 >= max2) {
+          return false;
+        }
+        start = pos2;
+        res = state.md.helpers.parseLinkDestination(state.src, pos2, state.posMax);
+        if (res.ok) {
+          href = state.md.normalizeLink(res.str);
+          if (state.md.validateLink(href)) {
+            pos2 = res.pos;
+          } else {
+            href = "";
+          }
+          start = pos2;
+          for (; pos2 < max2; pos2++) {
+            code2 = state.src.charCodeAt(pos2);
+            if (!isSpace(code2) && code2 !== 10) {
+              break;
+            }
+          }
+          res = state.md.helpers.parseLinkTitle(state.src, pos2, state.posMax);
+          if (pos2 < max2 && start !== pos2 && res.ok) {
+            title2 = res.str;
+            pos2 = res.pos;
+            for (; pos2 < max2; pos2++) {
+              code2 = state.src.charCodeAt(pos2);
+              if (!isSpace(code2) && code2 !== 10) {
+                break;
+              }
+            }
+          }
+        }
+        if (pos2 >= max2 || state.src.charCodeAt(pos2) !== 41) {
+          parseReference = true;
+        }
+        pos2++;
+      }
+      if (parseReference) {
+        if (typeof state.env.references === "undefined") {
+          return false;
+        }
+        if (pos2 < max2 && state.src.charCodeAt(pos2) === 91) {
+          start = pos2 + 1;
+          pos2 = state.md.helpers.parseLinkLabel(state, pos2);
+          if (pos2 >= 0) {
+            label2 = state.src.slice(start, pos2++);
+          } else {
+            pos2 = labelEnd + 1;
+          }
+        } else {
+          pos2 = labelEnd + 1;
+        }
+        if (!label2) {
+          label2 = state.src.slice(labelStart, labelEnd);
+        }
+        ref = state.env.references[normalizeReference(label2)];
+        if (!ref) {
+          state.pos = oldPos;
+          return false;
+        }
+        href = ref.href;
+        title2 = ref.title;
+      }
+      if (!silent) {
+        state.pos = labelStart;
+        state.posMax = labelEnd;
+        const token_o = state.push("link_open", "a", 1);
+        const attrs = [["href", href]];
+        token_o.attrs = attrs;
+        if (title2) {
+          attrs.push(["title", title2]);
+        }
+        state.linkLevel++;
+        state.md.inline.tokenize(state);
+        state.linkLevel--;
+        state.push("link_close", "a", -1);
+      }
+      state.pos = pos2;
+      state.posMax = max2;
+      return true;
+    }
+    function image$1(state, silent) {
+      let code2, content2, label2, pos2, ref, res, title2, start;
+      let href = "";
+      const oldPos = state.pos;
+      const max2 = state.posMax;
+      if (state.src.charCodeAt(state.pos) !== 33) {
+        return false;
+      }
+      if (state.src.charCodeAt(state.pos + 1) !== 91) {
+        return false;
+      }
+      const labelStart = state.pos + 2;
+      const labelEnd = state.md.helpers.parseLinkLabel(state, state.pos + 1, false);
+      if (labelEnd < 0) {
+        return false;
+      }
+      pos2 = labelEnd + 1;
+      if (pos2 < max2 && state.src.charCodeAt(pos2) === 40) {
+        pos2++;
+        for (; pos2 < max2; pos2++) {
+          code2 = state.src.charCodeAt(pos2);
+          if (!isSpace(code2) && code2 !== 10) {
+            break;
+          }
+        }
+        if (pos2 >= max2) {
+          return false;
+        }
+        start = pos2;
+        res = state.md.helpers.parseLinkDestination(state.src, pos2, state.posMax);
+        if (res.ok) {
+          href = state.md.normalizeLink(res.str);
+          if (state.md.validateLink(href)) {
+            pos2 = res.pos;
+          } else {
+            href = "";
+          }
+        }
+        start = pos2;
+        for (; pos2 < max2; pos2++) {
+          code2 = state.src.charCodeAt(pos2);
+          if (!isSpace(code2) && code2 !== 10) {
+            break;
+          }
+        }
+        res = state.md.helpers.parseLinkTitle(state.src, pos2, state.posMax);
+        if (pos2 < max2 && start !== pos2 && res.ok) {
+          title2 = res.str;
+          pos2 = res.pos;
+          for (; pos2 < max2; pos2++) {
+            code2 = state.src.charCodeAt(pos2);
+            if (!isSpace(code2) && code2 !== 10) {
+              break;
+            }
+          }
+        } else {
+          title2 = "";
+        }
+        if (pos2 >= max2 || state.src.charCodeAt(pos2) !== 41) {
+          state.pos = oldPos;
+          return false;
+        }
+        pos2++;
+      } else {
+        if (typeof state.env.references === "undefined") {
+          return false;
+        }
+        if (pos2 < max2 && state.src.charCodeAt(pos2) === 91) {
+          start = pos2 + 1;
+          pos2 = state.md.helpers.parseLinkLabel(state, pos2);
+          if (pos2 >= 0) {
+            label2 = state.src.slice(start, pos2++);
+          } else {
+            pos2 = labelEnd + 1;
+          }
+        } else {
+          pos2 = labelEnd + 1;
+        }
+        if (!label2) {
+          label2 = state.src.slice(labelStart, labelEnd);
+        }
+        ref = state.env.references[normalizeReference(label2)];
+        if (!ref) {
+          state.pos = oldPos;
+          return false;
+        }
+        href = ref.href;
+        title2 = ref.title;
+      }
+      if (!silent) {
+        content2 = state.src.slice(labelStart, labelEnd);
+        const tokens = [];
+        state.md.inline.parse(
+          content2,
+          state.md,
+          state.env,
+          tokens
+        );
+        const token2 = state.push("image", "img", 0);
+        const attrs = [["src", href], ["alt", ""]];
+        token2.attrs = attrs;
+        token2.children = tokens;
+        token2.content = content2;
+        if (title2) {
+          attrs.push(["title", title2]);
+        }
+      }
+      state.pos = pos2;
+      state.posMax = max2;
+      return true;
+    }
+    const EMAIL_RE = /^([a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*)$/;
+    const AUTOLINK_RE = /^([a-zA-Z][a-zA-Z0-9+.-]{1,31}):([^<>\x00-\x20]*)$/;
+    function autolink(state, silent) {
+      let pos2 = state.pos;
+      if (state.src.charCodeAt(pos2) !== 60) {
+        return false;
+      }
+      const start = state.pos;
+      const max2 = state.posMax;
+      for (; ; ) {
+        if (++pos2 >= max2) return false;
+        const ch3 = state.src.charCodeAt(pos2);
+        if (ch3 === 60) return false;
+        if (ch3 === 62) break;
+      }
+      const url = state.src.slice(start + 1, pos2);
+      if (AUTOLINK_RE.test(url)) {
+        const fullUrl = state.md.normalizeLink(url);
+        if (!state.md.validateLink(fullUrl)) {
+          return false;
+        }
+        if (!silent) {
+          const token_o = state.push("link_open", "a", 1);
+          token_o.attrs = [["href", fullUrl]];
+          token_o.markup = "autolink";
+          token_o.info = "auto";
+          const token_t = state.push("text", "", 0);
+          token_t.content = state.md.normalizeLinkText(url);
+          const token_c = state.push("link_close", "a", -1);
+          token_c.markup = "autolink";
+          token_c.info = "auto";
+        }
+        state.pos += url.length + 2;
+        return true;
+      }
+      if (EMAIL_RE.test(url)) {
+        const fullUrl = state.md.normalizeLink("mailto:" + url);
+        if (!state.md.validateLink(fullUrl)) {
+          return false;
+        }
+        if (!silent) {
+          const token_o = state.push("link_open", "a", 1);
+          token_o.attrs = [["href", fullUrl]];
+          token_o.markup = "autolink";
+          token_o.info = "auto";
+          const token_t = state.push("text", "", 0);
+          token_t.content = state.md.normalizeLinkText(url);
+          const token_c = state.push("link_close", "a", -1);
+          token_c.markup = "autolink";
+          token_c.info = "auto";
+        }
+        state.pos += url.length + 2;
+        return true;
+      }
+      return false;
+    }
+    function isLinkOpen(str2) {
+      return /^<a[>\s]/i.test(str2);
+    }
+    function isLinkClose(str2) {
+      return /^<\/a\s*>/i.test(str2);
+    }
+    function isLetter(ch3) {
+      const lc = ch3 | 32;
+      return lc >= 97 && lc <= 122;
+    }
+    function html_inline(state, silent) {
+      if (!state.md.options.html) {
+        return false;
+      }
+      const max2 = state.posMax;
+      const pos2 = state.pos;
+      if (state.src.charCodeAt(pos2) !== 60 || pos2 + 2 >= max2) {
+        return false;
+      }
+      const ch3 = state.src.charCodeAt(pos2 + 1);
+      if (ch3 !== 33 && ch3 !== 63 && ch3 !== 47 && !isLetter(ch3)) {
+        return false;
+      }
+      const match = state.src.slice(pos2).match(HTML_TAG_RE);
+      if (!match) {
+        return false;
+      }
+      if (!silent) {
+        const token2 = state.push("html_inline", "", 0);
+        token2.content = match[0];
+        if (isLinkOpen(token2.content)) state.linkLevel++;
+        if (isLinkClose(token2.content)) state.linkLevel--;
+      }
+      state.pos += match[0].length;
+      return true;
+    }
+    const DIGITAL_RE = /^&#((?:x[a-f0-9]{1,6}|[0-9]{1,7}));/i;
+    const NAMED_RE = /^&([a-z][a-z0-9]{1,31});/i;
+    function entity(state, silent) {
+      const pos2 = state.pos;
+      const max2 = state.posMax;
+      if (state.src.charCodeAt(pos2) !== 38) return false;
+      if (pos2 + 1 >= max2) return false;
+      const ch3 = state.src.charCodeAt(pos2 + 1);
+      if (ch3 === 35) {
+        const match = state.src.slice(pos2).match(DIGITAL_RE);
+        if (match) {
+          if (!silent) {
+            const code2 = match[1][0].toLowerCase() === "x" ? parseInt(match[1].slice(1), 16) : parseInt(match[1], 10);
+            const token2 = state.push("text_special", "", 0);
+            token2.content = isValidEntityCode(code2) ? fromCodePoint(code2) : fromCodePoint(65533);
+            token2.markup = match[0];
+            token2.info = "entity";
+          }
+          state.pos += match[0].length;
+          return true;
+        }
+      } else {
+        const match = state.src.slice(pos2).match(NAMED_RE);
+        if (match) {
+          const decoded = decodeHTML(match[0]);
+          if (decoded !== match[0]) {
+            if (!silent) {
+              const token2 = state.push("text_special", "", 0);
+              token2.content = decoded;
+              token2.markup = match[0];
+              token2.info = "entity";
+            }
+            state.pos += match[0].length;
+            return true;
+          }
+        }
+      }
+      return false;
+    }
+    function processDelimiters(delimiters) {
+      const openersBottom = {};
+      const max2 = delimiters.length;
+      if (!max2) return;
+      let headerIdx = 0;
+      let lastTokenIdx = -2;
+      const jumps = [];
+      for (let closerIdx = 0; closerIdx < max2; closerIdx++) {
+        const closer = delimiters[closerIdx];
+        jumps.push(0);
+        if (delimiters[headerIdx].marker !== closer.marker || lastTokenIdx !== closer.token - 1) {
+          headerIdx = closerIdx;
+        }
+        lastTokenIdx = closer.token;
+        closer.length = closer.length || 0;
+        if (!closer.close) continue;
+        if (!openersBottom.hasOwnProperty(closer.marker)) {
+          openersBottom[closer.marker] = [-1, -1, -1, -1, -1, -1];
+        }
+        const minOpenerIdx = openersBottom[closer.marker][(closer.open ? 3 : 0) + closer.length % 3];
+        let openerIdx = headerIdx - jumps[headerIdx] - 1;
+        let newMinOpenerIdx = openerIdx;
+        for (; openerIdx > minOpenerIdx; openerIdx -= jumps[openerIdx] + 1) {
+          const opener = delimiters[openerIdx];
+          if (opener.marker !== closer.marker) continue;
+          if (opener.open && opener.end < 0) {
+            let isOddMatch = false;
+            if (opener.close || closer.open) {
+              if ((opener.length + closer.length) % 3 === 0) {
+                if (opener.length % 3 !== 0 || closer.length % 3 !== 0) {
+                  isOddMatch = true;
+                }
+              }
+            }
+            if (!isOddMatch) {
+              const lastJump = openerIdx > 0 && !delimiters[openerIdx - 1].open ? jumps[openerIdx - 1] + 1 : 0;
+              jumps[closerIdx] = closerIdx - openerIdx + lastJump;
+              jumps[openerIdx] = lastJump;
+              closer.open = false;
+              opener.end = closerIdx;
+              opener.close = false;
+              newMinOpenerIdx = -1;
+              lastTokenIdx = -2;
+              break;
+            }
+          }
+        }
+        if (newMinOpenerIdx !== -1) {
+          openersBottom[closer.marker][(closer.open ? 3 : 0) + (closer.length || 0) % 3] = newMinOpenerIdx;
+        }
+      }
+    }
+    function link_pairs(state) {
+      const tokens_meta = state.tokens_meta;
+      const max2 = state.tokens_meta.length;
+      processDelimiters(state.delimiters);
+      for (let curr = 0; curr < max2; curr++) {
+        if (tokens_meta[curr] && tokens_meta[curr].delimiters) {
+          processDelimiters(tokens_meta[curr].delimiters);
+        }
+      }
+    }
+    function fragments_join(state) {
+      let curr, last;
+      let level = 0;
+      const tokens = state.tokens;
+      const max2 = state.tokens.length;
+      for (curr = last = 0; curr < max2; curr++) {
+        if (tokens[curr].nesting < 0) level--;
+        tokens[curr].level = level;
+        if (tokens[curr].nesting > 0) level++;
+        if (tokens[curr].type === "text" && curr + 1 < max2 && tokens[curr + 1].type === "text") {
+          tokens[curr + 1].content = tokens[curr].content + tokens[curr + 1].content;
+        } else {
+          if (curr !== last) {
+            tokens[last] = tokens[curr];
+          }
+          last++;
+        }
+      }
+      if (curr !== last) {
+        tokens.length = last;
+      }
+    }
+    const _rules = [
+      ["text", text],
+      ["linkify", linkify],
+      ["newline", newline],
+      ["escape", escape$1],
+      ["backticks", backtick],
+      ["strikethrough", r_strikethrough.tokenize],
+      ["emphasis", r_emphasis.tokenize],
+      ["link", link],
+      ["image", image$1],
+      ["autolink", autolink],
+      ["html_inline", html_inline],
+      ["entity", entity]
+    ];
+    const _rules2 = [
+      ["balance_pairs", link_pairs],
+      ["strikethrough", r_strikethrough.postProcess],
+      ["emphasis", r_emphasis.postProcess],
+      // rules for pairs separate '**' into its own text tokens, which may be left unused,
+      // rule below merges unused segments back with the rest of the text
+      ["fragments_join", fragments_join]
+    ];
+    function ParserInline() {
+      this.ruler = new Ruler();
+      for (let i2 = 0; i2 < _rules.length; i2++) {
+        this.ruler.push(_rules[i2][0], _rules[i2][1]);
+      }
+      this.ruler2 = new Ruler();
+      for (let i2 = 0; i2 < _rules2.length; i2++) {
+        this.ruler2.push(_rules2[i2][0], _rules2[i2][1]);
+      }
+    }
+    ParserInline.prototype.skipToken = function(state) {
+      const pos2 = state.pos;
+      const rules = this.ruler.getRules("");
+      const len = rules.length;
+      const maxNesting = state.md.options.maxNesting;
+      const cache = state.cache;
+      if (typeof cache[pos2] !== "undefined") {
+        state.pos = cache[pos2];
+        return;
+      }
+      let ok = false;
+      if (state.level < maxNesting) {
+        for (let i2 = 0; i2 < len; i2++) {
+          state.level++;
+          ok = rules[i2](state, true);
+          state.level--;
+          if (ok) {
+            if (pos2 >= state.pos) {
+              throw new Error("inline rule didn't increment state.pos");
+            }
+            break;
+          }
+        }
+      } else {
+        state.pos = state.posMax;
+      }
+      if (!ok) {
+        state.pos++;
+      }
+      cache[pos2] = state.pos;
+    };
+    ParserInline.prototype.tokenize = function(state) {
+      const rules = this.ruler.getRules("");
+      const len = rules.length;
+      const end = state.posMax;
+      const maxNesting = state.md.options.maxNesting;
+      while (state.pos < end) {
+        const prevPos = state.pos;
+        let ok = false;
+        if (state.level < maxNesting) {
+          for (let i2 = 0; i2 < len; i2++) {
+            ok = rules[i2](state, false);
+            if (ok) {
+              if (prevPos >= state.pos) {
+                throw new Error("inline rule didn't increment state.pos");
+              }
+              break;
+            }
+          }
+        }
+        if (ok) {
+          if (state.pos >= end) {
+            break;
+          }
+          continue;
+        }
+        state.pending += state.src[state.pos++];
+      }
+      if (state.pending) {
+        state.pushPending();
+      }
+    };
+    ParserInline.prototype.parse = function(str2, md, env, outTokens) {
+      const state = new this.State(str2, md, env, outTokens);
+      this.tokenize(state);
+      const rules = this.ruler2.getRules("");
+      const len = rules.length;
+      for (let i2 = 0; i2 < len; i2++) {
+        rules[i2](state);
+      }
+    };
+    ParserInline.prototype.State = StateInline;
+    function reFactory(opts) {
+      const re = {};
+      opts = opts || {};
+      re.src_Any = Any.source;
+      re.src_Cc = Cc.source;
+      re.src_Z = Z.source;
+      re.src_P = P.source;
+      re.src_ZPCc = [re.src_Z, re.src_P, re.src_Cc].join("|");
+      re.src_ZCc = [re.src_Z, re.src_Cc].join("|");
+      const text_separators = "[><｜]";
+      re.src_pseudo_letter = "(?:(?!" + text_separators + "|" + re.src_ZPCc + ")" + re.src_Any + ")";
+      re.src_ip4 = "(?:(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)";
+      re.src_auth = "(?:(?:(?!" + re.src_ZCc + "|[@/\\[\\]()]).)+@)?";
+      re.src_port = "(?::(?:6(?:[0-4]\\d{3}|5(?:[0-4]\\d{2}|5(?:[0-2]\\d|3[0-5])))|[1-5]?\\d{1,4}))?";
+      re.src_host_terminator = "(?=$|" + text_separators + "|" + re.src_ZPCc + ")(?!" + (opts["---"] ? "-(?!--)|" : "-|") + "_|:\\d|\\.-|\\.(?!$|" + re.src_ZPCc + "))";
+      re.src_path = "(?:[/?#](?:(?!" + re.src_ZCc + "|" + text_separators + `|[()[\\]{}.,"'?!\\-;]).|\\[(?:(?!` + re.src_ZCc + "|\\]).)*\\]|\\((?:(?!" + re.src_ZCc + "|[)]).)*\\)|\\{(?:(?!" + re.src_ZCc + '|[}]).)*\\}|\\"(?:(?!' + re.src_ZCc + `|["]).)+\\"|\\'(?:(?!` + re.src_ZCc + "|[']).)+\\'|\\'(?=" + re.src_pseudo_letter + "|[-])|\\.{2,}[a-zA-Z0-9%/&]|\\.(?!" + re.src_ZCc + "|[.]|$)|" + (opts["---"] ? "\\-(?!--(?:[^-]|$))(?:-*)|" : "\\-+|") + // allow `,,,` in paths
+      ",(?!" + re.src_ZCc + "|$)|;(?!" + re.src_ZCc + "|$)|\\!+(?!" + re.src_ZCc + "|[!]|$)|\\?(?!" + re.src_ZCc + "|[?]|$))+|\\/)?";
+      re.src_email_name = '[\\-;:&=\\+\\$,\\.a-zA-Z0-9_][\\-;:&=\\+\\$,\\"\\.a-zA-Z0-9_]*';
+      re.src_xn = "xn--[a-z0-9\\-]{1,59}";
+      re.src_domain_root = // Allow letters & digits (http://test1)
+      "(?:" + re.src_xn + "|" + re.src_pseudo_letter + "{1,63})";
+      re.src_domain = "(?:" + re.src_xn + "|(?:" + re.src_pseudo_letter + ")|(?:" + re.src_pseudo_letter + "(?:-|" + re.src_pseudo_letter + "){0,61}" + re.src_pseudo_letter + "))";
+      re.src_host = "(?:(?:(?:(?:" + re.src_domain + ")\\.)*" + re.src_domain + "))";
+      re.tpl_host_fuzzy = "(?:" + re.src_ip4 + "|(?:(?:(?:" + re.src_domain + ")\\.)+(?:%TLDS%)))";
+      re.tpl_host_no_ip_fuzzy = "(?:(?:(?:" + re.src_domain + ")\\.)+(?:%TLDS%))";
+      re.src_host_strict = re.src_host + re.src_host_terminator;
+      re.tpl_host_fuzzy_strict = re.tpl_host_fuzzy + re.src_host_terminator;
+      re.src_host_port_strict = re.src_host + re.src_port + re.src_host_terminator;
+      re.tpl_host_port_fuzzy_strict = re.tpl_host_fuzzy + re.src_port + re.src_host_terminator;
+      re.tpl_host_port_no_ip_fuzzy_strict = re.tpl_host_no_ip_fuzzy + re.src_port + re.src_host_terminator;
+      re.tpl_host_fuzzy_test = "localhost|www\\.|\\.\\d{1,3}\\.|(?:\\.(?:%TLDS%)(?:" + re.src_ZPCc + "|>|$))";
+      re.tpl_email_fuzzy = "(^|" + text_separators + '|"|\\(|' + re.src_ZCc + ")(" + re.src_email_name + "@" + re.tpl_host_fuzzy_strict + ")";
+      re.tpl_link_fuzzy = // Fuzzy link can't be prepended with .:/\- and non punctuation.
+      // but can start with > (markdown blockquote)
+      "(^|(?![.:/\\-_@])(?:[$+<=>^`|｜]|" + re.src_ZPCc + "))((?![$+<=>^`|｜])" + re.tpl_host_port_fuzzy_strict + re.src_path + ")";
+      re.tpl_link_no_ip_fuzzy = // Fuzzy link can't be prepended with .:/\- and non punctuation.
+      // but can start with > (markdown blockquote)
+      "(^|(?![.:/\\-_@])(?:[$+<=>^`|｜]|" + re.src_ZPCc + "))((?![$+<=>^`|｜])" + re.tpl_host_port_no_ip_fuzzy_strict + re.src_path + ")";
+      return re;
+    }
+    function assign(obj) {
+      const sources = Array.prototype.slice.call(arguments, 1);
+      sources.forEach(function(source2) {
+        if (!source2) {
+          return;
+        }
+        Object.keys(source2).forEach(function(key2) {
+          obj[key2] = source2[key2];
+        });
+      });
+      return obj;
+    }
+    function _class(obj) {
+      return Object.prototype.toString.call(obj);
+    }
+    function isString(obj) {
+      return _class(obj) === "[object String]";
+    }
+    function isObject(obj) {
+      return _class(obj) === "[object Object]";
+    }
+    function isRegExp(obj) {
+      return _class(obj) === "[object RegExp]";
+    }
+    function isFunction(obj) {
+      return _class(obj) === "[object Function]";
+    }
+    function escapeRE(str2) {
+      return str2.replace(/[.?*+^$[\]\\(){}|-]/g, "\\$&");
+    }
+    const defaultOptions = {
+      fuzzyLink: true,
+      fuzzyEmail: true,
+      fuzzyIP: false
+    };
+    function isOptionsObj(obj) {
+      return Object.keys(obj || {}).reduce(function(acc, k) {
+        return acc || defaultOptions.hasOwnProperty(k);
+      }, false);
+    }
+    const defaultSchemas = {
+      "http:": {
+        validate: function(text2, pos2, self2) {
+          const tail = text2.slice(pos2);
+          if (!self2.re.http) {
+            self2.re.http = new RegExp(
+              "^\\/\\/" + self2.re.src_auth + self2.re.src_host_port_strict + self2.re.src_path,
+              "i"
+            );
+          }
+          if (self2.re.http.test(tail)) {
+            return tail.match(self2.re.http)[0].length;
+          }
+          return 0;
+        }
+      },
+      "https:": "http:",
+      "ftp:": "http:",
+      "//": {
+        validate: function(text2, pos2, self2) {
+          const tail = text2.slice(pos2);
+          if (!self2.re.no_http) {
+            self2.re.no_http = new RegExp(
+              "^" + self2.re.src_auth + // Don't allow single-level domains, because of false positives like '//test'
+              // with code comments
+              "(?:localhost|(?:(?:" + self2.re.src_domain + ")\\.)+" + self2.re.src_domain_root + ")" + self2.re.src_port + self2.re.src_host_terminator + self2.re.src_path,
+              "i"
+            );
+          }
+          if (self2.re.no_http.test(tail)) {
+            if (pos2 >= 3 && text2[pos2 - 3] === ":") {
+              return 0;
+            }
+            if (pos2 >= 3 && text2[pos2 - 3] === "/") {
+              return 0;
+            }
+            return tail.match(self2.re.no_http)[0].length;
+          }
+          return 0;
+        }
+      },
+      "mailto:": {
+        validate: function(text2, pos2, self2) {
+          const tail = text2.slice(pos2);
+          if (!self2.re.mailto) {
+            self2.re.mailto = new RegExp(
+              "^" + self2.re.src_email_name + "@" + self2.re.src_host_strict,
+              "i"
+            );
+          }
+          if (self2.re.mailto.test(tail)) {
+            return tail.match(self2.re.mailto)[0].length;
+          }
+          return 0;
+        }
+      }
+    };
+    const tlds_2ch_src_re = "a[cdefgilmnoqrstuwxz]|b[abdefghijmnorstvwyz]|c[acdfghiklmnoruvwxyz]|d[ejkmoz]|e[cegrstu]|f[ijkmor]|g[abdefghilmnpqrstuwy]|h[kmnrtu]|i[delmnoqrst]|j[emop]|k[eghimnprwyz]|l[abcikrstuvy]|m[acdeghklmnopqrstuvwxyz]|n[acefgilopruz]|om|p[aefghklmnrstwy]|qa|r[eosuw]|s[abcdeghijklmnortuvxyz]|t[cdfghjklmnortvwz]|u[agksyz]|v[aceginu]|w[fs]|y[et]|z[amw]";
+    const tlds_default = "biz|com|edu|gov|net|org|pro|web|xxx|aero|asia|coop|info|museum|name|shop|рф".split("|");
+    function resetScanCache(self2) {
+      self2.__index__ = -1;
+      self2.__text_cache__ = "";
+    }
+    function createValidator(re) {
+      return function(text2, pos2) {
+        const tail = text2.slice(pos2);
+        if (re.test(tail)) {
+          return tail.match(re)[0].length;
+        }
+        return 0;
+      };
+    }
+    function createNormalizer() {
+      return function(match, self2) {
+        self2.normalize(match);
+      };
+    }
+    function compile(self2) {
+      const re = self2.re = reFactory(self2.__opts__);
+      const tlds = self2.__tlds__.slice();
+      self2.onCompile();
+      if (!self2.__tlds_replaced__) {
+        tlds.push(tlds_2ch_src_re);
+      }
+      tlds.push(re.src_xn);
+      re.src_tlds = tlds.join("|");
+      function untpl(tpl) {
+        return tpl.replace("%TLDS%", re.src_tlds);
+      }
+      re.email_fuzzy = RegExp(untpl(re.tpl_email_fuzzy), "i");
+      re.link_fuzzy = RegExp(untpl(re.tpl_link_fuzzy), "i");
+      re.link_no_ip_fuzzy = RegExp(untpl(re.tpl_link_no_ip_fuzzy), "i");
+      re.host_fuzzy_test = RegExp(untpl(re.tpl_host_fuzzy_test), "i");
+      const aliases2 = [];
+      self2.__compiled__ = {};
+      function schemaError(name2, val) {
+        throw new Error('(LinkifyIt) Invalid schema "' + name2 + '": ' + val);
+      }
+      Object.keys(self2.__schemas__).forEach(function(name2) {
+        const val = self2.__schemas__[name2];
+        if (val === null) {
+          return;
+        }
+        const compiled = { validate: null, link: null };
+        self2.__compiled__[name2] = compiled;
+        if (isObject(val)) {
+          if (isRegExp(val.validate)) {
+            compiled.validate = createValidator(val.validate);
+          } else if (isFunction(val.validate)) {
+            compiled.validate = val.validate;
+          } else {
+            schemaError(name2, val);
+          }
+          if (isFunction(val.normalize)) {
+            compiled.normalize = val.normalize;
+          } else if (!val.normalize) {
+            compiled.normalize = createNormalizer();
+          } else {
+            schemaError(name2, val);
+          }
+          return;
+        }
+        if (isString(val)) {
+          aliases2.push(name2);
+          return;
+        }
+        schemaError(name2, val);
+      });
+      aliases2.forEach(function(alias) {
+        if (!self2.__compiled__[self2.__schemas__[alias]]) {
+          return;
+        }
+        self2.__compiled__[alias].validate = self2.__compiled__[self2.__schemas__[alias]].validate;
+        self2.__compiled__[alias].normalize = self2.__compiled__[self2.__schemas__[alias]].normalize;
+      });
+      self2.__compiled__[""] = { validate: null, normalize: createNormalizer() };
+      const slist = Object.keys(self2.__compiled__).filter(function(name2) {
+        return name2.length > 0 && self2.__compiled__[name2];
+      }).map(escapeRE).join("|");
+      self2.re.schema_test = RegExp("(^|(?!_)(?:[><｜]|" + re.src_ZPCc + "))(" + slist + ")", "i");
+      self2.re.schema_search = RegExp("(^|(?!_)(?:[><｜]|" + re.src_ZPCc + "))(" + slist + ")", "ig");
+      self2.re.schema_at_start = RegExp("^" + self2.re.schema_search.source, "i");
+      self2.re.pretest = RegExp(
+        "(" + self2.re.schema_test.source + ")|(" + self2.re.host_fuzzy_test.source + ")|@",
+        "i"
+      );
+      resetScanCache(self2);
+    }
+    function Match$1(self2, shift2) {
+      const start = self2.__index__;
+      const end = self2.__last_index__;
+      const text2 = self2.__text_cache__.slice(start, end);
+      this.schema = self2.__schema__.toLowerCase();
+      this.index = start + shift2;
+      this.lastIndex = end + shift2;
+      this.raw = text2;
+      this.text = text2;
+      this.url = text2;
+    }
+    function createMatch(self2, shift2) {
+      const match = new Match$1(self2, shift2);
+      self2.__compiled__[match.schema].normalize(match, self2);
+      return match;
+    }
+    function LinkifyIt(schemas, options2) {
+      if (!(this instanceof LinkifyIt)) {
+        return new LinkifyIt(schemas, options2);
+      }
+      if (!options2) {
+        if (isOptionsObj(schemas)) {
+          options2 = schemas;
+          schemas = {};
+        }
+      }
+      this.__opts__ = assign({}, defaultOptions, options2);
+      this.__index__ = -1;
+      this.__last_index__ = -1;
+      this.__schema__ = "";
+      this.__text_cache__ = "";
+      this.__schemas__ = assign({}, defaultSchemas, schemas);
+      this.__compiled__ = {};
+      this.__tlds__ = tlds_default;
+      this.__tlds_replaced__ = false;
+      this.re = {};
+      compile(this);
+    }
+    LinkifyIt.prototype.add = function add2(schema, definition) {
+      this.__schemas__[schema] = definition;
+      compile(this);
+      return this;
+    };
+    LinkifyIt.prototype.set = function set(options2) {
+      this.__opts__ = assign(this.__opts__, options2);
+      return this;
+    };
+    LinkifyIt.prototype.test = function test(text2) {
+      this.__text_cache__ = text2;
+      this.__index__ = -1;
+      if (!text2.length) {
+        return false;
+      }
+      let m, ml, me, len, shift2, next, re, tld_pos, at_pos;
+      if (this.re.schema_test.test(text2)) {
+        re = this.re.schema_search;
+        re.lastIndex = 0;
+        while ((m = re.exec(text2)) !== null) {
+          len = this.testSchemaAt(text2, m[2], re.lastIndex);
+          if (len) {
+            this.__schema__ = m[2];
+            this.__index__ = m.index + m[1].length;
+            this.__last_index__ = m.index + m[0].length + len;
+            break;
+          }
+        }
+      }
+      if (this.__opts__.fuzzyLink && this.__compiled__["http:"]) {
+        tld_pos = text2.search(this.re.host_fuzzy_test);
+        if (tld_pos >= 0) {
+          if (this.__index__ < 0 || tld_pos < this.__index__) {
+            if ((ml = text2.match(this.__opts__.fuzzyIP ? this.re.link_fuzzy : this.re.link_no_ip_fuzzy)) !== null) {
+              shift2 = ml.index + ml[1].length;
+              if (this.__index__ < 0 || shift2 < this.__index__) {
+                this.__schema__ = "";
+                this.__index__ = shift2;
+                this.__last_index__ = ml.index + ml[0].length;
+              }
+            }
+          }
+        }
+      }
+      if (this.__opts__.fuzzyEmail && this.__compiled__["mailto:"]) {
+        at_pos = text2.indexOf("@");
+        if (at_pos >= 0) {
+          if ((me = text2.match(this.re.email_fuzzy)) !== null) {
+            shift2 = me.index + me[1].length;
+            next = me.index + me[0].length;
+            if (this.__index__ < 0 || shift2 < this.__index__ || shift2 === this.__index__ && next > this.__last_index__) {
+              this.__schema__ = "mailto:";
+              this.__index__ = shift2;
+              this.__last_index__ = next;
+            }
+          }
+        }
+      }
+      return this.__index__ >= 0;
+    };
+    LinkifyIt.prototype.pretest = function pretest(text2) {
+      return this.re.pretest.test(text2);
+    };
+    LinkifyIt.prototype.testSchemaAt = function testSchemaAt(text2, schema, pos2) {
+      if (!this.__compiled__[schema.toLowerCase()]) {
+        return 0;
+      }
+      return this.__compiled__[schema.toLowerCase()].validate(text2, pos2, this);
+    };
+    LinkifyIt.prototype.match = function match(text2) {
+      const result = [];
+      let shift2 = 0;
+      if (this.__index__ >= 0 && this.__text_cache__ === text2) {
+        result.push(createMatch(this, shift2));
+        shift2 = this.__last_index__;
+      }
+      let tail = shift2 ? text2.slice(shift2) : text2;
+      while (this.test(tail)) {
+        result.push(createMatch(this, shift2));
+        tail = tail.slice(this.__last_index__);
+        shift2 += this.__last_index__;
+      }
+      if (result.length) {
+        return result;
+      }
+      return null;
+    };
+    LinkifyIt.prototype.matchAtStart = function matchAtStart(text2) {
+      this.__text_cache__ = text2;
+      this.__index__ = -1;
+      if (!text2.length) return null;
+      const m = this.re.schema_at_start.exec(text2);
+      if (!m) return null;
+      const len = this.testSchemaAt(text2, m[2], m[0].length);
+      if (!len) return null;
+      this.__schema__ = m[2];
+      this.__index__ = m.index + m[1].length;
+      this.__last_index__ = m.index + m[0].length + len;
+      return createMatch(this, 0);
+    };
+    LinkifyIt.prototype.tlds = function tlds(list2, keepOld) {
+      list2 = Array.isArray(list2) ? list2 : [list2];
+      if (!keepOld) {
+        this.__tlds__ = list2.slice();
+        this.__tlds_replaced__ = true;
+        compile(this);
+        return this;
+      }
+      this.__tlds__ = this.__tlds__.concat(list2).sort().filter(function(el, idx, arr2) {
+        return el !== arr2[idx - 1];
+      }).reverse();
+      compile(this);
+      return this;
+    };
+    LinkifyIt.prototype.normalize = function normalize2(match) {
+      if (!match.schema) {
+        match.url = "http://" + match.url;
+      }
+      if (match.schema === "mailto:" && !/^mailto:/i.test(match.url)) {
+        match.url = "mailto:" + match.url;
+      }
+    };
+    LinkifyIt.prototype.onCompile = function onCompile() {
+    };
+    const maxInt = 2147483647;
+    const base = 36;
+    const tMin = 1;
+    const tMax = 26;
+    const skew = 38;
+    const damp = 700;
+    const initialBias = 72;
+    const initialN = 128;
+    const delimiter = "-";
+    const regexPunycode = /^xn--/;
+    const regexNonASCII = /[^\0-\x7F]/;
+    const regexSeparators = /[\x2E\u3002\uFF0E\uFF61]/g;
+    const errors = {
+      "overflow": "Overflow: input needs wider integers to process",
+      "not-basic": "Illegal input >= 0x80 (not a basic code point)",
+      "invalid-input": "Invalid input"
+    };
+    const baseMinusTMin = base - tMin;
+    const floor = Math.floor;
+    const stringFromCharCode = String.fromCharCode;
+    function error(type) {
+      throw new RangeError(errors[type]);
+    }
+    function map(array, callback) {
+      const result = [];
+      let length = array.length;
+      while (length--) {
+        result[length] = callback(array[length]);
+      }
+      return result;
+    }
+    function mapDomain(domain, callback) {
+      const parts = domain.split("@");
+      let result = "";
+      if (parts.length > 1) {
+        result = parts[0] + "@";
+        domain = parts[1];
+      }
+      domain = domain.replace(regexSeparators, ".");
+      const labels = domain.split(".");
+      const encoded = map(labels, callback).join(".");
+      return result + encoded;
+    }
+    function ucs2decode(string2) {
+      const output2 = [];
+      let counter = 0;
+      const length = string2.length;
+      while (counter < length) {
+        const value2 = string2.charCodeAt(counter++);
+        if (value2 >= 55296 && value2 <= 56319 && counter < length) {
+          const extra = string2.charCodeAt(counter++);
+          if ((extra & 64512) == 56320) {
+            output2.push(((value2 & 1023) << 10) + (extra & 1023) + 65536);
+          } else {
+            output2.push(value2);
+            counter--;
+          }
+        } else {
+          output2.push(value2);
+        }
+      }
+      return output2;
+    }
+    const ucs2encode = (codePoints) => String.fromCodePoint(...codePoints);
+    const basicToDigit = function(codePoint) {
+      if (codePoint >= 48 && codePoint < 58) {
+        return 26 + (codePoint - 48);
+      }
+      if (codePoint >= 65 && codePoint < 91) {
+        return codePoint - 65;
+      }
+      if (codePoint >= 97 && codePoint < 123) {
+        return codePoint - 97;
+      }
+      return base;
+    };
+    const digitToBasic = function(digit, flag) {
+      return digit + 22 + 75 * (digit < 26) - ((flag != 0) << 5);
+    };
+    const adapt = function(delta, numPoints, firstTime) {
+      let k = 0;
+      delta = firstTime ? floor(delta / damp) : delta >> 1;
+      delta += floor(delta / numPoints);
+      for (; delta > baseMinusTMin * tMax >> 1; k += base) {
+        delta = floor(delta / baseMinusTMin);
+      }
+      return floor(k + (baseMinusTMin + 1) * delta / (delta + skew));
+    };
+    const decode = function(input2) {
+      const output2 = [];
+      const inputLength = input2.length;
+      let i2 = 0;
+      let n = initialN;
+      let bias = initialBias;
+      let basic = input2.lastIndexOf(delimiter);
+      if (basic < 0) {
+        basic = 0;
+      }
+      for (let j = 0; j < basic; ++j) {
+        if (input2.charCodeAt(j) >= 128) {
+          error("not-basic");
+        }
+        output2.push(input2.charCodeAt(j));
+      }
+      for (let index2 = basic > 0 ? basic + 1 : 0; index2 < inputLength; ) {
+        const oldi = i2;
+        for (let w = 1, k = base; ; k += base) {
+          if (index2 >= inputLength) {
+            error("invalid-input");
+          }
+          const digit = basicToDigit(input2.charCodeAt(index2++));
+          if (digit >= base) {
+            error("invalid-input");
+          }
+          if (digit > floor((maxInt - i2) / w)) {
+            error("overflow");
+          }
+          i2 += digit * w;
+          const t2 = k <= bias ? tMin : k >= bias + tMax ? tMax : k - bias;
+          if (digit < t2) {
+            break;
+          }
+          const baseMinusT = base - t2;
+          if (w > floor(maxInt / baseMinusT)) {
+            error("overflow");
+          }
+          w *= baseMinusT;
+        }
+        const out = output2.length + 1;
+        bias = adapt(i2 - oldi, out, oldi == 0);
+        if (floor(i2 / out) > maxInt - n) {
+          error("overflow");
+        }
+        n += floor(i2 / out);
+        i2 %= out;
+        output2.splice(i2++, 0, n);
+      }
+      return String.fromCodePoint(...output2);
+    };
+    const encode = function(input2) {
+      const output2 = [];
+      input2 = ucs2decode(input2);
+      const inputLength = input2.length;
+      let n = initialN;
+      let delta = 0;
+      let bias = initialBias;
+      for (const currentValue2 of input2) {
+        if (currentValue2 < 128) {
+          output2.push(stringFromCharCode(currentValue2));
+        }
+      }
+      const basicLength = output2.length;
+      let handledCPCount = basicLength;
+      if (basicLength) {
+        output2.push(delimiter);
+      }
+      while (handledCPCount < inputLength) {
+        let m = maxInt;
+        for (const currentValue2 of input2) {
+          if (currentValue2 >= n && currentValue2 < m) {
+            m = currentValue2;
+          }
+        }
+        const handledCPCountPlusOne = handledCPCount + 1;
+        if (m - n > floor((maxInt - delta) / handledCPCountPlusOne)) {
+          error("overflow");
+        }
+        delta += (m - n) * handledCPCountPlusOne;
+        n = m;
+        for (const currentValue2 of input2) {
+          if (currentValue2 < n && ++delta > maxInt) {
+            error("overflow");
+          }
+          if (currentValue2 === n) {
+            let q = delta;
+            for (let k = base; ; k += base) {
+              const t2 = k <= bias ? tMin : k >= bias + tMax ? tMax : k - bias;
+              if (q < t2) {
+                break;
+              }
+              const qMinusT = q - t2;
+              const baseMinusT = base - t2;
+              output2.push(
+                stringFromCharCode(digitToBasic(t2 + qMinusT % baseMinusT, 0))
+              );
+              q = floor(qMinusT / baseMinusT);
+            }
+            output2.push(stringFromCharCode(digitToBasic(q, 0)));
+            bias = adapt(delta, handledCPCountPlusOne, handledCPCount === basicLength);
+            delta = 0;
+            ++handledCPCount;
+          }
+        }
+        ++delta;
+        ++n;
+      }
+      return output2.join("");
+    };
+    const toUnicode = function(input2) {
+      return mapDomain(input2, function(string2) {
+        return regexPunycode.test(string2) ? decode(string2.slice(4).toLowerCase()) : string2;
+      });
+    };
+    const toASCII = function(input2) {
+      return mapDomain(input2, function(string2) {
+        return regexNonASCII.test(string2) ? "xn--" + encode(string2) : string2;
+      });
+    };
+    const punycode = {
+      /**
+       * A string representing the current Punycode.js version number.
+       * @memberOf punycode
+       * @type String
+       */
+      "version": "2.3.1",
+      /**
+       * An object of methods to convert from JavaScript's internal character
+       * representation (UCS-2) to Unicode code points, and back.
+       * @see <https://mathiasbynens.be/notes/javascript-encoding>
+       * @memberOf punycode
+       * @type Object
+       */
+      "ucs2": {
+        "decode": ucs2decode,
+        "encode": ucs2encode
+      },
+      "decode": decode,
+      "encode": encode,
+      "toASCII": toASCII,
+      "toUnicode": toUnicode
+    };
+    const cfg_default = {
+      options: {
+        // Enable HTML tags in source
+        html: false,
+        // Use '/' to close single tags (<br />)
+        xhtmlOut: false,
+        // Convert '\n' in paragraphs into <br>
+        breaks: false,
+        // CSS language prefix for fenced blocks
+        langPrefix: "language-",
+        // autoconvert URL-like texts to links
+        linkify: false,
+        // Enable some language-neutral replacements + quotes beautification
+        typographer: false,
+        // Double + single quotes replacement pairs, when typographer enabled,
+        // and smartquotes on. Could be either a String or an Array.
+        //
+        // For example, you can use '«»„“' for Russian, '„“‚‘' for German,
+        // and ['«\xA0', '\xA0»', '‹\xA0', '\xA0›'] for French (including nbsp).
+        quotes: "“”‘’",
+        /* “”‘’ */
+        // Highlighter function. Should return escaped HTML,
+        // or '' if the source string is not changed and should be escaped externaly.
+        // If result starts with <pre... internal wrapper is skipped.
+        //
+        // function (/*str, lang*/) { return ''; }
+        //
+        highlight: null,
+        // Internal protection, recursion limit
+        maxNesting: 100
+      },
+      components: {
+        core: {},
+        block: {},
+        inline: {}
+      }
+    };
+    const cfg_zero = {
+      options: {
+        // Enable HTML tags in source
+        html: false,
+        // Use '/' to close single tags (<br />)
+        xhtmlOut: false,
+        // Convert '\n' in paragraphs into <br>
+        breaks: false,
+        // CSS language prefix for fenced blocks
+        langPrefix: "language-",
+        // autoconvert URL-like texts to links
+        linkify: false,
+        // Enable some language-neutral replacements + quotes beautification
+        typographer: false,
+        // Double + single quotes replacement pairs, when typographer enabled,
+        // and smartquotes on. Could be either a String or an Array.
+        //
+        // For example, you can use '«»„“' for Russian, '„“‚‘' for German,
+        // and ['«\xA0', '\xA0»', '‹\xA0', '\xA0›'] for French (including nbsp).
+        quotes: "“”‘’",
+        /* “”‘’ */
+        // Highlighter function. Should return escaped HTML,
+        // or '' if the source string is not changed and should be escaped externaly.
+        // If result starts with <pre... internal wrapper is skipped.
+        //
+        // function (/*str, lang*/) { return ''; }
+        //
+        highlight: null,
+        // Internal protection, recursion limit
+        maxNesting: 20
+      },
+      components: {
+        core: {
+          rules: [
+            "normalize",
+            "block",
+            "inline",
+            "text_join"
+          ]
+        },
+        block: {
+          rules: [
+            "paragraph"
+          ]
+        },
+        inline: {
+          rules: [
+            "text"
+          ],
+          rules2: [
+            "balance_pairs",
+            "fragments_join"
+          ]
+        }
+      }
+    };
+    const cfg_commonmark = {
+      options: {
+        // Enable HTML tags in source
+        html: true,
+        // Use '/' to close single tags (<br />)
+        xhtmlOut: true,
+        // Convert '\n' in paragraphs into <br>
+        breaks: false,
+        // CSS language prefix for fenced blocks
+        langPrefix: "language-",
+        // autoconvert URL-like texts to links
+        linkify: false,
+        // Enable some language-neutral replacements + quotes beautification
+        typographer: false,
+        // Double + single quotes replacement pairs, when typographer enabled,
+        // and smartquotes on. Could be either a String or an Array.
+        //
+        // For example, you can use '«»„“' for Russian, '„“‚‘' for German,
+        // and ['«\xA0', '\xA0»', '‹\xA0', '\xA0›'] for French (including nbsp).
+        quotes: "“”‘’",
+        /* “”‘’ */
+        // Highlighter function. Should return escaped HTML,
+        // or '' if the source string is not changed and should be escaped externaly.
+        // If result starts with <pre... internal wrapper is skipped.
+        //
+        // function (/*str, lang*/) { return ''; }
+        //
+        highlight: null,
+        // Internal protection, recursion limit
+        maxNesting: 20
+      },
+      components: {
+        core: {
+          rules: [
+            "normalize",
+            "block",
+            "inline",
+            "text_join"
+          ]
+        },
+        block: {
+          rules: [
+            "blockquote",
+            "code",
+            "fence",
+            "heading",
+            "hr",
+            "html_block",
+            "lheading",
+            "list",
+            "reference",
+            "paragraph"
+          ]
+        },
+        inline: {
+          rules: [
+            "autolink",
+            "backticks",
+            "emphasis",
+            "entity",
+            "escape",
+            "html_inline",
+            "image",
+            "link",
+            "newline",
+            "text"
+          ],
+          rules2: [
+            "balance_pairs",
+            "emphasis",
+            "fragments_join"
+          ]
+        }
+      }
+    };
+    const config = {
+      default: cfg_default,
+      zero: cfg_zero,
+      commonmark: cfg_commonmark
+    };
+    const BAD_PROTO_RE = /^(vbscript|javascript|file|data):/;
+    const GOOD_DATA_RE = /^data:image\/(gif|png|jpeg|webp);/;
+    function validateLink(url) {
+      const str2 = url.trim().toLowerCase();
+      return BAD_PROTO_RE.test(str2) ? GOOD_DATA_RE.test(str2) : true;
+    }
+    const RECODE_HOSTNAME_FOR = ["http:", "https:", "mailto:"];
+    function normalizeLink(url) {
+      const parsed = urlParse(url, true);
+      if (parsed.hostname) {
+        if (!parsed.protocol || RECODE_HOSTNAME_FOR.indexOf(parsed.protocol) >= 0) {
+          try {
+            parsed.hostname = punycode.toASCII(parsed.hostname);
+          } catch (er) {
+          }
+        }
+      }
+      return encode$1(format$1(parsed));
+    }
+    function normalizeLinkText(url) {
+      const parsed = urlParse(url, true);
+      if (parsed.hostname) {
+        if (!parsed.protocol || RECODE_HOSTNAME_FOR.indexOf(parsed.protocol) >= 0) {
+          try {
+            parsed.hostname = punycode.toUnicode(parsed.hostname);
+          } catch (er) {
+          }
+        }
+      }
+      return decode$1(format$1(parsed), decode$1.defaultChars + "%");
+    }
+    function MarkdownIt(presetName, options2) {
+      if (!(this instanceof MarkdownIt)) {
+        return new MarkdownIt(presetName, options2);
+      }
+      if (!options2) {
+        if (!isString$1(presetName)) {
+          options2 = presetName || {};
+          presetName = "default";
+        }
+      }
+      this.inline = new ParserInline();
+      this.block = new ParserBlock();
+      this.core = new Core$1();
+      this.renderer = new Renderer();
+      this.linkify = new LinkifyIt();
+      this.validateLink = validateLink;
+      this.normalizeLink = normalizeLink;
+      this.normalizeLinkText = normalizeLinkText;
+      this.utils = utils;
+      this.helpers = assign$1({}, helpers);
+      this.options = {};
+      this.configure(presetName);
+      if (options2) {
+        this.set(options2);
+      }
+    }
+    MarkdownIt.prototype.set = function(options2) {
+      assign$1(this.options, options2);
+      return this;
+    };
+    MarkdownIt.prototype.configure = function(presets) {
+      const self2 = this;
+      if (isString$1(presets)) {
+        const presetName = presets;
+        presets = config[presetName];
+        if (!presets) {
+          throw new Error('Wrong `markdown-it` preset "' + presetName + '", check name');
+        }
+      }
+      if (!presets) {
+        throw new Error("Wrong `markdown-it` preset, can't be empty");
+      }
+      if (presets.options) {
+        self2.set(presets.options);
+      }
+      if (presets.components) {
+        Object.keys(presets.components).forEach(function(name2) {
+          if (presets.components[name2].rules) {
+            self2[name2].ruler.enableOnly(presets.components[name2].rules);
+          }
+          if (presets.components[name2].rules2) {
+            self2[name2].ruler2.enableOnly(presets.components[name2].rules2);
+          }
+        });
+      }
+      return this;
+    };
+    MarkdownIt.prototype.enable = function(list2, ignoreInvalid) {
+      let result = [];
+      if (!Array.isArray(list2)) {
+        list2 = [list2];
+      }
+      ["core", "block", "inline"].forEach(function(chain) {
+        result = result.concat(this[chain].ruler.enable(list2, true));
+      }, this);
+      result = result.concat(this.inline.ruler2.enable(list2, true));
+      const missed = list2.filter(function(name2) {
+        return result.indexOf(name2) < 0;
+      });
+      if (missed.length && !ignoreInvalid) {
+        throw new Error("MarkdownIt. Failed to enable unknown rule(s): " + missed);
+      }
+      return this;
+    };
+    MarkdownIt.prototype.disable = function(list2, ignoreInvalid) {
+      let result = [];
+      if (!Array.isArray(list2)) {
+        list2 = [list2];
+      }
+      ["core", "block", "inline"].forEach(function(chain) {
+        result = result.concat(this[chain].ruler.disable(list2, true));
+      }, this);
+      result = result.concat(this.inline.ruler2.disable(list2, true));
+      const missed = list2.filter(function(name2) {
+        return result.indexOf(name2) < 0;
+      });
+      if (missed.length && !ignoreInvalid) {
+        throw new Error("MarkdownIt. Failed to disable unknown rule(s): " + missed);
+      }
+      return this;
+    };
+    MarkdownIt.prototype.use = function(plugin) {
+      const args = [this].concat(Array.prototype.slice.call(arguments, 1));
+      plugin.apply(plugin, args);
+      return this;
+    };
+    MarkdownIt.prototype.parse = function(src, env) {
+      if (typeof src !== "string") {
+        throw new Error("Input data should be a String");
+      }
+      const state = new this.core.State(src, this, env);
+      this.core.process(state);
+      return state.tokens;
+    };
+    MarkdownIt.prototype.render = function(src, env) {
+      env = env || {};
+      return this.renderer.render(this.parse(src, env), this.options, env);
+    };
+    MarkdownIt.prototype.parseInline = function(src, env) {
+      const state = new this.core.State(src, this, env);
+      state.inlineMode = true;
+      this.core.process(state);
+      return state.tokens;
+    };
+    MarkdownIt.prototype.renderInline = function(src, env) {
+      env = env || {};
+      return this.renderer.render(this.parseInline(src, env), this.options, env);
+    };
+    const MarkdownDiv = React$2.forwardRef(
+      ({ markdown, style: style2, className: className2 }, ref) => {
+        const escaped = markdown ? escape(markdown) : "";
+        const preRendered = preRenderText(escaped);
+        const protectedText = protectMarkdown(preRendered);
+        let renderedHtml = protectedText;
+        try {
+          const md = MarkdownIt({
+            breaks: true,
+            html: true
+          });
+          renderedHtml = md.render(protectedText);
+        } catch (ex) {
+          console.log("Unable to markdown render content");
+          console.error(ex);
+        }
+        const unescaped = unprotectMarkdown(renderedHtml);
+        const withCode = unescapeCodeHtmlEntities(unescaped);
+        const markup = { __html: withCode };
+        return /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "div",
+          {
+            ref,
+            dangerouslySetInnerHTML: markup,
+            style: style2,
+            className: clsx(className2, "markdown-content")
+          }
+        );
+      }
+    );
+    const kLetterListPattern = /^([a-zA-Z][).]\s.*?)$/gm;
+    const kCommonmarkReferenceLinkPattern = /\[([^\]]*)\]: (?!http)(.*)/g;
+    const preRenderText = (txt) => {
+      txt = txt.replace(/^[\u200B\u200C\u200D\u200E\u200F\uFEFF]/, "");
+      return txt.replaceAll(
+        kLetterListPattern,
+        "<p class='markdown-ordered-list-item'>$1</p>"
+      );
+    };
+    const protectMarkdown = (txt) => {
+      return txt.replaceAll(
+        kCommonmarkReferenceLinkPattern,
+        "(open:767A125E)$1(close:767A125E) $2 "
+      );
+    };
+    const unprotectMarkdown = (txt) => {
+      txt = txt.replaceAll("(open:767A125E)", "[");
+      txt = txt.replaceAll("(close:767A125E)", "]");
+      return txt;
+    };
+    const escape = (content2) => {
+      return content2.replace(/[<>&'"]/g, (c2) => {
+        switch (c2) {
+          case "<":
+            return "&lt;";
+          case ">":
+            return "&gt;";
+          case "&":
+            return "&amp;";
+          case "'":
+            return "&apos;";
+          case '"':
+            return "&quot;";
+          default:
+            throw new Error("Matched a value that isn't replaceable");
+        }
+      });
+    };
+    function unescapeCodeHtmlEntities(str2) {
+      const htmlEntities = {
+        "&lt;": "<",
+        "&gt;": ">",
+        "&amp;": "&",
+        "&#x5C;": "\\",
+        "&quot;": '"'
+      };
+      return str2.replace(
+        /(<code[^>]*>)([\s\S]*?)(<\/code>)/gi,
+        (_match, starttag, content2, endtag) => {
+          return starttag + content2.replace(
+            /&(?:amp|lt|gt|quot|#39|#x2F|#x5C|#96);/g,
+            (entity2) => htmlEntities[entity2] || entity2
+          ) + endtag;
+        }
+      );
+    }
+    const message$1 = "_message_xh8qq_1";
+    const systemRole = "_systemRole_xh8qq_9";
+    const messageGrid = "_messageGrid_xh8qq_13";
+    const messageContents = "_messageContents_xh8qq_21";
+    const indented = "_indented_xh8qq_26";
+    const styles$S = {
+      message: message$1,
+      systemRole,
+      messageGrid,
+      messageContents,
+      indented
+    };
+    const contentImage = "_contentImage_121dp_1";
+    const styles$R = {
+      contentImage
+    };
+    const toolImage = "_toolImage_hw4du_1";
+    const output$1 = "_output_hw4du_6";
+    const textOutput = "_textOutput_hw4du_10";
+    const textCode = "_textCode_hw4du_17";
+    const styles$Q = {
+      toolImage,
+      output: output$1,
+      textOutput,
+      textCode
+    };
+    const ToolOutput = ({ output: output2 }) => {
+      if (!output2) {
+        return null;
+      }
+      const outputs = [];
+      if (Array.isArray(output2)) {
+        output2.forEach((out, idx) => {
+          const key2 = `tool-output-${idx}`;
+          if (out.type === "text") {
+            outputs.push(/* @__PURE__ */ jsxRuntimeExports.jsx(ToolTextOutput, { text: out.text }, key2));
+          } else {
+            if (out.image.startsWith("data:")) {
+              outputs.push(
+                /* @__PURE__ */ jsxRuntimeExports.jsx(
+                  "img",
+                  {
+                    className: clsx(styles$Q.toolImage),
+                    src: out.image
+                  },
+                  key2
+                )
+              );
+            } else {
+              outputs.push(/* @__PURE__ */ jsxRuntimeExports.jsx(ToolTextOutput, { text: String(out.image) }, key2));
+            }
+          }
+        });
+      } else {
+        outputs.push(
+          /* @__PURE__ */ jsxRuntimeExports.jsx(ToolTextOutput, { text: String(output2) }, "tool-output-single")
+        );
+      }
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$Q.output), children: outputs });
+    };
+    const ToolTextOutput = ({ text: text2 }) => {
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: clsx(styles$Q.textOutput), children: /* @__PURE__ */ jsxRuntimeExports.jsx("code", { className: clsx("sourceCode", styles$Q.textCode), children: text2.trim() }) });
+    };
+    const MessageContent = ({ contents: contents2 }) => {
+      if (Array.isArray(contents2)) {
+        return contents2.map((content2, index2) => {
+          if (typeof content2 === "string") {
+            return messageRenderers["text"].render(
+              `text-content-${index2}`,
+              {
+                type: "text",
+                text: content2
+              },
+              index2 === contents2.length - 1
+            );
+          } else {
+            if (content2) {
+              const renderer = messageRenderers[content2.type];
+              if (renderer) {
+                return renderer.render(
+                  `text-${content2.type}-${index2}`,
+                  content2,
+                  index2 === contents2.length - 1
+                );
+              } else {
+                console.error(`Unknown message content type '${content2.type}'`);
+              }
+            }
+          }
+        });
+      } else {
+        const contentText = {
+          type: "text",
+          text: contents2
+        };
+        return messageRenderers["text"].render(
+          "text-message-content",
+          contentText,
+          true
+        );
+      }
+    };
+    const messageRenderers = {
+      text: {
+        render: (key2, content2, isLast) => {
+          const c2 = content2;
+          return /* @__PURE__ */ jsxRuntimeExports.jsx(
+            MarkdownDiv,
+            {
+              markdown: c2.text,
+              className: isLast ? "no-last-para-padding" : ""
+            },
+            key2
+          );
+        }
+      },
+      image: {
+        render: (key2, content2) => {
+          const c2 = content2;
+          if (c2.image.startsWith("data:")) {
+            return /* @__PURE__ */ jsxRuntimeExports.jsx("img", { src: c2.image, className: styles$R.contentImage }, key2);
+          } else {
+            return /* @__PURE__ */ jsxRuntimeExports.jsx("code", { children: c2.image }, key2);
+          }
+        }
+      },
+      audio: {
+        render: (key2, content2) => {
+          const c2 = content2;
+          return /* @__PURE__ */ jsxRuntimeExports.jsx("audio", { controls: true, children: /* @__PURE__ */ jsxRuntimeExports.jsx("source", { src: c2.audio, type: mimeTypeForFormat(c2.format) }) }, key2);
+        }
+      },
+      video: {
+        render: (key2, content2) => {
+          const c2 = content2;
+          return /* @__PURE__ */ jsxRuntimeExports.jsx("video", { width: "500", height: "375", controls: true, children: /* @__PURE__ */ jsxRuntimeExports.jsx("source", { src: c2.video, type: mimeTypeForFormat(c2.format) }) }, key2);
+        }
+      },
+      tool: {
+        render: (key2, content2) => {
+          const c2 = content2;
+          return /* @__PURE__ */ jsxRuntimeExports.jsx(ToolOutput, { output: c2.content }, key2);
+        }
+      }
+    };
+    const mimeTypeForFormat = (format2) => {
+      switch (format2) {
+        case "mov":
+          return "video/quicktime";
+        case "wav":
+          return "audio/wav";
+        case "mp3":
+          return "audio/mpeg";
+        case "mp4":
+          return "video/mp4";
+        case "mpeg":
+          return "video/mpeg";
+      }
+    };
+    const resolveToolInput = (fn, toolArgs) => {
+      const toolName = fn;
+      const [inputKey, highlightLanguage] = extractInputMetadata(toolName);
+      const { input: input2, args } = extractInput(
+        toolArgs,
+        inputKey
+      );
+      const functionCall = args.length > 0 ? `${toolName}(${args.join(", ")})` : toolName;
+      return {
+        functionCall,
+        input: input2,
+        highlightLanguage
+      };
+    };
+    const extractInputMetadata = (toolName) => {
+      if (toolName === "bash") {
+        return ["cmd", "bash"];
+      } else if (toolName === "python") {
+        return ["code", "python"];
+      } else if (toolName === "web_search") {
+        return ["query", "text"];
+      } else {
+        return [void 0, void 0];
+      }
+    };
+    const extractInput = (args, inputKey) => {
+      const formatArg = (key2, value2) => {
+        const quotedValue = typeof value2 === "string" ? `"${value2}"` : typeof value2 === "object" || Array.isArray(value2) ? JSON.stringify(value2, void 0, 2) : String(value2);
+        return `${key2}: ${quotedValue}`;
+      };
+      if (args) {
+        if (inputKey && args[inputKey]) {
+          const input2 = args[inputKey];
+          const filteredArgs = Object.keys(args).filter((key2) => {
+            return key2 !== inputKey;
+          }).map((key2) => {
+            return formatArg(key2, args[key2]);
+          });
+          return {
+            input: String(input2),
+            args: filteredArgs
+          };
+        } else {
+          const formattedArgs = Object.keys(args).map((key2) => {
+            return formatArg(key2, args[key2]);
+          });
+          return {
+            input: void 0,
+            args: formattedArgs
+          };
+        }
+      }
+      return {
+        input: void 0,
+        args: []
+      };
+    };
+    const outputPre = "_outputPre_18agr_1";
+    const outputCode = "_outputCode_18agr_7";
+    const bottomMargin = "_bottomMargin_18agr_12";
+    const styles$P = {
+      outputPre,
+      outputCode,
+      bottomMargin
+    };
+    const useCodeHighlight = (language2) => {
+      const codeRef = reactExports.useRef(null);
+      reactExports.useEffect(() => {
+        if (codeRef.current && language2) {
+          prismExports.highlightElement(codeRef.current);
+        }
+      }, [language2]);
+      return codeRef;
+    };
+    const ToolInput = reactExports.memo((props) => {
+      const { highlightLanguage, contents: contents2, toolCallView } = props;
+      const codeRef = useCodeHighlight(highlightLanguage);
+      if (!contents2 && !(toolCallView == null ? void 0 : toolCallView.content)) return null;
+      if (toolCallView) {
+        const toolViewRef = reactExports.useRef(null);
+        reactExports.useEffect(() => {
+          if ((toolCallView == null ? void 0 : toolCallView.content) && toolViewRef.current) {
+            requestAnimationFrame(() => {
+              const codeBlocks = toolViewRef.current.querySelectorAll("pre code");
+              codeBlocks.forEach((block2) => {
+                if (block2.className.includes("language-")) {
+                  block2.classList.add("sourceCode");
+                  prismExports.highlightElement(block2);
+                }
+              });
+            });
+          }
+        }, [toolCallView == null ? void 0 : toolCallView.content]);
+        return /* @__PURE__ */ jsxRuntimeExports.jsx(
+          MarkdownDiv,
+          {
+            markdown: toolCallView.content,
+            ref: toolViewRef,
+            className: clsx(styles$P.bottomMargin, "text-size-small")
+          }
+        );
+      }
+      const formattedContent = typeof contents2 === "object" ? JSON.stringify(contents2) : contents2;
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: clsx("tool-output", styles$P.outputPre, styles$P.bottomMargin), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+        "code",
+        {
+          ref: codeRef,
+          className: clsx(
+            "source-code",
+            "sourceCode",
+            `language-${highlightLanguage}`,
+            styles$P.outputCode
+          ),
+          children: formattedContent
+        }
+      ) });
+    });
+    const image = "_image_10saa_1";
+    const styles$O = {
+      image
+    };
+    const ToolTitle = ({ title: title2 }) => {
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx("bi", "bi-tools", styles$O.styles) }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("code", { className: "text-size-small", children: title2 })
+      ] });
+    };
+    const ToolCallView = ({
+      functionCall,
+      input: input2,
+      highlightLanguage,
+      view,
+      output: output2,
+      mode
+    }) => {
+      function isContentImage(value2) {
+        if (value2 && typeof value2 === "object") {
+          if (value2.type === "image") {
+            return true;
+          } else if (value2.type === "tool") {
+            if (Array.isArray(value2.content) && value2.content.some(isContentImage)) {
+              return true;
+            }
+          }
+        }
+        return false;
+      }
+      const collapse = Array.isArray(output2) ? output2.every((item2) => !isContentImage(item2)) : !isContentImage(output2);
+      const normalizedContent = reactExports.useMemo(() => normalizeContent$1(output2), [output2]);
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
+        mode !== "compact" && (!view || view.title) ? /* @__PURE__ */ jsxRuntimeExports.jsx(ToolTitle, { title: (view == null ? void 0 : view.title) || functionCall }) : "",
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx(
+            ToolInput,
+            {
+              highlightLanguage,
+              contents: input2,
+              toolCallView: view
+            }
+          ),
+          /* @__PURE__ */ jsxRuntimeExports.jsx(ExpandablePanel, { collapse, border: true, lines: 15, children: /* @__PURE__ */ jsxRuntimeExports.jsx(MessageContent, { contents: normalizedContent }) })
+        ] }) })
+      ] });
+    };
+    const normalizeContent$1 = (output2) => {
+      if (Array.isArray(output2)) {
+        return output2;
+      } else {
+        return [
+          {
+            type: "tool",
+            content: [
+              {
+                type: "text",
+                text: String(output2)
+              }
+            ]
+          }
+        ];
+      }
+    };
+    const content$2 = "_content_p4lvn_1";
+    const styles$N = {
+      content: content$2
+    };
+    const MessageContents = ({
+      message: message2,
+      toolMessages,
+      toolCallStyle
+    }) => {
+      if (message2.role === "assistant" && message2.tool_calls && message2.tool_calls.length) {
+        const toolCalls = message2.tool_calls.map((tool_call, idx) => {
+          const { input: input2, functionCall, highlightLanguage } = resolveToolInput(
+            tool_call.function,
+            tool_call.arguments
+          );
+          let toolMessage;
+          if (tool_call.id) {
+            toolMessage = toolMessages.find((msg) => {
+              return msg.tool_call_id === tool_call.id;
+            });
+          } else {
+            toolMessage = toolMessages[idx];
+          }
+          const resolvedToolOutput = resolveToolMessage(toolMessage);
+          if (toolCallStyle === "compact") {
+            return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsxs("code", { children: [
+              "tool: ",
+              functionCall
+            ] }) }, `tool-call-${idx}`);
+          } else {
+            return /* @__PURE__ */ jsxRuntimeExports.jsx(
+              ToolCallView,
+              {
+                functionCall,
+                input: input2,
+                highlightLanguage,
+                output: resolvedToolOutput
+              },
+              `tool-call-${idx}`
+            );
+          }
+        });
+        return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$N.content, children: message2.content ? /* @__PURE__ */ jsxRuntimeExports.jsx(MessageContent, { contents: message2.content }) : void 0 }),
+          toolCalls
+        ] });
+      } else {
+        return /* @__PURE__ */ jsxRuntimeExports.jsx(MessageContent, { contents: message2.content });
+      }
+    };
+    const resolveToolMessage = (toolMessage) => {
+      if (!toolMessage) {
+        return [];
+      }
+      const content2 = toolMessage.error !== null && toolMessage.error ? toolMessage.error.message : toolMessage.content;
+      if (typeof content2 === "string") {
+        return [
+          {
+            type: "tool",
+            content: [
+              {
+                type: "text",
+                text: content2
+              }
+            ]
+          }
+        ];
+      } else {
+        const result = content2.map((con) => {
+          if (typeof con === "string") {
+            return {
+              type: "tool",
+              content: [
+                {
+                  type: "text",
+                  text: con
+                }
+              ]
+            };
+          } else if (con.type === "text") {
+            return {
+              content: [con],
+              type: "tool"
+            };
+          } else if (con.type === "image") {
+            return {
+              content: [con],
+              type: "tool"
+            };
+          }
+        }).filter((con) => con !== void 0);
+        return result;
+      }
+    };
+    const resolveMessages = (messages) => {
+      const resolvedMessages = [];
+      for (const message2 of messages) {
+        if (message2.role === "tool") {
+          if (resolvedMessages.length > 0) {
+            const msg = resolvedMessages[resolvedMessages.length - 1];
+            msg.toolMessages = msg.toolMessages || [];
+            msg.toolMessages.push(message2);
+          }
+        } else {
+          resolvedMessages.push({ message: message2, toolMessages: [] });
+        }
+      }
+      const systemMessages = [];
+      const collapsedMessages = resolvedMessages.map((resolved) => {
+        if (resolved.message.role === "system") {
+          systemMessages.push(resolved.message);
+        }
+        return resolved;
+      }).filter((resolved) => {
+        return resolved.message.role !== "system";
+      });
+      const systemContent = [];
+      for (const systemMessage2 of systemMessages) {
+        const contents2 = Array.isArray(systemMessage2.content) ? systemMessage2.content : [systemMessage2.content];
+        systemContent.push(...contents2.map(normalizeContent));
+      }
+      const systemMessage = {
+        role: "system",
+        content: systemContent,
+        source: "input"
+      };
+      if (systemMessage.content.length > 0) {
+        collapsedMessages.unshift({ message: systemMessage, toolMessages: [] });
+      }
+      return collapsedMessages;
+    };
+    const iconForMsg = (msg) => {
+      if (msg.role === "user") {
+        return ApplicationIcons.role.user;
+      } else if (msg.role === "system") {
+        return ApplicationIcons.role.system;
+      } else if (msg.role === "tool") {
+        return ApplicationIcons.role.tool;
+      } else if (msg.role === "assistant") {
+        return ApplicationIcons.role.assistant;
+      } else {
+        return ApplicationIcons.role.unknown;
+      }
+    };
+    const normalizeContent = (content2) => {
+      if (typeof content2 === "string") {
+        return {
+          type: "text",
+          text: content2
+        };
+      } else {
+        return content2;
+      }
+    };
+    const ChatMessage = ({
+      id,
+      message: message2,
+      toolMessages,
+      indented: indented2,
+      toolCallStyle
+    }) => {
+      const collapse = message2.role === "system";
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs(
+        "div",
+        {
+          className: clsx(
+            message2.role,
+            "text-size-base",
+            styles$S.message,
+            message2.role === "system" ? styles$S.systemRole : void 0
+          ),
+          children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$S.messageGrid, "text-style-label"), children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: iconForMsg(message2) }),
+              message2.role
+            ] }),
+            message2.role === "assistant" && message2.reasoning ? /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-label", "text-style-secondary"), children: "Reasoning" }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx(ExpandablePanel, { collapse: true, children: /* @__PURE__ */ jsxRuntimeExports.jsx(MarkdownDiv, { markdown: message2.reasoning }) })
+            ] }, `${id}-response-label`) : void 0,
+            /* @__PURE__ */ jsxRuntimeExports.jsxs(
+              "div",
+              {
+                className: clsx(
+                  styles$S.messageContents,
+                  indented2 ? styles$S.indented : void 0
+                ),
+                children: [
+                  message2.role === "assistant" && message2.reasoning ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-label", "text-style-secondary"), children: "Response" }) : void 0,
+                  /* @__PURE__ */ jsxRuntimeExports.jsx(ExpandablePanel, { collapse, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+                    MessageContents,
+                    {
+                      message: message2,
+                      toolMessages,
+                      toolCallStyle
+                    },
+                    `${id}-contents`
+                  ) })
+                ]
+              }
+            )
+          ]
+        }
+      );
+    };
+    const grid$6 = "_grid_140x5_1";
+    const number = "_number_140x5_7";
+    const styles$M = {
+      grid: grid$6,
+      number
+    };
+    const ChatMessageRow = ({
+      parentName,
+      number: number2,
+      resolvedMessage,
+      toolCallStyle,
+      indented: indented2
+    }) => {
+      if (number2) {
+        return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$M.grid, children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx(
+            "div",
+            {
+              className: clsx(
+                "text-size-smaller",
+                "text-style-secondary",
+                styles$M.number
+              ),
+              children: number2
+            }
+          ),
+          /* @__PURE__ */ jsxRuntimeExports.jsx(
+            ChatMessage,
+            {
+              id: `${parentName}-chat-messages`,
+              message: resolvedMessage.message,
+              toolMessages: resolvedMessage.toolMessages,
+              indented: indented2,
+              toolCallStyle
+            }
+          )
+        ] });
+      } else {
+        return /* @__PURE__ */ jsxRuntimeExports.jsx(
+          ChatMessage,
+          {
+            id: `${parentName}-chat-messages`,
+            message: resolvedMessage.message,
+            toolMessages: resolvedMessage.toolMessages,
+            indented: indented2,
+            toolCallStyle
+          }
+        );
+      }
+    };
+    const ChatView = ({
+      id,
+      messages,
+      toolCallStyle = "complete",
+      indented: indented2,
+      numbered = true,
+      className: className2
+    }) => {
+      const collapsedMessages = resolveMessages(messages);
+      const result = /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(className2), children: collapsedMessages.map((msg, index2) => {
+        const number2 = collapsedMessages.length > 1 && numbered ? index2 + 1 : void 0;
+        return /* @__PURE__ */ jsxRuntimeExports.jsx(
+          ChatMessageRow,
+          {
+            parentName: id || "chat-view",
+            number: number2,
+            resolvedMessage: msg,
+            indented: indented2,
+            toolCallStyle
+          },
+          `${id}-msg-${index2}`
+        );
+      }) });
+      return result;
+    };
+    const ChatMessageRenderer = {
+      bucket: Buckets.first,
+      canRender: (entry2) => {
+        var _a2, _b2;
+        const val = entry2.value;
+        return Array.isArray(val) && val.length > 0 && ((_a2 = val[0]) == null ? void 0 : _a2.role) !== void 0 && ((_b2 = val[0]) == null ? void 0 : _b2.content) !== void 0;
+      },
+      render: (id, entry2) => {
+        return {
+          rendered: /* @__PURE__ */ jsxRuntimeExports.jsxs(NavPills, { children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx(ChatSummary, { title: "Last Turn", id, messages: entry2.value }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx(ChatView, { title: "All", id, messages: entry2.value })
+          ] })
+        };
+      }
+    };
+    const ChatSummary = ({ id, messages }) => {
+      const summaryMessages = [];
+      for (const message2 of messages.slice().reverse()) {
+        summaryMessages.unshift(message2);
+        if (message2.role === "user") {
+          break;
+        }
+      }
+      return /* @__PURE__ */ jsxRuntimeExports.jsx(ChatView, { id, messages: summaryMessages });
+    };
+    const query = "_query_9u9bt_1";
+    const summary$3 = "_summary_9u9bt_6";
+    const preWrap = "_preWrap_9u9bt_10";
+    const styles$L = {
+      query,
+      summary: summary$3,
+      preWrap
+    };
+    const RenderedContent = ({
+      id,
+      entry: entry2
+    }) => {
+      if (entry2.value === null) {
+        return /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "[null]" });
+      }
+      const renderer = Object.keys(contentRenderers).map((key2) => {
+        return contentRenderers[key2];
+      }).sort((a, b) => {
+        return a.bucket - b.bucket;
+      }).find((renderer2) => {
+        return renderer2.canRender(entry2);
+      });
+      if (renderer) {
+        const { rendered } = renderer.render(id, entry2);
+        if (rendered !== void 0 && React$2.isValidElement(rendered)) {
+          return rendered;
+        }
+      }
+      const displayValue = (() => {
+        try {
+          if (typeof entry2.value === "object") {
+            return JSON.stringify(entry2.value);
+          }
+          return String(entry2.value);
+        } catch (e) {
+          return "[Unable to display value]";
+        }
+      })();
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: displayValue });
+    };
+    const contentRenderers = {
+      AnsiString: {
+        bucket: Buckets.first,
+        canRender: (entry2) => {
+          return typeof entry2.value === "string" && entry2.value.indexOf("\x1B") > -1;
+        },
+        render: (_id, entry2) => {
+          return {
+            rendered: /* @__PURE__ */ jsxRuntimeExports.jsx(ANSIDisplay, { output: entry2.value })
+          };
+        }
+      },
+      Model: {
+        bucket: Buckets.intermediate,
+        canRender: (entry2) => {
+          return typeof entry2.value === "object" && entry2.value._model;
+        },
+        render: (_id, entry2) => {
+          return {
+            rendered: /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.model }),
+              " ",
+              entry2.value._model
+            ] })
+          };
+        }
+      },
+      Boolean: {
+        bucket: Buckets.intermediate,
+        canRender: (entry2) => {
+          return typeof entry2.value === "boolean";
+        },
+        render: (id, entry2) => {
+          entry2.value = entry2.value.toString();
+          return contentRenderers.String.render(id, entry2);
+        }
+      },
+      Number: {
+        bucket: Buckets.intermediate,
+        canRender: (entry2) => {
+          return typeof entry2.value === "number";
+        },
+        render: (id, entry2) => {
+          entry2.value = formatNumber(entry2.value);
+          return contentRenderers.String.render(id, entry2);
+        }
+      },
+      String: {
+        bucket: Buckets.final,
+        canRender: (entry2) => {
+          return typeof entry2.value === "string";
+        },
+        render: (_id, entry2) => {
+          const rendered = entry2.value.trim();
+          return {
+            rendered
+          };
+        }
+      },
+      Array: {
+        bucket: Buckets.intermediate,
+        canRender: (entry2) => {
+          const isArray = Array.isArray(entry2.value);
+          if (isArray) {
+            const types2 = new Set(
+              entry2.value.filter((e) => e !== null).map((e) => {
+                return typeof e;
+              })
+            );
+            return types2.size === 1;
+          } else {
+            return false;
+          }
+        },
+        render: (id, entry2) => {
+          const arrayMap = {};
+          entry2.value.forEach((e, index2) => {
+            arrayMap[`[${index2}]`] = e;
+          });
+          const arrayRendered = /* @__PURE__ */ jsxRuntimeExports.jsx(
+            MetaDataView,
+            {
+              id,
+              className: "font-size-small",
+              entries: arrayMap,
+              tableOptions: "borderless,sm",
+              compact: true
+            }
+          );
+          return { rendered: arrayRendered };
+        }
+      },
+      ChatMessage: ChatMessageRenderer,
+      web_search: {
+        bucket: Buckets.intermediate,
+        canRender: (entry2) => {
+          return typeof entry2.value === "object" && entry2.name === "web_search";
+        },
+        render: (_id, entry2) => {
+          const results = [];
+          results.push(
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$L.query, children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.search }),
+              " ",
+              entry2.value.query
+            ] })
+          );
+          entry2.value.results.forEach(
+            (result) => {
+              results.push(
+                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("a", { href: result.url, children: result.url }) })
+              );
+              results.push(
+                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-smaller", styles$L.summary), children: result.summary })
+              );
+            }
+          );
+          return {
+            rendered: results
+          };
+        }
+      },
+      web_browser: {
+        bucket: Buckets.intermediate,
+        canRender: (entry2) => {
+          var _a2;
+          return typeof entry2.value === "string" && ((_a2 = entry2.name) == null ? void 0 : _a2.startsWith("web_browser"));
+        },
+        render: (_id, entry2) => {
+          return {
+            rendered: /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: styles$L.preWrap, children: entry2.value })
+          };
+        }
+      },
+      Html: {
+        bucket: Buckets.intermediate,
+        canRender: (entry2) => {
+          return typeof entry2.value === "object" && entry2.value._html;
+        },
+        render: (_id, entry2) => {
+          return {
+            rendered: entry2.value._html
+          };
+        }
+      },
+      Image: {
+        bucket: Buckets.intermediate,
+        canRender: (entry2) => {
+          return typeof entry2.value === "string" && entry2.value.startsWith("data:image/");
+        },
+        render: (_id, entry2) => {
+          return {
+            rendered: /* @__PURE__ */ jsxRuntimeExports.jsx("img", { src: entry2.value })
+          };
+        }
+      },
+      Object: {
+        bucket: Buckets.intermediate,
+        canRender: (entry2) => {
+          return typeof entry2.value === "object";
+        },
+        render: (id, entry2) => {
+          return {
+            rendered: /* @__PURE__ */ jsxRuntimeExports.jsx(
+              MetaDataView,
+              {
+                id,
+                className: "text-size-smaller",
+                entries: entry2.value,
+                tableOptions: "borderless,sm",
+                compact: true
+              }
+            )
+          };
+        }
+      }
+    };
+    const MetaDataView = ({
+      id,
+      style: style2,
+      entries,
+      tableOptions,
+      compact: compact2,
+      className: className2
+    }) => {
+      const baseId = "metadataview";
+      tableOptions = tableOptions || "sm";
+      const tblClz = (tableOptions || "").split(",").map((option) => {
+        return `table-${option}`;
+      });
+      const coercedEntries = toNameValues(entries);
+      const entryEls = (coercedEntries || []).map((entry2, index2) => {
+        const id2 = `${baseId}-value-${index2}`;
+        return /* @__PURE__ */ jsxRuntimeExports.jsxs("tr", { children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx(
+            "td",
+            {
+              className: clsx(
+                styles$U.cell,
+                styles$U.cellKey,
+                "text-size-small",
+                "text-style-label"
+              ),
+              children: entry2.name
+            }
+          ),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("td", { className: clsx(styles$U.cell, styles$U.cellValue, "text-size-small"), children: /* @__PURE__ */ jsxRuntimeExports.jsx(RenderedContent, { id: id2, entry: entry2 }) })
+        ] }, id2);
+      });
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs(
+        "table",
+        {
+          id,
+          className: clsx(
+            "table",
+            tblClz,
+            styles$U.table,
+            compact2 ? styles$U.compact : void 0,
+            className2
+          ),
+          style: style2,
+          children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx("thead", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("tr", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("th", { colSpan: 2, className: "th" }) }) }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("tbody", { children: entryEls })
+          ]
+        }
+      );
+    };
+    const toNameValues = (entries) => {
+      if (entries) {
+        if (Array.isArray(entries)) {
+          return entries;
+        } else {
+          return Object.entries(entries || {}).map(([key2, value2]) => {
+            return { name: key2, value: value2 };
+          });
+        }
+      } else {
+        return entries;
+      }
+    };
     function escapeSelector(id) {
       return id.replace(/([ #.;,?!+*~'":^$[\]()=>|/\\])/g, "\\$1");
     }
@@ -49422,11 +48885,11 @@ self.onmessage = function (e) {
     };
     const grid$5 = "_grid_12d2w_1";
     const cell$1 = "_cell_12d2w_7";
-    const value = "_value_12d2w_12";
-    const styles$H = {
+    const value$1 = "_value_12d2w_12";
+    const styles$K = {
       grid: grid$5,
       cell: cell$1,
-      value
+      value: value$1
     };
     const MetaDataGrid = ({
       id,
@@ -49453,7 +48916,7 @@ self.onmessage = function (e) {
             {
               className: clsx(
                 `${baseId}-key`,
-                styles$H.cell,
+                styles$K.cell,
                 "text-style-label",
                 "text-style-secondary",
                 "text-size-small"
@@ -49464,13 +48927,13 @@ self.onmessage = function (e) {
           /* @__PURE__ */ jsxRuntimeExports.jsx(
             "div",
             {
-              className: clsx(styles$H.value, `${baseId}-value`, "text-size-small"),
+              className: clsx(styles$K.value, `${baseId}-value`, "text-size-small"),
               children: /* @__PURE__ */ jsxRuntimeExports.jsx(RenderedContent, { id: id2, entry: entry2 })
             }
           )
         ] }, `${baseId}-record-${index2}`);
       });
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { id, className: clsx(className2, styles$H.grid), style: style2, children: entryEls });
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { id, className: clsx(className2, styles$K.grid), style: style2, children: entryEls });
     };
     const entryRecords = (entries) => {
       if (!entries) {
@@ -49485,7 +48948,7 @@ self.onmessage = function (e) {
       }
     };
     const grid$4 = "_grid_3umed_1";
-    const styles$G = {
+    const styles$J = {
       grid: grid$4
     };
     const SampleScores = ({
@@ -49503,10 +48966,10 @@ self.onmessage = function (e) {
             /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: score2.rendered() })
           ] });
         });
-        return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$G.grid, children: rows });
+        return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$J.grid, children: rows });
       }
     };
-    const container$9 = "_container_1jqar_1";
+    const container$a = "_container_1jqar_1";
     const label$1 = "_label_1jqar_6";
     const wordBreak = "_wordBreak_1jqar_14";
     const scoreTable = "_scoreTable_1jqar_18";
@@ -49517,8 +48980,8 @@ self.onmessage = function (e) {
     const scoreValue = "_scoreValue_1jqar_42";
     const noLeft$1 = "_noLeft_1jqar_47";
     const noTop$1 = "_noTop_1jqar_51";
-    const styles$F = {
-      container: container$9,
+    const styles$I = {
+      container: container$a,
       label: label$1,
       wordBreak,
       scoreTable,
@@ -49562,7 +49025,7 @@ self.onmessage = function (e) {
             "container-fluid",
             className2,
             "font-size-base",
-            styles$F.container
+            styles$I.container
           ),
           children: [
             /* @__PURE__ */ jsxRuntimeExports.jsxs(Card, { children: [
@@ -49573,7 +49036,7 @@ self.onmessage = function (e) {
                     "div",
                     {
                       className: clsx(
-                        styles$F.label,
+                        styles$I.label,
                         "text-style-label",
                         "text-style-secondary"
                       ),
@@ -49584,17 +49047,17 @@ self.onmessage = function (e) {
                     MarkdownDiv,
                     {
                       markdown: scoreInput.join("\n"),
-                      className: styles$F.wordBreak
+                      className: styles$I.wordBreak
                     }
                   ) })
                 ] }),
-                /* @__PURE__ */ jsxRuntimeExports.jsxs("table", { className: clsx("table", styles$F.scoreTable), children: [
-                  /* @__PURE__ */ jsxRuntimeExports.jsx("thead", { className: styles$F.bottomBorder, children: /* @__PURE__ */ jsxRuntimeExports.jsxs("tr", { children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsxs("table", { className: clsx("table", styles$I.scoreTable), children: [
+                  /* @__PURE__ */ jsxRuntimeExports.jsx("thead", { className: styles$I.bottomBorder, children: /* @__PURE__ */ jsxRuntimeExports.jsxs("tr", { children: [
                     /* @__PURE__ */ jsxRuntimeExports.jsx(
                       "th",
                       {
                         className: clsx(
-                          styles$F.label,
+                          styles$I.label,
                           "text-style-label",
                           "text-style-secondary"
                         ),
@@ -49605,7 +49068,7 @@ self.onmessage = function (e) {
                       "th",
                       {
                         className: clsx(
-                          styles$F.label,
+                          styles$I.label,
                           "text-style-label",
                           "text-style-secondary"
                         ),
@@ -49616,33 +49079,33 @@ self.onmessage = function (e) {
                       "th",
                       {
                         className: clsx(
-                          styles$F.label,
+                          styles$I.label,
                           "text-style-label",
                           "text-style-secondary",
-                          styles$F.headerScore
+                          styles$I.headerScore
                         ),
                         children: "Score"
                       }
                     )
                   ] }) }),
-                  /* @__PURE__ */ jsxRuntimeExports.jsx("tbody", { className: styles$F.bottomBorder, children: /* @__PURE__ */ jsxRuntimeExports.jsxs("tr", { children: [
-                    /* @__PURE__ */ jsxRuntimeExports.jsx("td", { className: styles$F.targetValue, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+                  /* @__PURE__ */ jsxRuntimeExports.jsx("tbody", { className: styles$I.bottomBorder, children: /* @__PURE__ */ jsxRuntimeExports.jsxs("tr", { children: [
+                    /* @__PURE__ */ jsxRuntimeExports.jsx("td", { className: styles$I.targetValue, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
                       MarkdownDiv,
                       {
                         markdown: arrayToString(
                           arrayToString((sample2 == null ? void 0 : sample2.target) || "none")
                         ),
-                        className: clsx("no-last-para-padding", styles$F.noLeft)
+                        className: clsx("no-last-para-padding", styles$I.noLeft)
                       }
                     ) }),
-                    /* @__PURE__ */ jsxRuntimeExports.jsx("td", { className: clsx(styles$F.answerValue), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+                    /* @__PURE__ */ jsxRuntimeExports.jsx("td", { className: clsx(styles$I.answerValue), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
                       MarkdownDiv,
                       {
-                        className: clsx("no-last-para-padding", styles$F.noLeft),
+                        className: clsx("no-last-para-padding", styles$I.noLeft),
                         markdown: answer2
                       }
                     ) }),
-                    /* @__PURE__ */ jsxRuntimeExports.jsx("td", { className: clsx(styles$F.scoreValue), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+                    /* @__PURE__ */ jsxRuntimeExports.jsx("td", { className: clsx(styles$I.scoreValue), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
                       SampleScores,
                       {
                         sample: sample2,
@@ -49660,7 +49123,7 @@ self.onmessage = function (e) {
                 MarkdownDiv,
                 {
                   markdown: arrayToString(explanation2),
-                  className: clsx("no-last-para-padding", styles$F.noLeft)
+                  className: clsx("no-last-para-padding", styles$I.noLeft)
                 }
               ) })
             ] }) : "",
@@ -49670,7 +49133,7 @@ self.onmessage = function (e) {
                 MetaDataGrid,
                 {
                   id: "task-sample-score-metadata",
-                  className: clsx("tab-pane", styles$F.noTop),
+                  className: clsx("tab-pane", styles$I.noTop),
                   entries: metadata2
                 }
               ) })
@@ -49684,7 +49147,7 @@ self.onmessage = function (e) {
     const col1_3 = "_col1_3_b0it4_12";
     const col3 = "_col3_b0it4_16";
     const separator$2 = "_separator_b0it4_20";
-    const styles$E = {
+    const styles$H = {
       wrapper: wrapper$2,
       col2: col2$1,
       col1_3,
@@ -49732,9 +49195,9 @@ self.onmessage = function (e) {
         value: usage.total_tokens,
         secondary: false
       });
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-small", styles$E.wrapper), children: rows.map((row2, idx) => {
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-small", styles$H.wrapper), children: rows.map((row2, idx) => {
         if (row2.label === "---") {
-          return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$E.separator }, `$usage-sep-${idx}`);
+          return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$H.separator }, `$usage-sep-${idx}`);
         } else {
           return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
             /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -49743,12 +49206,12 @@ self.onmessage = function (e) {
                 className: clsx(
                   "text-style-label",
                   "text-style-secondary",
-                  row2.secondary ? styles$E.col2 : styles$E.col1_3
+                  row2.secondary ? styles$H.col2 : styles$H.col1_3
                 ),
                 children: row2.label
               }
             ),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$E.col3, children: row2.value ? formatNumber(row2.value) : "" })
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$H.col3, children: row2.value ? formatNumber(row2.value) : "" })
           ] }, `$usage-row-${idx}`);
         }
       }) });
@@ -49757,7 +49220,7 @@ self.onmessage = function (e) {
     const tableTokens = "_tableTokens_dbhwb_6";
     const tableH = "_tableH_dbhwb_10";
     const model = "_model_dbhwb_15";
-    const styles$D = {
+    const styles$G = {
       table,
       tableTokens,
       tableH,
@@ -49774,7 +49237,7 @@ self.onmessage = function (e) {
             "table",
             "table-sm",
             "text-size-smaller",
-            styles$D.table,
+            styles$G.table,
             className2
           ),
           children: children2
@@ -49791,7 +49254,7 @@ self.onmessage = function (e) {
               colSpan: 3,
               className: clsx(
                 "card-subheading",
-                styles$D.tableTokens,
+                styles$G.tableTokens,
                 "text-size-small",
                 "text-style-label",
                 "text-style-secondary"
@@ -49806,7 +49269,7 @@ self.onmessage = function (e) {
             "th",
             {
               className: clsx(
-                styles$D.tableH,
+                styles$G.tableH,
                 "text-sixe-small",
                 "text-style-label",
                 "text-style-secondary"
@@ -49818,7 +49281,7 @@ self.onmessage = function (e) {
             "th",
             {
               className: clsx(
-                styles$D.tableH,
+                styles$G.tableH,
                 "text-sixe-small",
                 "text-style-label",
                 "text-style-secondary"
@@ -49831,7 +49294,7 @@ self.onmessage = function (e) {
     };
     const TokenRow = ({ model: model2, usage }) => {
       return /* @__PURE__ */ jsxRuntimeExports.jsxs("tr", { children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("td", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$D.model, children: model2 }) }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("td", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$G.model, children: model2 }) }),
         /* @__PURE__ */ jsxRuntimeExports.jsx("td", { children: /* @__PURE__ */ jsxRuntimeExports.jsx(ModelUsagePanel, { usage }) })
       ] });
     };
@@ -49898,11 +49361,11 @@ self.onmessage = function (e) {
 </div>`;
       return headingHtml;
     };
-    const container$8 = "_container_1vi7u_1";
+    const container$9 = "_container_1vi7u_1";
     const hidden$2 = "_hidden_1vi7u_8";
     const content$1 = "_content_1vi7u_12";
-    const styles$C = {
-      container: container$8,
+    const styles$F = {
+      container: container$9,
       hidden: hidden$2,
       content: content$1
     };
@@ -50086,14 +49549,14 @@ self.onmessage = function (e) {
         "div",
         {
           className: clsx(
-            styles$C.container,
-            !(scrollRef == null ? void 0 : scrollRef.current) ? styles$C.hidden : void 0
+            styles$F.container,
+            !(scrollRef == null ? void 0 : scrollRef.current) ? styles$F.hidden : void 0
           ),
           style: { height: `${listMetrics.totalHeight}px` },
           children: /* @__PURE__ */ jsxRuntimeExports.jsx(
             "div",
             {
-              className: styles$C.content,
+              className: styles$F.content,
               style: { transform: `translateY(${top2}px)` },
               ref: containerRef,
               children: renderedRows
@@ -50113,7 +49576,7 @@ self.onmessage = function (e) {
       };
     };
     const list$1 = "_list_1emnm_1";
-    const styles$B = {
+    const styles$E = {
       list: list$1
     };
     const ChatViewVirtualList = ({
@@ -50145,7 +49608,7 @@ self.onmessage = function (e) {
           data: collapsedMessages,
           renderRow,
           scrollRef,
-          className: clsx(styles$B.list, className2)
+          className: clsx(styles$E.list, className2)
         }
       );
       return result;
@@ -50153,21 +49616,21 @@ self.onmessage = function (e) {
     const tabPanel = "_tabPanel_14odp_1";
     const fullWidth = "_fullWidth_14odp_5";
     const metadataPanel = "_metadataPanel_14odp_9";
-    const padded = "_padded_14odp_18";
+    const padded$1 = "_padded_14odp_18";
     const ansi = "_ansi_14odp_23";
     const noTop = "_noTop_14odp_27";
-    const styles$A = {
+    const styles$D = {
       tabPanel,
       fullWidth,
       metadataPanel,
-      padded,
+      padded: padded$1,
       ansi,
       noTop
     };
     const body$2 = "_body_5y0hl_1";
     const iconSmall = "_iconSmall_5y0hl_9";
     const message = "_message_5y0hl_15";
-    const styles$z = {
+    const styles$C = {
       body: body$2,
       iconSmall,
       message
@@ -50184,9 +49647,9 @@ self.onmessage = function (e) {
     const FlatSampleError = ({
       message: message2
     }) => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$z.flatBody), children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(ApplicationIcons.error, styles$z.iconSmall) }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$z.lineBase), children: errorType(message2) })
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$C.flatBody), children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(ApplicationIcons.error, styles$C.iconSmall) }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$C.lineBase), children: errorType(message2) })
       ] });
     };
     const target = "_target_yamz4_1";
@@ -50194,7 +49657,7 @@ self.onmessage = function (e) {
     const grid$3 = "_grid_yamz4_9";
     const centerLabel = "_centerLabel_yamz4_17";
     const wrap = "_wrap_yamz4_22";
-    const styles$y = {
+    const styles$B = {
       target,
       answer,
       grid: grid$3,
@@ -50243,7 +49706,7 @@ self.onmessage = function (e) {
             MarkdownDiv,
             {
               markdown: arrayToString(arrayToString((sample2 == null ? void 0 : sample2.target) || "none")),
-              className: clsx("no-last-para-padding", styles$y.target)
+              className: clsx("no-last-para-padding", styles$B.target)
             }
           ),
           size: `${target2}fr`,
@@ -50258,7 +49721,7 @@ self.onmessage = function (e) {
             MarkdownDiv,
             {
               markdown: fullAnswer,
-              className: clsx("no-last-para-padding", styles$y.answer)
+              className: clsx("no-last-para-padding", styles$B.answer)
             }
           ) : "",
           size: `${answer2}fr`,
@@ -50286,7 +49749,7 @@ self.onmessage = function (e) {
         "div",
         {
           id: `sample-heading-${parent_id}`,
-          className: clsx(styles$y.grid, "text-size-base"),
+          className: clsx(styles$B.grid, "text-size-base"),
           style: {
             gridTemplateColumns: `${columns.map((col) => {
               return col.size;
@@ -50301,7 +49764,7 @@ self.onmessage = function (e) {
                     "text-style-label",
                     "text-style-secondary",
                     "text-size-base",
-                    col.center ? styles$y.centerLabel : void 0
+                    col.center ? styles$B.centerLabel : void 0
                   ),
                   children: col.label
                 },
@@ -50313,9 +49776,9 @@ self.onmessage = function (e) {
                 "div",
                 {
                   className: clsx(
-                    styles$y.wrap,
+                    styles$B.wrap,
                     col.clamp ? "three-line-clamp" : void 0,
-                    col.center ? styles$y.centerLabel : void 0
+                    col.center ? styles$B.centerLabel : void 0
                   ),
                   children: col.value
                 },
@@ -50328,7 +49791,7 @@ self.onmessage = function (e) {
     };
     const title$2 = "_title_19l1b_1";
     const contents = "_contents_19l1b_8";
-    const styles$x = {
+    const styles$A = {
       title: title$2,
       contents
     };
@@ -50338,12 +49801,12 @@ self.onmessage = function (e) {
       className: className2,
       children: children2
     }) => {
-      const contentEl = title2 ? /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("text-size-small", styles$x.title, className2), children: [
+      const contentEl = title2 ? /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("text-size-small", styles$A.title, className2), children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: icon || ApplicationIcons.metadata }),
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-label"), children: title2 }),
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: children2 })
       ] }) : "";
-      const card2 = /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("card", styles$x.contents), children: contentEl });
+      const card2 = /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("card", styles$A.contents), children: contentEl });
       return card2;
     };
     const ApprovalEventView = ({
@@ -50393,7 +49856,7 @@ self.onmessage = function (e) {
       }
     };
     const tab = "_tab_1je38_1";
-    const styles$w = {
+    const styles$z = {
       tab
     };
     const EventNav = ({
@@ -50415,7 +49878,7 @@ self.onmessage = function (e) {
             active2 ? "active " : "",
             "text-style-label",
             "text-size-small",
-            styles$w.tab
+            styles$z.tab
           ),
           onClick: () => {
             setSelectedNav(target2);
@@ -50425,7 +49888,7 @@ self.onmessage = function (e) {
       ) });
     };
     const navs$1 = "_navs_1vm6p_1";
-    const styles$v = {
+    const styles$y = {
       navs: navs$1
     };
     const EventNavs = ({
@@ -50436,7 +49899,7 @@ self.onmessage = function (e) {
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
         "ul",
         {
-          className: clsx("nav", "nav-pills", styles$v.navs),
+          className: clsx("nav", "nav-pills", styles$y.navs),
           role: "tablist",
           "aria-orientation": "horizontal",
           children: navs2.map((nav2) => {
@@ -50459,7 +49922,7 @@ self.onmessage = function (e) {
     const card = "_card_7z797_12";
     const cardContent = "_cardContent_7z797_18";
     const hidden$1 = "_hidden_7z797_23";
-    const styles$u = {
+    const styles$x = {
       label,
       navs,
       card,
@@ -50555,14 +50018,14 @@ self.onmessage = function (e) {
             /* @__PURE__ */ jsxRuntimeExports.jsx(
               "div",
               {
-                className: clsx("text-style-secondary", styles$u.label),
+                className: clsx("text-style-secondary", styles$x.label),
                 onClick: () => {
                   setCollapsed(!isCollapsed);
                 },
                 children: collapsed ? text2 : ""
               }
             ),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$u.navs, children: (!hasCollapse || !isCollapsed) && filteredArrChildren && filteredArrChildren.length > 1 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$x.navs, children: (!hasCollapse || !isCollapsed) && filteredArrChildren && filteredArrChildren.length > 1 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
               EventNavs,
               {
                 navs: filteredArrChildren.map((child, index2) => {
@@ -50581,15 +50044,15 @@ self.onmessage = function (e) {
           ]
         }
       ) : "";
-      const card2 = /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { id, className: clsx(className2, styles$u.card), children: [
+      const card2 = /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { id, className: clsx(className2, styles$x.card), children: [
         titleEl,
         /* @__PURE__ */ jsxRuntimeExports.jsx(
           "div",
           {
             className: clsx(
               "tab-content",
-              styles$u.cardContent,
-              hasCollapse && isCollapsed ? styles$u.hidden : void 0
+              styles$x.cardContent,
+              hasCollapse && isCollapsed ? styles$x.hidden : void 0
             ),
             children: filteredArrChildren == null ? void 0 : filteredArrChildren.map((child, index2) => {
               const id2 = pillId(index2);
@@ -50646,7 +50109,7 @@ self.onmessage = function (e) {
       );
     };
     const panel = "_panel_8zdtn_1";
-    const styles$t = {
+    const styles$w = {
       panel
     };
     const InfoEventView = ({
@@ -50658,9 +50121,9 @@ self.onmessage = function (e) {
     }) => {
       const panels = [];
       if (typeof event.data === "string") {
-        panels.push(/* @__PURE__ */ jsxRuntimeExports.jsx(MarkdownDiv, { markdown: event.data, className: styles$t.panel }));
+        panels.push(/* @__PURE__ */ jsxRuntimeExports.jsx(MarkdownDiv, { markdown: event.data, className: styles$w.panel }));
       } else {
-        panels.push(/* @__PURE__ */ jsxRuntimeExports.jsx(JSONPanel, { data: event.data, className: styles$t.panel }));
+        panels.push(/* @__PURE__ */ jsxRuntimeExports.jsx(JSONPanel, { data: event.data, className: styles$w.panel }));
       }
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
         EventPanel,
@@ -50716,7 +50179,7 @@ self.onmessage = function (e) {
       );
     };
     const grid$2 = "_grid_1pgwi_1";
-    const styles$s = {
+    const styles$v = {
       grid: grid$2
     };
     const LoggerEventView = ({
@@ -50729,7 +50192,7 @@ self.onmessage = function (e) {
           className: className2,
           title: event.message.level,
           icon: ApplicationIcons.logging[event.message.level.toLowerCase()],
-          children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("text-size-base", styles$s.grid), children: [
+          children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("text-size-base", styles$v.grid), children: [
             /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("text-size-smaller"), children: [
               "$",
               event.message.message
@@ -50743,10 +50206,10 @@ self.onmessage = function (e) {
         }
       );
     };
-    const container$7 = "_container_1brs9_1";
+    const container$8 = "_container_1brs9_1";
     const title$1 = "_title_1brs9_5";
-    const styles$r = {
-      container: container$7,
+    const styles$u = {
+      container: container$8,
       title: title$1
     };
     const EventSection = ({
@@ -50754,11 +50217,11 @@ self.onmessage = function (e) {
       children: children2,
       className: className2
     }) => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$r.container, className2), children: [
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$u.container, className2), children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx(
           "div",
           {
-            className: clsx("text-size-small", "text-style-label", styles$r.title),
+            className: clsx("text-size-small", "text-style-label", styles$u.title),
             children: title2
           }
         ),
@@ -50766,16 +50229,16 @@ self.onmessage = function (e) {
       ] });
     };
     const output = "_output_19u93_1";
-    const container$6 = "_container_19u93_5";
+    const container$7 = "_container_19u93_5";
     const all = "_all_19u93_10";
     const tableSelection = "_tableSelection_19u93_16";
     const tools$1 = "_tools_19u93_22";
     const codePre = "_codePre_19u93_26";
     const code$1 = "_code_19u93_26";
     const toolConfig = "_toolConfig_19u93_38";
-    const styles$q = {
+    const styles$t = {
       output,
-      container: container$6,
+      container: container$7,
       all,
       tableSelection,
       tools: tools$1,
@@ -50832,25 +50295,25 @@ self.onmessage = function (e) {
             setEventState({ ...eventState, collapsed });
           },
           children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { "data-name": "Summary", className: styles$q.container, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { "data-name": "Summary", className: styles$t.container, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
               ChatView,
               {
                 id: `${id}-model-output`,
                 messages: [...userMessages, ...outputMessages || []],
-                className: clsx(styles$q.output),
+                className: clsx(styles$t.output),
                 numbered: false,
                 toolCallStyle: "compact"
               }
             ) }),
-            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { "data-name": "All", className: styles$q.container, children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$q.all, children: [
-                /* @__PURE__ */ jsxRuntimeExports.jsx(EventSection, { title: "Configuration", className: styles$q.tableSelection, children: /* @__PURE__ */ jsxRuntimeExports.jsx(MetaDataGrid, { entries, plain: true }) }),
-                /* @__PURE__ */ jsxRuntimeExports.jsx(EventSection, { title: "Usage", className: styles$q.tableSelection, children: event.output.usage !== null ? /* @__PURE__ */ jsxRuntimeExports.jsx(ModelUsagePanel, { usage: event.output.usage }) : void 0 }),
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { "data-name": "All", className: styles$t.container, children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$t.all, children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsx(EventSection, { title: "Configuration", className: styles$t.tableSelection, children: /* @__PURE__ */ jsxRuntimeExports.jsx(MetaDataGrid, { entries, plain: true }) }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx(EventSection, { title: "Usage", className: styles$t.tableSelection, children: event.output.usage !== null ? /* @__PURE__ */ jsxRuntimeExports.jsx(ModelUsagePanel, { usage: event.output.usage }) : void 0 }),
                 /* @__PURE__ */ jsxRuntimeExports.jsx(
                   EventSection,
                   {
                     title: "Tools",
-                    className: clsx(styles$q.tableSelection, styles$q.tools),
+                    className: clsx(styles$t.tableSelection, styles$t.tools),
                     children: /* @__PURE__ */ jsxRuntimeExports.jsx(ToolsConfig, { tools: event.tools })
                   }
                 )
@@ -50868,7 +50331,7 @@ self.onmessage = function (e) {
               {
                 "data-name": "API",
                 call: event.call,
-                className: styles$q.container
+                className: styles$t.container
               }
             ) : ""
           ]
@@ -50897,12 +50360,12 @@ self.onmessage = function (e) {
           prismExports.highlightElement(codeRef.current);
         }
       }, [codeRef.current, contents2]);
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: styles$q.codePre, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: styles$t.codePre, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
         "code",
         {
           id,
           ref: codeRef,
-          className: clsx("language-json", styles$q.code, "text-size-small"),
+          className: clsx("language-json", styles$t.code, "text-size-small"),
           children: sourceCode
         }
       ) }) });
@@ -50914,14 +50377,14 @@ self.onmessage = function (e) {
           /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: tool2.description })
         ] }, `${tool2.name}-${idx}`);
       });
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$q.toolConfig, children: toolEls });
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$t.toolConfig, children: toolEls });
     };
     const noMargin = "_noMargin_1a3fk_1";
     const code = "_code_1a3fk_5";
     const sample = "_sample_1a3fk_10";
     const section = "_section_1a3fk_14";
     const metadata$1 = "_metadata_1a3fk_21";
-    const styles$p = {
+    const styles$s = {
       noMargin,
       code,
       sample,
@@ -50940,13 +50403,13 @@ self.onmessage = function (e) {
       if (event.sample.files && Object.keys(event.sample.files).length > 0) {
         sections.push(
           /* @__PURE__ */ jsxRuntimeExports.jsx(EventSection, { title: "Files", children: Object.keys(event.sample.files).map((file) => {
-            return /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: styles$p.noMargin, children: file }, `sample-init-file-${file}`);
+            return /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: styles$s.noMargin, children: file }, `sample-init-file-${file}`);
           }) }, `sample-${id}-init-files`)
         );
       }
       if (event.sample.setup) {
         sections.push(
-          /* @__PURE__ */ jsxRuntimeExports.jsx(EventSection, { title: "Setup", children: /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: styles$p.code, children: /* @__PURE__ */ jsxRuntimeExports.jsx("code", { className: "sourceCode", children: event.sample.setup }) }) }, `sample-${id}-init-setup`)
+          /* @__PURE__ */ jsxRuntimeExports.jsx(EventSection, { title: "Setup", children: /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: styles$s.code, children: /* @__PURE__ */ jsxRuntimeExports.jsx("code", { className: "sourceCode", children: event.sample.setup }) }) }, `sample-${id}-init-setup`)
         );
       }
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(
@@ -50966,7 +50429,7 @@ self.onmessage = function (e) {
             setEventState({ ...eventState, collapsed });
           },
           children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { "data-name": "Sample", className: styles$p.sample, children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { "data-name": "Sample", className: styles$s.sample, children: [
               /* @__PURE__ */ jsxRuntimeExports.jsx(ChatView, { messages: stateObj["messages"] }),
               /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
                 event.sample.choices ? event.sample.choices.map((choice, index2) => {
@@ -50976,7 +50439,7 @@ self.onmessage = function (e) {
                     choice
                   ] }, `$choice-{choice}`);
                 }) : "",
-                sections.length > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$p.section, children: sections }) : "",
+                sections.length > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$s.section, children: sections }) : "",
                 /* @__PURE__ */ jsxRuntimeExports.jsx(EventSection, { title: "Target", children: toArray(event.sample.target).map((target2) => {
                   return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: target2 }, target2);
                 }) })
@@ -50986,7 +50449,7 @@ self.onmessage = function (e) {
               MetaDataGrid,
               {
                 "data-name": "Metadata",
-                className: styles$p.metadata,
+                className: styles$s.metadata,
                 entries: event.sample.metadata
               }
             ) : ""
@@ -51053,7 +50516,7 @@ self.onmessage = function (e) {
     const explanation = "_explanation_1ww42_1";
     const separator$1 = "_separator_1ww42_8";
     const metadata = "_metadata_1ww42_13";
-    const styles$o = {
+    const styles$r = {
       explanation,
       separator: separator$1,
       metadata
@@ -51083,28 +50546,28 @@ self.onmessage = function (e) {
             setEventState({ ...eventState, collapsed });
           },
           children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { "data-name": "Explanation", className: clsx(styles$o.explanation), children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { "data-name": "Explanation", className: clsx(styles$r.explanation), children: [
               event.target ? /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
-                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$o.separator) }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$r.separator) }),
                 /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-style-label", children: "Target" }),
                 /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx(MarkdownDiv, { markdown: resolvedTarget || "" }) })
               ] }) : "",
-              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$o.separator) }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$r.separator) }),
               /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-style-label", children: "Answer" }),
               /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx(MarkdownDiv, { markdown: event.score.answer || "" }) }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$o.separator) }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$r.separator) }),
               /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-style-label", children: "Explanation" }),
               /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx(MarkdownDiv, { markdown: event.score.explanation || "" }) }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$o.separator) }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$r.separator) }),
               /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-style-label", children: "Score" }),
               /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: renderScore(event.score.value) }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$o.separator) })
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$r.separator) })
             ] }),
             event.score.metadata ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { "data-name": "Metadata", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
               MetaDataGrid,
               {
                 entries: event.score.metadata,
-                className: styles$o.metadata
+                className: styles$r.metadata
               }
             ) }) : void 0
           ]
@@ -51191,11 +50654,11 @@ self.onmessage = function (e) {
         const length = this.filters.length;
         const context = input2;
         for (let index2 = 0; index2 < length; index2++) {
-          const filter = this.filters[index2];
+          const filter2 = this.filters[index2];
           if (debug) {
-            this.log(`filter: ${filter.filterName}`);
+            this.log(`filter: ${filter2.filterName}`);
           }
-          filter(context);
+          filter2(context);
           if (typeof context === "object" && context.exiting) {
             context.exiting = false;
             break;
@@ -51221,8 +50684,8 @@ self.onmessage = function (e) {
           throw new Error("a filter name is required");
         }
         for (let index2 = 0; index2 < this.filters.length; index2++) {
-          const filter = this.filters[index2];
-          if (filter.filterName === filterName) {
+          const filter2 = this.filters[index2];
+          if (filter2.filterName === filterName) {
             return index2;
           }
         }
@@ -55489,13 +54952,13 @@ ${val.stack}`;
       const startBlinking = () => {
         blinkIntervalId = setInterval(() => {
           setState((state2) => {
-            const changes = {
+            const changes2 = {
               blink: !state2.blink
             };
-            if (changes.blink) {
-              changes.cursorHold = false;
+            if (changes2.blink) {
+              changes2.cursorHold = false;
             }
-            return changes;
+            return changes2;
           });
         }, 500);
       };
@@ -56708,14 +56171,14 @@ ${events}
     }
     function buffer(getBufferTime, execute, setTime, logger, baseStreamTime) {
       let minFrameTime = arguments.length > 5 && arguments[5] !== void 0 ? arguments[5] : 1 / 60;
-      let epoch = performance.now() - baseStreamTime * 1e3;
+      let epoch2 = performance.now() - baseStreamTime * 1e3;
       let bufferTime = getBufferTime(0);
       const queue = new Queue();
       minFrameTime *= 1e3;
       let prevElapsedStreamTime = -minFrameTime;
       let stop = false;
       function elapsedWallTime() {
-        return performance.now() - epoch;
+        return performance.now() - epoch2;
       }
       setTimeout(async () => {
         while (!stop) {
@@ -56743,7 +56206,7 @@ ${events}
           let latency = elapsedWallTime() - event[0] * 1e3;
           if (latency < 0) {
             logger.debug(`correcting epoch by ${latency} ms`);
-            epoch += latency;
+            epoch2 += latency;
             latency = 0;
           }
           bufferTime = getBufferTime(latency);
@@ -57629,7 +57092,7 @@ ${events}
     };
     const tools = "_tools_13oio_1";
     const tool = "_tool_13oio_1";
-    const styles$n = {
+    const styles$q = {
       tools,
       tool
     };
@@ -57661,8 +57124,8 @@ ${events}
         replace: ["/tool_choice"],
         remove: []
       },
-      render: (changes, resolvedState) => {
-        return renderTools(changes, resolvedState);
+      render: (changes2, resolvedState) => {
+        return renderTools(changes2, resolvedState);
       }
     };
     const add_tools = {
@@ -57672,8 +57135,8 @@ ${events}
         replace: [],
         remove: []
       },
-      render: (changes, resolvedState) => {
-        return renderTools(changes, resolvedState);
+      render: (changes2, resolvedState) => {
+        return renderTools(changes2, resolvedState);
       }
     };
     const humanAgentKey = (key2) => {
@@ -57736,9 +57199,9 @@ ${events}
         );
       }
     };
-    const renderTools = (changes, resolvedState) => {
+    const renderTools = (changes2, resolvedState) => {
       const toolIndexes = [];
-      for (const change of changes) {
+      for (const change of changes2) {
         const match = change.path.match(kToolPattern);
         if (match) {
           toolIndexes.push(match[1]);
@@ -57752,7 +57215,7 @@ ${events}
         }
       };
       const toolsInfo = {};
-      const hasToolChoice = changes.find((change) => {
+      const hasToolChoice = changes2.find((change) => {
         return change.path.startsWith("/tool_choice");
       });
       if (resolvedState.tool_choice && hasToolChoice) {
@@ -57769,7 +57232,7 @@ ${events}
           toolsInfo["Tools"] = /* @__PURE__ */ jsxRuntimeExports.jsx(Tools, { toolDefinitions: filtered });
         }
       }
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$n.tools), children: Object.keys(toolsInfo).map((key2) => {
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$q.tools), children: Object.keys(toolsInfo).map((key2) => {
         return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx(
             "div",
@@ -57811,11 +57274,11 @@ ${events}
     };
     const Tool = ({ toolName, toolArgs }) => {
       const functionCall = toolArgs && toolArgs.length > 0 ? `${toolName}(${toolArgs.join(", ")})` : toolName;
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("code", { className: clsx("text-size-small", styles$n.tool), children: functionCall }) });
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("code", { className: clsx("text-size-small", styles$q.tool), children: functionCall }) });
     };
     const diff = "_diff_eobja_1";
     const summary$2 = "_summary_eobja_6";
-    const styles$m = {
+    const styles$p = {
       diff,
       summary: summary$2
     };
@@ -57853,21 +57316,21 @@ ${events}
             setEventState({ ...eventState, collapsed });
           },
           children: [
-            changePreview ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { "data-name": "Summary", className: clsx(styles$m.summary), children: changePreview }) : void 0,
+            changePreview ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { "data-name": "Summary", className: clsx(styles$p.summary), children: changePreview }) : void 0,
             /* @__PURE__ */ jsxRuntimeExports.jsx(
               StateDiffView,
               {
                 before,
                 after,
                 "data-name": "Diff",
-                className: clsx(styles$m.diff)
+                className: clsx(styles$p.diff)
               }
             )
           ]
         }
       );
     };
-    const generatePreview = (changes, resolvedState, isStore) => {
+    const generatePreview = (changes2, resolvedState, isStore) => {
       const results = [];
       for (const changeType of [
         ...RenderableChangeTypes,
@@ -57875,7 +57338,7 @@ ${events}
       ]) {
         const requiredMatchCount = changeType.signature.remove.length + changeType.signature.replace.length + changeType.signature.add.length;
         let matchingOps = 0;
-        for (const change of changes) {
+        for (const change of changes2) {
           const op = change.op;
           switch (op) {
             case "add":
@@ -57908,14 +57371,14 @@ ${events}
           }
         }
         if (matchingOps === requiredMatchCount) {
-          const el = changeType.render(changes, resolvedState);
+          const el = changeType.render(changes2, resolvedState);
           results.push(el);
           break;
         }
       }
       return results.length > 0 ? results : void 0;
     };
-    const summarizeChanges = (changes) => {
+    const summarizeChanges = (changes2) => {
       const changeMap = {
         add: [],
         copy: [],
@@ -57924,7 +57387,7 @@ ${events}
         remove: [],
         test: []
       };
-      for (const change of changes) {
+      for (const change of changes2) {
         switch (change.op) {
           case "add":
             changeMap.add.push(change.path);
@@ -57967,10 +57430,10 @@ ${events}
       }
       return changeList.join(", ");
     };
-    const synthesizeComparable = (changes) => {
+    const synthesizeComparable = (changes2) => {
       const before = {};
       const after = {};
-      for (const change of changes) {
+      for (const change of changes2) {
         switch (change.op) {
           case "add":
             initializeArrays(before, change.path);
@@ -58184,7 +57647,7 @@ ${events}
     const summaryRendered = "_summaryRendered_ac4z2_6";
     const subtaskSummary = "_subtaskSummary_ac4z2_10";
     const subtaskLabel = "_subtaskLabel_ac4z2_17";
-    const styles$l = {
+    const styles$o = {
       summary: summary$1,
       summaryRendered,
       subtaskSummary,
@@ -58207,9 +57670,9 @@ ${events}
           depth: depth + 1
         }
       ) : "";
-      const body2 = event.type === "fork" ? /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { title: "Summary", className: clsx(styles$l.summary), children: [
+      const body2 = event.type === "fork" ? /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { title: "Summary", className: clsx(styles$o.summary), children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-label"), children: "Inputs" }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$l.summaryRendered), children: /* @__PURE__ */ jsxRuntimeExports.jsx(Rendered, { values: event.input }) }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$o.summaryRendered), children: /* @__PURE__ */ jsxRuntimeExports.jsx(Rendered, { values: event.input }) }),
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-label"), children: "Transcript" }),
         transcript
       ] }) : /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
@@ -58246,12 +57709,12 @@ ${events}
     };
     const SubtaskSummary = ({ input: input2, result }) => {
       result = typeof result === "object" ? result : { result };
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$l.subtaskSummary), children: [
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$o.subtaskSummary), children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-label"), children: "Input" }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-large", styles$l.subtaskLabel) }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-large", styles$o.subtaskLabel) }),
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-label"), children: "Output" }),
         /* @__PURE__ */ jsxRuntimeExports.jsx(Rendered, { values: input2 }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-title-secondary", styles$l.subtaskLabel), children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.arrows.right }) }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-title-secondary", styles$o.subtaskLabel), children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.arrows.right }) }),
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx(Rendered, { values: result }) })
       ] });
     };
@@ -58268,7 +57731,7 @@ ${events}
     };
     const summary = "_summary_1qkjz_1";
     const approval = "_approval_1qkjz_6";
-    const styles$k = {
+    const styles$n = {
       summary,
       approval
     };
@@ -58306,7 +57769,7 @@ ${events}
             setEventState({ ...eventState, collapsed });
           },
           children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { "data-name": "Summary", className: styles$k.summary, children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { "data-name": "Summary", className: styles$n.summary, children: [
               /* @__PURE__ */ jsxRuntimeExports.jsx(
                 ToolCallView,
                 {
@@ -58322,7 +57785,7 @@ ${events}
                 ApprovalEventView,
                 {
                   event: approvalEvent,
-                  className: styles$k.approval
+                  className: styles$n.approval
                 }
               ) : ""
             ] }),
@@ -58359,7 +57822,7 @@ ${events}
     const lastNode = "_lastNode_c8m1t_39";
     const eventNodeContainer = "_eventNodeContainer_c8m1t_43";
     const noBottom = "_noBottom_c8m1t_47";
-    const styles$j = {
+    const styles$m = {
       darkenedBg,
       normalBg,
       node,
@@ -58429,10 +57892,10 @@ ${events}
         [setTranscriptState]
       );
       const renderRow = (item2, index2) => {
-        const bgClass = item2.depth % 2 == 0 ? styles$j.darkenedBg : styles$j.normalBg;
-        const paddingClass = index2 === 0 ? styles$j.first : void 0;
+        const bgClass = item2.depth % 2 == 0 ? styles$m.darkenedBg : styles$m.normalBg;
+        const paddingClass = index2 === 0 ? styles$m.first : void 0;
         const eventId = `${id}-event${index2}`;
-        return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$j.node, paddingClass), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+        return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$m.node, paddingClass), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
           RenderedEventNode,
           {
             id: eventId,
@@ -58451,7 +57914,7 @@ ${events}
           tabIndex: 0,
           renderRow,
           scrollRef,
-          className: styles$j.nodes
+          className: styles$m.nodes
         }
       );
     };
@@ -58462,12 +57925,12 @@ ${events}
       eventNodes
     }) => {
       const rows = eventNodes.map((eventNode2, index2) => {
-        const clz = [styles$j.eventNode];
+        const clz = [styles$m.eventNode];
         if (eventNode2.depth % 2 == 0) {
-          clz.push(styles$j.darkenBg);
+          clz.push(styles$m.darkenBg);
         }
         if (index2 === eventNodes.length - 1) {
-          clz.push(styles$j.lastNode);
+          clz.push(styles$m.lastNode);
         }
         const eventId = `${id}-event${index2}`;
         const setEventState = reactExports.useCallback(
@@ -58480,8 +57943,8 @@ ${events}
           "div",
           {
             className: clsx(
-              styles$j.eventNodeContainer,
-              index2 === eventNodes.length - 1 ? styles$j.noBottom : void 0
+              styles$m.eventNodeContainer,
+              index2 === eventNodes.length - 1 ? styles$m.noBottom : void 0
             ),
             children: /* @__PURE__ */ jsxRuntimeExports.jsx(
               RenderedEventNode,
@@ -58502,7 +57965,7 @@ ${events}
         "div",
         {
           id,
-          className: clsx("text-size-small", styles$j.transcriptComponent),
+          className: clsx("text-size-small", styles$m.transcriptComponent),
           children: rows
         }
       );
@@ -58772,7 +58235,7 @@ ${events}
           {
             id: tabsetId,
             tabControlsClassName: clsx("text-size-base"),
-            tabPanelsClassName: clsx(styles$A.tabPanel),
+            tabPanelsClassName: clsx(styles$D.tabPanel),
             tools: tools2,
             children: [
               sample2.events && sample2.events.length > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -58800,7 +58263,7 @@ ${events}
                 TabPanel,
                 {
                   id: kSampleMessagesTabId,
-                  className: clsx("sample-tab", styles$A.fullWidth),
+                  className: clsx("sample-tab", styles$D.fullWidth),
                   title: "Messages",
                   onSelected: onSelectedTab,
                   selected: selectedTab === kSampleMessagesTabId,
@@ -58867,7 +58330,7 @@ ${events}
                   title: "Metadata",
                   onSelected: onSelectedTab,
                   selected: selectedTab === kSampleMetdataTabId,
-                  children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$A.metadataPanel), children: sampleMetadatas })
+                  children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$D.metadataPanel), children: sampleMetadatas })
                 }
               ) : null,
               sample2.error ? /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -58878,11 +58341,11 @@ ${events}
                   title: "Error",
                   onSelected: onSelectedTab,
                   selected: selectedTab === kSampleErrorTabId,
-                  children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$A.padded), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+                  children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$D.padded), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
                     ANSIDisplay,
                     {
                       output: sample2.error.traceback_ansi,
-                      className: clsx("text-size-small", styles$A.ansi)
+                      className: clsx("text-size-small", styles$D.ansi)
                     }
                   ) })
                 }
@@ -58895,7 +58358,7 @@ ${events}
                   title: "JSON",
                   onSelected: onSelectedTab,
                   selected: selectedTab === kSampleJsonTabId,
-                  children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$A.padded, styles$A.fullWidth), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+                  children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$D.padded, styles$D.fullWidth), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
                     JSONPanel,
                     {
                       data: sample2,
@@ -58920,7 +58383,7 @@ ${events}
               ModelTokenTable,
               {
                 model_usage: sample2.model_usage,
-                className: clsx(styles$A.noTop)
+                className: clsx(styles$D.noTop)
               }
             ) })
           ] }, `sample-usage-${id}`)
@@ -58935,7 +58398,7 @@ ${events}
               {
                 id: "task-sample-metadata-${id}",
                 entries: sample2 == null ? void 0 : sample2.metadata,
-                className: clsx("tab-pane", styles$A.noTop)
+                className: clsx("tab-pane", styles$D.noTop)
               }
             ) })
           ] }, `sample-metadata-${id}`)
@@ -58950,7 +58413,7 @@ ${events}
               {
                 id: "task-sample-store-${id}",
                 entries: sample2 == null ? void 0 : sample2.store,
-                className: clsx("tab-pane", styles$A.noTop)
+                className: clsx("tab-pane", styles$D.noTop)
               }
             ) })
           ] }, `sample-store-${id}`)
@@ -59012,25 +58475,25 @@ ${events}
         }
       }
     };
-    const container$5 = "_container_gzd7f_1";
+    const container$6 = "_container_gzd7f_1";
     const body$1 = "_body_gzd7f_6";
-    const styles$i = {
-      container: container$5,
+    const styles$l = {
+      container: container$6,
       body: body$1
     };
     const InlineSampleDisplay = ({
       id,
       sample: sample2,
-      sampleStatus,
-      sampleError,
+      sampleStatus: sampleStatus2,
+      sampleError: sampleError2,
       sampleDescriptor,
       selectedTab,
       setSelectedTab,
       scrollRef
     }) => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$i.container, children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx(ProgressBar, { animating: sampleStatus === "loading" }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$i.body, children: sampleError ? /* @__PURE__ */ jsxRuntimeExports.jsx(ErrorPanel, { title: "Unable to load sample", error: sampleError }) : /* @__PURE__ */ jsxRuntimeExports.jsx(
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$l.container, children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx(ProgressBar, { animating: sampleStatus2 === "loading" }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$l.body, children: sampleError2 ? /* @__PURE__ */ jsxRuntimeExports.jsx(ErrorPanel, { title: "Unable to load sample", error: sampleError2 }) : /* @__PURE__ */ jsxRuntimeExports.jsx(
           SampleDisplay,
           {
             id,
@@ -59053,7 +58516,7 @@ ${events}
     const content = "_content_yj2nt_41";
     const header$1 = "_header_yj2nt_45";
     const titleTool = "_titleTool_yj2nt_50";
-    const styles$h = {
+    const styles$k = {
       title,
       detail,
       detailText,
@@ -59103,8 +58566,8 @@ ${events}
           id,
           className: clsx(
             "modal",
-            styles$h.modal,
-            !visible2 ? styles$h.hidden : void 0
+            styles$k.modal,
+            !visible2 ? styles$k.hidden : void 0
           ),
           role: "dialog",
           onKeyUp: onkeyup,
@@ -59115,23 +58578,23 @@ ${events}
               className: clsx(
                 "modal-dialog",
                 "modal-dialog-scrollable",
-                styles$h.modalBody
+                styles$k.modalBody
               ),
               role: "document",
-              children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("modal-content", styles$h.content), children: [
-                /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("modal-header", styles$h.header), children: [
+              children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("modal-content", styles$k.content), children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("modal-header", styles$k.header), children: [
                   /* @__PURE__ */ jsxRuntimeExports.jsx(
                     "div",
                     {
-                      className: clsx("modal-title", "text-size-smaller", styles$h.title),
+                      className: clsx("modal-title", "text-size-smaller", styles$k.title),
                       children: title2 || ""
                     }
                   ),
-                  detail2 ? /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$h.detail, children: [
+                  detail2 ? /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$k.detail, children: [
                     (detailTools == null ? void 0 : detailTools.left) ? detailTools.left.map((tool2, idx) => {
                       return /* @__PURE__ */ jsxRuntimeExports.jsx(TitleTool, { ...tool2 }, `tool-left-${idx}`);
                     }) : "",
-                    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-smaller", styles$h.detailText), children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: detail2 }) }),
+                    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-smaller", styles$k.detailText), children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: detail2 }) }),
                     (detailTools == null ? void 0 : detailTools.right) ? detailTools.right.map((tool2, idx) => {
                       return /* @__PURE__ */ jsxRuntimeExports.jsx(TitleTool, { ...tool2 }, `tool-right-${idx}`);
                     }) : ""
@@ -59144,7 +58607,7 @@ ${events}
                         "btn",
                         "btn-close-large-dialog",
                         "text-size-larger",
-                        styles$h.close
+                        styles$k.close
                       ),
                       onClick: onHide,
                       "aria-label": "Close",
@@ -59176,7 +58639,7 @@ ${events}
             "btn",
             "btn-outline",
             "text-size-small",
-            styles$h.titleTool
+            styles$k.titleTool
           ),
           "aria-label": label2,
           onClick,
@@ -59192,14 +58655,14 @@ ${events}
       sampleDescriptor,
       nextSample,
       prevSample,
-      sampleStatus,
-      sampleError,
-      showingSampleDialog,
-      setShowingSampleDialog,
+      sampleStatus: sampleStatus2,
+      sampleError: sampleError2,
+      showingSampleDialog: showingSampleDialog2,
+      setShowingSampleDialog: setShowingSampleDialog2,
       selectedTab,
       setSelectedTab,
       sampleScrollPositionRef,
-      setSampleScrollPosition
+      setSampleScrollPosition: setSampleScrollPosition2
     }) => {
       const scrollRef = reactExports.useRef(null);
       const tools2 = reactExports.useMemo(() => {
@@ -59234,15 +58697,15 @@ ${events}
               }
               break;
             case "Escape":
-              setShowingSampleDialog(false);
+              setShowingSampleDialog2(false);
               break;
           }
         },
         [prevSample, nextSample]
       );
       const onHide = reactExports.useCallback(() => {
-        setShowingSampleDialog(false);
-      }, [setShowingSampleDialog]);
+        setShowingSampleDialog2(false);
+      }, [setShowingSampleDialog2]);
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
         LargeModal,
         {
@@ -59250,13 +58713,13 @@ ${events}
           detail: title2,
           detailTools: tools2,
           onkeyup: handleKeyUp,
-          visible: showingSampleDialog,
+          visible: showingSampleDialog2,
           onHide,
-          showProgress: sampleStatus === "loading",
+          showProgress: sampleStatus2 === "loading",
           initialScrollPositionRef: sampleScrollPositionRef,
-          setInitialScrollPosition: setSampleScrollPosition,
+          setInitialScrollPosition: setSampleScrollPosition2,
           scrollRef,
-          children: sampleError ? /* @__PURE__ */ jsxRuntimeExports.jsx(ErrorPanel, { title: "Sample Error", error: sampleError }) : /* @__PURE__ */ jsxRuntimeExports.jsx(
+          children: sampleError2 ? /* @__PURE__ */ jsxRuntimeExports.jsx(ErrorPanel, { title: "Sample Error", error: sampleError2 }) : /* @__PURE__ */ jsxRuntimeExports.jsx(
             SampleDisplay,
             {
               id,
@@ -59371,9 +58834,9 @@ ${events}
       align
     }) => {
       align = align || "center";
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$z.body, children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(ApplicationIcons.error, styles$z.iconSmall) }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$z.message, style: ApplicationStyles.lineClamp(2), children: errorType(message2) })
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$C.body, children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(ApplicationIcons.error, styles$C.iconSmall) }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$C.message, style: ApplicationStyles.lineClamp(2), children: errorType(message2) })
       ] });
     };
     const grid$1 = "_grid_1kcta_1";
@@ -59382,7 +58845,7 @@ ${events}
     const wrapAnywhere = "_wrapAnywhere_1kcta_22";
     const noLeft = "_noLeft_1kcta_26";
     const score = "_score_1kcta_30";
-    const styles$g = {
+    const styles$j = {
       grid: grid$1,
       selected,
       cell,
@@ -59409,9 +58872,9 @@ ${events}
             showSample(index2);
           },
           className: clsx(
-            styles$g.grid,
+            styles$j.grid,
             "text-size-base",
-            selected2 ? styles$g.selected : void 0
+            selected2 ? styles$j.selected : void 0
           ),
           style: {
             height: `${height}px`,
@@ -59419,31 +58882,31 @@ ${events}
             gridTemplateColumns: gridColumnsTemplate
           },
           children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("sample-id", "three-line-clamp", styles$g.cell), children: sample2.id }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("sample-id", "three-line-clamp", styles$j.cell), children: sample2.id }),
             /* @__PURE__ */ jsxRuntimeExports.jsx(
               "div",
               {
                 className: clsx(
                   "sample-input",
                   "three-line-clamp",
-                  styles$g.cell,
-                  styles$g.wrapAnywhere
+                  styles$j.cell,
+                  styles$j.wrapAnywhere
                 ),
                 children: inputString(sample2.input).join(" ")
               }
             ),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("sample-target", "three-line-clamp", styles$g.cell), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("sample-target", "three-line-clamp", styles$j.cell), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
               MarkdownDiv,
               {
                 markdown: arrayToString(sample2 == null ? void 0 : sample2.target),
-                className: clsx("no-last-para-padding", styles$g.noLeft)
+                className: clsx("no-last-para-padding", styles$j.noLeft)
               }
             ) }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("sample-answer", "three-line-clamp", styles$g.cell), children: sample2 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("sample-answer", "three-line-clamp", styles$j.cell), children: sample2 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
               MarkdownDiv,
               {
                 markdown: sampleDescriptor == null ? void 0 : sampleDescriptor.selectedScorerDescriptor(sample2).answer(),
-                className: clsx("no-last-para-padding", styles$g.noLeft)
+                className: clsx("no-last-para-padding", styles$j.noLeft)
               }
             ) : "" }),
             /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -59453,18 +58916,18 @@ ${events}
                   "sample-limit",
                   "text-size-small",
                   "three-line-clamp",
-                  styles$g.cell
+                  styles$j.cell
                 ),
                 children: sample2.limit
               }
             ),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-small", styles$g.cell, styles$g.score), children: sample2.error ? /* @__PURE__ */ jsxRuntimeExports.jsx(SampleErrorView, { message: sample2.error }) : (_a2 = sampleDescriptor == null ? void 0 : sampleDescriptor.selectedScore(sample2)) == null ? void 0 : _a2.render() })
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-small", styles$j.cell, styles$j.score), children: sample2.error ? /* @__PURE__ */ jsxRuntimeExports.jsx(SampleErrorView, { message: sample2.error }) : (_a2 = sampleDescriptor == null ? void 0 : sampleDescriptor.selectedScore(sample2)) == null ? void 0 : _a2.render() })
           ]
         }
       );
     };
     const row$1 = "_row_utdq5_1";
-    const styles$f = {
+    const styles$i = {
       row: row$1
     };
     const SampleSeparator = ({
@@ -59476,25 +58939,25 @@ ${events}
         "div",
         {
           id,
-          className: clsx("text-style-secondary", "text-size-smaller", styles$f.row),
+          className: clsx("text-style-secondary", "text-size-smaller", styles$i.row),
           style: { height: `${height}px` },
           children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: title2 })
         }
       );
     };
     const footer = "_footer_vk06l_1";
-    const styles$e = {
+    const styles$h = {
       footer
     };
     const SampleFooter = ({ sampleCount }) => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-smaller", styles$e.footer), children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-smaller", styles$h.footer), children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
         sampleCount,
         " Samples"
       ] }) });
     };
     const header = "_header_16ngy_1";
     const center = "_center_16ngy_11";
-    const styles$d = {
+    const styles$g = {
       header,
       center
     };
@@ -59509,7 +58972,7 @@ ${events}
       "div",
       {
         className: clsx(
-          styles$d.header,
+          styles$g.header,
           "text-size-smaller",
           "text-style-label",
           "text-style-secondary"
@@ -59521,13 +58984,13 @@ ${events}
           /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: target2 ? "Target" : "" }),
           /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: answer2 ? "Answer" : "" }),
           /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: limit ? "Limit" : "" }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$d.center, children: score2 ? "Score" : "" })
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$g.center, children: score2 ? "Score" : "" })
         ]
       }
     );
     const list = "_list_q79zq_1";
     const mainLayout = "_mainLayout_q79zq_7";
-    const styles$c = {
+    const styles$f = {
       list,
       mainLayout
     };
@@ -59645,7 +59108,7 @@ ${events}
       const percentError = errorCount / sampleCount * 100;
       const percentLimit = limitCount / sampleCount * 100;
       const warningMessage = errorCount > 0 ? `INFO: ${errorCount} of ${sampleCount} samples (${formatNoDecimal(percentError)}%) had errors and were not scored.` : limitCount ? `INFO: ${limitCount} of ${sampleCount} samples (${formatNoDecimal(percentLimit)}%) completed due to exceeding a limit.` : void 0;
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$c.mainLayout, children: [
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$f.mainLayout, children: [
         warningMessage ? /* @__PURE__ */ jsxRuntimeExports.jsx(
           MessageBand,
           {
@@ -59673,7 +59136,7 @@ ${events}
             tabIndex: 0,
             renderRow,
             onKeyDown: onkeydown,
-            className: clsx(styles$c.list, className2)
+            className: clsx(styles$f.list, className2)
           }
         ),
         /* @__PURE__ */ jsxRuntimeExports.jsx(SampleFooter, { sampleCount })
@@ -59709,13 +59172,13 @@ ${events}
         score: `${score2}rem`
       };
     };
-    const getSampleProcessor = (samples, groupBy, groupByOrder, sampleDescriptor) => {
-      if (groupBy == "epoch") {
-        return groupByEpoch(samples, sampleDescriptor, groupByOrder);
-      } else if (groupBy === "sample") {
-        return groupBySample(samples, sampleDescriptor, groupByOrder);
+    const getSampleProcessor = (samples, groupBy2, groupByOrder2, sampleDescriptor) => {
+      if (groupBy2 == "epoch") {
+        return groupByEpoch(samples, sampleDescriptor, groupByOrder2);
+      } else if (groupBy2 === "sample") {
+        return groupBySample(samples, sampleDescriptor, groupByOrder2);
       } else {
-        return noGrouping(samples, groupByOrder);
+        return noGrouping(samples, groupByOrder2);
       }
     };
     const noGrouping = (samples, order) => {
@@ -59839,20 +59302,20 @@ ${events}
     const SamplesTab = ({
       sample: sample2,
       samples,
-      sampleMode,
-      groupBy,
-      groupByOrder,
+      sampleMode: sampleMode2,
+      groupBy: groupBy2,
+      groupByOrder: groupByOrder2,
       sampleDescriptor,
-      sampleStatus,
-      sampleError,
-      selectedSampleIndex,
-      setSelectedSampleIndex,
-      showingSampleDialog,
-      setShowingSampleDialog,
-      selectedSampleTab,
-      setSelectedSampleTab,
+      sampleStatus: sampleStatus2,
+      sampleError: sampleError2,
+      selectedSampleIndex: selectedSampleIndex2,
+      setSelectedSampleIndex: setSelectedSampleIndex2,
+      showingSampleDialog: showingSampleDialog2,
+      setShowingSampleDialog: setShowingSampleDialog2,
+      selectedSampleTab: selectedSampleTab2,
+      setSelectedSampleTab: setSelectedSampleTab2,
       sampleScrollPositionRef,
-      setSampleScrollPosition,
+      setSampleScrollPosition: setSampleScrollPosition2,
       sampleTabScrollRef
     }) => {
       const [items, setItems] = reactExports.useState([]);
@@ -59861,13 +59324,13 @@ ${events}
       const sampleDialogRef = reactExports.useRef(null);
       const showSample = reactExports.useCallback(
         (index2) => {
-          setSelectedSampleIndex(index2);
-          setShowingSampleDialog(true);
+          setSelectedSampleIndex2(index2);
+          setShowingSampleDialog2(true);
         },
         [sampleDialogRef]
       );
       reactExports.useEffect(() => {
-        if (showingSampleDialog) {
+        if (showingSampleDialog2) {
           setTimeout(() => {
             var _a2;
             (_a2 = sampleDialogRef.current) == null ? void 0 : _a2.focus();
@@ -59879,12 +59342,12 @@ ${events}
             }
           }, 0);
         }
-      }, [showingSampleDialog]);
+      }, [showingSampleDialog2]);
       reactExports.useEffect(() => {
         const sampleProcessor = sampleDescriptor ? getSampleProcessor(
           samples || [],
-          groupBy,
-          groupByOrder,
+          groupBy2,
+          groupByOrder2,
           sampleDescriptor
         ) : void 0;
         const items2 = samples == null ? void 0 : samples.flatMap((sample22, index2) => {
@@ -59900,54 +59363,54 @@ ${events}
             return item2.type === "sample";
           }) : []
         );
-      }, [samples, groupBy, groupByOrder, sampleDescriptor]);
+      }, [samples, groupBy2, groupByOrder2, sampleDescriptor]);
       const nextSampleIndex = reactExports.useCallback(() => {
-        if (selectedSampleIndex < sampleItems.length - 1) {
-          return selectedSampleIndex + 1;
+        if (selectedSampleIndex2 < sampleItems.length - 1) {
+          return selectedSampleIndex2 + 1;
         } else {
           return -1;
         }
-      }, [selectedSampleIndex, items]);
+      }, [selectedSampleIndex2, items]);
       const previousSampleIndex = reactExports.useCallback(() => {
-        return selectedSampleIndex > 0 ? selectedSampleIndex - 1 : -1;
-      }, [selectedSampleIndex, items]);
+        return selectedSampleIndex2 > 0 ? selectedSampleIndex2 - 1 : -1;
+      }, [selectedSampleIndex2, items]);
       const nextSample = reactExports.useCallback(() => {
         const next = nextSampleIndex();
-        if (sampleStatus !== "loading" && next > -1) {
-          setSelectedSampleIndex(next);
+        if (sampleStatus2 !== "loading" && next > -1) {
+          setSelectedSampleIndex2(next);
         }
-      }, [selectedSampleIndex, samples, sampleStatus, nextSampleIndex]);
+      }, [selectedSampleIndex2, samples, sampleStatus2, nextSampleIndex]);
       const previousSample = reactExports.useCallback(() => {
         const prev = previousSampleIndex();
-        if (sampleStatus !== "loading" && prev > -1) {
-          setSelectedSampleIndex(prev);
+        if (sampleStatus2 !== "loading" && prev > -1) {
+          setSelectedSampleIndex2(prev);
         }
-      }, [selectedSampleIndex, samples, sampleStatus, previousSampleIndex]);
-      const title2 = selectedSampleIndex > -1 && sampleItems.length > selectedSampleIndex ? sampleItems[selectedSampleIndex].label : "";
+      }, [selectedSampleIndex2, samples, sampleStatus2, previousSampleIndex]);
+      const title2 = selectedSampleIndex2 > -1 && sampleItems.length > selectedSampleIndex2 ? sampleItems[selectedSampleIndex2].label : "";
       if (!sampleDescriptor) {
         return /* @__PURE__ */ jsxRuntimeExports.jsx(EmptyPanel, {});
       } else {
         return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
-          sampleDescriptor && sampleMode === "single" ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+          sampleDescriptor && sampleMode2 === "single" ? /* @__PURE__ */ jsxRuntimeExports.jsx(
             InlineSampleDisplay,
             {
               id: "sample-display",
               sample: sample2,
-              sampleStatus,
-              sampleError,
+              sampleStatus: sampleStatus2,
+              sampleError: sampleError2,
               sampleDescriptor,
-              selectedTab: selectedSampleTab,
-              setSelectedTab: setSelectedSampleTab,
+              selectedTab: selectedSampleTab2,
+              setSelectedTab: setSelectedSampleTab2,
               scrollRef: sampleTabScrollRef
             }
           ) : void 0,
-          sampleDescriptor && sampleMode === "many" ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+          sampleDescriptor && sampleMode2 === "many" ? /* @__PURE__ */ jsxRuntimeExports.jsx(
             SampleList,
             {
               listRef: sampleListRef,
               items,
               sampleDescriptor,
-              selectedIndex: selectedSampleIndex,
+              selectedIndex: selectedSampleIndex2,
               nextSample,
               prevSample: previousSample,
               showSample
@@ -59959,17 +59422,17 @@ ${events}
               id: String((sample2 == null ? void 0 : sample2.id) || ""),
               title: title2,
               sample: sample2,
-              sampleStatus,
-              sampleError,
+              sampleStatus: sampleStatus2,
+              sampleError: sampleError2,
               sampleDescriptor,
-              showingSampleDialog,
-              setShowingSampleDialog,
-              selectedTab: selectedSampleTab,
-              setSelectedTab: setSelectedSampleTab,
+              showingSampleDialog: showingSampleDialog2,
+              setShowingSampleDialog: setShowingSampleDialog2,
+              selectedTab: selectedSampleTab2,
+              setSelectedTab: setSelectedSampleTab2,
               nextSample,
               prevSample: previousSample,
               sampleScrollPositionRef,
-              setSampleScrollPosition
+              setSampleScrollPosition: setSampleScrollPosition2
             }
           )
         ] });
@@ -59980,7 +59443,7 @@ ${events}
       return `${baseUrl}/commit/${commit}`;
     };
     const item$1 = "_item_1uzhd_1";
-    const styles$b = {
+    const styles$e = {
       item: item$1
     };
     const DatasetDetailView = ({
@@ -59991,12 +59454,12 @@ ${events}
         Object.entries(dataset).filter(([key2]) => key2 !== "sample_ids")
       );
       if (!dataset || Object.keys(filtered).length === 0) {
-        return /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx("text-size-base", styles$b.item), style: style2, children: "No dataset information available" });
+        return /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx("text-size-base", styles$e.item), style: style2, children: "No dataset information available" });
       }
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
         MetaDataView,
         {
-          className: clsx("text-size-base", styles$b.item),
+          className: clsx("text-size-base", styles$e.item),
           entries: filtered,
           tableOptions: "borderless,sm",
           style: style2
@@ -60009,12 +59472,12 @@ ${events}
       params: params2,
       className: className2
     }) => {
-      const iconHtml = icon ? /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(icon, styles$b.icon) }) : "";
+      const iconHtml = icon ? /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(icon, styles$e.icon) }) : "";
       return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(className2), children: [
         iconHtml,
         " ",
         name2,
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$b.container, children: params2 ? /* @__PURE__ */ jsxRuntimeExports.jsx(MetaDataView, { entries: params2, className: "text-size-small" }) : "" })
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$e.container, children: params2 ? /* @__PURE__ */ jsxRuntimeExports.jsx(MetaDataView, { entries: params2, className: "text-size-small" }) : "" })
       ] });
     };
     const ScorerDetailView = ({
@@ -60031,49 +59494,49 @@ ${events}
           icon: ApplicationIcons.scorer,
           name: name2,
           params: params2,
-          className: clsx(styles$b.item, "text-size-base")
+          className: clsx(styles$e.item, "text-size-base")
         }
       );
     };
-    const container$4 = "_container_12g3a_1";
+    const container$5 = "_container_12g3a_1";
     const item = "_item_12g3a_6";
     const separator = "_separator_12g3a_10";
-    const styles$a = {
-      container: container$4,
+    const styles$d = {
+      container: container$5,
       item,
       separator
     };
     const SolversDetailView = ({ steps }) => {
-      const separator2 = /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$a.items, "text-size-small", styles$a.separator), children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.arrows.right }) });
+      const separator2 = /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$d.items, "text-size-small", styles$d.separator), children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.arrows.right }) });
       const details = steps == null ? void 0 : steps.map((step, index2) => {
         return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx(
             DetailStep,
             {
               name: step.solver,
-              className: clsx(styles$a.items, "text-size-small")
+              className: clsx(styles$d.items, "text-size-small")
             }
           ),
           index2 < steps.length - 1 ? separator2 : ""
         ] }, `solver-step-${index2}`);
       });
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$a.container, children: details });
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$d.container, children: details });
     };
     const floatingCol = "_floatingCol_q6xma_1";
     const wideCol = "_wideCol_q6xma_9";
     const oneCol = "_oneCol_q6xma_16";
     const twoCol = "_twoCol_q6xma_20";
     const planCol = "_planCol_q6xma_24";
-    const container$3 = "_container_q6xma_28";
+    const container$4 = "_container_q6xma_28";
     const grid = "_grid_q6xma_34";
     const row = "_row_q6xma_42";
-    const styles$9 = {
+    const styles$c = {
       floatingCol,
       wideCol,
       oneCol,
       twoCol,
       planCol,
-      container: container$3,
+      container: container$4,
       grid,
       row
     };
@@ -60135,13 +59598,13 @@ ${events}
       const taskColumns = [];
       taskColumns.push({
         title: "Dataset",
-        className: styles$9.floatingCol,
+        className: styles$c.floatingCol,
         contents: /* @__PURE__ */ jsxRuntimeExports.jsx(DatasetDetailView, { dataset: evaluation.dataset })
       });
       if (steps) {
         taskColumns.push({
           title: "Solvers",
-          className: styles$9.wideCol,
+          className: styles$c.wideCol,
           contents: /* @__PURE__ */ jsxRuntimeExports.jsx(SolversDetailView, { steps })
         });
       }
@@ -60175,7 +59638,7 @@ ${events}
           });
           taskColumns.push({
             title: label2,
-            className: styles$9.floatingCol,
+            className: styles$c.floatingCol,
             contents: scorerPanels
           });
         }
@@ -60190,7 +59653,7 @@ ${events}
       );
       metadataColumns.push({
         title: "Task Information",
-        className: cols === 1 ? styles$9.oneCol : styles$9.twoCol,
+        className: cols === 1 ? styles$c.oneCol : styles$c.twoCol,
         contents: /* @__PURE__ */ jsxRuntimeExports.jsx(
           MetaDataView,
           {
@@ -60204,7 +59667,7 @@ ${events}
       if (task_args && Object.keys(task_args).length > 0) {
         metadataColumns.push({
           title: "Task Args",
-          className: cols === 1 ? styles$9.oneCol : styles$9.twoCol,
+          className: cols === 1 ? styles$c.oneCol : styles$c.twoCol,
           contents: /* @__PURE__ */ jsxRuntimeExports.jsx(
             MetaDataView,
             {
@@ -60219,7 +59682,7 @@ ${events}
       if (model_args && Object.keys(model_args).length > 0) {
         metadataColumns.push({
           title: "Model Args",
-          className: cols === 1 ? styles$9.oneCol : styles$9.twoCol,
+          className: cols === 1 ? styles$c.oneCol : styles$c.twoCol,
           contents: /* @__PURE__ */ jsxRuntimeExports.jsx(
             MetaDataView,
             {
@@ -60234,7 +59697,7 @@ ${events}
       if (Object.keys(config2).length > 0) {
         metadataColumns.push({
           title: "Configuration",
-          className: cols === 1 ? styles$9.oneCol : styles$9.twoCol,
+          className: cols === 1 ? styles$c.oneCol : styles$c.twoCol,
           contents: /* @__PURE__ */ jsxRuntimeExports.jsx(
             MetaDataView,
             {
@@ -60252,7 +59715,7 @@ ${events}
         );
         metadataColumns.push({
           title: "Generate Config",
-          className: cols === 1 ? styles$9.oneCol : styles$9.twoCol,
+          className: cols === 1 ? styles$c.oneCol : styles$c.twoCol,
           contents: /* @__PURE__ */ jsxRuntimeExports.jsx(
             MetaDataView,
             {
@@ -60267,7 +59730,7 @@ ${events}
       if (metadata2 && Object.keys(metadata2).length > 0) {
         metadataColumns.push({
           title: "Metadata",
-          className: cols === 1 ? styles$9.oneCol : styles$9.twoCol,
+          className: cols === 1 ? styles$c.oneCol : styles$c.twoCol,
           contents: /* @__PURE__ */ jsxRuntimeExports.jsx(
             MetaDataView,
             {
@@ -60279,11 +59742,11 @@ ${events}
           )
         });
       }
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$9.container, children: [
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$c.container, children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx(
           "div",
           {
-            className: styles$9.grid,
+            className: styles$c.grid,
             style: {
               gridTemplateColumns: `repeat(${taskColumns.length}, auto)`
             },
@@ -60300,7 +59763,7 @@ ${events}
             })
           }
         ),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$9.row), children: metadataColumns.map((col) => {
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$c.row), children: metadataColumns.map((col) => {
           return /* @__PURE__ */ jsxRuntimeExports.jsx(
             PlanColumn,
             {
@@ -60336,7 +59799,7 @@ ${events}
               "text-size-small",
               "text-style-label",
               "text-style-secondary",
-              styles$9.planCol
+              styles$c.planCol
             ),
             children: title2
           }
@@ -60357,7 +59820,7 @@ ${events}
     const wrapper$1 = "_wrapper_11ije_1";
     const col1 = "_col1_11ije_8";
     const col2 = "_col2_11ije_13";
-    const styles$8 = {
+    const styles$b = {
       wrapper: wrapper$1,
       col1,
       col2
@@ -60376,8 +59839,8 @@ ${events}
       };
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(Card, { children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx(CardHeader, { icon: ApplicationIcons.usage, label: "Usage" }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx(CardBody, { id: kUsageCardBodyId, children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$8.wrapper, children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$8.col1, children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx(CardBody, { id: kUsageCardBodyId, children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$b.wrapper, children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$b.col1, children: [
             /* @__PURE__ */ jsxRuntimeExports.jsx(
               "div",
               {
@@ -60402,11 +59865,11 @@ ${events}
               }
             )
           ] }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$8.col2, children: /* @__PURE__ */ jsxRuntimeExports.jsx(ModelTokenTable, { model_usage: stats.model_usage }) })
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$b.col2, children: /* @__PURE__ */ jsxRuntimeExports.jsx(ModelTokenTable, { model_usage: stats.model_usage }) })
         ] }) })
       ] });
     };
-    const styles$7 = {
+    const styles$a = {
       "task-error-display": "_task-error-display_1624b_1"
     };
     const TaskErrorCard = ({ error: error2 }) => {
@@ -60422,7 +59885,7 @@ ${events}
           ANSIDisplay,
           {
             output: error2.traceback_ansi,
-            className: styles$7["task-error-display"]
+            className: styles$a["task-error-display"]
           }
         ) })
       ] });
@@ -60475,7 +59938,7 @@ ${events}
     const navbarStatus = "_navbarStatus_838qu_42";
     const navbarWrapper = "_navbarWrapper_838qu_48";
     const navbarInnerWrapper = "_navbarInnerWrapper_838qu_51";
-    const styles$6 = {
+    const styles$9 = {
       navbarContainer,
       navbarToggle,
       navbarBody,
@@ -60488,7 +59951,7 @@ ${events}
       navbarInnerWrapper
     };
     const copyButton = "_copyButton_1goi8_1";
-    const styles$5 = {
+    const styles$8 = {
       copyButton
     };
     const CopyButton = ({
@@ -60517,7 +59980,7 @@ ${events}
         "button",
         {
           type: "button",
-          className: clsx(styles$5.copyButton, className2),
+          className: clsx(styles$8.copyButton, className2),
           onClick: handleClick,
           "aria-label": ariaLabel,
           disabled: isCopied,
@@ -60531,7 +59994,7 @@ ${events}
         }
       );
     };
-    const container$2 = "_container_1w9cu_1";
+    const container$3 = "_container_1w9cu_1";
     const wrapper = "_wrapper_1w9cu_8";
     const toggle = "_toggle_1w9cu_14";
     const body = "_body_1w9cu_19";
@@ -60540,8 +60003,8 @@ ${events}
     const taskModel = "_taskModel_1w9cu_36";
     const taskStatus = "_taskStatus_1w9cu_40";
     const secondaryContainer = "_secondaryContainer_1w9cu_46";
-    const styles$4 = {
-      container: container$2,
+    const styles$7 = {
+      container: container$3,
       wrapper,
       toggle,
       body,
@@ -60563,7 +60026,7 @@ ${events}
     const multiScorerValue = "_multiScorerValue_tnqkm_70";
     const multiScorerValueContent = "_multiScorerValueContent_tnqkm_79";
     const multiScoreMetricGrid = "_multiScoreMetricGrid_tnqkm_84";
-    const styles$3 = {
+    const styles$6 = {
       simpleMetricsRows,
       multiMetricsRows,
       verticalMetricReducer,
@@ -60596,7 +60059,7 @@ ${events}
         });
         const metrics = Object.values(scorers)[0];
         const showReducer = metrics && metrics.length > 0 && !!metrics[0].reducer;
-        return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$3.simpleMetricsRows, children: metrics.map((metric2, i2) => {
+        return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$6.simpleMetricsRows, children: metrics.map((metric2, i2) => {
           return /* @__PURE__ */ jsxRuntimeExports.jsx(
             VerticalMetric,
             {
@@ -60609,7 +60072,7 @@ ${events}
         }) });
       } else {
         const showReducer = (results == null ? void 0 : results.scores.findIndex((score2) => !!score2.reducer)) !== -1;
-        return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$3.multiMetricsRows, children: (_b2 = results == null ? void 0 : results.scores) == null ? void 0 : _b2.map((score2, index2) => {
+        return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$6.multiMetricsRows, children: (_b2 = results == null ? void 0 : results.scores) == null ? void 0 : _b2.map((score2, index2) => {
           return /* @__PURE__ */ jsxRuntimeExports.jsx(
             MultiScorerMetric,
             {
@@ -60635,7 +60098,7 @@ ${events}
               "vertical-metric-label",
               "text-style-label",
               "text-style-secondary",
-              styles$3.verticalMetricName
+              styles$6.verticalMetricName
             ),
             children: metricDisplayName(metricSummary.metric)
           }
@@ -60646,7 +60109,7 @@ ${events}
             className: clsx(
               "text-style-label",
               "text-style-secondary",
-              styles$3.verticalMetricReducer
+              styles$6.verticalMetricReducer
             ),
             children: metricSummary.reducer || "default"
           }
@@ -60657,7 +60120,7 @@ ${events}
             className: clsx(
               "vertical-metric-value",
               "text-size-largest",
-              styles$3.verticalMetricValue
+              styles$6.verticalMetricValue
             ),
             children: formatPrettyDecimal(metricSummary.metric.value)
           }
@@ -60676,8 +60139,8 @@ ${events}
         "div",
         {
           className: clsx(
-            styles$3.multiScorer,
-            isFirst ? styles$3.multiScorerIndent : void 0
+            styles$6.multiScorer,
+            isFirst ? styles$6.multiScorerIndent : void 0
           ),
           children: [
             /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -60688,7 +60151,7 @@ ${events}
                   "text-style-label",
                   "text-style-secondary",
                   "multi-score-label",
-                  styles$3.multiScorerLabel
+                  styles$6.multiScorerLabel
                 ),
                 children: scorer.name
               }
@@ -60700,16 +60163,16 @@ ${events}
                   reducerFontClz,
                   "text-style-label",
                   "text-style-secondary",
-                  styles$3.multiScorerReducer
+                  styles$6.multiScorerReducer
                 ),
                 children: scorer.reducer || "default"
               }
             ) : void 0,
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(valueFontClz, styles$3.multiScorerValue), children: Object.keys(scorer.metrics).map((key2) => {
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(valueFontClz, styles$6.multiScorerValue), children: Object.keys(scorer.metrics).map((key2) => {
               const metric2 = scorer.metrics[key2];
-              return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$3.multiScoreMetricGrid, children: [
+              return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$6.multiScoreMetricGrid, children: [
                 /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: metricDisplayName(metric2) }),
-                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$3.multiScorerValueContent, children: formatPrettyDecimal(metric2.value) })
+                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$6.multiScorerValueContent, children: formatPrettyDecimal(metric2.value) })
               ] }, key2);
             }) })
           ]
@@ -60718,7 +60181,7 @@ ${events}
     };
     const statusPanel = "_statusPanel_1fzh4_1";
     const statusIcon = "_statusIcon_1fzh4_10";
-    const styles$2 = {
+    const styles$5 = {
       statusPanel,
       statusIcon
     };
@@ -60754,15 +60217,15 @@ ${events}
     };
     const StatusPanel = ({
       icon,
-      status,
+      status: status2,
       sampleCount
     }) => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$2.statusPanel, children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(icon, styles$2.statusIcon), style: {} }),
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$5.statusPanel, children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(icon, styles$5.statusIcon), style: {} }),
         /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
           /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
             "$",
-            status
+            status2
           ] }),
           /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
             "($",
@@ -60775,20 +60238,20 @@ ${events}
       ] });
     };
     const PrimaryBar = ({
-      showToggle,
-      offcanvas,
-      status,
+      showToggle: showToggle2,
+      offcanvas: offcanvas2,
+      status: status2,
       evalResults,
       samples,
       file,
       evalSpec,
-      setOffcanvas
+      setOffcanvas: setOffcanvas2
     }) => {
       const logFileName = file ? filename(file) : "";
       const handleToggle = reactExports.useCallback(() => {
-        setOffcanvas(!offcanvas);
-      }, [offcanvas]);
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$4.wrapper), children: [
+        setOffcanvas2(!offcanvas2);
+      }, [offcanvas2]);
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$7.wrapper), children: [
         /* @__PURE__ */ jsxRuntimeExports.jsxs(
           "div",
           {
@@ -60796,30 +60259,30 @@ ${events}
               "navbar-brand",
               "navbar-text",
               "mb-0",
-              styles$4.container
+              styles$7.container
             ),
             children: [
-              showToggle ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+              showToggle2 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
                 "button",
                 {
                   id: "sidebarToggle",
                   onClick: handleToggle,
                   className: clsx(
                     "btn",
-                    offcanvas ? "d-md-none" : void 0,
-                    styles$4.toggle
+                    offcanvas2 ? "d-md-none" : void 0,
+                    styles$7.toggle
                   ),
                   type: "button",
                   children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.menu })
                 }
               ) : "",
-              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$4.body, children: [
-                /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$4.bodyContainer, children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$7.body, children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$7.bodyContainer, children: [
                   /* @__PURE__ */ jsxRuntimeExports.jsx(
                     "div",
                     {
                       id: "task-title",
-                      className: clsx("task-title", "text-truncate", styles$4.taskTitle),
+                      className: clsx("task-title", "text-truncate", styles$7.taskTitle),
                       title: evalSpec == null ? void 0 : evalSpec.task,
                       children: evalSpec == null ? void 0 : evalSpec.task
                     }
@@ -60831,7 +60294,7 @@ ${events}
                       className: clsx(
                         "task-model",
                         "text-truncate",
-                        styles$4.taskModel,
+                        styles$7.taskModel,
                         "text-size-base"
                       ),
                       title: evalSpec == null ? void 0 : evalSpec.model,
@@ -60839,7 +60302,7 @@ ${events}
                     }
                   )
                 ] }),
-                /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("text-size-small", styles$4.secondaryContainer), children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("text-size-small", styles$7.secondaryContainer), children: [
                   /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("navbar-secondary-text", "text-truncate"), children: logFileName }),
                   file ? /* @__PURE__ */ jsxRuntimeExports.jsx(CopyButton, { value: file }) : ""
                 ] })
@@ -60847,11 +60310,11 @@ ${events}
             ]
           }
         ),
-        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$4.taskStatus, "navbar-text"), children: [
-          status === "success" ? /* @__PURE__ */ jsxRuntimeExports.jsx(ResultsPanel, { results: evalResults }) : void 0,
-          status === "cancelled" ? /* @__PURE__ */ jsxRuntimeExports.jsx(CancelledPanel, { sampleCount: (samples == null ? void 0 : samples.length) || 0 }) : void 0,
-          status === "started" ? /* @__PURE__ */ jsxRuntimeExports.jsx(RunningPanel, { sampleCount: (samples == null ? void 0 : samples.length) || 0 }) : void 0,
-          status === "error" ? /* @__PURE__ */ jsxRuntimeExports.jsx(ErroredPanel, { sampleCount: (samples == null ? void 0 : samples.length) || 0 }) : void 0
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$7.taskStatus, "navbar-text"), children: [
+          status2 === "success" ? /* @__PURE__ */ jsxRuntimeExports.jsx(ResultsPanel, { results: evalResults }) : void 0,
+          status2 === "cancelled" ? /* @__PURE__ */ jsxRuntimeExports.jsx(CancelledPanel, { sampleCount: (samples == null ? void 0 : samples.length) || 0 }) : void 0,
+          status2 === "started" ? /* @__PURE__ */ jsxRuntimeExports.jsx(RunningPanel, { sampleCount: (samples == null ? void 0 : samples.length) || 0 }) : void 0,
+          status2 === "error" ? /* @__PURE__ */ jsxRuntimeExports.jsx(ErroredPanel, { sampleCount: (samples == null ? void 0 : samples.length) || 0 }) : void 0
         ] }),
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { id: "task-created", style: { display: "none" }, children: evalSpec == null ? void 0 : evalSpec.created })
       ] });
@@ -60893,14 +60356,14 @@ ${events}
     const justifyCenter = "_justifyCenter_xzzhl_9";
     const justifyRight = "_justifyRight_xzzhl_13";
     const valueGrid = "_valueGrid_xzzhl_17";
-    const container$1 = "_container_xzzhl_25";
-    const styles$1 = {
+    const container$2 = "_container_xzzhl_25";
+    const styles$4 = {
       staticCol,
       justifyLeft,
       justifyCenter,
       justifyRight,
       valueGrid,
-      container: container$1
+      container: container$2
     };
     const SecondaryBar = ({
       evalSpec,
@@ -60908,10 +60371,10 @@ ${events}
       evalResults,
       evalStats,
       samples,
-      evalDescriptor,
-      status
+      evalDescriptor: evalDescriptor2,
+      status: status2
     }) => {
-      if (!evalSpec || status !== "success") {
+      if (!evalSpec || status2 !== "success") {
         return null;
       }
       const epochs = evalSpec.config.epochs || 1;
@@ -60948,11 +60411,11 @@ ${events}
           {
             label: label2,
             className: clsx(
-              styles$1.staticCol,
-              hasConfig ? styles$1.justifyLeft : styles$1.justifyCenter,
+              styles$4.staticCol,
+              hasConfig ? styles$4.justifyLeft : styles$4.justifyCenter,
               "text-size-small"
             ),
-            children: /* @__PURE__ */ jsxRuntimeExports.jsx(ScorerSummary, { evalDescriptor })
+            children: /* @__PURE__ */ jsxRuntimeExports.jsx(ScorerSummary, { evalDescriptor: evalDescriptor2 })
           },
           "sb-scorer"
         )
@@ -60964,7 +60427,7 @@ ${events}
             LabeledValue,
             {
               label: "Config",
-              className: clsx(styles$1.justifyRight, "text-size-small"),
+              className: clsx(styles$4.justifyRight, "text-size-small"),
               children: /* @__PURE__ */ jsxRuntimeExports.jsx(ParamSummary, { params: hyperparameters })
             },
             "sb-params"
@@ -60982,7 +60445,7 @@ ${events}
             LabeledValue,
             {
               label: "Duration",
-              className: clsx(styles$1.justifyRight, "text-size-small"),
+              className: clsx(styles$4.justifyRight, "text-size-small"),
               children: totalDuration
             },
             "sb-duration"
@@ -60992,13 +60455,13 @@ ${events}
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
         ExpandablePanel,
         {
-          className: clsx(styles$1.container, "text-size-small"),
+          className: clsx(styles$4.container, "text-size-small"),
           collapse: true,
           lines: 4,
           children: /* @__PURE__ */ jsxRuntimeExports.jsx(
             "div",
             {
-              className: styles$1.valueGrid,
+              className: styles$4.valueGrid,
               style: {
                 gridTemplateColumns: `${values.map((val) => {
                   return val.size;
@@ -61022,11 +60485,11 @@ ${events}
       }
       return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: (samples == null ? void 0 : samples.length) ? formatDataset(samples.length, epochs, dataset.name) : "" });
     };
-    const ScorerSummary = ({ evalDescriptor }) => {
-      if (!evalDescriptor) {
+    const ScorerSummary = ({ evalDescriptor: evalDescriptor2 }) => {
+      if (!evalDescriptor2) {
         return null;
       }
-      const items = scoreFilterItems(evalDescriptor);
+      const items = scoreFilterItems(evalDescriptor2);
       return /* @__PURE__ */ jsxRuntimeExports.jsx("span", { style: { position: "relative" }, children: Array.from(items).map((item2, index2, array) => /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx("span", { title: item2.tooltip, children: item2.canonicalName }),
         index2 < array.length - 1 ? ", " : ""
@@ -61057,13 +60520,13 @@ ${events}
       evalResults,
       evalStats,
       samples,
-      evalDescriptor,
-      showToggle,
-      offcanvas,
-      setOffcanvas,
-      status
+      evalDescriptor: evalDescriptor2,
+      showToggle: showToggle2,
+      offcanvas: offcanvas2,
+      setOffcanvas: setOffcanvas2,
+      status: status2
     }) => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs("nav", { className: clsx("navbar", "sticky-top", styles$6.navbarWrapper), children: [
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs("nav", { className: clsx("navbar", "sticky-top", styles$9.navbarWrapper), children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx(
           PrimaryBar,
           {
@@ -61071,10 +60534,10 @@ ${events}
             evalSpec,
             evalResults,
             samples,
-            showToggle,
-            offcanvas,
-            setOffcanvas,
-            status
+            showToggle: showToggle2,
+            offcanvas: offcanvas2,
+            setOffcanvas: setOffcanvas2,
+            status: status2
           }
         ),
         /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -61085,8 +60548,8 @@ ${events}
             evalResults,
             evalStats,
             samples,
-            evalDescriptor,
-            status
+            evalDescriptor: evalDescriptor2,
+            status: status2
           }
         )
       ] });
@@ -61096,7 +60559,7 @@ ${events}
     const tabSet = "_tabSet_1r3mu_14";
     const tabs = "_tabs_1r3mu_21";
     const tabPanels = "_tabPanels_1r3mu_29";
-    const styles = {
+    const styles$3 = {
       workspace,
       tabContainer,
       tabSet,
@@ -61110,23 +60573,23 @@ ${events}
       evalResults,
       evalStats,
       samples,
-      evalDescriptor,
-      status,
-      showToggle,
+      evalDescriptor: evalDescriptor2,
+      status: status2,
+      showToggle: showToggle2,
       selectedTab,
       tabs: tabs2,
       setSelectedTab,
       divRef,
-      offcanvas,
-      setOffcanvas,
+      offcanvas: offcanvas2,
+      setOffcanvas: setOffcanvas2,
       workspaceTabScrollPositionRef,
-      setWorkspaceTabScrollPosition
+      setWorkspaceTabScrollPosition: setWorkspaceTabScrollPosition2
     }) => {
       const debouncedScroll = reactExports.useMemo(() => {
         return debounce$1((id, position) => {
-          setWorkspaceTabScrollPosition(id, position);
+          setWorkspaceTabScrollPosition2(id, position);
         }, 100);
-      }, [setWorkspaceTabScrollPosition]);
+      }, [setWorkspaceTabScrollPosition2]);
       const onScroll = reactExports.useCallback(
         (id, position) => {
           debouncedScroll(id, position);
@@ -61168,23 +60631,23 @@ ${events}
               evalResults,
               evalStats,
               samples,
-              evalDescriptor,
-              status,
+              evalDescriptor: evalDescriptor2,
+              status: status2,
               file: logFileName,
-              showToggle,
-              offcanvas,
-              setOffcanvas
+              showToggle: showToggle2,
+              offcanvas: offcanvas2,
+              setOffcanvas: setOffcanvas2
             }
           ),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { ref: divRef, className: clsx("workspace", styles.workspace), children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("log-detail", styles.tabContainer), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { ref: divRef, className: clsx("workspace", styles$3.workspace), children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("log-detail", styles$3.tabContainer), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
             TabSet,
             {
               id: "log-details",
               tools: tabTools2,
               type: "pills",
-              className: clsx(styles.tabSet, "text-size-smaller"),
-              tabControlsClassName: clsx(styles.tabs, "text-size-smaller"),
-              tabPanelsClassName: clsx(styles.tabPanels),
+              className: clsx(styles$3.tabSet, "text-size-smaller"),
+              tabControlsClassName: clsx(styles$3.tabs, "text-size-smaller"),
+              tabPanelsClassName: clsx(styles$3.tabPanels),
               children: Object.keys(tabs2).map((key2) => {
                 var _a2;
                 const tab2 = tabs2[key2];
@@ -61224,14 +60687,14 @@ ${events}
         evalStats,
         evalResults,
         samples,
-        showToggle,
-        offcanvas,
-        setOffcanvas,
-        samplesDescriptor,
+        showToggle: showToggle2,
+        offcanvas: offcanvas2,
+        setOffcanvas: setOffcanvas2,
+        samplesDescriptor: samplesDescriptor2,
         selectedTab,
         setSelectedTab,
         workspaceTabScrollPositionRef,
-        setWorkspaceTabScrollPosition
+        setWorkspaceTabScrollPosition: setWorkspaceTabScrollPosition2
       } = props;
       if (!evalSpec) {
         return null;
@@ -61253,16 +60716,16 @@ ${events}
           evalResults,
           evalStats,
           samples,
-          evalDescriptor: samplesDescriptor == null ? void 0 : samplesDescriptor.evalDescriptor,
+          evalDescriptor: samplesDescriptor2 == null ? void 0 : samplesDescriptor2.evalDescriptor,
           status: evalStatus,
           tabs: resolvedTabs,
           selectedTab,
-          showToggle,
-          offcanvas,
+          showToggle: showToggle2,
+          offcanvas: offcanvas2,
           setSelectedTab,
           workspaceTabScrollPositionRef,
-          setWorkspaceTabScrollPosition,
-          setOffcanvas
+          setWorkspaceTabScrollPosition: setWorkspaceTabScrollPosition2,
+          setOffcanvas: setOffcanvas2
         }
       );
     };
@@ -61289,31 +60752,31 @@ ${events}
     const useResolvedTabs = ({
       evalVersion,
       evalStatus,
-      sampleMode,
+      sampleMode: sampleMode2,
       samples,
-      selectedSample,
-      sampleStatus,
-      sampleError,
-      showingSampleDialog,
-      setShowingSampleDialog,
-      groupBy,
-      groupByOrder,
-      selectedSampleIndex,
-      setSelectedSampleIndex,
-      samplesDescriptor,
-      selectedSampleTab,
-      setSelectedSampleTab,
-      filter,
-      sort,
-      epoch,
+      selectedSample: selectedSample2,
+      sampleStatus: sampleStatus2,
+      sampleError: sampleError2,
+      showingSampleDialog: showingSampleDialog2,
+      setShowingSampleDialog: setShowingSampleDialog2,
+      groupBy: groupBy2,
+      groupByOrder: groupByOrder2,
+      selectedSampleIndex: selectedSampleIndex2,
+      setSelectedSampleIndex: setSelectedSampleIndex2,
+      samplesDescriptor: samplesDescriptor2,
+      selectedSampleTab: selectedSampleTab2,
+      setSelectedSampleTab: setSelectedSampleTab2,
+      filter: filter2,
+      sort: sort2,
+      epoch: epoch2,
       sampleScrollPositionRef,
-      setSampleScrollPosition,
+      setSampleScrollPosition: setSampleScrollPosition2,
       epochs,
-      setEpoch,
-      setFilter,
-      setSort,
+      setEpoch: setEpoch2,
+      setFilter: setFilter2,
+      setSort: setSort2,
       score: score2,
-      setScore,
+      setScore: setScore2,
       scores: scores2,
       evalSpec,
       evalPlan,
@@ -61323,10 +60786,10 @@ ${events}
       logFileName,
       capabilities: capabilities2,
       selectedTab,
-      refreshLog
+      refreshLog: refreshLog2
     }) => {
       const sampleTabScrollRef = reactExports.useRef(null);
-      const samplesTab = sampleMode !== "none" ? {
+      const samplesTab = sampleMode2 !== "none" ? {
         id: kEvalWorkspaceTabId,
         scrollable: (samples == null ? void 0 : samples.length) === 1,
         scrollRef: sampleTabScrollRef,
@@ -61334,42 +60797,42 @@ ${events}
         content: () => /* @__PURE__ */ jsxRuntimeExports.jsx(
           SamplesTab,
           {
-            sample: selectedSample,
-            sampleStatus,
-            sampleError,
-            showingSampleDialog,
-            setShowingSampleDialog,
+            sample: selectedSample2,
+            sampleStatus: sampleStatus2,
+            sampleError: sampleError2,
+            showingSampleDialog: showingSampleDialog2,
+            setShowingSampleDialog: setShowingSampleDialog2,
             samples,
-            sampleMode,
-            groupBy,
-            groupByOrder,
-            selectedSampleIndex,
-            setSelectedSampleIndex,
-            sampleDescriptor: samplesDescriptor,
-            selectedSampleTab,
-            setSelectedSampleTab,
-            filter,
-            epoch,
+            sampleMode: sampleMode2,
+            groupBy: groupBy2,
+            groupByOrder: groupByOrder2,
+            selectedSampleIndex: selectedSampleIndex2,
+            setSelectedSampleIndex: setSelectedSampleIndex2,
+            sampleDescriptor: samplesDescriptor2,
+            selectedSampleTab: selectedSampleTab2,
+            setSelectedSampleTab: setSelectedSampleTab2,
+            filter: filter2,
+            epoch: epoch2,
             sampleScrollPositionRef,
-            setSampleScrollPosition,
+            setSampleScrollPosition: setSampleScrollPosition2,
             sampleTabScrollRef
           }
         ),
-        tools: () => sampleMode === "single" || !samplesDescriptor ? void 0 : [
+        tools: () => sampleMode2 === "single" || !samplesDescriptor2 ? void 0 : [
           /* @__PURE__ */ jsxRuntimeExports.jsx(
             SampleTools,
             {
-              epoch,
+              epoch: epoch2,
               epochs: epochs || 1,
-              setEpoch,
-              scoreFilter: filter,
-              setScoreFilter: setFilter,
-              sort,
-              setSort,
+              setEpoch: setEpoch2,
+              scoreFilter: filter2,
+              setScoreFilter: setFilter2,
+              sort: sort2,
+              setSort: setSort2,
               score: score2,
-              setScore,
+              setScore: setScore2,
               scores: scores2,
-              sampleDescriptor: samplesDescriptor
+              sampleDescriptor: samplesDescriptor2
             },
             "sample-tools"
           ),
@@ -61378,7 +60841,7 @@ ${events}
             {
               label: "Refresh",
               icon: ApplicationIcons.refresh,
-              onClick: refreshLog
+              onClick: refreshLog2
             },
             "refresh"
           )
@@ -62090,14 +61553,547 @@ ${events}
     })(clipboard);
     var clipboardExports = clipboard.exports;
     const ClipboardJS = /* @__PURE__ */ getDefaultExportFromCjs(clipboardExports);
+    const circle$1 = "_circle_upui3_1";
+    const green$1 = "_green_upui3_12";
+    const red$1 = "_red_upui3_18";
+    const styles$2 = {
+      circle: circle$1,
+      green: green$1,
+      red: red$1
+    };
+    const booleanScoreDescriptor = () => {
+      return {
+        scoreType: "boolean",
+        compare: (a, b) => {
+          return Number(a.value) - Number(b.value);
+        },
+        render: (score2) => {
+          return /* @__PURE__ */ jsxRuntimeExports.jsx(
+            "span",
+            {
+              className: clsx(
+                styles$2.circle,
+                "text-size-small",
+                score2 ? "green" : "red"
+              ),
+              children: String(score2)
+            }
+          );
+        }
+      };
+    };
+    const categoricalScoreDescriptor = (values) => {
+      return {
+        scoreType: kScoreTypeCategorical,
+        categories: values,
+        compare: (a, b) => {
+          return String(a).localeCompare(String(b));
+        },
+        render: (score2) => {
+          return String(score2);
+        }
+      };
+    };
+    const numericScoreDescriptor = (values) => {
+      const onlyNumeric = values.filter((val) => {
+        return typeof val === "number";
+      });
+      return {
+        scoreType: kScoreTypeNumeric,
+        min: Math.min(...onlyNumeric),
+        max: Math.max(...onlyNumeric),
+        compare: (a, b) => {
+          if (typeof a === "number" && typeof b === "number") {
+            return a - b;
+          } else {
+            console.warn("Comparing non-numerics using a numeric score descriptor");
+            return 0;
+          }
+        },
+        render: (score2) => {
+          return formatDecimalNoTrailingZeroes(Number(score2));
+        }
+      };
+    };
+    const container$1 = "_container_w37fs_1";
+    const padded = "_padded_w37fs_8";
+    const key = "_key_w37fs_12";
+    const value = "_value_w37fs_16";
+    const styles$1 = {
+      container: container$1,
+      padded,
+      key,
+      value
+    };
+    const objectScoreDescriptor = (values) => {
+      const buckets = values.map((val) => {
+        return JSON.stringify(val);
+      });
+      const vals = new Set(buckets);
+      let categories = void 0;
+      if (vals.size < 10) {
+        categories = Array.from(vals).map((val) => {
+          return {
+            val,
+            text: val
+          };
+        });
+      }
+      return {
+        scoreType: kScoreTypeObject,
+        categories,
+        compare: () => {
+          return 0;
+        },
+        render: (score2) => {
+          if (score2 === null || score2 === void 0) {
+            return "[null]";
+          }
+          const scores2 = [];
+          const keys = Object.keys(score2);
+          keys.forEach((key2, index2) => {
+            if (typeof score2 !== "object" || Array.isArray(score2)) {
+              throw new Error(
+                "Unexpected us of object score descriptor for non-score object"
+              );
+            }
+            const value2 = score2[key2];
+            const formattedValue = value2 && isNumeric(value2) ? formatPrettyDecimal(
+              typeof value2 === "number" ? value2 : parseFloat(value2 === true ? "1" : value2)
+            ) : value2;
+            scores2.push(
+              /* @__PURE__ */ jsxRuntimeExports.jsxs(
+                "div",
+                {
+                  className: clsx(
+                    styles$1.container,
+                    index2 + 1 < keys.length ? styles$1.padded : void 0
+                  ),
+                  children: [
+                    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1.key, "text-size-smaller"), children: key2 }),
+                    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1.value, "text-size-title"), children: formattedValue })
+                  ]
+                }
+              )
+            );
+          });
+          return scores2;
+        }
+      };
+    };
+    const otherScoreDescriptor = () => {
+      return {
+        scoreType: kScoreTypeOther,
+        compare: () => {
+          return 0;
+        },
+        render: (score2) => {
+          return /* @__PURE__ */ jsxRuntimeExports.jsx(
+            RenderedContent,
+            {
+              id: "other-score-value",
+              entry: { name: "other-score-value", value: score2 }
+            }
+          );
+        }
+      };
+    };
+    const circle = "_circle_1iagp_1";
+    const green = "_green_1iagp_12";
+    const red = "_red_1iagp_18";
+    const orange = "_orange_1iagp_24";
+    const styles = {
+      circle,
+      green,
+      red,
+      orange
+    };
+    const passFailScoreDescriptor = (values) => {
+      const categories = [];
+      if (values.includes("C")) {
+        categories.push({
+          val: "C",
+          text: "Correct"
+        });
+      }
+      if (values.includes("P")) {
+        categories.push({
+          val: "P",
+          text: "Partial"
+        });
+      }
+      if (values.includes("I")) {
+        categories.push({
+          val: "I",
+          text: "Incorrect"
+        });
+      }
+      if (values.includes("N")) {
+        categories.push({
+          val: "N",
+          text: "Refusal"
+        });
+      }
+      const order = ["C", "P", "I", "N"];
+      return {
+        scoreType: kScoreTypePassFail,
+        categories,
+        render: (score2) => {
+          if (score2 === "C") {
+            return /* @__PURE__ */ jsxRuntimeExports.jsx(
+              "span",
+              {
+                className: clsx("text-size-small", styles.circle, styles.green),
+                children: "C"
+              }
+            );
+          } else if (score2 === "I") {
+            return /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx("text-size-small", styles.circle, styles.red), children: "I" });
+          } else if (score2 === "P") {
+            return /* @__PURE__ */ jsxRuntimeExports.jsx(
+              "span",
+              {
+                className: clsx("text-size-small", styles.circle, styles.orange),
+                children: "P"
+              }
+            );
+          } else if (score2 === "N") {
+            return /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx("text-size-small", styles.circle, styles.red), children: "N" });
+          } else {
+            return String(score2);
+          }
+        },
+        compare: (a, b) => {
+          if (typeof a.value !== "string" || typeof b.value !== "string") {
+            throw new Error(
+              "Unexpectedly using the pass fail scorer on non-string values"
+            );
+          }
+          const sort2 = order.indexOf(a.value || "") - order.indexOf(b.value || "");
+          return sort2;
+        }
+      };
+    };
+    const getScoreDescriptorForValues = (uniqScoreValues, uniqScoreTypes) => {
+      for (const categorizer of scoreCategorizers) {
+        const scoreDescriptor = categorizer.describe(
+          uniqScoreValues,
+          uniqScoreTypes
+        );
+        if (scoreDescriptor) {
+          return scoreDescriptor;
+        }
+      }
+    };
+    const scoreCategorizers = [
+      {
+        describe: (_values, types2) => {
+          if (types2 && types2.length === 1 && types2[0] === "boolean") {
+            return booleanScoreDescriptor();
+          }
+        }
+      },
+      {
+        describe: (values, _types) => {
+          if (values.length === 2 && values.every((val) => {
+            return val === 1 || val === 0;
+          })) {
+            return booleanScoreDescriptor();
+          }
+        }
+      },
+      {
+        describe: (values, types2) => {
+          if (types2 && types2[0] === "string" && types2.length === 1 && values.length < 5 && !values.find((val) => {
+            return val !== "I" && val !== "C" && val !== "P" && val !== "N";
+          })) {
+            return passFailScoreDescriptor(values);
+          }
+        }
+      },
+      {
+        describe: (values, types2) => {
+          if (values.length < 10 && types2 && types2.length === 1 && types2[0] === "string") {
+            return categoricalScoreDescriptor(values);
+          }
+        }
+      },
+      {
+        describe: (values, types2) => {
+          if (types2 && types2.length !== 0 && types2[0] === "number") {
+            return numericScoreDescriptor(values);
+          }
+        }
+      },
+      {
+        describe: (values, types2) => {
+          if (types2 && types2.length !== 0 && types2[0] === "object") {
+            return objectScoreDescriptor(values);
+          }
+        }
+      },
+      {
+        describe: (_values, _types) => {
+          return otherScoreDescriptor();
+        }
+      }
+    ];
+    const createEvalDescriptor = (scores2, epochs, samples) => {
+      if (!samples) {
+        return void 0;
+      }
+      const scoreValue2 = (sample2, scoreLabel) => {
+        if (sample2.scores === null || Object.keys(sample2.scores).length === 0 || !scoreLabel) {
+          return void 0;
+        }
+        if (scoreLabel.scorer !== scoreLabel.name && sample2.scores[scoreLabel.scorer] && sample2.scores[scoreLabel.scorer].value) {
+          return sample2.scores[scoreLabel.scorer].value;
+        } else if (sample2.scores[scoreLabel.name]) {
+          return sample2.scores[scoreLabel.name].value;
+        } else {
+          return void 0;
+        }
+      };
+      const scoreAnswer = (sample2, scorer) => {
+        if (sample2 && sample2.scores) {
+          const sampleScore = sample2.scores[scorer];
+          if (sampleScore && sampleScore.answer) {
+            return sampleScore.answer;
+          }
+        } else {
+          return void 0;
+        }
+      };
+      const scoreExplanation = (sample2, scorer) => {
+        if (sample2 && sample2.scores) {
+          const sampleScore = sample2.scores[scorer];
+          if (sampleScore && sampleScore.explanation) {
+            return sampleScore.explanation;
+          }
+        }
+        return void 0;
+      };
+      const scoreMetadata = (sample2, scorer) => {
+        if (sample2 && sample2.scores) {
+          const sampleScore = sample2.scores[scorer];
+          if (sampleScore && sampleScore.metadata) {
+            return sampleScore.metadata;
+          }
+        }
+        return void 0;
+      };
+      const scoreDescriptorMap = {};
+      for (const scoreLabel of scores2) {
+        const uniqScoreValues = [
+          ...new Set(
+            samples.filter((sample2) => !!sample2.scores).filter((sample2) => {
+              if (!scoreLabel) {
+                return true;
+              }
+              if (!sample2.scores) {
+                return false;
+              }
+              if (scoreLabel.scorer !== scoreLabel.name) {
+                return Object.keys(sample2.scores).includes(scoreLabel.scorer) && Object.keys(sample2.scores[scoreLabel.scorer].value).includes(
+                  scoreLabel.name
+                );
+              } else {
+                return Object.keys(sample2.scores).includes(scoreLabel.name);
+              }
+            }).map((sample2) => {
+              return scoreValue2(sample2, scoreLabel);
+            }).filter((value2) => {
+              return value2 !== null;
+            }).filter((value2) => {
+              return value2 !== void 0;
+            })
+          )
+        ];
+        const uniqScoreTypes = [
+          ...new Set(uniqScoreValues.map((scoreValue22) => typeof scoreValue22))
+        ];
+        const scoreDescriptor2 = getScoreDescriptorForValues(
+          uniqScoreValues,
+          uniqScoreTypes
+        );
+        if (scoreDescriptor2) {
+          scoreDescriptorMap[scoreLabelKey(scoreLabel)] = scoreDescriptor2;
+        }
+      }
+      const scoreDescriptor = (scoreLabel) => {
+        return scoreDescriptorMap[scoreLabelKey(scoreLabel)];
+      };
+      const scoreRendered = (sample2, scoreLabel) => {
+        const descriptor = scoreDescriptor(scoreLabel);
+        const score22 = scoreValue2(sample2, scoreLabel);
+        if (score22 === null) {
+          return "null";
+        } else if (score22 === void 0) {
+          return "";
+        } else if (score22 && descriptor && descriptor.render) {
+          return descriptor.render(score22);
+        } else {
+          return /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: String(score22) });
+        }
+      };
+      const scorerDescriptor = (sample2, scoreLabel) => {
+        return {
+          metadata: () => {
+            return scoreMetadata(sample2, scoreLabel.scorer) || {};
+          },
+          explanation: () => {
+            return scoreExplanation(sample2, scoreLabel.scorer) || "";
+          },
+          answer: () => {
+            return scoreAnswer(sample2, scoreLabel.scorer) || "";
+          },
+          scores: () => {
+            if (!sample2 || !sample2.scores) {
+              return [];
+            }
+            const myScoreDescriptor = scoreDescriptor(scoreLabel);
+            if (!myScoreDescriptor) {
+              return [];
+            }
+            const scoreNames = scores2.map((score22) => {
+              return score22.name;
+            });
+            const sampleScorer = sample2.scores[scoreLabel.scorer];
+            const scoreVal = sampleScorer.value;
+            if (typeof scoreVal === "object") {
+              const names = Object.keys(scoreVal);
+              if (names.find((name2) => {
+                return scoreNames.includes(name2);
+              })) {
+                const scores22 = names.map((name2) => {
+                  return {
+                    name: name2,
+                    rendered: () => {
+                      return myScoreDescriptor.render(scoreVal);
+                    }
+                  };
+                });
+                return scores22;
+              } else {
+                return [
+                  {
+                    name: scoreLabel.scorer,
+                    rendered: () => {
+                      return myScoreDescriptor.render(scoreVal);
+                    }
+                  }
+                ];
+              }
+            } else {
+              return [
+                {
+                  name: scoreLabel.scorer,
+                  rendered: () => {
+                    return myScoreDescriptor.render(scoreVal);
+                  }
+                }
+              ];
+            }
+          }
+        };
+      };
+      const score2 = (sample2, scoreLabel) => {
+        return {
+          value: scoreValue2(sample2, scoreLabel),
+          render: () => {
+            return scoreRendered(sample2, scoreLabel);
+          }
+        };
+      };
+      return {
+        epochs,
+        samples,
+        scores: scores2,
+        scorerDescriptor,
+        scoreDescriptor,
+        score: score2,
+        scoreAnswer
+      };
+    };
+    const createSamplesDescriptor = (evalDescriptor2, selectedScore) => {
+      const sizes = evalDescriptor2.samples.reduce(
+        (previous, current) => {
+          var _a2;
+          const text2 = inputString(current.input).join(" ");
+          const score2 = evalDescriptor2.score(current, selectedScore);
+          const scoreValue2 = score2 == null ? void 0 : score2.value;
+          const scoreText = scoreValue2 ? String(scoreValue2) : current.error ? String(current.error) : "";
+          previous[0] = Math.min(Math.max(previous[0], text2.length), 300);
+          previous[1] = Math.min(
+            Math.max(previous[1], arrayToString(current.target).length),
+            300
+          );
+          previous[2] = Math.min(
+            Math.max(
+              previous[2],
+              ((_a2 = evalDescriptor2.scoreAnswer(current, selectedScore == null ? void 0 : selectedScore.name)) == null ? void 0 : _a2.length) || 0
+            ),
+            300
+          );
+          previous[3] = Math.min(
+            Math.max(previous[3], current.limit ? current.limit.length : 0),
+            50
+          );
+          previous[4] = Math.min(
+            Math.max(previous[4], String(current.id).length),
+            10
+          );
+          previous[5] = Math.min(Math.max(previous[5], scoreText.length), 30);
+          return previous;
+        },
+        [0, 0, 0, 0, 0, 0]
+      );
+      const maxSizes = {
+        input: Math.min(sizes[0], 300),
+        target: Math.min(sizes[1], 300),
+        answer: Math.min(sizes[2], 300),
+        limit: Math.min(sizes[3], 50),
+        id: Math.min(sizes[4], 10),
+        score: Math.min(sizes[4], 30)
+      };
+      const base2 = maxSizes.input + maxSizes.target + maxSizes.answer + maxSizes.limit + maxSizes.id + maxSizes.score || 1;
+      const messageShape = {
+        raw: {
+          input: sizes[0],
+          target: sizes[1],
+          answer: sizes[2],
+          limit: sizes[3],
+          id: sizes[4],
+          score: sizes[5]
+        },
+        normalized: {
+          input: maxSizes.input / base2,
+          target: maxSizes.target / base2,
+          answer: maxSizes.answer / base2,
+          limit: maxSizes.limit / base2,
+          id: maxSizes.id / base2,
+          score: maxSizes.score / base2
+        }
+      };
+      return {
+        evalDescriptor: evalDescriptor2,
+        messageShape,
+        selectedScoreDescriptor: evalDescriptor2.scoreDescriptor(selectedScore),
+        selectedScore: (sample2) => evalDescriptor2.score(sample2, selectedScore),
+        selectedScorerDescriptor: (sample2) => evalDescriptor2.scorerDescriptor(sample2, selectedScore)
+      };
+    };
+    const scoreLabelKey = (scoreLabel) => {
+      return `${scoreLabel == null ? void 0 : scoreLabel.scorer}.${scoreLabel.name}`;
+    };
     const App = ({
-      api: api2,
+      api,
       applicationState,
       saveApplicationState,
       pollForLogs = true,
-      capabilities: capabilities2
+      capabilities
     }) => {
-      var _a2, _b2, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m;
+      var _a2, _b2, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l;
       const [logs, setLogs] = reactExports.useState(
         (applicationState == null ? void 0 : applicationState.logs) || { log_dir: "", files: [] }
       );
@@ -62155,21 +62151,74 @@ ${events}
       const [sort, setSort] = reactExports.useState(
         (applicationState == null ? void 0 : applicationState.sort) || kDefaultSort
       );
-      const [scores2, setScores] = reactExports.useState(
+      const [scores, setScores] = reactExports.useState(
         (applicationState == null ? void 0 : applicationState.scores) || []
       );
-      const [score2, setScore] = reactExports.useState(
+      const [score, setScore] = reactExports.useState(
         applicationState == null ? void 0 : applicationState.score
       );
-      const [filteredSamples, setFilteredSamples] = reactExports.useState(
-        (applicationState == null ? void 0 : applicationState.filteredSamples) || []
-      );
-      const [groupBy, setGroupBy] = reactExports.useState(
-        (applicationState == null ? void 0 : applicationState.groupBy) || "none"
-      );
-      const [groupByOrder, setGroupByOrder] = reactExports.useState(
-        (applicationState == null ? void 0 : applicationState.groupByOrder) || "asc"
-      );
+      const [pendingSampleSummaries, setPendingSampleSummaries] = reactExports.useState({
+        samples: [],
+        lastPoll: 0
+      });
+      const prevState = reactExports.useRef({
+        logs,
+        selectedLogIndex,
+        selectedLog,
+        logHeaders,
+        headersLoading,
+        selectedWorkspaceTab,
+        selectedSampleIndex,
+        selectedSample,
+        sampleStatus,
+        sampleError,
+        selectedSampleTab,
+        showingSampleDialog,
+        status,
+        offcanvas,
+        showFind,
+        filter,
+        epoch,
+        sort,
+        scores,
+        score
+      });
+      reactExports.useEffect(() => {
+        const changes = [];
+        Object.entries(prevState.current).forEach(([key, prevValue]) => {
+          const currentValue = eval(key);
+          if (prevValue !== currentValue) {
+            changes.push(`${key} changed`);
+          }
+        });
+        if (changes.length > 0) {
+          console.log("App rendered due to:", changes.join(", "));
+        } else {
+          console.log("App rendered with no significant state changes.");
+        }
+        prevState.current = {
+          logs,
+          selectedLogIndex,
+          selectedLog,
+          logHeaders,
+          headersLoading,
+          selectedWorkspaceTab,
+          selectedSampleIndex,
+          selectedSample,
+          sampleStatus,
+          sampleError,
+          selectedSampleTab,
+          showingSampleDialog,
+          status,
+          offcanvas,
+          showFind,
+          filter,
+          epoch,
+          sort,
+          scores,
+          score
+        };
+      });
       const saveState = reactExports.useCallback(() => {
         const state = {
           logs,
@@ -62190,11 +62239,8 @@ ${events}
           filter,
           epoch,
           sort,
-          scores: scores2,
-          score: score2,
-          filteredSamples,
-          groupBy,
-          groupByOrder,
+          scores,
+          score,
           sampleScrollPosition: sampleScrollPosition.current,
           workspaceTabScrollPosition: workspaceTabScrollPosition.current
         };
@@ -62220,11 +62266,8 @@ ${events}
         filter,
         epoch,
         sort,
-        scores2,
-        score2,
-        filteredSamples,
-        groupBy,
-        groupByOrder
+        scores,
+        score
       ]);
       const saveStateRef = reactExports.useRef(saveState);
       reactExports.useEffect(() => {
@@ -62270,12 +62313,27 @@ ${events}
         filter,
         epoch,
         sort,
-        scores2,
-        score2,
-        filteredSamples,
-        groupBy,
-        groupByOrder
+        scores,
+        score
       ]);
+      const mergeSampleSummaries = reactExports.useCallback(
+        (logSamples, pendingSamples) => {
+          const existingSampleIds = new Set(
+            logSamples.map((sample2) => `${sample2.id}-${sample2.epoch}`)
+          );
+          const uniquePendingSamples = pendingSamples.filter(
+            (sample2) => !existingSampleIds.has(`${sample2.id}-${sample2.epoch}`)
+          );
+          return [...logSamples, ...uniquePendingSamples];
+        },
+        []
+      );
+      const sampleSummaries = reactExports.useMemo(() => {
+        const logSamples = (selectedLog == null ? void 0 : selectedLog.contents.sampleSummaries) || [];
+        const pendingSamples = pendingSampleSummaries.samples || [];
+        const result = mergeSampleSummaries(logSamples, pendingSamples);
+        return result;
+      }, [selectedLog == null ? void 0 : selectedLog.contents.sampleSummaries, pendingSampleSummaries.samples]);
       const handleSampleShowingDialog = reactExports.useCallback(
         (show) => {
           setShowingSampleDialog(show);
@@ -62291,9 +62349,20 @@ ${events}
           selectedSample
         ]
       );
-      reactExports.useEffect(() => {
-        var _a3, _b3;
-        const samples = ((_a3 = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _a3.sampleSummaries) || [];
+      const evalDescriptor = reactExports.useMemo(() => {
+        var _a3, _b3, _c2;
+        const result = createEvalDescriptor(
+          scores,
+          ((_c2 = (_b3 = (_a3 = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _a3.eval) == null ? void 0 : _b3.config) == null ? void 0 : _c2.epochs) || 1,
+          sampleSummaries
+        );
+        return result;
+      }, [selectedLog, sampleSummaries, scores]);
+      const samplesDescriptor = reactExports.useMemo(() => {
+        return evalDescriptor && score ? createSamplesDescriptor(evalDescriptor, score) : void 0;
+      }, [evalDescriptor, score]);
+      const filteredSamples = reactExports.useMemo(() => {
+        const samples = sampleSummaries || [];
         const { result: prefiltered } = evalDescriptor && (filter == null ? void 0 : filter.value) ? filterSamples(evalDescriptor, samples, filter.value) : { result: samples };
         const filtered = prefiltered.filter((sample2) => {
           if (epoch && epoch !== "all") {
@@ -62304,36 +62373,32 @@ ${events}
           return true;
         });
         if (samplesDescriptor) {
-          const { sorted, order } = sortSamples(sort, filtered, samplesDescriptor);
-          setFilteredSamples(sorted);
-          setGroupByOrder(order);
+          const sorted = sortSamples(sort, filtered, samplesDescriptor);
+          return sorted;
+        } else {
+          return filtered;
         }
+      }, [sampleSummaries, evalDescriptor, samplesDescriptor, filter, sort]);
+      const groupBy = reactExports.useMemo(() => {
+        var _a3;
         let grouping = "none";
-        if (((_b3 = samplesDescriptor == null ? void 0 : samplesDescriptor.evalDescriptor) == null ? void 0 : _b3.epochs) && samplesDescriptor.evalDescriptor.epochs > 1) {
+        if (((_a3 = samplesDescriptor == null ? void 0 : samplesDescriptor.evalDescriptor) == null ? void 0 : _a3.epochs) && samplesDescriptor.evalDescriptor.epochs > 1) {
           if (byEpoch(sort) || epoch !== "all") {
             grouping = "epoch";
           } else if (bySample(sort)) {
             grouping = "sample";
           }
         }
-        setGroupBy(grouping);
-      }, [selectedLog, filter, sort, epoch]);
-      const evalDescriptor = reactExports.useMemo(() => {
-        var _a3, _b3, _c2, _d2;
-        return createEvalDescriptor(
-          scores2,
-          ((_c2 = (_b3 = (_a3 = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _a3.eval) == null ? void 0 : _b3.config) == null ? void 0 : _c2.epochs) || 1,
-          (_d2 = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _d2.sampleSummaries
-        );
-      }, [selectedLog, scores2]);
-      const samplesDescriptor = reactExports.useMemo(() => {
-        return evalDescriptor && score2 ? createSamplesDescriptor(evalDescriptor, score2) : void 0;
-      }, [evalDescriptor, score2]);
+        return grouping;
+      }, [samplesDescriptor]);
+      const groupByOrder = reactExports.useMemo(() => {
+        return sort === kSampleAscVal || sort === kEpochAscVal || sort === kScoreAscVal ? "asc" : "desc";
+      }, [sort]);
       reactExports.useEffect(() => {
+        var _a3;
+        const newTab = ((_a3 = selectedSample == null ? void 0 : selectedSample.events) == null ? void 0 : _a3.length) || 0 > 0 ? kSampleTranscriptTabId : kSampleMessagesTabId;
         if (selectedSampleTab === void 0 && selectedSample) {
-          setSelectedSampleTab(
-            selectedSample.events && selectedSample.events.length > 0 ? kSampleTranscriptTabId : kSampleMessagesTabId
-          );
+          setSelectedSampleTab(newTab);
         }
       }, [selectedSample, selectedSampleTab]);
       const mainAppRef = reactExports.useRef(null);
@@ -62345,7 +62410,7 @@ ${events}
         if (loadingSampleIndexRef.current === selectedSampleIndex) {
           return;
         }
-        if (!showingSampleDialog && selectedLog.contents.sampleSummaries.length > 1) {
+        if (!showingSampleDialog && sampleSummaries.length > 1) {
           return;
         }
         if (selectedSampleIndex < filteredSamples.length) {
@@ -62356,7 +62421,7 @@ ${events}
           loadingSampleIndexRef.current = selectedSampleIndex;
           setSampleStatus("loading");
           setSampleError(void 0);
-          api2.get_log_sample(selectedLog.name, summary2.id, summary2.epoch).then((sample2) => {
+          api.get_log_sample(selectedLog.name, summary2.id, summary2.epoch).then((sample2) => {
             if (sample2) {
               const anySample = sample2;
               if (anySample.transcript) {
@@ -62394,6 +62459,7 @@ ${events}
         selectedSampleIndex,
         showingSampleDialog,
         selectedLog,
+        sampleSummaries,
         filteredSamples,
         setSelectedSample,
         setSampleStatus,
@@ -62410,7 +62476,7 @@ ${events}
           }
           try {
             for (const fileList of fileLists) {
-              const headers = await api2.get_log_headers(fileList);
+              const headers = await api.get_log_headers(fileList);
               setLogHeaders((prev) => {
                 const updatedHeaders = {};
                 headers.forEach((header2, index2) => {
@@ -62436,14 +62502,14 @@ ${events}
         loadHeaders();
       }, [logs, setStatus, setLogHeaders, setHeadersLoading]);
       const resetWorkspace = reactExports.useCallback(
-        (log2) => {
-          const hasSamples = !!log2.sampleSummaries && log2.sampleSummaries.length > 0;
+        (log2, sampleSummaries2) => {
+          const hasSamples = sampleSummaries2.length > 0;
           const showSamples = hasSamples;
           setSelectedWorkspaceTab(
             log2.status !== "error" && hasSamples ? kEvalWorkspaceTabId : kInfoWorkspaceTabId
           );
-          const scorer = defaultScorer(log2);
-          const scorers = defaultScorers(log2);
+          const scorer = defaultScorer(log2, sampleSummaries2);
+          const scorers = defaultScorers(log2, sampleSummaries2);
           setScores(scorers);
           setScore(scorer);
           setEpoch("all");
@@ -62458,7 +62524,7 @@ ${events}
           }
           workspaceTabScrollPosition.current = {};
         },
-        [setSelectedWorkspaceTab]
+        [setSelectedWorkspaceTab, score, scores]
       );
       reactExports.useEffect(() => {
         const loadSpecificLog = async () => {
@@ -62473,7 +62539,7 @@ ${events}
                   contents: log2,
                   name: targetLog.name
                 });
-                resetWorkspace(log2);
+                resetWorkspace(log2, logContents.sampleSummaries);
                 setStatus({ loading: false, error: void 0 });
               }
             } catch (e) {
@@ -62490,10 +62556,17 @@ ${events}
           }
         };
         loadSpecificLog();
-      }, [selectedLogIndex, logs, selectedLog, setSelectedLog, setStatus]);
+      }, [
+        selectedLogIndex,
+        sampleSummaries,
+        logs,
+        selectedLog,
+        setSelectedLog,
+        setStatus
+      ]);
       const loadLogs = async () => {
         try {
-          const result = await api2.get_log_paths();
+          const result = await api.get_log_paths();
           return result;
         } catch (e) {
           console.log(e);
@@ -62503,7 +62576,7 @@ ${events}
       };
       const loadLog = async (logFileName) => {
         try {
-          const logContents = await api2.get_log_summary(logFileName);
+          const logContents = await api.get_log_summary(logFileName);
           return logContents;
         } catch (e) {
           console.log(e);
@@ -62536,14 +62609,21 @@ ${events}
               contents: log2,
               name: targetLog.name
             });
-            resetWorkspace(log2);
+            resetWorkspace(log2, sampleSummaries);
             setStatus({ loading: false, error: void 0 });
           }
         } catch (e) {
           console.log(e);
           setStatus({ loading: false, error: e });
         }
-      }, [logs, selectedLogIndex, setStatus, setSelectedLog, setLogHeaders]);
+      }, [
+        logs,
+        selectedLogIndex,
+        sampleSummaries,
+        setStatus,
+        setSelectedLog,
+        setLogHeaders
+      ]);
       const showLogFile = reactExports.useCallback(
         async (logUrl) => {
           const index2 = logs.files.findIndex((val) => {
@@ -62591,7 +62671,7 @@ ${events}
                 if (log_dir === logs.log_dir) {
                   showLogFile(decodedUrl);
                 } else {
-                  api2.open_log_file(e.data.url, e.data.log_dir);
+                  api.open_log_file(e.data.url, e.data.log_dir);
                 }
               } else {
                 refreshLogList();
@@ -62644,7 +62724,7 @@ ${events}
             const maxRetryDelay = 6e4;
             const pollEvents = async () => {
               try {
-                const events = await api2.client_events();
+                const events = await api.client_events();
                 if (events.includes("reload")) {
                   window.location.reload();
                 }
@@ -62674,7 +62754,9 @@ ${events}
         }
       }, [showFind, setShowFind]);
       const showToggle = logs.files.length > 1 || !!logs.log_dir || false;
-      const sampleMode = ((_a2 = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _a2.sampleSummaries) === void 0 || selectedLog.contents.sampleSummaries.length === 0 ? "none" : selectedLog.contents.sampleSummaries.length === 1 ? "single" : "many";
+      const sampleMode = reactExports.useMemo(() => {
+        return sampleSummaries.length === 0 ? "none" : sampleSummaries.length === 1 ? "single" : "many";
+      }, [sampleSummaries]);
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(AppErrorBoundary, { children: [
         !fullScreen && (selectedLog == null ? void 0 : selectedLog.contents) ? /* @__PURE__ */ jsxRuntimeExports.jsx(
           Sidebar,
@@ -62723,15 +62805,15 @@ ${events}
               ) : /* @__PURE__ */ jsxRuntimeExports.jsx(
                 WorkSpace,
                 {
-                  task_id: (_c = (_b2 = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _b2.eval) == null ? void 0 : _c.task_id,
+                  task_id: (_b2 = (_a2 = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _a2.eval) == null ? void 0 : _b2.task_id,
                   logFileName: selectedLog == null ? void 0 : selectedLog.name,
-                  evalStatus: (_d = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _d.status,
-                  evalError: filterNull((_e = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _e.error),
-                  evalVersion: (_f = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _f.version,
-                  evalSpec: (_g = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _g.eval,
-                  evalPlan: (_h = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _h.plan,
-                  evalStats: (_i = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _i.stats,
-                  evalResults: filterNull((_j = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _j.results),
+                  evalStatus: (_c = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _c.status,
+                  evalError: filterNull((_d = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _d.error),
+                  evalVersion: (_e = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _e.version,
+                  evalSpec: (_f = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _f.eval,
+                  evalPlan: (_g = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _g.plan,
+                  evalStats: (_h = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _h.stats,
+                  evalResults: filterNull((_i = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _i.results),
                   showToggle,
                   samples: filteredSamples,
                   sampleMode,
@@ -62743,7 +62825,7 @@ ${events}
                   refreshLog,
                   offcanvas,
                   setOffcanvas,
-                  capabilities: capabilities2,
+                  capabilities,
                   selectedSample,
                   selectedSampleIndex,
                   setSelectedSampleIndex,
@@ -62755,14 +62837,14 @@ ${events}
                   setSelectedSampleTab,
                   sort,
                   setSort,
-                  epochs: (_m = (_l = (_k = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _k.eval) == null ? void 0 : _l.config) == null ? void 0 : _m.epochs,
+                  epochs: (_l = (_k = (_j = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _j.eval) == null ? void 0 : _k.config) == null ? void 0 : _l.epochs,
                   epoch,
                   setEpoch,
                   filter,
                   setFilter,
-                  score: score2,
+                  score,
                   setScore,
-                  scores: scores2,
+                  scores,
                   sampleScrollPositionRef: sampleScrollPosition,
                   setSampleScrollPosition,
                   workspaceTabScrollPositionRef: workspaceTabScrollPosition,
@@ -62780,22 +62862,22 @@ ${events}
       }
       return obj;
     };
-    const defaultScorer = (log2) => {
+    const defaultScorer = (log2, sampleSummaries2) => {
       var _a2, _b2, _c;
-      if (log2.sampleSummaries.length === 0) {
+      if (sampleSummaries2.length === 0) {
         return void 0;
       }
-      const scores2 = log2.sampleSummaries[0].scores;
+      const scores2 = sampleSummaries2[0].scores;
       const scorer = ((_a2 = log2.results) == null ? void 0 : _a2.scores[0]) ? {
         name: (_b2 = log2.results) == null ? void 0 : _b2.scores[0].name,
         scorer: (_c = log2.results) == null ? void 0 : _c.scores[0].scorer
-      } : log2.sampleSummaries.length > 0 && scores2 !== null ? {
+      } : sampleSummaries2.length > 0 && scores2 !== null ? {
         name: Object.keys(scores2)[0],
         scorer: Object.keys(scores2)[0]
       } : void 0;
       return scorer;
     };
-    const defaultScorers = (log2) => {
+    const defaultScorers = (log2, sampleSummaries2) => {
       var _a2, _b2;
       if ((_a2 = log2.results) == null ? void 0 : _a2.scores) {
         return (((_b2 = log2.results) == null ? void 0 : _b2.scores) || []).map((score2) => {
@@ -62811,8 +62893,8 @@ ${events}
           }
           return accum;
         }, []);
-      } else if (log2.sampleSummaries && log2.sampleSummaries.length > 0) {
-        const scores2 = log2.sampleSummaries[0].scores;
+      } else if (sampleSummaries2 && sampleSummaries2.length > 0) {
+        const scores2 = sampleSummaries2[0].scores;
         if (scores2 !== null) {
           return Object.keys(scores2).map((key2) => {
             return {
@@ -62875,7 +62957,7 @@ ${events}
       }
       const filters = [filterLargeSample, filterLargeSelectedLog];
       return filters.reduce(
-        (filteredState, filter) => filter(filteredState),
+        (filteredState, filter2) => filter2(filteredState),
         state
       );
     }
@@ -62885,7 +62967,7 @@ ${events}
       }
       const estimatedTotalSize = estimateSize(state.selectedSample.messages);
       if (estimatedTotalSize > 4e5) {
-        const { selectedSample, ...filteredState } = state;
+        const { selectedSample: selectedSample2, ...filteredState } = state;
         return filteredState;
       } else {
         return state;
@@ -62900,7 +62982,7 @@ ${events}
         state.selectedLog.contents.sampleSummaries
       );
       if (estimatedSize > 4e5) {
-        const { selectedLog, ...filteredState } = state;
+        const { selectedLog: selectedLog2, ...filteredState } = state;
         return filteredState;
       } else {
         return state;
