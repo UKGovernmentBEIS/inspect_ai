@@ -35,7 +35,7 @@ const coerceValue = (value: unknown, descriptor: ScoreDescriptor): unknown => {
 
 // Whether a particular value is filter-able
 const isFilteringSupportedForValue = (value: unknown): boolean =>
-  ["string", "number", "boolean"].includes(typeof value);
+  ["string", "number", "boolean"].includes(typeof value) || value === null;
 
 /**
  * Returns the names of scores that are not allowed to be used as short names in
@@ -56,20 +56,26 @@ const bannedShortScoreNames = (scores: ScoreLabel[]): Set<string> => {
   return banned;
 };
 
+// Pseudo-variables added to all filter expressions. These are not needed in most cases.
+// Normally one could check a boolean value `foo` by simply typing `foo` or `not foo`.
+// However, some evals use tristate values that can be true, false or null. This is where
+// these constants come in handy.
+const filterExpressionConstants: Record<string, unknown> = {
+  True: true,
+  False: false,
+  None: null,
+};
+
 /**
  * Generates a dictionary of variables that can be used in the filter expression.
  * High-level scorer metrics can be accessed by name directly.
  * Child metrics are accessed using dot notation (e.g. `scorer_name.score_name`) or
  * directly by name when it is unique.
- *
- * @param {import("../../samples/descriptor/samplesDescriptor").EvalDescriptor} evalDescriptor
- * @param {import("../../types/log").Scores1} sampleScores
- * @returns {Object<string, any>}
  */
 const scoreVariables = (
   evalDescriptor: EvalDescriptor,
   sampleScores: Scores1,
-) => {
+): Record<string, unknown> => {
   const bannedShortNames = bannedShortScoreNames(evalDescriptor.scores);
   const variables: Record<string, unknown> = {};
 
@@ -77,7 +83,7 @@ const scoreVariables = (
     variableName: string,
     scoreLabel: ScoreLabel,
     value: unknown,
-  ) => {
+  ): void => {
     const coercedValue = coerceValue(
       value,
       evalDescriptor.scoreDescriptor(scoreLabel),
@@ -101,6 +107,12 @@ const scoreVariables = (
   return variables;
 };
 
+const sampleVariables = (sample: SampleSummary): Record<string, unknown> => {
+  return {
+    has_error: !!sample.error,
+  };
+};
+
 /**
  * Generates a dictionary of variables that can be used in the filter expression.
  * High-level scorer metrics can be accessed by name directly.
@@ -115,11 +127,6 @@ export const scoreFilterItems = (
   const valueToString = (value: unknown) =>
     typeof value === "string" ? `"${value}"` : String(value);
 
-  /**
-   * @param {string | undefined} shortName
-   * @param {string | undefined} qualifiedName
-   * @param {import("../../types").ScoreLabel} scoreLabel
-   */
   const addScore = (
     scoreLabel: ScoreLabel,
     shortName?: string,
@@ -196,13 +203,33 @@ export const filterExpression = (
         : [sample.target];
       return targets.some((target) => target.match(new RegExp(regex, "i")));
     };
+    const errorContains = (regex: string): boolean => {
+      return !!sample.error?.match(new RegExp(regex, "i"));
+    };
 
     const extraFunctions = {
       input_contains: inputContains,
       target_contains: targetContains,
+      error_contains: errorContains,
     };
-    const expression = compileExpression(filterValue, { extraFunctions });
-    const vars = scoreVariables(evalDescriptor, sample.scores);
+    const mySampleVariables = sampleVariables(sample);
+    const vars = {
+      ...mySampleVariables,
+      ...scoreVariables(evalDescriptor, sample.scores),
+    };
+    const resolveVariable = (name: string, get: (name: string) => any) => {
+      // Sample variables (like has_error) always exist.
+      if (name in mySampleVariables) {
+        return get(name);
+      }
+      // Score variables exist only if the sample completed successfully.
+      return sample.error ? undefined : get(name);
+    };
+    const expression = compileExpression(filterValue, {
+      extraFunctions,
+      constants: filterExpressionConstants,
+      customProp: resolveVariable,
+    });
     const result = expression(vars);
     if (typeof result === "boolean") {
       return { matches: result, error: undefined };
@@ -263,12 +290,6 @@ export const filterExpression = (
   }
 };
 
-/**
- * @param {import("../../samples/descriptor/samplesDescriptor").EvalDescriptor} evalDescriptor
- * @param {import("../../api/types").SampleSummary[]} samples
- * @param {string} filterValue
- * @returns {}
- */
 export const filterSamples = (
   evalDescriptor: EvalDescriptor,
   samples: SampleSummary[],

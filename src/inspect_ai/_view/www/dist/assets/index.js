@@ -25078,7 +25078,7 @@ var require_assets = __commonJS({
         return value2;
       }
     };
-    const isFilteringSupportedForValue = (value2) => ["string", "number", "boolean"].includes(typeof value2);
+    const isFilteringSupportedForValue = (value2) => ["string", "number", "boolean"].includes(typeof value2) || value2 === null;
     const bannedShortScoreNames = (scores2) => {
       const used = /* @__PURE__ */ new Set();
       const banned = /* @__PURE__ */ new Set();
@@ -25091,6 +25091,11 @@ var require_assets = __commonJS({
         }
       }
       return banned;
+    };
+    const filterExpressionConstants = {
+      True: true,
+      False: false,
+      None: null
     };
     const scoreVariables = (evalDescriptor, sampleScores) => {
       const bannedShortNames = bannedShortScoreNames(evalDescriptor.scores);
@@ -25116,6 +25121,11 @@ var require_assets = __commonJS({
         }
       }
       return variables;
+    };
+    const sampleVariables = (sample2) => {
+      return {
+        has_error: !!sample2.error
+      };
     };
     const scoreFilterItems = (evalDescriptor) => {
       const items = [];
@@ -25186,12 +25196,31 @@ categories: ${categories.join(" ")}`;
           let targets = Array.isArray(sample2.target) ? sample2.target : [sample2.target];
           return targets.some((target2) => target2.match(new RegExp(regex2, "i")));
         };
+        const errorContains = (regex2) => {
+          var _a3;
+          return !!((_a3 = sample2.error) == null ? void 0 : _a3.match(new RegExp(regex2, "i")));
+        };
         const extraFunctions = {
           input_contains: inputContains,
-          target_contains: targetContains
+          target_contains: targetContains,
+          error_contains: errorContains
         };
-        const expression = compileExpression(filterValue, { extraFunctions });
-        const vars = scoreVariables(evalDescriptor, sample2.scores);
+        const mySampleVariables = sampleVariables(sample2);
+        const vars = {
+          ...mySampleVariables,
+          ...scoreVariables(evalDescriptor, sample2.scores)
+        };
+        const resolveVariable = (name2, get2) => {
+          if (name2 in mySampleVariables) {
+            return get2(name2);
+          }
+          return sample2.error ? void 0 : get2(name2);
+        };
+        const expression = compileExpression(filterValue, {
+          extraFunctions,
+          constants: filterExpressionConstants,
+          customProp: resolveVariable
+        });
         const result = expression(vars);
         if (typeof result === "boolean") {
           return { matches: result, error: void 0 };
@@ -45733,9 +45762,13 @@ categories: ${categories.join(" ")}`;
       ["log2", "Base 2 logarithm"],
       ["log10", "Base 10 logarithm"]
     ];
+    const SAMPLE_VARIABLES = [
+      ["has_error", "Checks if the sample has an error"]
+    ];
     const SAMPLE_FUNCTIONS = [
       ["input_contains", "Checks if input contains a regular expression"],
-      ["target_contains", "Checks if target contains a regular expression"]
+      ["target_contains", "Checks if target contains a regular expression"],
+      ["error_contains", "Checks if error contains a regular expression"]
     ];
     const TOKEN_PATTERNS = {
       STRING: /^"[^"]*"/,
@@ -45832,16 +45865,22 @@ categories: ${categories.join(" ")}`;
       apply: applyWithCall,
       boost: 0
     });
+    const makeSampleVariableCompletion = ([label2, info]) => ({
+      label: label2,
+      type: "variable",
+      info,
+      boost: 10
+    });
     const makeLiteralCompletion = (k) => ({
       label: k,
       type: "text",
-      boost: 10
+      boost: 20
     });
     const makeCanonicalNameCompletion = (item2, { autoSpaceIf = () => false } = {}) => ({
       label: item2.canonicalName + (autoSpaceIf(item2) ? " " : ""),
       type: "variable",
       info: item2.tooltip,
-      boost: 20
+      boost: 30
     });
     const makeMemberAccessCompletion = (item2) => {
       var _a2;
@@ -45849,7 +45888,7 @@ categories: ${categories.join(" ")}`;
         label: ((_a2 = item2.qualifiedName) == null ? void 0 : _a2.split(".")[1]) || "",
         type: "variable",
         info: item2.tooltip,
-        boost: 20
+        boost: 40
       };
     };
     const getMemberScoreItems = (filterItems, scorer) => filterItems.filter((item2) => {
@@ -45865,6 +45904,9 @@ categories: ${categories.join(" ")}`;
       const sampleFunctionCompletionItems = SAMPLE_FUNCTIONS.map(
         makeSampleFunctionCompletion
       );
+      const sampleVariableCompletionItems = SAMPLE_VARIABLES.map(
+        makeSampleVariableCompletion
+      );
       const variableCompletionItems = filterItems.map(
         (item2) => makeCanonicalNameCompletion(item2)
       );
@@ -45872,6 +45914,7 @@ categories: ${categories.join(" ")}`;
         ...keywordCompletionItems,
         ...mathFunctionCompletionItems,
         ...sampleFunctionCompletionItems,
+        ...sampleVariableCompletionItems,
         ...variableCompletionItems
       ];
       const doc2 = context.state.doc;
@@ -45927,8 +45970,10 @@ categories: ${categories.join(" ")}`;
             return element;
           }
         };
-        const priorityLabels = new Set(priorityCompletions.map((c2) => c2.label));
-        const defaultCompletionsAdjusted = defaultCompletionItems.filter((c2) => !priorityLabels.has(c2.label)).map((c2) => ({ ...c2, section: miscSection }));
+        const priorityLabels = new Set(
+          priorityCompletions.map((c2) => c2.label.trim())
+        );
+        const defaultCompletionsAdjusted = defaultCompletionItems.filter((c2) => !priorityLabels.has(c2.label.trim())).map((c2) => ({ ...c2, section: miscSection }));
         return {
           from: completionStart,
           options: [...priorityCompletionsAdjusted, ...defaultCompletionsAdjusted]
@@ -45942,6 +45987,7 @@ categories: ${categories.join(" ")}`;
             autoSpaceIf: (item22) => completingAtEnd && item22.scoreType !== kScoreTypeBoolean
           })
         ),
+        ...sampleVariableCompletionItems,
         ...sampleFunctionCompletionItems
       ]);
       const variableCompletions = () => makeCompletions(variableCompletionItems);
@@ -46019,7 +46065,8 @@ categories: ${categories.join(" ")}`;
     const FILTER_TOOLTIP = `
 Filter samples by:
   • Scores
-  • Input and target regex search: input_contains, target_contains
+  • Samples with errors: has_error
+  • Input, target and error regex search: input_contains, target_contains, error_contains
 
 Supported expressions:
   • Arithmetic: +, -, *, /, mod, ^

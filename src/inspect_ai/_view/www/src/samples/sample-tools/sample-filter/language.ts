@@ -13,7 +13,12 @@ export const MATH_FUNCTIONS: [string, string][] = [
   ["log10", "Base 10 logarithm"],
 ];
 
+export const SAMPLE_VARIABLES: [string, string][] = [
+  ["has_error", "Checks if the sample has an error"],
+];
+
 export const SAMPLE_FUNCTIONS: [string, string][] = [
   ["input_contains", "Checks if input contains a regular expression"],
   ["target_contains", "Checks if target contains a regular expression"],
+  ["error_contains", "Checks if error contains a regular expression"],
 ];
