@@ -11,7 +11,7 @@ def auto_approver(decision: ApprovalDecision = "approve") -> Approver:
     """Automatically apply a decision to tool calls.
 
     Args:
-       decision (ApprovalDecision): Decision to apply.
+       decision: Decision to apply.
 
     Returns:
        Approver: Auto approver.

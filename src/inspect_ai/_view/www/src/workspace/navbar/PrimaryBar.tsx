@@ -30,16 +30,6 @@ export const PrimaryBar: React.FC<PrimaryBarProps> = ({
   evalSpec,
   setOffcanvas,
 }) => {
-  let statusPanel;
-  if (status === "success") {
-    statusPanel = <ResultsPanel results={evalResults} />;
-  } else if (status === "cancelled") {
-    statusPanel = <CancelledPanel sampleCount={samples?.length || 0} />;
-  } else if (status === "started") {
-    statusPanel = <RunningPanel sampleCount={samples?.length || 0} />;
-  } else if (status === "error") {
-    statusPanel = <ErroredPanel sampleCount={samples?.length || 0} />;
-  }
   const logFileName = file ? filename(file) : "";
 
   const handleToggle = useCallback(() => {
@@ -103,7 +93,18 @@ export const PrimaryBar: React.FC<PrimaryBarProps> = ({
         </div>
       </div>
       <div className={clsx(styles.taskStatus, "navbar-text")}>
-        {statusPanel}
+        {status === "success" ? (
+          <ResultsPanel results={evalResults} />
+        ) : undefined}
+        {status === "cancelled" ? (
+          <CancelledPanel sampleCount={samples?.length || 0} />
+        ) : undefined}
+        {status === "started" ? (
+          <RunningPanel sampleCount={samples?.length || 0} />
+        ) : undefined}
+        {status === "error" ? (
+          <ErroredPanel sampleCount={samples?.length || 0} />
+        ) : undefined}
       </div>
       <div id="task-created" style={{ display: "none" }}>
         {evalSpec?.created}

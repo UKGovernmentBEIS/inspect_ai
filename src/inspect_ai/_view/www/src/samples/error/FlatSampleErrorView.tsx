@@ -1,7 +1,7 @@
 import { ApplicationIcons } from "../../appearance/icons";
 
 import clsx from "clsx";
-import styles from "./SampleErrorView.module.css";
+import styles from "./FlatSampleErrorView.module.css";
 import { errorType } from "./error";
 
 interface FlatSampleErrorViewProps {

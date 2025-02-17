@@ -1,0 +1,52 @@
+---
+title: "inspect_ai.scorer"
+---
+
+## Scorers
+
+### match
+### includes
+### pattern
+### answer
+### choice
+### f1
+### exact
+### model_graded_qa
+### model_graded_fact
+### multi_scorer
+
+## Metrics
+
+### accuracy
+### mean
+### std
+### stderr
+### bootstrap_stderr
+
+## Reducers
+
+### at_least
+### pass_at
+### max_score
+### mean_score
+### median_score
+### mode_score
+
+## Types
+
+### Scorer
+### Target
+### Score
+### Value
+### ScoreReducer
+### Metric
+### MetricProtocol
+### SampleScore
+
+## Decorators
+
+### scorer
+### metric
+### score_reducer
+
+

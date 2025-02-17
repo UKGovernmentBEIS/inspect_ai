@@ -35,7 +35,7 @@ export const MetaDataView: React.FC<MetadataViewProps> = ({
   const entryEls = (coercedEntries || []).map((entry, index) => {
     const id = `${baseId}-value-${index}`;
     return (
-      <tr>
+      <tr key={id}>
         <td
           className={clsx(
             styles.cell,

@@ -9,6 +9,8 @@ from rich.console import RenderableType
 
 
 class EvalError(BaseModel):
+    """Eval error details."""
+
     message: str
     """Error message."""
 

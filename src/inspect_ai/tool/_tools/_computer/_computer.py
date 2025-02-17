@@ -2,10 +2,7 @@ from typing import Awaitable, Callable
 
 from inspect_ai._util.content import Content, ContentImage, ContentText
 from inspect_ai.tool import Tool, ToolResult, tool
-from inspect_ai.tool._tool import (
-    TOOL_INIT_MODEL_INPUT,
-    ToolParsingError,
-)
+from inspect_ai.tool._tool import TOOL_INIT_MODEL_INPUT, ToolParsingError
 from inspect_ai.tool._tool_call import ToolCallModelInput
 
 from . import _common as common
@@ -16,6 +13,17 @@ ActionFunction = Callable[[str], ToolResult | Awaitable[ToolResult]]
 
 @tool
 def computer(max_screenshots: int | None = 1, timeout: int | None = 180) -> Tool:
+    """Desktop computer tool.
+
+    See documentation at <https://inspect.ai-safety-institute.org.uk/tools.html#sec-computer>.
+
+    Args:
+      max_screenshots: The maximum number of screenshots to play
+        back to the model as input. Defaults to 1 (set to `None` to have no limit).
+      timeout: Timeout in seconds for computer tool actions.
+        Defaults to 180 (set to `None` for no timeout).
+    """
+
     async def execute(
         action: Action,
         text: str | None = None,
@@ -84,7 +92,7 @@ def computer(max_screenshots: int | None = 1, timeout: int | None = 180) -> Tool
             if coordinate is not None:
                 raise ToolParsingError(f"coordinate is not accepted for {action}")
             if not isinstance(text, str):
-                raise ToolParsingError(output=f"{text} must be a string")
+                raise ToolParsingError(f"{text} must be a string")
 
             if action == "key":
                 return await common.press_key(text, timeout=timeout)

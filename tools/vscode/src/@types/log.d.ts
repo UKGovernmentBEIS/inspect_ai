@@ -112,6 +112,7 @@ export type Input =
       | ChatMessageAssistant
       | ChatMessageTool
     )[];
+export type Role = "system";
 export type Content =
   | string
   | (ContentText | ContentImage | ContentAudio | ContentVideo)[];
@@ -127,18 +128,17 @@ export type Type4 = "video";
 export type Video = string;
 export type Format1 = "mp4" | "mpeg" | "mov";
 export type Source = ("input" | "generate") | null;
-export type Role = "system";
+export type Role1 = "user";
 export type Content1 =
   | string
   | (ContentText | ContentImage | ContentAudio | ContentVideo)[];
 export type Source1 = ("input" | "generate") | null;
-export type Role1 = "user";
 export type ToolCallId = string[] | null;
+export type Role2 = "assistant";
 export type Content2 =
   | string
   | (ContentText | ContentImage | ContentAudio | ContentVideo)[];
 export type Source2 = ("input" | "generate") | null;
-export type Role2 = "assistant";
 export type ToolCalls = ToolCall[] | null;
 export type Id1 = string;
 export type Function = string;
@@ -148,11 +148,11 @@ export type Title = string | null;
 export type Format2 = "text" | "markdown";
 export type Content3 = string;
 export type Reasoning = string | null;
+export type Role3 = "tool";
 export type Content4 =
   | string
   | (ContentText | ContentImage | ContentAudio | ContentVideo)[];
 export type Source3 = ("input" | "generate") | null;
-export type Role3 = "tool";
 export type ToolCallId1 = string | null;
 export type Function1 = string | null;
 export type Type6 =
@@ -315,6 +315,7 @@ export type Timestamp8 = string;
 export type Pending8 = boolean | null;
 export type Event8 = "score";
 export type Target2 = string | string[] | null;
+export type Intermediate = boolean;
 export type Timestamp9 = string;
 export type Pending9 = boolean | null;
 export type Event9 = "error";
@@ -339,6 +340,7 @@ export type Lineno = number;
 export type Timestamp11 = string;
 export type Pending11 = boolean | null;
 export type Event11 = "info";
+export type Source4 = string | null;
 export type Timestamp12 = string;
 export type Pending12 = boolean | null;
 export type Event12 = "step";
@@ -424,6 +426,9 @@ export type SampleId1 = string | number | null;
 export type Samples2 = EvalSampleScore[];
 export type Location1 = string;
 
+/**
+ * Evaluation log.
+ */
 export interface EvalLog {
   version?: Version;
   status?: Status;
@@ -436,6 +441,9 @@ export interface EvalLog {
   reductions?: Reductions;
   location?: Location1;
 }
+/**
+ * Eval target and configuration.
+ */
 export interface EvalSpec {
   run_id: RunId;
   created: Created;
@@ -460,6 +468,9 @@ export interface EvalSpec {
 }
 export interface TaskAttribs {}
 export interface TaskArgs {}
+/**
+ * Dataset used for evaluation.
+ */
 export interface EvalDataset {
   name: Name;
   location: Location;
@@ -468,6 +479,9 @@ export interface EvalDataset {
   shuffled: Shuffled;
 }
 export interface ModelArgs {}
+/**
+ * Configuration used for evaluation.
+ */
 export interface EvalConfig {
   limit: Limit;
   sample_id: SampleId;
@@ -513,6 +527,9 @@ export interface ApproverPolicyConfig {
   params: Params;
 }
 export interface Params {}
+/**
+ * Git revision for evaluation.
+ */
 export interface EvalRevision {
   type: Type;
   origin: Origin;
@@ -521,19 +538,25 @@ export interface EvalRevision {
 export interface Packages {
   [k: string]: string;
 }
+/**
+ * Plan (solvers) used in evaluation.
+ */
 export interface EvalPlan {
   name: Name2;
   steps: Steps;
   finish: EvalPlanStep | null;
   config: GenerateConfig;
 }
+/**
+ * Solver step.
+ */
 export interface EvalPlanStep {
   solver: Solver1;
   params: Params1;
 }
 export interface Params1 {}
 /**
- * Base class for model generation configs.
+ * Model generation options.
  */
 export interface GenerateConfig {
   max_retries: MaxRetries;
@@ -560,12 +583,18 @@ export interface GenerateConfig {
   reasoning_effort: ReasoningEffort;
   reasoning_history: ReasoningHistory;
 }
+/**
+ * Scoring results from evaluation.
+ */
 export interface EvalResults {
   total_samples: TotalSamples;
   completed_samples: CompletedSamples;
   scores: Scores;
   metadata: Metadata3;
 }
+/**
+ * Score for evaluation task.
+ */
 export interface EvalScore {
   name: Name3;
   scorer: Scorer;
@@ -578,13 +607,19 @@ export interface Params2 {}
 export interface Metrics {
   [k: string]: EvalMetric;
 }
+/**
+ * Metric for evaluation score.
+ */
 export interface EvalMetric {
   name: Name4;
   value: Value;
-  options: Options;
+  params: Params3;
   metadata: Metadata1;
 }
-export interface Options {}
+export interface Params3 {}
+/**
+ * Timing and usage statistics.
+ */
 export interface EvalStats {
   started_at: StartedAt;
   completed_at: CompletedAt;
@@ -593,6 +628,9 @@ export interface EvalStats {
 export interface ModelUsage {
   [k: string]: ModelUsage1;
 }
+/**
+ * Token usage for completion.
+ */
 export interface ModelUsage1 {
   input_tokens: InputTokens;
   output_tokens: OutputTokens;
@@ -600,11 +638,17 @@ export interface ModelUsage1 {
   input_tokens_cache_write: InputTokensCacheWrite;
   input_tokens_cache_read: InputTokensCacheRead;
 }
+/**
+ * Eval error details.
+ */
 export interface EvalError {
   message: Message;
   traceback: Traceback;
   traceback_ansi: TracebackAnsi;
 }
+/**
+ * Sample from evaluation task.
+ */
 export interface EvalSample {
   id: Id;
   epoch: Epoch;
@@ -625,40 +669,61 @@ export interface EvalSample {
   attachments: Attachments;
   limit: EvalSampleLimit | null;
 }
+/**
+ * System chat message.
+ */
 export interface ChatMessageSystem {
+  role: Role;
   content: Content;
   source: Source;
-  role: Role;
 }
+/**
+ * Text content.
+ */
 export interface ContentText {
   type: Type1;
   text: Text;
 }
+/**
+ * Image content.
+ */
 export interface ContentImage {
   type: Type2;
   image: Image;
   detail: Detail;
 }
+/**
+ * Audio content.
+ */
 export interface ContentAudio {
   type: Type3;
   audio: Audio;
   format: Format;
 }
+/**
+ * Video content.
+ */
 export interface ContentVideo {
   type: Type4;
   video: Video;
   format: Format1;
 }
+/**
+ * User chat message.
+ */
 export interface ChatMessageUser {
+  role: Role1;
   content: Content1;
   source: Source1;
-  role: Role1;
   tool_call_id: ToolCallId;
 }
+/**
+ * Assistant chat message.
+ */
 export interface ChatMessageAssistant {
+  role: Role2;
   content: Content2;
   source: Source2;
-  role: Role2;
   tool_calls: ToolCalls;
   reasoning: Reasoning;
 }
@@ -679,10 +744,13 @@ export interface ToolCallContent {
   format: Format2;
   content: Content3;
 }
+/**
+ * Tool chat message.
+ */
 export interface ChatMessageTool {
+  role: Role3;
   content: Content4;
   source: Source3;
-  role: Role3;
   tool_call_id: ToolCallId1;
   function: Function1;
   error: ToolCallError | null;
@@ -691,6 +759,9 @@ export interface ToolCallError {
   type: Type6;
   message: Message1;
 }
+/**
+ * Output from model generation.
+ */
 export interface ModelOutput {
   model: Model1;
   choices: Choices1;
@@ -699,6 +770,9 @@ export interface ModelOutput {
   metadata: Metadata4;
   error: Error;
 }
+/**
+ * Choice generated for completion.
+ */
 export interface ChatCompletionChoice {
   message: ChatMessageAssistant;
   stop_reason: StopReason;
@@ -729,12 +803,6 @@ export interface TopLogprob {
 }
 /**
  * Score generated by a scorer.
- *
- * Args:
- *    value (Value): Score value.
- *    answer (str | None): Answer extracted from model output (optional).
- *    explanation (str | None): Explanation of score (optional).
- *    metadata (dict[str,Any]): Additional metadata related to the score.
  */
 export interface Score {
   value: Value1;
@@ -754,6 +822,9 @@ export interface SampleInitEvent {
   sample: Sample;
   state: JsonValue;
 }
+/**
+ * Sample for an evaluation task.
+ */
 export interface Sample {
   input: Input1;
   choices: Choices2;
@@ -888,7 +959,7 @@ export interface ToolFunction {
   name: Name6;
 }
 /**
- * Base class for model generation configs.
+ * Model generation options.
  */
 export interface GenerateConfig1 {
   max_retries: MaxRetries;
@@ -984,7 +1055,10 @@ export interface InputEvent {
   input_ansi: InputAnsi;
 }
 /**
- * Event with sample score.
+ * Event with score.
+ *
+ * Can be the final score for a `Sample`, or can be an intermediate score
+ * resulting from a call to `score`.
  */
 export interface ScoreEvent {
   timestamp: Timestamp8;
@@ -992,6 +1066,7 @@ export interface ScoreEvent {
   event: Event8;
   score: Score;
   target: Target2;
+  intermediate: Intermediate;
 }
 /**
  * Event with sample error.
@@ -1011,6 +1086,9 @@ export interface LoggerEvent {
   event: Event10;
   message: LoggingMessage;
 }
+/**
+ * Message written to Python log.
+ */
 export interface LoggingMessage {
   name: Name7;
   level: Level;
@@ -1027,6 +1105,7 @@ export interface InfoEvent {
   timestamp: Timestamp11;
   pending: Pending11;
   event: Event11;
+  source: Source4;
   data: JsonValue;
 }
 /**
@@ -1063,15 +1142,24 @@ export interface ModelUsage2 {
 export interface Attachments {
   [k: string]: string;
 }
+/**
+ * Limit encontered by sample.
+ */
 export interface EvalSampleLimit {
   type: Type13;
   limit: Limit2;
 }
+/**
+ * Score reductions.
+ */
 export interface EvalSampleReductions {
   scorer: Scorer1;
   reducer: Reducer1;
   samples: Samples2;
 }
+/**
+ * Score and sample_id scored.
+ */
 export interface EvalSampleScore {
   value: Value2;
   answer: Answer1;

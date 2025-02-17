@@ -81,6 +81,6 @@ class OpenRouterAPI(OpenAIAPI):
             if self.provider:
                 params[EXTRA_BODY]["provider"] = self.provider
             if self.transforms:
-                params[EXTRA_BODY]["tranforms"] = self.transforms
+                params[EXTRA_BODY]["transforms"] = self.transforms
 
         return params

@@ -35,31 +35,31 @@ def model_graded_fact(
     """Score a question/answer task with a fact response using a model.
 
     Args:
-      template (str): Template for grading prompt. This template uses
+      template: Template for grading prompt. This template uses
         four variables: `question`, `criterion`, `answer`, and
         `instructions` (which is fed from the `instructions` parameter).
         Variables from sample `metadata` are also available in the template.
-      instructions (str): Grading instructions. This should
+      instructions: Grading instructions. This should
         include a prompt for the model to answer (e.g. with
         with chain of thought reasoning) in a way that matches
         the specified `grade_pattern`, for example, the default
         `grade_pattern` looks for one of GRADE: C, GRADE: P, or
         GRADE: I).
-      grade_pattern (str): Regex to extract the grade from the
+      grade_pattern: Regex to extract the grade from the
         model response. Defaults to looking for e.g. GRADE: C
         The regex should have a single capture group that
         extracts exactly the letter C, P, or I.
-      include_history (bool | Callable[[TaskState], str]):
+      include_history:
         Whether to include the full chat history in the presented
         question. Defaults to `False`, which presents only the
         original sample input. Optionally provide a function to
         customise how the chat history is presented.
-      partial_credit (bool): Whether to allow for "partial" credit for
+      partial_credit: Whether to allow for "partial" credit for
          answers (by default assigned a score of 0.5). Defaults
          to `False`. Note that this parameter is only used
          with the default `instructions` (as custom instructions
          provide their own prompts for grades).
-      model (list[str | Model] | str | Model | None): Model or Models to use for grading. If multiple models are passed, a majority vote of their grade will be returned. By default the model being evaluated is used.
+      model: Model or Models to use for grading. If multiple models are passed, a majority vote of their grade will be returned. By default the model being evaluated is used.
     """
     return model_graded_qa(
         template=template if template else DEFAULT_MODEL_GRADED_FACT_TEMPLATE,
@@ -83,32 +83,32 @@ def model_graded_qa(
     """Score a question/answer task using a model.
 
     Args:
-      template (str): Template for grading prompt. This template has
+      template: Template for grading prompt. This template has
         four variables:
            - `question`, `criterion`, `answer`, and
         `instructions` (which is fed from the `instructions` parameter).
         Variables from sample `metadata` are also available in the template.
-      instructions (str): Grading instructions. This should
+      instructions: Grading instructions. This should
         include a prompt for the model to answer (e.g. with
         with chain of thought reasoning) in a way that matches
         the specified `grade_pattern`, for example, the default
         `grade_pattern` looks for one of GRADE: C, GRADE: P, or
         GRADE: I.
-      grade_pattern (str): Regex to extract the grade from the
+      grade_pattern: Regex to extract the grade from the
         model response. Defaults to looking for e.g. GRADE: C
         The regex should have a single capture group that
         extracts exactly the letter C, P, I.
-      include_history (bool | Callable[[TaskState], str]):
+      include_history:
         Whether to include the full chat history in the presented
         question. Defaults to `False`, which presents only the
         original sample input. Optionally provide a function to
         customise how the chat history is presented.
-      partial_credit (bool): Whether to allow for "partial" credit for
+      partial_credit: Whether to allow for "partial" credit for
         answers (by default assigned a score of 0.5). Defaults
         to `False`. Note that this parameter is only used
         with the default `instructions` (as custom instructions
         provide their own prompts for grades).
-      model (list[str | Model] | str | Model | None): Model or Models to use for grading. If     multiple models are passed, a majority vote of their grade will be returned. By default the model being evaluated is used.
+      model: Model or Models to use for grading. If     multiple models are passed, a majority vote of their grade will be returned. By default the model being evaluated is used.
     """
     # bind variables
     get_scorer = partial(

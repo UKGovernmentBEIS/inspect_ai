@@ -143,9 +143,10 @@ export const SampleSummaryView: React.FC<SampleSummaryViewProps> = ({
           .join(" ")}`,
       }}
     >
-      {columns.map((col) => {
+      {columns.map((col, idx) => {
         return (
           <div
+            key={`sample-summ-lbl-${idx}`}
             className={clsx(
               "text-style-label",
               "text-style-secondary",
@@ -157,9 +158,10 @@ export const SampleSummaryView: React.FC<SampleSummaryViewProps> = ({
           </div>
         );
       })}
-      {columns.map((col) => {
+      {columns.map((col, idx) => {
         return (
           <div
+            key={`sample-summ-val-${idx}`}
             className={clsx(
               styles.wrap,
               col.clamp ? "three-line-clamp" : undefined,

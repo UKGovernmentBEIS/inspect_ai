@@ -15,15 +15,15 @@ def use_tools(
     Inject tools into the task state to be used in generate().
 
     Args:
-        *tools (Tool | list[Tool]): One or more tools or lists of tools
-          to make available to the model. If no tools are passed, then
-          no change to the currently available set of `tools` is made.
-        tool_choice (ToolChoice | None): Directive indicating which
-          tools the model should use. If `None` is passed, then no
-          change to `tool_choice` is made.
-        append (bool): If `True`, then the passed-in tools are appended
-            to the existing tools; otherwise any existing tools are
-            replaced (the default)
+      *tools: One or more tools or lists of tools
+        to make available to the model. If no tools are passed, then
+        no change to the currently available set of `tools` is made.
+      tool_choice: Directive indicating which
+        tools the model should use. If `None` is passed, then no
+        change to `tool_choice` is made.
+      append: If `True`, then the passed-in tools are appended
+        to the existing tools; otherwise any existing tools are
+        replaced (the default)
 
     Returns:
         A solver that injects the tools and tool_choice into the task state.

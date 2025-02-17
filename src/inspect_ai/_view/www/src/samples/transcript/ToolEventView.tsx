@@ -8,6 +8,7 @@ import { EventPanel } from "./event/EventPanel";
 import { TranscriptView } from "./TranscriptView";
 import { TranscriptEventState } from "./types";
 
+import { useMemo } from "react";
 import styles from "./ToolEventView.module.css";
 
 interface ToolEventViewProps {
@@ -31,9 +32,9 @@ export const ToolEventView: React.FC<ToolEventViewProps> = ({
   className,
 }) => {
   // Extract tool input
-  const { input, functionCall, inputType } = resolveToolInput(
-    event.function,
-    event.arguments,
+  const { input, functionCall, highlightLanguage } = useMemo(
+    () => resolveToolInput(event.function, event.arguments),
+    [event.function, event.arguments],
   );
 
   // Find an approval if there is one
@@ -62,7 +63,7 @@ export const ToolEventView: React.FC<ToolEventViewProps> = ({
         <ToolCallView
           functionCall={functionCall}
           input={input}
-          inputType={inputType}
+          highlightLanguage={highlightLanguage}
           output={event.error?.message || event.result}
           mode="compact"
           view={event.view ? event.view : undefined}

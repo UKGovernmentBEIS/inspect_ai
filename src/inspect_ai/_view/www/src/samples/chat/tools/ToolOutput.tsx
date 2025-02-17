@@ -18,21 +18,28 @@ export const ToolOutput: React.FC<ToolOutputProps> = ({ output }) => {
   // First process an array or object into a string
   const outputs = [];
   if (Array.isArray(output)) {
-    output.forEach((out) => {
+    output.forEach((out, idx) => {
+      const key = `tool-output-${idx}`;
       if (out.type === "text") {
-        outputs.push(<ToolTextOutput text={out.text} />);
+        outputs.push(<ToolTextOutput text={out.text} key={key} />);
       } else {
         if (out.image.startsWith("data:")) {
           outputs.push(
-            <img className={clsx(styles.toolImage)} src={out.image} />,
+            <img
+              className={clsx(styles.toolImage)}
+              src={out.image}
+              key={key}
+            />,
           );
         } else {
-          outputs.push(<ToolTextOutput text={String(out.image)} />);
+          outputs.push(<ToolTextOutput text={String(out.image)} key={key} />);
         }
       }
     });
   } else {
-    outputs.push(<ToolTextOutput text={String(output)} />);
+    outputs.push(
+      <ToolTextOutput text={String(output)} key={"tool-output-single"} />,
+    );
   }
   return <div className={clsx(styles.output)}>{outputs}</div>;
 };

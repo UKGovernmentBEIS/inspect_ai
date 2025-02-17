@@ -1,12 +1,57 @@
-# Changelog
-
 ## Unreleased
+
+- Memoize calls to `get_model()` so that model instances with the same parameters are cached and re-used (pass `memoize=False` to disable).
+- Async context manager for `Model` class for optional scoped usage of model clients.
+- New `assistant_message()` solver.
+- Prompt templates: Ignore template placeholders that don't map to passed parameters in `prompt_template()`, and system/user/assistnat solvers.
+- Inspect View: Improve the display of subtasks with no inputs or events.
+- Inspect View: Fix transcript display of phantom subtask or other phantom events.
+- Inspect View: Fix formatting issues in sample error display
+
+## v0.3.66 (17 February 2025)
+
+- Docker: Correct compose file generation for Dockerfiles w/ custom stem or extension.
+- Escape brackets when rendering task config (another textual 2.0 fix)
+
+## v0.3.65 (16 February 2025)
+
+- Compatibility with textual 2.0 (which had several breaking changes).
+- Inspect View: Improve scorer display formatting.
+- Bugfix: Inspect view now correctly renders arrays with embedded `null` values.
+- Bugfix: Inspect view now correctly handles scorers with no metrics.
+
+## v0.3.64 (14 February 2025)
+
+- [Reference documentation](https://inspect.ai-safety-institute.org.uk/reference/) for Python API and CLI commands.
+- Add support for [clustered standard errors](https://inspect.ai-safety-institute.org.uk/scorers.html#clustered-standard-errors) via a new `cluster` parameter for the `stderr()` metric.
+- Improvements to [scoring workflow](https://inspect.ai-safety-institute.org.uk/scorers.html#sec-scorer-workflow) (`inspect score` command and `score()` function).
+- Metrics now take `list[SampleScore]` rather than `list[Score]` (previous signature is deprecated but still works with a warning).
+- Use a sample adjustment for the `var()` metric.
+- Google: Speculative fix for completion candidates not being returned as a list.
+- Python and Bash tools: Add `sandbox` argument for running in non-default sandboxes.
+- Transcript: Log `ScoreEvent` (with `intermediate=True`) when the `score()` function is called.
+- Transcript: Add `source` field to `InfoEvent` and use it for events logged by the human agent.
+- Docker: Support Dockerfiles with `.Dockerfile` extension.
+- Docker: Raise error when there is an explicitly configured `container_name` (incompatible with epochs > 1).
+- Docker: Dynamically set `compose up` timeout when there are `healthcheck` entries for services.
+- Log: Validate that `log_dir` is writeable at startup.
+- Log: Write eval config defaults into log file (rather than `None`).
+- Bugfix: Always honor level-level-transcript setting for transcript logging.
+- Bugfix: Fix some dynamic layout issues for sample sandbox view.
+
+## v0.3.63 (07 February 2025)
 
 - Add [OpenRouter](https://inspect.ai-safety-institute.org.uk/providers.html#openrouter) model provider.
 - Inspect View: Convert codebase from JS/Preact to Typescript/React
+- Add `shuffle_choices` to dataset and dataset loading funtions. Deprecate `shuffle` parameter to the `multiple_choice` solver.
 - Add `stop_words` param to the `f1` scorer. `stop_words` will be removed from the target and answer during normalization.
 - Tools: Handle return of empty list from tool calls.
+- Computer: Moved out of beta (i.e. from `inspect_ai.tool.beta` into `inspect_ai.tool`).
 - Sandboxes: Docker now uses `tee` for write_file operations.
+- Inspect View: Handle Zip64 zip files (for log files greater than 4GB)
+- Bugfix: Change `type` parameter of `answer()` to `pattern` to address registry serialisation error.
+- Bugfix: Restore printing of request payloads for 400 errors from Anthropic.
+- Bugfix: Log transcript event for solver provided scores (improves log viewer display of solver scoring)
 
 ## v0.3.62 (03 February 2025)
 
@@ -15,6 +60,7 @@
 - OpenAI: Map some additional 400 status codes to `content_filter` stop reason.
 - Anthropic: Handle 413 status code (Payload Too Large) and map to `model_length` StopReason.
 - Tasks: Log sample with error prior to raising task-ending exception.
+- Python: Enhance prompt to emphasise that it is a script rather than a notebook.
 - Computer: Various improvements to image including desktop, python, and VS Code configuration.
 - Bugfix: Don't download full log from S3 for header_only reads.
 

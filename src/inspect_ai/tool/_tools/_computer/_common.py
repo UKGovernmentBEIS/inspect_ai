@@ -123,11 +123,11 @@ async def computer_sandbox() -> SandboxEnvironment:
     else:
         raise PrerequisiteError(
             dedent("""
-                The computer tool service was not found in any of the sandboxes for this sample. Please add the computer tool service to your configuration. For example, the following Docker compose file uses the aisiuk/inspect-computer-tool:latest-beta image as its default sandbox:
+                The computer tool service was not found in any of the sandboxes for this sample. Please add the computer tool service to your configuration. For example, the following Docker compose file uses the aisiuk/inspect-computer-tool:latest image as its default sandbox:
 
                 services:
                   default:
-                    image: "aisiuk/inspect-computer-tool:latest-beta"
+                    image: "aisiuk/inspect-computer-tool:latest"
                     init: true
                 """).strip()
         )

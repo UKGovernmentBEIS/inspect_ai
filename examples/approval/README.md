@@ -2,7 +2,7 @@
 
 ## Introduction
 
-This is a demonstrate of Inspect's [Approval Mode](https://inspect.ai-safety-institute.org.uk/approval.html) whereby tool calls are approved by a combination of approvers and approval policies.
+This is a demonstration of Inspect's [Approval Mode](https://inspect.ai-safety-institute.org.uk/approval.html) whereby tool calls are approved by a combination of approvers and approval policies.
 
 To run this demonstration, specify the approval configuration file as follows:
 

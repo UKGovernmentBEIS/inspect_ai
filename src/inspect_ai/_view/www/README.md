@@ -19,7 +19,7 @@ Use the following commands (run in the `src/inspect_ai/_view/www` dir) to ensure
    yarn prettier:write
    ```
 
-3. Build the bundled output to `dist`
+3. Build the bundled output into the `dist` directory.
 
    ```bash
    yarn build
