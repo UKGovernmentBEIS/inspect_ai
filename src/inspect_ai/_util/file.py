@@ -205,6 +205,9 @@ class FileSystem:
     def info(self, path: str, **kwargs: dict[str, Any]) -> FileInfo:
         return self._file_info(self.fs.info(path, **kwargs))
 
+    def path_as_uri(self, path: str) -> str:
+        return str(self.fs.unstrip_protocol(path))
+
     def ls(
         self, path: str, recursive: bool = False, **kwargs: dict[str, Any]
     ) -> list[FileInfo]:

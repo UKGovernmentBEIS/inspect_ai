@@ -15,7 +15,7 @@ from typing_extensions import override
 
 from inspect_ai._display.core.display import TaskDisplayMetric
 from inspect_ai._util.appdirs import inspect_data_dir
-from inspect_ai._util.file import basename, dirname
+from inspect_ai._util.file import basename, dirname, filesystem
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.trace import trace_action
 
@@ -101,13 +101,13 @@ class SampleBufferDatabase(SampleBuffer):
         update_interval: int = 2,
         db_dir: Path | None = None,
     ):
-        self.location = location
+        self.location = filesystem(location).path_as_uri(location)
         self.log_images = log_images
         self.log_shared = log_shared
         self.update_interval = update_interval
 
         # location subdir and file
-        dir, file = location_dir_and_file(location)
+        dir, file = location_dir_and_file(self.location)
 
         # establish dirs
         db_dir = resolve_db_dir(db_dir)
