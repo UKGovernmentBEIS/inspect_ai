@@ -36,7 +36,7 @@ def task_config(
             config_print.append(f"{name}: {','.join(value)}")
         elif name not in ["limit", "model"]:
             if isinstance(value, list):
-                value = ",".join(value)
+                value = ",".join([str(v) for v in value])
             if isinstance(value, str):
                 value = value.replace("[", "\\[")
             config_print.append(f"{name}: {value}")
