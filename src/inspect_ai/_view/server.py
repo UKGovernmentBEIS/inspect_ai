@@ -139,7 +139,10 @@ def view_server(
     @routes.get("/api/pending-samples")
     async def api_pending_samples(request: web.Request) -> web.Response:
         # log file requested
-        file = request.match_info["log"]
+        file = request.query.get("log")
+        if file is None:
+            raise web.HTTPBadRequest()
+
         file = urllib.parse.unquote(file)
         validate_log_file_request(file)
 
