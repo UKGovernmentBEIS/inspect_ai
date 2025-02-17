@@ -3,9 +3,11 @@ from pathlib import Path
 
 import pytest
 
-from inspect_ai.log._recorders.buffer.database import SampleBufferDatabase
+from inspect_ai.log._recorders.buffer.database import (
+    SampleBufferDatabase,
+    sync_to_filestore,
+)
 from inspect_ai.log._recorders.buffer.filestore import SampleBufferFilestore
-from inspect_ai.log._recorders.buffer.sync import sync_to_filestore
 from inspect_ai.log._recorders.buffer.types import Samples
 from inspect_ai.log._recorders.types import SampleEvent, SampleSummary
 from inspect_ai.log._transcript import InfoEvent
