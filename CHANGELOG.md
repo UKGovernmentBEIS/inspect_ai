@@ -1,4 +1,8 @@
 
+## Unreleased
+
+- User and system message solvers: Ignore template placeholders that don't map to passed parameters.
+
 ## v0.3.66 (17 February 2025)
 
 - Docker: Correct compose file generation for Dockerfiles w/ custom stem or extension.
