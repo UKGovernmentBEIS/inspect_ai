@@ -7,7 +7,7 @@ from zipfile import ZIP_DEFLATED, ZipFile
 from pydantic import BaseModel, Field
 from typing_extensions import override
 
-from inspect_ai._util.constants import DEFAULT_LOG_SHARED
+from inspect_ai._util.constants import DEFAULT_LOG_SHARED, EVAL_LOG_FORMAT
 from inspect_ai._util.file import FileSystem, basename, dirname, file, filesystem
 from inspect_ai.log._file import read_eval_log
 
@@ -51,7 +51,7 @@ class SampleBufferFilestore(SampleBuffer):
         update_interval: int = DEFAULT_LOG_SHARED,
     ) -> None:
         self._fs = filesystem(location)
-        self._dir = f"{sample_buffer_dir(dirname(location), self._fs)}{self._fs.sep}{basename(location)}{self._fs.sep}"
+        self._dir = f"{sample_buffer_dir(dirname(location), self._fs)}{self._fs.sep}{os.path.splitext(basename(location))[0]}{self._fs.sep}"
         self.update_interval = update_interval
 
         if create:
@@ -204,7 +204,7 @@ def cleanup_sample_buffer_filestores(log_dir: str) -> None:
     # (remove the buffer dir if there is no .eval or the eval is finished)
     for log_buffer in log_buffers:
         try:
-            log_file = f"{log_dir}{fs.sep}{basename(log_buffer.name)}"
+            log_file = f"{log_dir}{fs.sep}{basename(log_buffer.name)}.{EVAL_LOG_FORMAT}"
             log_header = read_eval_log(log_file, header_only=True)
             if log_header.status != "started":
                 cleanup_sample_buffer_filestore(log_buffer.name, fs)
