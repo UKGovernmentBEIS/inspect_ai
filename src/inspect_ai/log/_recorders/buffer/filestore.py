@@ -7,7 +7,6 @@ from zipfile import ZIP_DEFLATED, ZipFile
 from pydantic import BaseModel, Field
 from typing_extensions import override
 
-from inspect_ai._util.constants import EVAL_LOG_FORMAT
 from inspect_ai._util.file import FileSystem, basename, dirname, file, filesystem
 from inspect_ai.log._file import read_eval_log
 
