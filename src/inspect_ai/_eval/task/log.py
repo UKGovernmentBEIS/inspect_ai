@@ -5,6 +5,7 @@ from typing import Any, Iterator, Literal, cast
 
 from shortuuid import uuid
 
+from inspect_ai._display.core.display import TaskDisplayMetric
 from inspect_ai._eval.task.util import slice_dataset
 from inspect_ai._util.constants import PKG_NAME
 from inspect_ai._util.datetime import iso_now
@@ -243,6 +244,9 @@ class TaskLogger:
         # track sucessful samples logged
         if sample.error is None:
             self._samples_completed += 1
+
+    def update_metrics(self, metrics: list[TaskDisplayMetric]) -> None:
+        self._buffer_db.update_metrics(metrics)
 
     async def log_finish(
         self,

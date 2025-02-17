@@ -3,6 +3,8 @@ from typing import Literal, TypeAlias
 
 from pydantic import BaseModel, JsonValue
 
+from inspect_ai._display.core.display import TaskDisplayMetric
+
 from ..types import SampleSummary
 
 JsonData: TypeAlias = dict[str, JsonValue]
@@ -10,6 +12,7 @@ JsonData: TypeAlias = dict[str, JsonValue]
 
 class Samples(BaseModel):
     samples: list[SampleSummary]
+    metrics: list[TaskDisplayMetric]
     refresh: int
     etag: str
 
