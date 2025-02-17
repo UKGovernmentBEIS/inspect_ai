@@ -7,6 +7,11 @@
 
 - Prompt templates: Ignore template placeholders that don't map to passed parameters in `prompt_template()`, `user_message()`, and `system_message()`.
 
+## Unreleased
+
+- Memoize calls to `get_model()` so that model instances with the same parameters are cached and re-used (pass `memoize=False` to disable).
+- Async context manager for `Model` class for optional scoped usage of model clients.
+
 ## v0.3.66 (17 February 2025)
 
 - Docker: Correct compose file generation for Dockerfiles w/ custom stem or extension.

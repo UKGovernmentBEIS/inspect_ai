@@ -152,6 +152,10 @@ class OpenAIAPI(ModelAPI):
     def is_gpt(self) -> bool:
         return is_gpt(self.model_name)
 
+    @override
+    async def close(self) -> None:
+        await self.client.close()
+
     async def generate(
         self,
         input: list[ChatMessage],

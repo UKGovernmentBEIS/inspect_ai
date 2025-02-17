@@ -118,6 +118,10 @@ class MistralAPI(ModelAPI):
             **model_args,
         )
 
+    @override
+    async def close(self) -> None:
+        await self.client.sdk_configuration.async_client.aclose()
+
     async def generate(
         self,
         input: list[ChatMessage],
