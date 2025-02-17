@@ -1,5 +1,3 @@
-import asyncio
-
 import pytest
 
 from inspect_ai.model import GenerateConfig, get_model
@@ -85,11 +83,3 @@ async def test_cache_consistency():
     # Verify the attribute is present on the cached instance
     assert hasattr(model2, "_test_attr")
     assert model2._test_attr == "test_value"
-
-
-if __name__ == "__main__":
-
-    async def main():
-        await test_different_configs_different_cache()
-
-    asyncio.run(main())

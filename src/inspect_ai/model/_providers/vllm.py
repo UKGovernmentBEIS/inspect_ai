@@ -134,9 +134,7 @@ class VLLMAPI(ModelAPI):
 
     @override
     async def close(self) -> None:
-        del self.tokenizer
         self.tokenizer = None
-        del self.model
         self.model = None
         gc.collect()
 

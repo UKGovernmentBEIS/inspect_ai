@@ -115,9 +115,7 @@ class HuggingFaceAPI(ModelAPI):
 
     @override
     async def close(self) -> None:
-        del self.model
         self.model = None
-        del self.tokenizer
         self.tokenizer = None
         gc.collect()
 
