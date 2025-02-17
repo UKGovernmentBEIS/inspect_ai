@@ -16,14 +16,13 @@ import { LogNode, LogListing } from "./log-listing";
 import { throttle } from "lodash";
 import { InspectViewServer } from "../../inspect/inspect-view-server";
 import { EvalLog } from "../../../@types/log";
-import { evalSummary, LogElementQueueProcessor } from "./log-listing-server-queue";
+import { evalSummary } from "./log-listing-server-queue";
 
 export class LogTreeDataProvider
   implements TreeDataProvider<LogNode>, vscode.Disposable {
   public static readonly viewType = "inspect_ai.logs-view";
 
   private readonly throttledRefresh_: () => void;
-  private readonly queueProcessor_;
 
   constructor(
     private context_: vscode.ExtensionContext,
@@ -33,13 +32,6 @@ export class LogTreeDataProvider
       this.logListing_?.invalidate();
       this._onDidChangeTreeData.fire();
     }, 1000);
-
-    this.queueProcessor_ = new LogElementQueueProcessor(
-      viewServer_,
-      () => this.logListing_,
-      context_,
-      (element) => this._onDidChangeTreeData.fire(element)
-    );
   }
 
   dispose() { }
@@ -79,20 +71,6 @@ export class LogTreeDataProvider
 
 
     const uri = this.logListing_?.uriForNode(element);
-
-    // See whether there cached server data available
-    // (this will just prevent flashing of the icons when
-    // cached data is available)
-    let cached;
-    if (uri) {
-      cached = this.queueProcessor_.cachedValue(uri?.toString());
-      element.iconPath = element.iconPath || cached?.iconPath || defaultIconPath;
-
-      // Screen invalid tooltips (empty objects)
-      if (cached?.tooltip?.value) {
-        element.tooltip = element.tooltip || cached?.tooltip;
-      }
-    }
 
     // base tree item
     const treeItem: TreeItem = {
@@ -137,11 +115,6 @@ export class LogTreeDataProvider
         arguments: [uri],
       };
     }
-
-    if (!element.iconPath) {
-      this.queueProcessor_.enqueueElement(element);
-    }
-
     return treeItem;
   }
 

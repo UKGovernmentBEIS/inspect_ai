@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.55
+
+- Remove display of status icons in log listing (it causes performance issues).
+
 ## 0.3.54
 
 - Add startup output channel to monitor extension startup performance
