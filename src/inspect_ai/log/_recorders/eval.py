@@ -321,6 +321,7 @@ class ZipLogFile:
                         epoch=sample.epoch,
                         input=text_inputs(sample.input),
                         target=sample.target,
+                        completed=True,
                         scores=sample.scores,
                         error=sample.error.message
                         if sample.error is not None
