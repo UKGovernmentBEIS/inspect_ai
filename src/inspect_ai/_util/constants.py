@@ -27,6 +27,7 @@ DEFAULT_LOG_LEVEL = "warning"
 DEFAULT_LOG_LEVEL_TRANSCRIPT = "info"
 ALL_LOG_FORMATS = ["eval", "json"]
 DEFAULT_LOG_FORMAT: Literal["eval", "json"] = "eval"
+JSON_LOG_FORMAT = "json"
 EVAL_LOG_FORMAT = "eval"
 DEFAULT_DISPLAY = "full"
 LOG_SCHEMA_VERSION = 2

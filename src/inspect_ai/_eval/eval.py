@@ -15,7 +15,7 @@ from typing_extensions import Unpack
 from inspect_ai._cli.util import parse_cli_args
 from inspect_ai._display.core.active import display as task_display
 from inspect_ai._util.config import resolve_args
-from inspect_ai._util.constants import DEFAULT_LOG_FORMAT
+from inspect_ai._util.constants import DEFAULT_LOG_FORMAT, JSON_LOG_FORMAT
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.file import absolute_file_path
 from inspect_ai._util.logger import warn_once
@@ -389,6 +389,12 @@ async def eval_async(
         if not recorder.is_writeable():
             raise PrerequisiteError(
                 f"ERROR: You do not have write permission for the log_dir '{log_dir}'"
+            )
+
+        # validate that --log-shared can't use used with 'json' format
+        if log_shared and log_format == JSON_LOG_FORMAT:
+            raise PrerequisiteError(
+                "ERROR: --log-shared is not compatible with the json log format."
             )
 
         # resolve solver
