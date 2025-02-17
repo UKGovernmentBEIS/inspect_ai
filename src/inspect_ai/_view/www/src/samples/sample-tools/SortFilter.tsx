@@ -102,7 +102,7 @@ export const sortSamples = (
   sort: string,
   samples: SampleSummary[],
   samplesDescriptor: SamplesDescriptor,
-): { sorted: SampleSummary[]; order: "asc" | "desc" } => {
+): SampleSummary[] => {
   const sortedSamples = samples.sort((a: SampleSummary, b: SampleSummary) => {
     switch (sort) {
       case kSampleAscVal: {
@@ -173,11 +173,5 @@ export const sortSamples = (
         return 0;
     }
   });
-  return {
-    sorted: sortedSamples,
-    order:
-      sort === kSampleAscVal || sort === kEpochAscVal || sort === kScoreAscVal
-        ? "asc"
-        : "desc",
-  };
+  return sortedSamples;
 };
