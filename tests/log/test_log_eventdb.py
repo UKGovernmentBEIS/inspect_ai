@@ -411,16 +411,16 @@ def test_mixed_content_sizes(db: SampleBufferDatabase) -> None:
 def test_version_increments_on_write_operations(db: SampleBufferDatabase):
     """Test that write operations increment the version."""
     with db._get_connection() as conn:
-        initial_version = db._get_version(conn)
+        task_data = db._get_task_data(conn)
 
     # Test write operation
     sample = SampleSummary(id="test1", epoch=1, input="foo", target="bar")
     db.start_sample(sample)
 
     with db._get_connection() as conn:
-        after_write = db._get_version(conn)
+        after_write = db._get_task_data(conn)
 
-    assert after_write == initial_version + 1
+    assert after_write.version == task_data.version + 1
 
 
 def test_version_unchanged_on_read_operations(
@@ -431,14 +431,14 @@ def test_version_unchanged_on_read_operations(
     db.start_sample(sample)
 
     with db._get_connection() as conn:
-        initial_version = db._get_version(conn)
+        initial_version = db._get_task_data(conn)
 
     # Perform read operations
     get_samples(db)
     db.get_sample_data(str(sample.id), sample.epoch)
 
     with db._get_connection() as conn:
-        after_reads = db._get_version(conn)
+        after_reads = db._get_task_data(conn)
 
     assert after_reads == initial_version
 
@@ -446,10 +446,10 @@ def test_version_unchanged_on_read_operations(
 def test_version_in_samples_etag(db: SampleBufferDatabase):
     """Test that samples etag matches current version."""
     with db._get_connection() as conn:
-        initial_version = db._get_version(conn)
+        task_data = db._get_task_data(conn)
 
     samples = get_samples(db)
-    assert samples.etag == str(initial_version)
+    assert samples.etag == str(task_data.version)
 
 
 def test_cleanup(db: SampleBufferDatabase, sample: SampleSummary) -> None:
