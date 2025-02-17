@@ -18,11 +18,12 @@ import { clearDocumentSelection } from "./utils/browser";
 import { debounce, sleep } from "./utils/sync";
 
 import { FindBand } from "./components/FindBand";
-import { kDefaultSort } from "./constants";
 import {
-  createEvalDescriptor,
-  createSamplesDescriptor,
-} from "./samples/descriptor/samplesDescriptor";
+  kDefaultSort,
+  kEpochAscVal,
+  kSampleAscVal,
+  kScoreAscVal,
+} from "./constants";
 import { filterSamples } from "./samples/sample-tools/filters";
 import {
   byEpoch,
@@ -52,6 +53,10 @@ import {
   kSampleTranscriptTabId,
 } from "./constants";
 import {
+  createEvalDescriptor,
+  createSamplesDescriptor,
+} from "./samples/descriptor/samplesDescriptor.tsx";
+import {
   ApplicationState,
   AppStatus,
   Capabilities,
@@ -67,6 +72,12 @@ interface AppProps {
   saveApplicationState?: (state: ApplicationState) => void;
   pollForLogs: boolean;
   capabilities: Capabilities;
+}
+
+interface PendingSampleSummaries {
+  samples: SampleSummary[];
+  etag?: string;
+  lastPoll: number;
 }
 
 /**
@@ -165,16 +176,77 @@ export const App: FC<AppProps> = ({
     applicationState?.score,
   );
 
-  // Re-filter the samples
-  const [filteredSamples, setFilteredSamples] = useState<SampleSummary[]>(
-    applicationState?.filteredSamples || [],
-  );
-  const [groupBy, setGroupBy] = useState<"none" | "epoch" | "sample">(
-    applicationState?.groupBy || "none",
-  );
-  const [groupByOrder, setGroupByOrder] = useState<"asc" | "desc">(
-    applicationState?.groupByOrder || "asc",
-  );
+  const [pendingSampleSummaries, setPendingSampleSummaries] =
+    useState<PendingSampleSummaries>({
+      samples: [],
+      lastPoll: 0,
+    });
+
+  // Inside the App component:
+  const prevState = useRef({
+    logs,
+    selectedLogIndex,
+    selectedLog,
+    logHeaders,
+    headersLoading,
+    selectedWorkspaceTab,
+    selectedSampleIndex,
+    selectedSample,
+    sampleStatus,
+    sampleError,
+    selectedSampleTab,
+    showingSampleDialog,
+    status,
+    offcanvas,
+    showFind,
+    filter,
+    epoch,
+    sort,
+    scores,
+    score,
+  });
+
+  useEffect(() => {
+    const changes: string[] = [];
+
+    // Check which state values changed
+    Object.entries(prevState.current).forEach(([key, prevValue]) => {
+      const currentValue = eval(key); // Dynamically get the current state value
+      if (prevValue !== currentValue) {
+        changes.push(`${key} changed`);
+      }
+    });
+
+    if (changes.length > 0) {
+      console.log("App rendered due to:", changes.join(", "));
+    } else {
+      console.log("App rendered with no significant state changes.");
+    }
+
+    // Update previous state reference
+    prevState.current = {
+      logs,
+      selectedLogIndex,
+      selectedLog,
+      logHeaders,
+      headersLoading,
+      selectedWorkspaceTab,
+      selectedSampleIndex,
+      selectedSample,
+      sampleStatus,
+      sampleError,
+      selectedSampleTab,
+      showingSampleDialog,
+      status,
+      offcanvas,
+      showFind,
+      filter,
+      epoch,
+      sort,
+      scores,
+      score,
+    };
+  });
 
   const saveState = useCallback(() => {
     const state = {
@@ -198,9 +270,6 @@ export const App: FC<AppProps> = ({
       sort,
       scores,
       score,
-      filteredSamples,
-      groupBy,
-      groupByOrder,
       sampleScrollPosition: sampleScrollPosition.current,
       workspaceTabScrollPosition: workspaceTabScrollPosition.current,
     };
@@ -228,9 +297,6 @@ export const App: FC<AppProps> = ({
     sort,
     scores,
     score,
-    filteredSamples,
-    groupBy,
-    groupByOrder,
   ]);
 
   const saveStateRef = useRef(saveState);
@@ -285,10 +351,36 @@ export const App: FC<AppProps> = ({
     sort,
     scores,
     score,
-    filteredSamples,
-    groupBy,
-    groupByOrder,
   ]);
+
+  // Function to merge log samples with pending samples
+  const mergeSampleSummaries = useCallback(
+    (
+      logSamples: SampleSummary[],
+      pendingSamples: SampleSummary[],
+    ): SampleSummary[] => {
+      // Create a map of existing sample IDs to avoid duplicates
+      const existingSampleIds = new Set(
+        logSamples.map((sample) => `${sample.id}-${sample.epoch}`),
+      );
+
+      // Filter out any pending samples that already exist in the log
+      const uniquePendingSamples = pendingSamples.filter(
+        (sample) => !existingSampleIds.has(`${sample.id}-${sample.epoch}`),
+      );
+
+      // Combine and return all samples
+      return [...logSamples, ...uniquePendingSamples];
+    },
+    [],
+  );
+
+  const sampleSummaries = useMemo(() => {
+    const logSamples = selectedLog?.contents.sampleSummaries || [];
+    const pendingSamples = pendingSampleSummaries.samples || [];
+    const result = mergeSampleSummaries(logSamples, pendingSamples);
+    return result;
+  }, [selectedLog?.contents.sampleSummaries, pendingSampleSummaries.samples]);
 
   const handleSampleShowingDialog = useCallback(
     (show: boolean) => {
@@ -306,8 +398,24 @@ export const App: FC<AppProps> = ({
     ],
   );
 
-  useEffect(() => {
-    const samples = selectedLog?.contents?.sampleSummaries || [];
+  const evalDescriptor = useMemo(() => {
+    const result = createEvalDescriptor(
+      scores,
+      selectedLog?.contents?.eval?.config?.epochs || 1,
+      sampleSummaries,
+    );
+    return result;
+  }, [selectedLog, sampleSummaries, scores]);
+
+  const samplesDescriptor = useMemo(() => {
+    return evalDescriptor && score
+      ? createSamplesDescriptor(evalDescriptor, score)
+      : undefined;
+  }, [evalDescriptor, score]);
+
+  const filteredSamples = useMemo(() => {
+    const samples = sampleSummaries || [];
+
     const { result: prefiltered } =
       evalDescriptor && filter?.value
         ? filterSamples(evalDescriptor, samples, filter.value)
@@ -325,11 +433,14 @@ export const App: FC<AppProps> = ({
 
     // Sort the samples
     if (samplesDescriptor) {
-      const { sorted, order } = sortSamples(sort, filtered, samplesDescriptor);
-      setFilteredSamples(sorted);
-      setGroupByOrder(order);
+      const sorted = sortSamples(sort, filtered, samplesDescriptor);
+      return sorted;
+    } else {
+      return filtered;
     }
+  }, [sampleSummaries, evalDescriptor, samplesDescriptor, filter, sort]);
 
+  const groupBy = useMemo(() => {
     // Set the grouping
     let grouping: "none" | "epoch" | "sample" = "none";
     if (
@@ -342,30 +453,24 @@ export const App: FC<AppProps> = ({
         grouping = "sample";
       }
     }
-    setGroupBy(grouping);
-  }, [selectedLog, filter, sort, epoch]);
+    return grouping;
+  }, [samplesDescriptor]);
 
-  const evalDescriptor = useMemo(() => {
-    return createEvalDescriptor(
-      scores,
-      selectedLog?.contents?.eval?.config?.epochs || 1,
-      selectedLog?.contents?.sampleSummaries,
-    );
-  }, [selectedLog, scores]);
-
-  const samplesDescriptor = useMemo(() => {
-    return evalDescriptor && score
-      ? createSamplesDescriptor(evalDescriptor, score)
-      : undefined;
-  }, [evalDescriptor, score]);
+  const groupByOrder = useMemo(() => {
+    return sort === kSampleAscVal ||
+      sort === kEpochAscVal ||
+      sort === kScoreAscVal
+      ? "asc"
+      : "desc";
+  }, [sort]);
 
   useEffect(() => {
+    const newTab =
+      selectedSample?.events?.length || 0 > 0
+        ? kSampleTranscriptTabId
+        : kSampleMessagesTabId;
     if (selectedSampleTab === undefined && selectedSample) {
-      setSelectedSampleTab(
-        selectedSample.events && selectedSample.events.length > 0
-          ? kSampleTranscriptTabId
-          : kSampleMessagesTabId,
-      );
+      setSelectedSampleTab(newTab);
     }
   }, [selectedSample, selectedSampleTab]);
 
@@ -385,10 +490,7 @@ export const App: FC<AppProps> = ({
       return;
     }
 
-    if (
-      !showingSampleDialog &&
-      selectedLog.contents.sampleSummaries.length > 1
-    ) {
+    if (!showingSampleDialog && sampleSummaries.length > 1) {
       return;
     }
 
@@ -455,6 +557,7 @@ export const App: FC<AppProps> = ({
     selectedSampleIndex,
     showingSampleDialog,
     selectedLog,
+    sampleSummaries,
     filteredSamples,
     setSelectedSample,
     setSampleStatus,
@@ -517,10 +620,9 @@ export const App: FC<AppProps> = ({
    * depending on the presence of samples and the log status.
    */
   const resetWorkspace = useCallback(
-    (log: EvalSummary) => {
+    (log: EvalSummary, sampleSummaries: SampleSummary[]) => {
       // Reset the workspace tab
-      const hasSamples =
-        !!log.sampleSummaries && log.sampleSummaries.length > 0;
+      const hasSamples = sampleSummaries.length > 0;
       const showSamples = hasSamples;
       setSelectedWorkspaceTab(
         log.status !== "error" && hasSamples
@@ -529,8 +631,8 @@ export const App: FC<AppProps> = ({
       );
 
       // Select the default scorer to use
-      const scorer = defaultScorer(log);
-      const scorers = defaultScorers(log);
+      const scorer = defaultScorer(log, sampleSummaries);
+      const scorers = defaultScorers(log, sampleSummaries);
 
       // Reset state
       setScores(scorers);
@@ -551,7 +653,7 @@ export const App: FC<AppProps> = ({
 
       workspaceTabScrollPosition.current = {};
     },
-    [setSelectedWorkspaceTab],
+    [setSelectedWorkspaceTab, score, scores],
   );
 
   // Load a specific log
@@ -570,7 +672,7 @@ export const App: FC<AppProps> = ({
             });
 
             // Reset the workspace tab
-            resetWorkspace(log);
+            resetWorkspace(log, logContents.sampleSummaries);
 
             setStatus({ loading: false, error: undefined });
           }
@@ -587,9 +689,15 @@ export const App: FC<AppProps> = ({
         });
       }
     };
-
     loadSpecificLog();
-  }, [selectedLogIndex, logs, selectedLog, setSelectedLog, setStatus]);
+  }, [
+    selectedLogIndex,
+    sampleSummaries,
+    logs,
+    selectedLog,
+    setSelectedLog,
+    setStatus,
+  ]);
 
   // Load the list of logs
   const loadLogs = async (): Promise<LogFiles> => {
@@ -646,7 +754,7 @@ export const App: FC<AppProps> = ({
         });
 
         // Reset the workspace tab
-        resetWorkspace(log);
+        resetWorkspace(log, sampleSummaries);
 
         setStatus({ loading: false, error: undefined });
       }
@@ -655,7 +763,14 @@ export const App: FC<AppProps> = ({
       console.log(e);
       setStatus({ loading: false, error: e as Error });
     }
-  }, [logs, selectedLogIndex, setStatus, setSelectedLog, setLogHeaders]);
+  }, [
+    logs,
+    selectedLogIndex,
+    sampleSummaries,
+    setStatus,
+    setSelectedLog,
+    setLogHeaders,
+  ]);
 
   const showLogFile = useCallback(
     async (logUrl: string) => {
@@ -825,13 +940,14 @@ export const App: FC<AppProps> = ({
   /**
    * Determines the sample mode based on the selected log's contents.
    */
-  const sampleMode =
-    selectedLog?.contents?.sampleSummaries === undefined ||
-    selectedLog.contents.sampleSummaries.length === 0
+  const sampleMode = useMemo(() => {
+    return sampleSummaries.length === 0
       ? "none"
-      : selectedLog.contents.sampleSummaries.length === 1
+      : sampleSummaries.length === 1
         ? "single"
         : "many";
+  }, [sampleSummaries]);
+
   return (
     <AppErrorBoundary>
       {!fullScreen && selectedLog?.contents ? (
@@ -944,20 +1060,23 @@ interface ScorerInfo {
 /**
  * Determines the default scorer for a log
  */
-const defaultScorer = (log: EvalSummary): ScorerInfo | undefined => {
-  if (log.sampleSummaries.length === 0) {
+const defaultScorer = (
+  log: EvalSummary,
+  sampleSummaries: SampleSummary[],
+): ScorerInfo | undefined => {
+  if (sampleSummaries.length === 0) {
     return undefined;
   }
 
   // Select the default scorer to use
-  const scores = log.sampleSummaries[0].scores;
+  const scores = sampleSummaries[0].scores;
 
   const scorer = log.results?.scores[0]
     ? {
         name: log.results?.scores[0].name,
         scorer: log.results?.scores[0].scorer,
       }
-    : log.sampleSummaries.length > 0 && scores !== null
+    : sampleSummaries.length > 0 && scores !== null
       ? {
           name: Object.keys(scores)[0],
           scorer: Object.keys(scores)[0],
@@ -969,7 +1088,10 @@ const defaultScorer = (log: EvalSummary): ScorerInfo | undefined => {
 /**
  * Determines the default scorers for a log
  */
-const defaultScorers = (log: EvalSummary): Array<ScorerInfo> => {
+const defaultScorers = (
+  log: EvalSummary,
+  sampleSummaries: SampleSummary[],
+): Array<ScorerInfo> => {
   if (log.results?.scores) {
     return (log.results?.scores || [])
       .map((score): ScorerInfo => {
@@ -988,8 +1110,8 @@ const defaultScorers = (log: EvalSummary): Array<ScorerInfo> => {
         }
         return accum;
       }, [] as Array<ScorerInfo>);
-  } else if (log.sampleSummaries && log.sampleSummaries.length > 0) {
-    const scores = log.sampleSummaries[0].scores;
+  } else if (sampleSummaries && sampleSummaries.length > 0) {
+    const scores = sampleSummaries[0].scores;
 
     if (scores !== null) {
       return Object.keys(scores).map((key) => {
