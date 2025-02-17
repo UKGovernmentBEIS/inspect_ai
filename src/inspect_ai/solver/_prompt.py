@@ -2,8 +2,11 @@ from typing import Any
 
 from inspect_ai._util.dict import omit
 from inspect_ai._util.format import format_template
-from inspect_ai.model import ChatMessageSystem
-from inspect_ai.model._chat_message import ChatMessageUser
+from inspect_ai.model._chat_message import (
+    ChatMessageAssistant,
+    ChatMessageSystem,
+    ChatMessageUser,
+)
 from inspect_ai.util import resource
 
 from ._solver import Generate, Solver, solver
@@ -93,6 +96,43 @@ def user_message(template: str, **params: Any) -> Solver:
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         kwargs = state.metadata | state.store._data | params
         state.messages.append(ChatMessageUser(content=format_template(content, kwargs)))
+        return state
+
+    return solve
+
+
+@solver
+def assistant_message(template: str, **params: Any) -> Solver:
+    """Solver which inserts an assistant message into the conversation.
+
+    ::: {.callout-note appearance="simple"}
+    The assistant message feature described below is currently available only in the development version of Inspect. To install the development version from GitHub:
+
+    ``` bash
+    pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+    ```
+    :::
+
+    Assistant message template containing any number of optional `params`.
+    for substitution using the `str.format()` method. All values
+    contained in sample `metadata` and `store` are also automatically
+    included in the `params`.
+
+    Args:
+      template: Template for assistant message.
+      **params: Parameters to fill into the template.
+
+    Returns:
+      A solver that inserts the parameterised assistant message.
+    """
+    # read template
+    content = resource(template)
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        kwargs = state.metadata | state.store._data | params
+        state.messages.append(
+            ChatMessageAssistant(content=format_template(content, kwargs))
+        )
         return state
 
     return solve

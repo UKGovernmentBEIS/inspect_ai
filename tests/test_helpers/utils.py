@@ -70,6 +70,10 @@ def skip_if_no_openai(func):
     )
 
 
+def skip_if_no_openai_package(func):
+    return skip_if_no_package("openai")(func)
+
+
 def skip_if_no_anthropic(func):
     return pytest.mark.api(skip_if_env_var("ANTHROPIC_API_KEY", exists=False)(func))
 

@@ -39,7 +39,8 @@ interface SampleFilterProps {
 const FILTER_TOOLTIP = `
 Filter samples by:
   • Scores
-  • Input and target regex search: input_contains, target_contains
+  • Samples with errors: has_error
+  • Input, target and error regex search: input_contains, target_contains, error_contains
 
 Supported expressions:
   • Arithmetic: +, -, *, /, mod, ^

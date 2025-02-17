@@ -13,7 +13,12 @@ import {
   kScoreTypePassFail,
 } from "../../../constants";
 import { ScoreFilterItem } from "../filters";
-import { KEYWORDS, MATH_FUNCTIONS, SAMPLE_FUNCTIONS } from "./language";
+import {
+  KEYWORDS,
+  MATH_FUNCTIONS,
+  SAMPLE_FUNCTIONS,
+  SAMPLE_VARIABLES,
+} from "./language";
 import { Token, tokenize } from "./tokenize";
 
 interface CompletionOptions {
@@ -76,10 +81,20 @@ const makeSampleFunctionCompletion = ([label, info]: [
   boost: 0,
 });
 
+const makeSampleVariableCompletion = ([label, info]: [
+  string,
+  string,
+]): Completion => ({
+  label,
+  type: "variable",
+  info,
+  boost: 10,
+});
+
 const makeLiteralCompletion = (k: string): Completion => ({
   label: k,
   type: "text",
-  boost: 10,
+  boost: 20,
 });
 
 const makeCanonicalNameCompletion = (
@@ -89,14 +104,14 @@ const makeCanonicalNameCompletion = (
   label: item.canonicalName + (autoSpaceIf(item) ? " " : ""),
   type: "variable",
   info: item.tooltip,
-  boost: 20,
+  boost: 30,
 });
 
 const makeMemberAccessCompletion = (item: ScoreFilterItem): Completion => ({
   label: item.qualifiedName?.split(".")[1] || "",
   type: "variable",
   info: item.tooltip,
-  boost: 20,
+  boost: 40,
 });
 
 const getMemberScoreItems = (
@@ -130,6 +145,9 @@ export function getCompletions(
   const sampleFunctionCompletionItems = SAMPLE_FUNCTIONS.map(
     makeSampleFunctionCompletion,
   );
+  const sampleVariableCompletionItems = SAMPLE_VARIABLES.map(
+    makeSampleVariableCompletion,
+  );
   const variableCompletionItems = filterItems.map((item) =>
     makeCanonicalNameCompletion(item),
   );
@@ -138,6 +156,7 @@ export function getCompletions(
     ...keywordCompletionItems,
     ...mathFunctionCompletionItems,
     ...sampleFunctionCompletionItems,
+    ...sampleVariableCompletionItems,
     ...variableCompletionItems,
   ];
 
@@ -218,9 +237,11 @@ export function getCompletions(
       },
     };
 
-    const priorityLabels = new Set(priorityCompletions.map((c) => c.label));
+    const priorityLabels = new Set(
+      priorityCompletions.map((c) => c.label.trim()),
+    );
     const defaultCompletionsAdjusted = defaultCompletionItems
-      .filter((c) => !priorityLabels.has(c.label))
+      .filter((c) => !priorityLabels.has(c.label.trim()))
       .map((c) => ({ ...c, section: miscSection }));
 
     return {
@@ -240,6 +261,7 @@ export function getCompletions(
             completingAtEnd && item.scoreType !== kScoreTypeBoolean,
         }),
       ),
+      ...sampleVariableCompletionItems,
       ...sampleFunctionCompletionItems,
     ]);
 

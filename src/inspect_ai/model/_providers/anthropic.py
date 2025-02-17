@@ -150,6 +150,10 @@ class AnthropicAPI(ModelAPI):
                 **model_args,
             )
 
+    @override
+    async def close(self) -> None:
+        await self.client.close()
+
     def is_bedrock(self) -> bool:
         return self.service == "bedrock"
 
