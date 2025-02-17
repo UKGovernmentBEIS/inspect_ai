@@ -216,6 +216,11 @@ class SampleBufferDatabase(SampleBuffer):
         if self._sync_filestore is not None:
             self._sync_filestore.cleanup()
 
+    @classmethod
+    @override
+    def running_tasks(cls, log_dir: str) -> list[str] | None:
+        return None
+
     @override
     def get_samples(
         self, etag: str | None = None
