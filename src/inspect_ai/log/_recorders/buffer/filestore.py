@@ -7,6 +7,7 @@ from zipfile import ZIP_DEFLATED, ZipFile
 from pydantic import BaseModel, Field
 from typing_extensions import override
 
+from inspect_ai._display.core.display import TaskDisplayMetric
 from inspect_ai._util.constants import DEFAULT_LOG_SHARED, EVAL_LOG_FORMAT
 from inspect_ai._util.file import FileSystem, basename, dirname, file, filesystem
 from inspect_ai._util.json import to_json_safe, to_json_str_safe
@@ -36,6 +37,7 @@ class SampleManifest(BaseModel):
 
 
 class Manifest(BaseModel):
+    metrics: list[TaskDisplayMetric] = Field(default_factory=list)
     samples: list[SampleManifest] = Field(default_factory=list)
     segments: list[Segment] = Field(default_factory=list)
 
@@ -129,6 +131,7 @@ class SampleBufferFilestore(SampleBuffer):
         # provide samples + etag from the manifest
         return Samples(
             samples=[sm.summary for sm in manifest.samples],
+            metrics=manifest.metrics,
             refresh=self.update_interval,
             etag=fs_etag,
         )
