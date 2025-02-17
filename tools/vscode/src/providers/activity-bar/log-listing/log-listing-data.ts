@@ -83,7 +83,7 @@ export class LogTreeDataProvider
     // See whether there cached server data available
     // (this will just prevent flashing of the icons when
     // cached data is available)
-    let cached;
+    let cached = undefined;
     if (uri) {
       cached = this.queueProcessor_.cachedValue(uri?.toString());
       element.iconPath = element.iconPath || cached?.iconPath || defaultIconPath;
@@ -138,7 +138,7 @@ export class LogTreeDataProvider
       };
     }
 
-    if (!element.iconPath) {
+    if (!cached) {
       this.queueProcessor_.enqueueElement(element);
     }
 
