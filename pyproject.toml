@@ -125,6 +125,7 @@ dev = [
     "mypy",
     "nbformat",
     "openai",
+    "pip",
     "pre-commit",
     "pylint",
     "pytest",
