@@ -74,15 +74,11 @@ from inspect_ai.tool import (
     ToolParams,
 )
 
-# TODO: vertex api
-# https://cloud.google.com/vertex-ai/generative-ai/docs/gemini-v2
-# express mode: https://cloud.google.com/vertex-ai/generative-ai/docs/start/express-mode/overview#workflow
-
-
 logger = getLogger(__name__)
 
 
 GOOGLE_API_KEY = "GOOGLE_API_KEY"
+VERTEX_API_KEY = "VERTEX_API_KEY"
 
 SAFETY_SETTINGS = "safety_settings"
 DEFAULT_SAFETY_SETTINGS = {
@@ -109,7 +105,7 @@ class GoogleGenAIAPI(ModelAPI):
             model_name=model_name,
             base_url=base_url,
             api_key=api_key,
-            api_key_vars=[GOOGLE_API_KEY],
+            api_key_vars=[GOOGLE_API_KEY, VERTEX_API_KEY],
             config=config,
         )
 
@@ -121,17 +117,49 @@ class GoogleGenAIAPI(ModelAPI):
             )
             del model_args[SAFETY_SETTINGS]
 
+        # extract any service prefix from model name
+        parts = model_name.split("/")
+        if len(parts) > 1:
+            self.service: str | None = parts[0]
+            model_name = "/".join(parts[1:])
+        else:
+            self.service = None
+
+        # vertex can also be forced by the GOOGLE_GENAI_USE_VERTEX_AI flag
+        if self.service is None:
+            if os.environ.get("GOOGLE_GENAI_USE_VERTEXAI", "").lower() == "true":
+                self.service = "vertex"
+
+        # ensure we haven't specified an invalid service
+        if self.service is not None and self.service != "vertex":
+            raise RuntimeError(
+                f"Invalid service name for google: {self.service}. "
+                + "Currently 'vertex' is the only supported service."
+            )
+
+        # NOTE: when using vertex the GOOGLE_CLOUD_PROJECT and GOOGLE_CLOUD_LOCATION
+        # environment variables should be set, OR the 'project' and 'location'
+        # should be passed within the model_args
+        # https://cloud.google.com/vertex-ai/generative-ai/docs/gemini-v2
+
+        # resolve api key
         if not self.api_key:
-            self.api_key = os.environ.get(GOOGLE_API_KEY)
+            if self.is_vertex():
+                # express mode uses just an environment variable no project/location
+                # https://cloud.google.com/vertex-ai/generative-ai/docs/start/express-mode/
+                self.api_key = os.environ.get(VERTEX_API_KEY, None)
+            else:
+                self.api_key = os.environ.get(GOOGLE_API_KEY, None)
 
-        http_options = {"base_url": base_url}
-        if "thinking" in self.model_name:
-            http_options["api_version"] = "v1alpha"
+        # google allows a custom base_url but vertex express mode does dont
+        if not self.is_vertex():
+            base_url = model_base_url(base_url, "GOOGLE_BASE_URL")
 
-        base_url = model_base_url(base_url, "GOOGLE_BASE_URL")
+        # create client
         self.client = Client(
+            vertexai=self.is_vertex(),
             api_key=self.api_key,
-            http_options=http_options,
+            http_options={"base_url": base_url},
             **model_args,
         )
 
@@ -139,6 +167,9 @@ class GoogleGenAIAPI(ModelAPI):
     async def close(self) -> None:
         # GenerativeModel uses a cached/shared client so there is no 'close'
         pass
+
+    def is_vertex(self) -> bool:
+        return self.service == "vertex"
 
     async def generate(
         self,
