@@ -5,6 +5,7 @@ import { EvalSample } from "../types/log";
 import { SampleDisplay } from "./SampleDisplay";
 import { SamplesDescriptor } from "./descriptor/samplesDescriptor";
 
+import { ScoreLabel } from "../types";
 import styles from "./InlineSampleDisplay.module.css";
 
 interface InlineSampleDisplayProps {
@@ -12,6 +13,7 @@ interface InlineSampleDisplayProps {
   sampleStatus: string;
   sampleError?: Error;
   sample?: EvalSample;
+  score?: ScoreLabel;
   sampleDescriptor: SamplesDescriptor;
   selectedTab?: string;
   setSelectedTab: (tab: string) => void;
@@ -24,6 +26,7 @@ interface InlineSampleDisplayProps {
 export const InlineSampleDisplay: FC<InlineSampleDisplayProps> = ({
   id,
   sample,
+  score,
   sampleStatus,
   sampleError,
   sampleDescriptor,
@@ -41,6 +44,7 @@ export const InlineSampleDisplay: FC<InlineSampleDisplayProps> = ({
           <SampleDisplay
             id={id}
             sample={sample}
+            score={score}
             sampleDescriptor={sampleDescriptor}
             selectedTab={selectedTab}
             setSelectedTab={setSelectedTab}

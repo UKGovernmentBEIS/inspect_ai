@@ -3,6 +3,7 @@ import { LargeModal, ModalTool, ModalTools } from "../components/LargeModal";
 
 import { FC, Ref, RefObject, useCallback, useMemo, useRef } from "react";
 import { ErrorPanel } from "../components/ErrorPanel";
+import { ScoreLabel } from "../types";
 import { EvalSample } from "../types/log";
 import { SampleDisplay } from "./SampleDisplay";
 import { SamplesDescriptor } from "./descriptor/samplesDescriptor";
@@ -13,6 +14,7 @@ interface SampleDialogProps {
   sampleStatus: string;
   sampleError?: Error;
   sample?: EvalSample;
+  score?: ScoreLabel;
   sampleDescriptor: SamplesDescriptor;
   selectedTab?: string;
   setSelectedTab: (tab: string) => void;
@@ -31,6 +33,7 @@ export const SampleDialog: FC<SampleDialogProps> = ({
   id,
   title,
   sample,
+  score,
   sampleDescriptor,
   nextSample,
   prevSample,
@@ -111,6 +114,7 @@ export const SampleDialog: FC<SampleDialogProps> = ({
         <SampleDisplay
           id={id}
           sample={sample}
+          score={score}
           sampleDescriptor={sampleDescriptor}
           selectedTab={selectedTab}
           setSelectedTab={setSelectedTab}

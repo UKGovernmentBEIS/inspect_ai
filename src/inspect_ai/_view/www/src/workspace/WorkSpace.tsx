@@ -220,6 +220,7 @@ const useResolvedTabs = ({
               samples={samples}
               sampleMode={sampleMode}
               epochs={epochs || 1}
+              score={score}
               groupBy={groupBy}
               groupByOrder={groupByOrder}
               selectedSampleIndex={selectedSampleIndex}
