@@ -8,8 +8,8 @@ import {
   LogFiles,
   LogFilesFetchResponse,
   LogViewAPI,
+  PendingSampleResponse,
   SampleData,
-  SampleSummary,
 } from "./types";
 
 interface LogInfo {
@@ -120,28 +120,24 @@ function simpleHttpAPI(logInfo: LogInfo): LogViewAPI {
     download_file,
     open_log_file,
     eval_pending_samples: async function (
-      log_file: string,
-    ): Promise<SampleSummary[]> {
-      const url = "";
-      const summaries = await fetchFile<SampleSummary[]>(
-        url,
-        (text: string): Promise<SampleSummary[]> => {
-          return Promise.resolve([]);
-        },
-        (response: Response) => {
-          return true;
-        },
-      );
-      return summaries || [];
+      _log_file: string,
+      _etag?: string,
+    ): Promise<PendingSampleResponse> {
+      // There are never pending samples for this api
+      // TODO: Signal to not bother polling at all
+      return {
+        status: "NotFound",
+      };
     },
     eval_log_sample_data: function (
-      log_file: string,
-      id: string | number,
-      epoch: number,
-      last_event?: number,
-      last_attachment?: number,
-    ): Promise<SampleData> {
-      throw new Error("Function not implemented.");
+      _log_file: string,
+      _id: string | number,
+      _epoch: number,
+      _last_event?: number,
+      _last_attachment?: number,
+    ): Promise<SampleData | undefined> {
+      // There isn't partial sample data for this api
+      return Promise.resolve(undefined);
     },
   };
 }

@@ -25,6 +25,17 @@ export interface EvalSummary {
   sampleSummaries: SampleSummary[];
 }
 
+export interface PendingSampleResponse {
+  pendingSamples?: PendingSamples;
+  status: "NotModified" | "NotFound" | "OK";
+}
+
+export interface PendingSamples {
+  samples: SampleSummary[];
+  refresh: number;
+  etag?: string;
+}
+
 export interface SampleData {
   events: EventData;
   attachments: AttachmentData;
@@ -99,14 +110,17 @@ export interface LogViewAPI {
     filecontents: string | Blob | ArrayBuffer | ArrayBufferView,
   ) => Promise<void>;
   open_log_file: (logFile: string, log_dir: string) => Promise<void>;
-  eval_pending_samples: (log_file: string) => Promise<SampleSummary[]>;
+  eval_pending_samples: (
+    log_file: string,
+    etag?: string,
+  ) => Promise<PendingSampleResponse>;
   eval_log_sample_data: (
     log_file: string,
     id: string | number,
     epoch: number,
     last_event?: number,
     last_attachment?: number,
-  ) => Promise<SampleData>;
+  ) => Promise<SampleData | undefined>;
 }
 
 export interface ClientAPI {
@@ -125,14 +139,17 @@ export interface ClientAPI {
   ) => Promise<void>;
   open_log_file: (log_file: string, log_dir: string) => Promise<void>;
 
-  get_log_pending_samples: (log_file: string) => Promise<SampleSummary[]>;
+  get_log_pending_samples: (
+    log_file: string,
+    etag?: string,
+  ) => Promise<PendingSampleResponse>;
   get_log_sample_data: (
     log_file: string,
     id: string | number,
     epoch: number,
     last_event?: number,
     last_attachment?: number,
-  ) => Promise<SampleData>;
+  ) => Promise<SampleData | undefined>;
 }
 
 export interface FetchResponse {
