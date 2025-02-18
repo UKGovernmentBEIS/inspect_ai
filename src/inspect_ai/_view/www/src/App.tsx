@@ -333,14 +333,20 @@ export const App: FC<AppProps> = ({
     return result;
   }, [selectedLogSummary, sampleSummaries, scores]);
 
+  const currentScore = useMemo(() => {
+    if (score) {
+      return score;
+    } else if (selectedLogSummary) {
+      return getDefaultScorer(selectedLogSummary, sampleSummaries);
+    }
+  }, [selectedLogSummary, sampleSummaries]);
+
   const samplesDescriptor = useMemo(() => {
     if (!selectedLogSummary) {
       return undefined;
     }
-    const evalScore =
-      score || getDefaultScorer(selectedLogSummary, sampleSummaries);
     const descriptor = evalDescriptor
-      ? createSamplesDescriptor(sampleSummaries, evalDescriptor, evalScore)
+      ? createSamplesDescriptor(sampleSummaries, evalDescriptor, currentScore)
       : undefined;
     return descriptor;
   }, [evalDescriptor, score, selectedLogSummary, sampleSummaries]);
@@ -365,7 +371,7 @@ export const App: FC<AppProps> = ({
 
     // Sort the samples
     if (samplesDescriptor) {
-      const sorted = sortSamples(sort, filtered, score);
+      const sorted = sortSamples(sort, filtered, samplesDescriptor, score);
       return sorted;
     } else {
       return filtered;
@@ -1023,7 +1029,7 @@ export const App: FC<AppProps> = ({
             setEpoch={setEpoch}
             filter={filter}
             setFilter={setFilter}
-            score={score}
+            score={currentScore}
             setScore={setScore}
             scores={scores || []}
             sampleScrollPositionRef={sampleScrollPosition}
