@@ -1,10 +1,10 @@
 var __defProp = Object.defineProperty;
 var __getOwnPropNames = Object.getOwnPropertyNames;
-var __defNormalProp = (obj, key2, value2) => key2 in obj ? __defProp(obj, key2, { enumerable: true, configurable: true, writable: true, value: value2 }) : obj[key2] = value2;
-var __commonJS = (cb, mod2) => function __require() {
-  return mod2 || (0, cb[__getOwnPropNames(cb)[0]])((mod2 = { exports: {} }).exports, mod2), mod2.exports;
+var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
+var __commonJS = (cb, mod) => function __require() {
+  return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
 };
-var __publicField = (obj, key2, value2) => __defNormalProp(obj, typeof key2 !== "symbol" ? key2 + "" : key2, value2);
+var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
 var require_assets = __commonJS({
   "assets/index.js"(exports) {
     (function polyfill() {
@@ -1683,7 +1683,7 @@ var require_assets = __commonJS({
       var valueField = isCheckable(node2) ? "checked" : "value", descriptor = Object.getOwnPropertyDescriptor(
         node2.constructor.prototype,
         valueField
-      ), currentValue2 = "" + node2[valueField];
+      ), currentValue = "" + node2[valueField];
       if (!node2.hasOwnProperty(valueField) && "undefined" !== typeof descriptor && "function" === typeof descriptor.get && "function" === typeof descriptor.set) {
         var get2 = descriptor.get, set = descriptor.set;
         Object.defineProperty(node2, valueField, {
@@ -1692,7 +1692,7 @@ var require_assets = __commonJS({
             return get2.call(this);
           },
           set: function(value2) {
-            currentValue2 = "" + value2;
+            currentValue = "" + value2;
             set.call(this, value2);
           }
         });
@@ -1701,10 +1701,10 @@ var require_assets = __commonJS({
         });
         return {
           getValue: function() {
-            return currentValue2;
+            return currentValue;
           },
           setValue: function(value2) {
-            currentValue2 = "" + value2;
+            currentValue = "" + value2;
           },
           stopTracking: function() {
             node2._valueTracker = null;
@@ -3901,12 +3901,12 @@ var require_assets = __commonJS({
       }
     }
     function runActionStateAction(actionQueue, node2) {
-      var action = node2.action, payload = node2.payload, prevState2 = actionQueue.state;
+      var action = node2.action, payload = node2.payload, prevState = actionQueue.state;
       if (node2.isTransition) {
         var prevTransition = ReactSharedInternals.T, currentTransition = {};
         ReactSharedInternals.T = currentTransition;
         try {
-          var returnValue = action(prevState2, payload), onStartTransitionFinish = ReactSharedInternals.S;
+          var returnValue = action(prevState, payload), onStartTransitionFinish = ReactSharedInternals.S;
           null !== onStartTransitionFinish && onStartTransitionFinish(currentTransition, returnValue);
           handleActionReturnValue(actionQueue, node2, returnValue);
         } catch (error2) {
@@ -3916,7 +3916,7 @@ var require_assets = __commonJS({
         }
       } else
         try {
-          prevTransition = action(prevState2, payload), handleActionReturnValue(actionQueue, node2, prevTransition);
+          prevTransition = action(prevState, payload), handleActionReturnValue(actionQueue, node2, prevTransition);
         } catch (error$60) {
           onActionError(actionQueue, node2, error$60);
         }
@@ -4136,19 +4136,19 @@ var require_assets = __commonJS({
     function updateCallback(callback, deps) {
       var hook = updateWorkInProgressHook();
       deps = void 0 === deps ? null : deps;
-      var prevState2 = hook.memoizedState;
-      if (null !== deps && areHookInputsEqual(deps, prevState2[1]))
-        return prevState2[0];
+      var prevState = hook.memoizedState;
+      if (null !== deps && areHookInputsEqual(deps, prevState[1]))
+        return prevState[0];
       hook.memoizedState = [callback, deps];
       return callback;
     }
     function updateMemo(nextCreate, deps) {
       var hook = updateWorkInProgressHook();
       deps = void 0 === deps ? null : deps;
-      var prevState2 = hook.memoizedState;
-      if (null !== deps && areHookInputsEqual(deps, prevState2[1]))
-        return prevState2[0];
-      prevState2 = nextCreate();
+      var prevState = hook.memoizedState;
+      if (null !== deps && areHookInputsEqual(deps, prevState[1]))
+        return prevState[0];
+      prevState = nextCreate();
       if (shouldDoubleInvokeUserFnsInHooksDEV) {
         setIsStrictModeForDevtools(true);
         try {
@@ -4157,8 +4157,8 @@ var require_assets = __commonJS({
           setIsStrictModeForDevtools(false);
         }
       }
-      hook.memoizedState = [prevState2, deps];
-      return prevState2;
+      hook.memoizedState = [prevState, deps];
+      return prevState;
     }
     function mountDeferredValueImpl(hook, value2, initialValue) {
       if (void 0 === initialValue || 0 !== (renderLanes & 1073741824))
@@ -4169,16 +4169,16 @@ var require_assets = __commonJS({
       workInProgressRootSkippedLanes |= hook;
       return initialValue;
     }
-    function updateDeferredValueImpl(hook, prevValue2, value2, initialValue) {
-      if (objectIs(value2, prevValue2)) return value2;
+    function updateDeferredValueImpl(hook, prevValue, value2, initialValue) {
+      if (objectIs(value2, prevValue)) return value2;
       if (null !== currentTreeHiddenStackCursor.current)
-        return hook = mountDeferredValueImpl(hook, value2, initialValue), objectIs(hook, prevValue2) || (didReceiveUpdate = true), hook;
+        return hook = mountDeferredValueImpl(hook, value2, initialValue), objectIs(hook, prevValue) || (didReceiveUpdate = true), hook;
       if (0 === (renderLanes & 42))
         return didReceiveUpdate = true, hook.memoizedState = value2;
       hook = requestDeferredLane();
       currentlyRenderingFiber$1.lanes |= hook;
       workInProgressRootSkippedLanes |= hook;
-      return prevValue2;
+      return prevValue;
     }
     function startTransition(fiber, queue, pendingState, finishedState, callback) {
       var previousPriority = ReactDOMSharedInternals.p;
@@ -4967,11 +4967,11 @@ var require_assets = __commonJS({
       );
     }
     function updateOffscreenComponent(current, workInProgress2, renderLanes2) {
-      var nextProps = workInProgress2.pendingProps, nextChildren = nextProps.children, nextIsDetached = 0 !== (workInProgress2.stateNode._pendingVisibility & 2), prevState2 = null !== current ? current.memoizedState : null;
+      var nextProps = workInProgress2.pendingProps, nextChildren = nextProps.children, nextIsDetached = 0 !== (workInProgress2.stateNode._pendingVisibility & 2), prevState = null !== current ? current.memoizedState : null;
       markRef(current, workInProgress2);
       if ("hidden" === nextProps.mode || nextIsDetached) {
         if (0 !== (workInProgress2.flags & 128)) {
-          nextProps = null !== prevState2 ? prevState2.baseLanes | renderLanes2 : renderLanes2;
+          nextProps = null !== prevState ? prevState.baseLanes | renderLanes2 : renderLanes2;
           if (null !== current) {
             nextChildren = workInProgress2.child = current.child;
             for (nextIsDetached = 0; null !== nextChildren; )
@@ -4988,17 +4988,17 @@ var require_assets = __commonJS({
         if (0 !== (renderLanes2 & 536870912))
           workInProgress2.memoizedState = { baseLanes: 0, cachePool: null }, null !== current && pushTransition(
             workInProgress2,
-            null !== prevState2 ? prevState2.cachePool : null
-          ), null !== prevState2 ? pushHiddenContext(workInProgress2, prevState2) : reuseHiddenContextOnStack(), pushOffscreenSuspenseHandler(workInProgress2);
+            null !== prevState ? prevState.cachePool : null
+          ), null !== prevState ? pushHiddenContext(workInProgress2, prevState) : reuseHiddenContextOnStack(), pushOffscreenSuspenseHandler(workInProgress2);
         else
           return workInProgress2.lanes = workInProgress2.childLanes = 536870912, deferHiddenOffscreenComponent(
             current,
             workInProgress2,
-            null !== prevState2 ? prevState2.baseLanes | renderLanes2 : renderLanes2,
+            null !== prevState ? prevState.baseLanes | renderLanes2 : renderLanes2,
             renderLanes2
           );
       } else
-        null !== prevState2 ? (pushTransition(workInProgress2, prevState2.cachePool), pushHiddenContext(workInProgress2, prevState2), reuseSuspenseHandlerOnStack(), workInProgress2.memoizedState = null) : (null !== current && pushTransition(workInProgress2, null), reuseHiddenContextOnStack(), reuseSuspenseHandlerOnStack());
+        null !== prevState ? (pushTransition(workInProgress2, prevState.cachePool), pushHiddenContext(workInProgress2, prevState), reuseSuspenseHandlerOnStack(), workInProgress2.memoizedState = null) : (null !== current && pushTransition(workInProgress2, null), reuseHiddenContextOnStack(), reuseSuspenseHandlerOnStack());
       reconcileChildren(current, workInProgress2, nextChildren, renderLanes2);
       return workInProgress2.child;
     }
@@ -9774,7 +9774,7 @@ var require_assets = __commonJS({
     }
     function noop$1() {
     }
-    function setProp(domElement, tag, key2, value2, props, prevValue2) {
+    function setProp(domElement, tag, key2, value2, props, prevValue) {
       switch (key2) {
         case "children":
           "string" === typeof value2 ? "body" === tag || "textarea" === tag && "" === value2 || setTextContent(domElement, value2) : ("number" === typeof value2 || "bigint" === typeof value2) && "body" !== tag && setTextContent(domElement, "" + value2);
@@ -9793,7 +9793,7 @@ var require_assets = __commonJS({
           setValueForKnownAttribute(domElement, key2, value2);
           break;
         case "style":
-          setValueForStyles(domElement, value2, prevValue2);
+          setValueForStyles(domElement, value2, prevValue);
           break;
         case "data":
           if ("object" !== tag) {
@@ -9822,7 +9822,7 @@ var require_assets = __commonJS({
             );
             break;
           } else
-            "function" === typeof prevValue2 && ("formAction" === key2 ? ("input" !== tag && setProp(domElement, tag, "name", props.name, props, null), setProp(
+            "function" === typeof prevValue && ("formAction" === key2 ? ("input" !== tag && setProp(domElement, tag, "name", props.name, props, null), setProp(
               domElement,
               tag,
               "formEncType",
@@ -10035,10 +10035,10 @@ var require_assets = __commonJS({
             key2 = aliases.get(key2) || key2, setValueForAttribute(domElement, key2, value2);
       }
     }
-    function setPropOnCustomElement(domElement, tag, key2, value2, props, prevValue2) {
+    function setPropOnCustomElement(domElement, tag, key2, value2, props, prevValue) {
       switch (key2) {
         case "style":
-          setValueForStyles(domElement, value2, prevValue2);
+          setValueForStyles(domElement, value2, prevValue);
           break;
         case "dangerouslySetInnerHTML":
           if (null != value2) {
@@ -10074,8 +10074,8 @@ var require_assets = __commonJS({
         default:
           if (!registrationNameDependencies.hasOwnProperty(key2))
             a: {
-              if ("o" === key2[0] && "n" === key2[1] && (props = key2.endsWith("Capture"), tag = key2.slice(2, props ? key2.length - 7 : void 0), prevValue2 = domElement[internalPropsKey] || null, prevValue2 = null != prevValue2 ? prevValue2[key2] : null, "function" === typeof prevValue2 && domElement.removeEventListener(tag, prevValue2, props), "function" === typeof value2)) {
-                "function" !== typeof prevValue2 && null !== prevValue2 && (key2 in domElement ? domElement[key2] = null : domElement.hasAttribute(key2) && domElement.removeAttribute(key2));
+              if ("o" === key2[0] && "n" === key2[1] && (props = key2.endsWith("Capture"), tag = key2.slice(2, props ? key2.length - 7 : void 0), prevValue = domElement[internalPropsKey] || null, prevValue = null != prevValue ? prevValue[key2] : null, "function" === typeof prevValue && domElement.removeEventListener(tag, prevValue, props), "function" === typeof value2)) {
+                "function" !== typeof prevValue && null !== prevValue && (key2 in domElement ? domElement[key2] = null : domElement.hasAttribute(key2) && domElement.removeAttribute(key2));
                 domElement.addEventListener(tag, value2, props);
                 break a;
               }
@@ -13207,8 +13207,8 @@ var require_assets = __commonJS({
           Element.prototype.matches = Element.prototype.msMatchesSelector || Element.prototype.webkitMatchesSelector;
         }
         var LOADING_MESSAGE = "Loading…";
-        var FAILURE_MESSAGE = function(status2, message2) {
-          return "✖ Error " + status2 + " while fetching file: " + message2;
+        var FAILURE_MESSAGE = function(status, message2) {
+          return "✖ Error " + status + " while fetching file: " + message2;
         };
         var FAILURE_EMPTY_MESSAGE = "✖ Error: File does not exist or is empty";
         var EXTENSIONS = {
@@ -13873,8 +13873,8 @@ var require_assets = __commonJS({
       config: "bi bi-gear",
       confirm: "bi bi-check",
       copy: "bi bi-copy",
-      epoch: (epoch2) => {
-        return `bi bi-${epoch2}-circle`;
+      epoch: (epoch) => {
+        return `bi bi-${epoch}-circle`;
       },
       error: "bi bi-exclamation-circle",
       "expand-all": "bi bi-arrows-expand",
@@ -16775,13 +16775,13 @@ var require_assets = __commonJS({
       False: false,
       None: null
     };
-    const scoreVariables = (evalDescriptor2, sampleScores) => {
-      const bannedShortNames = bannedShortScoreNames(evalDescriptor2.scores);
+    const scoreVariables = (evalDescriptor, sampleScores) => {
+      const bannedShortNames = bannedShortScoreNames(evalDescriptor.scores);
       const variables = {};
       const addScore = (variableName, scoreLabel, value2) => {
         const coercedValue = coerceValue(
           value2,
-          evalDescriptor2.scoreDescriptor(scoreLabel)
+          evalDescriptor.scoreDescriptor(scoreLabel)
         );
         if (isFilteringSupportedForValue(coercedValue)) {
           variables[variableName] = coercedValue;
@@ -16805,16 +16805,16 @@ var require_assets = __commonJS({
         has_error: !!sample2.error
       };
     };
-    const scoreFilterItems = (evalDescriptor2) => {
+    const scoreFilterItems = (evalDescriptor) => {
       const items = [];
-      const bannedShortNames = bannedShortScoreNames(evalDescriptor2.scores);
+      const bannedShortNames = bannedShortScoreNames(evalDescriptor.scores);
       const valueToString = (value2) => typeof value2 === "string" ? `"${value2}"` : String(value2);
       const addScore = (scoreLabel, shortName, qualifiedName) => {
         const canonicalName = shortName || qualifiedName;
         if (!canonicalName) {
           throw new Error("Unable to create a canonical name for a score");
         }
-        const descriptor = evalDescriptor2.scoreDescriptor(scoreLabel);
+        const descriptor = evalDescriptor.scoreDescriptor(scoreLabel);
         const scoreType = descriptor == null ? void 0 : descriptor.scoreType;
         if (!descriptor) {
           items.push({
@@ -16853,7 +16853,7 @@ categories: ${categories.join(" ")}`;
           scoreType
         });
       };
-      for (const { name: name2, scorer } of evalDescriptor2.scores) {
+      for (const { name: name2, scorer } of evalDescriptor.scores) {
         const hasShortName = name2 === scorer || !bannedShortNames.has(name2);
         const hasQualifiedName = name2 !== scorer;
         const shortName = hasShortName ? name2 : void 0;
@@ -16862,7 +16862,7 @@ categories: ${categories.join(" ")}`;
       }
       return items;
     };
-    const filterExpression = (evalDescriptor2, sample2, filterValue) => {
+    const filterExpression = (evalDescriptor, sample2, filterValue) => {
       var _a2, _b2;
       try {
         const inputContains = (regex2) => {
@@ -16886,7 +16886,7 @@ categories: ${categories.join(" ")}`;
         const mySampleVariables = sampleVariables(sample2);
         const vars = {
           ...mySampleVariables,
-          ...scoreVariables(evalDescriptor2, sample2.scores)
+          ...scoreVariables(evalDescriptor, sample2.scores)
         };
         const resolveVariable = (name2, get2) => {
           if (name2 in mySampleVariables) {
@@ -16950,16 +16950,16 @@ categories: ${categories.join(" ")}`;
         };
       }
     };
-    const filterSamples = (evalDescriptor2, samples, filterValue) => {
+    const filterSamples = (evalDescriptor, samples, filterValue) => {
       var error2 = void 0;
       const result2 = samples.filter((sample2) => {
         if (filterValue) {
-          const { matches, error: sampleError2 } = filterExpression(
-            evalDescriptor2,
+          const { matches, error: sampleError } = filterExpression(
+            evalDescriptor,
             sample2,
             filterValue
           );
-          error2 || (error2 = sampleError2);
+          error2 || (error2 = sampleError);
           return matches;
         } else {
           return true;
@@ -16996,7 +16996,7 @@ categories: ${categories.join(" ")}`;
       flex: flex$1,
       label: label$5
     };
-    const SortFilter = ({ sort: sort2, setSort: setSort2, epochs }) => {
+    const SortFilter = ({ sort, setSort, epochs }) => {
       const options2 = [
         { label: "sample asc", val: kSampleAscVal },
         { label: "sample desc", val: kSampleDescVal }
@@ -17038,10 +17038,10 @@ categories: ${categories.join(" ")}`;
           {
             className: clsx("form-select", "form-select-sm", "text-size-smaller"),
             "aria-label": ".sort-filter-label",
-            value: sort2,
+            value: sort,
             onChange: (e) => {
               const sel = e.target;
-              setSort2(sel.value);
+              setSort(sel.value);
             },
             children: options2.map((option) => {
               return /* @__PURE__ */ jsxRuntimeExports.jsx("option", { value: option.val, children: option.label }, option.val);
@@ -17050,11 +17050,11 @@ categories: ${categories.join(" ")}`;
         )
       ] });
     };
-    const byEpoch = (sort2) => {
-      return sort2 === kEpochAscVal || sort2 === kEpochDescVal;
+    const byEpoch = (sort) => {
+      return sort === kEpochAscVal || sort === kEpochDescVal;
     };
-    const bySample = (sort2) => {
-      return sort2 === kSampleAscVal || sort2 === kSampleDescVal;
+    const bySample = (sort) => {
+      return sort === kSampleAscVal || sort === kSampleDescVal;
     };
     const sortId = (a, b) => {
       if (isNumeric(a.id) && isNumeric(b.id)) {
@@ -17063,9 +17063,9 @@ categories: ${categories.join(" ")}`;
         return String(a.id).localeCompare(String(b.id));
       }
     };
-    const sortSamples = (sort2, samples, samplesDescriptor2) => {
+    const sortSamples = (sort, samples, samplesDescriptor) => {
       const sortedSamples = samples.sort((a, b) => {
-        switch (sort2) {
+        switch (sort) {
           case kSampleAscVal: {
             const result2 = sortId(a, b);
             if (result2 !== 0) {
@@ -17099,23 +17099,23 @@ categories: ${categories.join(" ")}`;
             }
           }
           case kScoreAscVal: {
-            const aScore = samplesDescriptor2.selectedScore(a);
-            const bScore = samplesDescriptor2.selectedScore(b);
-            if (aScore === void 0 || bScore === void 0 || samplesDescriptor2.selectedScoreDescriptor == void 0) {
+            const aScore = samplesDescriptor.selectedScore(a);
+            const bScore = samplesDescriptor.selectedScore(b);
+            if (aScore === void 0 || bScore === void 0 || samplesDescriptor.selectedScoreDescriptor == void 0) {
               return 0;
             }
-            return samplesDescriptor2.selectedScoreDescriptor.compare(
+            return samplesDescriptor.selectedScoreDescriptor.compare(
               aScore,
               bScore
             );
           }
           case kScoreDescVal: {
-            const aScore = samplesDescriptor2.selectedScore(a);
-            const bScore = samplesDescriptor2.selectedScore(b);
-            if (aScore === void 0 || bScore === void 0 || samplesDescriptor2.selectedScoreDescriptor == void 0) {
+            const aScore = samplesDescriptor.selectedScore(a);
+            const bScore = samplesDescriptor.selectedScore(b);
+            if (aScore === void 0 || bScore === void 0 || samplesDescriptor.selectedScoreDescriptor == void 0) {
               return 0;
             }
-            return samplesDescriptor2.selectedScoreDescriptor.compare(
+            return samplesDescriptor.selectedScoreDescriptor.compare(
               aScore,
               bScore
             );
@@ -17177,7 +17177,7 @@ categories: ${categories.join(" ")}`;
     };
     const LogDirectoryTitleView = ({
       log_dir,
-      offcanvas: offcanvas2
+      offcanvas
     }) => {
       if (log_dir) {
         const displayDir = prettyDir(log_dir);
@@ -17198,12 +17198,12 @@ categories: ${categories.join(" ")}`;
             {
               title: displayDir,
               className: clsx("text-size-base", styles$15.dirname),
-              children: offcanvas2 ? displayDir : ""
+              children: offcanvas ? displayDir : ""
             }
           )
         ] });
       } else {
-        return /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx("text-size-title"), children: offcanvas2 ? "Log History" : "" });
+        return /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx("text-size-title"), children: offcanvas ? "Log History" : "" });
       }
     };
     const prettyDir = (path) => {
@@ -17480,29 +17480,29 @@ categories: ${categories.join(" ")}`;
       ] });
     };
     const Sidebar = ({
-      logs: logs2,
-      logHeaders: logHeaders2,
-      offcanvas: offcanvas2,
-      setOffcanvas: setOffcanvas2,
+      logs,
+      logHeaders,
+      offcanvas,
+      setOffcanvas,
       loading,
       selectedIndex,
       onSelectedIndexChanged
     }) => {
       const handleToggle = () => {
-        setOffcanvas2(!offcanvas2);
+        setOffcanvas(!offcanvas);
       };
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
-        offcanvas2 && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$14.backdrop, onClick: handleToggle }),
+        offcanvas && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$14.backdrop, onClick: handleToggle }),
         /* @__PURE__ */ jsxRuntimeExports.jsxs(
           "div",
           {
             className: clsx(
               styles$14.sidebar,
-              offcanvas2 ? styles$14.sidebarOpen : styles$14.sidebarClosed
+              offcanvas ? styles$14.sidebarOpen : styles$14.sidebarClosed
             ),
             children: [
               /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$14.header, children: [
-                /* @__PURE__ */ jsxRuntimeExports.jsx(LogDirectoryTitleView, { log_dir: logs2.log_dir, offcanvas: offcanvas2 }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx(LogDirectoryTitleView, { log_dir: logs.log_dir, offcanvas }),
                 /* @__PURE__ */ jsxRuntimeExports.jsx(
                   "button",
                   {
@@ -17515,8 +17515,8 @@ categories: ${categories.join(" ")}`;
                 )
               ] }),
               /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$14.progress, children: /* @__PURE__ */ jsxRuntimeExports.jsx(ProgressBar, { animating: loading }) }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx("ul", { className: clsx("list-group", styles$14.list), children: logs2.files.map((file, index2) => {
-                const logHeader = logHeaders2[file.name];
+              /* @__PURE__ */ jsxRuntimeExports.jsx("ul", { className: clsx("list-group", styles$14.list), children: logs.files.map((file, index2) => {
+                const logHeader = logHeaders[file.name];
                 return /* @__PURE__ */ jsxRuntimeExports.jsx(
                   "li",
                   {
@@ -17561,8 +17561,8 @@ categories: ${categories.join(" ")}`;
     };
     const EpochFilter = ({
       epochs,
-      epoch: epoch2,
-      setEpoch: setEpoch2
+      epoch,
+      setEpoch
     }) => {
       const options2 = ["all"];
       for (let i2 = 1; i2 <= epochs; i2++) {
@@ -17570,7 +17570,7 @@ categories: ${categories.join(" ")}`;
       }
       const handleEpochChange = (e) => {
         const sel = e.target;
-        setEpoch2(sel.value);
+        setEpoch(sel.value);
       };
       return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$$.container, children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -17591,7 +17591,7 @@ categories: ${categories.join(" ")}`;
           {
             className: clsx("form-select", "form-select-sm", "text-size-smaller"),
             "aria-label": ".epoch-filter-label",
-            value: epoch2,
+            value: epoch,
             onChange: handleEpochChange,
             children: options2.map((option) => {
               return /* @__PURE__ */ jsxRuntimeExports.jsx("option", { value: option, children: option });
@@ -18565,7 +18565,7 @@ categories: ${categories.join(" ")}`;
       Create a change set for the given changes, for a document of the
       given length, using `lineSep` as line separator.
       */
-      static of(changes2, length, lineSep) {
+      static of(changes, length, lineSep) {
         let sections = [], inserted = [], pos2 = 0;
         let total = null;
         function flush(force = false) {
@@ -18605,7 +18605,7 @@ categories: ${categories.join(" ")}`;
             pos2 = to2;
           }
         }
-        process2(changes2);
+        process2(changes);
         flush(!total);
         return total;
       }
@@ -19509,11 +19509,11 @@ categories: ${categories.join(" ")}`;
       if (addr & 1)
         return 2;
       let idx = addr >> 1;
-      let status2 = state.status[idx];
-      if (status2 == 4)
+      let status = state.status[idx];
+      if (status == 4)
         throw new Error("Cyclic dependency between fields and/or facets");
-      if (status2 & 2)
-        return status2;
+      if (status & 2)
+        return status;
       state.status[idx] = 4;
       let changed = state.computeSlot(state, state.config.dynamicSlots[idx]);
       return state.status[idx] = 2 | changed;
@@ -19625,9 +19625,9 @@ categories: ${categories.join(" ")}`;
     StateEffect.reconfigure = /* @__PURE__ */ StateEffect.define();
     StateEffect.appendConfig = /* @__PURE__ */ StateEffect.define();
     class Transaction {
-      constructor(startState, changes2, selection, effects, annotations, scrollIntoView2) {
+      constructor(startState, changes, selection, effects, annotations, scrollIntoView2) {
         this.startState = startState;
-        this.changes = changes2;
+        this.changes = changes;
         this.selection = selection;
         this.effects = effects;
         this.annotations = annotations;
@@ -19635,15 +19635,15 @@ categories: ${categories.join(" ")}`;
         this._doc = null;
         this._state = null;
         if (selection)
-          checkSelection(selection, changes2.newLength);
+          checkSelection(selection, changes.newLength);
         if (!annotations.some((a) => a.type == Transaction.time))
           this.annotations = annotations.concat(Transaction.time.of(Date.now()));
       }
       /**
       @internal
       */
-      static create(startState, changes2, selection, effects, annotations, scrollIntoView2) {
-        return new Transaction(startState, changes2, selection, effects, annotations, scrollIntoView2);
+      static create(startState, changes, selection, effects, annotations, scrollIntoView2) {
+        return new Transaction(startState, changes, selection, effects, annotations, scrollIntoView2);
       }
       /**
       The new document produced by the transaction. Contrary to
@@ -19736,18 +19736,18 @@ categories: ${categories.join(" ")}`;
     }
     function mergeTransaction(a, b, sequential) {
       var _a2;
-      let mapForA, mapForB, changes2;
+      let mapForA, mapForB, changes;
       if (sequential) {
         mapForA = b.changes;
         mapForB = ChangeSet.empty(b.changes.length);
-        changes2 = a.changes.compose(b.changes);
+        changes = a.changes.compose(b.changes);
       } else {
         mapForA = b.changes.map(a.changes);
         mapForB = a.changes.mapDesc(b.changes, true);
-        changes2 = a.changes.compose(mapForA);
+        changes = a.changes.compose(mapForA);
       }
       return {
-        changes: changes2,
+        changes,
         selection: b.selection ? b.selection.map(mapForB) : (_a2 = a.selection) === null || _a2 === void 0 ? void 0 : _a2.map(mapForA),
         effects: StateEffect.mapEffects(a.effects, mapForA).concat(StateEffect.mapEffects(b.effects, mapForB)),
         annotations: a.annotations.length ? a.annotations.concat(b.annotations) : b.annotations,
@@ -19766,24 +19766,24 @@ categories: ${categories.join(" ")}`;
         scrollIntoView: !!spec.scrollIntoView
       };
     }
-    function resolveTransaction(state, specs, filter2) {
+    function resolveTransaction(state, specs, filter) {
       let s = resolveTransactionInner(state, specs.length ? specs[0] : {}, state.doc.length);
       if (specs.length && specs[0].filter === false)
-        filter2 = false;
+        filter = false;
       for (let i2 = 1; i2 < specs.length; i2++) {
         if (specs[i2].filter === false)
-          filter2 = false;
+          filter = false;
         let seq = !!specs[i2].sequential;
         s = mergeTransaction(s, resolveTransactionInner(state, specs[i2], seq ? s.changes.newLength : state.doc.length), seq);
       }
       let tr2 = Transaction.create(state, s.changes, s.selection, s.effects, s.annotations, s.scrollIntoView);
-      return extendTransaction(filter2 ? filterTransaction(tr2) : tr2);
+      return extendTransaction(filter ? filterTransaction(tr2) : tr2);
     }
     function filterTransaction(tr2) {
       let state = tr2.startState;
       let result2 = true;
-      for (let filter2 of state.facet(changeFilter)) {
-        let value2 = filter2(tr2);
+      for (let filter of state.facet(changeFilter)) {
+        let value2 = filter(tr2);
         if (value2 === false) {
           result2 = false;
           break;
@@ -19792,16 +19792,16 @@ categories: ${categories.join(" ")}`;
           result2 = result2 === true ? value2 : joinRanges(result2, value2);
       }
       if (result2 !== true) {
-        let changes2, back;
+        let changes, back;
         if (result2 === false) {
           back = tr2.changes.invertedDesc;
-          changes2 = ChangeSet.empty(state.doc.length);
+          changes = ChangeSet.empty(state.doc.length);
         } else {
           let filtered = tr2.changes.filter(result2);
-          changes2 = filtered.changes;
+          changes = filtered.changes;
           back = filtered.filtered.mapDesc(filtered.changes).invertedDesc;
         }
-        tr2 = Transaction.create(state, changes2, tr2.selection && tr2.selection.map(back), StateEffect.mapEffects(tr2.effects, back), tr2.annotations, tr2.scrollIntoView);
+        tr2 = Transaction.create(state, changes, tr2.selection && tr2.selection.map(back), StateEffect.mapEffects(tr2.effects, back), tr2.annotations, tr2.scrollIntoView);
       }
       let filters = state.facet(transactionFilter);
       for (let i2 = filters.length - 1; i2 >= 0; i2--) {
@@ -19962,20 +19962,20 @@ categories: ${categories.join(" ")}`;
       changeByRange(f) {
         let sel = this.selection;
         let result1 = f(sel.ranges[0]);
-        let changes2 = this.changes(result1.changes), ranges = [result1.range];
+        let changes = this.changes(result1.changes), ranges = [result1.range];
         let effects = asArray(result1.effects);
         for (let i2 = 1; i2 < sel.ranges.length; i2++) {
           let result2 = f(sel.ranges[i2]);
-          let newChanges = this.changes(result2.changes), newMapped = newChanges.map(changes2);
+          let newChanges = this.changes(result2.changes), newMapped = newChanges.map(changes);
           for (let j2 = 0; j2 < i2; j2++)
             ranges[j2] = ranges[j2].map(newMapped);
-          let mapBy = changes2.mapDesc(newChanges, true);
+          let mapBy = changes.mapDesc(newChanges, true);
           ranges.push(result2.range.map(mapBy));
-          changes2 = changes2.compose(newMapped);
+          changes = changes.compose(newMapped);
           effects = StateEffect.mapEffects(effects, newMapped).concat(StateEffect.mapEffects(asArray(result2.effects), mapBy));
         }
         return {
-          changes: changes2,
+          changes,
           selection: EditorSelection.create(ranges, sel.mainIndex),
           effects
         };
@@ -20285,23 +20285,23 @@ categories: ${categories.join(" ")}`;
           if (f(this.from[i2] + offset, this.to[i2] + offset, this.value[i2]) === false)
             return false;
       }
-      map(offset, changes2) {
+      map(offset, changes) {
         let value2 = [], from = [], to2 = [], newPos = -1, maxPoint = -1;
         for (let i2 = 0; i2 < this.value.length; i2++) {
           let val = this.value[i2], curFrom = this.from[i2] + offset, curTo = this.to[i2] + offset, newFrom, newTo;
           if (curFrom == curTo) {
-            let mapped = changes2.mapPos(curFrom, val.startSide, val.mapMode);
+            let mapped = changes.mapPos(curFrom, val.startSide, val.mapMode);
             if (mapped == null)
               continue;
             newFrom = newTo = mapped;
             if (val.startSide != val.endSide) {
-              newTo = changes2.mapPos(curFrom, val.endSide);
+              newTo = changes.mapPos(curFrom, val.endSide);
               if (newTo < newFrom)
                 continue;
             }
           } else {
-            newFrom = changes2.mapPos(curFrom, val.startSide);
-            newTo = changes2.mapPos(curTo, val.endSide);
+            newFrom = changes.mapPos(curFrom, val.startSide);
+            newTo = changes.mapPos(curTo, val.endSide);
             if (newFrom > newTo || newFrom == newTo && val.startSide > 0 && val.endSide <= 0)
               continue;
           }
@@ -20365,11 +20365,11 @@ categories: ${categories.join(" ")}`;
       `Y`.)
       */
       update(updateSpec) {
-        let { add: add2 = [], sort: sort2 = false, filterFrom = 0, filterTo = this.length } = updateSpec;
-        let filter2 = updateSpec.filter;
-        if (add2.length == 0 && !filter2)
+        let { add: add2 = [], sort = false, filterFrom = 0, filterTo = this.length } = updateSpec;
+        let filter = updateSpec.filter;
+        if (add2.length == 0 && !filter)
           return this;
-        if (sort2)
+        if (sort)
           add2 = add2.slice().sort(cmpRange);
         if (this.isEmpty)
           return add2.length ? RangeSet.of(add2) : this;
@@ -20380,34 +20380,34 @@ categories: ${categories.join(" ")}`;
             let range = add2[i2++];
             if (!builder.addInner(range.from, range.to, range.value))
               spill.push(range);
-          } else if (cur2.rangeIndex == 1 && cur2.chunkIndex < this.chunk.length && (i2 == add2.length || this.chunkEnd(cur2.chunkIndex) < add2[i2].from) && (!filter2 || filterFrom > this.chunkEnd(cur2.chunkIndex) || filterTo < this.chunkPos[cur2.chunkIndex]) && builder.addChunk(this.chunkPos[cur2.chunkIndex], this.chunk[cur2.chunkIndex])) {
+          } else if (cur2.rangeIndex == 1 && cur2.chunkIndex < this.chunk.length && (i2 == add2.length || this.chunkEnd(cur2.chunkIndex) < add2[i2].from) && (!filter || filterFrom > this.chunkEnd(cur2.chunkIndex) || filterTo < this.chunkPos[cur2.chunkIndex]) && builder.addChunk(this.chunkPos[cur2.chunkIndex], this.chunk[cur2.chunkIndex])) {
             cur2.nextChunk();
           } else {
-            if (!filter2 || filterFrom > cur2.to || filterTo < cur2.from || filter2(cur2.from, cur2.to, cur2.value)) {
+            if (!filter || filterFrom > cur2.to || filterTo < cur2.from || filter(cur2.from, cur2.to, cur2.value)) {
               if (!builder.addInner(cur2.from, cur2.to, cur2.value))
                 spill.push(Range$1.create(cur2.from, cur2.to, cur2.value));
             }
             cur2.next();
           }
         }
-        return builder.finishInner(this.nextLayer.isEmpty && !spill.length ? RangeSet.empty : this.nextLayer.update({ add: spill, filter: filter2, filterFrom, filterTo }));
+        return builder.finishInner(this.nextLayer.isEmpty && !spill.length ? RangeSet.empty : this.nextLayer.update({ add: spill, filter, filterFrom, filterTo }));
       }
       /**
       Map this range set through a set of changes, return the new set.
       */
-      map(changes2) {
-        if (changes2.empty || this.isEmpty)
+      map(changes) {
+        if (changes.empty || this.isEmpty)
           return this;
         let chunks = [], chunkPos = [], maxPoint = -1;
         for (let i2 = 0; i2 < this.chunk.length; i2++) {
           let start = this.chunkPos[i2], chunk = this.chunk[i2];
-          let touch = changes2.touchesRange(start, start + chunk.length);
+          let touch = changes.touchesRange(start, start + chunk.length);
           if (touch === false) {
             maxPoint = Math.max(maxPoint, chunk.maxPoint);
             chunks.push(chunk);
-            chunkPos.push(changes2.mapPos(start));
+            chunkPos.push(changes.mapPos(start));
           } else if (touch === true) {
-            let { mapped, pos: pos2 } = chunk.map(start, changes2);
+            let { mapped, pos: pos2 } = chunk.map(start, changes);
             if (mapped) {
               maxPoint = Math.max(maxPoint, mapped.maxPoint);
               chunks.push(mapped);
@@ -20415,7 +20415,7 @@ categories: ${categories.join(" ")}`;
             }
           }
         }
-        let next2 = this.nextLayer.map(changes2);
+        let next2 = this.nextLayer.map(changes);
         return chunks.length == 0 ? next2 : new RangeSet(chunkPos, chunks, next2 || RangeSet.empty, maxPoint);
       }
       /**
@@ -20526,9 +20526,9 @@ categories: ${categories.join(" ")}`;
       `value.startSide`). You can pass `true` as second argument to
       cause the method to sort them.
       */
-      static of(ranges, sort2 = false) {
+      static of(ranges, sort = false) {
         let build = new RangeSetBuilder();
-        for (let range of ranges instanceof Range$1 ? [ranges] : sort2 ? lazySort(ranges) : ranges)
+        for (let range of ranges instanceof Range$1 ? [ranges] : sort ? lazySort(ranges) : ranges)
           build.add(range.from, range.to, range.value);
         return build.finish();
       }
@@ -22520,8 +22520,8 @@ categories: ${categories.join(" ")}`;
       decorated range or ranges. If the ranges aren't already sorted,
       pass `true` for `sort` to make the library sort them for you.
       */
-      static set(of, sort2 = false) {
-        return RangeSet.of(of, sort2);
+      static set(of, sort = false) {
+        return RangeSet.of(of, sort);
       }
       /**
       @internal
@@ -23444,8 +23444,8 @@ categories: ${categories.join(" ")}`;
         this.xMargin = xMargin;
         this.isSnapshot = isSnapshot;
       }
-      map(changes2) {
-        return changes2.empty ? this : new ScrollTarget(this.range.map(changes2), this.y, this.x, this.yMargin, this.xMargin, this.isSnapshot);
+      map(changes) {
+        return changes.empty ? this : new ScrollTarget(this.range.map(changes), this.y, this.x, this.yMargin, this.xMargin, this.isSnapshot);
       }
       clip(state) {
         return this.range.to <= state.doc.length ? this : new ScrollTarget(EditorSelection.cursor(state.doc.length), this.y, this.x, this.yMargin, this.xMargin, this.isSnapshot);
@@ -23800,9 +23800,9 @@ categories: ${categories.join(" ")}`;
       }
       // Used by update and the constructor do perform the actual DOM
       // update
-      updateInner(changes2, oldLength, composition) {
+      updateInner(changes, oldLength, composition) {
         this.view.viewState.mustMeasureContent = true;
-        this.updateChildren(changes2, oldLength, composition);
+        this.updateChildren(changes, oldLength, composition);
         let { observer } = this.view;
         observer.ignore(() => {
           this.dom.style.height = this.view.viewState.contentHeight / this.view.scaleY + "px";
@@ -23826,8 +23826,8 @@ categories: ${categories.join(" ")}`;
         }
         observer.updateGaps(gaps);
       }
-      updateChildren(changes2, oldLength, composition) {
-        let ranges = composition ? composition.range.addToSet(changes2.slice()) : changes2;
+      updateChildren(changes, oldLength, composition) {
+        let ranges = composition ? composition.range.addToSet(changes.slice()) : changes;
         let cursor = this.childCursor(oldLength);
         for (let i2 = ranges.length - 1; ; i2--) {
           let next2 = i2 >= 0 ? ranges[i2] : null;
@@ -24259,7 +24259,7 @@ categories: ${categories.join(" ")}`;
       let from = headPos - textNode.offset;
       return { from, to: from + textNode.node.nodeValue.length, node: textNode.node };
     }
-    function findCompositionRange(view, changes2, headPos) {
+    function findCompositionRange(view, changes, headPos) {
       let found = findCompositionNode(view, headPos);
       if (!found)
         return null;
@@ -24268,7 +24268,7 @@ categories: ${categories.join(" ")}`;
         return null;
       if (view.state.doc.sliceString(found.from, found.to) != text2)
         return null;
-      let inv = changes2.invertedDesc;
+      let inv = changes.invertedDesc;
       let range = new ChangedRange(inv.mapPos(from), inv.mapPos(to2), from, to2);
       let marks = [];
       for (let parent = textNode.parentNode; ; parent = parent.parentNode) {
@@ -24319,10 +24319,10 @@ categories: ${categories.join(" ")}`;
       }
       return false;
     }
-    function touchesComposition(changes2, composition) {
+    function touchesComposition(changes, composition) {
       let touched = false;
       if (composition)
-        changes2.iterChangedRanges((from, to2) => {
+        changes.iterChangedRanges((from, to2) => {
           if (from < composition.to && to2 > composition.from)
             touched = true;
         });
@@ -24886,8 +24886,8 @@ categories: ${categories.join(" ")}`;
         let after = sel.to > change.to ? startState.sliceDoc(change.to, sel.to) : "";
         tr2 = startState.replaceSelection(view.state.toText(before + change.insert.sliceString(0, void 0, view.state.lineBreak) + after));
       } else {
-        let changes2 = startState.changes(change);
-        let mainSel = newSel && newSel.main.to <= changes2.newLength ? newSel.main : void 0;
+        let changes = startState.changes(change);
+        let mainSel = newSel && newSel.main.to <= changes.newLength ? newSel.main : void 0;
         if (startState.selection.ranges.length > 1 && view.inputState.composing >= 0 && change.to <= sel.to && change.to >= sel.to - 10) {
           let replaced = view.state.sliceDoc(change.from, change.to);
           let compositionRange, composition = newSel && findCompositionNode(view, newSel.main.head);
@@ -24900,7 +24900,7 @@ categories: ${categories.join(" ")}`;
           let offset = sel.to - change.to, size = sel.to - sel.from;
           tr2 = startState.changeByRange((range) => {
             if (range.from == sel.from && range.to == sel.to)
-              return { changes: changes2, range: mainSel || range.map(changes2) };
+              return { changes, range: mainSel || range.map(changes) };
             let to2 = range.to - offset, from = to2 - replaced.length;
             if (range.to - range.from != size || view.state.sliceDoc(from, to2) != replaced || // Unfortunately, there's no way to make multiple
             // changes in the same node work without aborting
@@ -24916,7 +24916,7 @@ categories: ${categories.join(" ")}`;
           });
         } else {
           tr2 = {
-            changes: changes2,
+            changes,
             selection: mainSel && startState.selection.replaceRange(mainSel)
           };
         }
@@ -25335,18 +25335,18 @@ categories: ${categories.join(" ")}`;
       }, 50);
     }
     function textFilter(state, facet, text2) {
-      for (let filter2 of state.facet(facet))
-        text2 = filter2(text2, state);
+      for (let filter of state.facet(facet))
+        text2 = filter(text2, state);
       return text2;
     }
     function doPaste(view, input2) {
       input2 = textFilter(view.state, clipboardInputFilter, input2);
-      let { state } = view, changes2, i2 = 1, text2 = state.toText(input2);
+      let { state } = view, changes, i2 = 1, text2 = state.toText(input2);
       let byLine = text2.lines == state.selection.ranges.length;
       let linewise = lastLinewiseCopy != null && state.selection.ranges.every((r2) => r2.empty) && lastLinewiseCopy == text2.toString();
       if (linewise) {
         let lastLine = -1;
-        changes2 = state.changeByRange((range) => {
+        changes = state.changeByRange((range) => {
           let line2 = state.doc.lineAt(range.from);
           if (line2.from == lastLine)
             return { range };
@@ -25358,7 +25358,7 @@ categories: ${categories.join(" ")}`;
           };
         });
       } else if (byLine) {
-        changes2 = state.changeByRange((range) => {
+        changes = state.changeByRange((range) => {
           let line2 = text2.line(i2++);
           return {
             changes: { from: range.from, to: range.to, insert: line2.text },
@@ -25366,9 +25366,9 @@ categories: ${categories.join(" ")}`;
           };
         });
       } else {
-        changes2 = state.replaceSelection(text2);
+        changes = state.replaceSelection(text2);
       }
-      view.dispatch(changes2, {
+      view.dispatch(changes, {
         userEvent: "input.paste",
         scrollIntoView: true
       });
@@ -25534,11 +25534,11 @@ categories: ${categories.join(" ")}`;
       let { draggedContent } = view.inputState;
       let del = direct && draggedContent && dragMovesSelection(view, event) ? { from: draggedContent.from, to: draggedContent.to } : null;
       let ins = { from: dropPos, insert: text2 };
-      let changes2 = view.state.changes(del ? [del, ins] : ins);
+      let changes = view.state.changes(del ? [del, ins] : ins);
       view.focus();
       view.dispatch({
-        changes: changes2,
-        selection: { anchor: changes2.mapPos(dropPos, -1), head: changes2.mapPos(dropPos, 1) },
+        changes,
+        selection: { anchor: changes.mapPos(dropPos, -1), head: changes.mapPos(dropPos, 1) },
         userEvent: del ? "move.drop" : "input.drop"
       });
       view.inputState.draggedContent = null;
@@ -25923,17 +25923,17 @@ categories: ${categories.join(" ")}`;
       decomposeRight(_from, result2) {
         result2.push(this);
       }
-      applyChanges(decorations2, oldDoc, oracle, changes2) {
+      applyChanges(decorations2, oldDoc, oracle, changes) {
         let me = this, doc2 = oracle.doc;
-        for (let i2 = changes2.length - 1; i2 >= 0; i2--) {
-          let { fromA, toA, fromB, toB } = changes2[i2];
+        for (let i2 = changes.length - 1; i2 >= 0; i2--) {
+          let { fromA, toA, fromB, toB } = changes[i2];
           let start = me.lineAt(fromA, QueryType.ByPosNoHeight, oracle.setDoc(oldDoc), 0, 0);
           let end = start.to >= toA ? start : me.lineAt(toA, QueryType.ByPosNoHeight, oracle, 0, 0);
           toB += end.to - toA;
           toA = end.to;
-          while (i2 > 0 && start.from <= changes2[i2 - 1].toA) {
-            fromA = changes2[i2 - 1].fromA;
-            fromB = changes2[i2 - 1].fromB;
+          while (i2 > 0 && start.from <= changes[i2 - 1].toA) {
+            fromA = changes[i2 - 1].fromA;
+            fromB = changes[i2 - 1].fromB;
             i2--;
             if (fromA < start.from)
               start = me.lineAt(fromA, QueryType.ByPosNoHeight, oracle, 0, 0);
@@ -26758,8 +26758,8 @@ categories: ${categories.join(" ")}`;
         }
         return viewport;
       }
-      mapViewport(viewport, changes2) {
-        let from = changes2.mapPos(viewport.from, -1), to2 = changes2.mapPos(viewport.to, 1);
+      mapViewport(viewport, changes) {
+        let from = changes.mapPos(viewport.from, -1), to2 = changes.mapPos(viewport.to, 1);
         return new Viewport(this.heightMap.lineAt(from, QueryType.ByPos, this.heightOracle, 0, 0).from, this.heightMap.lineAt(to2, QueryType.ByPos, this.heightOracle, 0, 0).to);
       }
       // Checks if a given viewport covers the visible part of the
@@ -26780,13 +26780,13 @@ categories: ${categories.join(" ")}`;
           /* VP.MaxCoverMargin */
         ))) && (top2 > visibleTop - 2 * 1e3 && bottom < visibleBottom + 2 * 1e3);
       }
-      mapLineGaps(gaps, changes2) {
-        if (!gaps.length || changes2.empty)
+      mapLineGaps(gaps, changes) {
+        if (!gaps.length || changes.empty)
           return gaps;
         let mapped = [];
         for (let gap of gaps)
-          if (!changes2.touchesRange(gap.from, gap.to))
-            mapped.push(new LineGap(changes2.mapPos(gap.from), changes2.mapPos(gap.to), gap.size, gap.displaySize));
+          if (!changes.touchesRange(gap.from, gap.to))
+            mapped.push(new LineGap(changes.mapPos(gap.from), changes.mapPos(gap.to), gap.size, gap.displaySize));
         return mapped;
       }
       // Computes positions in the viewport where the start or end of a
@@ -26900,7 +26900,7 @@ categories: ${categories.join(" ")}`;
           this.lineGapDeco = Decoration.set(gaps.map((gap) => gap.draw(this, this.heightOracle.lineWrapping)));
         }
       }
-      computeVisibleRanges(changes2) {
+      computeVisibleRanges(changes) {
         let deco = this.stateDeco;
         if (this.lineGaps.length)
           deco = deco.concat(this.lineGapDeco);
@@ -26920,7 +26920,7 @@ categories: ${categories.join(" ")}`;
             let old = this.visibleRanges[i2], nw = ranges[i2];
             if (old.from != nw.from || old.to != nw.to) {
               changed |= 4;
-              if (!(changes2 && changes2.mapPos(old.from, -1) == nw.from && changes2.mapPos(old.to, 1) == nw.to))
+              if (!(changes && changes.mapPos(old.from, -1) == nw.from && changes.mapPos(old.to, 1) == nw.to))
                 changed |= 8;
             }
           }
@@ -28923,14 +28923,14 @@ categories: ${categories.join(" ")}`;
         this.fresh = fresh;
         this.order = order;
       }
-      static update(cache, changes2) {
-        if (changes2.empty && !cache.some((c2) => c2.fresh))
+      static update(cache, changes) {
+        if (changes.empty && !cache.some((c2) => c2.fresh))
           return cache;
         let result2 = [], lastDir = cache.length ? cache[cache.length - 1].dir : Direction.LTR;
         for (let i2 = Math.max(0, cache.length - 10); i2 < cache.length; i2++) {
           let entry2 = cache[i2];
-          if (entry2.dir == lastDir && !changes2.touchesRange(entry2.from, entry2.to))
-            result2.push(new CachedOrder(changes2.mapPos(entry2.from, 1), changes2.mapPos(entry2.to, -1), entry2.dir, entry2.isolates, false, entry2.order));
+          if (entry2.dir == lastDir && !changes.touchesRange(entry2.from, entry2.to))
+            result2.push(new CachedOrder(changes.mapPos(entry2.from, 1), changes.mapPos(entry2.to, -1), entry2.dir, entry2.isolates, false, entry2.order));
         }
         return result2;
       }
@@ -32064,13 +32064,13 @@ categories: ${categories.join(" ")}`;
       splitting fragments as necessary to remove edited ranges, and
       adjusting offsets for fragments that moved.
       */
-      static applyChanges(fragments, changes2, minGap = 128) {
-        if (!changes2.length)
+      static applyChanges(fragments, changes, minGap = 128) {
+        if (!changes.length)
           return fragments;
         let result2 = [];
         let fI = 1, nextF = fragments.length ? fragments[0] : null;
         for (let cI = 0, pos2 = 0, off = 0; ; cI++) {
-          let nextC = cI < changes2.length ? changes2[cI] : null;
+          let nextC = cI < changes.length ? changes[cI] : null;
           let nextPos = nextC ? nextC.fromA : 1e9;
           if (nextPos - pos2 >= minGap)
             while (nextF && nextF.from < nextPos) {
@@ -33068,20 +33068,20 @@ categories: ${categories.join(" ")}`;
       /**
       @internal
       */
-      changes(changes2, newState) {
+      changes(changes, newState) {
         let { fragments, tree, treeLen, viewport, skipped } = this;
         this.takeTree();
-        if (!changes2.empty) {
+        if (!changes.empty) {
           let ranges = [];
-          changes2.iterChangedRanges((fromA, toA, fromB, toB) => ranges.push({ fromA, toA, fromB, toB }));
+          changes.iterChangedRanges((fromA, toA, fromB, toB) => ranges.push({ fromA, toA, fromB, toB }));
           fragments = TreeFragment.applyChanges(fragments, ranges);
           tree = Tree.empty;
           treeLen = 0;
-          viewport = { from: changes2.mapPos(viewport.from, -1), to: changes2.mapPos(viewport.to, 1) };
+          viewport = { from: changes.mapPos(viewport.from, -1), to: changes.mapPos(viewport.to, 1) };
           if (this.skipped.length) {
             skipped = [];
             for (let r2 of this.skipped) {
-              let from = changes2.mapPos(r2.from, 1), to2 = changes2.mapPos(r2.to, -1);
+              let from = changes.mapPos(r2.from, 1), to2 = changes.mapPos(r2.to, -1);
               if (from < to2)
                 skipped.push({ from, to: to2 });
             }
@@ -34891,16 +34891,16 @@ categories: ${categories.join(" ")}`;
       update(update) {
         var _a2;
         let cState = update.state.field(this.stateField);
-        let prevState2 = update.startState.field(this.stateField);
+        let prevState = update.startState.field(this.stateField);
         this.updateTooltipClass(update.state);
-        if (cState != prevState2) {
+        if (cState != prevState) {
           let { options: options2, selected: selected2, disabled } = cState.open;
-          if (!prevState2.open || prevState2.open.options != options2) {
+          if (!prevState.open || prevState.open.options != options2) {
             this.range = rangeAroundSelected(options2.length, selected2, update.state.facet(completionConfig).maxRenderedOptions);
             this.showOptions(options2, cState.id);
           }
           this.updateSel();
-          if (disabled != ((_a2 = prevState2.open) === null || _a2 === void 0 ? void 0 : _a2.disabled))
+          if (disabled != ((_a2 = prevState.open) === null || _a2 === void 0 ? void 0 : _a2.disabled))
             this.dom.classList.toggle("cm-tooltip-autocomplete-disabled", !!disabled);
         }
       }
@@ -35166,8 +35166,8 @@ categories: ${categories.join(" ")}`;
           above: conf.aboveCursor
         }, prev2 ? prev2.timestamp : Date.now(), selected2, false);
       }
-      map(changes2) {
-        return new CompletionDialog(this.options, this.attrs, Object.assign(Object.assign({}, this.tooltip), { pos: changes2.mapPos(this.tooltip.pos) }), this.timestamp, this.selected, this.disabled);
+      map(changes) {
+        return new CompletionDialog(this.options, this.attrs, Object.assign(Object.assign({}, this.tooltip), { pos: changes.mapPos(this.tooltip.pos) }), this.timestamp, this.selected, this.disabled);
       }
       setDisabled() {
         return new CompletionDialog(this.options, this.attrs, this.tooltip, this.timestamp, this.selected, true);
@@ -35309,7 +35309,7 @@ categories: ${categories.join(" ")}`;
       updateFor(tr2, type) {
         return this.map(tr2.changes);
       }
-      map(changes2) {
+      map(changes) {
         return this;
       }
       touches(tr2) {
@@ -36487,13 +36487,13 @@ categories: ${categories.join(" ")}`;
           return [{ from: range.from, insert: tokens[i2].open + " " }, { from: range.to, insert: " " + tokens[i2].close }];
         })) };
       } else if (option != 1 && comments.some((c2) => c2)) {
-        let changes2 = [];
+        let changes = [];
         for (let i2 = 0, comment2; i2 < comments.length; i2++)
           if (comment2 = comments[i2]) {
             let token2 = tokens[i2], { open: open2, close: close2 } = comment2;
-            changes2.push({ from: open2.pos - token2.open.length, to: open2.pos + open2.margin }, { from: close2.pos - close2.margin, to: close2.pos + token2.close.length });
+            changes.push({ from: open2.pos - token2.open.length, to: open2.pos + open2.margin }, { from: close2.pos - close2.margin, to: close2.pos + token2.close.length });
           }
-        return { changes: changes2 };
+        return { changes };
       }
       return null;
     }
@@ -36527,22 +36527,22 @@ categories: ${categories.join(" ")}`;
           lines[startI].single = true;
       }
       if (option != 2 && lines.some((l) => l.comment < 0 && (!l.empty || l.single))) {
-        let changes2 = [];
+        let changes = [];
         for (let { line: line2, token: token2, indent, empty, single } of lines)
           if (single || !empty)
-            changes2.push({ from: line2.from + indent, insert: token2 + " " });
-        let changeSet = state.changes(changes2);
+            changes.push({ from: line2.from + indent, insert: token2 + " " });
+        let changeSet = state.changes(changes);
         return { changes: changeSet, selection: state.selection.map(changeSet, 1) };
       } else if (option != 1 && lines.some((l) => l.comment >= 0)) {
-        let changes2 = [];
+        let changes = [];
         for (let { line: line2, comment: comment2, token: token2 } of lines)
           if (comment2 >= 0) {
             let from = line2.from + comment2, to2 = from + token2.length;
             if (line2.text[to2 - line2.from] == " ")
               to2++;
-            changes2.push({ from, to: to2 });
+            changes.push({ from, to: to2 });
           }
-        return { changes: changes2 };
+        return { changes };
       }
       return null;
     }
@@ -36634,8 +36634,8 @@ categories: ${categories.join(" ")}`;
     const undoSelection = /* @__PURE__ */ cmd(0, true);
     const redoSelection = /* @__PURE__ */ cmd(1, true);
     class HistEvent {
-      constructor(changes2, effects, mapped, startSelection, selectionsAfter) {
-        this.changes = changes2;
+      constructor(changes, effects, mapped, startSelection, selectionsAfter) {
+        this.changes = changes;
         this.effects = effects;
         this.mapped = mapped;
         this.startSelection = startSelection;
@@ -37050,7 +37050,7 @@ categories: ${categories.join(" ")}`;
       if (target2.state.readOnly)
         return false;
       let event = "delete.selection", { state } = target2;
-      let changes2 = state.changeByRange((range) => {
+      let changes = state.changeByRange((range) => {
         let { from, to: to2 } = range;
         if (from == to2) {
           let towards = by(range);
@@ -37069,9 +37069,9 @@ categories: ${categories.join(" ")}`;
         }
         return from == to2 ? { range } : { changes: { from, to: to2 }, range: EditorSelection.cursor(from, from < range.head ? -1 : 1) };
       });
-      if (changes2.changes.empty)
+      if (changes.changes.empty)
         return false;
-      target2.dispatch(state.update(changes2, {
+      target2.dispatch(state.update(changes, {
         scrollIntoView: true,
         userEvent: event,
         effects: event == "delete.selection" ? EditorView.announce.of(state.phrase("Selection deleted")) : void 0
@@ -37144,19 +37144,19 @@ categories: ${categories.join(" ")}`;
     const splitLine = ({ state, dispatch }) => {
       if (state.readOnly)
         return false;
-      let changes2 = state.changeByRange((range) => {
+      let changes = state.changeByRange((range) => {
         return {
           changes: { from: range.from, to: range.to, insert: Text.of(["", ""]) },
           range: EditorSelection.cursor(range.from)
         };
       });
-      dispatch(state.update(changes2, { scrollIntoView: true, userEvent: "input" }));
+      dispatch(state.update(changes, { scrollIntoView: true, userEvent: "input" }));
       return true;
     };
     const transposeChars = ({ state, dispatch }) => {
       if (state.readOnly)
         return false;
-      let changes2 = state.changeByRange((range) => {
+      let changes = state.changeByRange((range) => {
         if (!range.empty || range.from == 0 || range.from == state.doc.length)
           return { range };
         let pos2 = range.from, line2 = state.doc.lineAt(pos2);
@@ -37167,9 +37167,9 @@ categories: ${categories.join(" ")}`;
           range: EditorSelection.cursor(to2)
         };
       });
-      if (changes2.changes.empty)
+      if (changes.changes.empty)
         return false;
-      dispatch(state.update(changes2, { scrollIntoView: true, userEvent: "move.character" }));
+      dispatch(state.update(changes, { scrollIntoView: true, userEvent: "move.character" }));
       return true;
     };
     function selectedLineBlocks(state) {
@@ -37192,26 +37192,26 @@ categories: ${categories.join(" ")}`;
     function moveLine(state, dispatch, forward) {
       if (state.readOnly)
         return false;
-      let changes2 = [], ranges = [];
+      let changes = [], ranges = [];
       for (let block2 of selectedLineBlocks(state)) {
         if (forward ? block2.to == state.doc.length : block2.from == 0)
           continue;
         let nextLine = state.doc.lineAt(forward ? block2.to + 1 : block2.from - 1);
         let size = nextLine.length + 1;
         if (forward) {
-          changes2.push({ from: block2.to, to: nextLine.to }, { from: block2.from, insert: nextLine.text + state.lineBreak });
+          changes.push({ from: block2.to, to: nextLine.to }, { from: block2.from, insert: nextLine.text + state.lineBreak });
           for (let r2 of block2.ranges)
             ranges.push(EditorSelection.range(Math.min(state.doc.length, r2.anchor + size), Math.min(state.doc.length, r2.head + size)));
         } else {
-          changes2.push({ from: nextLine.from, to: block2.from }, { from: block2.to, insert: state.lineBreak + nextLine.text });
+          changes.push({ from: nextLine.from, to: block2.from }, { from: block2.to, insert: state.lineBreak + nextLine.text });
           for (let r2 of block2.ranges)
             ranges.push(EditorSelection.range(r2.anchor - size, r2.head - size));
         }
       }
-      if (!changes2.length)
+      if (!changes.length)
         return false;
       dispatch(state.update({
-        changes: changes2,
+        changes,
         scrollIntoView: true,
         selection: EditorSelection.create(ranges, state.selection.mainIndex),
         userEvent: "move.line"
@@ -37223,14 +37223,14 @@ categories: ${categories.join(" ")}`;
     function copyLine(state, dispatch, forward) {
       if (state.readOnly)
         return false;
-      let changes2 = [];
+      let changes = [];
       for (let block2 of selectedLineBlocks(state)) {
         if (forward)
-          changes2.push({ from: block2.from, insert: state.doc.slice(block2.from, block2.to) + state.lineBreak });
+          changes.push({ from: block2.from, insert: state.doc.slice(block2.from, block2.to) + state.lineBreak });
         else
-          changes2.push({ from: block2.to, insert: state.lineBreak + state.doc.slice(block2.from, block2.to) });
+          changes.push({ from: block2.to, insert: state.lineBreak + state.doc.slice(block2.from, block2.to) });
       }
-      dispatch(state.update({ changes: changes2, scrollIntoView: true, userEvent: "input.copyline" }));
+      dispatch(state.update({ changes, scrollIntoView: true, userEvent: "input.copyline" }));
       return true;
     }
     const copyLineUp = ({ state, dispatch }) => copyLine(state, dispatch, false);
@@ -37238,7 +37238,7 @@ categories: ${categories.join(" ")}`;
     const deleteLine = (view) => {
       if (view.state.readOnly)
         return false;
-      let { state } = view, changes2 = state.changes(selectedLineBlocks(state).map(({ from, to: to2 }) => {
+      let { state } = view, changes = state.changes(selectedLineBlocks(state).map(({ from, to: to2 }) => {
         if (from > 0)
           from--;
         else if (to2 < state.doc.length)
@@ -37253,8 +37253,8 @@ categories: ${categories.join(" ")}`;
             dist2 = block2.bottom + view.documentTop - pos2.bottom + view.defaultLineHeight / 2;
         }
         return view.moveVertically(range, true, dist2);
-      }).map(changes2);
-      view.dispatch({ changes: changes2, selection, scrollIntoView: true, userEvent: "delete.line" });
+      }).map(changes);
+      view.dispatch({ changes, selection, scrollIntoView: true, userEvent: "delete.line" });
       return true;
     };
     function isBetweenBrackets(state, pos2) {
@@ -37272,7 +37272,7 @@ categories: ${categories.join(" ")}`;
       return ({ state, dispatch }) => {
         if (state.readOnly)
           return false;
-        let changes2 = state.changeByRange((range) => {
+        let changes = state.changeByRange((range) => {
           let { from, to: to2 } = range, line2 = state.doc.lineAt(from);
           let explode = !atEof && from == to2 && isBetweenBrackets(state, from);
           if (atEof)
@@ -37295,25 +37295,25 @@ categories: ${categories.join(" ")}`;
             range: EditorSelection.cursor(from + 1 + insert2[1].length)
           };
         });
-        dispatch(state.update(changes2, { scrollIntoView: true, userEvent: "input" }));
+        dispatch(state.update(changes, { scrollIntoView: true, userEvent: "input" }));
         return true;
       };
     }
     function changeBySelectedLine(state, f) {
       let atLine = -1;
       return state.changeByRange((range) => {
-        let changes2 = [];
+        let changes = [];
         for (let pos2 = range.from; pos2 <= range.to; ) {
           let line2 = state.doc.lineAt(pos2);
           if (line2.number > atLine && (range.empty || range.to > line2.from)) {
-            f(line2, changes2, range);
+            f(line2, changes, range);
             atLine = line2.number;
           }
           pos2 = line2.to + 1;
         }
-        let changeSet = state.changes(changes2);
+        let changeSet = state.changes(changes);
         return {
-          changes: changes2,
+          changes,
           range: EditorSelection.range(changeSet.mapPos(range.anchor, 1), changeSet.mapPos(range.head, 1))
         };
       });
@@ -37326,7 +37326,7 @@ categories: ${categories.join(" ")}`;
         let found = updated[start];
         return found == null ? -1 : found;
       } });
-      let changes2 = changeBySelectedLine(state, (line2, changes3, range) => {
+      let changes = changeBySelectedLine(state, (line2, changes2, range) => {
         let indent = getIndentation(context, line2.from);
         if (indent == null)
           return;
@@ -37336,25 +37336,25 @@ categories: ${categories.join(" ")}`;
         let norm = indentString(state, indent);
         if (cur2 != norm || range.from < line2.from + cur2.length) {
           updated[line2.from] = indent;
-          changes3.push({ from: line2.from, to: line2.from + cur2.length, insert: norm });
+          changes2.push({ from: line2.from, to: line2.from + cur2.length, insert: norm });
         }
       });
-      if (!changes2.changes.empty)
-        dispatch(state.update(changes2, { userEvent: "indent" }));
+      if (!changes.changes.empty)
+        dispatch(state.update(changes, { userEvent: "indent" }));
       return true;
     };
     const indentMore = ({ state, dispatch }) => {
       if (state.readOnly)
         return false;
-      dispatch(state.update(changeBySelectedLine(state, (line2, changes2) => {
-        changes2.push({ from: line2.from, insert: state.facet(indentUnit) });
+      dispatch(state.update(changeBySelectedLine(state, (line2, changes) => {
+        changes.push({ from: line2.from, insert: state.facet(indentUnit) });
       }), { userEvent: "input.indent" }));
       return true;
     };
     const indentLess = ({ state, dispatch }) => {
       if (state.readOnly)
         return false;
-      dispatch(state.update(changeBySelectedLine(state, (line2, changes2) => {
+      dispatch(state.update(changeBySelectedLine(state, (line2, changes) => {
         let space = /^\s*/.exec(line2.text)[0];
         if (!space)
           return;
@@ -37362,7 +37362,7 @@ categories: ${categories.join(" ")}`;
         let insert2 = indentString(state, Math.max(0, col - getIndentUnit(state)));
         while (keep < space.length && keep < insert2.length && space.charCodeAt(keep) == insert2.charCodeAt(keep))
           keep++;
-        changes2.push({ from: line2.from + keep, to: line2.from + space.length, insert: insert2.slice(keep) });
+        changes.push({ from: line2.from + keep, to: line2.from + space.length, insert: insert2.slice(keep) });
       }), { userEvent: "delete.dedent" }));
       return true;
     };
@@ -37817,10 +37817,10 @@ Supported expressions:
         overflow: "hidden"
       }
     });
-    const getFilteringResult = (evalDescriptor2, filterValue) => {
+    const getFilteringResult = (evalDescriptor, filterValue) => {
       const { result: result2, error: error2 } = filterSamples(
-        evalDescriptor2,
-        evalDescriptor2.samples,
+        evalDescriptor,
+        evalDescriptor.samples,
         filterValue
       );
       return { numSamples: result2.length, error: error2 };
@@ -37851,7 +37851,7 @@ Supported expressions:
       ];
     };
     const SampleFilter = ({
-      evalDescriptor: evalDescriptor2,
+      evalDescriptor,
       scoreFilter,
       setScoreFilter
     }) => {
@@ -37861,8 +37861,8 @@ Supported expressions:
       const autocompletionCompartment = reactExports.useRef(new Compartment());
       const updateListenerCompartment = reactExports.useRef(new Compartment());
       const filterItems = reactExports.useMemo(
-        () => scoreFilterItems(evalDescriptor2),
-        [evalDescriptor2]
+        () => scoreFilterItems(evalDescriptor),
+        [evalDescriptor]
       );
       const [filteringResultInstant, setFilteringResultInstant] = reactExports.useState(null);
       const handleFocus = (event, view) => {
@@ -37878,7 +37878,7 @@ Supported expressions:
       const makeUpdateListener = () => EditorView.updateListener.of((update) => {
         if (update.docChanged) {
           const newValue = update.state.doc.toString();
-          const filteringResult = getFilteringResult(evalDescriptor2, newValue);
+          const filteringResult = getFilteringResult(evalDescriptor, newValue);
           if (!filteringResult.error) {
             setScoreFilter({ value: newValue });
           }
@@ -37913,25 +37913,25 @@ Supported expressions:
       }, []);
       reactExports.useEffect(() => {
         if (!editorViewRef.current) return;
-        const currentValue2 = editorViewRef.current.state.doc.toString();
-        if (scoreFilter.value === currentValue2) return;
+        const currentValue = editorViewRef.current.state.doc.toString();
+        if (scoreFilter.value === currentValue) return;
         setFilteringResultInstant(
-          getFilteringResult(evalDescriptor2, scoreFilter.value || "")
+          getFilteringResult(evalDescriptor, scoreFilter.value || "")
         );
         editorViewRef.current.dispatch({
           changes: {
             from: 0,
-            to: currentValue2.length,
+            to: currentValue.length,
             insert: scoreFilter.value || ""
           }
         });
-      }, [evalDescriptor2, scoreFilter.value]);
+      }, [evalDescriptor, scoreFilter.value]);
       reactExports.useEffect(() => {
         var _a2;
         (_a2 = editorViewRef.current) == null ? void 0 : _a2.dispatch({
           effects: updateListenerCompartment.current.reconfigure(makeUpdateListener())
         });
-      }, [evalDescriptor2]);
+      }, [evalDescriptor]);
       reactExports.useEffect(() => {
         var _a2;
         (_a2 = editorViewRef.current) == null ? void 0 : _a2.dispatch({
@@ -37991,7 +37991,7 @@ Supported expressions:
     const SelectScorer = ({
       scores: scores2,
       score: score2,
-      setScore: setScore2
+      setScore
     }) => {
       const scorers = scores2.reduce((accum, scorer) => {
         if (!accum.find((sc) => {
@@ -38022,7 +38022,7 @@ Supported expressions:
               scores: scores2,
               selectedIndex: scoreIndex(scores2, score2),
               setSelectedIndex: (index2) => {
-                setScore2(scores2[index2]);
+                setScore(scores2[index2]);
               }
             }
           )
@@ -38052,7 +38052,7 @@ Supported expressions:
               scorers,
               selectedIndex: scorerIndex(scorers, score2),
               setSelectedIndex: (index2) => {
-                setScore2(scorers[index2]);
+                setScore(scorers[index2]);
               }
             }
           ),
@@ -38063,7 +38063,7 @@ Supported expressions:
               scores: scorerScores,
               selectedIndex: scoreIndex(scorerScores, score2),
               setSelectedIndex: (index2) => {
-                setScore2(scorerScores[index2]);
+                setScore(scorerScores[index2]);
               }
             }
           ) : void 0
@@ -38125,15 +38125,15 @@ Supported expressions:
       return score2 && sc.scorer === score2.scorer;
     });
     const SampleTools = ({
-      epoch: epoch2,
-      setEpoch: setEpoch2,
+      epoch,
+      setEpoch,
       epochs,
       scoreFilter,
       setScoreFilter,
-      sort: sort2,
-      setSort: setSort2,
+      sort,
+      setSort,
       score: score2,
-      setScore: setScore2,
+      setScore,
       scores: scores2,
       sampleDescriptor
     }) => {
@@ -38146,9 +38146,9 @@ Supported expressions:
             setScoreFilter
           }
         ),
-        scores2.length > 1 ? /* @__PURE__ */ jsxRuntimeExports.jsx(SelectScorer, { scores: scores2, score: score2, setScore: setScore2 }) : void 0,
-        epochs > 1 ? /* @__PURE__ */ jsxRuntimeExports.jsx(EpochFilter, { epoch: epoch2, setEpoch: setEpoch2, epochs }) : void 0,
-        /* @__PURE__ */ jsxRuntimeExports.jsx(SortFilter, { sort: sort2, setSort: setSort2, epochs })
+        scores2.length > 1 ? /* @__PURE__ */ jsxRuntimeExports.jsx(SelectScorer, { scores: scores2, score: score2, setScore }) : void 0,
+        epochs > 1 ? /* @__PURE__ */ jsxRuntimeExports.jsx(EpochFilter, { epoch, setEpoch, epochs }) : void 0,
+        /* @__PURE__ */ jsxRuntimeExports.jsx(SortFilter, { sort, setSort, epochs })
       ] });
     };
     const filename = (path) => {
@@ -38242,9 +38242,9 @@ self.onmessage = function (e) {
       return (await api$2("GET", `/api/events?${params2.toString()}`)).parsed;
     }
     async function eval_logs$1() {
-      const logs2 = await api$2("GET", `/api/logs`);
+      const logs = await api$2("GET", `/api/logs`);
       last_eval_time = Date.now();
-      return logs2.parsed;
+      return logs.parsed;
     }
     async function eval_log$1(file, headerOnly, _capabilities) {
       return await api$2(
@@ -38268,28 +38268,101 @@ self.onmessage = function (e) {
       }
       return (await api$2("GET", `/api/log-headers?${params2.toString()}`)).parsed;
     }
-    async function eval_pending_samples$1(log_file) {
+    async function eval_pending_samples$1(log_file, etag) {
       const params2 = new URLSearchParams();
       params2.append("log", log_file);
-      return (await api$2("GET", `/api/pending-samples?${params2.toString()}`)).parsed;
+      const headers = {};
+      if (etag) {
+        headers["If-None-Match"] = etag;
+      }
+      const request = {
+        headers,
+        parse: async (text2) => {
+          const pendingSamples = await asyncJsonParse(text2);
+          return {
+            status: "OK",
+            pendingSamples
+          };
+        },
+        handleError: (status) => {
+          if (status === 404) {
+            return {
+              status: "NotFound"
+            };
+          } else if (status === 304) {
+            return {
+              status: "NotModified"
+            };
+          }
+        }
+      };
+      const result2 = (await apiRequest(
+        "GET",
+        `/api/pending-samples?${params2.toString()}`,
+        request
+      )).parsed;
+      return result2;
     }
-    async function eval_log_sample_data$1(log_file, id, epoch2, last_event, last_attachment) {
+    async function eval_log_sample_data$1(log_file, id, epoch, last_event, last_attachment) {
       const params2 = new URLSearchParams();
       params2.append("log", log_file);
       params2.append("id", String(id));
-      params2.append("epoch", String(epoch2));
+      params2.append("epoch", String(epoch));
       params2.append("last-event-id", String(last_event));
       params2.append("after-attachment-id", String(last_attachment));
       return (await api$2("GET", `/api/pending-sample-data?${params2.toString()}`)).parsed;
     }
-    async function api$2(method, path, body2) {
-      const headers = {
+    async function apiRequest(method, path, request) {
+      const responseHeaders = {
         Accept: "application/json",
         Pragma: "no-cache",
         Expires: "0",
-        ["Cache-Control"]: "no-cache"
+        ["Cache-Control"]: "no-cache",
+        ...request.headers
       };
-      const response = await fetch(`${path}`, { method, headers, body: body2 });
+      if (request.body) {
+        responseHeaders["Content-Type"] = "application/json";
+      }
+      const response = await fetch(`${path}`, {
+        method,
+        headers: responseHeaders,
+        body: request.body
+      });
+      if (response.ok) {
+        const text2 = await response.text();
+        const parse2 = request.parse || asyncJsonParse;
+        return {
+          parsed: await parse2(text2),
+          raw: text2
+        };
+      } else if (response.status !== 200) {
+        const errorResponse = request.handleError ? request.handleError(response.status) : void 0;
+        if (errorResponse) {
+          return {
+            raw: response.statusText,
+            parsed: errorResponse
+          };
+        }
+        const message2 = await response.text() || response.statusText;
+        const error2 = new Error(`Error: ${response.status}: ${message2})`);
+        throw error2;
+      } else {
+        throw new Error(`${response.status} - ${response.statusText} `);
+      }
+    }
+    async function api$2(method, path, headers, body2) {
+      const responseHeaders = {
+        Accept: "application/json",
+        Pragma: "no-cache",
+        Expires: "0",
+        ["Cache-Control"]: "no-cache",
+        ...headers
+      };
+      const response = await fetch(`${path}`, {
+        method,
+        headers: responseHeaders,
+        body: body2
+      });
       if (response.ok) {
         const text2 = await response.text();
         return {
@@ -39056,7 +39129,7 @@ self.onmessage = function (e) {
             const headers = await fetchLogHeaders(log_dir);
             if (headers) {
               const logRecord = headers.parsed;
-              const logs2 = Object.keys(logRecord).map((key2) => {
+              const logs = Object.keys(logRecord).map((key2) => {
                 return {
                   name: joinURI(log_dir, key2),
                   task: logRecord[key2].eval.task,
@@ -39064,7 +39137,7 @@ self.onmessage = function (e) {
                 };
               });
               return Promise.resolve({
-                files: logs2,
+                files: logs,
                 log_dir
               });
             }
@@ -39111,21 +39184,13 @@ self.onmessage = function (e) {
         },
         download_file: download_file$1,
         open_log_file: open_log_file2,
-        eval_pending_samples: async function(log_file) {
-          const url = "";
-          const summaries = await fetchFile(
-            url,
-            (text2) => {
-              return Promise.resolve([]);
-            },
-            (response) => {
-              return true;
-            }
-          );
-          return summaries || [];
+        eval_pending_samples: async function(_log_file, _etag) {
+          return {
+            status: "NotFound"
+          };
         },
-        eval_log_sample_data: function(log_file, id, epoch2, last_event, last_attachment) {
-          throw new Error("Function not implemented.");
+        eval_log_sample_data: function(_log_file, _id, _epoch, _last_event, _last_attachment) {
+          return Promise.resolve(void 0);
         }
       };
     }
@@ -39174,7 +39239,7 @@ self.onmessage = function (e) {
       });
     };
     const fetchLogHeaders = async (log_dir) => {
-      const logs2 = await fetchFile(
+      const logs = await fetchFile(
         log_dir + "/logs.json",
         async (text2) => {
           const parsed = await asyncJsonParse(text2);
@@ -39191,7 +39256,7 @@ self.onmessage = function (e) {
           }
         }
       );
-      return logs2;
+      return logs;
     };
     function joinURI(...segments) {
       return segments.map((segment) => segment.replace(/(^\/+|\/+$)/g, "")).join("/");
@@ -40290,12 +40355,12 @@ self.onmessage = function (e) {
           vscode2.postMessage(data);
         },
         onMessage: (handler) => {
-          const onMessage2 = (ev) => {
+          const onMessage = (ev) => {
             handler(ev.data);
           };
-          window.addEventListener("message", onMessage2);
+          window.addEventListener("message", onMessage);
           return () => {
-            window.removeEventListener("message", onMessage2);
+            window.removeEventListener("message", onMessage);
           };
         }
       };
@@ -40413,11 +40478,13 @@ self.onmessage = function (e) {
       };
       (_a2 = getVscodeApi()) == null ? void 0 : _a2.postMessage(msg);
     }
-    async function eval_pending_samples(log_file) {
-      throw new Error("Function not implemented.");
+    async function eval_pending_samples(_log_file, _etag) {
+      return {
+        status: "NotFound"
+      };
     }
-    async function eval_log_sample_data(log_file, id, epoch2, last_event, last_attachment) {
-      throw new Error("Function not implemented.");
+    async function eval_log_sample_data(_log_file, _id, _epoch, _last_event, _last_attachment) {
+      return void 0;
     }
     const api$1 = {
       client_events,
@@ -40512,8 +40579,8 @@ self.onmessage = function (e) {
           };
         });
       };
-      const readSample = async (sampleId, epoch2) => {
-        const sampleFile = `samples/${sampleId}_epoch_${epoch2}.json`;
+      const readSample = async (sampleId, epoch) => {
+        const sampleFile = `samples/${sampleId}_epoch_${epoch}.json`;
         if (remoteZipFile.centralDirectory.has(sampleFile)) {
           return await readJSONFile(sampleFile, MAX_BYTES);
         } else {
@@ -40574,7 +40641,7 @@ self.onmessage = function (e) {
       return {
         readHeader,
         readLogSummary: async () => {
-          const [header2, sampleSummaries2] = await Promise.all([
+          const [header2, sampleSummaries] = await Promise.all([
             readHeader(),
             readSampleSummaries()
           ]);
@@ -40585,7 +40652,7 @@ self.onmessage = function (e) {
             results: header2.results,
             stats: header2.stats,
             error: header2.error,
-            sampleSummaries: sampleSummaries2
+            sampleSummaries
           };
           return result2;
         },
@@ -40599,7 +40666,7 @@ self.onmessage = function (e) {
             listSamples().then(
               (sampleIds) => Promise.all(
                 sampleIds.map(
-                  ({ sampleId, epoch: epoch2 }) => readSample(sampleId, epoch2).then(
+                  ({ sampleId, epoch }) => readSample(sampleId, epoch).then(
                     (sample2) => sample2
                   )
                 )
@@ -40622,9 +40689,9 @@ self.onmessage = function (e) {
       return file.endsWith(".eval");
     };
     class SampleSizeLimitedExceededError extends Error {
-      constructor(id, epoch2, maxBytes) {
+      constructor(id, epoch, maxBytes) {
         super(
-          `Sample ${id} in epoch ${epoch2} exceeds the maximum supported size (${maxBytes / 1024 / 1024}MB) and cannot be loaded.`
+          `Sample ${id} in epoch ${epoch} exceeds the maximum supported size (${maxBytes / 1024 / 1024}MB) and cannot be loaded.`
         );
         __publicField(this, "id");
         __publicField(this, "epoch");
@@ -40632,7 +40699,7 @@ self.onmessage = function (e) {
         __publicField(this, "displayStack");
         this.name = "SampleSizeLimitedExceededError";
         this.id = id;
-        this.epoch = epoch2;
+        this.epoch = epoch;
         this.maxBytes = maxBytes;
         this.displayStack = false;
         Object.setPrototypeOf(this, SampleSizeLimitedExceededError.prototype);
@@ -40686,7 +40753,7 @@ self.onmessage = function (e) {
           }
         } else {
           const logContents = await get_log(log_file2);
-          const sampleSummaries2 = logContents.parsed.samples ? (_a2 = logContents.parsed.samples) == null ? void 0 : _a2.map((sample2) => {
+          const sampleSummaries = logContents.parsed.samples ? (_a2 = logContents.parsed.samples) == null ? void 0 : _a2.map((sample2) => {
             var _a3;
             return {
               id: sample2.id,
@@ -40707,23 +40774,23 @@ self.onmessage = function (e) {
             results: parsed.results,
             stats: parsed.stats,
             error: parsed.error,
-            sampleSummaries: sampleSummaries2
+            sampleSummaries
           };
         }
       };
-      const get_log_sample = async (log_file2, id, epoch2) => {
+      const get_log_sample = async (log_file2, id, epoch) => {
         if (isEvalFile(log_file2)) {
           const remoteLogFile = await remoteEvalFile(log_file2, true);
           try {
             if (remoteLogFile) {
-              const sample2 = await remoteLogFile.readSample(String(id), epoch2);
+              const sample2 = await remoteLogFile.readSample(String(id), epoch);
               return sample2;
             } else {
               throw new Error(`Unable to read remove eval file ${log_file2}`);
             }
           } catch (error2) {
             if (error2 instanceof FileSizeLimitError) {
-              throw new SampleSizeLimitedExceededError(id, epoch2, error2.maxBytes);
+              throw new SampleSizeLimitedExceededError(id, epoch, error2.maxBytes);
             } else {
               throw error2;
             }
@@ -40732,7 +40799,7 @@ self.onmessage = function (e) {
           const logContents = await get_log(log_file2, true);
           if (logContents.parsed.samples && logContents.parsed.samples.length > 0) {
             return logContents.parsed.samples.find((sample2) => {
-              return sample2.id === id && sample2.epoch === epoch2;
+              return sample2.id === id && sample2.epoch === epoch;
             });
           }
         }
@@ -40799,14 +40866,14 @@ self.onmessage = function (e) {
         }
         throw new Error("Unable to determine log paths.");
       };
-      const get_log_pending_samples = (log_file2) => {
-        return api2.eval_pending_samples(log_file2);
+      const get_log_pending_samples = (log_file2, etag) => {
+        return api2.eval_pending_samples(log_file2, etag);
       };
-      const get_log_sample_data = (log_file2, id, epoch2, last_event, last_attachment) => {
+      const get_log_sample_data = (log_file2, id, epoch, last_event, last_attachment) => {
         return api2.eval_log_sample_data(
           log_file2,
           id,
-          epoch2,
+          epoch,
           last_event,
           last_attachment
         );
@@ -42651,7 +42718,7 @@ self.onmessage = function (e) {
       className: className2
     }) => {
       const [isCollapsed, setIsCollapsed] = reactExports.useState(collapse);
-      const [showToggle2, setShowToggle] = reactExports.useState(false);
+      const [showToggle, setShowToggle] = reactExports.useState(false);
       const lineHeightRef = reactExports.useRef(0);
       reactExports.useEffect(() => {
         setIsCollapsed(collapse);
@@ -42690,7 +42757,7 @@ self.onmessage = function (e) {
             children: children2
           }
         ),
-        showToggle2 && /* @__PURE__ */ jsxRuntimeExports.jsx(
+        showToggle && /* @__PURE__ */ jsxRuntimeExports.jsx(
           MoreToggle,
           {
             collapsed: isCollapsed,
@@ -47489,9 +47556,9 @@ self.onmessage = function (e) {
       let n = initialN;
       let delta = 0;
       let bias = initialBias;
-      for (const currentValue2 of input2) {
-        if (currentValue2 < 128) {
-          output2.push(stringFromCharCode(currentValue2));
+      for (const currentValue of input2) {
+        if (currentValue < 128) {
+          output2.push(stringFromCharCode(currentValue));
         }
       }
       const basicLength = output2.length;
@@ -47501,9 +47568,9 @@ self.onmessage = function (e) {
       }
       while (handledCPCount < inputLength) {
         let m = maxInt;
-        for (const currentValue2 of input2) {
-          if (currentValue2 >= n && currentValue2 < m) {
-            m = currentValue2;
+        for (const currentValue of input2) {
+          if (currentValue >= n && currentValue < m) {
+            m = currentValue;
           }
         }
         const handledCPCountPlusOne = handledCPCount + 1;
@@ -47512,11 +47579,11 @@ self.onmessage = function (e) {
         }
         delta += (m - n) * handledCPCountPlusOne;
         n = m;
-        for (const currentValue2 of input2) {
-          if (currentValue2 < n && ++delta > maxInt) {
+        for (const currentValue of input2) {
+          if (currentValue < n && ++delta > maxInt) {
             error("overflow");
           }
-          if (currentValue2 === n) {
+          if (currentValue === n) {
             let q = delta;
             for (let k = base; ; k += base) {
               const t2 = k <= bias ? tMin : k >= bias + tMax ? tMax : k - bias;
@@ -52590,7 +52657,7 @@ self.onmessage = function (e) {
       sample: sample2,
       sampleDescriptor
     }) => {
-      var _a2;
+      var _a2, _b2;
       const input2 = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.normalized.input) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.normalized.input) : 0;
       const target2 = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.normalized.target) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.normalized.target) : 0;
       const answer2 = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.normalized.answer) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.normalized.answer) : 0;
@@ -52635,7 +52702,7 @@ self.onmessage = function (e) {
           clamp: true
         });
       }
-      const fullAnswer = sample2 && sampleDescriptor ? sampleDescriptor.selectedScorerDescriptor(sample2).answer() : void 0;
+      const fullAnswer = sample2 && sampleDescriptor ? (_a2 = sampleDescriptor.selectedScorerDescriptor(sample2)) == null ? void 0 : _a2.answer() : void 0;
       if (fullAnswer) {
         columns.push({
           label: "Answer",
@@ -52677,7 +52744,7 @@ self.onmessage = function (e) {
         label: "Score",
         value: sample2.error ? /* @__PURE__ */ jsxRuntimeExports.jsx(FlatSampleError, { message: sample2.error.message }) : (
           // TODO: Cleanup once the PR lands which makes sample / sample summary share common interface
-          ((_a2 = sampleDescriptor == null ? void 0 : sampleDescriptor.selectedScore(sample2)) == null ? void 0 : _a2.render()) || ""
+          ((_b2 = sampleDescriptor == null ? void 0 : sampleDescriptor.selectedScore(sample2)) == null ? void 0 : _b2.render()) || ""
         ),
         size: "minmax(2em, auto)",
         center: true
@@ -53710,11 +53777,11 @@ self.onmessage = function (e) {
         const length = this.filters.length;
         const context = input2;
         for (let index2 = 0; index2 < length; index2++) {
-          const filter2 = this.filters[index2];
+          const filter = this.filters[index2];
           if (debug) {
-            this.log(`filter: ${filter2.filterName}`);
+            this.log(`filter: ${filter.filterName}`);
           }
-          filter2(context);
+          filter(context);
           if (typeof context === "object" && context.exiting) {
             context.exiting = false;
             break;
@@ -53740,8 +53807,8 @@ self.onmessage = function (e) {
           throw new Error("a filter name is required");
         }
         for (let index2 = 0; index2 < this.filters.length; index2++) {
-          const filter2 = this.filters[index2];
-          if (filter2.filterName === filterName) {
+          const filter = this.filters[index2];
+          if (filter.filterName === filterName) {
             return index2;
           }
         }
@@ -58008,13 +58075,13 @@ ${val.stack}`;
       const startBlinking = () => {
         blinkIntervalId = setInterval(() => {
           setState((state2) => {
-            const changes2 = {
+            const changes = {
               blink: !state2.blink
             };
-            if (changes2.blink) {
-              changes2.cursorHold = false;
+            if (changes.blink) {
+              changes.cursorHold = false;
             }
-            return changes2;
+            return changes;
           });
         }, 500);
       };
@@ -59227,14 +59294,14 @@ ${events}
     }
     function buffer(getBufferTime, execute, setTime, logger, baseStreamTime) {
       let minFrameTime = arguments.length > 5 && arguments[5] !== void 0 ? arguments[5] : 1 / 60;
-      let epoch2 = performance.now() - baseStreamTime * 1e3;
+      let epoch = performance.now() - baseStreamTime * 1e3;
       let bufferTime = getBufferTime(0);
       const queue = new Queue();
       minFrameTime *= 1e3;
       let prevElapsedStreamTime = -minFrameTime;
       let stop = false;
       function elapsedWallTime() {
-        return performance.now() - epoch2;
+        return performance.now() - epoch;
       }
       setTimeout(async () => {
         while (!stop) {
@@ -59262,7 +59329,7 @@ ${events}
           let latency = elapsedWallTime() - event[0] * 1e3;
           if (latency < 0) {
             logger.debug(`correcting epoch by ${latency} ms`);
-            epoch2 += latency;
+            epoch += latency;
             latency = 0;
           }
           bufferTime = getBufferTime(latency);
@@ -60223,8 +60290,8 @@ ${events}
         replace: ["/tool_choice"],
         remove: []
       },
-      render: (changes2, resolvedState) => {
-        return renderTools(changes2, resolvedState);
+      render: (changes, resolvedState) => {
+        return renderTools(changes, resolvedState);
       }
     };
     const add_tools = {
@@ -60234,8 +60301,8 @@ ${events}
         replace: [],
         remove: []
       },
-      render: (changes2, resolvedState) => {
-        return renderTools(changes2, resolvedState);
+      render: (changes, resolvedState) => {
+        return renderTools(changes, resolvedState);
       }
     };
     const humanAgentKey = (key2) => {
@@ -60298,9 +60365,9 @@ ${events}
         );
       }
     };
-    const renderTools = (changes2, resolvedState) => {
+    const renderTools = (changes, resolvedState) => {
       const toolIndexes = [];
-      for (const change of changes2) {
+      for (const change of changes) {
         const match = change.path.match(kToolPattern);
         if (match) {
           toolIndexes.push(match[1]);
@@ -60314,7 +60381,7 @@ ${events}
         }
       };
       const toolsInfo = {};
-      const hasToolChoice = changes2.find((change) => {
+      const hasToolChoice = changes.find((change) => {
         return change.path.startsWith("/tool_choice");
       });
       if (resolvedState.tool_choice && hasToolChoice) {
@@ -60431,7 +60498,7 @@ ${events}
         }
       );
     };
-    const generatePreview = (changes2, resolvedState, isStore) => {
+    const generatePreview = (changes, resolvedState, isStore) => {
       const results = [];
       for (const changeType of [
         ...RenderableChangeTypes,
@@ -60439,7 +60506,7 @@ ${events}
       ]) {
         const requiredMatchCount = changeType.signature.remove.length + changeType.signature.replace.length + changeType.signature.add.length;
         let matchingOps = 0;
-        for (const change of changes2) {
+        for (const change of changes) {
           const op = change.op;
           switch (op) {
             case "add":
@@ -60472,14 +60539,14 @@ ${events}
           }
         }
         if (matchingOps === requiredMatchCount) {
-          const el = changeType.render(changes2, resolvedState);
+          const el = changeType.render(changes, resolvedState);
           results.push(el);
           break;
         }
       }
       return results.length > 0 ? results : void 0;
     };
-    const summarizeChanges = (changes2) => {
+    const summarizeChanges = (changes) => {
       const changeMap = {
         add: [],
         copy: [],
@@ -60488,7 +60555,7 @@ ${events}
         remove: [],
         test: []
       };
-      for (const change of changes2) {
+      for (const change of changes) {
         switch (change.op) {
           case "add":
             changeMap.add.push(change.path);
@@ -60531,10 +60598,10 @@ ${events}
       }
       return changeList.join(", ");
     };
-    const synthesizeComparable = (changes2) => {
+    const synthesizeComparable = (changes) => {
       const before = {};
       const after = {};
-      for (const change of changes2) {
+      for (const change of changes) {
         switch (change.op) {
           case "add":
             initializeArrays(before, change.path);
@@ -61747,16 +61814,16 @@ ${events}
     const InlineSampleDisplay = ({
       id,
       sample: sample2,
-      sampleStatus: sampleStatus2,
-      sampleError: sampleError2,
+      sampleStatus,
+      sampleError,
       sampleDescriptor,
       selectedTab,
       setSelectedTab,
       scrollRef
     }) => {
       return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$m.container, children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx(ProgressBar, { animating: sampleStatus2 === "loading" }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$m.body, children: sampleError2 ? /* @__PURE__ */ jsxRuntimeExports.jsx(ErrorPanel, { title: "Unable to load sample", error: sampleError2 }) : /* @__PURE__ */ jsxRuntimeExports.jsx(
+        /* @__PURE__ */ jsxRuntimeExports.jsx(ProgressBar, { animating: sampleStatus === "loading" }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$m.body, children: sampleError ? /* @__PURE__ */ jsxRuntimeExports.jsx(ErrorPanel, { title: "Unable to load sample", error: sampleError }) : /* @__PURE__ */ jsxRuntimeExports.jsx(
           SampleDisplay,
           {
             id,
@@ -61914,14 +61981,14 @@ ${events}
       sampleDescriptor,
       nextSample,
       prevSample,
-      sampleStatus: sampleStatus2,
-      sampleError: sampleError2,
-      showingSampleDialog: showingSampleDialog2,
-      setShowingSampleDialog: setShowingSampleDialog2,
+      sampleStatus,
+      sampleError,
+      showingSampleDialog,
+      setShowingSampleDialog,
       selectedTab,
       setSelectedTab,
       sampleScrollPositionRef,
-      setSampleScrollPosition: setSampleScrollPosition2
+      setSampleScrollPosition
     }) => {
       const scrollRef = reactExports.useRef(null);
       const tools2 = reactExports.useMemo(() => {
@@ -61956,15 +62023,15 @@ ${events}
               }
               break;
             case "Escape":
-              setShowingSampleDialog2(false);
+              setShowingSampleDialog(false);
               break;
           }
         },
-        [prevSample, nextSample, setShowingSampleDialog2]
+        [prevSample, nextSample, setShowingSampleDialog]
       );
       const onHide = reactExports.useCallback(() => {
-        setShowingSampleDialog2(false);
-      }, [setShowingSampleDialog2]);
+        setShowingSampleDialog(false);
+      }, [setShowingSampleDialog]);
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
         LargeModal,
         {
@@ -61972,13 +62039,13 @@ ${events}
           detail: title2,
           detailTools: tools2,
           onkeyup: handleKeyUp,
-          visible: showingSampleDialog2,
+          visible: showingSampleDialog,
           onHide,
-          showProgress: sampleStatus2 === "loading",
+          showProgress: sampleStatus === "loading",
           initialScrollPositionRef: sampleScrollPositionRef,
-          setInitialScrollPosition: setSampleScrollPosition2,
+          setInitialScrollPosition: setSampleScrollPosition,
           scrollRef,
-          children: sampleError2 ? /* @__PURE__ */ jsxRuntimeExports.jsx(ErrorPanel, { title: "Sample Error", error: sampleError2 }) : /* @__PURE__ */ jsxRuntimeExports.jsx(
+          children: sampleError ? /* @__PURE__ */ jsxRuntimeExports.jsx(ErrorPanel, { title: "Sample Error", error: sampleError }) : /* @__PURE__ */ jsxRuntimeExports.jsx(
             SampleDisplay,
             {
               id,
@@ -62124,13 +62191,13 @@ ${events}
       id,
       index: index2,
       sample: sample2,
-      sampleDescriptor,
+      answer: answer2,
+      scoreRendered,
       gridColumnsTemplate,
       height,
       selected: selected2,
       showSample
     }) => {
-      var _a2;
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(
         "div",
         {
@@ -62172,7 +62239,7 @@ ${events}
             /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("sample-answer", "three-line-clamp", styles$j.cell), children: sample2 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
               MarkdownDiv,
               {
-                markdown: sampleDescriptor == null ? void 0 : sampleDescriptor.selectedScorerDescriptor(sample2).answer(),
+                markdown: answer2 || "",
                 className: clsx("no-last-para-padding", styles$j.noLeft)
               }
             ) : "" }),
@@ -62188,7 +62255,7 @@ ${events}
                 children: sample2.limit
               }
             ),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-small", styles$j.cell, styles$j.score), children: sample2.error ? /* @__PURE__ */ jsxRuntimeExports.jsx(SampleErrorView, { message: sample2.error }) : (_a2 = sampleDescriptor == null ? void 0 : sampleDescriptor.selectedScore(sample2)) == null ? void 0 : _a2.render() })
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-small", styles$j.cell, styles$j.score), children: sample2.error ? /* @__PURE__ */ jsxRuntimeExports.jsx(SampleErrorView, { message: sample2.error }) : scoreRendered })
           ]
         }
       );
@@ -62326,34 +62393,41 @@ ${events}
       if (items.length === 0) {
         return /* @__PURE__ */ jsxRuntimeExports.jsx(EmptyPanel, { children: "No Samples" });
       }
-      const renderRow = (item2) => {
-        if (item2.type === "sample") {
-          return /* @__PURE__ */ jsxRuntimeExports.jsx(
-            SampleRow,
-            {
-              id: `${item2.number}`,
-              index: item2.index,
-              sample: item2.data,
-              height: kSampleHeight,
-              sampleDescriptor,
-              gridColumnsTemplate: gridColumnsValue(sampleDescriptor),
-              selected: selectedIndex === item2.index,
-              showSample
-            }
-          );
-        } else if (item2.type === "separator") {
-          return /* @__PURE__ */ jsxRuntimeExports.jsx(
-            SampleSeparator,
-            {
-              id: `sample-group${item2.number}`,
-              title: item2.data,
-              height: kSeparatorHeight
-            }
-          );
-        } else {
-          return null;
-        }
-      };
+      const gridColumnsTemplate = reactExports.useMemo(() => {
+        return gridColumnsValue(sampleDescriptor);
+      }, [sampleDescriptor]);
+      const renderRow = reactExports.useCallback(
+        (item2) => {
+          if (item2.type === "sample") {
+            return /* @__PURE__ */ jsxRuntimeExports.jsx(
+              SampleRow,
+              {
+                id: `${item2.number}`,
+                index: item2.index,
+                sample: item2.data,
+                height: kSampleHeight,
+                answer: item2.answer,
+                scoreRendered: item2.scoreRendered,
+                gridColumnsTemplate,
+                selected: selectedIndex === item2.index,
+                showSample
+              }
+            );
+          } else if (item2.type === "separator") {
+            return /* @__PURE__ */ jsxRuntimeExports.jsx(
+              SampleSeparator,
+              {
+                id: `sample-group${item2.number}`,
+                title: item2.data,
+                height: kSeparatorHeight
+              }
+            );
+          } else {
+            return null;
+          }
+        },
+        [selectedIndex, showSample]
+      );
       const { input: input2, limit, answer: answer2, target: target2 } = gridColumns(sampleDescriptor);
       const sampleCount = items == null ? void 0 : items.reduce((prev2, current) => {
         if (current.type === "sample") {
@@ -62395,7 +62469,7 @@ ${events}
             target: target2 !== "0",
             answer: answer2 !== "0",
             limit: limit !== "0",
-            gridColumnsTemplate: gridColumnsValue(sampleDescriptor)
+            gridColumnsTemplate
           }
         ),
         /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -62450,18 +62524,19 @@ ${events}
         score: `${score2}rem`
       };
     };
-    const getSampleProcessor = (samples, groupBy2, groupByOrder2, sampleDescriptor) => {
-      if (groupBy2 == "epoch") {
-        return groupByEpoch(samples, sampleDescriptor, groupByOrder2);
-      } else if (groupBy2 === "sample") {
-        return groupBySample(samples, sampleDescriptor, groupByOrder2);
+    const getSampleProcessor = (samples, groupBy, groupByOrder, sampleDescriptor) => {
+      if (groupBy == "epoch") {
+        return groupByEpoch(samples, sampleDescriptor, groupByOrder);
+      } else if (groupBy === "sample") {
+        return groupBySample(samples, sampleDescriptor, groupByOrder);
       } else {
-        return noGrouping(samples, groupByOrder2);
+        return noGrouping(samples, groupByOrder, sampleDescriptor);
       }
     };
-    const noGrouping = (samples, order) => {
+    const noGrouping = (samples, order, sampleDescriptor) => {
       const counter = getCounter(samples.length, 1, order);
       return (sample2, index2) => {
+        var _a2, _b2;
         counter.incrementItem();
         const itemCount = counter.item();
         return [
@@ -62470,7 +62545,9 @@ ${events}
             number: itemCount,
             index: index2,
             data: sample2,
-            type: "sample"
+            type: "sample",
+            answer: ((_a2 = sampleDescriptor.selectedScorerDescriptor(sample2)) == null ? void 0 : _a2.answer()) || "",
+            scoreRendered: (_b2 = sampleDescriptor.selectedScore(sample2)) == null ? void 0 : _b2.render()
           }
         ];
       };
@@ -62495,6 +62572,7 @@ ${events}
       const itemCount = samples.length / groupCount;
       const counter = getCounter(itemCount, groupCount, order);
       return (sample2, index2, previousSample) => {
+        var _a2, _b2;
         const results = [];
         const lastId = previousSample ? previousSample.id : void 0;
         if (sample2.id !== lastId) {
@@ -62514,7 +62592,9 @@ ${events}
           number: counter.item(),
           index: index2,
           data: sample2,
-          type: "sample"
+          type: "sample",
+          answer: ((_a2 = sampleDescriptor.selectedScorerDescriptor(sample2)) == null ? void 0 : _a2.answer()) || "",
+          scoreRendered: (_b2 = sampleDescriptor.selectedScore(sample2)) == null ? void 0 : _b2.render()
         });
         return results;
       };
@@ -62524,6 +62604,7 @@ ${events}
       const itemCount = samples.length / groupCount;
       const counter = getCounter(itemCount, groupCount, order);
       return (sample2, index2, previousSample) => {
+        var _a2, _b2;
         const results = [];
         const lastEpoch = previousSample ? previousSample.epoch : -1;
         if (lastEpoch !== sample2.epoch) {
@@ -62543,7 +62624,9 @@ ${events}
           number: counter.item(),
           index: index2,
           data: sample2,
-          type: "sample"
+          type: "sample",
+          answer: ((_a2 = sampleDescriptor.selectedScorerDescriptor(sample2)) == null ? void 0 : _a2.answer()) || "",
+          scoreRendered: (_b2 = sampleDescriptor.selectedScore(sample2)) == null ? void 0 : _b2.render()
         });
         return results;
       };
@@ -62580,20 +62663,20 @@ ${events}
     const SamplesTab = ({
       sample: sample2,
       samples,
-      sampleMode: sampleMode2,
-      groupBy: groupBy2,
-      groupByOrder: groupByOrder2,
+      sampleMode,
+      groupBy,
+      groupByOrder,
       sampleDescriptor,
-      sampleStatus: sampleStatus2,
-      sampleError: sampleError2,
-      selectedSampleIndex: selectedSampleIndex2,
-      setSelectedSampleIndex: setSelectedSampleIndex2,
-      showingSampleDialog: showingSampleDialog2,
-      setShowingSampleDialog: setShowingSampleDialog2,
-      selectedSampleTab: selectedSampleTab2,
-      setSelectedSampleTab: setSelectedSampleTab2,
+      sampleStatus,
+      sampleError,
+      selectedSampleIndex,
+      setSelectedSampleIndex,
+      showingSampleDialog,
+      setShowingSampleDialog,
+      selectedSampleTab,
+      setSelectedSampleTab,
       sampleScrollPositionRef,
-      setSampleScrollPosition: setSampleScrollPosition2,
+      setSampleScrollPosition,
       sampleTabScrollRef
     }) => {
       const [items, setItems] = reactExports.useState([]);
@@ -62602,13 +62685,13 @@ ${events}
       const sampleDialogRef = reactExports.useRef(null);
       const showSample = reactExports.useCallback(
         (index2) => {
-          setSelectedSampleIndex2(index2);
-          setShowingSampleDialog2(true);
+          setSelectedSampleIndex(index2);
+          setShowingSampleDialog(true);
         },
-        [setSelectedSampleIndex2, setShowingSampleDialog2]
+        [setSelectedSampleIndex, setShowingSampleDialog]
       );
       reactExports.useEffect(() => {
-        if (showingSampleDialog2) {
+        if (showingSampleDialog) {
           setTimeout(() => {
             var _a2;
             (_a2 = sampleDialogRef.current) == null ? void 0 : _a2.focus();
@@ -62620,12 +62703,12 @@ ${events}
             }
           }, 0);
         }
-      }, [showingSampleDialog2]);
+      }, [showingSampleDialog]);
       reactExports.useEffect(() => {
         const sampleProcessor = sampleDescriptor ? getSampleProcessor(
           samples || [],
-          groupBy2,
-          groupByOrder2,
+          groupBy,
+          groupByOrder,
           sampleDescriptor
         ) : void 0;
         const items2 = samples == null ? void 0 : samples.flatMap((sample22, index2) => {
@@ -62641,54 +62724,54 @@ ${events}
             return item2.type === "sample";
           }) : []
         );
-      }, [samples, groupBy2, groupByOrder2, sampleDescriptor]);
+      }, [samples, groupBy, groupByOrder, sampleDescriptor]);
       const nextSampleIndex = reactExports.useCallback(() => {
-        if (selectedSampleIndex2 < sampleItems.length - 1) {
-          return selectedSampleIndex2 + 1;
+        if (selectedSampleIndex < sampleItems.length - 1) {
+          return selectedSampleIndex + 1;
         } else {
           return -1;
         }
-      }, [selectedSampleIndex2, sampleItems.length]);
+      }, [selectedSampleIndex, sampleItems.length]);
       const previousSampleIndex = reactExports.useCallback(() => {
-        return selectedSampleIndex2 > 0 ? selectedSampleIndex2 - 1 : -1;
-      }, [selectedSampleIndex2]);
+        return selectedSampleIndex > 0 ? selectedSampleIndex - 1 : -1;
+      }, [selectedSampleIndex]);
       const nextSample = reactExports.useCallback(() => {
         const next2 = nextSampleIndex();
-        if (sampleStatus2 !== "loading" && next2 > -1) {
-          setSelectedSampleIndex2(next2);
+        if (sampleStatus !== "loading" && next2 > -1) {
+          setSelectedSampleIndex(next2);
         }
-      }, [nextSampleIndex, sampleStatus2, setSelectedSampleIndex2]);
+      }, [nextSampleIndex, sampleStatus, setSelectedSampleIndex]);
       const previousSample = reactExports.useCallback(() => {
         const prev2 = previousSampleIndex();
-        if (sampleStatus2 !== "loading" && prev2 > -1) {
-          setSelectedSampleIndex2(prev2);
+        if (sampleStatus !== "loading" && prev2 > -1) {
+          setSelectedSampleIndex(prev2);
         }
-      }, [previousSampleIndex, sampleStatus2, setSelectedSampleIndex2]);
-      const title2 = selectedSampleIndex2 > -1 && sampleItems.length > selectedSampleIndex2 ? sampleItems[selectedSampleIndex2].label : "";
+      }, [previousSampleIndex, sampleStatus, setSelectedSampleIndex]);
+      const title2 = selectedSampleIndex > -1 && sampleItems.length > selectedSampleIndex ? sampleItems[selectedSampleIndex].label : "";
       if (!sampleDescriptor) {
         return /* @__PURE__ */ jsxRuntimeExports.jsx(EmptyPanel, {});
       } else {
         return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
-          sampleDescriptor && sampleMode2 === "single" ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+          sampleDescriptor && sampleMode === "single" ? /* @__PURE__ */ jsxRuntimeExports.jsx(
             InlineSampleDisplay,
             {
               id: "sample-display",
               sample: sample2,
-              sampleStatus: sampleStatus2,
-              sampleError: sampleError2,
+              sampleStatus,
+              sampleError,
               sampleDescriptor,
-              selectedTab: selectedSampleTab2,
-              setSelectedTab: setSelectedSampleTab2,
+              selectedTab: selectedSampleTab,
+              setSelectedTab: setSelectedSampleTab,
               scrollRef: sampleTabScrollRef
             }
           ) : void 0,
-          sampleDescriptor && sampleMode2 === "many" ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+          sampleDescriptor && sampleMode === "many" ? /* @__PURE__ */ jsxRuntimeExports.jsx(
             SampleList,
             {
               listHandle: sampleListHandle,
               items,
               sampleDescriptor,
-              selectedIndex: selectedSampleIndex2,
+              selectedIndex: selectedSampleIndex,
               nextSample,
               prevSample: previousSample,
               showSample
@@ -62700,17 +62783,17 @@ ${events}
               id: String((sample2 == null ? void 0 : sample2.id) || ""),
               title: title2,
               sample: sample2,
-              sampleStatus: sampleStatus2,
-              sampleError: sampleError2,
+              sampleStatus,
+              sampleError,
               sampleDescriptor,
-              showingSampleDialog: showingSampleDialog2,
-              setShowingSampleDialog: setShowingSampleDialog2,
-              selectedTab: selectedSampleTab2,
-              setSelectedTab: setSelectedSampleTab2,
+              showingSampleDialog,
+              setShowingSampleDialog,
+              selectedTab: selectedSampleTab,
+              setSelectedTab: setSelectedSampleTab,
               nextSample,
               prevSample: previousSample,
               sampleScrollPositionRef,
-              setSampleScrollPosition: setSampleScrollPosition2
+              setSampleScrollPosition
             }
           )
         ] });
@@ -63490,11 +63573,11 @@ ${events}
         }
       );
     };
-    const StatusPanel = ({ icon, status: status2, sampleCount }) => {
+    const StatusPanel = ({ icon, status, sampleCount }) => {
       return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$5.statusPanel, children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(icon, styles$5.statusIcon), style: {} }),
         /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: status2 }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: status }),
           /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
             "(",
             sampleCount,
@@ -63506,19 +63589,19 @@ ${events}
       ] });
     };
     const PrimaryBar = ({
-      showToggle: showToggle2,
-      offcanvas: offcanvas2,
-      status: status2,
+      showToggle,
+      offcanvas,
+      status,
       evalResults,
       samples,
       file,
       evalSpec,
-      setOffcanvas: setOffcanvas2
+      setOffcanvas
     }) => {
       const logFileName = file ? filename(file) : "";
       const handleToggle = reactExports.useCallback(() => {
-        setOffcanvas2(!offcanvas2);
-      }, [setOffcanvas2, offcanvas2]);
+        setOffcanvas(!offcanvas);
+      }, [setOffcanvas, offcanvas]);
       return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$7.wrapper), children: [
         /* @__PURE__ */ jsxRuntimeExports.jsxs(
           "div",
@@ -63530,14 +63613,14 @@ ${events}
               styles$7.container
             ),
             children: [
-              showToggle2 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+              showToggle ? /* @__PURE__ */ jsxRuntimeExports.jsx(
                 "button",
                 {
                   id: "sidebarToggle",
                   onClick: handleToggle,
                   className: clsx(
                     "btn",
-                    offcanvas2 ? "d-md-none" : void 0,
+                    offcanvas ? "d-md-none" : void 0,
                     styles$7.toggle
                   ),
                   type: "button",
@@ -63579,10 +63662,10 @@ ${events}
           }
         ),
         /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$7.taskStatus, "navbar-text"), children: [
-          status2 === "success" ? /* @__PURE__ */ jsxRuntimeExports.jsx(ResultsPanel, { results: evalResults }) : void 0,
-          status2 === "cancelled" ? /* @__PURE__ */ jsxRuntimeExports.jsx(CancelledPanel, { sampleCount: (samples == null ? void 0 : samples.length) || 0 }) : void 0,
-          status2 === "started" ? /* @__PURE__ */ jsxRuntimeExports.jsx(RunningPanel, { sampleCount: (samples == null ? void 0 : samples.length) || 0 }) : void 0,
-          status2 === "error" ? /* @__PURE__ */ jsxRuntimeExports.jsx(ErroredPanel, { sampleCount: (samples == null ? void 0 : samples.length) || 0 }) : void 0
+          status === "success" ? /* @__PURE__ */ jsxRuntimeExports.jsx(ResultsPanel, { results: evalResults }) : void 0,
+          status === "cancelled" ? /* @__PURE__ */ jsxRuntimeExports.jsx(CancelledPanel, { sampleCount: (samples == null ? void 0 : samples.length) || 0 }) : void 0,
+          status === "started" ? /* @__PURE__ */ jsxRuntimeExports.jsx(RunningPanel, { sampleCount: (samples == null ? void 0 : samples.length) || 0 }) : void 0,
+          status === "error" ? /* @__PURE__ */ jsxRuntimeExports.jsx(ErroredPanel, { sampleCount: (samples == null ? void 0 : samples.length) || 0 }) : void 0
         ] }),
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { id: "task-created", style: { display: "none" }, children: evalSpec == null ? void 0 : evalSpec.created })
       ] });
@@ -63639,10 +63722,10 @@ ${events}
       evalResults,
       evalStats,
       samples,
-      evalDescriptor: evalDescriptor2,
-      status: status2
+      evalDescriptor,
+      status
     }) => {
-      if (!evalSpec || status2 !== "success") {
+      if (!evalSpec || status !== "success") {
         return null;
       }
       const epochs = evalSpec.config.epochs || 1;
@@ -63683,7 +63766,7 @@ ${events}
               hasConfig ? styles$4.justifyLeft : styles$4.justifyCenter,
               "text-size-small"
             ),
-            children: /* @__PURE__ */ jsxRuntimeExports.jsx(ScorerSummary, { evalDescriptor: evalDescriptor2 })
+            children: /* @__PURE__ */ jsxRuntimeExports.jsx(ScorerSummary, { evalDescriptor })
           },
           "sb-scorer"
         )
@@ -63753,11 +63836,11 @@ ${events}
       }
       return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: (samples == null ? void 0 : samples.length) ? formatDataset(samples.length, epochs, dataset.name) : "" });
     };
-    const ScorerSummary = ({ evalDescriptor: evalDescriptor2 }) => {
-      if (!evalDescriptor2) {
+    const ScorerSummary = ({ evalDescriptor }) => {
+      if (!evalDescriptor) {
         return null;
       }
-      const items = scoreFilterItems(evalDescriptor2);
+      const items = scoreFilterItems(evalDescriptor);
       return /* @__PURE__ */ jsxRuntimeExports.jsx("span", { style: { position: "relative" }, children: Array.from(items).map((item2, index2, array) => /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx("span", { title: item2.tooltip, children: item2.canonicalName }),
         index2 < array.length - 1 ? ", " : ""
@@ -63788,11 +63871,11 @@ ${events}
       evalResults,
       evalStats,
       samples,
-      evalDescriptor: evalDescriptor2,
-      showToggle: showToggle2,
-      offcanvas: offcanvas2,
-      setOffcanvas: setOffcanvas2,
-      status: status2
+      evalDescriptor,
+      showToggle,
+      offcanvas,
+      setOffcanvas,
+      status
     }) => {
       return /* @__PURE__ */ jsxRuntimeExports.jsxs("nav", { className: clsx("navbar", "sticky-top", styles$9.navbarWrapper), children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -63802,10 +63885,10 @@ ${events}
             evalSpec,
             evalResults,
             samples,
-            showToggle: showToggle2,
-            offcanvas: offcanvas2,
-            setOffcanvas: setOffcanvas2,
-            status: status2
+            showToggle,
+            offcanvas,
+            setOffcanvas,
+            status
           }
         ),
         /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -63816,8 +63899,8 @@ ${events}
             evalResults,
             evalStats,
             samples,
-            evalDescriptor: evalDescriptor2,
-            status: status2
+            evalDescriptor,
+            status
           }
         )
       ] });
@@ -63841,23 +63924,23 @@ ${events}
       evalResults,
       evalStats,
       samples,
-      evalDescriptor: evalDescriptor2,
-      status: status2,
-      showToggle: showToggle2,
+      evalDescriptor,
+      status,
+      showToggle,
       selectedTab,
       tabs: tabs2,
       setSelectedTab,
       divRef,
-      offcanvas: offcanvas2,
-      setOffcanvas: setOffcanvas2,
+      offcanvas,
+      setOffcanvas,
       workspaceTabScrollPositionRef,
-      setWorkspaceTabScrollPosition: setWorkspaceTabScrollPosition2
+      setWorkspaceTabScrollPosition
     }) => {
       const debouncedScroll = reactExports.useMemo(() => {
         return debounce$1((id, position) => {
-          setWorkspaceTabScrollPosition2(id, position);
+          setWorkspaceTabScrollPosition(id, position);
         }, 100);
-      }, [setWorkspaceTabScrollPosition2]);
+      }, [setWorkspaceTabScrollPosition]);
       const onScroll = reactExports.useCallback(
         (id, position) => {
           debouncedScroll(id, position);
@@ -63875,8 +63958,8 @@ ${events}
         [setSelectedTab]
       );
       const handleScroll = reactExports.useCallback(
-        (tabid, position) => {
-          onScroll(tabid, position);
+        (tabId, position) => {
+          onScroll(tabId, position);
         },
         [onScroll]
       );
@@ -63905,12 +63988,12 @@ ${events}
               evalResults,
               evalStats,
               samples,
-              evalDescriptor: evalDescriptor2,
-              status: status2,
+              evalDescriptor,
+              status,
               file: logFileName,
-              showToggle: showToggle2,
-              offcanvas: offcanvas2,
-              setOffcanvas: setOffcanvas2
+              showToggle,
+              offcanvas,
+              setOffcanvas
             }
           ),
           /* @__PURE__ */ jsxRuntimeExports.jsx("div", { ref: divRef, className: clsx("workspace", styles$3.workspace), children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("log-detail", styles$3.tabContainer), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -63958,14 +64041,14 @@ ${events}
         evalStats,
         evalResults,
         samples,
-        showToggle: showToggle2,
-        offcanvas: offcanvas2,
-        setOffcanvas: setOffcanvas2,
-        samplesDescriptor: samplesDescriptor2,
+        showToggle,
+        offcanvas,
+        setOffcanvas,
+        samplesDescriptor,
         selectedTab,
         setSelectedTab,
         workspaceTabScrollPositionRef,
-        setWorkspaceTabScrollPosition: setWorkspaceTabScrollPosition2
+        setWorkspaceTabScrollPosition
       } = props;
       const divRef = reactExports.useRef(null);
       reactExports.useEffect(() => {
@@ -63987,16 +64070,16 @@ ${events}
           evalResults,
           evalStats,
           samples,
-          evalDescriptor: samplesDescriptor2 == null ? void 0 : samplesDescriptor2.evalDescriptor,
+          evalDescriptor: samplesDescriptor == null ? void 0 : samplesDescriptor.evalDescriptor,
           status: evalStatus,
           tabs: resolvedTabs,
           selectedTab,
-          showToggle: showToggle2,
-          offcanvas: offcanvas2,
+          showToggle,
+          offcanvas,
           setSelectedTab,
           workspaceTabScrollPositionRef,
-          setWorkspaceTabScrollPosition: setWorkspaceTabScrollPosition2,
-          setOffcanvas: setOffcanvas2
+          setWorkspaceTabScrollPosition,
+          setOffcanvas
         }
       );
     };
@@ -64023,31 +64106,31 @@ ${events}
     const useResolvedTabs = ({
       evalVersion,
       evalStatus,
-      sampleMode: sampleMode2,
+      sampleMode,
       samples,
-      selectedSample: selectedSample2,
-      sampleStatus: sampleStatus2,
-      sampleError: sampleError2,
-      showingSampleDialog: showingSampleDialog2,
-      setShowingSampleDialog: setShowingSampleDialog2,
-      groupBy: groupBy2,
-      groupByOrder: groupByOrder2,
-      selectedSampleIndex: selectedSampleIndex2,
-      setSelectedSampleIndex: setSelectedSampleIndex2,
-      samplesDescriptor: samplesDescriptor2,
-      selectedSampleTab: selectedSampleTab2,
-      setSelectedSampleTab: setSelectedSampleTab2,
-      filter: filter2,
-      sort: sort2,
-      epoch: epoch2,
+      selectedSample,
+      sampleStatus,
+      sampleError,
+      showingSampleDialog,
+      setShowingSampleDialog,
+      groupBy,
+      groupByOrder,
+      selectedSampleIndex,
+      setSelectedSampleIndex,
+      samplesDescriptor,
+      selectedSampleTab,
+      setSelectedSampleTab,
+      filter,
+      sort,
+      epoch,
       sampleScrollPositionRef,
-      setSampleScrollPosition: setSampleScrollPosition2,
+      setSampleScrollPosition,
       epochs,
-      setEpoch: setEpoch2,
-      setFilter: setFilter2,
-      setSort: setSort2,
+      setEpoch,
+      setFilter,
+      setSort,
       score: score2,
-      setScore: setScore2,
+      setScore,
       scores: scores2,
       evalSpec,
       evalPlan,
@@ -64057,10 +64140,10 @@ ${events}
       logFileName,
       capabilities: capabilities2,
       selectedTab,
-      refreshLog: refreshLog2
+      refreshLog
     }) => {
       const sampleTabScrollRef = reactExports.useRef(null);
-      const samplesTab = sampleMode2 !== "none" ? {
+      const samplesTab = sampleMode !== "none" ? {
         id: kEvalWorkspaceTabId,
         scrollable: (samples == null ? void 0 : samples.length) === 1,
         scrollRef: sampleTabScrollRef,
@@ -64068,42 +64151,42 @@ ${events}
         content: () => /* @__PURE__ */ jsxRuntimeExports.jsx(
           SamplesTab,
           {
-            sample: selectedSample2,
-            sampleStatus: sampleStatus2,
-            sampleError: sampleError2,
-            showingSampleDialog: showingSampleDialog2,
-            setShowingSampleDialog: setShowingSampleDialog2,
+            sample: selectedSample,
+            sampleStatus,
+            sampleError,
+            showingSampleDialog,
+            setShowingSampleDialog,
             samples,
-            sampleMode: sampleMode2,
-            groupBy: groupBy2,
-            groupByOrder: groupByOrder2,
-            selectedSampleIndex: selectedSampleIndex2,
-            setSelectedSampleIndex: setSelectedSampleIndex2,
-            sampleDescriptor: samplesDescriptor2,
-            selectedSampleTab: selectedSampleTab2,
-            setSelectedSampleTab: setSelectedSampleTab2,
-            filter: filter2,
-            epoch: epoch2,
+            sampleMode,
+            groupBy,
+            groupByOrder,
+            selectedSampleIndex,
+            setSelectedSampleIndex,
+            sampleDescriptor: samplesDescriptor,
+            selectedSampleTab,
+            setSelectedSampleTab,
+            filter,
+            epoch,
             sampleScrollPositionRef,
-            setSampleScrollPosition: setSampleScrollPosition2,
+            setSampleScrollPosition,
             sampleTabScrollRef
           }
         ),
-        tools: () => sampleMode2 === "single" || !samplesDescriptor2 ? void 0 : [
+        tools: () => sampleMode === "single" || !samplesDescriptor ? void 0 : [
           /* @__PURE__ */ jsxRuntimeExports.jsx(
             SampleTools,
             {
-              epoch: epoch2,
+              epoch,
               epochs: epochs || 1,
-              setEpoch: setEpoch2,
-              scoreFilter: filter2,
-              setScoreFilter: setFilter2,
-              sort: sort2,
-              setSort: setSort2,
+              setEpoch,
+              scoreFilter: filter,
+              setScoreFilter: setFilter,
+              sort,
+              setSort,
               score: score2,
-              setScore: setScore2,
+              setScore,
               scores: scores2,
-              sampleDescriptor: samplesDescriptor2
+              sampleDescriptor: samplesDescriptor
             },
             "sample-tools"
           ),
@@ -64112,7 +64195,7 @@ ${events}
             {
               label: "Refresh",
               icon: ApplicationIcons.refresh,
-              onClick: refreshLog2
+              onClick: refreshLog
             },
             "refresh"
           )
@@ -65040,8 +65123,8 @@ ${events}
               "Unexpectedly using the pass fail scorer on non-string values"
             );
           }
-          const sort2 = order.indexOf(a.value || "") - order.indexOf(b.value || "");
-          return sort2;
+          const sort = order.indexOf(a.value || "") - order.indexOf(b.value || "");
+          return sort;
         }
       };
     };
@@ -65286,12 +65369,12 @@ ${events}
         scoreAnswer
       };
     };
-    const createSamplesDescriptor = (evalDescriptor2, selectedScore) => {
-      const sizes = evalDescriptor2.samples.reduce(
+    const createSamplesDescriptor = (evalDescriptor, selectedScore) => {
+      const sizes = evalDescriptor.samples.reduce(
         (previous, current) => {
           var _a2;
           const text2 = inputString(current.input).join(" ");
-          const score2 = evalDescriptor2.score(current, selectedScore);
+          const score2 = selectedScore ? evalDescriptor.score(current, selectedScore) : void 0;
           const scoreValue2 = score2 == null ? void 0 : score2.value;
           const scoreText = scoreValue2 ? String(scoreValue2) : current.error ? String(current.error) : "";
           previous[0] = Math.min(Math.max(previous[0], text2.length), 300);
@@ -65302,7 +65385,7 @@ ${events}
           previous[2] = Math.min(
             Math.max(
               previous[2],
-              ((_a2 = evalDescriptor2.scoreAnswer(current, selectedScore == null ? void 0 : selectedScore.name)) == null ? void 0 : _a2.length) || 0
+              ((_a2 = evalDescriptor.scoreAnswer(current, (selectedScore == null ? void 0 : selectedScore.name) || "")) == null ? void 0 : _a2.length) || 0
             ),
             300
           );
@@ -65347,38 +65430,84 @@ ${events}
         }
       };
       return {
-        evalDescriptor: evalDescriptor2,
+        evalDescriptor,
         messageShape,
-        selectedScoreDescriptor: evalDescriptor2.scoreDescriptor(selectedScore),
-        selectedScore: (sample2) => evalDescriptor2.score(sample2, selectedScore),
-        selectedScorerDescriptor: (sample2) => evalDescriptor2.scorerDescriptor(sample2, selectedScore)
+        selectedScoreDescriptor: selectedScore ? evalDescriptor.scoreDescriptor(selectedScore) : void 0,
+        selectedScore: (sample2) => selectedScore ? evalDescriptor.score(sample2, selectedScore) : void 0,
+        selectedScorerDescriptor: (sample2) => selectedScore ? evalDescriptor.scorerDescriptor(sample2, selectedScore) : void 0
       };
     };
     const scoreLabelKey = (scoreLabel) => {
       return `${scoreLabel == null ? void 0 : scoreLabel.scorer}.${scoreLabel.name}`;
     };
+    const getScorersFromResults = (results) => {
+      if (!(results == null ? void 0 : results.scores)) {
+        return [];
+      }
+      return results.scores.reduce((uniqueScorers, score2) => {
+        const isDuplicate = uniqueScorers.some(
+          (existing) => existing.scorer === score2.scorer && existing.name === score2.name
+        );
+        if (!isDuplicate) {
+          uniqueScorers.push({
+            name: score2.name,
+            scorer: score2.scorer
+          });
+        }
+        return uniqueScorers;
+      }, []);
+    };
+    const getScorersFromSamples = (samples) => {
+      if (!samples.length || samples[0].scores === null) {
+        return [];
+      }
+      return Object.keys(samples[0].scores).map((key2) => ({
+        name: key2,
+        scorer: key2
+      }));
+    };
+    const getAvailableScorers = (log2, sampleSummaries) => {
+      const resultScorers = log2.results ? getScorersFromResults(log2.results) : [];
+      if (resultScorers.length > 0) {
+        return resultScorers;
+      }
+      const sampleScorers = getScorersFromSamples(sampleSummaries);
+      if (sampleScorers.length > 0) {
+        return sampleScorers;
+      }
+      return void 0;
+    };
+    const getDefaultScorer = (log2, sampleSummaries) => {
+      if (sampleSummaries.length === 0) {
+        return void 0;
+      }
+      const allScorers = getAvailableScorers(log2, sampleSummaries);
+      if (allScorers) {
+        return allScorers[0];
+      } else {
+        return void 0;
+      }
+    };
     const App = ({
-      api,
+      api: api2,
       applicationState,
       saveApplicationState,
       pollForLogs = true,
-      capabilities
+      capabilities: capabilities2
     }) => {
-      var _a2, _b2, _c, _d, _e2, _f, _g, _h, _i, _j, _k, _l;
+      var _a2, _b2, _c, _d;
       const [logs, setLogs] = reactExports.useState(
         (applicationState == null ? void 0 : applicationState.logs) || { log_dir: "", files: [] }
       );
       const [selectedLogIndex, setSelectedLogIndex] = reactExports.useState(
         (applicationState == null ? void 0 : applicationState.selectedLogIndex) !== void 0 ? applicationState.selectedLogIndex : -1
       );
+      const [selectedLogSummary, setSelectedLogSummary] = reactExports.useState(applicationState == null ? void 0 : applicationState.selectedLogSummary);
       const [logHeaders, setLogHeaders] = reactExports.useState(
         (applicationState == null ? void 0 : applicationState.logHeaders) || {}
       );
       const [headersLoading, setHeadersLoading] = reactExports.useState(
         (applicationState == null ? void 0 : applicationState.headersLoading) || false
-      );
-      const [selectedLog, setSelectedLog] = reactExports.useState(
-        applicationState == null ? void 0 : applicationState.selectedLog
       );
       const [selectedWorkspaceTab, setSelectedWorkspaceTab] = reactExports.useState(
         (applicationState == null ? void 0 : applicationState.selectedWorkspaceTab) || kEvalWorkspaceTabId
@@ -65422,73 +65551,12 @@ ${events}
       const [sort, setSort] = reactExports.useState(
         (applicationState == null ? void 0 : applicationState.sort) || kDefaultSort
       );
-      const [scores, setScores] = reactExports.useState(
-        (applicationState == null ? void 0 : applicationState.scores) || []
-      );
-      const [score, setScore] = reactExports.useState(
+      const [score2, setScore] = reactExports.useState(
         applicationState == null ? void 0 : applicationState.score
       );
       const [pendingSampleSummaries, setPendingSampleSummaries] = reactExports.useState({
         samples: [],
-        lastPoll: 0
-      });
-      const prevState = reactExports.useRef({
-        logs,
-        selectedLogIndex,
-        selectedLog,
-        logHeaders,
-        headersLoading,
-        selectedWorkspaceTab,
-        selectedSampleIndex,
-        selectedSample,
-        sampleStatus,
-        sampleError,
-        selectedSampleTab,
-        showingSampleDialog,
-        status,
-        offcanvas,
-        showFind,
-        filter,
-        epoch,
-        sort,
-        scores,
-        score
-      });
-      reactExports.useEffect(() => {
-        const changes = [];
-        Object.entries(prevState.current).forEach(([key, prevValue]) => {
-          const currentValue = eval(key);
-          if (prevValue !== currentValue) {
-            changes.push(`${key} changed`);
-          }
-        });
-        if (changes.length > 0) {
-          console.log("App rendered due to:", changes.join(", "));
-        } else {
-          console.log("App rendered with no significant state changes.");
-        }
-        prevState.current = {
-          logs,
-          selectedLogIndex,
-          selectedLog,
-          logHeaders,
-          headersLoading,
-          selectedWorkspaceTab,
-          selectedSampleIndex,
-          selectedSample,
-          sampleStatus,
-          sampleError,
-          selectedSampleTab,
-          showingSampleDialog,
-          status,
-          offcanvas,
-          showFind,
-          filter,
-          epoch,
-          sort,
-          scores,
-          score
-        };
+        refresh: 2
       });
       const saveState = reactExports.useCallback(() => {
         const state = {
@@ -65496,7 +65564,7 @@ ${events}
           selectedLogIndex,
           logHeaders,
           headersLoading,
-          selectedLog,
+          selectedLogSummary,
           selectedSampleIndex,
           selectedWorkspaceTab,
           selectedSample,
@@ -65510,8 +65578,7 @@ ${events}
           filter,
           epoch,
           sort,
-          scores,
-          score,
+          score: score2,
           sampleScrollPosition: sampleScrollPosition.current,
           workspaceTabScrollPosition: workspaceTabScrollPosition.current
         };
@@ -65523,7 +65590,7 @@ ${events}
         selectedLogIndex,
         logHeaders,
         headersLoading,
-        selectedLog,
+        selectedLogSummary,
         selectedSampleIndex,
         selectedWorkspaceTab,
         selectedSample,
@@ -65537,8 +65604,7 @@ ${events}
         filter,
         epoch,
         sort,
-        scores,
-        score
+        score2
       ]);
       const saveStateRef = reactExports.useRef(saveState);
       reactExports.useEffect(() => {
@@ -65570,7 +65636,7 @@ ${events}
         selectedLogIndex,
         logHeaders,
         headersLoading,
-        selectedLog,
+        selectedLogSummary,
         selectedSampleIndex,
         selectedWorkspaceTab,
         selectedSample,
@@ -65584,8 +65650,7 @@ ${events}
         filter,
         epoch,
         sort,
-        scores,
-        score
+        score2
       ]);
       const mergeSampleSummaries = reactExports.useCallback(
         (logSamples, pendingSamples) => {
@@ -65600,11 +65665,11 @@ ${events}
         []
       );
       const sampleSummaries = reactExports.useMemo(() => {
-        const logSamples = (selectedLog == null ? void 0 : selectedLog.contents.sampleSummaries) || [];
+        const logSamples = (selectedLogSummary == null ? void 0 : selectedLogSummary.sampleSummaries) || [];
         const pendingSamples = pendingSampleSummaries.samples || [];
         const result2 = mergeSampleSummaries(logSamples, pendingSamples);
         return result2;
-      }, [selectedLog == null ? void 0 : selectedLog.contents.sampleSummaries, pendingSampleSummaries.samples]);
+      }, [selectedLogSummary == null ? void 0 : selectedLogSummary.sampleSummaries, pendingSampleSummaries.samples]);
       const handleSampleShowingDialog = reactExports.useCallback(
         (show) => {
           setShowingSampleDialog(show);
@@ -65620,18 +65685,29 @@ ${events}
           selectedSample
         ]
       );
+      const scores2 = reactExports.useMemo(() => {
+        if (!selectedLogSummary) {
+          return [];
+        }
+        return getAvailableScorers(selectedLogSummary, sampleSummaries) || [];
+      }, [selectedLogSummary, sampleSummaries]);
       const evalDescriptor = reactExports.useMemo(() => {
-        var _a3, _b3, _c2;
+        var _a3, _b3;
         const result2 = createEvalDescriptor(
-          scores,
-          ((_c2 = (_b3 = (_a3 = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _a3.eval) == null ? void 0 : _b3.config) == null ? void 0 : _c2.epochs) || 1,
+          scores2,
+          ((_b3 = (_a3 = selectedLogSummary == null ? void 0 : selectedLogSummary.eval) == null ? void 0 : _a3.config) == null ? void 0 : _b3.epochs) || 1,
           sampleSummaries
         );
         return result2;
-      }, [selectedLog, sampleSummaries, scores]);
+      }, [selectedLogSummary, sampleSummaries, scores2]);
       const samplesDescriptor = reactExports.useMemo(() => {
-        return evalDescriptor && score ? createSamplesDescriptor(evalDescriptor, score) : void 0;
-      }, [evalDescriptor, score]);
+        if (!selectedLogSummary) {
+          return void 0;
+        }
+        const evalScore = score2 || getDefaultScorer(selectedLogSummary, sampleSummaries);
+        const descriptor = evalDescriptor ? createSamplesDescriptor(evalDescriptor, evalScore) : void 0;
+        return descriptor;
+      }, [evalDescriptor, score2, selectedLogSummary, sampleSummaries]);
       const filteredSamples = reactExports.useMemo(() => {
         const samples = sampleSummaries || [];
         const { result: prefiltered } = evalDescriptor && (filter == null ? void 0 : filter.value) ? filterSamples(evalDescriptor, samples, filter.value) : { result: samples };
@@ -65674,7 +65750,8 @@ ${events}
       }, [selectedSample, selectedSampleTab]);
       const mainAppRef = reactExports.useRef(null);
       reactExports.useEffect(() => {
-        if (!selectedLog || selectedSampleIndex === -1) {
+        const logFile = logs.files[selectedLogIndex];
+        if (!logFile || selectedSampleIndex === -1) {
           setSelectedSample(void 0);
           return;
         }
@@ -65692,7 +65769,7 @@ ${events}
           loadingSampleIndexRef.current = selectedSampleIndex;
           setSampleStatus("loading");
           setSampleError(void 0);
-          api.get_log_sample(selectedLog.name, summary2.id, summary2.epoch).then((sample2) => {
+          api2.get_log_sample(logFile.name, summary2.id, summary2.epoch).then((sample2) => {
             if (sample2) {
               const anySample = sample2;
               if (anySample.transcript) {
@@ -65729,12 +65806,86 @@ ${events}
         selectedSample,
         selectedSampleIndex,
         showingSampleDialog,
-        selectedLog,
+        selectedLogIndex,
         sampleSummaries,
         filteredSamples,
         setSelectedSample,
         setSampleStatus,
         setSampleError
+      ]);
+      const loadLog = reactExports.useCallback(
+        async (logFileName) => {
+          try {
+            const logContents = await api2.get_log_summary(logFileName);
+            return logContents;
+          } catch (e) {
+            console.log(e);
+            setStatus({ loading: false, error: e });
+          }
+        },
+        [api2]
+      );
+      const reloadSelectedLog = reactExports.useCallback(async () => {
+        const targetLog = logs.files[selectedLogIndex];
+        if (!targetLog) return;
+        const log2 = await loadLog(targetLog.name);
+        if (log2) {
+          setSelectedLogSummary(log2);
+        }
+      }, [logs, selectedLogIndex, loadLog, setSelectedLogSummary]);
+      const clearPendingSummaries = reactExports.useCallback(() => {
+        if (pendingSampleSummaries.samples.length > 0) {
+          setPendingSampleSummaries((prev2) => ({
+            samples: [],
+            refresh: prev2.refresh
+          }));
+          reloadSelectedLog();
+        }
+      }, [pendingSampleSummaries.samples, reloadSelectedLog]);
+      reactExports.useEffect(() => {
+        const logFile = logs.files[selectedLogIndex];
+        if (!logFile) return;
+        let isActive = true;
+        let pollTimeout;
+        const pollPendingSamples = async () => {
+          try {
+            const pendingSamples = await api2.get_log_pending_samples(logFile.name);
+            if (!isActive) return;
+            if (pendingSamples.status === "OK" && pendingSamples.pendingSamples) {
+              setPendingSampleSummaries(pendingSamples.pendingSamples);
+              reloadSelectedLog();
+            } else if (pendingSamples.status === "NotFound") {
+              clearPendingSummaries();
+            }
+            if (isActive) {
+              pollTimeout = setTimeout(
+                pollPendingSamples,
+                pendingSampleSummaries.refresh * 1e3
+              );
+            }
+          } catch (error2) {
+            console.error("Error polling pending samples:", error2);
+            if (isActive) {
+              pollTimeout = setTimeout(
+                pollPendingSamples,
+                Math.min(pendingSampleSummaries.refresh * 2 * 1e3, 6e4)
+              );
+            }
+          }
+        };
+        pollPendingSamples();
+        return () => {
+          isActive = false;
+          if (pollTimeout) {
+            clearTimeout(pollTimeout);
+          }
+        };
+      }, [
+        logs,
+        selectedLogIndex,
+        pendingSampleSummaries.refresh,
+        reloadSelectedLog,
+        clearPendingSummaries
       ]);
       reactExports.useEffect(() => {
         const loadHeaders = async () => {
@@ -65747,7 +65898,7 @@ ${events}
           }
           try {
             for (const fileList of fileLists) {
-              const headers = await api.get_log_headers(fileList);
+              const headers = await api2.get_log_headers(fileList);
               setLogHeaders((prev2) => {
                 const updatedHeaders = {};
                 headers.forEach((header2, index2) => {
@@ -65779,10 +65930,7 @@ ${events}
           setSelectedWorkspaceTab(
             log2.status !== "error" && hasSamples ? kEvalWorkspaceTabId : kInfoWorkspaceTabId
           );
-          const scorer = defaultScorer(log2, sampleSummaries2);
-          const scorers = defaultScorers(log2, sampleSummaries2);
-          setScores(scorers);
-          setScore(scorer);
+          setScore(void 0);
           setEpoch("all");
           setFilter({});
           setSort(kDefaultSort);
@@ -65795,21 +65943,18 @@ ${events}
           }
           workspaceTabScrollPosition.current = {};
         },
-        [setSelectedWorkspaceTab, score, scores]
+        [setSelectedWorkspaceTab]
       );
       reactExports.useEffect(() => {
         const loadSpecificLog = async () => {
           const targetLog = logs.files[selectedLogIndex];
-          if (targetLog && (!selectedLog || selectedLog.name !== targetLog.name)) {
+          if (targetLog) {
             try {
               setStatus({ loading: true, error: void 0 });
               const logContents = await loadLog(targetLog.name);
               if (logContents) {
                 const log2 = logContents;
-                setSelectedLog({
-                  contents: log2,
-                  name: targetLog.name
-                });
+                setSelectedLogSummary(log2);
                 resetWorkspace(log2, logContents.sampleSummaries);
                 setStatus({ loading: false, error: void 0 });
               }
@@ -65829,29 +65974,19 @@ ${events}
         loadSpecificLog();
       }, [
         selectedLogIndex,
-        sampleSummaries,
         logs,
-        selectedLog,
-        setSelectedLog,
+        selectedLogIndex,
+        setSelectedLogSummary,
         setStatus
       ]);
       const loadLogs = async () => {
         try {
-          const result2 = await api.get_log_paths();
+          const result2 = await api2.get_log_paths();
           return result2;
         } catch (e) {
           console.log(e);
           setStatus({ loading: false, error: e });
           return { log_dir: "", files: [] };
-        }
-      };
-      const loadLog = async (logFileName) => {
-        try {
-          const logContents = await api.get_log_summary(logFileName);
-          return logContents;
-        } catch (e) {
-          console.log(e);
-          setStatus({ loading: false, error: e });
         }
       };
       const refreshLog = reactExports.useCallback(async () => {
@@ -65876,10 +66011,7 @@ ${events}
                 return updatedState;
               });
             }
-            setSelectedLog({
-              contents: log2,
-              name: targetLog.name
-            });
+            setSelectedLogSummary(log2);
             resetWorkspace(log2, sampleSummaries);
             setStatus({ loading: false, error: void 0 });
           }
@@ -65887,14 +66019,7 @@ ${events}
           console.log(e);
           setStatus({ loading: false, error: e });
         }
-      }, [
-        logs,
-        selectedLogIndex,
-        sampleSummaries,
-        setStatus,
-        setSelectedLog,
-        setLogHeaders
-      ]);
+      }, [logs, selectedLogIndex, sampleSummaries, setStatus, setLogHeaders]);
       const showLogFile = reactExports.useCallback(
         async (logUrl) => {
           const index2 = logs.files.findIndex((val) => {
@@ -65942,7 +66067,7 @@ ${events}
                 if (log_dir === logs.log_dir) {
                   showLogFile(decodedUrl);
                 } else {
-                  api.open_log_file(e.data.url, e.data.log_dir);
+                  api2.open_log_file(e.data.url, e.data.log_dir);
                 }
               } else {
                 refreshLogList();
@@ -65995,7 +66120,7 @@ ${events}
             const maxRetryDelay = 6e4;
             const pollEvents = async () => {
               try {
-                const events = await api.client_events();
+                const events = await api2.client_events();
                 if (events.includes("reload")) {
                   window.location.reload();
                 }
@@ -66029,7 +66154,7 @@ ${events}
         return sampleSummaries.length === 0 ? "none" : sampleSummaries.length === 1 ? "single" : "many";
       }, [sampleSummaries]);
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(AppErrorBoundary, { children: [
-        !fullScreen && (selectedLog == null ? void 0 : selectedLog.contents) ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+        !fullScreen && selectedLogSummary ? /* @__PURE__ */ jsxRuntimeExports.jsx(
           Sidebar,
           {
             logs,
@@ -66076,15 +66201,15 @@ ${events}
               ) : /* @__PURE__ */ jsxRuntimeExports.jsx(
                 WorkSpace,
                 {
-                  task_id: (_b2 = (_a2 = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _a2.eval) == null ? void 0 : _b2.task_id,
-                  logFileName: selectedLog == null ? void 0 : selectedLog.name,
-                  evalStatus: (_c = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _c.status,
-                  evalError: filterNull((_d = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _d.error),
-                  evalVersion: (_e2 = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _e2.version,
-                  evalSpec: (_f = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _f.eval,
-                  evalPlan: (_g = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _g.plan,
-                  evalStats: (_h = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _h.stats,
-                  evalResults: filterNull((_i = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _i.results),
+                  task_id: (_a2 = selectedLogSummary == null ? void 0 : selectedLogSummary.eval) == null ? void 0 : _a2.task_id,
+                  logFileName: (_b2 = logs.files[selectedLogIndex]) == null ? void 0 : _b2.name,
+                  evalStatus: selectedLogSummary == null ? void 0 : selectedLogSummary.status,
+                  evalError: filterNull(selectedLogSummary == null ? void 0 : selectedLogSummary.error),
+                  evalVersion: selectedLogSummary == null ? void 0 : selectedLogSummary.version,
+                  evalSpec: selectedLogSummary == null ? void 0 : selectedLogSummary.eval,
+                  evalPlan: selectedLogSummary == null ? void 0 : selectedLogSummary.plan,
+                  evalStats: selectedLogSummary == null ? void 0 : selectedLogSummary.stats,
+                  evalResults: filterNull(selectedLogSummary == null ? void 0 : selectedLogSummary.results),
                   showToggle,
                   samples: filteredSamples,
                   sampleMode,
@@ -66096,7 +66221,7 @@ ${events}
                   refreshLog,
                   offcanvas,
                   setOffcanvas,
-                  capabilities,
+                  capabilities: capabilities2,
                   selectedSample,
                   selectedSampleIndex,
                   setSelectedSampleIndex,
@@ -66108,14 +66233,14 @@ ${events}
                   setSelectedSampleTab,
                   sort,
                   setSort,
-                  epochs: (_l = (_k = (_j = selectedLog == null ? void 0 : selectedLog.contents) == null ? void 0 : _j.eval) == null ? void 0 : _k.config) == null ? void 0 : _l.epochs,
+                  epochs: (_d = (_c = selectedLogSummary == null ? void 0 : selectedLogSummary.eval) == null ? void 0 : _c.config) == null ? void 0 : _d.epochs,
                   epoch,
                   setEpoch,
                   filter,
                   setFilter,
-                  score,
+                  score: score2,
                   setScore,
-                  scores,
+                  scores: scores2 || [],
                   sampleScrollPositionRef: sampleScrollPosition,
                   setSampleScrollPosition,
                   workspaceTabScrollPositionRef: workspaceTabScrollPosition,
@@ -66132,53 +66257,6 @@ ${events}
         return void 0;
       }
       return obj;
-    };
-    const defaultScorer = (log2, sampleSummaries2) => {
-      var _a2, _b2, _c;
-      if (sampleSummaries2.length === 0) {
-        return void 0;
-      }
-      const scores2 = sampleSummaries2[0].scores;
-      const scorer = ((_a2 = log2.results) == null ? void 0 : _a2.scores[0]) ? {
-        name: (_b2 = log2.results) == null ? void 0 : _b2.scores[0].name,
-        scorer: (_c = log2.results) == null ? void 0 : _c.scores[0].scorer
-      } : sampleSummaries2.length > 0 && scores2 !== null ? {
-        name: Object.keys(scores2)[0],
-        scorer: Object.keys(scores2)[0]
-      } : void 0;
-      return scorer;
-    };
-    const defaultScorers = (log2, sampleSummaries2) => {
-      var _a2, _b2;
-      if ((_a2 = log2.results) == null ? void 0 : _a2.scores) {
-        return (((_b2 = log2.results) == null ? void 0 : _b2.scores) || []).map((score2) => {
-          return {
-            name: score2.name,
-            scorer: score2.scorer
-          };
-        }).reduce((accum, scorer) => {
-          if (!accum.find((sc) => {
-            return scorer.scorer === sc.scorer && scorer.name === sc.name;
-          })) {
-            accum.push(scorer);
-          }
-          return accum;
-        }, []);
-      } else if (sampleSummaries2 && sampleSummaries2.length > 0) {
-        const scores2 = sampleSummaries2[0].scores;
-        if (scores2 !== null) {
-          return Object.keys(scores2).map((key2) => {
-            return {
-              name: key2,
-              scorer: key2
-            };
-          });
-        } else {
-          return [];
-        }
-      } else {
-        return [];
-      }
     };
     const vscode = getVscodeApi();
     let initialState = void 0;
@@ -66228,7 +66306,7 @@ ${events}
       }
       const filters = [filterLargeSample, filterLargeSelectedLog];
       return filters.reduce(
-        (filteredState, filter2) => filter2(filteredState),
+        (filteredState, filter) => filter(filteredState),
         state
       );
     }
@@ -66238,7 +66316,7 @@ ${events}
       }
       const estimatedTotalSize = estimateSize(state.selectedSample.messages);
       if (estimatedTotalSize > 4e5) {
-        const { selectedSample: selectedSample2, ...filteredState } = state;
+        const { selectedSample, ...filteredState } = state;
         return filteredState;
       } else {
         return state;
@@ -66253,7 +66331,7 @@ ${events}
         state.selectedLog.contents.sampleSummaries
       );
       if (estimatedSize > 4e5) {
-        const { selectedLog: selectedLog2, ...filteredState } = state;
+        const { selectedLog, ...filteredState } = state;
         return filteredState;
       } else {
         return state;
