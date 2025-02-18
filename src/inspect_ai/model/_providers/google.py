@@ -566,7 +566,15 @@ def completion_choices_from_candidates(
             completion_choice_from_candidate(candidate) for candidate in candidates_list
         ]
     else:
-        return []
+        return [
+            ChatCompletionChoice(
+                message=ChatMessageAssistant(
+                    content="I was unable to generate a response.",
+                    source="generate",
+                ),
+                stop_reason="unknown",
+            )
+        ]
 
 
 # google doesn't export FinishReason (it's in a sub-namespace with a beta
