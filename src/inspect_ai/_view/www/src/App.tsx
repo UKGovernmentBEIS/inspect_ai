@@ -680,20 +680,37 @@ export const App: FC<AppProps> = ({
     [setSelectedWorkspaceTab],
   );
 
+  const lastSelectedIndex = useRef<number>(-1);
+
   // Load a specific log
   useEffect(() => {
     const loadSpecificLog = async () => {
+      // Don't reload the already loaded log
+      if (lastSelectedIndex.current === selectedLogIndex) {
+        return;
+      }
+
       const targetLog = logs.files[selectedLogIndex];
       if (targetLog) {
         try {
           setStatus({ loading: true, error: undefined });
           const logContents = await loadLog(targetLog.name);
           if (logContents) {
+            // Don't reset the workspace if this is the first
+            // time loading
+
+            // Set the log
             const log = logContents;
             setSelectedLogSummary(log);
 
-            // Reset the workspace tab
-            resetWorkspace(log, logContents.sampleSummaries);
+            // Reset the workspace tab if we're changing
+            // Don't do this the first time as we're restoring state
+            if (lastSelectedIndex.current !== -1) {
+              resetWorkspace(log, logContents.sampleSummaries);
+            }
+
+            // Remember we selected this
+            lastSelectedIndex.current = selectedLogIndex;
 
             setStatus({ loading: false, error: undefined });
           }
@@ -711,13 +728,7 @@ export const App: FC<AppProps> = ({
       }
     };
     loadSpecificLog();
-  }, [
-    selectedLogIndex,
-    logs,
-    selectedLogIndex,
-    setSelectedLogSummary,
-    setStatus,
-  ]);
+  }, [selectedLogIndex, logs, setSelectedLogSummary, setStatus]);
 
   // Load the list of logs
   const loadLogs = async (): Promise<LogFiles> => {
