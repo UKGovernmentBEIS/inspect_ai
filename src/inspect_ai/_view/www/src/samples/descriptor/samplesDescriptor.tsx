@@ -24,7 +24,6 @@ export interface SamplesDescriptor {
 
 export const createEvalDescriptor = (
   scores: ScoreLabel[],
-  epochs: number,
   samples?: SampleSummary[],
 ): EvalDescriptor | undefined => {
   if (!samples) {
@@ -265,7 +264,6 @@ export const createEvalDescriptor = (
   };
 
   return {
-    epochs,
     samples,
     scores,
     scorerDescriptor,

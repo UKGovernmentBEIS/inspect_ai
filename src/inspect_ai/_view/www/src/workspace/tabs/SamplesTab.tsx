@@ -15,7 +15,7 @@ import { SampleDialog } from "../../samples/SampleDialog";
 import { SamplesDescriptor } from "../../samples/descriptor/samplesDescriptor.tsx";
 import { SampleList } from "../../samples/list/SampleList";
 import { SampleMode, ScoreFilter } from "../../types.ts";
-import { EvalSample } from "../../types/log";
+import { Epochs, EvalSample } from "../../types/log";
 import { getSampleProcessor } from "./grouping.ts";
 import { ListItem } from "./types.ts";
 
@@ -38,6 +38,7 @@ interface SamplesTabProps {
   selectedSampleTab?: string;
   setSelectedSampleTab: (tab: string) => void;
   epoch: string;
+  epochs: Epochs;
   filter: ScoreFilter;
   sampleScrollPositionRef: RefObject<number>;
   setSampleScrollPosition: (position: number) => void;
@@ -62,6 +63,7 @@ export const SamplesTab: FC<SamplesTabProps> = ({
   sampleScrollPositionRef,
   setSampleScrollPosition,
   sampleTabScrollRef,
+  epochs,
 }) => {
   const [items, setItems] = useState<ListItem[]>([]);
   const [sampleItems, setSampleItems] = useState<ListItem[]>([]);
@@ -96,6 +98,7 @@ export const SamplesTab: FC<SamplesTabProps> = ({
     const sampleProcessor = sampleDescriptor
       ? getSampleProcessor(
           samples || [],
+          epochs,
           groupBy,
           groupByOrder,
           sampleDescriptor,
