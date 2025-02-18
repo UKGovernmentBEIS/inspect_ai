@@ -22,6 +22,7 @@ import {
   kSampleScoringTabId,
   kSampleTranscriptTabId,
 } from "../constants";
+import { ScoreLabel } from "../types";
 import { EvalSample } from "../types/log";
 import { ModelTokenTable } from "../usage/ModelTokenTable";
 import { printHeadingHtml, printHtml } from "../utils/print";
@@ -34,6 +35,7 @@ import { SampleTranscript } from "./transcript/SampleTranscript";
 interface SampleDisplayProps {
   id: string;
   sample?: EvalSample;
+  score?: ScoreLabel;
   sampleDescriptor: SamplesDescriptor;
   selectedTab?: string;
   setSelectedTab: (tab: string) => void;
@@ -46,6 +48,7 @@ interface SampleDisplayProps {
 export const SampleDisplay: React.FC<SampleDisplayProps> = ({
   id,
   sample,
+  score,
   sampleDescriptor,
   selectedTab,
   setSelectedTab,
@@ -90,6 +93,7 @@ export const SampleDisplay: React.FC<SampleDisplayProps> = ({
   return (
     <Fragment>
       <SampleSummaryView
+        score={score}
         parent_id={id}
         sample={sample}
         sampleDescriptor={sampleDescriptor}

@@ -6,12 +6,14 @@ import { SamplesDescriptor } from "./descriptor/samplesDescriptor";
 import { FlatSampleError } from "./error/FlatSampleErrorView";
 
 import { ReactNode } from "react";
+import { ScoreLabel } from "../types";
 import styles from "./SampleSummaryView.module.css";
 
 interface SampleSummaryViewProps {
   parent_id: string;
   sample: EvalSample;
   sampleDescriptor: SamplesDescriptor;
+  score?: ScoreLabel;
 }
 
 interface SummaryColumn {
@@ -29,6 +31,7 @@ export const SampleSummaryView: React.FC<SampleSummaryViewProps> = ({
   parent_id,
   sample,
   sampleDescriptor,
+  score,
 }) => {
   const input =
     sampleDescriptor?.messageShape.normalized.input > 0
@@ -124,8 +127,7 @@ export const SampleSummaryView: React.FC<SampleSummaryViewProps> = ({
     value: sample.error ? (
       <FlatSampleError message={sample.error.message} />
     ) : (
-      // TODO: Cleanup once the PR lands which makes sample / sample summary share common interface
-      sampleDescriptor?.selectedScore(sample)?.render() || ""
+      sampleDescriptor?.evalDescriptor.score(sample, score)?.render() || ""
     ),
     size: "minmax(2em, auto)",
     center: true,
