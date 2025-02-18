@@ -75,6 +75,7 @@ from inspect_ai.tool import (
 )
 
 # TODO: vertex api
+# https://cloud.google.com/vertex-ai/generative-ai/docs/gemini-v2
 
 # TODO: elimininate 'info $AFC is enabled with max remote calls: 10.' from logs
 
