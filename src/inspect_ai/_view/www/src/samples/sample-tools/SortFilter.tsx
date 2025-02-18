@@ -108,6 +108,7 @@ export const sortSamples = (
   samplesDescriptor: SamplesDescriptor,
   score?: ScoreLabel,
 ): SampleSummary[] => {
+  console.log("SORT SAMPLES");
   const sortedSamples = samples.sort((a: SampleSummary, b: SampleSummary) => {
     const scoreDescriptor = score
       ? samplesDescriptor.evalDescriptor.scoreDescriptor(score)
@@ -170,7 +171,7 @@ export const sortSamples = (
           return 0;
         }
 
-        return scoreDescriptor?.compare(aScore, bScore);
+        return scoreDescriptor?.compare(bScore, aScore);
       }
       default:
         return 0;

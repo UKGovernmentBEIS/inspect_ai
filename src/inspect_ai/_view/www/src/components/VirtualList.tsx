@@ -46,49 +46,6 @@ export const VirtualList = forwardRef(function VirtualList<T>(
   }: VirtualListProps<T>,
   ref: React.Ref<VirtualListRef>,
 ) {
-  const prevValues = useRef({
-    data,
-    renderRow,
-    overscanCount,
-    initialEstimatedRowHeight,
-    sync,
-    scrollRef,
-    onKeyDown,
-  });
-
-  useEffect(() => {
-    const currentValues = {
-      data,
-      renderRow,
-      overscanCount,
-      initialEstimatedRowHeight,
-      sync,
-      scrollRef,
-      onKeyDown,
-    };
-
-    const changes = Object.entries(currentValues).reduce(
-      (acc, [key, newValue]) => {
-        const oldValue = prevValues.current[key];
-        if (oldValue !== newValue) {
-          acc.push({
-            key,
-            old: oldValue,
-            new: newValue,
-          });
-        }
-        return acc;
-      },
-      [] as Array<{ key: string; old: any; new: any }>,
-    );
-
-    if (changes.length > 0) {
-      console.log("VirtualList rendered due to changes:", changes);
-    }
-
-    prevValues.current = currentValues;
-  });
-
   const [height, setHeight] = useState(0);
   const [offset, setOffset] = useState(0);
   const [listMetrics, setListMetrics] = useState<ListMetrics>({
