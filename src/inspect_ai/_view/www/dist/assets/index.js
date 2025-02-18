@@ -17068,15 +17068,15 @@ categories: ${categories.join(" ")}`;
             }
           }
           case kScoreAscVal: {
-            samplesDescriptor.selectedScore(a);
-            samplesDescriptor.selectedScore(b);
+            samplesDescriptor.evalDescriptor.score(a, score2);
+            samplesDescriptor.evalDescriptor.score(b, score2);
             {
               return 0;
             }
           }
           case kScoreDescVal: {
-            samplesDescriptor.selectedScore(a);
-            samplesDescriptor.selectedScore(b);
+            samplesDescriptor.evalDescriptor.score(a, score2);
+            samplesDescriptor.evalDescriptor.score(b, score2);
             {
               return 0;
             }
@@ -65628,6 +65628,9 @@ ${events}
         };
       };
       const score2 = (sample2, scoreLabel) => {
+        if (!scoreLabel) {
+          return void 0;
+        }
         return {
           value: scoreValue2(sample2, scoreLabel),
           render: () => {
