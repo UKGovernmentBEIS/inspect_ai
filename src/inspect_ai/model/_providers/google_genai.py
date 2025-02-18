@@ -55,7 +55,6 @@ from inspect_ai.model import (
     ModelUsage,
     StopReason,
     TopLogprob,
-    modelapi,
 )
 from inspect_ai.model._model_call import ModelCall
 from inspect_ai.model._providers.util import model_base_url
@@ -72,6 +71,7 @@ GOOGLE_API_KEY = "GOOGLE_API_KEY"
 
 SAFETY_SETTINGS = "safety_settings"
 DEFAULT_SAFETY_SETTINGS = {
+    # TODO: maybe we can set this to OFF now
     HarmCategory.HARM_CATEGORY_CIVIC_INTEGRITY: HarmBlockThreshold.BLOCK_NONE,
     HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.OFF,
     HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.OFF,
@@ -210,8 +210,6 @@ def build_model_call(
 
 
 def model_call_filter(key: JsonValue | None, value: JsonValue) -> JsonValue:
-    # TODO: Aspen: is this needed? Copied from other google providers.
-    # remove images from raw api call
     if key == "inline_data" and isinstance(value, dict) and "data" in value:
         value = copy(value)
         value.update(data=BASE_64_DATA_REMOVED)
@@ -386,6 +384,7 @@ def schema_from_param(param: ToolParam | ToolParams, nullable: bool = False) -> 
             items=schema_from_param(param.items) if param.items else None,
             nullable=nullable,
         )
+    # TODO: test functions with no parameters
     elif param.type == "object":
         return Schema(
             type=Type.OBJECT,
@@ -483,6 +482,8 @@ def completion_choice_from_candidate(candidate: Candidate) -> ChatCompletionChoi
     return choice
 
 
+# TODO: there may be something in the response indicating it was a refusal
+# (stop_reason == "safety") "s__ h___" HARRASSMENT: "LOW"
 def completion_choices_from_candidates(
     candidates: list[Candidate] | None,
 ) -> list[ChatCompletionChoice]:
@@ -537,6 +538,7 @@ def finish_reason_to_stop_reason(finish_reason: FinishReason) -> StopReason:
             | FinishReason.SPII
         ):
             return "content_filter"
+        # TODO: how do we know when we overflow the context window
         case FinishReason.MAX_TOKENS:
             return "model_length"
         case _:
