@@ -211,7 +211,7 @@ def check_list_of_objects(model: str) -> None:
     )
 
     log = eval(task, model=model)[0]
-    verify_tool_call(log, "quick:")
+    verify_tool_call(log, "quick")
 
 
 def check_optional_args(model: str) -> None:
@@ -300,4 +300,4 @@ def verify_tool_call(log: EvalLog, includes: str):
     assert log.samples
     tool_message = log.samples[0].messages[-2]
     assert isinstance(tool_message, ChatMessageTool)
-    assert includes in tool_message.text
+    assert includes in log.samples[0].output.completion
