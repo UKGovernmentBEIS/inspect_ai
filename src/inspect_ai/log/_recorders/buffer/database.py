@@ -141,9 +141,6 @@ class SampleBufferDatabase(SampleBuffer):
         )
         self._sync_time = time.monotonic()
 
-    def exists(self) -> bool:
-        return self.db_path.exists()
-
     def start_sample(self, sample: SampleSummary) -> None:
         with self._get_connection(write=True) as conn:
             sample = self._consense_sample(conn, sample)
@@ -235,7 +232,13 @@ class SampleBufferDatabase(SampleBuffer):
     @classmethod
     @override
     def running_tasks(cls, log_dir: str) -> list[str] | None:
-        return None
+        log_subdir = log_dir_hash(log_dir)
+        db_dir = resolve_db_dir() / log_subdir
+        if db_dir.exists():
+            logs = [log.name.rsplit(".", 2)[0] for log in db_dir.glob("*.*.db")]
+            return logs
+        else:
+            return None
 
     @override
     def get_samples(
@@ -671,6 +674,11 @@ def resolve_db_dir(db_dir: Path | None = None) -> Path:
 
 
 def location_dir_and_file(location: str) -> tuple[str, str]:
-    dir = hashlib.sha256(dirname(location).encode()).hexdigest()
+    dir = log_dir_hash(dirname(location))
     file = basename(location)
     return dir, file
+
+
+def log_dir_hash(log_dir: str) -> str:
+    log_dir = log_dir.rstrip("/\\")
+    return hashlib.sha256(log_dir.encode()).hexdigest()
