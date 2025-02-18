@@ -1,7 +1,11 @@
+import asyncio
 import functools
+import hashlib
 import json
 import os
 from copy import copy
+from io import BytesIO
+from logging import getLogger
 from typing import Any
 
 # SDK Docs: https://googleapis.github.io/python-genai/
@@ -10,6 +14,7 @@ from google.genai.errors import APIError  # type: ignore
 from google.genai.types import (  # type: ignore
     Candidate,
     Content,
+    File,
     FinishReason,
     FunctionCallingConfig,
     FunctionDeclaration,
@@ -41,6 +46,8 @@ from inspect_ai._util.content import (
     ContentVideo,
 )
 from inspect_ai._util.images import file_as_data
+from inspect_ai._util.kvstore import inspect_kvstore
+from inspect_ai._util.trace import trace_message
 from inspect_ai.model import (
     ChatCompletionChoice,
     ChatMessage,
@@ -67,11 +74,26 @@ from inspect_ai.tool import (
     ToolParams,
 )
 
+# TODO: vertex api
+
+# TODO: elimininate 'info $AFC is enabled with max remote calls: 10.' from logs
+
+# TODO: capture thinking
+
+# TODO: do we need a try/catch for content window exceeded
+# https://github.com/UKGovernmentBEIS/inspect_ai/commit/6e2529d07ccedbfb4e172f6ec7f9c961ba7202c0#diff-05006cf4a8475a94617d3ceac83707e309f67957aa492cc0e45cebfcde7edccb
+
+
+logger = getLogger(__name__)
+
+
 GOOGLE_API_KEY = "GOOGLE_API_KEY"
 
 SAFETY_SETTINGS = "safety_settings"
 DEFAULT_SAFETY_SETTINGS = {
-    HarmCategory.HARM_CATEGORY_CIVIC_INTEGRITY: HarmBlockThreshold.OFF,
+    # NOTE: currently some gemini models error for OFF on CIVIC_INTEGRITY
+    # change this to OFF once this condition is resolved.
+    HarmCategory.HARM_CATEGORY_CIVIC_INTEGRITY: HarmBlockThreshold.BLOCK_NONE,
     HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.OFF,
     HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.OFF,
     HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.OFF,
@@ -96,10 +118,6 @@ class GoogleGenAIAPI(ModelAPI):
             config=config,
         )
 
-        # TODO: vertex api
-
-        # TODO: even when we are going to throw errors we still log warning
-
         # pick out user-provided safety settings and merge against default
         self.safety_settings = DEFAULT_SAFETY_SETTINGS.copy()
         if SAFETY_SETTINGS in model_args:
@@ -111,12 +129,21 @@ class GoogleGenAIAPI(ModelAPI):
         if not self.api_key:
             self.api_key = os.environ.get(GOOGLE_API_KEY)
 
+        http_options = {"base_url": base_url}
+        if "thinking" in self.model_name:
+            http_options["api_version"] = "v1alpha"
+
         base_url = model_base_url(base_url, "GOOGLE_BASE_URL")
         self.client = Client(
             api_key=self.api_key,
-            http_options={"base_url": base_url},
+            http_options=http_options,
             **model_args,
         )
+
+    @override
+    async def close(self) -> None:
+        # GenerativeModel uses a cached/shared client so there is no 'close'
+        pass
 
     async def generate(
         self,
@@ -126,7 +153,7 @@ class GoogleGenAIAPI(ModelAPI):
         config: GenerateConfig,
     ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
         # Create google-genai types.
-        gemini_contents = await as_chat_messages(input)
+        gemini_contents = await as_chat_messages(self.client, input)
         gemini_tools = chat_tools(tools) if len(tools) > 0 else None
         gemini_tool_config = chat_tool_config(tool_choice) if len(tools) > 0 else None
         parameters = GenerateContentConfig(
@@ -141,7 +168,9 @@ class GoogleGenAIAPI(ModelAPI):
             safety_settings=safety_settings_to_list(self.safety_settings),
             tools=gemini_tools,
             tool_config=gemini_tool_config,
-            system_instruction=await extract_system_message_as_parts(input),
+            system_instruction=await extract_system_message_as_parts(
+                self.client, input
+            ),
         )
 
         response: GenerateContentResponse | None = None
@@ -162,7 +191,6 @@ class GoogleGenAIAPI(ModelAPI):
             config=parameters,
         )
 
-        # TODO: do we need a try/catch for content window exceeded
         output = ModelOutput(
             model=self.model_name,
             choices=completion_choices_from_candidates(response),
@@ -219,14 +247,16 @@ def model_call_filter(key: JsonValue | None, value: JsonValue) -> JsonValue:
     return value
 
 
-async def as_chat_messages(messages: list[ChatMessage]) -> list[Content]:
+async def as_chat_messages(
+    client: Client, messages: list[ChatMessage]
+) -> list[Content]:
     # There is no "system" role in the `google-genai` package. Instead, system messages
     # are included in the `GenerateContentConfig` as a `system_instruction`. Strip any
     # system messages out.
     supported_messages = [message for message in messages if message.role != "system"]
 
     # build google chat messages
-    chat_messages = [await content(message) for message in supported_messages]
+    chat_messages = [await content(client, message) for message in supported_messages]
 
     # combine consecutive tool messages
     chat_messages = functools.reduce(
@@ -255,14 +285,19 @@ def consecutive_tool_message_reducer(
 
 
 async def content(
+    client: Client,
     message: ChatMessageUser | ChatMessageAssistant | ChatMessageTool,
 ) -> Content:
     if isinstance(message, ChatMessageUser):
         if isinstance(message.content, str):
-            return Content(role="user", parts=[await content_part(message.content)])
+            return Content(
+                role="user", parts=[await content_part(client, message.content)]
+            )
         return Content(
             role="user",
-            parts=([await content_part(content) for content in message.content]),
+            parts=(
+                [await content_part(client, content) for content in message.content]
+            ),
         )
     elif isinstance(message, ChatMessageAssistant):
         content_parts: list[Part] = []
@@ -283,7 +318,7 @@ async def content(
             content_parts.append(Part(text=message.content or NO_CONTENT))
         else:
             content_parts.extend(
-                [await content_part(content) for content in message.content]
+                [await content_part(client, content) for content in message.content]
             )
 
         # return parts
@@ -301,30 +336,28 @@ async def content(
         return Content(role="function", parts=[Part(function_response=response)])
 
 
-async def content_part(content: InspectContent | str) -> Part:
+async def content_part(client: Client, content: InspectContent | str) -> Part:
     if isinstance(content, str):
         return Part.from_text(text=content or NO_CONTENT)
     elif isinstance(content, ContentText):
         return Part.from_text(text=content.text or NO_CONTENT)
     else:
-        return await chat_content_to_part(content)
+        return await chat_content_to_part(client, content)
 
 
 async def chat_content_to_part(
+    client: Client,
     content: ContentImage | ContentAudio | ContentVideo,
 ) -> Part:
     if isinstance(content, ContentImage):
         content_bytes, mime_type = await file_as_data(content.image)
-    elif isinstance(content, ContentAudio):
-        content_bytes, mime_type = await file_as_data(content.audio)
-    elif isinstance(content, ContentVideo):
-        content_bytes, mime_type = await file_as_data(content.video)
+        return Part.from_bytes(mime_type=mime_type, data=content_bytes)
     else:
-        raise ValueError(f"Unsupported content type: {type(content)}")
-    return Part.from_bytes(mime_type=mime_type, data=content_bytes)
+        return file_for_content(client, content)
 
 
 async def extract_system_message_as_parts(
+    client: Client,
     messages: list[ChatMessage],
 ) -> list[Part] | None:
     system_parts: list[Part] = []
@@ -335,7 +368,7 @@ async def extract_system_message_as_parts(
                 system_parts.append(Part.from_text(text=content))
             elif isinstance(content, list):  # list[InspectContent]
                 system_parts.extend(
-                    [await content_part(content) for content in content]
+                    [await content_part(client, content) for content in content]
                 )
             else:
                 raise ValueError(f"Unsupported system message content: {content}")
@@ -387,7 +420,6 @@ def schema_from_param(param: ToolParam | ToolParams, nullable: bool = False) -> 
             items=schema_from_param(param.items) if param.items else None,
             nullable=nullable,
         )
-    # TODO: test functions with no parameters
     elif param.type == "object":
         return Schema(
             type=Type.OBJECT,
@@ -494,7 +526,6 @@ def completion_choices_from_candidates(
         return [
             completion_choice_from_candidate(candidate) for candidate in candidates_list
         ]
-    # TODO: test to make sure this works
     elif response.prompt_feedback:
         return [
             ChatCompletionChoice(
@@ -554,9 +585,6 @@ def finish_reason_to_stop_reason(finish_reason: FinishReason) -> StopReason:
             | FinishReason.SPII
         ):
             return "content_filter"
-        # TODO: how do we know when we overflow the context window
-        case FinishReason.MAX_TOKENS:
-            return "model_length"
         case _:
             return "unknown"
 
@@ -614,3 +642,50 @@ def str_to_harm_block_threshold(threshold: str) -> HarmBlockThreshold:
     if "OFF" in threshold:
         return HarmBlockThreshold.OFF
     raise ValueError(f"Unknown HarmBlockThreshold: {threshold}")
+
+
+async def file_for_content(
+    client: Client, content: ContentAudio | ContentVideo
+) -> File:
+    # helper to write trace messages
+    def trace(message: str) -> None:
+        trace_message(logger, "Google Files", message)
+
+    # get the file bytes and compute sha256 hash
+    if isinstance(content, ContentAudio):
+        file = content.audio
+    else:
+        file = content.video
+    content_bytes, mime_type = await file_as_data(file)
+    content_sha256 = hashlib.sha256(content_bytes).hexdigest()
+    # we cache uploads for re-use, open the db where we track that
+    # (track up to 1 million previous uploads)
+    with inspect_kvstore("google_files", 1000000) as files_db:
+        # can we serve from existing uploads?
+        uploaded_file = files_db.get(content_sha256)
+        if uploaded_file:
+            try:
+                upload: File = client.files.get(uploaded_file)
+                if upload.state.name == "ACTIVE":
+                    trace(f"Using uploaded file: {uploaded_file}")
+                    return upload
+                else:
+                    trace(
+                        f"Not using uploaded file '{uploaded_file} (state was {upload.state})"
+                    )
+            except Exception as ex:
+                trace(f"Error attempting to access uploaded file: {ex}")
+                files_db.delete(content_sha256)
+        # do the upload (and record it)
+        upload = client.files.upload(BytesIO(content_bytes), mime_type=mime_type)
+        while upload.state.name == "PROCESSING":
+            await asyncio.sleep(3)
+            upload = client.files.get(upload.name)
+        if upload.state.name == "FAILED":
+            trace(f"Failed to upload file '{upload.name}: {upload.error}")
+            raise ValueError(f"Google file upload failed: {upload.error}")
+        # trace and record it
+        trace(f"Uploaded file: {upload.name}")
+        files_db.put(content_sha256, upload.name)
+        # return the file
+        return upload
