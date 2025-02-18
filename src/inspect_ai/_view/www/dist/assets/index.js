@@ -17065,6 +17065,7 @@ categories: ${categories.join(" ")}`;
     };
     const sortSamples = (sort, samples, samplesDescriptor, score2) => {
       const sortedSamples = samples.sort((a, b) => {
+        const scoreDescriptor = score2 ? samplesDescriptor.evalDescriptor.scoreDescriptor(score2) : void 0;
         switch (sort) {
           case kSampleAscVal: {
             const result2 = sortId(a, b);
@@ -17099,18 +17100,20 @@ categories: ${categories.join(" ")}`;
             }
           }
           case kScoreAscVal: {
-            samplesDescriptor.evalDescriptor.score(a, score2);
-            samplesDescriptor.evalDescriptor.score(b, score2);
-            {
+            const aScore = samplesDescriptor.evalDescriptor.score(a, score2);
+            const bScore = samplesDescriptor.evalDescriptor.score(b, score2);
+            if (aScore === void 0 || bScore === void 0 || scoreDescriptor === void 0) {
               return 0;
             }
+            return scoreDescriptor == null ? void 0 : scoreDescriptor.compare(aScore, bScore);
           }
           case kScoreDescVal: {
-            samplesDescriptor.evalDescriptor.score(a, score2);
-            samplesDescriptor.evalDescriptor.score(b, score2);
-            {
+            const aScore = samplesDescriptor.evalDescriptor.score(a, score2);
+            const bScore = samplesDescriptor.evalDescriptor.score(b, score2);
+            if (aScore === void 0 || bScore === void 0 || scoreDescriptor == void 0) {
               return 0;
             }
+            return scoreDescriptor == null ? void 0 : scoreDescriptor.compare(aScore, bScore);
           }
           default:
             return 0;
@@ -52654,7 +52657,8 @@ self.onmessage = function (e) {
     const SampleSummaryView = ({
       parent_id,
       sample: sample2,
-      sampleDescriptor
+      sampleDescriptor,
+      score: score2
     }) => {
       var _a2, _b2;
       const input2 = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.normalized.input) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.normalized.input) : 0;
@@ -52741,10 +52745,7 @@ self.onmessage = function (e) {
       }
       columns.push({
         label: "Score",
-        value: sample2.error ? /* @__PURE__ */ jsxRuntimeExports.jsx(FlatSampleError, { message: sample2.error.message }) : (
-          // TODO: Cleanup once the PR lands which makes sample / sample summary share common interface
-          ((_b2 = sampleDescriptor == null ? void 0 : sampleDescriptor.selectedScore(sample2)) == null ? void 0 : _b2.render()) || ""
-        ),
+        value: sample2.error ? /* @__PURE__ */ jsxRuntimeExports.jsx(FlatSampleError, { message: sample2.error.message }) : ((_b2 = sampleDescriptor == null ? void 0 : sampleDescriptor.evalDescriptor.score(sample2, score2)) == null ? void 0 : _b2.render()) || "",
         size: "minmax(2em, auto)",
         center: true
       });
@@ -61502,6 +61503,7 @@ ${events}
     const SampleDisplay = ({
       id,
       sample: sample2,
+      score: score2,
       sampleDescriptor,
       selectedTab,
       setSelectedTab,
@@ -61541,6 +61543,7 @@ ${events}
         /* @__PURE__ */ jsxRuntimeExports.jsx(
           SampleSummaryView,
           {
+            score: score2,
             parent_id: id,
             sample: sample2,
             sampleDescriptor
@@ -61813,6 +61816,7 @@ ${events}
     const InlineSampleDisplay = ({
       id,
       sample: sample2,
+      score: score2,
       sampleStatus,
       sampleError,
       sampleDescriptor,
@@ -61827,6 +61831,7 @@ ${events}
           {
             id,
             sample: sample2,
+            score: score2,
             sampleDescriptor,
             selectedTab,
             setSelectedTab,
@@ -61977,6 +61982,7 @@ ${events}
       id,
       title: title2,
       sample: sample2,
+      score: score2,
       sampleDescriptor,
       nextSample,
       prevSample,
@@ -62049,6 +62055,7 @@ ${events}
             {
               id,
               sample: sample2,
+              score: score2,
               sampleDescriptor,
               selectedTab,
               setSelectedTab,
@@ -62523,16 +62530,22 @@ ${events}
         score: `${score2}rem`
       };
     };
-    const getSampleProcessor = (samples, epochs, groupBy, groupByOrder, sampleDescriptor) => {
+    const getSampleProcessor = (samples, epochs, groupBy, groupByOrder, sampleDescriptor, score2) => {
       if (groupBy == "epoch") {
-        return groupByEpoch(samples, epochs, sampleDescriptor, groupByOrder);
+        return groupByEpoch(samples, epochs, sampleDescriptor, groupByOrder, score2);
       } else if (groupBy === "sample") {
-        return groupBySample(samples, epochs, sampleDescriptor, groupByOrder);
+        return groupBySample(
+          samples,
+          epochs,
+          sampleDescriptor,
+          groupByOrder,
+          score2
+        );
       } else {
-        return noGrouping(samples, groupByOrder, sampleDescriptor);
+        return noGrouping(samples, groupByOrder, sampleDescriptor, score2);
       }
     };
-    const noGrouping = (samples, order, sampleDescriptor) => {
+    const noGrouping = (samples, order, sampleDescriptor, score2) => {
       const counter = getCounter(samples.length, 1, order);
       return (sample2, index2) => {
         var _a2, _b2;
@@ -62546,12 +62559,12 @@ ${events}
             data: sample2,
             type: "sample",
             answer: ((_a2 = sampleDescriptor.selectedScorerDescriptor(sample2)) == null ? void 0 : _a2.answer()) || "",
-            scoreRendered: (_b2 = sampleDescriptor.selectedScore(sample2)) == null ? void 0 : _b2.render()
+            scoreRendered: (_b2 = sampleDescriptor.evalDescriptor.score(sample2, score2)) == null ? void 0 : _b2.render()
           }
         ];
       };
     };
-    const groupBySample = (samples, epochs, sampleDescriptor, order) => {
+    const groupBySample = (samples, epochs, sampleDescriptor, order, score2) => {
       samples = samples.sort((a, b) => {
         if (typeof a.id === "string") {
           if (order === "asc") {
@@ -62593,12 +62606,12 @@ ${events}
           data: sample2,
           type: "sample",
           answer: ((_a2 = sampleDescriptor.selectedScorerDescriptor(sample2)) == null ? void 0 : _a2.answer()) || "",
-          scoreRendered: (_b2 = sampleDescriptor.selectedScore(sample2)) == null ? void 0 : _b2.render()
+          scoreRendered: (_b2 = sampleDescriptor.evalDescriptor.score(sample2, score2)) == null ? void 0 : _b2.render()
         });
         return results;
       };
     };
-    const groupByEpoch = (samples, epochs, sampleDescriptor, order) => {
+    const groupByEpoch = (samples, epochs, sampleDescriptor, order, score2) => {
       const groupCount = epochs || 1;
       const itemCount = samples.length / groupCount;
       const counter = getCounter(itemCount, groupCount, order);
@@ -62625,7 +62638,7 @@ ${events}
           data: sample2,
           type: "sample",
           answer: ((_a2 = sampleDescriptor.selectedScorerDescriptor(sample2)) == null ? void 0 : _a2.answer()) || "",
-          scoreRendered: (_b2 = sampleDescriptor.selectedScore(sample2)) == null ? void 0 : _b2.render()
+          scoreRendered: (_b2 = sampleDescriptor.evalDescriptor.score(sample2, score2)) == null ? void 0 : _b2.render()
         });
         return results;
       };
@@ -62677,7 +62690,8 @@ ${events}
       sampleScrollPositionRef,
       setSampleScrollPosition,
       sampleTabScrollRef,
-      epochs
+      epochs,
+      score: score2
     }) => {
       const [items, setItems] = reactExports.useState([]);
       const [sampleItems, setSampleItems] = reactExports.useState([]);
@@ -62710,7 +62724,8 @@ ${events}
           epochs,
           groupBy,
           groupByOrder,
-          sampleDescriptor
+          sampleDescriptor,
+          score2
         ) : void 0;
         const items2 = samples == null ? void 0 : samples.flatMap((sample22, index2) => {
           const results = [];
@@ -62725,7 +62740,7 @@ ${events}
             return item2.type === "sample";
           }) : []
         );
-      }, [samples, groupBy, groupByOrder, sampleDescriptor]);
+      }, [samples, epochs, score2, groupBy, groupByOrder, sampleDescriptor]);
       const nextSampleIndex = reactExports.useCallback(() => {
         if (selectedSampleIndex < sampleItems.length - 1) {
           return selectedSampleIndex + 1;
@@ -64160,6 +64175,7 @@ ${events}
             samples,
             sampleMode,
             epochs: epochs || 1,
+            score: score2,
             groupBy,
             groupByOrder,
             selectedSampleIndex,
@@ -65698,12 +65714,18 @@ ${events}
         const result2 = createEvalDescriptor(scores2, sampleSummaries);
         return result2;
       }, [selectedLogSummary, sampleSummaries, scores2]);
+      const currentScore = reactExports.useMemo(() => {
+        if (score2) {
+          return score2;
+        } else if (selectedLogSummary) {
+          return getDefaultScorer(selectedLogSummary, sampleSummaries);
+        }
+      }, [selectedLogSummary, sampleSummaries]);
       const samplesDescriptor = reactExports.useMemo(() => {
         if (!selectedLogSummary) {
           return void 0;
         }
-        const evalScore = score2 || getDefaultScorer(selectedLogSummary, sampleSummaries);
-        const descriptor = evalDescriptor ? createSamplesDescriptor(sampleSummaries, evalDescriptor, evalScore) : void 0;
+        const descriptor = evalDescriptor ? createSamplesDescriptor(sampleSummaries, evalDescriptor, currentScore) : void 0;
         return descriptor;
       }, [evalDescriptor, score2, selectedLogSummary, sampleSummaries]);
       const filteredSamples = reactExports.useMemo(() => {
@@ -65718,7 +65740,7 @@ ${events}
           return true;
         });
         if (samplesDescriptor) {
-          const sorted = sortSamples(sort, filtered, score2);
+          const sorted = sortSamples(sort, filtered, samplesDescriptor, score2);
           return sorted;
         } else {
           return filtered;
@@ -66236,7 +66258,7 @@ ${events}
                   setEpoch,
                   filter,
                   setFilter,
-                  score: score2,
+                  score: currentScore,
                   setScore,
                   scores: scores2 || [],
                   sampleScrollPositionRef: sampleScrollPosition,
