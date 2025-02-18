@@ -157,7 +157,9 @@ def view_server(
         elif samples is None:
             return web.Response(status=404)
         else:
-            return web.json_response(samples.samples, headers={"ETag": samples.etag})
+            return web.Response(
+                body=samples.model_dump_json(), headers={"ETag": samples.etag}
+            )
 
     @routes.get("/api/pending-sample-data")
     async def api_sample_events(request: web.Request) -> web.Response:
