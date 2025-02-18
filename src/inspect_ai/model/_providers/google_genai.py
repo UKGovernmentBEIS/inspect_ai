@@ -45,6 +45,7 @@ from inspect_ai._util.content import (
     ContentText,
     ContentVideo,
 )
+from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.images import file_as_data
 from inspect_ai._util.kvstore import inspect_kvstore
 from inspect_ai._util.trace import trace_message
@@ -137,28 +138,47 @@ class GoogleGenAIAPI(ModelAPI):
                 + "Currently 'vertex' is the only supported service."
             )
 
-        # NOTE: when using vertex the GOOGLE_CLOUD_PROJECT and GOOGLE_CLOUD_LOCATION
-        # environment variables should be set, OR the 'project' and 'location'
-        # should be passed within the model_args
-        # https://cloud.google.com/vertex-ai/generative-ai/docs/gemini-v2
+        # handle auth (vertex or standard google api key)
+        if self.is_vertex():
+            # see if we are running in express mode (propagate api key if we are)
+            # https://cloud.google.com/vertex-ai/generative-ai/docs/start/express-mode/overview
+            vertex_api_key = os.environ.get(VERTEX_API_KEY, None)
+            if vertex_api_key and not self.api_key:
+                self.api_key = vertex_api_key
 
-        # resolve api key
-        if not self.api_key:
-            if self.is_vertex():
-                # express mode uses just an environment variable no project/location
-                # https://cloud.google.com/vertex-ai/generative-ai/docs/start/express-mode/
-                self.api_key = os.environ.get(VERTEX_API_KEY, None)
-            else:
+            # When not using express mode the GOOGLE_CLOUD_PROJECT and GOOGLE_CLOUD_LOCATION
+            # environment variables should be set, OR the 'project' and 'location' should be
+            # passed within the model_args.
+            # https://cloud.google.com/vertex-ai/generative-ai/docs/gemini-v2
+            if not vertex_api_key:
+                if not os.environ.get(
+                    "GOOGLE_CLOUD_PROJECT", None
+                ) and not model_args.get("project", None):
+                    raise PrerequisiteError(
+                        "Google provider requires either the GOOGLE_CLOUD_PROJECT environment variable "
+                        + "or the 'project' custom model arg (-M)"
+                    )
+                if not os.environ.get(
+                    "GOOGLE_CLOUD_LOCATION", None
+                ) and not model_args.get("location", None):
+                    raise PrerequisiteError(
+                        "Google provider requires either the GOOGLE_CLOUD_LOCATION environment variable "
+                        + "or the 'location' custom model arg (-M)"
+                    )
+
+        # normal google endpoint
+        else:
+            # read api key from env
+            if not self.api_key:
                 self.api_key = os.environ.get(GOOGLE_API_KEY, None)
 
-        # google allows a custom base_url but vertex express mode does dont
-        if not self.is_vertex():
+            # custom base_url
             base_url = model_base_url(base_url, "GOOGLE_BASE_URL")
 
         # create client
         self.client = Client(
             vertexai=self.is_vertex(),
-            api_key=self.api_key,
+            # api_key=self.api_key,
             http_options={"base_url": base_url},
             **model_args,
         )
