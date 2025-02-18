@@ -10,7 +10,7 @@ from typing import Any
 
 # SDK Docs: https://googleapis.github.io/python-genai/
 from google.genai import Client  # type: ignore
-from google.genai.errors import APIError  # type: ignore
+from google.genai.errors import APIError, ClientError  # type: ignore
 from google.genai.types import (  # type: ignore
     Candidate,
     Content,
@@ -76,13 +76,10 @@ from inspect_ai.tool import (
 
 # TODO: vertex api
 # https://cloud.google.com/vertex-ai/generative-ai/docs/gemini-v2
+# express mode: https://cloud.google.com/vertex-ai/generative-ai/docs/start/express-mode/overview#workflow
 
-# TODO: elimininate 'info $AFC is enabled with max remote calls: 10.' from logs
 
 # TODO: capture thinking
-
-# TODO: do we need a try/catch for content window exceeded
-# https://github.com/UKGovernmentBEIS/inspect_ai/commit/6e2529d07ccedbfb4e172f6ec7f9c961ba7202c0#diff-05006cf4a8475a94617d3ceac83707e309f67957aa492cc0e45cebfcde7edccb
 
 
 logger = getLogger(__name__)
@@ -186,11 +183,14 @@ class GoogleGenAIAPI(ModelAPI):
                 response=response,
             )
 
-        response = await self.client.aio.models.generate_content(
-            model=self.model_name,
-            contents=gemini_contents,
-            config=parameters,
-        )
+        try:
+            response = await self.client.aio.models.generate_content(
+                model=self.model_name,
+                contents=gemini_contents,
+                config=parameters,
+            )
+        except ClientError as ex:
+            return self.handle_client_error(ex), model_call()
 
         output = ModelOutput(
             model=self.model_name,
@@ -208,6 +208,21 @@ class GoogleGenAIAPI(ModelAPI):
     def connection_key(self) -> str:
         """Scope for enforcing max_connections (could also use endpoint)."""
         return self.model_name
+
+    def handle_client_error(self, ex: ClientError) -> ModelOutput | Exception:
+        if (
+            ex.code == 400
+            and ex.message
+            and (
+                "maximum number of tokens" in ex.message
+                or "size exceeds the limit" in ex.message
+            )
+        ):
+            return ModelOutput.from_content(
+                self.model_name, content=ex.message, stop_reason="model_length"
+            )
+        else:
+            raise ex
 
 
 def safety_settings_to_list(safety_settings: SafetySettingDict) -> list[SafetySetting]:
