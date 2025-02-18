@@ -8,10 +8,9 @@ logger = getLogger(__name__)
 
 
 def sample_buffer(location: str) -> SampleBuffer:
-    buffer = SampleBufferDatabase(location, create=False)
-    if buffer.exists():
-        return buffer
-    else:
+    try:
+        return SampleBufferDatabase(location, create=False)
+    except FileNotFoundError:
         return SampleBufferFilestore(location, create=False)
 
 

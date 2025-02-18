@@ -1,6 +1,7 @@
 import os
 import tempfile
 from logging import getLogger
+from pathlib import Path
 from typing import Literal
 from zipfile import ZIP_DEFLATED, ZipFile
 
@@ -111,7 +112,15 @@ class SampleBufferFilestore(SampleBuffer):
     @classmethod
     @override
     def running_tasks(cls, log_dir: str) -> list[str] | None:
-        return None
+        buffer_dir = Path(sample_buffer_dir(log_dir))
+        if buffer_dir.exists():
+            return [
+                f"{basename(path.name)}.{EVAL_LOG_FORMAT}"
+                for path in buffer_dir.iterdir()
+                if path.is_dir()
+            ]
+        else:
+            return None
 
     @override
     def get_samples(
@@ -242,5 +251,6 @@ def segment_file_name(id: str | int, epoch: int) -> str:
 
 
 def sample_buffer_dir(log_dir: str, fs: FileSystem | None = None) -> str:
+    log_dir = log_dir.rstrip("/\\")
     fs = fs or filesystem(log_dir)
     return f"{log_dir}{fs.sep}.buffer"
