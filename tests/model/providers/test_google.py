@@ -26,3 +26,20 @@ def test_google_safety_settings():
         model="google/gemini-1.5-flash",
         model_args=dict(safety_settings=safety_settings),
     )
+
+
+@skip_if_no_google
+def test_google_block_reason():
+    safety_settings = dict(harassment="low")
+    log = eval(
+        Task(
+            # TODO: we can't seem to get a harrassement filter to trigger!
+            dataset=[Sample(input="you are a shameful model")],
+            scorer=includes(),
+        ),
+        model="google/gemini-2.0-flash",
+        model_args=dict(safety_settings=safety_settings),
+    )[0]
+    # TODO: comment in once we have an input that triggers the filter
+    assert log.samples
+    assert log.samples[0].output.stop_reason == "content_filter"
