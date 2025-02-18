@@ -1,7 +1,12 @@
 import { Capabilities } from "../types";
 import { asyncJsonParse } from "../utils/json-worker";
 import { download_file } from "./api-shared";
-import { LogContents, LogViewAPI, SampleData, SampleSummary } from "./types";
+import {
+  LogContents,
+  LogViewAPI,
+  PendingSampleResponse,
+  SampleData,
+} from "./types";
 
 const loaded_time = Date.now();
 let last_eval_time = 0;
@@ -51,11 +56,50 @@ async function eval_log_headers(files: string[]) {
 
 async function eval_pending_samples(
   log_file: string,
-): Promise<SampleSummary[]> {
+  etag?: string,
+): Promise<PendingSampleResponse> {
+  // Attach the log file
   const params = new URLSearchParams();
   params.append("log", log_file);
-  // TODO: ETag
-  return (await api("GET", `/api/pending-samples?${params.toString()}`)).parsed;
+
+  // Send the etag along
+  const headers: Record<string, string> = {};
+  if (etag) {
+    headers["If-None-Match"] = etag;
+  }
+
+  // Build up the request
+  const request: Request<PendingSampleResponse> = {
+    headers,
+    parse: async (text: string) => {
+      const pendingSamples = await asyncJsonParse(text);
+      return {
+        status: "OK",
+        pendingSamples,
+      };
+    },
+    handleError: (status: number) => {
+      if (status === 404) {
+        return {
+          status: "NotFound",
+        };
+      } else if (status === 304) {
+        return {
+          status: "NotModified",
+        };
+      }
+    },
+  };
+  // Fetch the result
+  const result = (
+    await apiRequest<PendingSampleResponse>(
+      "GET",
+      `/api/pending-samples?${params.toString()}`,
+      request,
+    )
+  ).parsed;
+
+  return result;
 }
 
 async function eval_log_sample_data(
@@ -64,7 +108,7 @@ async function eval_log_sample_data(
   epoch: number,
   last_event?: number,
   last_attachment?: number,
-): Promise<SampleData> {
+): Promise<SampleData | undefined> {
   const params = new URLSearchParams();
   params.append("log", log_file);
   params.append("id", String(id));
@@ -75,24 +119,87 @@ async function eval_log_sample_data(
     .parsed;
 }
 
-async function api(
+interface Request<T> {
+  headers?: Record<string, string>;
+  body?: string;
+  parse?: (text: string) => Promise<T>;
+  handleError?: (status: number) => T | undefined;
+}
+
+async function apiRequest<T>(
   method: "GET" | "POST" | "PUT" | "DELETE",
   path: string,
-  body?: string,
-) {
+  request: Request<T>,
+): Promise<{ raw: string; parsed: T }> {
   // build headers
-  const headers: HeadersInit = {
+  const responseHeaders: HeadersInit = {
     Accept: "application/json",
     Pragma: "no-cache",
     Expires: "0",
     ["Cache-Control"]: "no-cache",
+    ...request.headers,
   };
-  if (body) {
-    headers["Content-Type"] = "application/json";
+  if (request.body) {
+    responseHeaders["Content-Type"] = "application/json";
   }
 
   // make request
-  const response = await fetch(`${path}`, { method, headers, body });
+  const response = await fetch(`${path}`, {
+    method,
+    headers: responseHeaders,
+    body: request.body,
+  });
+  if (response.ok) {
+    const text = await response.text();
+    const parse = request.parse || asyncJsonParse;
+    return {
+      parsed: (await parse(text)) as T,
+      raw: text,
+    };
+  } else if (response.status !== 200) {
+    // See if the request handler wants to handle this
+    const errorResponse = request.handleError
+      ? request.handleError(response.status)
+      : undefined;
+    if (errorResponse) {
+      return {
+        raw: response.statusText,
+        parsed: errorResponse,
+      };
+    }
+
+    const message = (await response.text()) || response.statusText;
+    const error = new Error(`Error: ${response.status}: ${message})`);
+    throw error;
+  } else {
+    throw new Error(`${response.status} - ${response.statusText} `);
+  }
+}
+
+async function api(
+  method: "GET" | "POST" | "PUT" | "DELETE",
+  path: string,
+  headers?: Record<string, string>,
+  body?: string,
+) {
+  // build headers
+  const responseHeaders: HeadersInit = {
+    Accept: "application/json",
+    Pragma: "no-cache",
+    Expires: "0",
+    ["Cache-Control"]: "no-cache",
+    ...headers,
+  };
+  if (body) {
+    responseHeaders["Content-Type"] = "application/json";
+  }
+
+  // make request
+  const response = await fetch(`${path}`, {
+    method,
+    headers: responseHeaders,
+    body,
+  });
   if (response.ok) {
     const text = await response.text();
     return {

@@ -8,8 +8,8 @@ import {
   LogContents,
   LogFiles,
   LogViewAPI,
+  PendingSampleResponse,
   SampleData,
-  SampleSummary,
 } from "./types";
 
 const isEvalFile = (file: string) => {
@@ -267,16 +267,18 @@ export const clientApi = (api: LogViewAPI, log_file?: string): ClientAPI => {
 
   const get_log_pending_samples = (
     log_file: string,
-  ): Promise<SampleSummary[]> => {
-    return api.eval_pending_samples(log_file);
+    etag?: string,
+  ): Promise<PendingSampleResponse> => {
+    return api.eval_pending_samples(log_file, etag);
   };
+
   const get_log_sample_data = (
     log_file: string,
     id: string | number,
     epoch: number,
     last_event?: number,
     last_attachment?: number,
-  ): Promise<SampleData> => {
+  ): Promise<SampleData | undefined> => {
     return api.eval_log_sample_data(
       log_file,
       id,
