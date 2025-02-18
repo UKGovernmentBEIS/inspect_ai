@@ -14,8 +14,8 @@ import {
   Capabilities,
   LogContents,
   LogViewAPI,
+  PendingSampleResponse,
   SampleData,
-  SampleSummary,
 } from "./types";
 
 const vscodeClient = webViewJsonRpcClient(getVscodeApi());
@@ -95,19 +95,24 @@ async function open_log_file(log_file: string, log_dir: string) {
 }
 
 async function eval_pending_samples(
-  log_file: string,
-): Promise<SampleSummary[]> {
-  throw new Error("Function not implemented.");
+  _log_file: string,
+  _etag?: string,
+): Promise<PendingSampleResponse> {
+  // TODO: Implement
+  return {
+    status: "NotFound",
+  };
 }
 
 async function eval_log_sample_data(
-  log_file: string,
-  id: string | number,
-  epoch: number,
-  last_event?: number,
-  last_attachment?: number,
-): Promise<SampleData> {
-  throw new Error("Function not implemented.");
+  _log_file: string,
+  _id: string | number,
+  _epoch: number,
+  _last_event?: number,
+  _last_attachment?: number,
+): Promise<SampleData | undefined> {
+  // TODO: Implement
+  return undefined;
 }
 
 const api: LogViewAPI = {
