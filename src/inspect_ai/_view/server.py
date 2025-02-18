@@ -4,7 +4,7 @@ import os
 import urllib.parse
 from logging import LogRecord, getLogger
 from pathlib import Path
-from typing import Any, Awaitable, Callable
+from typing import Any, Awaitable, Callable, Type, TypeVar
 
 import fsspec  # type: ignore
 from aiohttp import web
@@ -136,9 +136,7 @@ def view_server(
     @routes.get("/api/pending-samples")
     async def api_pending_samples(request: web.Request) -> web.Response:
         # log file requested
-        file = request.query.get("log")
-        if file is None:
-            raise web.HTTPBadRequest()
+        file = query_param_required("log", request, str)
 
         file = urllib.parse.unquote(file)
         validate_log_file_request(file)
@@ -161,17 +159,18 @@ def view_server(
     @routes.get("/api/pending-sample-data")
     async def api_sample_events(request: web.Request) -> web.Response:
         # log file requested
-        file = request.match_info["log"]
+        file = query_param_required("log", request, str)
+
         file = urllib.parse.unquote(file)
         validate_log_file_request(file)
 
         # sample id information
-        id = request.match_info["id"]
-        epoch = int_param_required("epoch", request)
+        id = query_param_required("id", request, str)
+        epoch = query_param_required("epoch", request, int)
 
         # get sync info
-        after_event_id = int_param_optional("last-event-id", request)
-        after_attachment_id = int_param_optional("after-attachment-id", request)
+        after_event_id = query_param_optional("last-event-id", request, int)
+        after_attachment_id = query_param_optional("after-attachment-id", request, int)
 
         # get samples and responsd
         buffer = sample_buffer(file)
@@ -387,23 +386,58 @@ def async_connection(log_file: str) -> AsyncFileSystem:
     return _async_connections.get(protocol)
 
 
-def int_param_required(key: str, request: web.Request) -> int:
-    value = request.match_info.get(key)
+T = TypeVar("T")  # Define type variable
+
+
+def query_param_required(
+    key: str, request: web.Request, converter: Callable[[str], T]
+) -> T:
+    """
+    Generic parameter validation function.
+
+    Args:
+        key: Parameter key to look up
+        request: aiohttp Request object
+        converter: Function to convert the string parameter to type T
+
+    Returns:
+        Converted parameter value of type T
+
+    Raises:
+        HTTPBadRequest: If parameter is missing or invalid
+    """
+    value = request.query.get(key)
     if value is None:
         raise web.HTTPBadRequest(text=f"Missing parameter {key}")
-    else:
-        try:
-            return int(value)
-        except ValueError:
-            raise web.HTTPBadRequest(text=f"Invalid value {value} for {key}")
+
+    try:
+        return converter(value)
+    except ValueError:
+        raise web.HTTPBadRequest(text=f"Invalid value {value} for {key}")
 
 
-def int_param_optional(key: str, request: web.Request) -> int | None:
-    value = request.match_info.get(key)
+def query_param_optional(
+    key: str, request: web.Request, converter: Callable[[str], T]
+) -> T:
+    """
+    Generic parameter validation function.
+
+    Args:
+        key: Parameter key to look up
+        request: aiohttp Request object
+        converter: Function to convert the string parameter to type T
+
+    Returns:
+        Converted parameter value of type T
+
+    Raises:
+        HTTPBadRequest: If parameter is missing or invalid
+    """
+    value = request.query.get(key)
     if value is None:
-        return None
-    else:
-        try:
-            return int(value)
-        except ValueError:
-            raise web.HTTPBadRequest(text=f"Invalid value {value} for {key}")
+        raise web.HTTPBadRequest(text=f"Missing parameter {key}")
+
+    try:
+        return converter(value)
+    except ValueError:
+        raise web.HTTPBadRequest(text=f"Invalid value {value} for {key}")
