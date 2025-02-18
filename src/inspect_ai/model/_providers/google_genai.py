@@ -98,6 +98,8 @@ class GoogleGenAIAPI(ModelAPI):
 
         # TODO: vertex api
 
+        # TODO: even when we are going to throw errors we still log warning
+
         # pick out user-provided safety settings and merge against default
         self.safety_settings = DEFAULT_SAFETY_SETTINGS.copy()
         if SAFETY_SETTINGS in model_args:
@@ -160,11 +162,11 @@ class GoogleGenAIAPI(ModelAPI):
             config=parameters,
         )
 
+        # TODO: do we need a try/catch for content window exceeded
         output = ModelOutput(
             model=self.model_name,
-            choices=completion_choices_from_candidates(response.candidates),
+            choices=completion_choices_from_candidates(response),
             usage=usage_metadata_to_model_usage(response.usage_metadata),
-            error=prompt_feedback_to_error(response.prompt_feedback),
         )
 
         return output, model_call()
@@ -483,34 +485,47 @@ def completion_choice_from_candidate(candidate: Candidate) -> ChatCompletionChoi
     return choice
 
 
-# TODO: there may be something in the response indicating it was a refusal
-# (stop_reason == "safety") "s__ h___" HARRASSMENT: "LOW"
 def completion_choices_from_candidates(
-    candidates: list[Candidate] | None,
+    response: GenerateContentResponse,
 ) -> list[ChatCompletionChoice]:
+    candidates = response.candidates
     if candidates:
         candidates_list = sorted(candidates, key=lambda c: c.index)
         return [
             completion_choice_from_candidate(candidate) for candidate in candidates_list
         ]
-    else:
+    # TODO: test to make sure this works
+    elif response.prompt_feedback:
         return [
             ChatCompletionChoice(
                 message=ChatMessageAssistant(
-                    content="I was unable to generate a response.",
+                    content=prompt_feedback_to_content(response.prompt_feedback),
                     source="generate",
                 ),
-                stop_reason="unknown",
+                stop_reason="content_filter",
             )
         ]
+    else:
+        raise RuntimeError(
+            "Google response includes no completion candidates and no block reason: "
+            + f"{response.model_dump_json(indent=2)}"
+        )
 
 
-def prompt_feedback_to_error(
-    feedback: GenerateContentResponsePromptFeedback | None,
-) -> str | None:
-    if feedback is None:
-        return None
-    return feedback.block_reason_message or None
+def prompt_feedback_to_content(
+    feedback: GenerateContentResponsePromptFeedback,
+) -> str:
+    content: list[str] = []
+    block_reason = str(feedback.block_reason) if feedback.block_reason else "UNKNOWN"
+    content.append(f"BLOCKED: {block_reason}")
+
+    if feedback.block_reason_message is not None:
+        content.append(feedback.block_reason_message)
+    if feedback.safety_ratings is not None:
+        content.extend(
+            [rating.model_dump_json(indent=2) for rating in feedback.safety_ratings]
+        )
+    return "\n".join(content)
 
 
 def usage_metadata_to_model_usage(
