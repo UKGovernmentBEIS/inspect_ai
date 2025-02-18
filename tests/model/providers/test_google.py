@@ -1,4 +1,3 @@
-import pytest
 from test_helpers.utils import skip_if_no_google
 
 from inspect_ai import Task, eval
