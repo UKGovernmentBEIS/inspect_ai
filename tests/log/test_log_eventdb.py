@@ -1,13 +1,16 @@
 import json
 import os
 import tempfile
+from contextlib import contextmanager
 from pathlib import Path
 from sqlite3 import IntegrityError
-from typing import Any, Generator, cast
+from typing import Any, Generator, Iterator, cast
 
 import pytest
 
 from inspect_ai.log._recorders.buffer import SampleBufferDatabase
+from inspect_ai.log._recorders.buffer.database import sync_to_filestore
+from inspect_ai.log._recorders.buffer.filestore import SampleBufferFilestore
 from inspect_ai.log._recorders.buffer.types import Samples
 from inspect_ai.log._recorders.types import SampleEvent, SampleSummary
 from inspect_ai.log._transcript import Event, InfoEvent
@@ -468,3 +471,41 @@ def test_cleanup(db: SampleBufferDatabase, sample: SampleSummary) -> None:
 
     # Verify cleanup is idempotent
     db.cleanup()  # Should not raise any errors
+
+
+def test_running_tasks():
+    with tempfile.TemporaryDirectory() as log_dir:
+
+        @contextmanager
+        def test_sample_buffers(
+            name: str,
+        ) -> Iterator[tuple[SampleBufferDatabase, SampleBufferFilestore]]:
+            # create buffers
+            test_log = (Path(log_dir) / f"{name}.eval").as_posix()
+            test_db = SampleBufferDatabase(test_log)
+            test_fs = SampleBufferFilestore(test_log)
+
+            try:
+                # some test data
+                s1 = SampleSummary(id="inc", epoch=1, input="foo", target="bar")
+                test_db.start_sample(s1)
+
+                # First batch
+                test_db.log_events(
+                    [
+                        SampleEvent(id="inc", epoch=1, event=InfoEvent(data="1")),
+                        SampleEvent(id="inc", epoch=1, event=InfoEvent(data="2")),
+                    ]
+                )
+
+                # write to filestore
+                sync_to_filestore(test_db, test_fs)
+
+                yield test_db, test_fs
+            finally:
+                test_db.cleanup()
+                test_fs.cleanup()
+
+        with test_sample_buffers("test1"), test_sample_buffers("test2"):
+            assert len(SampleBufferDatabase.running_tasks(log_dir)) == 2
+            assert len(SampleBufferFilestore.running_tasks(log_dir)) == 2
