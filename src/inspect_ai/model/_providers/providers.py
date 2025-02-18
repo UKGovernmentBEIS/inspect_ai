@@ -94,7 +94,7 @@ def vertex() -> type[ModelAPI]:
 def google() -> type[ModelAPI]:
     FEATURE = "Google API"
     PACKAGE = "google-genai"
-    MIN_VERSION = "0.8.4"
+    MIN_VERSION = "1.2.0"
 
     # workaround log spam
     # https://github.com/ray-project/ray/issues/24917
