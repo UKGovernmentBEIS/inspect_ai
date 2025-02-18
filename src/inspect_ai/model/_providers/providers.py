@@ -110,7 +110,7 @@ def google() -> type[ModelAPI]:
     verify_required_version(FEATURE, PACKAGE, MIN_VERSION)
 
     # in the clear
-    from .google_genai import GoogleGenAIAPI
+    from .google import GoogleGenAIAPI
 
     return GoogleGenAIAPI
 
