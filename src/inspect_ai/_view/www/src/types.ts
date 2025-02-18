@@ -11,7 +11,8 @@ export interface ApplicationState {
   selectedLogIndex?: number;
   logHeaders?: Record<string, EvalLogHeader>;
   headersLoading?: boolean;
-  selectedLog?: CurrentLog;
+  selectedLogFile?: string;
+  selectedLogSummary?: EvalSummary;
   selectedWorkspaceTab?: string;
   selectedSampleIndex?: number;
   selectedSample?: EvalSample;

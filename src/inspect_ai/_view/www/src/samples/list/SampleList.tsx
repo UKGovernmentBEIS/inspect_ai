@@ -108,32 +108,40 @@ export const SampleList: FC<SampleListProps> = (props) => {
     return <EmptyPanel>No Samples</EmptyPanel>;
   }
 
-  const renderRow = (item: ListItem) => {
-    if (item.type === "sample") {
-      return (
-        <SampleRow
-          id={`${item.number}`}
-          index={item.index}
-          sample={item.data}
-          height={kSampleHeight}
-          sampleDescriptor={sampleDescriptor}
-          gridColumnsTemplate={gridColumnsValue(sampleDescriptor)}
-          selected={selectedIndex === item.index}
-          showSample={showSample}
-        />
-      );
-    } else if (item.type === "separator") {
-      return (
-        <SampleSeparator
-          id={`sample-group${item.number}`}
-          title={item.data}
-          height={kSeparatorHeight}
-        />
-      );
-    } else {
-      return null;
-    }
-  };
+  const gridColumnsTemplate = useMemo(() => {
+    return gridColumnsValue(sampleDescriptor);
+  }, [sampleDescriptor]);
+
+  const renderRow = useCallback(
+    (item: ListItem) => {
+      if (item.type === "sample") {
+        return (
+          <SampleRow
+            id={`${item.number}`}
+            index={item.index}
+            sample={item.data}
+            height={kSampleHeight}
+            answer={item.answer}
+            scoreRendered={item.scoreRendered}
+            gridColumnsTemplate={gridColumnsTemplate}
+            selected={selectedIndex === item.index}
+            showSample={showSample}
+          />
+        );
+      } else if (item.type === "separator") {
+        return (
+          <SampleSeparator
+            id={`sample-group${item.number}`}
+            title={item.data}
+            height={kSeparatorHeight}
+          />
+        );
+      } else {
+        return null;
+      }
+    },
+    [selectedIndex, showSample],
+  );
 
   const { input, limit, answer, target } = gridColumns(sampleDescriptor);
 
@@ -188,7 +196,7 @@ export const SampleList: FC<SampleListProps> = (props) => {
         target={target !== "0"}
         answer={answer !== "0"}
         limit={limit !== "0"}
-        gridColumnsTemplate={gridColumnsValue(sampleDescriptor)}
+        gridColumnsTemplate={gridColumnsTemplate}
       />
       <Virtuoso
         ref={listHandle}
