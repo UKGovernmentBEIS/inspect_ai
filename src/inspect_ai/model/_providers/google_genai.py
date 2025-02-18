@@ -417,7 +417,7 @@ async def chat_content_to_part(
         content_bytes, mime_type = await file_as_data(content.image)
         return Part.from_bytes(mime_type=mime_type, data=content_bytes)
     else:
-        return file_for_content(client, content)
+        return await file_for_content(client, content)
 
 
 async def extract_system_message_as_parts(
