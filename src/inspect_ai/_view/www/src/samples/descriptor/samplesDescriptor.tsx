@@ -15,7 +15,6 @@ import {
 export interface SamplesDescriptor {
   evalDescriptor: EvalDescriptor;
   messageShape: MessageShape;
-  selectedScoreDescriptor?: ScoreDescriptor;
   selectedScore: (sample: BasicSampleData) => SelectedScore | undefined;
   selectedScorerDescriptor: (
     sample: BasicSampleData,
@@ -357,9 +356,6 @@ export const createSamplesDescriptor = (
   return {
     evalDescriptor,
     messageShape,
-    selectedScoreDescriptor: selectedScore
-      ? evalDescriptor.scoreDescriptor(selectedScore)
-      : undefined,
     selectedScore: (sample) =>
       selectedScore ? evalDescriptor.score(sample, selectedScore) : undefined,
     selectedScorerDescriptor: (sample) =>

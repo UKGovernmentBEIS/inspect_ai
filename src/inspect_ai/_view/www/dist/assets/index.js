@@ -17063,7 +17063,7 @@ categories: ${categories.join(" ")}`;
         return String(a.id).localeCompare(String(b.id));
       }
     };
-    const sortSamples = (sort, samples, samplesDescriptor) => {
+    const sortSamples = (sort, samples, samplesDescriptor, score2) => {
       const sortedSamples = samples.sort((a, b) => {
         switch (sort) {
           case kSampleAscVal: {
@@ -17099,26 +17099,18 @@ categories: ${categories.join(" ")}`;
             }
           }
           case kScoreAscVal: {
-            const aScore = samplesDescriptor.selectedScore(a);
-            const bScore = samplesDescriptor.selectedScore(b);
-            if (aScore === void 0 || bScore === void 0 || samplesDescriptor.selectedScoreDescriptor == void 0) {
+            samplesDescriptor.selectedScore(a);
+            samplesDescriptor.selectedScore(b);
+            {
               return 0;
             }
-            return samplesDescriptor.selectedScoreDescriptor.compare(
-              aScore,
-              bScore
-            );
           }
           case kScoreDescVal: {
-            const aScore = samplesDescriptor.selectedScore(a);
-            const bScore = samplesDescriptor.selectedScore(b);
-            if (aScore === void 0 || bScore === void 0 || samplesDescriptor.selectedScoreDescriptor == void 0) {
+            samplesDescriptor.selectedScore(a);
+            samplesDescriptor.selectedScore(b);
+            {
               return 0;
             }
-            return samplesDescriptor.selectedScoreDescriptor.compare(
-              aScore,
-              bScore
-            );
           }
           default:
             return 0;
@@ -65441,7 +65433,6 @@ ${events}
       return {
         evalDescriptor,
         messageShape,
-        selectedScoreDescriptor: selectedScore ? evalDescriptor.scoreDescriptor(selectedScore) : void 0,
         selectedScore: (sample2) => selectedScore ? evalDescriptor.score(sample2, selectedScore) : void 0,
         selectedScorerDescriptor: (sample2) => selectedScore ? evalDescriptor.scorerDescriptor(sample2, selectedScore) : void 0
       };
@@ -65724,7 +65715,7 @@ ${events}
           return true;
         });
         if (samplesDescriptor) {
-          const sorted = sortSamples(sort, filtered, samplesDescriptor);
+          const sorted = sortSamples(sort, filtered, score2);
           return sorted;
         } else {
           return filtered;
