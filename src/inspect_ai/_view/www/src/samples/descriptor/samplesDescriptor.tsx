@@ -264,7 +264,6 @@ export const createEvalDescriptor = (
   };
 
   return {
-    samples,
     scores,
     scorerDescriptor,
     scoreDescriptor,
@@ -274,11 +273,12 @@ export const createEvalDescriptor = (
 };
 
 export const createSamplesDescriptor = (
+  samples: SampleSummary[],
   evalDescriptor: EvalDescriptor,
   selectedScore?: ScoreLabel,
 ): SamplesDescriptor | undefined => {
   // Find the total length of the value so we can compute an average
-  const sizes = evalDescriptor.samples.reduce(
+  const sizes = samples.reduce(
     (previous, current) => {
       const text = inputString(current.input).join(" ");
       const score = selectedScore
