@@ -233,20 +233,22 @@ class TaskMetrics(Widget):
         for metric in self.metrics:
             # Add the value static but keep it around
             # for future updates
-            self.value_widgets[metric.name] = Static(self._metric_value(metric.value))
+            self.value_widgets[metric.name] = Static(
+                self._metric_value(metric.value), markup=False
+            )
 
-            grid.mount(Static(metric.name))
+            grid.mount(Static(metric.name, markup=False))
             grid.mount(self.value_widgets[metric.name])
 
     def _title(self) -> Widget:
         if self.scorer is None:
             return Static("")
         elif self.reducer is None:
-            return Static(self.scorer)
+            return Static(self.scorer, markup=False)
         else:
             return Horizontal(
-                Static(self.scorer, classes="scorer"),
-                Static(f"({self.reducer})", classes="reducer"),
+                Static(self.scorer, classes="scorer", markup=False),
+                Static(f"({self.reducer})", classes="reducer", markup=False),
             )
 
     def _metric_value(self, val: float) -> str:
