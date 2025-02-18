@@ -178,7 +178,7 @@ class GoogleGenAIAPI(ModelAPI):
         # create client
         self.client = Client(
             vertexai=self.is_vertex(),
-            # api_key=self.api_key,
+            api_key=self.api_key,
             http_options={"base_url": base_url},
             **model_args,
         )
