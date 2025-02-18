@@ -239,6 +239,7 @@ const useResolvedTabs = ({
               ? undefined
               : [
                   <SampleTools
+                    samples={samples || []}
                     key="sample-tools"
                     epoch={epoch}
                     epochs={epochs || 1}

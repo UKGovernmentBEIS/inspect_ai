@@ -1,5 +1,6 @@
 import { FC } from "react";
 import { Fragment } from "react/jsx-runtime";
+import { SampleSummary } from "../api/types";
 import { ScoreFilter, ScoreLabel } from "../types";
 import { SamplesDescriptor } from "./descriptor/samplesDescriptor";
 import { EpochFilter } from "./sample-tools/EpochFilter";
@@ -8,6 +9,7 @@ import { SelectScorer } from "./sample-tools/SelectScorer";
 import { SortFilter } from "./sample-tools/SortFilter";
 
 interface SampleToolsProps {
+  samples: SampleSummary[];
   epoch: string;
   setEpoch: (epoch: string) => void;
   epochs: number;
@@ -22,6 +24,7 @@ interface SampleToolsProps {
 }
 
 export const SampleTools: FC<SampleToolsProps> = ({
+  samples,
   epoch,
   setEpoch,
   epochs,
@@ -37,6 +40,7 @@ export const SampleTools: FC<SampleToolsProps> = ({
   return (
     <Fragment>
       <SampleFilter
+        samples={samples}
         evalDescriptor={sampleDescriptor.evalDescriptor}
         scoreFilter={scoreFilter}
         setScoreFilter={setScoreFilter}

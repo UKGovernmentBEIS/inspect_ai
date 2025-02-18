@@ -16,6 +16,7 @@ import clsx from "clsx";
 import { EditorView, minimalSetup } from "codemirror";
 import { FC, useEffect, useMemo, useRef, useState } from "react";
 
+import { SampleSummary } from "../../../api/types";
 import { ScoreFilter } from "../../../types";
 import { EvalDescriptor } from "../../descriptor/types";
 import { FilterError, filterSamples, scoreFilterItems } from "../filters";
@@ -30,6 +31,7 @@ interface FilteringResult {
 }
 
 interface SampleFilterProps {
+  samples: SampleSummary[];
   evalDescriptor: EvalDescriptor;
   scoreFilter: ScoreFilter;
   setScoreFilter: (filter: ScoreFilter) => void;
@@ -105,11 +107,12 @@ const editorTheme = EditorView.theme({
 // Helper functions
 const getFilteringResult = (
   evalDescriptor: EvalDescriptor,
+  sampleSummaries: SampleSummary[],
   filterValue: string,
 ): FilteringResult => {
   const { result, error } = filterSamples(
     evalDescriptor,
-    evalDescriptor.samples,
+    sampleSummaries,
     filterValue,
   );
   return { numSamples: result.length, error };
@@ -148,6 +151,7 @@ const getLints = (
 
 // Main component
 export const SampleFilter: FC<SampleFilterProps> = ({
+  samples,
   evalDescriptor,
   scoreFilter,
   setScoreFilter,
@@ -185,7 +189,11 @@ export const SampleFilter: FC<SampleFilterProps> = ({
     EditorView.updateListener.of((update) => {
       if (update.docChanged) {
         const newValue = update.state.doc.toString();
-        const filteringResult = getFilteringResult(evalDescriptor, newValue);
+        const filteringResult = getFilteringResult(
+          evalDescriptor,
+          samples,
+          newValue,
+        );
         if (!filteringResult.error) {
           setScoreFilter({ value: newValue });
         }
@@ -227,7 +235,7 @@ export const SampleFilter: FC<SampleFilterProps> = ({
     if (scoreFilter.value === currentValue) return;
 
     setFilteringResultInstant(
-      getFilteringResult(evalDescriptor, scoreFilter.value || ""),
+      getFilteringResult(evalDescriptor, samples, scoreFilter.value || ""),
     );
     editorViewRef.current.dispatch({
       changes: {
