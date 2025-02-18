@@ -18,7 +18,7 @@ export const getSampleProcessor = (
   } else if (groupBy === "sample") {
     return groupBySample(samples, sampleDescriptor, groupByOrder);
   } else {
-    return noGrouping(samples, groupByOrder);
+    return noGrouping(samples, groupByOrder, sampleDescriptor);
   }
 };
 
@@ -28,6 +28,7 @@ export const getSampleProcessor = (
 const noGrouping = (
   samples: SampleSummary[],
   order: "asc" | "desc",
+  sampleDescriptor: SamplesDescriptor,
 ): ((sample: SampleSummary, index: number) => ListItem[]) => {
   const counter = getCounter(samples.length, 1, order);
   return (sample: SampleSummary, index: number) => {
@@ -40,6 +41,9 @@ const noGrouping = (
         index: index,
         data: sample,
         type: "sample",
+        answer:
+          sampleDescriptor.selectedScorerDescriptor(sample)?.answer() || "",
+        scoreRendered: sampleDescriptor.selectedScore(sample)?.render(),
       },
     ];
   };
@@ -103,6 +107,8 @@ const groupBySample = (
       index: index,
       data: sample,
       type: "sample",
+      answer: sampleDescriptor.selectedScorerDescriptor(sample)?.answer() || "",
+      scoreRendered: sampleDescriptor.selectedScore(sample)?.render(),
     } as SampleListItem);
 
     return results;
@@ -153,6 +159,8 @@ const groupByEpoch = (
       index: index,
       data: sample,
       type: "sample",
+      answer: sampleDescriptor.selectedScorerDescriptor(sample)?.answer() || "",
+      scoreRendered: sampleDescriptor.selectedScore(sample)?.render(),
     } as SampleListItem);
 
     return results;
