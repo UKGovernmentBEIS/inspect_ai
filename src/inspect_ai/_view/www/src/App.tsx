@@ -371,12 +371,24 @@ export const App: FC<AppProps> = ({
 
     // Sort the samples
     if (samplesDescriptor) {
-      const sorted = sortSamples(sort, filtered, samplesDescriptor, score);
+      const sorted = sortSamples(
+        sort,
+        filtered,
+        samplesDescriptor,
+        currentScore,
+      );
       return sorted;
     } else {
       return filtered;
     }
-  }, [sampleSummaries, evalDescriptor, samplesDescriptor, filter, sort]);
+  }, [
+    sampleSummaries,
+    evalDescriptor,
+    samplesDescriptor,
+    filter,
+    sort,
+    currentScore,
+  ]);
 
   const groupBy = useMemo(() => {
     // Set the grouping
