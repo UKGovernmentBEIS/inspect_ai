@@ -663,7 +663,7 @@ def get_model(
        base_url: Optional. Alternate base URL for model.
        api_key: Optional. API key for model.
        memoize: Use/store a cached version of the model based on
-         the parameters to `get_model()`
+          the parameters to `get_model()`
        **model_args: Additional args to
           pass to model constructor.
 
