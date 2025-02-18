@@ -88,15 +88,15 @@ Authentication is doing using the standard Google Cloud CLI (i.e. if you have au
 
 ## Google {#google-gemini}
 
-To use the [Google](https://ai.google.dev/) provider, install the `google-generativeai` package, set your credentials, and specify a model using the `--model` option:
+To use the [Google](https://ai.google.dev/) provider, install the `google-genai` package, set your credentials, and specify a model using the `--model` option:
 
 ``` bash
-pip install google-generativeai
+pip install google-genai
 export GOOGLE_API_KEY=your-google-api-key
 inspect eval arc.py --model google/gemini-1.5-pro
 ```
 
-For the `google` provider, custom model args (`-M`) are forwarded to the `genai.configure` function.
+For the `google` provider, custom model args (`-M`) are forwarded to the `genai.Client` function.
 
 The following environment variables are supported by the Google provider
 

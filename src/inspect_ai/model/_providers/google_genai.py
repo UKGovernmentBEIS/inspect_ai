@@ -1,0 +1,598 @@
+import functools
+import json
+import os
+from copy import copy
+from typing import Any
+
+# SDK Docs: https://googleapis.github.io/python-genai/
+from google.genai import Client  # type: ignore
+from google.genai.errors import APIError  # type: ignore
+from google.genai.types import (  # type: ignore
+    Candidate,
+    Content,
+    FinishReason,
+    FunctionCallingConfig,
+    FunctionDeclaration,
+    FunctionResponse,
+    GenerateContentConfig,
+    GenerateContentResponse,
+    GenerateContentResponsePromptFeedback,
+    GenerateContentResponseUsageMetadata,
+    GenerationConfig,
+    HarmBlockThreshold,
+    HarmCategory,
+    Part,
+    SafetySetting,
+    SafetySettingDict,
+    Schema,
+    Tool,
+    ToolConfig,
+    Type,
+)
+from pydantic import JsonValue
+from typing_extensions import override
+
+from inspect_ai._util.constants import BASE_64_DATA_REMOVED, NO_CONTENT
+from inspect_ai._util.content import Content as InspectContent
+from inspect_ai._util.content import (
+    ContentAudio,
+    ContentImage,
+    ContentText,
+    ContentVideo,
+)
+from inspect_ai._util.images import file_as_data
+from inspect_ai.model import (
+    ChatCompletionChoice,
+    ChatMessage,
+    ChatMessageAssistant,
+    ChatMessageTool,
+    ChatMessageUser,
+    GenerateConfig,
+    Logprob,
+    Logprobs,
+    ModelAPI,
+    ModelOutput,
+    ModelUsage,
+    StopReason,
+    TopLogprob,
+    modelapi,
+)
+from inspect_ai.model._model_call import ModelCall
+from inspect_ai.model._providers.util import model_base_url
+from inspect_ai.tool import (
+    ToolCall,
+    ToolChoice,
+    ToolFunction,
+    ToolInfo,
+    ToolParam,
+    ToolParams,
+)
+
+GOOGLE_API_KEY = "GOOGLE_API_KEY"
+
+SAFETY_SETTINGS = "safety_settings"
+DEFAULT_SAFETY_SETTINGS = {
+    HarmCategory.HARM_CATEGORY_CIVIC_INTEGRITY: HarmBlockThreshold.BLOCK_NONE,
+    HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.OFF,
+    HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.OFF,
+    HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.OFF,
+    HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.OFF,
+}
+
+
+class GoogleGenAIAPI(ModelAPI):
+    def __init__(
+        self,
+        model_name: str,
+        base_url: str | None,
+        api_key: str | None,
+        config: GenerateConfig = GenerateConfig(),
+        **model_args: Any,
+    ) -> None:
+        super().__init__(
+            model_name=model_name,
+            base_url=base_url,
+            api_key=api_key,
+            api_key_vars=[GOOGLE_API_KEY],
+            config=config,
+        )
+
+        # pick out user-provided safety settings and merge against default
+        self.safety_settings = DEFAULT_SAFETY_SETTINGS.copy()
+        if SAFETY_SETTINGS in model_args:
+            self.safety_settings.update(
+                parse_safety_settings(model_args.get(SAFETY_SETTINGS))
+            )
+            del model_args[SAFETY_SETTINGS]
+
+        if not self.api_key:
+            self.api_key = os.environ.get(GOOGLE_API_KEY)
+
+        base_url = model_base_url(base_url, "GOOGLE_BASE_URL")
+        self.client = Client(
+            api_key=self.api_key,
+            http_options={"base_url": base_url},
+            **model_args,
+        )
+
+    async def generate(
+        self,
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice,
+        config: GenerateConfig,
+    ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
+        # Create google-genai types.
+        gemini_contents = await as_chat_messages(input)
+        gemini_tools = chat_tools(tools) if len(tools) > 0 else None
+        gemini_tool_config = chat_tool_config(tool_choice) if len(tools) > 0 else None
+        parameters = GenerateContentConfig(
+            temperature=config.temperature,
+            top_p=config.top_p,
+            top_k=config.top_k,
+            max_output_tokens=config.max_tokens,
+            stop_sequences=config.stop_seqs,
+            candidate_count=config.num_choices,
+            presence_penalty=config.presence_penalty,
+            frequency_penalty=config.frequency_penalty,
+            safety_settings=safety_settings_to_list(self.safety_settings),
+            tools=gemini_tools,
+            tool_config=gemini_tool_config,
+            system_instruction=await extract_system_message_as_parts(input),
+        )
+
+        response: GenerateContentResponse | None = None
+
+        def model_call() -> ModelCall:
+            return build_model_call(
+                contents=gemini_contents,
+                safety_settings=self.safety_settings,
+                generation_config=parameters,
+                tools=gemini_tools,
+                tool_config=gemini_tool_config,
+                response=response,
+            )
+
+        response = await self.client.aio.models.generate_content(
+            model=self.model_name,
+            contents=gemini_contents,
+            config=parameters,
+        )
+
+        output = ModelOutput(
+            model=self.model_name,
+            choices=completion_choices_from_candidates(response.candidates),
+            usage=usage_metadata_to_model_usage(response.usage_metadata),
+            error=prompt_feedback_to_error(response.prompt_feedback),
+        )
+
+        return output, model_call()
+
+    @override
+    def is_rate_limit(self, ex: BaseException) -> bool:
+        return isinstance(ex, APIError) and ex.code in (429, 500, 503, 504)
+
+    @override
+    def connection_key(self) -> str:
+        """Scope for enforcing max_connections (could also use endpoint)."""
+        return self.model_name
+
+
+def safety_settings_to_list(safety_settings: SafetySettingDict) -> list[SafetySetting]:
+    return [
+        SafetySetting(
+            category=category,
+            threshold=threshold,
+        )
+        for category, threshold in safety_settings.items()
+    ]
+
+
+def build_model_call(
+    contents: list[Content],
+    generation_config: GenerationConfig,
+    safety_settings: SafetySettingDict,
+    tools: list[Tool] | None,
+    tool_config: ToolConfig | None,
+    response: GenerateContentResponse | None,
+) -> ModelCall:
+    return ModelCall.create(
+        request=dict(
+            contents=contents,
+            generation_config=generation_config,
+            safety_settings=safety_settings,
+            tools=tools if tools is not None else None,
+            tool_config=tool_config if tool_config is not None else None,
+        ),
+        response=response if response is not None else {},
+        filter=model_call_filter,
+    )
+
+
+def model_call_filter(key: JsonValue | None, value: JsonValue) -> JsonValue:
+    # TODO: Aspen: is this needed? Copied from other google providers.
+    # remove images from raw api call
+    if key == "inline_data" and isinstance(value, dict) and "data" in value:
+        value = copy(value)
+        value.update(data=BASE_64_DATA_REMOVED)
+    return value
+
+
+async def as_chat_messages(messages: list[ChatMessage]) -> list[Content]:
+    # There is no "system" role in the `google-genai` package. Instead, system messages
+    # are included in the `GenerateContentConfig` as a `system_instruction`. Strip any
+    # system messages out.
+    supported_messages = [message for message in messages if message.role != "system"]
+
+    # build google chat messages
+    chat_messages = [await content(message) for message in supported_messages]
+
+    # combine consecutive tool messages
+    chat_messages = functools.reduce(
+        consecutive_tool_message_reducer, chat_messages, []
+    )
+
+    # return messages
+    return chat_messages
+
+
+def consecutive_tool_message_reducer(
+    messages: list[Content],
+    message: Content,
+) -> list[Content]:
+    if (
+        message.role == "function"
+        and len(messages) > 0
+        and messages[-1].role == "function"
+    ):
+        messages[-1] = Content(
+            role="function", parts=messages[-1].parts + message.parts
+        )
+    else:
+        messages.append(message)
+    return messages
+
+
+async def content(
+    message: ChatMessageUser | ChatMessageAssistant | ChatMessageTool,
+) -> Content:
+    if isinstance(message, ChatMessageUser):
+        if isinstance(message.content, str):
+            return Content(role="user", parts=[await content_part(message.content)])
+        return Content(
+            role="user",
+            parts=([await content_part(content) for content in message.content]),
+        )
+    elif isinstance(message, ChatMessageAssistant):
+        content_parts: list[Part] = []
+        # tool call parts
+        if message.tool_calls is not None:
+            content_parts.extend(
+                [
+                    Part.from_function_call(
+                        name=tool_call.function,
+                        args=tool_call.arguments,
+                    )
+                    for tool_call in message.tool_calls
+                ]
+            )
+
+        # content parts
+        if isinstance(message.content, str):
+            content_parts.append(Part(text=message.content or NO_CONTENT))
+        else:
+            content_parts.extend(
+                [await content_part(content) for content in message.content]
+            )
+
+        # return parts
+        return Content(role="model", parts=content_parts)
+
+    elif isinstance(message, ChatMessageTool):
+        response = FunctionResponse(
+            name=message.tool_call_id,
+            response={
+                "content": (
+                    message.error.message if message.error is not None else message.text
+                )
+            },
+        )
+        return Content(role="function", parts=[Part(function_response=response)])
+
+
+async def content_part(content: InspectContent | str) -> Part:
+    if isinstance(content, str):
+        return Part.from_text(text=content or NO_CONTENT)
+    elif isinstance(content, ContentText):
+        return Part.from_text(text=content.text or NO_CONTENT)
+    else:
+        return await chat_content_to_part(content)
+
+
+async def chat_content_to_part(
+    content: ContentImage | ContentAudio | ContentVideo,
+) -> Part:
+    if isinstance(content, ContentImage):
+        content_bytes, mime_type = await file_as_data(content.image)
+    elif isinstance(content, ContentAudio):
+        content_bytes, mime_type = await file_as_data(content.audio)
+    elif isinstance(content, ContentVideo):
+        content_bytes, mime_type = await file_as_data(content.video)
+    else:
+        raise ValueError(f"Unsupported content type: {type(content)}")
+    return Part.from_bytes(mime_type=mime_type, data=content_bytes)
+
+
+async def extract_system_message_as_parts(
+    messages: list[ChatMessage],
+) -> list[Part] | None:
+    system_parts: list[Part] = []
+    for message in messages:
+        if message.role == "system":
+            content = message.content
+            if isinstance(content, str):
+                system_parts.append(Part.from_text(text=content))
+            elif isinstance(content, list):  # list[InspectContent]
+                system_parts.extend(
+                    [await content_part(content) for content in content]
+                )
+            else:
+                raise ValueError(f"Unsupported system message content: {content}")
+    # google-genai raises "ValueError: content is required." if the list is empty.
+    return system_parts or None
+
+
+def chat_tools(tools: list[ToolInfo]) -> list[Tool]:
+    declarations = [
+        FunctionDeclaration(
+            name=tool.name,
+            description=tool.description,
+            parameters=schema_from_param(tool.parameters)
+            if len(tool.parameters.properties) > 0
+            else None,
+        )
+        for tool in tools
+    ]
+    return [Tool(function_declarations=declarations)]
+
+
+# https://ai.google.dev/gemini-api/tutorials/extract_structured_data#define_the_schema
+def schema_from_param(param: ToolParam | ToolParams, nullable: bool = False) -> Schema:
+    if isinstance(param, ToolParams):
+        param = ToolParam(
+            type=param.type, properties=param.properties, required=param.required
+        )
+
+    if param.type == "number":
+        return Schema(
+            type=Type.NUMBER, description=param.description, nullable=nullable
+        )
+    elif param.type == "integer":
+        return Schema(
+            type=Type.INTEGER, description=param.description, nullable=nullable
+        )
+    elif param.type == "boolean":
+        return Schema(
+            type=Type.BOOLEAN, description=param.description, nullable=nullable
+        )
+    elif param.type == "string":
+        return Schema(
+            type=Type.STRING, description=param.description, nullable=nullable
+        )
+    elif param.type == "array":
+        return Schema(
+            type=Type.ARRAY,
+            description=param.description,
+            items=schema_from_param(param.items) if param.items else None,
+            nullable=nullable,
+        )
+    elif param.type == "object":
+        return Schema(
+            type=Type.OBJECT,
+            description=param.description,
+            properties={k: schema_from_param(v) for k, v in param.properties.items()}
+            if param.properties is not None
+            else {},
+            required=param.required,
+            nullable=nullable,
+        )
+    # convert unions to optional params if the second type is 'null'
+    elif param.anyOf:
+        if len(param.anyOf) == 2 and param.anyOf[1].type == "null":
+            return schema_from_param(param.anyOf[0], nullable=True)
+        else:
+            return Schema(type=Type.TYPE_UNSPECIFIED)
+    elif param.enum:
+        return Schema(type=Type.STRING, format="enum", enum=param.enum)
+    else:
+        return Schema(type=Type.TYPE_UNSPECIFIED)
+
+
+def chat_tool_config(tool_choice: ToolChoice) -> ToolConfig:
+    if isinstance(tool_choice, ToolFunction):
+        return ToolConfig(
+            function_calling_config=FunctionCallingConfig(
+                mode="ANY", allowed_function_names=[tool_choice.name]
+            )
+        )
+    else:
+        return ToolConfig(
+            function_calling_config=FunctionCallingConfig(mode=tool_choice.upper())
+        )
+
+
+def completion_choice_from_candidate(candidate: Candidate) -> ChatCompletionChoice:
+    # check for completion text
+    content = ""
+    # content can be None when the finish_reason is SAFETY
+    if candidate.content is not None:
+        content = " ".join(
+            [
+                part.text
+                for part in candidate.content.parts
+                if part.text is not None and candidate.content is not None
+            ]
+        )
+
+    # now tool calls
+    tool_calls: list[ToolCall] = []
+    if candidate.content is not None and candidate.content.parts is not None:
+        for part in candidate.content.parts:
+            if part.function_call:
+                tool_calls.append(
+                    ToolCall(
+                        type="function",
+                        id=part.function_call.name,
+                        function=part.function_call.name,
+                        arguments=part.function_call.args,
+                    )
+                )
+
+    # stop reason
+    stop_reason = finish_reason_to_stop_reason(candidate.finish_reason)
+
+    # build choice
+    choice = ChatCompletionChoice(
+        message=ChatMessageAssistant(
+            content=content,
+            tool_calls=tool_calls if len(tool_calls) > 0 else None,
+            source="generate",
+        ),
+        stop_reason=stop_reason,
+    )
+
+    # add logprobs if provided
+    if candidate.logprobs_result:
+        logprobs: list[Logprob] = []
+        for chosen, top in zip(
+            candidate.logprobs_result.chosen_candidates,
+            candidate.logprobs_result.top_candidates,
+        ):
+            logprobs.append(
+                Logprob(
+                    token=chosen.token,
+                    logprob=chosen.log_probability,
+                    top_logprobs=[
+                        TopLogprob(token=c.token, logprob=c.log_probability)
+                        for c in top.candidates
+                    ],
+                )
+            )
+        choice.logprobs = Logprobs(content=logprobs)
+
+    return choice
+
+
+def completion_choices_from_candidates(
+    candidates: list[Candidate] | None,
+) -> list[ChatCompletionChoice]:
+    if candidates:
+        candidates_list = sorted(candidates, key=lambda c: c.index)
+        return [
+            completion_choice_from_candidate(candidate) for candidate in candidates_list
+        ]
+    else:
+        return [
+            ChatCompletionChoice(
+                message=ChatMessageAssistant(
+                    content="I was unable to generate a response.",
+                    source="generate",
+                ),
+                stop_reason="unknown",
+            )
+        ]
+
+
+def prompt_feedback_to_error(
+    feedback: GenerateContentResponsePromptFeedback | None,
+) -> str | None:
+    if feedback is None:
+        return None
+    return feedback.block_reason_message or None
+
+
+def usage_metadata_to_model_usage(
+    metadata: GenerateContentResponseUsageMetadata,
+) -> ModelUsage | None:
+    if metadata is None:
+        return None
+    return ModelUsage(
+        input_tokens=metadata.prompt_token_count or 0,
+        output_tokens=metadata.candidates_token_count or 0,
+        total_tokens=metadata.total_token_count or 0,
+    )
+
+
+def finish_reason_to_stop_reason(finish_reason: FinishReason) -> StopReason:
+    match finish_reason:
+        case FinishReason.STOP:
+            return "stop"
+        case FinishReason.MAX_TOKENS:
+            return "max_tokens"
+        case (
+            FinishReason.SAFETY
+            | FinishReason.RECITATION
+            | FinishReason.BLOCKLIST
+            | FinishReason.PROHIBITED_CONTENT
+            | FinishReason.SPII
+        ):
+            return "content_filter"
+        case FinishReason.MAX_TOKENS:
+            return "model_length"
+        case _:
+            return "unknown"
+
+
+def parse_safety_settings(
+    safety_settings: Any,
+) -> dict[HarmCategory, HarmBlockThreshold]:
+    # ensure we have a dict
+    if isinstance(safety_settings, str):
+        safety_settings = json.loads(safety_settings)
+    if not isinstance(safety_settings, dict):
+        raise ValueError(f"{SAFETY_SETTINGS} must be dictionary.")
+
+    parsed_settings: dict[HarmCategory, HarmBlockThreshold] = {}
+    for key, value in safety_settings.items():
+        if not isinstance(key, str):
+            raise ValueError(f"Unexpected type for harm category: {key}")
+        if not isinstance(value, str):
+            raise ValueError(f"Unexpected type for harm block threshold: {value}")
+        key = str_to_harm_category(key)
+        value = str_to_harm_block_threshold(value)
+        parsed_settings[key] = value
+    return parsed_settings
+
+
+def str_to_harm_category(category: str) -> HarmCategory:
+    category = category.upper()
+    # `in` instead of `==` to allow users to pass in short version e.g. "HARASSMENT" or
+    # long version e.g. "HARM_CATEGORY_HARASSMENT" strings.
+    if "CIVIC_INTEGRITY" in category:
+        return HarmCategory.HARM_CATEGORY_CIVIC_INTEGRITY
+    if "DANGEROUS_CONTENT" in category:
+        return HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT
+    if "HATE_SPEECH" in category:
+        return HarmCategory.HARM_CATEGORY_HATE_SPEECH
+    if "HARASSMENT" in category:
+        return HarmCategory.HARM_CATEGORY_HARASSMENT
+    if "SEXUALLY_EXPLICIT" in category:
+        return HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT
+    if "UNSPECIFIED" in category:
+        return HarmCategory.HARM_CATEGORY_UNSPECIFIED
+    raise ValueError(f"Unknown HarmCategory: {category}")
+
+
+def str_to_harm_block_threshold(threshold: str) -> HarmBlockThreshold:
+    threshold = threshold.upper()
+    if "LOW" in threshold:
+        return HarmBlockThreshold.BLOCK_LOW_AND_ABOVE
+    if "MEDIUM" in threshold:
+        return HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE
+    if "HIGH" in threshold:
+        return HarmBlockThreshold.BLOCK_ONLY_HIGH
+    if "NONE" in threshold:
+        return HarmBlockThreshold.BLOCK_NONE
+    if "OFF" in threshold:
+        return HarmBlockThreshold.OFF
+    raise ValueError(f"Unknown HarmBlockThreshold: {threshold}")
