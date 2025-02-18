@@ -117,7 +117,7 @@ class TranscriptView(ScrollableContainer):
                         )
                         if isinstance(d.content, Markdown):
                             set_transcript_markdown_options(d.content)
-                        widgets.append(Static(d.content))
+                        widgets.append(Static(d.content, markup=False))
                         widgets.append(Static(Text(" ")))
         return widgets
 

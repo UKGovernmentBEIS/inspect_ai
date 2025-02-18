@@ -10,6 +10,7 @@
 - Inspect View: Fix transcript display of phantom subtask or other phantom events.
 - Inspect View: Fix formatting issues in sample error display
 - Bugfix: Raise error for empty dataset (rather than providing a dummy sample).
+- Bugfix: Specify markup=False for textual static controls (stricter parser in textual 2.0 leading to exceptions).
 
 
 ## v0.3.66 (17 February 2025)
