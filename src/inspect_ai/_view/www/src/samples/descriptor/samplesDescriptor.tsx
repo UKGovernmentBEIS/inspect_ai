@@ -17,7 +17,9 @@ export interface SamplesDescriptor {
   messageShape: MessageShape;
   selectedScoreDescriptor?: ScoreDescriptor;
   selectedScore: (sample: BasicSampleData) => SelectedScore | undefined;
-  selectedScorerDescriptor: (sample: BasicSampleData) => ScorerDescriptor;
+  selectedScorerDescriptor: (
+    sample: BasicSampleData,
+  ) => ScorerDescriptor | undefined;
 }
 
 export const createEvalDescriptor = (
@@ -275,13 +277,15 @@ export const createEvalDescriptor = (
 
 export const createSamplesDescriptor = (
   evalDescriptor: EvalDescriptor,
-  selectedScore: ScoreLabel,
+  selectedScore?: ScoreLabel,
 ): SamplesDescriptor | undefined => {
   // Find the total length of the value so we can compute an average
   const sizes = evalDescriptor.samples.reduce(
     (previous, current) => {
       const text = inputString(current.input).join(" ");
-      const score = evalDescriptor.score(current, selectedScore);
+      const score = selectedScore
+        ? evalDescriptor.score(current, selectedScore)
+        : undefined;
       const scoreValue = score?.value;
       const scoreText = scoreValue
         ? String(scoreValue)
@@ -296,7 +300,8 @@ export const createSamplesDescriptor = (
       previous[2] = Math.min(
         Math.max(
           previous[2],
-          evalDescriptor.scoreAnswer(current, selectedScore?.name)?.length || 0,
+          evalDescriptor.scoreAnswer(current, selectedScore?.name || "")
+            ?.length || 0,
         ),
         300,
       );
@@ -353,10 +358,15 @@ export const createSamplesDescriptor = (
   return {
     evalDescriptor,
     messageShape,
-    selectedScoreDescriptor: evalDescriptor.scoreDescriptor(selectedScore),
-    selectedScore: (sample) => evalDescriptor.score(sample, selectedScore),
+    selectedScoreDescriptor: selectedScore
+      ? evalDescriptor.scoreDescriptor(selectedScore)
+      : undefined,
+    selectedScore: (sample) =>
+      selectedScore ? evalDescriptor.score(sample, selectedScore) : undefined,
     selectedScorerDescriptor: (sample) =>
-      evalDescriptor.scorerDescriptor(sample, selectedScore),
+      selectedScore
+        ? evalDescriptor.scorerDescriptor(sample, selectedScore)
+        : undefined,
   };
 };
 

@@ -1,9 +1,8 @@
 import clsx from "clsx";
-import { FC } from "react";
+import { FC, ReactNode } from "react";
 import { SampleSummary } from "../../api/types";
 import { MarkdownDiv } from "../../components/MarkdownDiv";
 import { arrayToString, inputString } from "../../utils/format";
-import { SamplesDescriptor } from "../descriptor/samplesDescriptor";
 import { SampleErrorView } from "../error/SampleErrorView";
 import styles from "./SampleRow.module.css";
 
@@ -11,7 +10,8 @@ interface SampleRowProps {
   id: string;
   index: number;
   sample: SampleSummary;
-  sampleDescriptor: SamplesDescriptor;
+  answer: string;
+  scoreRendered: ReactNode;
   gridColumnsTemplate: string;
   height: number;
   selected: boolean;
@@ -22,7 +22,8 @@ export const SampleRow: FC<SampleRowProps> = ({
   id,
   index,
   sample,
-  sampleDescriptor,
+  answer,
+  scoreRendered,
   gridColumnsTemplate,
   height,
   selected,
@@ -67,9 +68,7 @@ export const SampleRow: FC<SampleRowProps> = ({
       <div className={clsx("sample-answer", "three-line-clamp", styles.cell)}>
         {sample ? (
           <MarkdownDiv
-            markdown={sampleDescriptor
-              ?.selectedScorerDescriptor(sample)
-              .answer()}
+            markdown={answer || ""}
             className={clsx("no-last-para-padding", styles.noLeft)}
           />
         ) : (
@@ -91,7 +90,7 @@ export const SampleRow: FC<SampleRowProps> = ({
         {sample.error ? (
           <SampleErrorView message={sample.error} />
         ) : (
-          sampleDescriptor?.selectedScore(sample)?.render()
+          scoreRendered
         )}
       </div>
     </div>

@@ -94,7 +94,7 @@ export const SampleSummaryView: FC<SampleSummaryViewProps> = ({
 
   const fullAnswer =
     sample && sampleDescriptor
-      ? sampleDescriptor.selectedScorerDescriptor(sample).answer()
+      ? sampleDescriptor.selectedScorerDescriptor(sample)?.answer()
       : undefined;
   if (fullAnswer) {
     columns.push({
