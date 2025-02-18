@@ -15,6 +15,7 @@ from typing_extensions import override
 
 from inspect_ai._display.core.display import TaskDisplayMetric
 from inspect_ai._util.appdirs import inspect_data_dir
+from inspect_ai._util.file import basename, dirname
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.trace import trace_action
 
@@ -105,17 +106,32 @@ class SampleBufferDatabase(SampleBuffer):
         self.log_shared = log_shared
         self.update_interval = update_interval
 
-        # set path
-        db_dir = resolve_db_dir(db_dir)
-        self.db_path = (
-            db_dir / f"{hashlib.sha256(location.encode()).hexdigest()}.{os.getpid()}.db"
-        )
+        # location subdir and file
+        dir, file = location_dir_and_file(location)
 
-        # initialize the database schema
+        # establish dirs
+        db_dir = resolve_db_dir(db_dir)
+        log_subdir = db_dir / dir
+
+        # if we are creating then create dirs, use filename w/pid,
+        # and create the database as required
         if create:
+            log_subdir.mkdir(parents=True, exist_ok=True)
+            self.db_path = log_subdir / f"{file}.{os.getpid()}.db"
+
+            # initialize the database schema
             with self._get_connection() as conn:
                 conn.executescript(self.SCHEMA)
                 conn.commit()
+
+        # if we are not creating then find a log in an existing directory
+        # which matches the base filename (it will also have a pid)
+        else:
+            logs = list(log_subdir.glob(f"{file}.*.db"))
+            if len(logs) > 0:
+                self.db_path = logs[0]
+            else:
+                raise FileNotFoundError("Log database for '{location}' not found.")
 
         # create sync filestore if log_shared
         self._sync_filestore = (
@@ -652,3 +668,9 @@ def cleanup_sample_buffer_db(path: Path) -> None:
 
 def resolve_db_dir(db_dir: Path | None = None) -> Path:
     return db_dir or inspect_data_dir("samplebuffer")
+
+
+def location_dir_and_file(location: str) -> tuple[str, str]:
+    dir = hashlib.sha256(dirname(location).encode()).hexdigest()
+    file = basename(location)
+    return dir, file
