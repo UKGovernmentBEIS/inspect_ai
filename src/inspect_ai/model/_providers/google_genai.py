@@ -79,9 +79,6 @@ from inspect_ai.tool import (
 # express mode: https://cloud.google.com/vertex-ai/generative-ai/docs/start/express-mode/overview#workflow
 
 
-# TODO: capture thinking
-
-
 logger = getLogger(__name__)
 
 
@@ -484,6 +481,9 @@ def completion_choice_from_candidate(candidate: Candidate) -> ChatCompletionChoi
             ]
         )
 
+    # split reasoning
+    reasoning, content = split_reasoning(content)
+
     # now tool calls
     tool_calls: list[ToolCall] = []
     if candidate.content is not None and candidate.content.parts is not None:
@@ -505,6 +505,7 @@ def completion_choice_from_candidate(candidate: Candidate) -> ChatCompletionChoi
     choice = ChatCompletionChoice(
         message=ChatMessageAssistant(
             content=content,
+            reasoning=reasoning,
             tool_calls=tool_calls if len(tool_calls) > 0 else None,
             source="generate",
         ),
@@ -557,6 +558,15 @@ def completion_choices_from_candidates(
             "Google response includes no completion candidates and no block reason: "
             + f"{response.model_dump_json(indent=2)}"
         )
+
+
+def split_reasoning(content: str) -> tuple[str | None, str]:
+    separator = "\nFinal Answer: "
+    if separator in content:
+        parts = content.split(separator, 1)  # dplit only on first occurrence
+        return parts[0].strip(), separator.lstrip() + parts[1].strip()
+    else:
+        return None, content.strip()
 
 
 def prompt_feedback_to_content(
