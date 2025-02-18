@@ -85,9 +85,10 @@ export const WorkSpaceView: FC<WorkSpaceViewProps> = ({
     },
     [setSelectedTab],
   );
+
   const handleScroll = useCallback(
-    (tabid: string, position: number) => {
-      onScroll(tabid, position);
+    (tabId: string, position: number) => {
+      onScroll(tabId, position);
     },
     [onScroll],
   );
