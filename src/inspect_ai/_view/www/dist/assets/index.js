@@ -65221,7 +65221,7 @@ ${events}
       };
       const scoreAnswer = (sample2, scorer) => {
         if (sample2 && sample2.scores) {
-          const sampleScore = sample2.scores[scorer];
+          const sampleScore = sample2.scores[scorer.name];
           if (sampleScore && sampleScore.answer) {
             return sampleScore.answer;
           }
@@ -65310,7 +65310,7 @@ ${events}
             return scoreExplanation(sample2, scoreLabel.scorer) || "";
           },
           answer: () => {
-            return scoreAnswer(sample2, scoreLabel.scorer) || "";
+            return scoreAnswer(sample2, scoreLabel) || "";
           },
           scores: () => {
             if (!sample2 || !sample2.scores) {
@@ -65394,7 +65394,7 @@ ${events}
           previous[2] = Math.min(
             Math.max(
               previous[2],
-              ((_a2 = evalDescriptor.scoreAnswer(current, (selectedScore == null ? void 0 : selectedScore.name) || "")) == null ? void 0 : _a2.length) || 0
+              selectedScore ? ((_a2 = evalDescriptor.scoreAnswer(current, selectedScore)) == null ? void 0 : _a2.length) || 0 : 0
             ),
             300
           );

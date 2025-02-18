@@ -58,10 +58,10 @@ export const createEvalDescriptor = (
 
   const scoreAnswer = (
     sample: BasicSampleData,
-    scorer: string,
+    scorer: ScoreLabel,
   ): string | undefined => {
     if (sample && sample.scores) {
-      const sampleScore = sample.scores[scorer];
+      const sampleScore = sample.scores[scorer.name];
       if (sampleScore && sampleScore.answer) {
         return sampleScore.answer;
       }
@@ -182,7 +182,7 @@ export const createEvalDescriptor = (
         return scoreExplanation(sample, scoreLabel.scorer) || "";
       },
       answer: () => {
-        return scoreAnswer(sample, scoreLabel.scorer) || "";
+        return scoreAnswer(sample, scoreLabel) || "";
       },
       scores: () => {
         if (!sample || !sample.scores) {
@@ -298,8 +298,9 @@ export const createSamplesDescriptor = (
       previous[2] = Math.min(
         Math.max(
           previous[2],
-          evalDescriptor.scoreAnswer(current, selectedScore?.name || "")
-            ?.length || 0,
+          selectedScore
+            ? evalDescriptor.scoreAnswer(current, selectedScore)?.length || 0
+            : 0,
         ),
         300,
       );
