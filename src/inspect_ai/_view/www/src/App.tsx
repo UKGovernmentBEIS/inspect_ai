@@ -329,11 +329,7 @@ export const App: FC<AppProps> = ({
   }, [selectedLogSummary, sampleSummaries]);
 
   const evalDescriptor = useMemo(() => {
-    const result = createEvalDescriptor(
-      scores,
-      selectedLogSummary?.eval?.config?.epochs || 1,
-      sampleSummaries,
-    );
+    const result = createEvalDescriptor(scores, sampleSummaries);
     return result;
   }, [selectedLogSummary, sampleSummaries, scores]);
 
@@ -380,8 +376,8 @@ export const App: FC<AppProps> = ({
     // Set the grouping
     let grouping: "none" | "epoch" | "sample" = "none";
     if (
-      samplesDescriptor?.evalDescriptor?.epochs &&
-      samplesDescriptor.evalDescriptor.epochs > 1
+      selectedLogSummary?.eval?.config?.epochs &&
+      (selectedLogSummary?.eval?.config?.epochs || 1) > 1
     ) {
       if (byEpoch(sort) || epoch !== "all") {
         grouping = "epoch";
