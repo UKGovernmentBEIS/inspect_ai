@@ -65965,8 +65965,12 @@ ${events}
         },
         [setSelectedWorkspaceTab]
       );
+      const lastSelectedIndex = reactExports.useRef(-1);
       reactExports.useEffect(() => {
         const loadSpecificLog = async () => {
+          if (lastSelectedIndex.current === selectedLogIndex) {
+            return;
+          }
           const targetLog = logs.files[selectedLogIndex];
           if (targetLog) {
             try {
@@ -65975,7 +65979,10 @@ ${events}
               if (logContents) {
                 const log2 = logContents;
                 setSelectedLogSummary(log2);
-                resetWorkspace(log2, logContents.sampleSummaries);
+                if (lastSelectedIndex.current !== -1) {
+                  resetWorkspace(log2, logContents.sampleSummaries);
+                }
+                lastSelectedIndex.current = selectedLogIndex;
                 setStatus({ loading: false, error: void 0 });
               }
             } catch (e) {
@@ -65992,13 +65999,7 @@ ${events}
           }
         };
         loadSpecificLog();
-      }, [
-        selectedLogIndex,
-        logs,
-        selectedLogIndex,
-        setSelectedLogSummary,
-        setStatus
-      ]);
+      }, [selectedLogIndex, logs, setSelectedLogSummary, setStatus]);
       const loadLogs = async () => {
         try {
           const result2 = await api2.get_log_paths();
