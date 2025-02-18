@@ -145,8 +145,8 @@ export const sortSamples = (
       }
 
       case kScoreAscVal: {
-        const aScore = samplesDescriptor.selectedScore(a);
-        const bScore = samplesDescriptor.selectedScore(b);
+        const aScore = samplesDescriptor.evalDescriptor.score(a, score);
+        const bScore = samplesDescriptor.evalDescriptor.score(b, score);
         if (
           aScore === undefined ||
           bScore === undefined ||
@@ -157,8 +157,8 @@ export const sortSamples = (
         return scoreDescriptor?.compare(aScore, bScore);
       }
       case kScoreDescVal: {
-        const aScore = samplesDescriptor.selectedScore(a);
-        const bScore = samplesDescriptor.selectedScore(b);
+        const aScore = samplesDescriptor.evalDescriptor.score(a, score);
+        const bScore = samplesDescriptor.evalDescriptor.score(b, score);
         if (
           aScore === undefined ||
           bScore === undefined ||

@@ -12,7 +12,7 @@ export interface EvalDescriptor {
   ) => ScorerDescriptor;
   score: (
     sample: BasicSampleData,
-    scoreLabel: ScoreLabel,
+    scoreLabel?: ScoreLabel,
   ) => SelectedScore | undefined;
   scoreAnswer: (
     sample: BasicSampleData,

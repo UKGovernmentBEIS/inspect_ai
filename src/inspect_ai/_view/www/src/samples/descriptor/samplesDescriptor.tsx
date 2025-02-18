@@ -252,8 +252,11 @@ export const createEvalDescriptor = (
 
   const score = (
     sample: BasicSampleData,
-    scoreLabel: ScoreLabel,
-  ): SelectedScore => {
+    scoreLabel?: ScoreLabel,
+  ): SelectedScore | undefined => {
+    if (!scoreLabel) {
+      return undefined;
+    }
     return {
       value: scoreValue(sample, scoreLabel),
       render: () => {
