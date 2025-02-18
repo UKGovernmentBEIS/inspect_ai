@@ -7,6 +7,7 @@ from typing import (
     Callable,
     Coroutine,
     Iterator,
+    Optional,
     Protocol,
     Type,
     TypeVar,
@@ -15,7 +16,7 @@ from typing import (
 )
 
 import rich
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from rich.console import Console
 
 from inspect_ai.log import EvalConfig, EvalResults, EvalStats
@@ -108,8 +109,17 @@ class TaskScreen(contextlib.AbstractContextManager["TaskScreen"]):
 class TaskDisplayMetric(BaseModel):
     scorer: str
     name: str
-    value: float | int
+    value: float | int | None = Field(default=None)
     reducer: str | None = Field(default=None)
+
+    @field_validator("value", mode="before")
+    @classmethod
+    def handle_null_value(cls, v: Any) -> Union[float, int, None]:
+        if v is None:
+            return None
+        if isinstance(v, float | int):
+            return v
+        raise ValueError(f"Expected float, int, or None, got {type(v)}")
 
 
 @runtime_checkable
