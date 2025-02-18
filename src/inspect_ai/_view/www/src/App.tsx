@@ -44,6 +44,7 @@ import {
   EvalSummary,
   HostMessage,
   LogFiles,
+  PendingSamples,
   SampleSummary,
 } from "./api/types.ts";
 import {
@@ -56,15 +57,15 @@ import {
   createEvalDescriptor,
   createSamplesDescriptor,
 } from "./samples/descriptor/samplesDescriptor.tsx";
+import { getAvailableScorers, getDefaultScorer } from "./scoring/utils.ts";
 import {
   ApplicationState,
   AppStatus,
   Capabilities,
-  CurrentLog,
   ScoreFilter,
   ScoreLabel,
 } from "./types.ts";
-import { EvalSample } from "./types/log";
+import { EvalSample, Timeout } from "./types/log";
 
 interface AppProps {
   api: ClientAPI;
@@ -72,12 +73,6 @@ interface AppProps {
   saveApplicationState?: (state: ApplicationState) => void;
   pollForLogs: boolean;
   capabilities: Capabilities;
-}
-
-interface PendingSampleSummaries {
-  samples: SampleSummary[];
-  etag?: string;
-  lastPoll: number;
 }
 
 /**
@@ -100,16 +95,16 @@ export const App: FC<AppProps> = ({
       : -1,
   );
 
+  const [selectedLogSummary, setSelectedLogSummary] = useState<
+    EvalSummary | undefined
+  >(applicationState?.selectedLogSummary);
+
   // Log Headers
   const [logHeaders, setLogHeaders] = useState<Record<string, EvalLogHeader>>(
     applicationState?.logHeaders || {},
   );
   const [headersLoading, setHeadersLoading] = useState<boolean>(
     applicationState?.headersLoading || false,
-  );
-
-  const [selectedLog, setSelectedLog] = useState<CurrentLog | undefined>(
-    applicationState?.selectedLog,
   );
 
   // Workspace (the selected tab)
@@ -168,85 +163,15 @@ export const App: FC<AppProps> = ({
     applicationState?.sort || kDefaultSort,
   );
 
-  const [scores, setScores] = useState<ScoreLabel[]>(
-    applicationState?.scores || [],
-  );
-
   const [score, setScore] = useState<ScoreLabel | undefined>(
     applicationState?.score,
   );
 
   const [pendingSampleSummaries, setPendingSampleSummaries] =
-    useState<PendingSampleSummaries>({
+    useState<PendingSamples>({
       samples: [],
-      lastPoll: 0,
+      refresh: 2,
     });
-
-  // Inside the App component:
-  const prevState = useRef({
-    logs,
-    selectedLogIndex,
-    selectedLog,
-    logHeaders,
-    headersLoading,
-    selectedWorkspaceTab,
-    selectedSampleIndex,
-    selectedSample,
-    sampleStatus,
-    sampleError,
-    selectedSampleTab,
-    showingSampleDialog,
-    status,
-    offcanvas,
-    showFind,
-    filter,
-    epoch,
-    sort,
-    scores,
-    score,
-  });
-
-  useEffect(() => {
-    const changes: string[] = [];
-
-    // Check which state values changed
-    Object.entries(prevState.current).forEach(([key, prevValue]) => {
-      const currentValue = eval(key); // Dynamically get the current state value
-      if (prevValue !== currentValue) {
-        changes.push(`${key} changed`);
-      }
-    });
-
-    if (changes.length > 0) {
-      console.log("App rendered due to:", changes.join(", "));
-    } else {
-      console.log("App rendered with no significant state changes.");
-    }
-
-    // Update previous state reference
-    prevState.current = {
-      logs,
-      selectedLogIndex,
-      selectedLog,
-      logHeaders,
-      headersLoading,
-      selectedWorkspaceTab,
-      selectedSampleIndex,
-      selectedSample,
-      sampleStatus,
-      sampleError,
-      selectedSampleTab,
-      showingSampleDialog,
-      status,
-      offcanvas,
-      showFind,
-      filter,
-      epoch,
-      sort,
-      scores,
-      score,
-    };
-  });
 
   const saveState = useCallback(() => {
     const state = {
@@ -254,7 +179,7 @@ export const App: FC<AppProps> = ({
       selectedLogIndex,
       logHeaders,
       headersLoading,
-      selectedLog,
+      selectedLogSummary,
       selectedSampleIndex,
       selectedWorkspaceTab,
       selectedSample,
@@ -268,7 +193,6 @@ export const App: FC<AppProps> = ({
       filter,
       epoch,
       sort,
-      scores,
       score,
       sampleScrollPosition: sampleScrollPosition.current,
       workspaceTabScrollPosition: workspaceTabScrollPosition.current,
@@ -281,7 +205,7 @@ export const App: FC<AppProps> = ({
     selectedLogIndex,
     logHeaders,
     headersLoading,
-    selectedLog,
+    selectedLogSummary,
     selectedSampleIndex,
     selectedWorkspaceTab,
     selectedSample,
@@ -295,7 +219,6 @@ export const App: FC<AppProps> = ({
     filter,
     epoch,
     sort,
-    scores,
     score,
   ]);
 
@@ -335,7 +258,7 @@ export const App: FC<AppProps> = ({
     selectedLogIndex,
     logHeaders,
     headersLoading,
-    selectedLog,
+    selectedLogSummary,
     selectedSampleIndex,
     selectedWorkspaceTab,
     selectedSample,
@@ -349,7 +272,6 @@ export const App: FC<AppProps> = ({
     filter,
     epoch,
     sort,
-    scores,
     score,
   ]);
 
@@ -376,11 +298,11 @@ export const App: FC<AppProps> = ({
   );
 
   const sampleSummaries = useMemo(() => {
-    const logSamples = selectedLog?.contents.sampleSummaries || [];
+    const logSamples = selectedLogSummary?.sampleSummaries || [];
     const pendingSamples = pendingSampleSummaries.samples || [];
     const result = mergeSampleSummaries(logSamples, pendingSamples);
     return result;
-  }, [selectedLog?.contents.sampleSummaries, pendingSampleSummaries.samples]);
+  }, [selectedLogSummary?.sampleSummaries, pendingSampleSummaries.samples]);
 
   const handleSampleShowingDialog = useCallback(
     (show: boolean) => {
@@ -398,20 +320,34 @@ export const App: FC<AppProps> = ({
     ],
   );
 
+  const scores = useMemo(() => {
+    if (!selectedLogSummary) {
+      return [];
+    }
+
+    return getAvailableScorers(selectedLogSummary, sampleSummaries) || [];
+  }, [selectedLogSummary, sampleSummaries]);
+
   const evalDescriptor = useMemo(() => {
     const result = createEvalDescriptor(
       scores,
-      selectedLog?.contents?.eval?.config?.epochs || 1,
+      selectedLogSummary?.eval?.config?.epochs || 1,
       sampleSummaries,
     );
     return result;
-  }, [selectedLog, sampleSummaries, scores]);
+  }, [selectedLogSummary, sampleSummaries, scores]);
 
   const samplesDescriptor = useMemo(() => {
-    return evalDescriptor && score
-      ? createSamplesDescriptor(evalDescriptor, score)
+    if (!selectedLogSummary) {
+      return undefined;
+    }
+    const evalScore =
+      score || getDefaultScorer(selectedLogSummary, sampleSummaries);
+    const descriptor = evalDescriptor
+      ? createSamplesDescriptor(evalDescriptor, evalScore)
       : undefined;
-  }, [evalDescriptor, score]);
+    return descriptor;
+  }, [evalDescriptor, score, selectedLogSummary, sampleSummaries]);
 
   const filteredSamples = useMemo(() => {
     const samples = sampleSummaries || [];
@@ -479,8 +415,10 @@ export const App: FC<AppProps> = ({
 
   // Loads a sample
   useEffect(() => {
+    const logFile = logs.files[selectedLogIndex];
+
     // Clear the selected sample
-    if (!selectedLog || selectedSampleIndex === -1) {
+    if (!logFile || selectedSampleIndex === -1) {
       setSelectedSample(undefined);
       return;
     }
@@ -511,7 +449,7 @@ export const App: FC<AppProps> = ({
       setSampleError(undefined);
 
       api
-        .get_log_sample(selectedLog.name, summary.id, summary.epoch)
+        .get_log_sample(logFile.name, summary.id, summary.epoch)
         .then((sample) => {
           if (sample) {
             // This migrates old samples (with raw transcript element)
@@ -556,12 +494,101 @@ export const App: FC<AppProps> = ({
     selectedSample,
     selectedSampleIndex,
     showingSampleDialog,
-    selectedLog,
+    selectedLogIndex,
     sampleSummaries,
     filteredSamples,
     setSelectedSample,
     setSampleStatus,
     setSampleError,
+  ]);
+
+  // Load a specific log file
+  const loadLog = useCallback(
+    async (logFileName: string) => {
+      try {
+        const logContents = await api.get_log_summary(logFileName);
+        return logContents;
+      } catch (e) {
+        // Show an error
+        console.log(e);
+        setStatus({ loading: false, error: e as Error });
+      }
+    },
+    [api],
+  );
+
+  const reloadSelectedLog = useCallback(async () => {
+    const targetLog = logs.files[selectedLogIndex];
+    if (!targetLog) return;
+
+    const log = await loadLog(targetLog.name);
+    if (log) {
+      setSelectedLogSummary(log);
+    }
+  }, [logs, selectedLogIndex, loadLog, setSelectedLogSummary]);
+
+  const clearPendingSummaries = useCallback(() => {
+    if (pendingSampleSummaries.samples.length > 0) {
+      setPendingSampleSummaries((prev) => ({
+        samples: [],
+        refresh: prev.refresh,
+      }));
+      reloadSelectedLog();
+    }
+  }, [pendingSampleSummaries.samples, reloadSelectedLog]);
+
+  // Poll for pending samples when a log is selected
+  useEffect(() => {
+    const logFile = logs.files[selectedLogIndex];
+    if (!logFile) return;
+
+    let isActive = true;
+    let pollTimeout: Timeout;
+
+    const pollPendingSamples = async () => {
+      try {
+        const pendingSamples = await api.get_log_pending_samples(logFile.name);
+        if (!isActive) return;
+
+        if (pendingSamples.status === "OK" && pendingSamples.pendingSamples) {
+          setPendingSampleSummaries(pendingSamples.pendingSamples);
+          reloadSelectedLog();
+        } else if (pendingSamples.status === "NotFound") {
+          clearPendingSummaries();
+        }
+
+        if (isActive) {
+          pollTimeout = setTimeout(
+            pollPendingSamples,
+            pendingSampleSummaries.refresh * 1000,
+          );
+        }
+      } catch (error) {
+        console.error("Error polling pending samples:", error);
+
+        if (isActive) {
+          pollTimeout = setTimeout(
+            pollPendingSamples,
+            Math.min(pendingSampleSummaries.refresh * 2 * 1000, 60000),
+          );
+        }
+      }
+    };
+
+    pollPendingSamples();
+
+    return () => {
+      isActive = false;
+      if (pollTimeout) {
+        clearTimeout(pollTimeout);
+      }
+    };
+  }, [
+    logs,
+    selectedLogIndex,
+    pendingSampleSummaries.refresh,
+    reloadSelectedLog,
+    clearPendingSummaries,
   ]);
 
   // Read header information for the logs
@@ -630,13 +657,8 @@ export const App: FC<AppProps> = ({
           : kInfoWorkspaceTabId,
       );
 
-      // Select the default scorer to use
-      const scorer = defaultScorer(log, sampleSummaries);
-      const scorers = defaultScorers(log, sampleSummaries);
-
       // Reset state
-      setScores(scorers);
-      setScore(scorer);
+      setScore(undefined);
 
       setEpoch("all");
       setFilter({});
@@ -653,23 +675,20 @@ export const App: FC<AppProps> = ({
 
       workspaceTabScrollPosition.current = {};
     },
-    [setSelectedWorkspaceTab, score, scores],
+    [setSelectedWorkspaceTab],
   );
 
   // Load a specific log
   useEffect(() => {
     const loadSpecificLog = async () => {
       const targetLog = logs.files[selectedLogIndex];
-      if (targetLog && (!selectedLog || selectedLog.name !== targetLog.name)) {
+      if (targetLog) {
         try {
           setStatus({ loading: true, error: undefined });
           const logContents = await loadLog(targetLog.name);
           if (logContents) {
             const log = logContents;
-            setSelectedLog({
-              contents: log,
-              name: targetLog.name,
-            });
+            setSelectedLogSummary(log);
 
             // Reset the workspace tab
             resetWorkspace(log, logContents.sampleSummaries);
@@ -692,10 +711,9 @@ export const App: FC<AppProps> = ({
     loadSpecificLog();
   }, [
     selectedLogIndex,
-    sampleSummaries,
     logs,
-    selectedLog,
-    setSelectedLog,
+    selectedLogIndex,
+    setSelectedLogSummary,
     setStatus,
   ]);
 
@@ -710,18 +728,6 @@ export const App: FC<AppProps> = ({
       console.log(e);
       setStatus({ loading: false, error: e as Error });
       return { log_dir: "", files: [] };
-    }
-  };
-
-  // Load a specific log file
-  const loadLog = async (logFileName: string) => {
-    try {
-      const logContents = await api.get_log_summary(logFileName);
-      return logContents;
-    } catch (e) {
-      // Show an error
-      console.log(e);
-      setStatus({ loading: false, error: e as Error });
     }
   };
 
@@ -748,10 +754,7 @@ export const App: FC<AppProps> = ({
           });
         }
 
-        setSelectedLog({
-          contents: log,
-          name: targetLog.name,
-        });
+        setSelectedLogSummary(log);
 
         // Reset the workspace tab
         resetWorkspace(log, sampleSummaries);
@@ -763,14 +766,7 @@ export const App: FC<AppProps> = ({
       console.log(e);
       setStatus({ loading: false, error: e as Error });
     }
-  }, [
-    logs,
-    selectedLogIndex,
-    sampleSummaries,
-    setStatus,
-    setSelectedLog,
-    setLogHeaders,
-  ]);
+  }, [logs, selectedLogIndex, sampleSummaries, setStatus, setLogHeaders]);
 
   const showLogFile = useCallback(
     async (logUrl: string) => {
@@ -950,7 +946,7 @@ export const App: FC<AppProps> = ({
 
   return (
     <AppErrorBoundary>
-      {!fullScreen && selectedLog?.contents ? (
+      {!fullScreen && selectedLogSummary ? (
         <Sidebar
           logs={logs}
           logHeaders={logHeaders}
@@ -994,15 +990,15 @@ export const App: FC<AppProps> = ({
           />
         ) : (
           <WorkSpace
-            task_id={selectedLog?.contents?.eval?.task_id}
-            logFileName={selectedLog?.name}
-            evalStatus={selectedLog?.contents?.status}
-            evalError={filterNull(selectedLog?.contents?.error)}
-            evalVersion={selectedLog?.contents?.version}
-            evalSpec={selectedLog?.contents?.eval}
-            evalPlan={selectedLog?.contents?.plan}
-            evalStats={selectedLog?.contents?.stats}
-            evalResults={filterNull(selectedLog?.contents?.results)}
+            task_id={selectedLogSummary?.eval?.task_id}
+            logFileName={logs.files[selectedLogIndex]?.name}
+            evalStatus={selectedLogSummary?.status}
+            evalError={filterNull(selectedLogSummary?.error)}
+            evalVersion={selectedLogSummary?.version}
+            evalSpec={selectedLogSummary?.eval}
+            evalPlan={selectedLogSummary?.plan}
+            evalStats={selectedLogSummary?.stats}
+            evalResults={filterNull(selectedLogSummary?.results)}
             showToggle={showToggle}
             samples={filteredSamples}
             sampleMode={sampleMode}
@@ -1026,14 +1022,14 @@ export const App: FC<AppProps> = ({
             setSelectedSampleTab={setSelectedSampleTab}
             sort={sort}
             setSort={setSort}
-            epochs={selectedLog?.contents?.eval?.config?.epochs}
+            epochs={selectedLogSummary?.eval?.config?.epochs}
             epoch={epoch}
             setEpoch={setEpoch}
             filter={filter}
             setFilter={setFilter}
             score={score}
             setScore={setScore}
-            scores={scores}
+            scores={scores || []}
             sampleScrollPositionRef={sampleScrollPosition}
             setSampleScrollPosition={setSampleScrollPosition}
             workspaceTabScrollPositionRef={workspaceTabScrollPosition}
@@ -1050,80 +1046,4 @@ const filterNull = <T,>(obj: T | null): T | undefined => {
     return undefined;
   }
   return obj;
-};
-
-interface ScorerInfo {
-  name: string;
-  scorer: string;
-}
-
-/**
- * Determines the default scorer for a log
- */
-const defaultScorer = (
-  log: EvalSummary,
-  sampleSummaries: SampleSummary[],
-): ScorerInfo | undefined => {
-  if (sampleSummaries.length === 0) {
-    return undefined;
-  }
-
-  // Select the default scorer to use
-  const scores = sampleSummaries[0].scores;
-
-  const scorer = log.results?.scores[0]
-    ? {
-        name: log.results?.scores[0].name,
-        scorer: log.results?.scores[0].scorer,
-      }
-    : sampleSummaries.length > 0 && scores !== null
-      ? {
-          name: Object.keys(scores)[0],
-          scorer: Object.keys(scores)[0],
-        }
-      : undefined;
-  return scorer;
-};
-
-/**
- * Determines the default scorers for a log
- */
-const defaultScorers = (
-  log: EvalSummary,
-  sampleSummaries: SampleSummary[],
-): Array<ScorerInfo> => {
-  if (log.results?.scores) {
-    return (log.results?.scores || [])
-      .map((score): ScorerInfo => {
-        return {
-          name: score.name,
-          scorer: score.scorer,
-        };
-      })
-      .reduce((accum, scorer) => {
-        if (
-          !accum.find((sc) => {
-            return scorer.scorer === sc.scorer && scorer.name === sc.name;
-          })
-        ) {
-          accum.push(scorer);
-        }
-        return accum;
-      }, [] as Array<ScorerInfo>);
-  } else if (sampleSummaries && sampleSummaries.length > 0) {
-    const scores = sampleSummaries[0].scores;
-
-    if (scores !== null) {
-      return Object.keys(scores).map((key) => {
-        return {
-          name: key,
-          scorer: key,
-        };
-      });
-    } else {
-      return [];
-    }
-  } else {
-    return [];
-  }
 };
