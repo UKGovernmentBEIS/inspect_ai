@@ -340,7 +340,7 @@ export const App: FC<AppProps> = ({
     const evalScore =
       score || getDefaultScorer(selectedLogSummary, sampleSummaries);
     const descriptor = evalDescriptor
-      ? createSamplesDescriptor(evalDescriptor, evalScore)
+      ? createSamplesDescriptor(sampleSummaries, evalDescriptor, evalScore)
       : undefined;
     return descriptor;
   }, [evalDescriptor, score, selectedLogSummary, sampleSummaries]);

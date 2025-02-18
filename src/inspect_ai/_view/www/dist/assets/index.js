@@ -37805,10 +37805,10 @@ Supported expressions:
         overflow: "hidden"
       }
     });
-    const getFilteringResult = (evalDescriptor, filterValue) => {
+    const getFilteringResult = (evalDescriptor, sampleSummaries, filterValue) => {
       const { result: result2, error: error2 } = filterSamples(
         evalDescriptor,
-        evalDescriptor.samples,
+        sampleSummaries,
         filterValue
       );
       return { numSamples: result2.length, error: error2 };
@@ -37842,6 +37842,7 @@ Supported expressions:
       ];
     };
     const SampleFilter = ({
+      samples,
       evalDescriptor,
       scoreFilter,
       setScoreFilter
@@ -37869,7 +37870,11 @@ Supported expressions:
       const makeUpdateListener = () => EditorView.updateListener.of((update) => {
         if (update.docChanged) {
           const newValue = update.state.doc.toString();
-          const filteringResult = getFilteringResult(evalDescriptor, newValue);
+          const filteringResult = getFilteringResult(
+            evalDescriptor,
+            samples,
+            newValue
+          );
           if (!filteringResult.error) {
             setScoreFilter({ value: newValue });
           }
@@ -37907,7 +37912,7 @@ Supported expressions:
         const currentValue = editorViewRef.current.state.doc.toString();
         if (scoreFilter.value === currentValue) return;
         setFilteringResultInstant(
-          getFilteringResult(evalDescriptor, scoreFilter.value || "")
+          getFilteringResult(evalDescriptor, samples, scoreFilter.value || "")
         );
         editorViewRef.current.dispatch({
           changes: {
@@ -38116,6 +38121,7 @@ Supported expressions:
       return score2 && sc.scorer === score2.scorer;
     });
     const SampleTools = ({
+      samples,
       epoch,
       setEpoch,
       epochs,
@@ -38132,6 +38138,7 @@ Supported expressions:
         /* @__PURE__ */ jsxRuntimeExports.jsx(
           SampleFilter,
           {
+            samples,
             evalDescriptor: sampleDescriptor.evalDescriptor,
             scoreFilter,
             setScoreFilter
@@ -64456,6 +64463,7 @@ ${events}
           /* @__PURE__ */ jsxRuntimeExports.jsx(
             SampleTools,
             {
+              samples: samples || [],
               epoch,
               epochs: epochs || 1,
               setEpoch,
@@ -65636,7 +65644,6 @@ ${events}
         };
       };
       return {
-        samples,
         scores: scores2,
         scorerDescriptor,
         scoreDescriptor,
@@ -65644,8 +65651,8 @@ ${events}
         scoreAnswer
       };
     };
-    const createSamplesDescriptor = (evalDescriptor, selectedScore) => {
-      const sizes = evalDescriptor.samples.reduce(
+    const createSamplesDescriptor = (samples, evalDescriptor, selectedScore) => {
+      const sizes = samples.reduce(
         (previous, current) => {
           var _a2;
           const text2 = inputString(current.input).join(" ");
@@ -65975,7 +65982,7 @@ ${events}
           return void 0;
         }
         const evalScore = score2 || getDefaultScorer(selectedLogSummary, sampleSummaries);
-        const descriptor = evalDescriptor ? createSamplesDescriptor(evalDescriptor, evalScore) : void 0;
+        const descriptor = evalDescriptor ? createSamplesDescriptor(sampleSummaries, evalDescriptor, evalScore) : void 0;
         return descriptor;
       }, [evalDescriptor, score2, selectedLogSummary, sampleSummaries]);
       const filteredSamples = reactExports.useMemo(() => {
