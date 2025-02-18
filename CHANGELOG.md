@@ -11,6 +11,7 @@
 - Inspect View: Fix formatting issues in sample error display
 - Bugfix: Raise error for empty dataset (rather than providing a dummy sample).
 - Bugfix: Specify markup=False for textual static controls (stricter parser in textual 2.0 leading to exceptions).
+- Bugfix: Temporarily pin to textual==1.0.0 while they chase all of their regressions in 2.0
 
 
 ## v0.3.66 (17 February 2025)
