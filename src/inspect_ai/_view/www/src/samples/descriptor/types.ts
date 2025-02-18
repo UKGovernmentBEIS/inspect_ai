@@ -4,7 +4,6 @@ import { ScoreLabel } from "../../types";
 import { Value2 } from "../../types/log";
 
 export interface EvalDescriptor {
-  epochs: number;
   samples: SampleSummary[];
   scores: ScoreLabel[];
   scoreDescriptor: (scoreLabel: ScoreLabel) => ScoreDescriptor;
