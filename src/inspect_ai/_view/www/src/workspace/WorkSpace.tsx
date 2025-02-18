@@ -218,6 +218,7 @@ const useResolvedTabs = ({
               setShowingSampleDialog={setShowingSampleDialog}
               samples={samples}
               sampleMode={sampleMode}
+              epochs={epochs || 1}
               groupBy={groupBy}
               groupByOrder={groupByOrder}
               selectedSampleIndex={selectedSampleIndex}

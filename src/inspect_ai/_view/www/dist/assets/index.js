@@ -59356,11 +59356,11 @@ ${events}
         score: `${score2}rem`
       };
     };
-    const getSampleProcessor = (samples, groupBy, groupByOrder, sampleDescriptor) => {
+    const getSampleProcessor = (samples, epochs, groupBy, groupByOrder, sampleDescriptor) => {
       if (groupBy == "epoch") {
-        return groupByEpoch(samples, sampleDescriptor, groupByOrder);
+        return groupByEpoch(samples, epochs, sampleDescriptor, groupByOrder);
       } else if (groupBy === "sample") {
-        return groupBySample(samples, sampleDescriptor, groupByOrder);
+        return groupBySample(samples, epochs, sampleDescriptor, groupByOrder);
       } else {
         return noGrouping(samples, groupByOrder, sampleDescriptor);
       }
@@ -59384,7 +59384,7 @@ ${events}
         ];
       };
     };
-    const groupBySample = (samples, sampleDescriptor, order) => {
+    const groupBySample = (samples, epochs, sampleDescriptor, order) => {
       samples = samples.sort((a, b) => {
         if (typeof a.id === "string") {
           if (order === "asc") {
@@ -59400,7 +59400,7 @@ ${events}
           }
         }
       });
-      const groupCount = samples.length / sampleDescriptor.evalDescriptor.epochs;
+      const groupCount = samples.length / (epochs || 1);
       const itemCount = samples.length / groupCount;
       const counter = getCounter(itemCount, groupCount, order);
       return (sample2, index2, previousSample) => {
@@ -59431,8 +59431,8 @@ ${events}
         return results;
       };
     };
-    const groupByEpoch = (samples, sampleDescriptor, order) => {
-      const groupCount = sampleDescriptor.evalDescriptor.epochs;
+    const groupByEpoch = (samples, epochs, sampleDescriptor, order) => {
+      const groupCount = epochs || 1;
       const itemCount = samples.length / groupCount;
       const counter = getCounter(itemCount, groupCount, order);
       return (sample2, index2, previousSample) => {
@@ -59509,7 +59509,8 @@ ${events}
       setSelectedSampleTab,
       sampleScrollPositionRef,
       setSampleScrollPosition,
-      sampleTabScrollRef
+      sampleTabScrollRef,
+      epochs
     }) => {
       const [items, setItems] = reactExports.useState([]);
       const [sampleItems, setSampleItems] = reactExports.useState([]);
@@ -59539,6 +59540,7 @@ ${events}
       reactExports.useEffect(() => {
         const sampleProcessor = sampleDescriptor ? getSampleProcessor(
           samples || [],
+          epochs,
           groupBy,
           groupByOrder,
           sampleDescriptor
@@ -60995,6 +60997,7 @@ ${events}
             setShowingSampleDialog,
             samples,
             sampleMode,
+            epochs,
             groupBy,
             groupByOrder,
             selectedSampleIndex,
@@ -62029,7 +62032,7 @@ ${events}
         }
       }
     ];
-    const createEvalDescriptor = (scores2, epochs, samples) => {
+    const createEvalDescriptor = (scores2, samples) => {
       if (!samples) {
         return void 0;
       }
@@ -62197,7 +62200,6 @@ ${events}
         };
       };
       return {
-        epochs,
         samples,
         scores: scores2,
         scorerDescriptor,
@@ -62529,12 +62531,7 @@ ${events}
         return getAvailableScorers(selectedLogSummary, sampleSummaries) || [];
       }, [selectedLogSummary, sampleSummaries]);
       const evalDescriptor = reactExports.useMemo(() => {
-        var _a3, _b3;
-        const result = createEvalDescriptor(
-          scores2,
-          ((_b3 = (_a3 = selectedLogSummary == null ? void 0 : selectedLogSummary.eval) == null ? void 0 : _a3.config) == null ? void 0 : _b3.epochs) || 1,
-          sampleSummaries
-        );
+        const result = createEvalDescriptor(scores2, sampleSummaries);
         return result;
       }, [selectedLogSummary, sampleSummaries, scores2]);
       const samplesDescriptor = reactExports.useMemo(() => {
@@ -62564,9 +62561,9 @@ ${events}
         }
       }, [sampleSummaries, evalDescriptor, samplesDescriptor, filter, sort]);
       const groupBy = reactExports.useMemo(() => {
-        var _a3;
+        var _a3, _b3, _c2, _d2;
         let grouping = "none";
-        if (((_a3 = samplesDescriptor == null ? void 0 : samplesDescriptor.evalDescriptor) == null ? void 0 : _a3.epochs) && samplesDescriptor.evalDescriptor.epochs > 1) {
+        if (((_b3 = (_a3 = selectedLogSummary == null ? void 0 : selectedLogSummary.eval) == null ? void 0 : _a3.config) == null ? void 0 : _b3.epochs) && (((_d2 = (_c2 = selectedLogSummary == null ? void 0 : selectedLogSummary.eval) == null ? void 0 : _c2.config) == null ? void 0 : _d2.epochs) || 1) > 1) {
           if (byEpoch(sort) || epoch !== "all") {
             grouping = "epoch";
           } else if (bySample(sort)) {

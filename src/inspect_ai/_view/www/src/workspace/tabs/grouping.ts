@@ -1,9 +1,11 @@
 import { SampleSummary } from "../../api/types";
 import { SamplesDescriptor } from "../../samples/descriptor/samplesDescriptor";
+import { Epochs } from "../../types/log";
 import { ListItem, SampleListItem, SeparatorListItem } from "./types";
 
 export const getSampleProcessor = (
   samples: SampleSummary[],
+  epochs: Epochs,
   groupBy: "sample" | "epoch" | "none",
   groupByOrder: "asc" | "desc",
   sampleDescriptor: SamplesDescriptor,
@@ -14,9 +16,9 @@ export const getSampleProcessor = (
 ) => ListItem[]) => {
   // Perform grouping if there are epochs
   if (groupBy == "epoch") {
-    return groupByEpoch(samples, sampleDescriptor, groupByOrder);
+    return groupByEpoch(samples, epochs, sampleDescriptor, groupByOrder);
   } else if (groupBy === "sample") {
-    return groupBySample(samples, sampleDescriptor, groupByOrder);
+    return groupBySample(samples, epochs, sampleDescriptor, groupByOrder);
   } else {
     return noGrouping(samples, groupByOrder, sampleDescriptor);
   }
@@ -54,6 +56,7 @@ const noGrouping = (
  */
 const groupBySample = (
   samples: SampleSummary[],
+  epochs: Epochs,
   sampleDescriptor: SamplesDescriptor,
   order: "asc" | "desc",
 ): ((
@@ -77,7 +80,7 @@ const groupBySample = (
       }
     }
   });
-  const groupCount = samples.length / sampleDescriptor.evalDescriptor.epochs;
+  const groupCount = samples.length / (epochs || 1);
   const itemCount = samples.length / groupCount;
   const counter = getCounter(itemCount, groupCount, order);
   return (
@@ -120,6 +123,7 @@ const groupBySample = (
  */
 const groupByEpoch = (
   samples: SampleSummary[],
+  epochs: Epochs,
   sampleDescriptor: SamplesDescriptor,
   order: "asc" | "desc",
 ): ((
@@ -127,7 +131,7 @@ const groupByEpoch = (
   index: number,
   previousSample?: SampleSummary,
 ) => ListItem[]) => {
-  const groupCount = sampleDescriptor.evalDescriptor.epochs;
+  const groupCount = epochs || 1;
   const itemCount = samples.length / groupCount;
   const counter = getCounter(itemCount, groupCount, order);
 
