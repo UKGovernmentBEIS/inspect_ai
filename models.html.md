@@ -112,6 +112,60 @@ experiencing rate-limit errors you will need to experiment with the
 the rate limit (the section on [Parallelism](parallelism.qmd) includes
 additional documentation on how to do this).
 
+## Model API
+
+The `--model` which is set for an evaluation is automatically used by
+the `generate()` solver, as well as for other solvers and scorers built
+to use the currently evaluated model. If you are implementing a `Solver`
+or `Scorer` and want to use the currently evaluated model, call
+`get_model()` with no arguments:
+
+``` python
+from inspect_ai.model import get_model
+
+model = get_model()
+response = await model.generate("Say hello")
+```
+
+If you want to use other models in your solvers and scorers, call
+`get_model()` with an alternate model name, along with optional
+generation config. For example:
+
+``` python
+model = get_model("openai/gpt-4o")
+
+model = get_model(
+    "openai/gpt-4o",
+    config=GenerateConfig(temperature=0.9)
+)
+```
+
+You can also pass provider specific parameters as additional arguments
+to `get_model()`. For example:
+
+``` python
+model = get_model("hf/openai-community/gpt2", device="cuda:0")
+```
+
+### Model Caching
+
+By default, calls to `get_model()` are memoized, meaning that calls with
+identical parameters resolve to a cached version of the model. You can
+disable this by passing `memoize=False`:
+
+``` python
+model = get_model("openai/gpt-4o", memoize=False)
+```
+
+Finally, if you prefer to create and fully close model clients at their
+place of use, you can use the async context manager built in to the
+`Model` class. For example:
+
+``` python
+async with get_model("openai/gpt-4o") as model:
+    response = await model.generate("Say hello")
+```
+
 ## Learning More
 
 - [Providers](providers.qmd) covers usage details and available options

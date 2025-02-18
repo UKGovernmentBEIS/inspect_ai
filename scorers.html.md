@@ -834,14 +834,17 @@ functions. Here’s a somewhat simplified version of the code for the
 ``` python
 import statistics
 
-from inspect_ai.scorer import Score, ScoreReducer, score_reducer
+from inspect_ai.scorer import (
+    Score, ScoreReducer, score_reducer, value_to_float
+)
 
 @score_reducer(name="mean")
 def mean_score() -> ScoreReducer:
-    def reduce(scores: list[SampleScore]) -> Score:
-        """Compute a mean value of all scores."""
+    to_float = value_to_float()
 
-        values = [float(score.score.value) for score in scores]
+    def reduce(scores: list[Score]) -> Score:
+        """Compute a mean value of all scores."""
+        values = [to_float(score.value) for score in scores]
         mean_value = statistics.mean(values)
 
         return Score(value=mean_value)
