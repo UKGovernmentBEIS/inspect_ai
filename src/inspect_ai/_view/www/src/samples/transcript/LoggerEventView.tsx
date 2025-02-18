@@ -25,7 +25,7 @@ export const LoggerEventView: React.FC<LoggerEventViewProps> = ({
     >
       <div className={clsx("text-size-base", styles.grid)}>
         <div className={clsx("text-size-smaller")}>
-          ${event.message.message}
+          {event.message.message}
         </div>
         <div className={clsx("text-size-smaller", "text-style-secondary")}>
           {event.message.filename}:{event.message.lineno}

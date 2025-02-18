@@ -50723,10 +50723,7 @@ self.onmessage = function (e) {
           title: event.message.level,
           icon: ApplicationIcons.logging[event.message.level.toLowerCase()],
           children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("text-size-base", styles$t.grid), children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("text-size-smaller"), children: [
-              "$",
-              event.message.message
-            ] }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-smaller"), children: event.message.message }),
             /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("text-size-smaller", "text-style-secondary"), children: [
               event.message.filename,
               ":",
