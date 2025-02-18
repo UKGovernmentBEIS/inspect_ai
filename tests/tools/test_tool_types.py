@@ -181,7 +181,7 @@ def check_list_of_numbers(model: str) -> None:
             [
                 Sample(
                     input="Take the mean of the following numbers: 5, 10, 15",
-                    target="15",
+                    target="10",
                 )
             ]
         ),

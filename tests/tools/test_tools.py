@@ -184,7 +184,7 @@ def test_groq_tools():
 
 @skip_if_no_google
 def test_google_tools():
-    check_tools("google/gemini-1.0-pro")
+    check_tools("google/gemini-1.5-pro")
 
 
 @skip_if_no_vertex
