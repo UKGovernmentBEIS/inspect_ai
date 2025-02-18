@@ -71,8 +71,7 @@ GOOGLE_API_KEY = "GOOGLE_API_KEY"
 
 SAFETY_SETTINGS = "safety_settings"
 DEFAULT_SAFETY_SETTINGS = {
-    # TODO: maybe we can set this to OFF now
-    HarmCategory.HARM_CATEGORY_CIVIC_INTEGRITY: HarmBlockThreshold.BLOCK_NONE,
+    HarmCategory.HARM_CATEGORY_CIVIC_INTEGRITY: HarmBlockThreshold.OFF,
     HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.OFF,
     HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.OFF,
     HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.OFF,
@@ -96,6 +95,8 @@ class GoogleGenAIAPI(ModelAPI):
             api_key_vars=[GOOGLE_API_KEY],
             config=config,
         )
+
+        # TODO: vertex api
 
         # pick out user-provided safety settings and merge against default
         self.safety_settings = DEFAULT_SAFETY_SETTINGS.copy()
