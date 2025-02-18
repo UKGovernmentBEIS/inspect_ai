@@ -365,7 +365,7 @@ export const App: React.FC<AppProps> = ({
 
     // Sort the samples
     if (samplesDescriptor) {
-      const sorted = sortSamples(sort, filtered, samplesDescriptor);
+      const sorted = sortSamples(sort, filtered, score);
       return sorted;
     } else {
       return filtered;

@@ -8,6 +8,7 @@ import {
   kScoreAscVal,
   kScoreDescVal,
 } from "../../constants";
+import { ScoreLabel } from "../../types";
 import { isNumeric } from "../../utils/type";
 import { SamplesDescriptor } from "../descriptor/samplesDescriptor";
 import styles from "./SortFilter.module.css";
@@ -105,8 +106,13 @@ export const sortSamples = (
   sort: string,
   samples: SampleSummary[],
   samplesDescriptor: SamplesDescriptor,
+  score?: ScoreLabel,
 ): SampleSummary[] => {
   const sortedSamples = samples.sort((a: SampleSummary, b: SampleSummary) => {
+    const scoreDescriptor = score
+      ? samplesDescriptor.evalDescriptor.scoreDescriptor(score)
+      : undefined;
+
     switch (sort) {
       case kSampleAscVal: {
         const result = sortId(a, b);
@@ -147,14 +153,11 @@ export const sortSamples = (
         if (
           aScore === undefined ||
           bScore === undefined ||
-          samplesDescriptor.selectedScoreDescriptor == undefined
+          scoreDescriptor === undefined
         ) {
           return 0;
         }
-        return samplesDescriptor.selectedScoreDescriptor.compare(
-          aScore,
-          bScore,
-        );
+        return scoreDescriptor?.compare(aScore, bScore);
       }
       case kScoreDescVal: {
         const aScore = samplesDescriptor.selectedScore(a);
@@ -162,15 +165,12 @@ export const sortSamples = (
         if (
           aScore === undefined ||
           bScore === undefined ||
-          samplesDescriptor.selectedScoreDescriptor == undefined
+          scoreDescriptor == undefined
         ) {
           return 0;
         }
 
-        return samplesDescriptor.selectedScoreDescriptor.compare(
-          aScore,
-          bScore,
-        );
+        return scoreDescriptor?.compare(aScore, bScore);
       }
       default:
         return 0;
