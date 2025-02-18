@@ -105,14 +105,6 @@ def user_message(template: str, **params: Any) -> Solver:
 def assistant_message(template: str, **params: Any) -> Solver:
     """Solver which inserts an assistant message into the conversation.
 
-    ::: {.callout-note appearance="simple"}
-    The assistant message feature described below is currently available only in the development version of Inspect. To install the development version from GitHub:
-
-    ``` bash
-    pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-    ```
-    :::
-
     Assistant message template containing any number of optional `params`.
     for substitution using the `str.format()` method. All values
     contained in sample `metadata` and `store` are also automatically
