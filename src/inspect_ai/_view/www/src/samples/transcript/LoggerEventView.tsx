@@ -24,9 +24,7 @@ export const LoggerEventView: React.FC<LoggerEventViewProps> = ({
       icon={ApplicationIcons.logging[event.message.level.toLowerCase()]}
     >
       <div className={clsx("text-size-base", styles.grid)}>
-        <div className={clsx("text-size-smaller")}>
-          {event.message.message}
-        </div>
+        <div className={clsx("text-size-smaller")}>{event.message.message}</div>
         <div className={clsx("text-size-smaller", "text-style-secondary")}>
           {event.message.filename}:{event.message.lineno}
         </div>
