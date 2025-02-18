@@ -9,6 +9,7 @@
 - Inspect View: Improve the display of subtasks with no inputs or events.
 - Inspect View: Fix transcript display of phantom subtask or other phantom events.
 - Inspect View: Fix formatting issues in sample error display
+- Bugfix: Raise error for empty dataset (rather than providing a dummy sample).
 
 
 ## v0.3.66 (17 February 2025)

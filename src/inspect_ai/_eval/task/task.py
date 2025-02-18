@@ -331,7 +331,15 @@ def resolve_epochs(epochs: int | Epochs | None) -> Epochs | None:
 
 
 def resolve_dataset(dataset: Dataset | Sequence[Sample] | None) -> Dataset:
-    dataset = dataset or [Sample(input="prompt")]
+    # this is a convenience for tests that don't want to define a dummy sample
+    if dataset is None:
+        dataset = [Sample(input="prompt")]
+
+    # raise error if the dataset is empty
+    if len(dataset) == 0:
+        raise ValueError("The specified dataset is empty (has no samples)")
+
+    # resolve sequence to dataset if necessary
     return dataset if isinstance(dataset, Dataset) else MemoryDataset(list(dataset))
 
 
