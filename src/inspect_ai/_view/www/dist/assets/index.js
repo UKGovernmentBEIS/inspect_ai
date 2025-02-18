@@ -17033,6 +17033,7 @@ categories: ${categories.join(" ")}`;
       }
     };
     const sortSamples = (sort, samples, samplesDescriptor, score2) => {
+      console.log("SORT SAMPLES");
       const sortedSamples = samples.sort((a, b) => {
         const scoreDescriptor = score2 ? samplesDescriptor.evalDescriptor.scoreDescriptor(score2) : void 0;
         switch (sort) {
@@ -17082,7 +17083,7 @@ categories: ${categories.join(" ")}`;
             if (aScore === void 0 || bScore === void 0 || scoreDescriptor == void 0) {
               return 0;
             }
-            return scoreDescriptor == null ? void 0 : scoreDescriptor.compare(aScore, bScore);
+            return scoreDescriptor == null ? void 0 : scoreDescriptor.compare(bScore, aScore);
           }
           default:
             return 0;
@@ -66013,12 +66014,24 @@ ${events}
           return true;
         });
         if (samplesDescriptor) {
-          const sorted = sortSamples(sort, filtered, samplesDescriptor, score2);
+          const sorted = sortSamples(
+            sort,
+            filtered,
+            samplesDescriptor,
+            currentScore
+          );
           return sorted;
         } else {
           return filtered;
         }
-      }, [sampleSummaries, evalDescriptor, samplesDescriptor, filter, sort]);
+      }, [
+        sampleSummaries,
+        evalDescriptor,
+        samplesDescriptor,
+        filter,
+        sort,
+        currentScore
+      ]);
       const groupBy = reactExports.useMemo(() => {
         var _a3, _b3, _c2, _d2;
         let grouping = "none";
