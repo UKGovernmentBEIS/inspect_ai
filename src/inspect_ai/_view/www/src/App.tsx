@@ -569,6 +569,8 @@ export const App: React.FC<AppProps> = ({
           reloadSelectedLog();
         } else if (pendingSamples.status === "NotFound") {
           clearPendingSummaries();
+          // stop polling
+          isActive = false;
         }
 
         if (isActive) {
