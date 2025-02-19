@@ -412,6 +412,16 @@ class SampleToolbar(Horizontal):
     PENDING_STATUS = "pending_status"
     PENDING_CAPTION = "pending_caption"
 
+    TIMEOUT_TOOL_CALL_ENABLED = (
+        "Cancel the tool call and report a timeout to the model."
+    )
+    TIMEOUT_TOOL_CALL_DISABLED = "Cancelling tool call..."
+    CANCEL_SCORE_OUTPUT_ENABLED = (
+        "Cancel the sample and score whatever output has been generated so far."
+    )
+    CANCEL_RAISE_ERROR_ENABLED = "Cancel the sample and raise an error"
+    CANCEL_DISABLED = "Cancelling sample..."
+
     DEFAULT_CSS = f"""
     SampleToolbar {{
         grid-size: 5 1;
@@ -449,18 +459,18 @@ class SampleToolbar(Horizontal):
         yield Button(
             Text("Timeout Tool"),
             id=self.TIMEOUT_TOOL_CALL,
-            tooltip="Cancel the tool call and report a timeout to the model.",
+            tooltip=self.TIMEOUT_TOOL_CALL_ENABLED,
         )
         yield Horizontal()
         yield Button(
             Text("Cancel (Score)"),
             id=self.CANCEL_SCORE_OUTPUT,
-            tooltip="Cancel the sample and score whatever output has been generated so far.",
+            tooltip=self.CANCEL_SCORE_OUTPUT_ENABLED,
         )
         yield Button(
             Text("Cancel (Error)"),
             id=self.CANCEL_RAISE_ERROR,
-            tooltip="Cancel the sample and raise an error (task will exit unless fail_on_error is set)",
+            tooltip=self.CANCEL_RAISE_ERROR_ENABLED,
         )
 
     def on_mount(self) -> None:
@@ -479,13 +489,25 @@ class SampleToolbar(Horizontal):
                 )
                 if isinstance(last_event, ToolEvent):
                     last_event._cancel()
-            elif event.button.id == self.CANCEL_SCORE_OUTPUT:
-                self.sample.interrupt("score")
-            elif event.button.id == self.CANCEL_RAISE_ERROR:
-                self.sample.interrupt("error")
+                    event.button.disabled = True
+                    event.button.tooltip = self.TIMEOUT_TOOL_CALL_DISABLED
+            else:
+                if event.button.id == self.CANCEL_SCORE_OUTPUT:
+                    self.sample.interrupt("score")
+                elif event.button.id == self.CANCEL_RAISE_ERROR:
+                    self.sample.interrupt("error")
+                cancel_score_output = self.query_one("#" + self.CANCEL_SCORE_OUTPUT)
+                cancel_score_output.disabled = True
+                cancel_score_output.tooltip = self.CANCEL_DISABLED
+                cancel_with_error = self.query_one("#" + self.CANCEL_RAISE_ERROR)
+                cancel_with_error.disabled = True
+                cancel_with_error.tooltip = self.CANCEL_DISABLED
 
     async def sync_sample(self, sample: ActiveSample | None) -> None:
         from inspect_ai.log._transcript import ModelEvent
+
+        # is it a new sample?
+        new_sample = sample != self.sample
 
         # track the sample
         self.sample = sample
@@ -502,6 +524,13 @@ class SampleToolbar(Horizontal):
             self.display = True
             cancel_score_output.display = True
             cancel_with_error.display = not sample.fails_on_error
+
+            # if its a new sample then reset enabled states
+            if new_sample:
+                cancel_score_output.disabled = False
+                cancel_score_output.tooltip = self.CANCEL_SCORE_OUTPUT_ENABLED
+                cancel_with_error.disabled = False
+                cancel_with_error.tooltip = self.CANCEL_RAISE_ERROR_ENABLED
 
             # if we have a pending event then start the clock and show pending status
             last_event = (
@@ -524,6 +553,8 @@ class SampleToolbar(Horizontal):
                 )
 
                 timeout_tool.display = isinstance(last_event, ToolEvent)
+                timeout_tool.disabled = False
+                timeout_tool.tooltip = self.TIMEOUT_TOOL_CALL_ENABLED
 
                 clock.start(last_event.timestamp.timestamp())
             else:

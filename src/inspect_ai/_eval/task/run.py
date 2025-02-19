@@ -32,7 +32,6 @@ from inspect_ai._util.registry import (
     registry_log_name,
     registry_unqualified_name,
 )
-from inspect_ai._util.timeouts import Timeout, timeout
 from inspect_ai._view.notify import view_notify_eval
 from inspect_ai.dataset import Dataset, Sample
 from inspect_ai.log import (
@@ -48,6 +47,7 @@ from inspect_ai.log._file import eval_log_json_str
 from inspect_ai.log._log import EvalSampleLimit, EvalSampleReductions, eval_error
 from inspect_ai.log._samples import (
     active_sample,
+    sample_timeout,
     set_active_sample_message_limit,
     set_active_sample_token_limit,
 )
@@ -585,7 +585,7 @@ async def task_run_sample(
 
                     # initialise timeout context manager
                     timeout_cm = (
-                        timeout(time_limit)
+                        sample_timeout(time_limit)
                         if time_limit is not None
                         else contextlib.nullcontext()
                     )
@@ -611,40 +611,40 @@ async def task_run_sample(
                         state = await plan(state, generate)
 
                 except TimeoutError:
-                    if time_limit is not None:
-                        transcript()._event(
-                            SampleLimitEvent(
-                                type="time",
-                                message=f"Sample completed: exceeded time limit ({time_limit:,} seconds)",
-                                limit=time_limit,
-                            )
-                        )
-                    else:
-                        py_logger.warning(
-                            "Unexpected timeout error reached top of sample stack. Are you handling TimeoutError when applying timeouts?"
-                        )
-
-                    # capture most recent state for scoring
-                    state = sample_state() or state
+                    py_logger.warning(
+                        "Unexpected timeout error reached top of sample stack. Are you handling TimeoutError when applying timeouts?"
+                    )
+                    raise
 
                 except asyncio.CancelledError as ex:
                     if active.interrupt_action:
-                        # record eve t
-                        transcript()._event(
-                            SampleLimitEvent(
-                                type="operator",
-                                message="Sample completed: interrupted by operator",
+                        if active.interrupt_action == "timeout":
+                            transcript()._event(
+                                SampleLimitEvent(
+                                    type="time",
+                                    message=f"Sample completed: exceeded time limit ({time_limit:,} seconds)",
+                                    limit=time_limit,
+                                )
                             )
-                        )
+                            # capture most recent state
+                            state = sample_state() or state
+                        else:
+                            # record event
+                            transcript()._event(
+                                SampleLimitEvent(
+                                    type="operator",
+                                    message="Sample completed: interrupted by operator",
+                                )
+                            )
 
-                        # handle the action
-                        match active.interrupt_action:
-                            case "score":
-                                # continue to scoring (capture the most recent state)
-                                state = sample_state() or state
-                            case "error":
-                                # default error handling
-                                error, raise_error = handle_error(ex)
+                            # handle the action
+                            match active.interrupt_action:
+                                case "score":
+                                    # continue to scoring (capture the most recent state)
+                                    state = sample_state() or state
+                                case "error":
+                                    # default error handling
+                                    error, raise_error = handle_error(ex)
 
                     else:
                         raise
@@ -672,9 +672,8 @@ async def task_run_sample(
                 # the cause of the timeout is a hung container and scoring requires
                 # interacting with the container). as a middle ground we use half
                 # of the original timeout value for scoring.
-                if isinstance(timeout_cm, Timeout):
-                    assert time_limit
-                    timeout_cm = timeout(time_limit / 2)
+                if time_limit:
+                    timeout_cm = sample_timeout(time_limit / 2)
 
                 # turn off sample limits
                 set_active_sample_token_limit(None)
@@ -726,26 +725,25 @@ async def task_run_sample(
 
                 except asyncio.CancelledError:
                     if active.interrupt_action:
-                        transcript()._event(
-                            SampleLimitEvent(
-                                type="operator",
-                                message="Unable to score sample due to operator interruption",
+                        if active.interrupt_action == "timeout":
+                            transcript()._event(
+                                SampleLimitEvent(
+                                    type="time",
+                                    message=f"Unable to score sample due to exceeded time limit ({time_limit:,} seconds)",
+                                    limit=time_limit,
+                                )
                             )
-                        )
+                        else:
+                            transcript()._event(
+                                SampleLimitEvent(
+                                    type="operator",
+                                    message="Unable to score sample due to operator interruption",
+                                )
+                            )
 
                     raise
 
                 except BaseException as ex:
-                    # note timeout
-                    if isinstance(ex, TimeoutError):
-                        transcript()._event(
-                            SampleLimitEvent(
-                                type="time",
-                                message=f"Unable to score sample due to exceeded time limit ({time_limit:,} seconds)",
-                                limit=time_limit,
-                            )
-                        )
-
                     # handle error (this will throw if we've exceeded the limit)
                     error, raise_error = handle_error(ex)
 
