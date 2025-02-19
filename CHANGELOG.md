@@ -1,3 +1,7 @@
+## Unreleased
+
+- Google provider updated to use the [Google Gen AI SDK](https://googleapis.github.io/python-genai/), which is now the recommended API for Gemini 2.0 models.
+
 ## v0.3.68 (19 February 2025)
 
 - Task display: Improve spacing/layout of final task display.
@@ -5,7 +9,6 @@
 
 ## v0.3.67 (18 February 2025)
 
-- Google provider updated to use the [Google Gen AI SDK](https://googleapis.github.io/python-genai/), which is now the recommended API for Gemini 2.0 models.
 - Memoize calls to `get_model()` so that model instances with the same parameters are cached and re-used (pass `memoize=False` to disable).
 - Async context manager for `Model` class for optional scoped usage of model clients.
 - New `assistant_message()` solver.
