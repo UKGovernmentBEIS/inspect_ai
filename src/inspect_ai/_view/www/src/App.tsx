@@ -548,6 +548,7 @@ export const App: FC<AppProps> = ({
 
     let isActive = true;
     let pollTimeout: Timeout;
+    let hadPending = false;
 
     // Define clearPendingSummaries inside the effect
     const clearPendingSummaries = () => {
@@ -568,8 +569,13 @@ export const App: FC<AppProps> = ({
         if (pendingSamples.status === "OK" && pendingSamples.pendingSamples) {
           setPendingSampleSummaries(pendingSamples.pendingSamples);
           reloadSelectedLog();
+          hadPending = true;
         } else if (pendingSamples.status === "NotFound") {
+          if (hadPending) {
+            reloadSelectedLog();
+          }
           clearPendingSummaries();
+
           // stop polling
           isActive = false;
         }
