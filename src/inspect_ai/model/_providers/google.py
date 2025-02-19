@@ -154,14 +154,14 @@ class GoogleGenAIAPI(ModelAPI):
                 ) and not model_args.get("project", None):
                     raise PrerequisiteError(
                         "Google provider requires either the GOOGLE_CLOUD_PROJECT environment variable "
-                        + "or the 'project' custom model arg (-M)"
+                        + "or the 'project' custom model arg (-M) when running against vertex."
                     )
                 if not os.environ.get(
                     "GOOGLE_CLOUD_LOCATION", None
                 ) and not model_args.get("location", None):
                     raise PrerequisiteError(
                         "Google provider requires either the GOOGLE_CLOUD_LOCATION environment variable "
-                        + "or the 'location' custom model arg (-M)"
+                        + "or the 'location' custom model arg (-M) when running against vertex."
                     )
 
         # normal google endpoint
