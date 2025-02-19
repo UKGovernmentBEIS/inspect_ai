@@ -4,6 +4,7 @@
 - Task display: Print task progress every 5 seconds for 'plain' display mode.
 - Task display: Handle click on running samples tab when there is no transcript.
 - Inspect View: Fix display of score dictionaries containing boolean values
+- Bugfix: Catch standard `TimeoutError` for subprocess timeouts (ensure kill/cleanup of timed out process).
 
 ## v0.3.68 (19 February 2025)
 
