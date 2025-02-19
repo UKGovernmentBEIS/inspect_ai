@@ -6,12 +6,11 @@ from pathlib import Path
 from typing import Any, Literal, cast
 
 import yaml
-from pydantic import BaseModel
-
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.trace import trace_message
 from inspect_ai.util._display import display_type
 from inspect_ai.util._subprocess import ExecResult, subprocess
+from pydantic import BaseModel
 
 from .prereqs import (
     DOCKER_COMPOSE_REQUIRED_VERSION_PULL_POLICY,
@@ -122,11 +121,6 @@ async def compose_check_running(
             unhealthy_services = services
             for successful_service in successful_services:
                 unhealthy_services.remove(successful_service["Service"])
-
-            msg = (
-                "One or more docker containers failed to start from "
-                f"{project.config}: {','.join(unhealthy_services)}"
-            )
             return []
     else:
         return []
