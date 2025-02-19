@@ -51,10 +51,9 @@ def task_panel(
 
     # main progress and task info
     if body:
-        table.add_row()
         table.add_row(body)
 
-    # spacing if there is more ocontent
+    # spacing if there is more content
     if footer or log_location:
         table.add_row()
 

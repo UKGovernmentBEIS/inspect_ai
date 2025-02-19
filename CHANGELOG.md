@@ -1,3 +1,8 @@
+## Unreleased
+
+- Task display: Improve spacing/layout of final task display.
+- Textual: speicfy broader range of compatible versions (v0.86.2 to v1.0.0)
+
 ## v0.3.67 (18 February 2025)
 
 - Memoize calls to `get_model()` so that model instances with the same parameters are cached and re-used (pass `memoize=False` to disable).
