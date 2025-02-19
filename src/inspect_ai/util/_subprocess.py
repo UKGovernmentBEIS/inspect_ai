@@ -199,7 +199,10 @@ async def subprocess(
                 else:
                     result = await asyncio.wait_for(anext(rc), timeout=timeout)
                     return cast(Union[ExecResult[str], ExecResult[bytes]], result)
-            except asyncio.exceptions.TimeoutError:
+            # wait_for raises asyncio.TimeoutError under Python 3.10, but TimeoutError
+            # under Python > 3.11! asynio.timeout (introduced in Python 3.11) always
+            # raises the standard TimeoutError
+            except (TimeoutError, asyncio.exceptions.TimeoutError):
                 # terminate timed out process -- try for graceful termination
                 # then be more forceful if requied
                 try:
