@@ -1,4 +1,3 @@
-import asyncio
 import contextlib
 from contextvars import ContextVar
 from datetime import datetime
@@ -43,7 +42,6 @@ class ActiveSample:
         self.total_tokens = 0
         self.transcript = transcript
         self.sandboxes = sandboxes
-        self._sample_task = asyncio.current_task()
         self._interrupt_action: Literal["score", "error"] | None = None
 
     @property
@@ -60,8 +58,6 @@ class ActiveSample:
 
     def interrupt(self, action: Literal["score", "error"]) -> None:
         self._interrupt_action = action
-        assert self._sample_task
-        self._sample_task.cancel()
 
     @property
     def interrupt_action(self) -> Literal["score", "error"] | None:
