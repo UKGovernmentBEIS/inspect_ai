@@ -8,6 +8,7 @@ from typing import Any, Iterable, SupportsIndex, Type, Union, cast, overload
 
 from pydantic_core import to_jsonable_python
 
+from inspect_ai._util.interrupt import check_sample_interrupt
 from inspect_ai.dataset._dataset import MT, Sample, metadata_as
 from inspect_ai.model import (
     ChatMessage,
@@ -333,7 +334,7 @@ class TaskState:
     def completed(self) -> bool:
         """Is the task completed.
 
-        Additionally, checks message and token limits and raises if they are exceeded.
+        Additionally, checks message and token limits and raises if they are exceeded, and also checks for an operator interrupt of the sample.
         """
         from inspect_ai.log._samples import set_active_sample_total_messages
 
@@ -356,6 +357,7 @@ class TaskState:
                 "token", value=self.token_usage, limit=self.token_limit, state=self
             )
         else:
+            check_sample_interrupt()
             return self._completed
 
     @completed.setter
