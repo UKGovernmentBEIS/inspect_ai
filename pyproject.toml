@@ -133,7 +133,7 @@ dev = [
     "pytest-cov",
     "pytest-dotenv",
     "pytest-xdist",
-    "ruff==0.9.5", # match version specified in .pre-commit-config.yaml
+    "ruff==0.9.6", # match version specified in .pre-commit-config.yaml
     "textual-dev>=0.86.2",
     "types-Markdown",
     "types-PyYAML",
