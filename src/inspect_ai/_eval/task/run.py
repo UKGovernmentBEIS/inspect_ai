@@ -636,6 +636,7 @@ async def task_run_sample(
                                 message="Sample completed: interrupted by operator",
                             )
                         )
+
                         # handle the action
                         match active.interrupt_action:
                             case "score":
@@ -644,6 +645,7 @@ async def task_run_sample(
                             case "error":
                                 # default error handling
                                 error, raise_error = handle_error(ex)
+
                     else:
                         raise
 
