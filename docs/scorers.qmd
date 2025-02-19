@@ -117,7 +117,7 @@ The built-in model graded scorers also support using multiple grader models (whe
 ``` python
 model_graded_qa(
     model = [
-        "google/gemini-1.0-pro",
+        "google/gemini-1.5-pro",
         "anthropic/claude-3-opus-20240229" 
         "together/meta-llama/Llama-3-70b-chat-hf",
     ]
@@ -740,7 +740,7 @@ log = eval(popularity, model="openai/gpt-4")[0]
 grader_models = [
     "openai/gpt-4",
     "anthropic/claude-3-opus-20240229",
-    "google/gemini-1.0-pro",
+    "google/gemini-1.5-pro",
     "mistral/mistral-large-latest"
 ]
 
@@ -760,7 +760,7 @@ log = read_eval_log(input_log_path)
 grader_models = [
     "openai/gpt-4",
     "anthropic/claude-3-opus-20240229",
-    "google/gemini-1.0-pro",
+    "google/gemini-1.5-pro",
     "mistral/mistral-large-latest"
 ]
 

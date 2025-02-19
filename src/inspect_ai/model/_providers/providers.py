@@ -93,8 +93,8 @@ def vertex() -> type[ModelAPI]:
 @modelapi(name="google")
 def google() -> type[ModelAPI]:
     FEATURE = "Google API"
-    PACKAGE = "google-generativeai"
-    MIN_VERSION = "0.8.4"
+    PACKAGE = "google-genai"
+    MIN_VERSION = "1.2.0"
 
     # workaround log spam
     # https://github.com/ray-project/ray/issues/24917
@@ -102,7 +102,7 @@ def google() -> type[ModelAPI]:
 
     # verify we have the package
     try:
-        import google.generativeai  # type: ignore  # noqa: F401
+        import google.genai  # type: ignore  # noqa: F401
     except ImportError:
         raise pip_dependency_error(FEATURE, [PACKAGE])
 
@@ -110,9 +110,9 @@ def google() -> type[ModelAPI]:
     verify_required_version(FEATURE, PACKAGE, MIN_VERSION)
 
     # in the clear
-    from .google import GoogleAPI
+    from .google import GoogleGenAIAPI
 
-    return GoogleAPI
+    return GoogleGenAIAPI
 
 
 @modelapi(name="hf")

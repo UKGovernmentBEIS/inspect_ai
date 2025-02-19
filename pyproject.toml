@@ -115,7 +115,7 @@ dev = [
     "aioboto3", 
     "azure-ai-inference",
     "google-cloud-aiplatform",
-    "google-generativeai", 
+    "google-genai",
     "goodfire",
     "griffe",
     "groq", 

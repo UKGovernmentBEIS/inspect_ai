@@ -8,7 +8,6 @@ Inspect has support for a wide variety of language model APIs and can be extende
 
 {{< include _model-providers.md >}}
 
-
 ## OpenAI {#openai}
 
 To use the [OpenAI](https://platform.openai.com/) provider, install the `openai` package, set your credentials, and specify a model using the `--model` option:
@@ -88,15 +87,15 @@ Authentication is doing using the standard Google Cloud CLI (i.e. if you have au
 
 ## Google {#google-gemini}
 
-To use the [Google](https://ai.google.dev/) provider, install the `google-generativeai` package, set your credentials, and specify a model using the `--model` option:
+To use the [Google](https://ai.google.dev/) provider, install the `google-genai` package, set your credentials, and specify a model using the `--model` option:
 
 ``` bash
-pip install google-generativeai
+pip install google-genai
 export GOOGLE_API_KEY=your-google-api-key
 inspect eval arc.py --model google/gemini-1.5-pro
 ```
 
-For the `google` provider, custom model args (`-M`) are forwarded to the `genai.configure` function.
+For the `google` provider, custom model args (`-M`) are forwarded to the `genai.Client` function.
 
 The following environment variables are supported by the Google provider
 
@@ -105,12 +104,46 @@ The following environment variables are supported by the Google provider
 | `GOOGLE_API_KEY`  | API key credentials (required).  |
 | `GOOGLE_BASE_URL` | Base URL for requests (optional) |
 
+### Gemini on Vertex AI
+
+::: {.callout-note appearance="simple"}
+The Vertex AI Gemini interface described below is currently available only in the development version of Inspect. To install the development version from GitHub:
+
+``` bash
+pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+```
+:::
+
+To use Google Gemini models on Vertex, you can use the standard `google` model provider with the `vertex` qualifier (e.g. `google/vertex/gemini-2.0-flash`). You should also set two environment variables indicating your project ID and region. Here is a complete example:
+
+``` bash
+export GOOGLE_CLOUD_PROJECT=project-12345
+export GOOGLE_CLOUD_LOCATION=us-east5
+inspect eval ctf.py --model google/vertex/gemini-2.0-flash
+```
+
+You can alternatively pass the project and location as custom model args (`-M`). For example:
+
+``` bash
+inspect eval ctf.py --model google/vertex/gemini-2.0-flash \
+   -M project=project-12345 -M location=us-east5
+```
+
+Authentication is done using the standard Google Cloud CLI. For example:
+
+```bash
+gcloud auth application-default login
+```
+
+If you have authorised the CLI then no additional auth is needed for the model API.
+
 ### Safety Settings {#safety-settings}
 
-Google models make available [safety settings](https://ai.google.dev/gemini-api/docs/safety-settings) that you can adjust to determine what sorts of requests will be handled (or refused) by the model. The four categories of safety settings are as follows:
+Google models make available [safety settings](https://ai.google.dev/gemini-api/docs/safety-settings) that you can adjust to determine what sorts of requests will be handled (or refused) by the model. The five categories of safety settings are as follows:
 
 | Category | Description |
-|-----------------------|------------------------------------------------|
+|------------------------|-----------------------------------------------|
+| `civic_integrity`   |  Election-related queries.          |
 | `sexually_explicit` | Contains references to sexual acts or other lewd content. |
 | `hate_speech` | Content that is rude, disrespectful, or profane. |
 | `harassment` | Negative or harmful comments targeting identity and/or protected attributes. |
@@ -121,7 +154,7 @@ Google models make available [safety settings](https://ai.google.dev/gemini-api/
 For each category, the following block thresholds are available:
 
 | Block Threshold | Description |
-|------------------------|------------------------------------------------|
+|-------------------------|-----------------------------------------------|
 | `none` | Always show regardless of probability of unsafe content |
 | `only_high` | Block when high probability of unsafe content |
 | `medium_and_above` | Block when medium or high probability of unsafe content |
@@ -250,20 +283,24 @@ You can also use this option to disable tool emulation for Llama models with `em
 ## Vertex AI {#vertex-ai}
 
 ::: {.callout-note appearance="simple"}
-Vertex AI is a distinct service from Google AI, see a comparison matrix [here](https://cloud.google.com/vertex-ai/generative-ai/docs/migrate/migrate-google-ai#google-ai). Make sure you are using the appropriate model provider.
+If you are using Gemini or Anthropic models on Vertex AI, we recommend you use the Google and Anthropic providers (respectively) which both support models hosted on Vertex:
+
+- [Anthropic on Vertex AI](#anthropic-on-vertex-ai)
+- [Gemini on Vertex AI](#gemini-on-vertex-ai)
+
+If you are using other models hosted on Vertex (e.g. Mistral, Llama, Gemma, etc.) then you should instead use the `vertex` provider as described below.
 :::
 
 To use the [Vertex AI](https://cloud.google.com/vertex-ai) provider, install the `google-cloud-aiplatform` package, [configure your environment](https://cloud.google.com/vertex-ai/generative-ai/docs/start/quickstarts/quickstart-multimodal#expandable-1) for Vertex API access, and specify a model using the `--model` option:
 
 ``` bash
-inspect eval eval.py --model vertex/gemini-1.5-flash
+inspect eval eval.py --model vertex/mistral-large-2411
 ```
 
 The core libraries for Vertex AI interact directly with Google Cloud Platform so this provider doesn't use the standard `BASE_URL`/`API_KEY` approach that others do. Consequently you don't need to set these environment variables.
 
 Vertex AI also provides the same `safety_settings` outlined in the [Google](#safety-settings) provider.
 
-If you are using Anthropic on Vertex AI, you can alternatively use the [Anthropic provider](#anthropic-on-vertex-ai) as your means of access.
 
 ## Together AI {#together-ai}
 
