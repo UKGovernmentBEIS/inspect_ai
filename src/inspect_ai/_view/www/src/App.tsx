@@ -541,16 +541,6 @@ export const App: FC<AppProps> = ({
     }
   }, [logs, selectedLogIndex, loadLog, setSelectedLogSummary]);
 
-  const clearPendingSummaries = useCallback(() => {
-    if (pendingSampleSummaries.samples.length > 0) {
-      setPendingSampleSummaries((prev) => ({
-        samples: [],
-        refresh: prev.refresh,
-      }));
-      reloadSelectedLog();
-    }
-  }, [pendingSampleSummaries.samples, reloadSelectedLog]);
-
   // Poll for pending samples when a log is selected
   useEffect(() => {
     const logFile = logs.files[selectedLogIndex];
@@ -558,6 +548,17 @@ export const App: FC<AppProps> = ({
 
     let isActive = true;
     let pollTimeout: Timeout;
+
+    // Define clearPendingSummaries inside the effect
+    const clearPendingSummaries = () => {
+      if (pendingSampleSummaries.samples.length > 0) {
+        setPendingSampleSummaries((prev) => ({
+          samples: [],
+          refresh: prev.refresh,
+        }));
+        reloadSelectedLog();
+      }
+    };
 
     const pollPendingSamples = async () => {
       try {
@@ -604,7 +605,6 @@ export const App: FC<AppProps> = ({
     selectedLogIndex,
     pendingSampleSummaries.refresh,
     reloadSelectedLog,
-    clearPendingSummaries,
   ]);
 
   // Read header information for the logs
