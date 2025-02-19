@@ -65866,20 +65866,20 @@ ${events}
           setSelectedLogSummary(log2);
         }
       }, [logs, selectedLogIndex, loadLog, setSelectedLogSummary]);
-      const clearPendingSummaries = reactExports.useCallback(() => {
-        if (pendingSampleSummaries.samples.length > 0) {
-          setPendingSampleSummaries((prev2) => ({
-            samples: [],
-            refresh: prev2.refresh
-          }));
-          reloadSelectedLog();
-        }
-      }, [pendingSampleSummaries.samples, reloadSelectedLog]);
       reactExports.useEffect(() => {
         const logFile = logs.files[selectedLogIndex];
         if (!logFile) return;
         let isActive = true;
         let pollTimeout;
+        const clearPendingSummaries = () => {
+          if (pendingSampleSummaries.samples.length > 0) {
+            setPendingSampleSummaries((prev2) => ({
+              samples: [],
+              refresh: prev2.refresh
+            }));
+            reloadSelectedLog();
+          }
+        };
         const pollPendingSamples = async () => {
           try {
             const pendingSamples = await api2.get_log_pending_samples(logFile.name);
@@ -65889,6 +65889,7 @@ ${events}
               reloadSelectedLog();
             } else if (pendingSamples.status === "NotFound") {
               clearPendingSummaries();
+              isActive = false;
             }
             if (isActive) {
               pollTimeout = setTimeout(
@@ -65917,8 +65918,7 @@ ${events}
         logs,
         selectedLogIndex,
         pendingSampleSummaries.refresh,
-        reloadSelectedLog,
-        clearPendingSummaries
+        reloadSelectedLog
       ]);
       reactExports.useEffect(() => {
         const loadHeaders = async () => {
