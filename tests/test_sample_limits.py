@@ -118,11 +118,7 @@ def test_token_limit():
 
 
 def test_time_limit():
-    log = eval(
-        Task(solver=[sleep_for_solver(2), sleep_for_solver(2)]),
-        model="mockllm/model",
-        time_limit=2,
-    )[0]
+    log = eval(Task(solver=sleep_for_solver(3)), model="mockllm/model", time_limit=2)[0]
     check_limit_event(log, "time")
 
 

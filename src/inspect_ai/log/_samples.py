@@ -1,5 +1,4 @@
 import contextlib
-from asyncio import events
 from contextvars import ContextVar
 from datetime import datetime
 from typing import AsyncGenerator, Literal
@@ -43,7 +42,7 @@ class ActiveSample:
         self.total_tokens = 0
         self.transcript = transcript
         self.sandboxes = sandboxes
-        self._interrupt_action: Literal["score", "error", "timeout"] | None = None
+        self._interrupt_action: Literal["score", "error"] | None = None
 
     @property
     def execution_time(self) -> float:
@@ -57,11 +56,11 @@ class ActiveSample:
         else:
             return 0
 
-    def interrupt(self, action: Literal["score", "error", "timeout"]) -> None:
+    def interrupt(self, action: Literal["score", "error"]) -> None:
         self._interrupt_action = action
 
     @property
-    def interrupt_action(self) -> Literal["score", "error", "timeout"] | None:
+    def interrupt_action(self) -> Literal["score", "error"] | None:
         return self._interrupt_action
 
 
@@ -104,26 +103,6 @@ async def active_sample(
         active.completed = datetime.now().timestamp()
         _active_samples.remove(active)
         _sample_active.set(None)
-
-
-@contextlib.asynccontextmanager
-async def sample_timeout(timeout: float) -> AsyncGenerator[None, None]:
-    # capture the active sample
-    sample = sample_active()
-
-    # set interrupt action on timeout
-    def on_timeout() -> None:
-        assert sample
-        sample.interrupt("timeout")
-
-    # schedule timeout
-    loop = events.get_running_loop()
-    handle_timeout = loop.call_at(loop.time() + timeout, on_timeout)
-
-    try:
-        yield
-    finally:
-        handle_timeout.cancel()
 
 
 def sample_active() -> ActiveSample | None:
