@@ -90,6 +90,10 @@ class LogHandler(RichHandler):
         if "Event loop is closed" in record.getMessage():
             return
 
+        # skip google-genai AFC message
+        if "AFC is enabled with max remote calls" in record.getMessage():
+            return
+
         # write to stderr if we are at or above the threshold
         if record.levelno >= self.display_level:
             super().emit(record)
