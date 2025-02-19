@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Google provider updated to use the [Google Gen AI SDK](https://googleapis.github.io/python-genai/), which is now the recommended API for Gemini 2.0 models.
+- Task display: Print task progress every 5 seconds for 'plain' display mode.
 
 ## v0.3.68 (19 February 2025)
 
