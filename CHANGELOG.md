@@ -1,4 +1,4 @@
-## Unreleased
+## v0.3.68 (19 February 2025)
 
 - Task display: Improve spacing/layout of final task display.
 - Textual: speicfy broader range of compatible versions (v0.86.2 to v1.0.0)
