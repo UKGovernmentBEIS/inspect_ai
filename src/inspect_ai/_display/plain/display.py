@@ -119,7 +119,7 @@ class PlainTaskDisplay(TaskDisplay):
         self.samples_complete = 0
         self.samples_total = 0
         self.current_metrics: list[TaskDisplayMetric] | None = None
-        self.last_progress = 0  # Track last progress percentage
+        self.last_progress = 0
 
     @contextlib.contextmanager
     def progress(self) -> Iterator[Progress]:
