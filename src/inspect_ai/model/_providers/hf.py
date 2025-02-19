@@ -1,6 +1,7 @@
 import asyncio
 import copy
 import functools
+import gc
 import json
 import os
 from dataclasses import dataclass
@@ -111,6 +112,12 @@ class HuggingFaceAPI(ModelAPI):
         # LLMs generally don't have a pad token and we need one for batching
         self.tokenizer.pad_token = self.tokenizer.eos_token
         self.tokenizer.padding_side = "left"
+
+    @override
+    async def close(self) -> None:
+        self.model = None
+        self.tokenizer = None
+        gc.collect()
 
     async def generate(
         self,

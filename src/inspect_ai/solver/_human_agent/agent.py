@@ -30,14 +30,11 @@ def human_agent(
     using a VS Code Window or Terminal.
 
     Args:
-       answer (bool | str): Is an explicit answer required for this
-          task or is it scored based on files in the container? Pass a
-          `str` with a regex to validate that the answer matches
-          the expected format.
-       intermediate_scoring (bool): Allow the human agent to
-          check their score while working.
-       record_session (bool): Record all user commands and outputs in
-          the sandbox bash session.
+       answer: Is an explicit answer required for this task or is it scored
+          based on files in the container? Pass a `str` with a regex to validate
+          that the answer matches the expected format.
+       intermediate_scoring: Allow the human agent to check their score while working.
+       record_session: Record all user commands and outputs in the sandbox bash session.
 
     Returns:
        Solver: Human agent solver.

@@ -198,6 +198,17 @@ def ollama() -> type[ModelAPI]:
     return OllamaAPI
 
 
+@modelapi(name="openrouter")
+def openrouter() -> type[ModelAPI]:
+    # validate
+    validate_openai_client("OpenRouter API")
+
+    # in the clear
+    from .openrouter import OpenRouterAPI
+
+    return OpenRouterAPI
+
+
 @modelapi(name="llama-cpp-python")
 def llama_cpp_python() -> type[ModelAPI]:
     # validate

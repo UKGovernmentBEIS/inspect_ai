@@ -3,7 +3,7 @@ from inspect_ai.dataset import Sample
 from inspect_ai.scorer import includes
 from inspect_ai.solver import system_message
 from inspect_ai.solver._basic_agent import basic_agent
-from inspect_ai.tool.beta import computer
+from inspect_ai.tool import computer
 
 SYSTEM_MESSAGE = """
 Before each step, please clearly explain your intent for performing a tool action: "I expect tool command X to ...".

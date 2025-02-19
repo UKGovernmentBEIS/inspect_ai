@@ -40,7 +40,8 @@ class ComposeProject:
         # if its a Dockerfile, then config is the auto-generated .compose.yaml
         if config_path and is_dockerfile(config_path.name):
             config = auto_compose_file(
-                COMPOSE_DOCKERFILE_YAML, config_path.parent.as_posix()
+                COMPOSE_DOCKERFILE_YAML.format(dockerfile=config_path.name),
+                config_path.parent.as_posix(),
             )
 
         # if its another config file, just take its path

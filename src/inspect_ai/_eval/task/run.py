@@ -190,7 +190,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
         if task.setup:
             plan.steps = unroll(task.setup) + plan.steps
 
-        # reaolve the scorer
+        # resolve the scorer
         score = score and task.scorer is not None
         scorers: list[Scorer] | None = task.scorer if (score and task.scorer) else None
         scorer_profiles = (
@@ -519,6 +519,7 @@ async def task_run_sample(
                     key: SampleScore(
                         score=score,
                         sample_id=previous_sample.id,
+                        sample_metadata=previous_sample.metadata,
                     )
                     for key, score in previous_sample.scores.items()
                 }
@@ -550,9 +551,11 @@ async def task_run_sample(
     # helper to handle exceptions (will throw if we've exceeded the limit)
     def handle_error(ex: BaseException) -> tuple[EvalError, BaseException | None]:
         err = sample_error(ex)
-        py_logger.warning(
-            f"Sample error (id: {sample.id}, epoch: {state.epoch}): {exception_message(ex)})"
-        )
+        # if we aren't raising the error then print a warning
+        if err[1] is None:
+            py_logger.warning(
+                f"Sample error (id: {sample.id}, epoch: {state.epoch}): {exception_message(ex)})"
+            )
         transcript()._event(ErrorEvent(error=err[0]))
         return err
 
@@ -696,6 +699,7 @@ async def task_run_sample(
                                         sample_score = SampleScore(
                                             score=score_result,
                                             sample_id=sample.id,
+                                            sample_metadata=sample.metadata,
                                             scorer=registry_unqualified_name(scorer),
                                         )
                                         transcript()._event(
@@ -709,7 +713,12 @@ async def task_run_sample(
                             if state.scores is not None:
                                 for name, score in state.scores.items():
                                     results[name] = SampleScore(
-                                        score=score, sample_id=state.sample_id
+                                        score=score,
+                                        sample_id=state.sample_id,
+                                        sample_metadata=state.metadata,
+                                    )
+                                    transcript()._event(
+                                        ScoreEvent(score=score, target=sample.target)
                                     )
 
                             # propagate results into scores

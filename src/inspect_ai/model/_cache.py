@@ -58,22 +58,23 @@ def _parse_expiry(period: str) -> int:
 class CachePolicy:
     """The `CachePolicy` is used to define various criteria that impact how model calls are cached.
 
-    Attributes:
-        expiry(str | None): Default "24h". The expiry time for the cache entry.
-          This is a string of the format "12h" for 12 hours or "1W" for a week,
-          etc. This is how long we will keep the cache entry, if we access it
-          after this point we'll clear it. Setting to `None` will cache
-          indefinitely.
-        per_epoch(bool): Default True. By default we cache responses separately
-          for different epochs. The general use case is that if there are
-          multiple epochs, we should cache each response separately because
-          scorers will aggregate across epochs. However, sometimes a response
-          can be cached regardless of epoch if the call being made isn't under
-          test as part of the evaluation. If False, this option allows you to
-          bypass that and cache independently of the epoch.
-        scopes(dict[str, str]): A dictionary of additional metadata that should
-          be included in the cache key. This allows for more fine-grained
-          control over the cache key generation.
+    `expiry`: Default "24h". The expiry time for the cache entry.
+    This is a string of the format "12h" for 12 hours or "1W" for a week,
+    etc. This is how long we will keep the cache entry, if we access it
+    after this point we'll clear it. Setting to `None` will cache
+    indefinitely.
+
+    `per_epoch`: Default True. By default we cache responses separately
+    for different epochs. The general use case is that if there are
+    multiple epochs, we should cache each response separately because
+    scorers will aggregate across epochs. However, sometimes a response
+    can be cached regardless of epoch if the call being made isn't under
+    test as part of the evaluation. If False, this option allows you to
+    bypass that and cache independently of the epoch.
+
+    `scopes`: A dictionary of additional metadata that should
+    be included in the cache key. This allows for more fine-grained
+    control over the cache key generation.
     """
 
     def __init__(
@@ -82,6 +83,14 @@ class CachePolicy:
         per_epoch: bool = True,
         scopes: dict[str, str] = {},
     ) -> None:
+        """Create a CachePolicy.
+
+        Args:
+           expiry: Expiry.
+           per_epoch: Per epoch
+           scopes: Scopes
+
+        """
         self.per_epoch = per_epoch
         self.scopes = scopes
 
@@ -236,7 +245,11 @@ def cache_fetch(entry: CacheEntry) -> ModelOutput | None:
 
 
 def cache_clear(model: str = "") -> bool:
-    """Clear the cache directory."""
+    """Clear the cache directory.
+
+    Args:
+       model: Model to clear cache for.
+    """
     try:
         path = cache_path(model)
 
@@ -252,6 +265,11 @@ def cache_clear(model: str = "") -> bool:
 
 
 def cache_path(model: str = "") -> Path:
+    """Path to cache directory.
+
+    Args:
+       model: Path to cache directory for specific model.
+    """
     env_cache_dir = os.environ.get("INSPECT_CACHE_DIR", None)
     if env_cache_dir:
         generate_cache = Path(env_cache_dir) / "generate"
@@ -320,9 +338,9 @@ def cache_size(
     will be calculated.
 
     Args:
-        subdirs(list[str]): List of folders to filter by, which are generally
+        subdirs: List of folders to filter by, which are generally
             model names. Empty directories will be ignored.
-        files(list[str]): List of files to filter by explicitly. Note that
+        files: List of files to filter by explicitly. Note that
             return value group these up by their parent directory
 
     Returns:
@@ -344,7 +362,7 @@ def cache_list_expired(filter_by: list[str] = []) -> list[Path]:
     """Returns a list of all the cached files that have passed their expiry time.
 
     Args:
-        filter_by(list[str]): Default []. List of model names to filter by. If
+        filter_by: Default []. List of model names to filter by. If
             an empty list, this will search the entire cache.
     """
     expired_cache_entries = []
@@ -384,7 +402,7 @@ def cache_prune(files: list[Path] = []) -> None:
     """Delete all expired cache entries.
 
     Args:
-        files(list[Path]): Default []. List of files to prune. If empty, this
+        files: List of files to prune. If empty, this
             will search the entire cache.
     """
     if not files:

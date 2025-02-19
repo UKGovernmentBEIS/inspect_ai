@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import Any, AsyncIterator, Callable, Coroutine, Iterator
 
 import rich
-from rich.console import Console, RenderableType
+from rich.console import Console, Group, RenderableType
 from rich.live import Live
 from rich.panel import Panel
 from rich.progress import Progress as RProgress
@@ -298,7 +298,7 @@ def task_live_status(tasks: list[TaskStatus], progress: RProgress) -> Renderable
     return task_panel(
         profile=tasks[0].profile,
         show_model=len(tasks) == 1,
-        body=progress,
+        body=Group("", progress),
         subtitle=subtitle,
         footer=task_footer(theme.light),
         log_location=None,

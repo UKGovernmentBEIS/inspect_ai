@@ -1,0 +1,43 @@
+.output {
+  padding-top: 1em;
+}
+
+.container {
+  margin: 0.5em 0;
+  width: 100%;
+}
+
+.all {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: 1em;
+}
+
+.tableSelection {
+  width: fit-content;
+  align-self: start;
+  justify-self: start;
+}
+
+.tools {
+  grid-column: -1/1;
+}
+
+.codePre {
+  background: var(--bs-light);
+  width: 100%;
+  padding: 0.5em;
+  border-radius: var(--bs-border-radius);
+}
+
+.code {
+  white-space: pre-wrap;
+  word-wrap: anywhere;
+}
+
+.toolConfig {
+  display: grid;
+  grid-template-columns: max-content auto;
+  column-gap: 1em;
+  row-gap: 0.5em;
+}

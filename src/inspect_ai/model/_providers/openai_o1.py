@@ -27,11 +27,7 @@ from inspect_ai.tool import ToolCall, ToolInfo
 from .._call_tools import parse_tool_call, tool_parse_error_message
 from .._model_call import ModelCall
 from .._model_output import ModelUsage, StopReason, as_stop_reason
-from .._providers.util import (
-    ChatAPIHandler,
-    ChatAPIMessage,
-    chat_api_input,
-)
+from .._providers.util import ChatAPIHandler, ChatAPIMessage, chat_api_input
 
 logger = getLogger(__name__)
 
@@ -85,6 +81,8 @@ def handle_bad_request(model: str, ex: BadRequestError) -> ModelOutput | Excepti
         stop_reason: StopReason | None = "model_length"
     elif ex.code == "invalid_prompt":
         stop_reason = "content_filter"
+    else:
+        stop_reason = None
 
     if stop_reason:
         return ModelOutput.from_content(

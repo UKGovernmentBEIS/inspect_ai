@@ -1,0 +1,14 @@
+.outputPre {
+  padding: 0.5em;
+  margin-top: 0.25em;
+  margin-bottom: 1rem;
+}
+
+.outputCode {
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.bottomMargin {
+  margin-bottom: 1em;
+}

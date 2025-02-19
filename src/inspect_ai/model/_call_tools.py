@@ -133,7 +133,8 @@ async def call_tools(
             ):
                 content: str | list[Content] = [result]
             elif isinstance(result, list) and (
-                isinstance(
+                len(result) == 0
+                or isinstance(
                     result[0], ContentText | ContentImage | ContentAudio | ContentVideo
                 )
             ):
@@ -186,7 +187,7 @@ async def call_tools(
                 view=call.view,
                 pending=True,
             )
-            event.set_task(task)
+            event._set_task(task)
             transcript()._event(event)
 
             # execute the tool call. if the operator cancelled the
@@ -226,7 +227,7 @@ async def call_tools(
             conversation_tool_mesage(tool_message)
 
             # update the event with the results
-            event.set_result(
+            event._set_result(
                 result=result_event.result,
                 truncated=result_event.truncated,
                 error=result_event.error,

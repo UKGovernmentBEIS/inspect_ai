@@ -1,7 +1,15 @@
 import asyncio
 import contextlib
 from asyncio import CancelledError
-from typing import Any, AsyncIterator, ClassVar, Coroutine, Generic, Iterator, cast
+from typing import (
+    Any,
+    AsyncIterator,
+    ClassVar,
+    Coroutine,
+    Generic,
+    Iterator,
+    cast,
+)
 
 import rich
 from rich.console import Console
@@ -178,6 +186,10 @@ class TaskScreenApp(App[TR]):
         # force repaint
         self.refresh(repaint=True)
 
+        # enable mouse support (this broke in textual 2.0 when running in VS Code)
+        assert self.app._driver
+        textual_enable_mouse_support(self.app._driver)
+
         try:
             yield TextualTaskScreen(self)
         finally:
@@ -304,9 +316,9 @@ class TaskScreenApp(App[TR]):
 
         def set_unread(unread: int | None) -> None:
             if unread is not None:
-                console_tab.label = Text.from_markup(f"Console ({unread})")
+                console_tab.label = Text(f"Console ({unread}")
             else:
-                console_tab.label = Text.from_markup("Console")
+                console_tab.label = Text("Console")
 
         self.watch(console_view, "unread", set_unread)
 
@@ -373,7 +385,7 @@ class TaskScreenApp(App[TR]):
         def set_title(self, title: str) -> None:
             tabs = self.app.query_one(TabbedContent)
             tab = tabs.get_tab(self.tab_id)
-            tab.label = Text.from_markup(title)
+            tab.label = Text(title)
 
         def activate(self) -> None:
             # show the tab

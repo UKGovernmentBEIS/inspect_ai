@@ -32,8 +32,8 @@ async def fork(
     Store that doesn't affect the Store of other subtasks or the parent).
 
     Args:
-      state (TaskState): Beginning TaskState
-      solvers (Solver | list[Solver]): Solvers to apply on the TaskState.
+      state: Beginning TaskState
+      solvers: Solvers to apply on the TaskState.
         Each Solver will get a standalone copy of the TaskState.
 
     Returns:

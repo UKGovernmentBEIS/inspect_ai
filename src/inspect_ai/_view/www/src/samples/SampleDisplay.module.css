@@ -1,0 +1,29 @@
+.tabPanel {
+  padding-bottom: 1em;
+}
+
+.fullWidth {
+  width: 100%;
+}
+
+.metadataPanel {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 1em;
+  padding-left: 0;
+  margin-top: 0.5em;
+}
+
+.padded {
+  padding-left: 0.8em;
+  margin-top: 0.4em;
+}
+
+.ansi {
+  margin: 1em 0;
+}
+
+.noTop {
+  margin-top: 0;
+}

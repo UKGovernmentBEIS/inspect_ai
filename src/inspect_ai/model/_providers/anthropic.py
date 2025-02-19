@@ -150,6 +150,10 @@ class AnthropicAPI(ModelAPI):
                 **model_args,
             )
 
+    @override
+    async def close(self) -> None:
+        await self.client.close()
+
     def is_bedrock(self) -> bool:
         return self.service == "bedrock"
 
@@ -216,6 +220,9 @@ class AnthropicAPI(ModelAPI):
             # return output and call
             return output, model_call()
 
+        except BadRequestError as ex:
+            return self.handle_bad_request(ex), model_call()
+
         except APIStatusError as ex:
             if ex.status_code == 413:
                 return ModelOutput.from_content(
@@ -226,9 +233,6 @@ class AnthropicAPI(ModelAPI):
                 ), model_call()
             else:
                 raise ex
-
-        except BadRequestError as ex:
-            return self.handle_bad_request(ex), model_call()
 
     def completion_params(self, config: GenerateConfig) -> dict[str, Any]:
         params = dict(model=self.model_name, max_tokens=cast(int, config.max_tokens))

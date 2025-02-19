@@ -1,3 +1,5 @@
+from copy import deepcopy
+from dataclasses import dataclass, field
 from functools import wraps
 from typing import (
     Any,
@@ -9,38 +11,74 @@ from typing import (
 )
 
 from inspect_ai._util._async import is_callable_coroutine
+from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.registry import (
     RegistryInfo,
+    is_registry_object,
     registry_add,
     registry_create,
     registry_info,
     registry_name,
+    registry_params,
     registry_tag,
     registry_unqualified_name,
 )
 from inspect_ai.solver._task_state import TaskState
 
-from ._metric import Metric, Score
+from ._metric import Metric, MetricSpec, Score, as_metric_spec
 from ._target import Target
 
 
 @runtime_checkable
 class Scorer(Protocol):
-    r"""Score model outputs.
-
-    Evaluate the passed outputs and targets and return a
-    dictionary with scoring outcomes and context.
-
-    Args:
-        state (TaskState): Task state
-        target (Target): Ideal target for the output.
-    """
-
     async def __call__(
         self,
         state: TaskState,
         target: Target,
-    ) -> Score: ...
+    ) -> Score:
+        r"""Score model outputs.
+
+        Evaluate the passed outputs and targets and return a
+        dictionary with scoring outcomes and context.
+
+        Args:
+            state: Task state
+            target: Ideal target for the output.
+
+        Examples:
+          ```python
+          @scorer
+          def custom_scorer() -> Scorer:
+              async def score(state: TaskState, target: Target) -> Score:
+                  # Compare state / model output with target
+                  # to yield a score
+                  return Score(value=...)
+
+              return score
+          ````
+        """
+        ...
+
+
+@dataclass(frozen=True)
+class ScorerSpec:
+    """Scorer specification used to (re-)create scorers."""
+
+    scorer: str
+    """Scorer name"""
+
+    args: dict[str, Any] = field(default_factory=dict)
+    """Scorer arguments."""
+
+    metadata: dict[str, Any] | None = field(default=None)
+    """Scorer metadata"""
+
+    metrics: (
+        list[MetricSpec | dict[str, list[MetricSpec]]]
+        | dict[str, list[MetricSpec]]
+        | None
+    ) = field(default=None)
+    """Scorer metrics"""
 
 
 P = ParamSpec("P")
@@ -90,17 +128,28 @@ def scorer(
     r"""Decorator for registering scorers.
 
     Args:
-        metrics (list[Metric] | dict[str, list[Metric]]): One or more metrics to calculate
+        metrics: One or more metrics to calculate
             over the scores.
-        name (str | None):
-            Optional name for scorer. If the decorator has no name
+        name: Optional name for scorer. If the decorator has no name
             argument then the name of the underlying ScorerType
             object will be used to automatically assign a name.
-        **metadata (dict[str,Any]): Additional values to serialize
+        **metadata: Additional values to serialize
             in metadata.
 
     Returns:
         Scorer with registry attributes.
+
+    Examples:
+      ```python
+      @scorer
+      def custom_scorer() -> Scorer:
+          async def score(state: TaskState, target: Target) -> Score:
+              # Compare state / model output with target
+              # to yield a score
+              return Score(value=...)
+
+          return score
+      ````
     """
 
     def wrapper(scorer_type: Callable[P, Scorer]) -> Callable[P, Scorer]:
@@ -140,6 +189,51 @@ def scorer(
         )
 
     return wrapper
+
+
+def as_scorer_spec(scorer: Scorer) -> ScorerSpec:
+    if not is_registry_object(scorer):
+        raise PrerequisiteError(
+            f"The scorer {getattr(scorer, '__name__', '<unknown>')} was not created by a function decorated with @scorer so cannot be recorded."
+        )
+    name = registry_unqualified_name(scorer)
+    metrics = scorer_metrics(scorer)
+    resolved_metrics = resolve_metrics(metrics)
+
+    args = registry_params(scorer)
+    metadata = deepcopy(registry_info(scorer).metadata)
+    del metadata[SCORER_METRICS]
+
+    return ScorerSpec(
+        scorer=name, args=args, metadata=metadata, metrics=resolved_metrics
+    )
+
+
+def resolve_metrics(
+    metrics: list[Metric | dict[str, list[Metric]]] | dict[str, list[Metric]],
+) -> (
+    list[MetricSpec | dict[str, list[MetricSpec]]] | dict[str, list[MetricSpec]] | None
+):
+    if isinstance(metrics, list):
+        resolved_metrics: list[MetricSpec | dict[str, list[MetricSpec]]] = []
+        for metric_item in metrics:
+            if isinstance(metric_item, Metric):
+                resolved_metrics.append(as_metric_spec(metric_item))
+            else:
+                resolved_metrics.append(
+                    {
+                        metric_group: [
+                            as_metric_spec(metric) for metric in metrics_list
+                        ]
+                        for metric_group, metrics_list in metric_item.items()
+                    }
+                )
+        return resolved_metrics
+    else:
+        return {
+            metric_group: [as_metric_spec(metric) for metric in metrics_list]
+            for metric_group, metrics_list in metrics.items()
+        }
 
 
 def scorer_metrics(

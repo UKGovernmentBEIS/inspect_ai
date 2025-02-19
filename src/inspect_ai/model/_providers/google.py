@@ -5,7 +5,7 @@ import json
 from copy import copy
 from io import BytesIO
 from logging import getLogger
-from typing import Any, cast
+from typing import Any, MutableSequence, cast
 
 import proto  # type: ignore
 from google.ai.generativelanguage import (
@@ -133,6 +133,11 @@ class GoogleAPI(ModelAPI):
 
         # create model
         self.model = GenerativeModel(self.model_name)
+
+    @override
+    async def close(self) -> None:
+        # GenerativeModel uses a cached/shared client so there is no 'close'
+        pass
 
     async def generate(
         self,
@@ -393,12 +398,12 @@ def prepend_system_messages(
 ) -> None:
     # create system_parts
     system_parts: list[PartType] = [
-        Part(text=message.content) for message in system_messages
+        Part(text=message.text) for message in system_messages
     ]
 
     # we want the system messages to be prepended to the first user message
     # (if there is no first user message then prepend one)
-    if messages[0].get("role") == "user":
+    if len(messages) > 0 and messages[0].get("role") == "user":
         messages[0]["parts"] = system_parts + messages[0].get("parts", [])
     else:
         messages.insert(0, ContentDict(role="user", parts=system_parts))
@@ -553,11 +558,23 @@ def completion_choice_from_candidate(candidate: Candidate) -> ChatCompletionChoi
 
 
 def completion_choices_from_candidates(
-    candidates: list[Candidate],
+    candidates: MutableSequence[Candidate],
 ) -> list[ChatCompletionChoice]:
-    candidates = copy(candidates)
-    candidates.sort(key=lambda c: c.index)
-    return [completion_choice_from_candidate(candidate) for candidate in candidates]
+    if candidates:
+        candidates_list = sorted(candidates, key=lambda c: c.index)
+        return [
+            completion_choice_from_candidate(candidate) for candidate in candidates_list
+        ]
+    else:
+        return [
+            ChatCompletionChoice(
+                message=ChatMessageAssistant(
+                    content="I was unable to generate a response.",
+                    source="generate",
+                ),
+                stop_reason="unknown",
+            )
+        ]
 
 
 # google doesn't export FinishReason (it's in a sub-namespace with a beta

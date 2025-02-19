@@ -4,7 +4,9 @@ import { EvalLog, EvalResults } from '../../../@types/log';
 import path from 'path';
 import { MarkdownString } from 'vscode';
 import { stringify } from 'yaml';
+import { sleep } from '../../../core/wait';
 
+export const kLogListCacheName = 'logListingCache'
 
 export class LogElementQueueProcessor {
   private queue: LogNode[] = [];
@@ -22,6 +24,13 @@ export class LogElementQueueProcessor {
     private readonly onElementUpdated: (element: LogNode) => void,
     private readonly batchSize: number = 10,
   ) {
+    // Load cache from workspace storage
+    const savedCache = this.context.workspaceState.get<Map<string, { iconPath?: string; tooltip?: vscode.MarkdownString }>>(kLogListCacheName);
+    if (savedCache) {
+      this.elementCache = new Map(savedCache);
+    } else {
+      this.elementCache = new Map();
+    }
   }
 
   enqueueElement(element: LogNode): void {
@@ -84,8 +93,9 @@ export class LogElementQueueProcessor {
           const evalLogs = JSON.parse(headers) as EvalLog[];
 
           // Update elements with their corresponding evalLog
-          evalLogs.forEach((evalLog, index) => {
-            const uri = uris[index];
+          for (let i = 0; i < evalLogs.length; i++) {
+            const evalLog = evalLogs[i];
+            const uri = uris[i];
             const element = elementUris.get(uri);
             if (element && evalLog?.version === 2) {
               // Populate the server provided props
@@ -104,12 +114,16 @@ export class LogElementQueueProcessor {
                   iconPath: element.iconPath,
                   tooltip: element.tooltip
                 });
+
+                // Persist the cache
+                await this.context.workspaceState.update(kLogListCacheName, Array.from(this.elementCache.entries()));
+                this.enforceCacheLimit();
               }
 
               // Notify that the element was updated
               this.onElementUpdated(element);
             }
-          });
+          }
         }
       }
     } catch (error) {
@@ -122,6 +136,7 @@ export class LogElementQueueProcessor {
 
       // Process remaining items if any
       if (this.queue.length > 0) {
+        await sleep(5000);
         await this.processQueue();
       }
     }
@@ -129,6 +144,15 @@ export class LogElementQueueProcessor {
 
   clearCache(): void {
     this.elementCache.clear();
+  }
+
+  enforceCacheLimit(): void {
+    // Evict the least recently used item if this exceeds 
+    // the max size
+    if (this.elementCache.size > 500) {
+      const keys = Array.from(this.elementCache.keys());
+      this.elementCache.delete(keys[0]);
+    }
   }
 
   public cachedValue(uri: string): {
@@ -176,7 +200,7 @@ function iconForStatus(
 }
 
 
-export function evalSummary(node: LogNode, log: EvalLog): MarkdownString {
+export function evalSummary(node: LogNode, log: EvalLog): MarkdownString | undefined {
   // build summary
   const summary = evalHeader(log);
 
@@ -192,7 +216,11 @@ export function evalSummary(node: LogNode, log: EvalLog): MarkdownString {
     summary.push(...config);
   }
 
-  return new MarkdownString(summary.join("\n  "), true);
+  if (summary.length > 0) {
+    return new MarkdownString(summary.join("\n  "), true);
+  } else {
+    return undefined;
+  }
 }
 
 function evalHeader(log: EvalLog): string[] {

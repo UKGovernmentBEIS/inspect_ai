@@ -40,7 +40,7 @@ The result will be printed out in _stdout_ in the following format:
 error: <an ERROR message if one occured>
 info: <general info about the container>
 web_url: <the URL of the page the browser is currently at>
-wen_at: <accessibility tree of the visible elements of the page>
+web_at: <accessibility tree of the visible elements of the page>
 ```   
 
 
@@ -57,7 +57,7 @@ The tool consists of the following components:
   * _web_environment.py_ - an environment which gets instantiated by the servicer and which launches the browser, stores its state and maps client commands to Playwright API. 
   * _playwright_crawler.py_ - a wrapper over the sync Playwright API. 
 
-* [WebClient](web_client.py) - a simple stateless client to interract with the server. When launched, the client:
+* [WebClient](web_client.py) - a simple stateless client to interact with the server. When launched, the client:
   1. creates a connection with the server;
   2. sends user command to the server;
   3. receives the response in the form of observations and prints them to stdout;

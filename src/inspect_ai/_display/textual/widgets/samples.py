@@ -16,7 +16,7 @@ from textual.widgets import (
     OptionList,
     Static,
 )
-from textual.widgets.option_list import Option, Separator
+from textual.widgets.option_list import Option
 
 from inspect_ai._display.textual.widgets.port_mappings import get_url
 from inspect_ai._util.format import format_progress_time
@@ -142,7 +142,7 @@ class SamplesList(OptionList):
 
         # rebuild the list
         self.clear_options()
-        options: list[Option | Separator] = []
+        options: list[Option] = []
         for sample in self.samples:
             table = Table.grid(expand=True)
             table.add_column(width=20)
@@ -347,7 +347,7 @@ class SampleLimits(Widget):
 class SandboxesView(Vertical):
     DEFAULT_CSS = """
     SandboxesView {
-        padding: 1 0 1 0;
+        padding: 1 0 0 0;
         background: transparent;
         height: auto;
     }
@@ -358,6 +358,7 @@ class SandboxesView(Vertical):
         background: transparent;
     }
     .clipboard-message {
+        height: auto;
         margin-top: 1;
     }
     """
@@ -372,7 +373,6 @@ class SandboxesView(Vertical):
     async def sync_sample(self, sample: ActiveSample) -> None:
         if len(sample.sandboxes) > 0:
             multiple_sandboxes = len(sample.sandboxes) > 1
-            self.display = True
             sandboxes_caption = cast(Static, self.query_one("#sandboxes-caption"))
             sandboxes_caption.update(
                 f"[bold]sandbox container{'s' if multiple_sandboxes else ''}:[/bold]"
@@ -395,6 +395,7 @@ class SandboxesView(Vertical):
                     markup=True,
                 )
             )
+            self.display = True
         else:
             self.display = False
 
@@ -473,7 +474,7 @@ class SampleToolbar(Horizontal):
                     else None
                 )
                 if isinstance(last_event, ToolEvent):
-                    last_event.cancel()
+                    last_event._cancel()
             elif event.button.id == self.CANCEL_SCORE_OUTPUT:
                 self.sample.interrupt("score")
             elif event.button.id == self.CANCEL_RAISE_ERROR:
