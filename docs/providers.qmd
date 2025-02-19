@@ -129,7 +129,7 @@ inspect eval ctf.py --model google/vertex/gemini-2.0-flash \
    -M project=project-12345 -M location=us-east5
 ```
 
-Authentication is doing using the standard Google Cloud CLI. For example:
+Authentication is done using the standard Google Cloud CLI. For example:
 
 ```bash
 gcloud auth application-default login
