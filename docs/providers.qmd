@@ -139,10 +139,11 @@ If you have authorised the CLI then no additional auth is needed for the model A
 
 ### Safety Settings {#safety-settings}
 
-Google models make available [safety settings](https://ai.google.dev/gemini-api/docs/safety-settings) that you can adjust to determine what sorts of requests will be handled (or refused) by the model. The four categories of safety settings are as follows:
+Google models make available [safety settings](https://ai.google.dev/gemini-api/docs/safety-settings) that you can adjust to determine what sorts of requests will be handled (or refused) by the model. The five categories of safety settings are as follows:
 
 | Category | Description |
 |------------------------|-----------------------------------------------|
+| `civic_integrity`   |  Election-related queries.          |
 | `sexually_explicit` | Contains references to sexual acts or other lewd content. |
 | `hate_speech` | Content that is rude, disrespectful, or profane. |
 | `harassment` | Negative or harmful comments targeting identity and/or protected attributes. |

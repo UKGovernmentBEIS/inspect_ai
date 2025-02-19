@@ -54,10 +54,10 @@ Use `inspect eval --help` to learn about all of the available generation config 
 
 ## Model Args
 
-If there is an additional aspect of a model you want to tweak that isn't covered by the `GenerateConfig`, you can use model args to pass additional arguments to model clients. For example, here we specify the `transport` option for a Google Gemini model:
+If there is an additional aspect of a model you want to tweak that isn't covered by the `GenerateConfig`, you can use model args to pass additional arguments to model clients. For example, here we specify the `location` option for a Google Gemini model:
 
 ``` bash
-inspect eval arc.py --model google/gemini-1.5-pro -M transport:grpc
+inspect eval arc.py --model google/gemini-1.5-pro -M location=us-east5
 ```
 
 See the documentation for the requisite model provider for information on how model args are passed through to model clients.
