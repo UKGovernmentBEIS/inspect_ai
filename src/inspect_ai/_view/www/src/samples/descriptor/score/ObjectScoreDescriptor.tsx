@@ -49,7 +49,7 @@ export const objectScoreDescriptor = (values: Value2[]): ScoreDescriptor => {
                   ? value
                   : parseFloat(value === true ? "1" : value),
               )
-            : value;
+            : String(value);
         scores.push(
           <div
             className={clsx(
