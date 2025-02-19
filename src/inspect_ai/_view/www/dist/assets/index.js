@@ -14470,7 +14470,7 @@ var require_assets = __commonJS({
             const value2 = score2[key2];
             const formattedValue = value2 && isNumeric(value2) ? formatPrettyDecimal(
               typeof value2 === "number" ? value2 : parseFloat(value2 === true ? "1" : value2)
-            ) : value2;
+            ) : String(value2);
             scores2.push(
               /* @__PURE__ */ jsxRuntimeExports.jsxs(
                 "div",
