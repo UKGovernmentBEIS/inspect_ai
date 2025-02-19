@@ -6,6 +6,7 @@ from rich.table import Table
 from rich.text import Text
 from textual.app import ComposeResult
 from textual.containers import Horizontal, HorizontalGroup, Vertical, VerticalGroup
+from textual.css.query import NoMatches
 from textual.reactive import reactive
 from textual.widget import Widget
 from textual.widgets import (
@@ -61,7 +62,10 @@ class SamplesView(Widget):
         )
 
     async def notify_active(self, active: bool) -> None:
-        await self.query_one(TranscriptView).notify_active(active)
+        try:
+            await self.query_one(TranscriptView).notify_active(active)
+        except NoMatches:
+            pass
 
     def set_samples(self, samples: list[ActiveSample]) -> None:
         # throttle to no more than 1 second per 100 samples
