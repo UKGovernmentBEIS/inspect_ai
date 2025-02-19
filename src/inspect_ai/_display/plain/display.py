@@ -126,7 +126,7 @@ class PlainTaskDisplay(TaskDisplay):
         self.progress_display = PlainProgress(self.task.profile.steps)
         yield self.progress_display
 
-    @throttle(10)
+    @throttle(5)
     def _print_status_throttled(self) -> None:
         self._print_status()
 
