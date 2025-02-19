@@ -551,9 +551,11 @@ async def task_run_sample(
     # helper to handle exceptions (will throw if we've exceeded the limit)
     def handle_error(ex: BaseException) -> tuple[EvalError, BaseException | None]:
         err = sample_error(ex)
-        py_logger.warning(
-            f"Sample error (id: {sample.id}, epoch: {state.epoch}): {exception_message(ex)})"
-        )
+        # if we aren't raising the error then print a warning
+        if err[1] is None:
+            py_logger.warning(
+                f"Sample error (id: {sample.id}, epoch: {state.epoch}): {exception_message(ex)})"
+            )
         transcript()._event(ErrorEvent(error=err[0]))
         return err
 

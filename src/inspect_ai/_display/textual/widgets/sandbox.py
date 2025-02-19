@@ -38,6 +38,6 @@ class SandboxView(Vertical):
         with Horizontal():
             yield Static("", classes="indent" if self.sandbox_name else "no_indent")
             with Vertical():
-                yield Static(self.connection.command)
+                yield Static(self.connection.command, markup=False)
                 if self.connection.ports:
                     yield PortMappingsView(self.connection.ports)

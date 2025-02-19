@@ -1,13 +1,21 @@
 import asyncio
 import contextlib
 from asyncio import CancelledError
-from typing import Any, AsyncIterator, ClassVar, Coroutine, Generic, Iterator, cast
+from typing import (
+    Any,
+    AsyncIterator,
+    ClassVar,
+    Coroutine,
+    Generic,
+    Iterator,
+    cast,
+)
 
 import rich
 from rich.console import Console
+from rich.text import Text
 from textual.app import App, ComposeResult
 from textual.binding import Binding, BindingType
-from textual.content import Content
 from textual.css.query import NoMatches
 from textual.events import Print
 from textual.widget import Widget
@@ -308,9 +316,9 @@ class TaskScreenApp(App[TR]):
 
         def set_unread(unread: int | None) -> None:
             if unread is not None:
-                console_tab.label = Content.from_rich_text(f"Console ({unread}")
+                console_tab.label = Text(f"Console ({unread}")
             else:
-                console_tab.label = Content.from_rich_text("Console")
+                console_tab.label = Text("Console")
 
         self.watch(console_view, "unread", set_unread)
 
@@ -377,7 +385,7 @@ class TaskScreenApp(App[TR]):
         def set_title(self, title: str) -> None:
             tabs = self.app.query_one(TabbedContent)
             tab = tabs.get_tab(self.tab_id)
-            tab.label = Content.from_rich_text(title)
+            tab.label = Text(title)
 
         def activate(self) -> None:
             # show the tab

@@ -98,14 +98,6 @@ model = get_model("hf/openai-community/gpt2", device="cuda:0")
 
 ### Model Caching
 
-::: {.callout-note appearance="simple"}
-The model caching and context manager features described below are currently available only in the development version of Inspect. To install the development version from GitHub:
-
-``` bash
-pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-```
-:::
-
 By default, calls to `get_model()` are memoized, meaning that calls with identical parameters resolve to a cached version of the model. You can disable this by passing `memoize=False`:
 
 ```python

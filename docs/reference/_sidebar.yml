@@ -44,6 +44,8 @@ website:
           href: reference/inspect_ai.solver.qmd#system_message
         - text: user_message
           href: reference/inspect_ai.solver.qmd#user_message
+        - text: assistant_message
+          href: reference/inspect_ai.solver.qmd#assistant_message
         - text: chain_of_thought
           href: reference/inspect_ai.solver.qmd#chain_of_thought
         - text: self_critique
