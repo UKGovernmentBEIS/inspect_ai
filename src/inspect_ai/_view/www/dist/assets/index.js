@@ -38274,7 +38274,7 @@ self.onmessage = function (e) {
       }
       return (await api$2("GET", `/api/log-headers?${params2.toString()}`)).parsed;
     }
-    async function eval_pending_samples$1(log_file, etag) {
+    async function eval_pending_samples(log_file, etag) {
       const params2 = new URLSearchParams();
       params2.append("log", log_file);
       const headers = {};
@@ -38309,7 +38309,7 @@ self.onmessage = function (e) {
       )).parsed;
       return result2;
     }
-    async function eval_log_sample_data$1(log_file, id, epoch, last_event, last_attachment) {
+    async function eval_log_sample_data(log_file, id, epoch, last_event, last_attachment) {
       const params2 = new URLSearchParams();
       params2.append("log", log_file);
       params2.append("id", String(id));
@@ -38413,8 +38413,8 @@ self.onmessage = function (e) {
       eval_log_headers: eval_log_headers$1,
       download_file: download_file$1,
       open_log_file: open_log_file$1,
-      eval_pending_samples: eval_pending_samples$1,
-      eval_log_sample_data: eval_log_sample_data$1
+      eval_pending_samples,
+      eval_log_sample_data
     };
     var ch2 = {};
     var wk = function(c2, id, msg, transfer, cb) {
@@ -39254,15 +39254,7 @@ self.onmessage = function (e) {
           );
         },
         download_file: download_file$1,
-        open_log_file: open_log_file2,
-        eval_pending_samples: async function(_log_file, _etag) {
-          return {
-            status: "NotFound"
-          };
-        },
-        eval_log_sample_data: function(_log_file, _id, _epoch, _last_event, _last_attachment) {
-          return Promise.resolve(void 0);
-        }
+        open_log_file: open_log_file2
       };
     }
     async function fetchFile(url, parse2, handleError2) {
@@ -40549,14 +40541,6 @@ self.onmessage = function (e) {
       };
       (_a2 = getVscodeApi()) == null ? void 0 : _a2.postMessage(msg);
     }
-    async function eval_pending_samples(_log_file, _etag) {
-      return {
-        status: "NotFound"
-      };
-    }
-    async function eval_log_sample_data(_log_file, _id, _epoch, _last_event, _last_attachment) {
-      return void 0;
-    }
     const api$1 = {
       client_events,
       eval_logs,
@@ -40565,9 +40549,7 @@ self.onmessage = function (e) {
       eval_log_bytes,
       eval_log_headers,
       download_file,
-      open_log_file,
-      eval_pending_samples,
-      eval_log_sample_data
+      open_log_file
     };
     class AsyncQueue {
       constructor(concurrentLimit = 6) {
@@ -40938,9 +40920,15 @@ self.onmessage = function (e) {
         throw new Error("Unable to determine log paths.");
       };
       const get_log_pending_samples = (log_file2, etag) => {
+        if (!api2.eval_pending_samples) {
+          throw new Error("API doesn't support streamed samples");
+        }
         return api2.eval_pending_samples(log_file2, etag);
       };
       const get_log_sample_data = (log_file2, id, epoch, last_event, last_attachment) => {
+        if (!api2.eval_log_sample_data) {
+          throw new Error("API doesn't supported streamed sample data");
+        }
         return api2.eval_log_sample_data(
           log_file2,
           id,
@@ -40967,8 +40955,8 @@ self.onmessage = function (e) {
         download_file: (download_file2, file_contents) => {
           return api2.download_file(download_file2, file_contents);
         },
-        get_log_pending_samples,
-        get_log_sample_data
+        get_log_pending_samples: api2.eval_pending_samples ? get_log_pending_samples : void 0,
+        get_log_sample_data: api2.eval_log_sample_data ? get_log_sample_data : void 0
       };
     };
     const resolveApi = () => {
@@ -66047,6 +66035,9 @@ ${events}
           }
         };
         const pollPendingSamples = async () => {
+          if (!api2.get_log_pending_samples) {
+            return;
+          }
           try {
             const pendingSamples = await api2.get_log_pending_samples(logFile.name);
             if (!isActive) return;
@@ -66464,10 +66455,13 @@ ${events}
       return obj;
     };
     const vscode = getVscodeApi();
+    const resolvedApi = api;
     let initialState = void 0;
     let capabilities = {
       downloadFiles: true,
-      webWorkers: true
+      webWorkers: true,
+      streamSamples: !!resolvedApi.get_log_pending_samples,
+      streamSampleData: !!resolvedApi.get_log_sample_data
     };
     if (vscode) {
       initialState = filterState(vscode.getState());
@@ -66476,7 +66470,8 @@ ${events}
       );
       const extensionVersion = extensionVersionEl ? extensionVersionEl.getAttribute("content") : void 0;
       if (!extensionVersion) {
-        capabilities = { downloadFiles: false, webWorkers: false };
+        capabilities.downloadFiles = false;
+        capabilities.webWorkers = false;
       }
     }
     const containerId = "app";
@@ -66492,7 +66487,7 @@ ${events}
       /* @__PURE__ */ jsxRuntimeExports.jsx(
         App,
         {
-          api,
+          api: resolvedApi,
           applicationState: initialState,
           saveApplicationState: throttle$1((state) => {
             const vscode2 = getVscodeApi();
@@ -66509,7 +66504,7 @@ ${events}
       if (!state) {
         return state;
       }
-      const filters = [filterLargeSample, filterLargeSelectedLog];
+      const filters = [filterLargeSample, filterLargeLogSummary];
       return filters.reduce(
         (filteredState, filter) => filter(filteredState),
         state
@@ -66527,16 +66522,13 @@ ${events}
         return state;
       }
     }
-    function filterLargeSelectedLog(state) {
-      var _a2;
-      if (!state || !((_a2 = state.selectedLog) == null ? void 0 : _a2.contents)) {
+    function filterLargeLogSummary(state) {
+      if (!state || !state.selectedLogSummary) {
         return state;
       }
-      const estimatedSize = estimateSize(
-        state.selectedLog.contents.sampleSummaries
-      );
+      const estimatedSize = estimateSize(state.selectedLogSummary.sampleSummaries);
       if (estimatedSize > 4e5) {
-        const { selectedLog, ...filteredState } = state;
+        const { selectedLogSummary, ...filteredState } = state;
         return filteredState;
       } else {
         return state;

@@ -7,10 +7,13 @@ import { getVscodeApi } from "./utils/vscode";
 
 // Read any state from the page itself
 const vscode = getVscodeApi();
+const resolvedApi = api;
 let initialState = undefined;
 let capabilities: Capabilities = {
   downloadFiles: true,
   webWorkers: true,
+  streamSamples: !!resolvedApi.get_log_pending_samples,
+  streamSampleData: !!resolvedApi.get_log_sample_data,
 };
 if (vscode) {
   initialState = filterState(vscode.getState() as ApplicationState);
@@ -24,7 +27,8 @@ if (vscode) {
     : undefined;
 
   if (!extensionVersion) {
-    capabilities = { downloadFiles: false, webWorkers: false };
+    capabilities.downloadFiles = false;
+    capabilities.webWorkers = false;
   }
 }
 
@@ -40,7 +44,7 @@ if (!container) {
 const root = createRoot(container as HTMLElement);
 root.render(
   <App
-    api={api}
+    api={resolvedApi}
     applicationState={initialState}
     saveApplicationState={throttle((state) => {
       const vscode = getVscodeApi();
