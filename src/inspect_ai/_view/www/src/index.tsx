@@ -59,7 +59,7 @@ function filterState(state: ApplicationState) {
   }
 
   // When saving state, we can't store vast amounts of data (like a large sample)
-  const filters = [filterLargeSample, filterLargeSelectedLog];
+  const filters = [filterLargeSample, filterLargeLogSummary];
   return filters.reduce(
     (filteredState, filter) => filter(filteredState),
     state,
@@ -82,16 +82,14 @@ function filterLargeSample(state: ApplicationState) {
 }
 
 // Filters the selectedlog if it is too large
-function filterLargeSelectedLog(state: ApplicationState) {
-  if (!state || !state.selectedLog?.contents) {
+function filterLargeLogSummary(state: ApplicationState) {
+  if (!state || !state.selectedLogSummary) {
     return state;
   }
 
-  const estimatedSize = estimateSize(
-    state.selectedLog.contents.sampleSummaries,
-  );
+  const estimatedSize = estimateSize(state.selectedLogSummary.sampleSummaries);
   if (estimatedSize > 400000) {
-    const { selectedLog, ...filteredState } = state;
+    const { selectedLogSummary, ...filteredState } = state;
     return filteredState;
   } else {
     return state;
