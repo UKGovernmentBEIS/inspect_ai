@@ -29,7 +29,6 @@ from inspect_ai.log._transcript import (
     ModelEvent,
     SampleInitEvent,
     SampleLimitEvent,
-    SandboxEvent,
     ScoreEvent,
     StepEvent,
     SubtaskEvent,
@@ -237,12 +236,6 @@ def render_tool_event(event: ToolEvent) -> list[EventDisplay]:
     return [EventDisplay("tool call", Group(*content))]
 
 
-def render_sandbox_event(event: SandboxEvent) -> EventDisplay:
-    return EventDisplay(
-        title=f"sandbox: {event.action}", content=transcript_markdown(event.summary)
-    )
-
-
 def render_step_event(event: StepEvent) -> EventDisplay:
     if event.type == "solver":
         return render_solver_event(event)
@@ -360,7 +353,6 @@ _renderers: list[tuple[Type[Event], EventRenderer]] = [
     (StepEvent, render_step_event),
     (ModelEvent, render_model_event),
     (ToolEvent, render_tool_event),
-    (SandboxEvent, render_sandbox_event),
     (SubtaskEvent, render_subtask_event),
     (ScoreEvent, render_score_event),
     (InputEvent, render_input_event),
