@@ -19246,7 +19246,7 @@ span.ap-marker-container:hover span.ap-marker {
 ._message_5y0hl_15 {
   width: 300px;
 }
-._grid_w4mqz_1 {
+._grid_2k7ov_1 {
   display: grid;
   padding-top: 1em;
   padding-bottom: 1em;
@@ -19258,31 +19258,31 @@ span.ap-marker-container:hover span.ap-marker {
   padding-right: 1rem;
 }
 
-._selected_w4mqz_13 {
+._selected_2k7ov_13 {
   box-shadow: inset 0 0 0px 2px var(--bs-focus-ring-color);
 }
 
-._cell_w4mqz_17 {
+._cell_2k7ov_17 {
   padding-left: 0;
   padding-right: 0;
 }
 
-._wrapAnywhere_w4mqz_22 {
+._wrapAnywhere_2k7ov_22 {
   word-wrap: anywhere;
 }
 
-._noLeft_w4mqz_26 {
+._noLeft_2k7ov_26 {
   padding-left: 0;
 }
 
-._score_w4mqz_30 {
+._score_2k7ov_30 {
   display: flex;
   justify-self: center;
 }
 
-._spinner_w4mqz_35 {
-  height: 1.6em;
-  width: 1.6em;
+._spinner_2k7ov_35 {
+  height: 1.4em;
+  width: 1.4em;
   color: var(--bs-focus-ring-color);
 }
 ._row_utdq5_1 {
