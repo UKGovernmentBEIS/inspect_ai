@@ -6,11 +6,12 @@ from pathlib import Path
 from typing import Any, Literal, cast
 
 import yaml
+from pydantic import BaseModel
+
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.trace import trace_message
 from inspect_ai.util._display import display_type
 from inspect_ai.util._subprocess import ExecResult, subprocess
-from pydantic import BaseModel
 
 from .prereqs import (
     DOCKER_COMPOSE_REQUIRED_VERSION_PULL_POLICY,
@@ -27,7 +28,7 @@ COMPOSE_WAIT = 120
 
 async def compose_up(
     project: ComposeProject, services: dict[str, ComposeService]
-) -> ExecResult:
+) -> ExecResult[str]:
     # compute the maximum amount of time we will
     up_command = ["up", "--detach", "--wait"]
 
