@@ -26,23 +26,13 @@ export const ErroredPanel: React.FC<StatusProps> = ({ sampleCount }) => {
   );
 };
 
-export const RunningPanel: React.FC<StatusProps> = ({ sampleCount }) => {
-  return (
-    <StatusPanel
-      icon={ApplicationIcons.running}
-      status="Running"
-      sampleCount={sampleCount}
-    />
-  );
-};
-
-interface StatusPanelProps {
+export interface StatusPanelProps {
   icon: string;
   status: string;
   sampleCount: number;
 }
 
-const StatusPanel: React.FC<StatusPanelProps> = ({
+export const StatusPanel: React.FC<StatusPanelProps> = ({
   icon,
   status,
   sampleCount,
