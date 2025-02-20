@@ -1,7 +1,7 @@
 import tempfile
 import warnings
 from pathlib import Path
-from typing import Literal, Union, cast, overload
+from typing import Any, Literal, Union, cast, overload
 
 from typing_extensions import override
 
@@ -40,8 +40,8 @@ class LocalSandboxEnvironment(SandboxEnvironment):
         interrupted: bool,
     ) -> None:
         for environment in environments.values():
-            env = cast(LocalSandboxEnvironment, environment)
-            env.directory.cleanup()
+            directory = cast(tempfile.TemporaryDirectory[str], environment.context())
+            directory.cleanup()
 
     def __init__(self) -> None:
         self.directory = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
@@ -107,6 +107,10 @@ class LocalSandboxEnvironment(SandboxEnvironment):
         else:
             with open(file, "rb") as f:
                 return f.read()
+
+    @override
+    def context(self) -> Any:
+        return self.directory
 
     def _resolve_file(self, file: str) -> str:
         path = Path(file)
