@@ -75,7 +75,7 @@ export interface SampleSummary {
   scores: Scores1;
   error?: string;
   limit?: Type11;
-  complete?: boolean;
+  completed?: boolean;
 }
 
 export interface BasicSampleData {
