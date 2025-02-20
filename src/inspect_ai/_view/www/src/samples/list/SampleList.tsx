@@ -1,4 +1,3 @@
-import clsx from "clsx";
 import {
   KeyboardEvent,
   RefObject,
@@ -8,9 +7,10 @@ import {
   useRef,
   useState,
 } from "react";
+import { Virtuoso } from "react-virtuoso";
 import { EmptyPanel } from "../../components/EmptyPanel";
 import { MessageBand } from "../../components/MessageBand";
-import { VirtualList, VirtualListRef } from "../../components/VirtualList";
+import { VirtualListRef } from "../../components/VirtualList";
 import { formatNoDecimal } from "../../utils/format";
 import { ListItem } from "../../workspace/tabs/types";
 import { SamplesDescriptor } from "../descriptor/samplesDescriptor";
@@ -51,6 +51,8 @@ export const SampleList: React.FC<SampleListProps> = (props) => {
   if (items.length === 0) {
     return <EmptyPanel>No Samples</EmptyPanel>;
   }
+
+  const [followOutput, setFollowOutput] = useState(false);
 
   const [hidden, setHidden] = useState(false);
   useEffect(() => {
@@ -196,13 +198,17 @@ export const SampleList: React.FC<SampleListProps> = (props) => {
         limit={limit !== "0"}
         gridColumnsTemplate={gridColumnsTemplate}
       />
-      <VirtualList
-        ref={listRef}
+      <Virtuoso
+        style={{ height: "100%" }}
         data={items}
-        tabIndex={0}
-        renderRow={renderRow}
-        onKeyDown={onkeydown}
-        className={clsx(styles.list, className)}
+        defaultItemHeight={50}
+        itemContent={(_index: number, data: ListItem) => {
+          return renderRow(data);
+        }}
+        followOutput={followOutput}
+        atBottomStateChange={(atBottom: boolean) => {
+          setFollowOutput(atBottom);
+        }}
       />
       <SampleFooter sampleCount={sampleCount} />
     </div>
