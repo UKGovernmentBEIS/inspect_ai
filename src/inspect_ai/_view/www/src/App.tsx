@@ -562,6 +562,11 @@ export const App: FC<AppProps> = ({
     };
 
     const pollPendingSamples = async () => {
+      // Don't bother polling
+      if (!api.get_log_pending_samples) {
+        return;
+      }
+
       try {
         const pendingSamples = await api.get_log_pending_samples(logFile.name);
         if (!isActive) return;
