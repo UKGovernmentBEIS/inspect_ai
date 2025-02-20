@@ -1,4 +1,4 @@
-## Unreleased
+## v0.3.69 (20 February 2025)
 
 - Google provider updated to use the [Google Gen AI SDK](https://googleapis.github.io/python-genai/), which is now the recommended API for Gemini 2.0 models.
 - Task display: Use cooperative cancellation for cancel buttons in task display.

@@ -106,14 +106,6 @@ The following environment variables are supported by the Google provider
 
 ### Gemini on Vertex AI
 
-::: {.callout-note appearance="simple"}
-The Vertex AI Gemini interface described below is currently available only in the development version of Inspect. To install the development version from GitHub:
-
-``` bash
-pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-```
-:::
-
 To use Google Gemini models on Vertex, you can use the standard `google` model provider with the `vertex` qualifier (e.g. `google/vertex/gemini-2.0-flash`). You should also set two environment variables indicating your project ID and region. Here is a complete example:
 
 ``` bash
