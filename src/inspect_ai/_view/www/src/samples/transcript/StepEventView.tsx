@@ -163,6 +163,12 @@ const stepDescriptor = (
           name: "Sample Init",
           collapse: true,
         };
+      case "init":
+        return {
+          ...rootStepDescriptor,
+          name: "Init",
+          collapse: true,
+        };
       default:
         return {
           endSpace: false,
