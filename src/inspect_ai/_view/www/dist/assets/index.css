@@ -19070,6 +19070,13 @@ span.ap-marker-container:hover span.ap-marker {
   padding: 0;
   margin-bottom: 0;
 }
+._contents_188nv_1 {
+  margin-top: 0.5em;
+}
+
+._contents_188nv_1 > :last-child {
+  margin-bottom: 0;
+}
 ._darkenedBg_c8m1t_1 {
   background-color: var(--bs-light-bg-subtle);
 }

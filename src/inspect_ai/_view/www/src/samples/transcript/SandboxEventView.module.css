@@ -1,0 +1,7 @@
+.contents {
+  margin-top: 0.5em;
+}
+
+.contents > :last-child {
+  margin-bottom: 0;
+}

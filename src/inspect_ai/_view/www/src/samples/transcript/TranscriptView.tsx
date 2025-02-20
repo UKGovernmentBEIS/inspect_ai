@@ -17,6 +17,7 @@ import { ToolEventView } from "./ToolEventView";
 import { EventNode, EventType, TranscriptEventState } from "./types";
 
 import clsx from "clsx";
+import { SandboxEventView } from "./SandboxEventView";
 import styles from "./TranscriptView.module.css";
 
 interface TranscriptViewProps {
@@ -372,6 +373,17 @@ export const RenderedEventNode: React.FC<RenderedEventNodeProps> = ({
 
     case "approval":
       return <ApprovalEventView event={node.event} className={className} />;
+
+    case "sandbox":
+      return (
+        <SandboxEventView
+          id={id}
+          event={node.event}
+          className={className}
+          eventState={eventState}
+          setEventState={setEventState}
+        />
+      );
 
     default:
       return null;
