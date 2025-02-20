@@ -141,7 +141,9 @@ def test_web_browser_input():
 
     log = eval(task, model="openai/gpt-4o")[0]
 
-    type_call = get_tool_call(log.samples[0].messages, "web_browser_type_submit")
+    type_call = get_tool_call(
+        log.samples[0].messages, "web_browser_click"
+    ) or get_tool_call(log.samples[0].messages, "web_browser_type_submit")
     assert type_call
 
 

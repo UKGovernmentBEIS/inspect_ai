@@ -111,16 +111,12 @@ class MistralAPI(ModelAPI):
         if base_url:
             model_args["server_url"] = base_url
 
-        # create client
-        self.client = Mistral(
-            api_key=self.api_key,
-            timeout_ms=(config.timeout if config.timeout else DEFAULT_TIMEOUT) * 1000,
-            **model_args,
-        )
+        self.model_args = model_args
 
     @override
     async def close(self) -> None:
-        await self.client.sdk_configuration.async_client.aclose()
+        # client is created and destroyed in generate
+        pass
 
     async def generate(
         self,
@@ -149,7 +145,13 @@ class MistralAPI(ModelAPI):
 
         # send request
         try:
-            response = await self.client.chat.complete_async(**request)
+            with Mistral(
+                api_key=self.api_key,
+                timeout_ms=(config.timeout if config.timeout else DEFAULT_TIMEOUT)
+                * 1000,
+                **self.model_args,
+            ) as client:
+                response = await client.chat.complete_async(**request)
         except SDKError as ex:
             if ex.status_code == 400:
                 return self.handle_bad_request(ex), mistral_model_call(request, None)
