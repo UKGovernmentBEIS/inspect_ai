@@ -9,6 +9,7 @@ export interface SampleListItem {
   scoreRendered: ReactNode;
   data: SampleSummary;
   type: "sample";
+  completed: boolean;
 }
 
 export interface SeparatorListItem {

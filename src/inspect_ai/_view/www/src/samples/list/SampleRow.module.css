@@ -31,3 +31,9 @@
   display: flex;
   justify-self: center;
 }
+
+.spinner {
+  height: 1.6em;
+  width: 1.6em;
+  color: var(--bs-focus-ring-color);
+}

@@ -98,6 +98,7 @@ export const SampleList: React.FC<SampleListProps> = (props) => {
             sample={item.data}
             height={kSampleHeight}
             answer={item.answer}
+            completed={item.completed}
             scoreRendered={item.scoreRendered}
             gridColumnsTemplate={gridColumnsTemplate}
             selected={selectedIndex === item.index}
