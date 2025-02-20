@@ -5,7 +5,7 @@ import os
 import tempfile
 from logging import getLogger
 from pathlib import Path, PurePosixPath
-from typing import Any, Literal, Union, cast, overload
+from typing import Literal, Union, cast, overload
 
 from typing_extensions import override
 
@@ -221,7 +221,9 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         # (this enables us to show output for the cleanup operation)
         if not interrupted:
             # extract project from first environment
-            project = cast(ComposeProject, next(iter(environments.values())).context())
+            project = cast(
+                DockerSandboxEnvironment, next(iter(environments.values()))
+            )._project
             # cleanup the project
             await project_cleanup(project=project, quiet=True)
 
@@ -416,11 +418,6 @@ class DockerSandboxEnvironment(SandboxEnvironment):
             raise ConnectionError(
                 f"Service '{self._service} is not currently running.'"
             )
-
-    @override
-    def context(self) -> Any:
-        """Per sandbox type context (docker project)."""
-        return self._project
 
     def container_file(self, file: str) -> str:
         path = Path(file)

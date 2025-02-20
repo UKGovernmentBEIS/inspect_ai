@@ -152,6 +152,7 @@ async def init_sandbox_environments_sample(
         return environments
 
     except Exception as ex:
+        environments = unproxy_environments(environments)
         await sample_cleanup(task_name, config, environments, True)
         raise ex
 
@@ -165,7 +166,17 @@ async def cleanup_sandbox_environments_sample(
 ) -> None:
     sandboxenv_type = registry_find_sandboxenv(type)
     sample_cleanup = cast(SampleCleanup, getattr(sandboxenv_type, "sample_cleanup"))
+    environments = unproxy_environments(environments)
     await sample_cleanup(task_name, config, environments, interrupted)
+
+
+def unproxy_environments(
+    environments: dict[str, SandboxEnvironment],
+) -> dict[str, SandboxEnvironment]:
+    return {
+        k: v._sandbox
+        for k, v in cast(dict[str, SandboxEnvironmentProxy], environments).items()
+    }
 
 
 async def copy_sandbox_environment_files(
