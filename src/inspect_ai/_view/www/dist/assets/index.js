@@ -62250,38 +62250,44 @@ ${events}
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$k.message, style: ApplicationStyles.lineClamp(2), children: errorType(message2) })
       ] });
     };
-    const grid$1 = "_grid_1kcta_1";
-    const selected = "_selected_1kcta_13";
-    const cell = "_cell_1kcta_17";
-    const wrapAnywhere = "_wrapAnywhere_1kcta_22";
-    const noLeft = "_noLeft_1kcta_26";
-    const score = "_score_1kcta_30";
+    const grid$1 = "_grid_w4mqz_1";
+    const selected = "_selected_w4mqz_13";
+    const cell = "_cell_w4mqz_17";
+    const wrapAnywhere = "_wrapAnywhere_w4mqz_22";
+    const noLeft = "_noLeft_w4mqz_26";
+    const score = "_score_w4mqz_30";
+    const spinner = "_spinner_w4mqz_35";
     const styles$j = {
       grid: grid$1,
       selected,
       cell,
       wrapAnywhere,
       noLeft,
-      score
+      score,
+      spinner
     };
     const SampleRow = ({
       id,
       index: index2,
       sample: sample2,
       answer: answer2,
+      completed,
       scoreRendered,
       gridColumnsTemplate,
       height,
       selected: selected2,
       showSample
     }) => {
+      const handleClick = reactExports.useCallback(() => {
+        if (completed) {
+          showSample(index2);
+        }
+      }, [index2, showSample, completed]);
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(
         "div",
         {
           id: `sample-${id}`,
-          onClick: () => {
-            showSample(index2);
-          },
+          onClick: handleClick,
           className: clsx(
             styles$j.grid,
             "text-size-base",
@@ -62332,10 +62338,13 @@ ${events}
                 children: sample2.limit
               }
             ),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-small", styles$j.cell, styles$j.score), children: sample2.error ? /* @__PURE__ */ jsxRuntimeExports.jsx(SampleErrorView, { message: sample2.error }) : scoreRendered })
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-small", styles$j.cell, styles$j.score), children: sample2.error ? /* @__PURE__ */ jsxRuntimeExports.jsx(SampleErrorView, { message: sample2.error }) : completed ? scoreRendered : /* @__PURE__ */ jsxRuntimeExports.jsx(Spinner, {}) })
           ]
         }
       );
+    };
+    const Spinner = () => {
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("spinner-grow", styles$j.spinner), role: "status", children: /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx("visually-hidden"), children: "Loading..." }) });
     };
     const row$1 = "_row_utdq5_1";
     const styles$i = {
@@ -62484,6 +62493,7 @@ ${events}
                 sample: item2.data,
                 height: kSampleHeight,
                 answer: item2.answer,
+                completed: item2.completed,
                 scoreRendered: item2.scoreRendered,
                 gridColumnsTemplate,
                 selected: selectedIndex === item2.index,
@@ -62630,7 +62640,8 @@ ${events}
             data: sample2,
             type: "sample",
             answer: ((_a2 = sampleDescriptor.selectedScorerDescriptor(sample2)) == null ? void 0 : _a2.answer()) || "",
-            scoreRendered: (_b2 = sampleDescriptor.evalDescriptor.score(sample2, score2)) == null ? void 0 : _b2.render()
+            scoreRendered: (_b2 = sampleDescriptor.evalDescriptor.score(sample2, score2)) == null ? void 0 : _b2.render(),
+            completed: sample2.completed !== void 0 ? sample2.completed : true
           }
         ];
       };
@@ -62677,7 +62688,8 @@ ${events}
           data: sample2,
           type: "sample",
           answer: ((_a2 = sampleDescriptor.selectedScorerDescriptor(sample2)) == null ? void 0 : _a2.answer()) || "",
-          scoreRendered: (_b2 = sampleDescriptor.evalDescriptor.score(sample2, score2)) == null ? void 0 : _b2.render()
+          scoreRendered: (_b2 = sampleDescriptor.evalDescriptor.score(sample2, score2)) == null ? void 0 : _b2.render(),
+          completed: sample2.completed !== void 0 ? sample2.completed : true
         });
         return results;
       };
@@ -62709,7 +62721,8 @@ ${events}
           data: sample2,
           type: "sample",
           answer: ((_a2 = sampleDescriptor.selectedScorerDescriptor(sample2)) == null ? void 0 : _a2.answer()) || "",
-          scoreRendered: (_b2 = sampleDescriptor.evalDescriptor.score(sample2, score2)) == null ? void 0 : _b2.render()
+          scoreRendered: (_b2 = sampleDescriptor.evalDescriptor.score(sample2, score2)) == null ? void 0 : _b2.render(),
+          completed: sample2.completed !== void 0 ? sample2.completed : true
         });
         return results;
       };

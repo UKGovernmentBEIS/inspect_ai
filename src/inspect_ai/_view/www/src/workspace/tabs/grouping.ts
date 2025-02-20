@@ -57,6 +57,7 @@ const noGrouping = (
         scoreRendered: sampleDescriptor.evalDescriptor
           .score(sample, score)
           ?.render(),
+        completed: sample.completed !== undefined ? sample.completed : true,
       },
     ];
   };
@@ -126,6 +127,7 @@ const groupBySample = (
       scoreRendered: sampleDescriptor.evalDescriptor
         .score(sample, score)
         ?.render(),
+      completed: sample.completed !== undefined ? sample.completed : true,
     } as SampleListItem);
 
     return results;
@@ -182,6 +184,7 @@ const groupByEpoch = (
       scoreRendered: sampleDescriptor.evalDescriptor
         .score(sample, score)
         ?.render(),
+      completed: sample.completed !== undefined ? sample.completed : true,
     } as SampleListItem);
 
     return results;
