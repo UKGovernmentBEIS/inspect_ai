@@ -402,8 +402,14 @@ const fixupEventStream = (events: Events) => {
   // Filter pending events
   const finalEvents = events.filter((e) => !e.pending);
 
+  // See if the find an init step
+  const hasInitStep =
+    events.findIndex((e) => {
+      return e.event === "step" && e.name === "init";
+    }) !== -1;
+
   const fixedUp = [...finalEvents];
-  if (initEvent) {
+  if (!hasInitStep && initEvent) {
     fixedUp.splice(initEventIndex, 0, {
       timestamp: initEvent.timestamp,
       event: "step",

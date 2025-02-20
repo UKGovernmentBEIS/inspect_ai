@@ -50489,9 +50489,6 @@ self.onmessage = function (e) {
         gridColumns2.push("max-content");
       }
       gridColumns2.push("minmax(0, max-content)");
-      if (subTitle) {
-        gridColumns2.push("minmax(0, max-content)");
-      }
       gridColumns2.push("auto");
       gridColumns2.push("minmax(0, max-content)");
       gridColumns2.push("minmax(0, max-content)");
@@ -58165,6 +58162,12 @@ ${events}
               name: "Sample Init",
               collapse: true
             };
+          case "init":
+            return {
+              ...rootStepDescriptor,
+              name: "Init",
+              collapse: true
+            };
           default:
             return {
               endSpace: false
@@ -58714,8 +58717,11 @@ ${events}
       });
       const initEvent = events[initEventIndex];
       const finalEvents = events.filter((e) => !e.pending);
+      const hasInitStep = events.findIndex((e) => {
+        return e.event === "step" && e.name === "init";
+      }) !== -1;
       const fixedUp = [...finalEvents];
-      if (initEvent) {
+      if (!hasInitStep && initEvent) {
         fixedUp.splice(initEventIndex, 0, {
           timestamp: initEvent.timestamp,
           event: "step",
