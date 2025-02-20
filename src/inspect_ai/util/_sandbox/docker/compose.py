@@ -28,7 +28,7 @@ COMPOSE_WAIT = 120
 
 async def compose_up(
     project: ComposeProject, services: dict[str, ComposeService]
-) -> None:
+) -> ExecResult[str]:
     # compute the maximum amount of time we will
     up_command = ["up", "--detach", "--wait"]
 
@@ -49,7 +49,8 @@ async def compose_up(
     # passing the --wait flag (see https://github.com/docker/compose/issues/10596).
     # In practice, we will catch any errors when calling compose_check_running()
     # immediately after we call compose_up().
-    await compose_command(up_command, project=project, timeout=timeout)
+    result = await compose_command(up_command, project=project, timeout=timeout)
+    return result
 
 
 async def compose_down(project: ComposeProject, quiet: bool = True) -> None:
@@ -121,14 +122,9 @@ async def compose_check_running(
             unhealthy_services = services
             for successful_service in successful_services:
                 unhealthy_services.remove(successful_service["Service"])
-
-            msg = (
-                "One or more docker containers failed to start from "
-                f"{project.config}: {','.join(unhealthy_services)}"
-            )
-            raise RuntimeError(msg)
+            return []
     else:
-        raise RuntimeError("No services started")
+        return []
 
     return [service["Service"] for service in running_services]
 

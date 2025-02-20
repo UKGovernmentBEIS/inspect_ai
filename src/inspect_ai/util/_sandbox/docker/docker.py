@@ -155,12 +155,17 @@ class DockerSandboxEnvironment(SandboxEnvironment):
             services = await compose_services(project)
 
             # start the services
-            await compose_up(project, services)
+            result = await compose_up(project, services)
 
             # check to ensure that the services are running
             running_services = await compose_check_running(
                 list(services.keys()), project=project
             )
+
+            if not running_services:
+                raise RuntimeError(
+                    f"No services started.\nCompose up stderr: {result.stderr}"
+                )
 
             # note that the project is running
             project_startup(project)
