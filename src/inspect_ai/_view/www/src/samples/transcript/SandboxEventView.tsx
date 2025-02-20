@@ -2,10 +2,11 @@ import { ApplicationIcons } from "../../appearance/icons";
 import { SandboxEvent } from "../../types/log";
 import { formatDateTime } from "../../utils/format";
 import { EventPanel } from "./event/EventPanel";
-import { EventSection } from "./event/EventSection";
 import { TranscriptEventState } from "./types";
 
+import clsx from "clsx";
 import { MarkdownDiv } from "../../components/MarkdownDiv";
+
 import styles from "./SandboxEventView.module.css";
 
 interface SandboxEventViewProps {
@@ -30,7 +31,7 @@ export const SandboxEventView: React.FC<SandboxEventViewProps> = ({
     <EventPanel
       id={id}
       className={className}
-      title="Sandbox"
+      title={`Sandbox: ${event.action}`}
       icon={ApplicationIcons.sandbox}
       subTitle={formatDateTime(new Date(event.timestamp))}
       selectedNav={eventState.selectedNav || ""}
@@ -42,11 +43,7 @@ export const SandboxEventView: React.FC<SandboxEventViewProps> = ({
         setEventState({ ...eventState, collapsed });
       }}
     >
-      <div data-name={event.action} className={styles.contents}>
-        <EventSection title="Target">
-          <MarkdownDiv markdown={event.summary} />
-        </EventSection>
-      </div>
+      <MarkdownDiv markdown={event.summary} className={clsx(styles.contents)} />
     </EventPanel>
   );
 };

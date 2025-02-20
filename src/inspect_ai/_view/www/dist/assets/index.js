@@ -58353,7 +58353,7 @@ ${events}
         this.depth = depth;
       }
     }
-    const contents = "_contents_hhg8o_1";
+    const contents = "_contents_188nv_1";
     const styles$l = {
       contents
     };
@@ -58369,7 +58369,7 @@ ${events}
         {
           id,
           className: className2,
-          title: "Sandbox",
+          title: `Sandbox: ${event.action}`,
           icon: ApplicationIcons.sandbox,
           subTitle: formatDateTime(new Date(event.timestamp)),
           selectedNav: eventState.selectedNav || "",
@@ -58380,7 +58380,7 @@ ${events}
           setCollapsed: (collapsed) => {
             setEventState({ ...eventState, collapsed });
           },
-          children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { "data-name": event.action, className: styles$l.contents, children: /* @__PURE__ */ jsxRuntimeExports.jsx(EventSection, { title: "Target", children: /* @__PURE__ */ jsxRuntimeExports.jsx(MarkdownDiv, { markdown: event.summary }) }) })
+          children: /* @__PURE__ */ jsxRuntimeExports.jsx(MarkdownDiv, { markdown: event.summary, className: clsx(styles$l.contents) })
         }
       );
     };
