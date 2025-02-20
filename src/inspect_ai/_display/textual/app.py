@@ -185,7 +185,8 @@ class TaskScreenApp(App[TR]):
         # force repaint
         self.refresh(repaint=True)
 
-        # enable mouse support (this broke in textual 2.0 when running in VS Code)
+        # enable mouse support (this broke in textual 2.0 when running in VS Code
+        # however is fixed in textual 2.1)
         assert self.app._driver
         textual_enable_mouse_support(self.app._driver)
 
