@@ -6,7 +6,7 @@ import { SamplesTab } from "./tabs/SamplesTab";
 
 import clsx from "clsx";
 import { FC, MouseEvent, RefObject, useEffect, useMemo, useRef } from "react";
-import { SampleSummary } from "../api/types.ts";
+import { DisplayMetric, SampleSummary } from "../api/types.ts";
 import {
   kEvalWorkspaceTabId,
   kInfoWorkspaceTabId,
@@ -43,6 +43,7 @@ interface WorkSpaceProps {
   evalPlan?: EvalPlan;
   evalStats?: EvalStats;
   evalResults?: EvalResults;
+  runningMetrics?: DisplayMetric[];
   log?: CurrentLog;
   samples?: SampleSummary[];
   sampleMode: SampleMode;
@@ -93,6 +94,7 @@ export const WorkSpace: FC<WorkSpaceProps> = (props) => {
     evalPlan,
     evalStats,
     evalResults,
+    runningMetrics,
     samples,
     showToggle,
     offcanvas,
@@ -126,6 +128,7 @@ export const WorkSpace: FC<WorkSpaceProps> = (props) => {
       evalSpec={evalSpec}
       evalPlan={evalPlan}
       evalResults={evalResults}
+      runningMetrics={runningMetrics}
       evalStats={evalStats}
       samples={samples}
       evalDescriptor={samplesDescriptor?.evalDescriptor}

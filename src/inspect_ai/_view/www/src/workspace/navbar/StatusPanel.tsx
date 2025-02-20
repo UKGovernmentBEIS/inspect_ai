@@ -37,13 +37,17 @@ export const RunningPanel: FC<StatusProps> = ({ sampleCount }) => {
   );
 };
 
-interface StatusPanelProps {
+export interface StatusPanelProps {
   icon: string;
   status: string;
   sampleCount: number;
 }
 
-const StatusPanel: FC<StatusPanelProps> = ({ icon, status, sampleCount }) => {
+export const StatusPanel: FC<StatusPanelProps> = ({
+  icon,
+  status,
+  sampleCount,
+}) => {
   return (
     <div className={styles.statusPanel}>
       <i className={clsx(icon, styles.statusIcon)} style={{}} />
