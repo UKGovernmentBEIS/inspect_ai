@@ -1025,13 +1025,27 @@ export const App: FC<AppProps> = ({
           <WorkSpace
             task_id={selectedLogSummary?.eval?.task_id}
             logFileName={logs.files[selectedLogIndex]?.name}
-            evalStatus={selectedLogSummary?.status}
+            evalStatus={"started"} //selectedLogSummary?.status}
             evalError={filterNull(selectedLogSummary?.error)}
             evalVersion={selectedLogSummary?.version}
             evalSpec={selectedLogSummary?.eval}
             evalPlan={selectedLogSummary?.plan}
             evalStats={selectedLogSummary?.stats}
             evalResults={filterNull(selectedLogSummary?.results)}
+            runningMetrics={[
+              {
+                scorer: "accuracy",
+                name: "accuracy",
+                value: 0.545434,
+                reducer: "my_reducer",
+              },
+              {
+                scorer: "stderr",
+                name: "stderr",
+                value: 0.23224,
+                reducer: "my_reducer",
+              },
+            ]} //pendingSampleSummaries.metrics}
             showToggle={showToggle}
             samples={filteredSamples}
             sampleMode={sampleMode}
