@@ -5,6 +5,7 @@ from typing import Any, NoReturn, cast
 from shortuuid import uuid
 
 from inspect_ai._util.constants import SANDBOX_SETUP_TIMEOUT
+from inspect_ai.util._sandbox.events import SandboxEnvironmentProxy
 
 from .environment import (
     SampleCleanup,
@@ -131,6 +132,9 @@ async def init_sandbox_environments_sample(
 
     # verify that there is at least one environment and a 'default' env
     validate_sandbox_environments(sandboxenv_type, environments)
+
+    # proxy environments (for recording SandboxEvent)
+    environments = {k: SandboxEnvironmentProxy(v) for k, v in environments.items()}
 
     try:
         # copy files into environments

@@ -122,8 +122,16 @@ def transcript_reasoning(reasoning: str) -> list[RenderableType]:
     return content
 
 
-def transcript_separator(title: str, color: str) -> RenderableType:
-    return Rule(title=title, style=f"{color} bold", align="center", end="\n\n")
+def transcript_separator(
+    title: str, color: str, characters: str = "─"
+) -> RenderableType:
+    return Rule(
+        title=title,
+        characters=characters,
+        style=f"{color} bold",
+        align="center",
+        end="\n\n",
+    )
 
 
 def transcript_function(function: str, arguments: dict[str, Any]) -> RenderableType:

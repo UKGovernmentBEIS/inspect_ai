@@ -180,6 +180,10 @@ class SandboxEnvironment(abc.ABC):
         """
         raise NotImplementedError("connection not implemented")
 
+    def context(self) -> Any:
+        """Per sandbox type context (optional, defaults to None)."""
+        return None
+
     @classmethod
     def config_files(cls) -> list[str]:
         """Standard config files for this provider (used for automatic discovery)"""

@@ -207,6 +207,19 @@ class ToolEvent(BaseEvent):
     """Required so that we can include '_task' as a member."""
 
 
+class SandboxEvent(BaseEvent):
+    """Sandbox execution or I/O"""
+
+    event: Literal["sandbox"] = Field(default="sandbox")
+    """Event type"""
+
+    action: Literal["exec", "read_file", "write_file"]
+    """Sandbox action"""
+
+    summary: str
+    """Markdown summary of event."""
+
+
 class ApprovalEvent(BaseEvent):
     """Tool approval."""
 
@@ -346,6 +359,7 @@ Event: TypeAlias = Union[
     | StoreEvent
     | ModelEvent
     | ToolEvent
+    | SandboxEvent
     | ApprovalEvent
     | InputEvent
     | ScoreEvent
