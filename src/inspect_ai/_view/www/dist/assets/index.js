@@ -62467,13 +62467,13 @@ ${events}
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$l.message, style: ApplicationStyles.lineClamp(2), children: errorType(message2) })
       ] });
     };
-    const grid$1 = "_grid_w4mqz_1";
-    const selected = "_selected_w4mqz_13";
-    const cell = "_cell_w4mqz_17";
-    const wrapAnywhere = "_wrapAnywhere_w4mqz_22";
-    const noLeft = "_noLeft_w4mqz_26";
-    const score = "_score_w4mqz_30";
-    const spinner$1 = "_spinner_w4mqz_35";
+    const grid$1 = "_grid_2k7ov_1";
+    const selected = "_selected_2k7ov_13";
+    const cell = "_cell_2k7ov_17";
+    const wrapAnywhere = "_wrapAnywhere_2k7ov_22";
+    const noLeft = "_noLeft_2k7ov_26";
+    const score = "_score_2k7ov_30";
+    const spinner$1 = "_spinner_2k7ov_35";
     const styles$k = {
       grid: grid$1,
       selected,
@@ -62561,7 +62561,7 @@ ${events}
       );
     };
     const Spinner = () => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("spinner-grow", styles$k.spinner), role: "status", children: /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx("visually-hidden"), children: "Running..." }) });
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("spinner-border", styles$k.spinner), role: "status", children: /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx("visually-hidden"), children: "Running..." }) });
     };
     const row$1 = "_row_utdq5_1";
     const styles$j = {
@@ -63900,7 +63900,7 @@ ${events}
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$6.metricsRows), children: displayableMetrics == null ? void 0 : displayableMetrics.map((displayMetric) => {
           return /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
             /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-smaller"), children: displayMetric.reducer ? `${displayMetric.name} (${displayMetric.reducer})` : `${displayMetric.name}` }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-smaller", styles$6.value), children: formatPrettyDecimal(displayMetric.value) })
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-smaller", styles$6.value), children: displayMetric.value ? formatPrettyDecimal(displayMetric.value) : void 0 })
           ] });
         }) })
       ] });
