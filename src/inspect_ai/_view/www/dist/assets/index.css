@@ -19291,14 +19291,31 @@ span.ap-marker-container:hover span.ap-marker {
   font-weight: 600;
   border-bottom: solid 1px var(--bs-border-color);
 }
-._footer_vk06l_1 {
+._footer_b2hk0_1 {
   border-top: solid var(--bs-light-border-subtle) 1px;
   background: var(--bs-light-bg-subtle);
   display: grid;
-  grid-template-columns: max-content;
-  justify-content: end;
-  align-content: end;
+  grid-template-columns: max-content max-content;
+  justify-content: space-between;
+
   padding: 0.2em 1em;
+}
+
+._spinnerContainer_b2hk0_11 {
+  display: grid;
+  grid-template-columns: max-content max-content;
+  column-gap: 0.5em;
+  padding-top: 0.2em;
+}
+
+._spinner_b2hk0_11 {
+  height: 13px;
+  width: 13px;
+  color: var(--bs-secondary);
+}
+
+._label_b2hk0_24 {
+  margin-top: -0.1em;
 }
 ._header_16ngy_1 {
   display: grid;
