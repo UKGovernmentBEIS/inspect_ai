@@ -263,7 +263,14 @@ export type Timestamp2 = string;
 export type Pending2 = boolean | null;
 export type Event2 = "sandbox";
 export type Action = "exec" | "read_file" | "write_file";
-export type Summary = string;
+export type Cmd = string | null;
+export type Options2 = {
+  [k: string]: JsonValue;
+} | null;
+export type File = string | null;
+export type Input2 = string | null;
+export type Result = number | null;
+export type Output = string | null;
 export type Timestamp3 = string;
 export type Pending3 = boolean | null;
 export type Event3 = "state";
@@ -279,7 +286,7 @@ export type Timestamp5 = string;
 export type Pending5 = boolean | null;
 export type Event5 = "model";
 export type Model2 = string;
-export type Input2 = (
+export type Input3 = (
   | ChatMessageSystem
   | ChatMessageUser
   | ChatMessageAssistant
@@ -312,7 +319,7 @@ export type Event6 = "tool";
 export type Type10 = "function";
 export type Id3 = string;
 export type Function2 = string;
-export type Result =
+export type Result1 =
   | string
   | number
   | boolean
@@ -337,7 +344,7 @@ export type Explanation1 = string | null;
 export type Timestamp8 = string;
 export type Pending8 = boolean | null;
 export type Event8 = "input";
-export type Input3 = string;
+export type Input4 = string;
 export type InputAnsi = string;
 export type Timestamp9 = string;
 export type Pending9 = boolean | null;
@@ -897,7 +904,12 @@ export interface SandboxEvent {
   pending: Pending2;
   event: Event2;
   action: Action;
-  summary: Summary;
+  cmd: Cmd;
+  options: Options2;
+  file: File;
+  input: Input2;
+  result: Result;
+  output: Output;
 }
 /**
  * Change to the current `TaskState`
@@ -939,7 +951,7 @@ export interface ModelEvent {
   pending: Pending5;
   event: Event5;
   model: Model2;
-  input: Input2;
+  input: Input3;
   tools: Tools1;
   tool_choice: ToolChoice;
   config: GenerateConfig1;
@@ -1064,7 +1076,7 @@ export interface ToolEvent {
   function: Function2;
   arguments: Arguments1;
   view: ToolCallContent | null;
-  result: Result;
+  result: Result1;
   truncated: Truncated;
   error: ToolCallError | null;
   events: Events1;
@@ -1104,7 +1116,7 @@ export interface InputEvent {
   timestamp: Timestamp8;
   pending: Pending8;
   event: Event8;
-  input: Input3;
+  input: Input4;
   input_ansi: InputAnsi;
 }
 /**
@@ -1181,12 +1193,12 @@ export interface SubtaskEvent {
   event: Event14;
   name: Name11;
   type: Type12;
-  input: Input4;
-  result: Result1;
+  input: Input5;
+  result: Result2;
   events: Events2;
 }
-export interface Input4 {}
-export interface Result1 {
+export interface Input5 {}
+export interface Result2 {
   [k: string]: unknown;
 }
 export interface ModelUsage2 {
