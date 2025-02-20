@@ -56,6 +56,7 @@ from inspect_ai.log._transcript import (
     SampleInitEvent,
     SampleLimitEvent,
     ScoreEvent,
+    StepEvent,
     transcript,
 )
 from inspect_ai.model import (
@@ -578,10 +579,26 @@ async def task_run_sample(
         raise_error: BaseException | None = None
         results: dict[str, SampleScore] = {}
         try:
+            # begin init
+            transcript()._event(StepEvent(action="begin", name="init"))
+
+            # sample init event (remove file bodies as they have content or absolute paths)
+            event_sample = sample.model_copy(
+                update=dict(files={k: "" for k in sample.files.keys()})
+                if sample.files
+                else None
+            )
+            transcript()._event(
+                SampleInitEvent(sample=event_sample, state=state_jsonable(state))
+            )
+
             async with sandboxenv_cm:
                 try:
                     # update active sample wth sandboxes now that we are initialised
                     active.sandboxes = await sandbox_connections()
+
+                    # end init
+                    transcript()._event(StepEvent(action="end", name="init"))
 
                     # initialise timeout context manager
                     timeout_cm = (
@@ -594,18 +611,6 @@ async def task_run_sample(
                     async with timeout_cm:
                         # mark started
                         active.started = datetime.now().timestamp()
-
-                        # sample init event (remove file bodies as they have content or absolute paths)
-                        event_sample = sample.model_copy(
-                            update=dict(files={k: "" for k in sample.files.keys()})
-                            if sample.files
-                            else None
-                        )
-                        transcript()._event(
-                            SampleInitEvent(
-                                sample=event_sample, state=state_jsonable(state)
-                            )
-                        )
 
                         # set progress for plan then run it
                         state = await plan(state, generate)
