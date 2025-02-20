@@ -19,12 +19,12 @@ export const SampleScores: FC<SampleScoresProps> = ({
     ? sampleDescriptor.evalDescriptor
         .scorerDescriptor(sample, { scorer, name: scorer })
         .scores()
-    : sampleDescriptor.selectedScorerDescriptor(sample).scores();
+    : sampleDescriptor.selectedScorerDescriptor(sample)?.scores();
 
-  if (scores.length === 1) {
+  if (scores?.length === 1) {
     return scores[0].rendered();
   } else {
-    const rows = scores.map((score) => {
+    const rows = scores?.map((score) => {
       return (
         <Fragment>
           <div style={{ opacity: "0.7" }}>{score.name}</div>

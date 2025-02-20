@@ -1,0 +1,32 @@
+.statusContainer {
+  display: inline-block;
+  margin-top: 0.3em;
+}
+
+.status {
+  display: grid;
+  grid-template-columns: auto auto;
+}
+
+.statusText {
+  margin-top: 0.2em;
+}
+
+.metricsRows {
+  margin-top: 0.3em;
+  margin-left: 1.25em;
+  display: grid;
+  grid-template-columns: auto auto;
+  grid-template-rows: auto;
+  column-gap: 0.5em;
+}
+
+.icon {
+  font-size: var(--inspect-font-size-large);
+  margin-right: 0.3em;
+  margin-top: -0.1em;
+}
+
+.value {
+  font-weight: 600;
+}
