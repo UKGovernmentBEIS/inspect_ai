@@ -17065,7 +17065,6 @@ categories: ${categories.join(" ")}`;
       }
     };
     const sortSamples = (sort, samples, samplesDescriptor, score2) => {
-      console.log("SORT SAMPLES");
       const sortedSamples = samples.sort((a, b) => {
         const scoreDescriptor = score2 ? samplesDescriptor.evalDescriptor.scoreDescriptor(score2) : void 0;
         switch (sort) {
@@ -65942,6 +65941,7 @@ ${events}
         if (!logFile) return;
         let isActive = true;
         let pollTimeout;
+        let hadPending = false;
         const clearPendingSummaries = () => {
           if (pendingSampleSummaries.samples.length > 0) {
             setPendingSampleSummaries((prev2) => ({
@@ -65958,7 +65958,11 @@ ${events}
             if (pendingSamples.status === "OK" && pendingSamples.pendingSamples) {
               setPendingSampleSummaries(pendingSamples.pendingSamples);
               reloadSelectedLog();
+              hadPending = true;
             } else if (pendingSamples.status === "NotFound") {
+              if (hadPending) {
+                reloadSelectedLog();
+              }
               clearPendingSummaries();
               isActive = false;
             }
