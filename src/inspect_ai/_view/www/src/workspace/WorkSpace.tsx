@@ -258,7 +258,7 @@ const useResolvedTabs = ({
                     scores={scores}
                     sampleDescriptor={samplesDescriptor}
                   />,
-                  evalStatus === "started" && (
+                  evalStatus === "started" && !capabilities.streamSamples && (
                     <ToolButton
                       key="refresh"
                       label="Refresh"
