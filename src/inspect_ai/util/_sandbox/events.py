@@ -1,5 +1,5 @@
 import shlex
-from typing import Any, Literal, Union, overload
+from typing import Literal, Union, overload
 
 from pydantic import JsonValue
 from pydantic_core import to_jsonable_python
@@ -108,11 +108,6 @@ class SandboxEnvironmentProxy(SandboxEnvironment):
     @override
     async def connection(self) -> SandboxConnection:
         return await self._sandbox.connection()
-
-    @override
-    def context(self) -> Any:
-        """Per sandbox type context."""
-        return self._sandbox.context()
 
     @classmethod
     async def sample_cleanup(
