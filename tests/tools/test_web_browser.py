@@ -132,7 +132,7 @@ def test_web_browser_input():
     task = Task(
         dataset=[
             Sample(
-                input="Please use the web browser tool to navigate to https://inspect.ai-safety-institute.org.uk/. Then, once there, use the page's search interface to search for 'solvers'"
+                input="Please use the web browser tool to navigate to https://www.google.com. Then, once there, use the page's search interface to search for 'large language models'"
             )
         ],
         solver=[use_tools(web_browser()), generate()],
@@ -141,9 +141,7 @@ def test_web_browser_input():
 
     log = eval(task, model="openai/gpt-4o")[0]
 
-    type_call = get_tool_call(
-        log.samples[0].messages, "web_browser_click"
-    ) or get_tool_call(log.samples[0].messages, "web_browser_type_submit")
+    type_call = get_tool_call(log.samples[0].messages, "web_browser_type_submit")
     assert type_call
 
 
