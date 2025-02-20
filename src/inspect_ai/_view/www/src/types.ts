@@ -43,6 +43,8 @@ export interface AppStatus {
 export interface Capabilities {
   downloadFiles: boolean;
   webWorkers: boolean;
+  streamSamples: boolean;
+  streamSampleData: boolean;
 }
 
 export interface CurrentLog {

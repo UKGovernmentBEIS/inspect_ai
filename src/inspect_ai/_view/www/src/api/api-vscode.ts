@@ -10,13 +10,7 @@ import {
   kMethodEvalLogSize,
   webViewJsonRpcClient,
 } from "./jsonrpc";
-import {
-  Capabilities,
-  LogContents,
-  LogViewAPI,
-  PendingSampleResponse,
-  SampleData,
-} from "./types";
+import { Capabilities, LogContents, LogViewAPI } from "./types";
 
 const vscodeClient = webViewJsonRpcClient(getVscodeApi());
 
@@ -94,27 +88,6 @@ async function open_log_file(log_file: string, log_dir: string) {
   getVscodeApi()?.postMessage(msg);
 }
 
-async function eval_pending_samples(
-  _log_file: string,
-  _etag?: string,
-): Promise<PendingSampleResponse> {
-  // TODO: Implement
-  return {
-    status: "NotFound",
-  };
-}
-
-async function eval_log_sample_data(
-  _log_file: string,
-  _id: string | number,
-  _epoch: number,
-  _last_event?: number,
-  _last_attachment?: number,
-): Promise<SampleData | undefined> {
-  // TODO: Implement
-  return undefined;
-}
-
 const api: LogViewAPI = {
   client_events,
   eval_logs,
@@ -124,8 +97,6 @@ const api: LogViewAPI = {
   eval_log_headers,
   download_file,
   open_log_file,
-  eval_pending_samples,
-  eval_log_sample_data,
 };
 
 export default api;

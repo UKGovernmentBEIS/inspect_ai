@@ -269,6 +269,9 @@ export const clientApi = (api: LogViewAPI, log_file?: string): ClientAPI => {
     log_file: string,
     etag?: string,
   ): Promise<PendingSampleResponse> => {
+    if (!api.eval_pending_samples) {
+      throw new Error("API doesn't support streamed samples");
+    }
     return api.eval_pending_samples(log_file, etag);
   };
 
@@ -279,6 +282,9 @@ export const clientApi = (api: LogViewAPI, log_file?: string): ClientAPI => {
     last_event?: number,
     last_attachment?: number,
   ): Promise<SampleData | undefined> => {
+    if (!api.eval_log_sample_data) {
+      throw new Error("API doesn't supported streamed sample data");
+    }
     return api.eval_log_sample_data(
       log_file,
       id,
@@ -309,7 +315,11 @@ export const clientApi = (api: LogViewAPI, log_file?: string): ClientAPI => {
     ) => {
       return api.download_file(download_file, file_contents);
     },
-    get_log_pending_samples,
-    get_log_sample_data,
+    get_log_pending_samples: api.eval_pending_samples
+      ? get_log_pending_samples
+      : undefined,
+    get_log_sample_data: api.eval_log_sample_data
+      ? get_log_sample_data
+      : undefined,
   };
 };
