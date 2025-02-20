@@ -118,11 +118,11 @@ export interface LogViewAPI {
     filecontents: string | Blob | ArrayBuffer | ArrayBufferView,
   ) => Promise<void>;
   open_log_file: (logFile: string, log_dir: string) => Promise<void>;
-  eval_pending_samples: (
+  eval_pending_samples?: (
     log_file: string,
     etag?: string,
   ) => Promise<PendingSampleResponse>;
-  eval_log_sample_data: (
+  eval_log_sample_data?: (
     log_file: string,
     id: string | number,
     epoch: number,
@@ -147,11 +147,11 @@ export interface ClientAPI {
   ) => Promise<void>;
   open_log_file: (log_file: string, log_dir: string) => Promise<void>;
 
-  get_log_pending_samples: (
+  get_log_pending_samples?: (
     log_file: string,
     etag?: string,
   ) => Promise<PendingSampleResponse>;
-  get_log_sample_data: (
+  get_log_sample_data?: (
     log_file: string,
     id: string | number,
     epoch: number,

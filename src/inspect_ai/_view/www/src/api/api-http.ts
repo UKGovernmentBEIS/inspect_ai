@@ -8,8 +8,6 @@ import {
   LogFiles,
   LogFilesFetchResponse,
   LogViewAPI,
-  PendingSampleResponse,
-  SampleData,
 } from "./types";
 
 interface LogInfo {
@@ -119,26 +117,6 @@ function simpleHttpAPI(logInfo: LogInfo): LogViewAPI {
     },
     download_file,
     open_log_file,
-    eval_pending_samples: async function (
-      _log_file: string,
-      _etag?: string,
-    ): Promise<PendingSampleResponse> {
-      // There are never pending samples for this api
-      // TODO: Signal to not bother polling at all
-      return {
-        status: "NotFound",
-      };
-    },
-    eval_log_sample_data: function (
-      _log_file: string,
-      _id: string | number,
-      _epoch: number,
-      _last_event?: number,
-      _last_attachment?: number,
-    ): Promise<SampleData | undefined> {
-      // There isn't partial sample data for this api
-      return Promise.resolve(undefined);
-    },
   };
 }
 
