@@ -76425,7 +76425,7 @@ ${events}
             },
             void 0
           ),
-          evalStatus === "started" && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+          evalStatus === "started" && !capabilities2.streamSamples && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
             ToolButton,
             {
               label: "Refresh",
