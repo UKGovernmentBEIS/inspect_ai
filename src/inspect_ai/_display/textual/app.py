@@ -13,7 +13,6 @@ from typing import (
 
 import rich
 from rich.console import Console
-from rich.text import Text
 from textual.app import App, ComposeResult
 from textual.binding import Binding, BindingType
 from textual.css.query import NoMatches
