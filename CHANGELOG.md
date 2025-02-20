@@ -1,9 +1,13 @@
 ## Unreleased
 
 - Google provider updated to use the [Google Gen AI SDK](https://googleapis.github.io/python-genai/), which is now the recommended API for Gemini 2.0 models.
+- Task display: Use cooperative cancellation for cancel buttons in task display.
 - Task display: Print task progress every 5 seconds for 'plain' display mode.
 - Task display: Handle click on running samples tab when there is no transcript.
+- Docker: Print sample id and epoch for each container when using `--no-sandbox-cleanup`
+- Mistral: Create and destroy client within generate.
 - Inspect View: Fix display of score dictionaries containing boolean values
+- Bugfix: Catch standard `TimeoutError` for subprocess timeouts (ensure kill/cleanup of timed out process).
 
 ## v0.3.68 (19 February 2025)
 

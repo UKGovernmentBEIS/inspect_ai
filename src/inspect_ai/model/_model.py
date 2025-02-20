@@ -23,6 +23,7 @@ from tenacity import (
 from inspect_ai._util.constants import DEFAULT_MAX_CONNECTIONS
 from inspect_ai._util.content import Content, ContentImage, ContentText
 from inspect_ai._util.hooks import init_hooks, override_api_key, send_telemetry
+from inspect_ai._util.interrupt import check_sample_interrupt
 from inspect_ai._util.platform import platform_init
 from inspect_ai._util.registry import (
     RegistryInfo,
@@ -390,6 +391,8 @@ class Model:
             before_sleep=functools.partial(log_rate_limit_retry, self.api.model_name),
         )
         async def generate() -> ModelOutput:
+            check_sample_interrupt()
+
             if cache:
                 if isinstance(cache, CachePolicy):
                     policy = cache

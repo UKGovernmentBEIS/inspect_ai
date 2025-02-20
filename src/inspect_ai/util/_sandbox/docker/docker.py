@@ -139,8 +139,15 @@ class DockerSandboxEnvironment(SandboxEnvironment):
                     env[key] = str(value)
 
         # create project
+        from inspect_ai.log._samples import sample_active
+
+        sample = sample_active()
         project = await ComposeProject.create(
-            name=task_project_name(task_name), config=config, env=env
+            name=task_project_name(task_name),
+            config=config,
+            sample_id=sample.id if sample is not None else None,
+            epoch=sample.epoch if sample is not None else None,
+            env=env,
         )
 
         try:

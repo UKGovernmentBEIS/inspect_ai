@@ -56,17 +56,22 @@ async def project_cleanup_shutdown(cleanup: bool) -> None:
                     title_style="bold",
                     title_justify="left",
                 )
+                table.add_column("Sample ID")
+                table.add_column("Epoch")
                 table.add_column("Container(s)", no_wrap=True)
-                table.add_column("Cleanup")
                 for project in shutdown_projects:
                     containers = await compose_ps(project, all=True)
                     table.add_row(
+                        str(project.sample_id) if project.sample_id is not None else "",
+                        str(project.epoch if project.epoch is not None else ""),
                         "\n".join(container["Name"] for container in containers),
-                        f"[blue]inspect sandbox cleanup docker {project.name}[/blue]",
                     )
                 print(table)
                 print(
-                    "\nCleanup all environments with: [blue]inspect sandbox cleanup docker[/blue]\n"
+                    "\n"
+                    "Cleanup all containers  : [blue]inspect sandbox cleanup docker[/blue]\n"
+                    "Cleanup single container: [blue]inspect sandbox cleanup docker <container-id>[/blue]",
+                    "\n",
                 )
 
         # remove auto-compose files
