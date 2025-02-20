@@ -26,6 +26,7 @@ interface SamplesTabProps {
   sampleError?: Error;
 
   // Required props
+  running: boolean;
   sampleMode: SampleMode;
   groupBy: "epoch" | "sample" | "none";
   groupByOrder: "asc" | "desc";
@@ -49,6 +50,7 @@ export const SamplesTab: React.FC<SamplesTabProps> = ({
   sample,
   samples,
   sampleMode,
+  running,
   groupBy,
   groupByOrder,
   sampleDescriptor,
@@ -181,6 +183,7 @@ export const SamplesTab: React.FC<SamplesTabProps> = ({
           <SampleList
             listRef={sampleListRef}
             items={items}
+            running={running}
             sampleDescriptor={sampleDescriptor}
             selectedIndex={selectedSampleIndex}
             nextSample={nextSample}

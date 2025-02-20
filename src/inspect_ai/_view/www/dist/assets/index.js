@@ -16989,10 +16989,10 @@ categories: ${categories.join(" ")}`;
       }
     };
     const flex$1 = "_flex_1kye9_1";
-    const label$5 = "_label_1kye9_5";
+    const label$6 = "_label_1kye9_5";
     const styles$15 = {
       flex: flex$1,
-      label: label$5
+      label: label$6
     };
     const SortFilter = ({
       sort,
@@ -17551,10 +17551,10 @@ categories: ${categories.join(" ")}`;
     );
     ToolButton.displayName = "ToolButton";
     const container$b = "_container_15b4r_1";
-    const label$4 = "_label_15b4r_5";
+    const label$5 = "_label_15b4r_5";
     const styles$_ = {
       container: container$b,
-      label: label$4
+      label: label$5
     };
     const EpochFilter = ({
       epochs,
@@ -37745,11 +37745,11 @@ categories: ${categories.join(" ")}`;
       if (isLogicalOp(prevToken(1))) return newExpressionCompletions();
       return noCompletions();
     }
-    const label$3 = "_label_jbrqc_1";
+    const label$4 = "_label_jbrqc_1";
     const input = "_input_jbrqc_7";
     const help = "_help_jbrqc_11";
     const styles$Z = {
-      label: label$3,
+      label: label$4,
       input,
       help
     };
@@ -37981,12 +37981,12 @@ Supported expressions:
       ] });
     };
     const flex = "_flex_anstf_1";
-    const label$2 = "_label_anstf_5";
+    const label$3 = "_label_anstf_5";
     const secondSel = "_secondSel_anstf_9";
     const secondLabel = "_secondLabel_anstf_13";
     const styles$Y = {
       flex,
-      label: label$2,
+      label: label$3,
       secondSel,
       secondLabel
     };
@@ -49087,7 +49087,7 @@ self.onmessage = function (e) {
       }
     };
     const container$a = "_container_1jqar_1";
-    const label$1 = "_label_1jqar_6";
+    const label$2 = "_label_1jqar_6";
     const wordBreak = "_wordBreak_1jqar_14";
     const scoreTable = "_scoreTable_1jqar_18";
     const bottomBorder = "_bottomBorder_1jqar_23";
@@ -49099,7 +49099,7 @@ self.onmessage = function (e) {
     const noTop$1 = "_noTop_1jqar_51";
     const styles$K = {
       container: container$a,
-      label: label$1,
+      label: label$2,
       wordBreak,
       scoreTable,
       bottomBorder,
@@ -50032,13 +50032,13 @@ self.onmessage = function (e) {
         }
       );
     };
-    const label = "_label_7z797_1";
+    const label$1 = "_label_7z797_1";
     const navs = "_navs_7z797_6";
     const card = "_card_7z797_12";
     const cardContent = "_cardContent_7z797_18";
     const hidden$1 = "_hidden_7z797_23";
     const styles$z = {
-      label,
+      label: label$1,
       navs,
       card,
       cardContent,
@@ -61995,7 +61995,7 @@ ${events}
     const wrapAnywhere = "_wrapAnywhere_w4mqz_22";
     const noLeft = "_noLeft_w4mqz_26";
     const score = "_score_w4mqz_30";
-    const spinner = "_spinner_w4mqz_35";
+    const spinner$1 = "_spinner_w4mqz_35";
     const styles$k = {
       grid: grid$1,
       selected,
@@ -62003,7 +62003,7 @@ ${events}
       wrapAnywhere,
       noLeft,
       score,
-      spinner
+      spinner: spinner$1
     };
     const SampleRow = ({
       id,
@@ -62083,7 +62083,7 @@ ${events}
       );
     };
     const Spinner = () => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("spinner-grow", styles$k.spinner), role: "status", children: /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx("visually-hidden"), children: "Loading..." }) });
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("spinner-grow", styles$k.spinner), role: "status", children: /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx("visually-hidden"), children: "Running..." }) });
     };
     const row$1 = "_row_utdq5_1";
     const styles$j = {
@@ -62104,15 +62104,37 @@ ${events}
         }
       );
     };
-    const footer = "_footer_vk06l_1";
+    const footer = "_footer_b2hk0_1";
+    const spinnerContainer = "_spinnerContainer_b2hk0_11";
+    const spinner = "_spinner_b2hk0_11";
+    const label = "_label_b2hk0_24";
     const styles$i = {
-      footer
+      footer,
+      spinnerContainer,
+      spinner,
+      label
     };
-    const SampleFooter = ({ sampleCount }) => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-smaller", styles$i.footer), children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
-        sampleCount,
-        " Samples"
-      ] }) });
+    const SampleFooter = ({
+      sampleCount,
+      running: running2
+    }) => {
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("text-size-smaller", styles$i.footer), children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: running2 ? /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$i.spinnerContainer), children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx(
+            "div",
+            {
+              className: clsx("spinner-border", styles$i.spinner),
+              role: "status",
+              children: /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx("visually-hidden"), children: "Running..." })
+            }
+          ),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-secondary", styles$i.label), children: "Running..." })
+        ] }) : void 0 }),
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
+          sampleCount,
+          " Samples"
+        ] })
+      ] });
     };
     const header = "_header_16ngy_1";
     const center = "_center_16ngy_11";
@@ -62159,6 +62181,7 @@ ${events}
       const {
         listRef,
         items,
+        running: running2,
         sampleDescriptor,
         selectedIndex,
         nextSample,
@@ -62315,7 +62338,7 @@ ${events}
             onKeyDown: onkeydown
           }
         ),
-        /* @__PURE__ */ jsxRuntimeExports.jsx(SampleFooter, { sampleCount })
+        /* @__PURE__ */ jsxRuntimeExports.jsx(SampleFooter, { sampleCount, running: running2 })
       ] });
     };
     const gridColumnsValue = (sampleDescriptor) => {
@@ -62497,6 +62520,7 @@ ${events}
       sample: sample2,
       samples,
       sampleMode,
+      running: running2,
       groupBy,
       groupByOrder,
       sampleDescriptor,
@@ -62607,6 +62631,7 @@ ${events}
             {
               listRef: sampleListRef,
               items,
+              running: running2,
               sampleDescriptor,
               selectedIndex: selectedSampleIndex,
               nextSample,
@@ -64047,6 +64072,7 @@ ${events}
             sample: selectedSample,
             sampleStatus,
             sampleError,
+            running: evalStatus === "started",
             showingSampleDialog,
             setShowingSampleDialog,
             samples,
@@ -66118,27 +66144,14 @@ ${events}
                 {
                   task_id: (_a2 = selectedLogSummary == null ? void 0 : selectedLogSummary.eval) == null ? void 0 : _a2.task_id,
                   logFileName: (_b2 = logs.files[selectedLogIndex]) == null ? void 0 : _b2.name,
-                  evalStatus: "started",
+                  evalStatus: selectedLogSummary == null ? void 0 : selectedLogSummary.status,
                   evalError: filterNull(selectedLogSummary == null ? void 0 : selectedLogSummary.error),
                   evalVersion: selectedLogSummary == null ? void 0 : selectedLogSummary.version,
                   evalSpec: selectedLogSummary == null ? void 0 : selectedLogSummary.eval,
                   evalPlan: selectedLogSummary == null ? void 0 : selectedLogSummary.plan,
                   evalStats: selectedLogSummary == null ? void 0 : selectedLogSummary.stats,
                   evalResults: filterNull(selectedLogSummary == null ? void 0 : selectedLogSummary.results),
-                  runningMetrics: [
-                    {
-                      scorer: "accuracy",
-                      name: "accuracy",
-                      value: 0.545434,
-                      reducer: "my_reducer"
-                    },
-                    {
-                      scorer: "stderr",
-                      name: "stderr",
-                      value: 0.23224,
-                      reducer: "my_reducer"
-                    }
-                  ],
+                  runningMetrics: pendingSampleSummaries.metrics,
                   showToggle,
                   samples: filteredSamples,
                   sampleMode,

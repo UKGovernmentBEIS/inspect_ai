@@ -28,6 +28,7 @@ const kSeparatorHeight = 24;
 interface SampleListProps {
   listRef: RefObject<VirtualListRef | null>;
   items: ListItem[];
+  running: boolean;
   sampleDescriptor: SamplesDescriptor;
   selectedIndex: number;
   nextSample: () => void;
@@ -40,6 +41,7 @@ export const SampleList: React.FC<SampleListProps> = (props) => {
   const {
     listRef,
     items,
+    running,
     sampleDescriptor,
     selectedIndex,
     nextSample,
@@ -214,7 +216,7 @@ export const SampleList: React.FC<SampleListProps> = (props) => {
         className={clsx(className)}
         onKeyDown={onkeydown}
       />
-      <SampleFooter sampleCount={sampleCount} />
+      <SampleFooter sampleCount={sampleCount} running={running} />
     </div>
   );
 };
