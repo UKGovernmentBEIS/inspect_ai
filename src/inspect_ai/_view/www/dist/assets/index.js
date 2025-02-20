@@ -58067,7 +58067,7 @@ ${events}
           title: title2,
           subTitle: formatDateTime(new Date(event.timestamp)),
           icon: descriptor.icon,
-          collapse: false,
+          collapse: descriptor.collapse,
           text: text2,
           selectedNav: eventState.selectedNav || "",
           setSelectedNav: (selectedNav) => {
@@ -58162,7 +58162,8 @@ ${events}
           case "sample_init":
             return {
               ...rootStepDescriptor,
-              name: "Sample Init"
+              name: "Sample Init",
+              collapse: true
             };
           default:
             return {
