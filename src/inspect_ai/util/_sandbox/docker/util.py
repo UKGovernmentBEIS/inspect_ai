@@ -21,6 +21,8 @@ logger = getLogger(__name__)
 class ComposeProject:
     name: str
     config: str | None
+    sample_id: int | str | None
+    epoch: int | None
     env: dict[str, str] | None
 
     @classmethod
@@ -28,6 +30,9 @@ class ComposeProject:
         cls,
         name: str,
         config: SandboxEnvironmentConfigType | None,
+        *,
+        sample_id: int | str | None = None,
+        epoch: int | None = None,
         env: dict[str, str] = {},
     ) -> "ComposeProject":
         # resolve config to full path if we have one
@@ -58,16 +63,20 @@ class ComposeProject:
         ensure_auto_compose_file(config)
 
         # return project
-        return ComposeProject(name, config, env)
+        return ComposeProject(name, config, sample_id=sample_id, epoch=epoch, env=env)
 
     def __init__(
         self,
         name: str,
         config: str | None,
+        sample_id: int | str | None,
+        epoch: int | None,
         env: dict[str, str],
     ) -> None:
         self.name = name
         self.config = config
+        self.sample_id = sample_id
+        self.epoch = epoch
         self.env = env
 
     def __eq__(self, other: object) -> bool:
