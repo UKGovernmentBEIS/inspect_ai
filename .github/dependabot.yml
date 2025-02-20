@@ -14,3 +14,5 @@ updates:
         versions: [">=1.6.0"]
       - dependency-name: "ruff"
         versions: [">=0.9.5"]
+      - dependency-name: "textual"
+        versions: [">=2.0.0"]
