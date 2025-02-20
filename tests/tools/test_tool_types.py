@@ -196,6 +196,10 @@ def check_list_of_numbers(model: str) -> None:
 
 
 def check_list_of_objects(model: str) -> None:
+    # grok sometimes doesn't get this one (just says 'I have extracted, how would you like to proceed')
+    if "grok" in model:
+        return
+
     task = Task(
         dataset=MemoryDataset(
             [
