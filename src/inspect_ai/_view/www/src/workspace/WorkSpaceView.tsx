@@ -7,7 +7,7 @@ import {
   useCallback,
   useMemo,
 } from "react";
-import { SampleSummary } from "../api/types";
+import { DisplayMetric, SampleSummary } from "../api/types";
 import { EmptyPanel } from "../components/EmptyPanel";
 import { TabPanel, TabSet } from "../components/TabSet";
 import { EvalDescriptor } from "../samples/descriptor/types";
@@ -29,6 +29,7 @@ interface WorkSpaceViewProps {
   evalSpec: EvalSpec;
   evalPlan?: EvalPlan;
   evalResults?: EvalResults;
+  runningMetrics?: DisplayMetric[];
   evalStats?: EvalStats;
   samples?: SampleSummary[];
   evalDescriptor?: EvalDescriptor;
@@ -49,6 +50,7 @@ export const WorkSpaceView: FC<WorkSpaceViewProps> = ({
   evalSpec,
   evalPlan,
   evalResults,
+  runningMetrics,
   evalStats,
   samples,
   evalDescriptor,
@@ -119,6 +121,7 @@ export const WorkSpaceView: FC<WorkSpaceViewProps> = ({
           evalSpec={evalSpec}
           evalPlan={evalPlan}
           evalResults={evalResults}
+          runningMetrics={runningMetrics}
           evalStats={evalStats}
           samples={samples}
           evalDescriptor={evalDescriptor}

@@ -1,6 +1,6 @@
 import clsx from "clsx";
 import { FC, useCallback } from "react";
-import { SampleSummary } from "../../api/types";
+import { DisplayMetric, SampleSummary } from "../../api/types";
 import { ApplicationIcons } from "../../appearance/icons";
 import { CopyButton } from "../../components/CopyButton";
 import { kModelNone } from "../../constants";
@@ -8,7 +8,8 @@ import { EvalResults, EvalSpec, Status } from "../../types/log";
 import { filename } from "../../utils/path";
 import styles from "./PrimaryBar.module.css";
 import { ResultsPanel } from "./ResultsPanel";
-import { CancelledPanel, ErroredPanel, RunningPanel } from "./StatusPanel";
+import { RunningStatusPanel } from "./RunningStatusPanel";
+import { CancelledPanel, ErroredPanel } from "./StatusPanel";
 
 interface PrimaryBarProps {
   showToggle: boolean;
@@ -16,6 +17,7 @@ interface PrimaryBarProps {
   setOffcanvas: (offcanvas: boolean) => void;
   status?: Status;
   evalResults?: EvalResults;
+  runningMetrics?: DisplayMetric[];
   samples?: SampleSummary[];
   file?: string;
   evalSpec?: EvalSpec;
@@ -26,6 +28,7 @@ export const PrimaryBar: FC<PrimaryBarProps> = ({
   offcanvas,
   status,
   evalResults,
+  runningMetrics,
   samples,
   file,
   evalSpec,
@@ -105,7 +108,10 @@ export const PrimaryBar: FC<PrimaryBarProps> = ({
           <CancelledPanel sampleCount={samples?.length || 0} />
         ) : undefined}
         {status === "started" ? (
-          <RunningPanel sampleCount={samples?.length || 0} />
+          <RunningStatusPanel
+            sampleCount={samples?.length || 0}
+            displayMetrics={runningMetrics}
+          />
         ) : undefined}
         {status === "error" ? (
           <ErroredPanel sampleCount={samples?.length || 0} />
