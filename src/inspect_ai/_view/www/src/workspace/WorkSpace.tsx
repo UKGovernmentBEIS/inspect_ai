@@ -218,6 +218,7 @@ const useResolvedTabs = ({
               sample={selectedSample}
               sampleStatus={sampleStatus}
               sampleError={sampleError}
+              running={evalStatus === "started"}
               showingSampleDialog={showingSampleDialog}
               setShowingSampleDialog={setShowingSampleDialog}
               samples={samples}
