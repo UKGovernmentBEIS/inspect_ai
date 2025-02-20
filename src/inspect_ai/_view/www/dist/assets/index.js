@@ -62219,7 +62219,7 @@ ${events}
         },
         [selectedIndex, showSample]
       );
-      reactExports.useCallback(
+      const onkeydown = reactExports.useCallback(
         (e) => {
           switch (e.key) {
             case "ArrowUp":
@@ -62299,7 +62299,9 @@ ${events}
             followOutput,
             atBottomStateChange: (atBottom) => {
               setFollowOutput(atBottom);
-            }
+            },
+            className: clsx(className2),
+            onKeyDown: onkeydown
           }
         ),
         /* @__PURE__ */ jsxRuntimeExports.jsx(SampleFooter, { sampleCount })

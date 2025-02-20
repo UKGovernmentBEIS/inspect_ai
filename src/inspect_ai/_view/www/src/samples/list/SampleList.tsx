@@ -17,6 +17,7 @@ import { SamplesDescriptor } from "../descriptor/samplesDescriptor";
 import { SampleRow } from "./SampleRow";
 import { SampleSeparator } from "./SampleSeparator";
 
+import clsx from "clsx";
 import { SampleFooter } from "./SampleFooter";
 import { SampleHeader } from "./SampleHeader";
 import styles from "./SampleList.module.css";
@@ -209,6 +210,8 @@ export const SampleList: React.FC<SampleListProps> = (props) => {
         atBottomStateChange={(atBottom: boolean) => {
           setFollowOutput(atBottom);
         }}
+        className={clsx(className)}
+        onKeyDown={onkeydown}
       />
       <SampleFooter sampleCount={sampleCount} />
     </div>
