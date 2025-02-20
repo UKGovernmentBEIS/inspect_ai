@@ -261,18 +261,23 @@ export type Message2 = string;
 export type Limit1 = number | null;
 export type Timestamp2 = string;
 export type Pending2 = boolean | null;
-export type Event2 = "state";
+export type Event2 = "sandbox";
+export type Action = "exec" | "read_file" | "write_file";
+export type Summary = string;
+export type Timestamp3 = string;
+export type Pending3 = boolean | null;
+export type Event3 = "state";
 export type Op = "remove" | "add" | "replace" | "move" | "test" | "copy";
 export type Path = string;
 export type From = string | null;
 export type Changes = JsonChange[];
-export type Timestamp3 = string;
-export type Pending3 = boolean | null;
-export type Event3 = "store";
-export type Changes1 = JsonChange[];
 export type Timestamp4 = string;
 export type Pending4 = boolean | null;
-export type Event4 = "model";
+export type Event4 = "store";
+export type Changes1 = JsonChange[];
+export type Timestamp5 = string;
+export type Pending5 = boolean | null;
+export type Event5 = "model";
 export type Model2 = string;
 export type Input2 = (
   | ChatMessageSystem
@@ -301,9 +306,9 @@ export type ToolChoice = ("auto" | "any" | "none") | ToolFunction;
 export type Name8 = string;
 export type Error1 = string | null;
 export type Cache = ("read" | "write") | null;
-export type Timestamp5 = string;
-export type Pending5 = boolean | null;
-export type Event5 = "tool";
+export type Timestamp6 = string;
+export type Pending6 = boolean | null;
+export type Event6 = "tool";
 export type Type10 = "function";
 export type Id3 = string;
 export type Function2 = string;
@@ -317,11 +322,6 @@ export type Result =
   | ContentVideo
   | (ContentText | ContentImage | ContentAudio | ContentVideo)[];
 export type Truncated = [unknown, unknown] | null;
-export type Timestamp6 = string;
-export type Pending6 = boolean | null;
-export type Event6 = "sandbox";
-export type Action = "exec" | "read_file" | "write_file";
-export type Summary = string;
 export type Timestamp7 = string;
 export type Pending7 = boolean | null;
 export type Event7 = "approval";
@@ -383,11 +383,11 @@ export type Type12 = string | null;
 export type Events2 = (
   | SampleInitEvent
   | SampleLimitEvent
+  | SandboxEvent
   | StateEvent
   | StoreEvent
   | ModelEvent
   | ToolEvent
-  | SandboxEvent
   | ApprovalEvent
   | InputEvent
   | ScoreEvent
@@ -400,11 +400,11 @@ export type Events2 = (
 export type Events1 = (
   | SampleInitEvent
   | SampleLimitEvent
+  | SandboxEvent
   | StateEvent
   | StoreEvent
   | ModelEvent
   | ToolEvent
-  | SandboxEvent
   | ApprovalEvent
   | InputEvent
   | ScoreEvent
@@ -417,11 +417,11 @@ export type Events1 = (
 export type Events = (
   | SampleInitEvent
   | SampleLimitEvent
+  | SandboxEvent
   | StateEvent
   | StoreEvent
   | ModelEvent
   | ToolEvent
-  | SandboxEvent
   | ApprovalEvent
   | InputEvent
   | ScoreEvent
@@ -890,12 +890,22 @@ export interface SampleLimitEvent {
   limit: Limit1;
 }
 /**
- * Change to the current `TaskState`
+ * Sandbox execution or I/O
  */
-export interface StateEvent {
+export interface SandboxEvent {
   timestamp: Timestamp2;
   pending: Pending2;
   event: Event2;
+  action: Action;
+  summary: Summary;
+}
+/**
+ * Change to the current `TaskState`
+ */
+export interface StateEvent {
+  timestamp: Timestamp3;
+  pending: Pending3;
+  event: Event3;
   changes: Changes;
 }
 /**
@@ -916,18 +926,18 @@ export interface JsonChange {
  * Change to data within the current `Store`.
  */
 export interface StoreEvent {
-  timestamp: Timestamp3;
-  pending: Pending3;
-  event: Event3;
+  timestamp: Timestamp4;
+  pending: Pending4;
+  event: Event4;
   changes: Changes1;
 }
 /**
  * Call to a language model.
  */
 export interface ModelEvent {
-  timestamp: Timestamp4;
-  pending: Pending4;
-  event: Event4;
+  timestamp: Timestamp5;
+  pending: Pending5;
+  event: Event5;
   model: Model2;
   input: Input2;
   tools: Tools1;
@@ -1046,9 +1056,9 @@ export interface Response {
  * Call to a tool.
  */
 export interface ToolEvent {
-  timestamp: Timestamp5;
-  pending: Pending5;
-  event: Event5;
+  timestamp: Timestamp6;
+  pending: Pending6;
+  event: Event6;
   type: Type10;
   id: Id3;
   function: Function2;
@@ -1061,16 +1071,6 @@ export interface ToolEvent {
 }
 export interface Arguments1 {
   [k: string]: JsonValue;
-}
-/**
- * Sandbox execution or I/O
- */
-export interface SandboxEvent {
-  timestamp: Timestamp6;
-  pending: Pending6;
-  event: Event6;
-  action: Action;
-  summary: Summary;
 }
 /**
  * Tool approval.

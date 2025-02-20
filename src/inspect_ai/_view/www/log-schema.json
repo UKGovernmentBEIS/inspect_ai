@@ -1469,6 +1469,9 @@
                 "$ref": "#/$defs/SampleLimitEvent"
               },
               {
+                "$ref": "#/$defs/SandboxEvent"
+              },
+              {
                 "$ref": "#/$defs/StateEvent"
               },
               {
@@ -1479,9 +1482,6 @@
               },
               {
                 "$ref": "#/$defs/ToolEvent"
-              },
-              {
-                "$ref": "#/$defs/SandboxEvent"
               },
               {
                 "$ref": "#/$defs/ApprovalEvent"
@@ -3797,6 +3797,9 @@
                 "$ref": "#/$defs/SampleLimitEvent"
               },
               {
+                "$ref": "#/$defs/SandboxEvent"
+              },
+              {
                 "$ref": "#/$defs/StateEvent"
               },
               {
@@ -3807,9 +3810,6 @@
               },
               {
                 "$ref": "#/$defs/ToolEvent"
-              },
-              {
-                "$ref": "#/$defs/SandboxEvent"
               },
               {
                 "$ref": "#/$defs/ApprovalEvent"
@@ -4160,6 +4160,9 @@
                 "$ref": "#/$defs/SampleLimitEvent"
               },
               {
+                "$ref": "#/$defs/SandboxEvent"
+              },
+              {
                 "$ref": "#/$defs/StateEvent"
               },
               {
@@ -4170,9 +4173,6 @@
               },
               {
                 "$ref": "#/$defs/ToolEvent"
-              },
-              {
-                "$ref": "#/$defs/SandboxEvent"
               },
               {
                 "$ref": "#/$defs/ApprovalEvent"

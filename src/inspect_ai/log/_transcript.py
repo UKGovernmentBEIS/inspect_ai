@@ -355,6 +355,7 @@ class SubtaskEvent(BaseEvent):
 Event: TypeAlias = Union[
     SampleInitEvent
     | SampleLimitEvent
+    | SandboxEvent
     | StateEvent
     | StoreEvent
     | ModelEvent
