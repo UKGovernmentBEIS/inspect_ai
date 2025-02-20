@@ -27,6 +27,7 @@ const kSeparatorHeight = 24;
 
 interface SampleListProps {
   items: ListItem[];
+  running: boolean;
   sampleDescriptor: SamplesDescriptor;
   selectedIndex: number;
   nextSample: () => void;
@@ -39,6 +40,7 @@ interface SampleListProps {
 export const SampleList: FC<SampleListProps> = (props) => {
   const {
     items,
+    running,
     sampleDescriptor,
     selectedIndex,
     nextSample,
@@ -215,7 +217,7 @@ export const SampleList: FC<SampleListProps> = (props) => {
         onKeyDown={onkeydown}
         skipAnimationFrameInResizeObserver={true}
       />
-      <SampleFooter sampleCount={sampleCount} />
+      <SampleFooter sampleCount={sampleCount} running={running} />
     </div>
   );
 };
