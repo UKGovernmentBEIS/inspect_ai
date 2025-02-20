@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { FC, ReactNode } from "react";
+import { FC, ReactNode, useCallback } from "react";
 import { SampleSummary } from "../../api/types";
 import { MarkdownDiv } from "../../components/MarkdownDiv";
 import { arrayToString, inputString } from "../../utils/format";
@@ -11,6 +11,7 @@ interface SampleRowProps {
   index: number;
   sample: SampleSummary;
   answer: string;
+  completed: boolean;
   scoreRendered: ReactNode;
   gridColumnsTemplate: string;
   height: number;
@@ -23,18 +24,23 @@ export const SampleRow: FC<SampleRowProps> = ({
   index,
   sample,
   answer,
+  completed,
   scoreRendered,
   gridColumnsTemplate,
   height,
   selected,
   showSample,
 }) => {
+  const handleClick = useCallback(() => {
+    if (completed) {
+      showSample(index);
+    }
+  }, [index, showSample, completed]);
+
   return (
     <div
       id={`sample-${id}`}
-      onClick={() => {
-        showSample(index);
-      }}
+      onClick={handleClick}
       className={clsx(
         styles.grid,
         "text-size-base",
@@ -89,10 +95,20 @@ export const SampleRow: FC<SampleRowProps> = ({
       <div className={clsx("text-size-small", styles.cell, styles.score)}>
         {sample.error ? (
           <SampleErrorView message={sample.error} />
-        ) : (
+        ) : completed ? (
           scoreRendered
+        ) : (
+          <Spinner />
         )}
       </div>
+    </div>
+  );
+};
+
+const Spinner: React.FC = () => {
+  return (
+    <div className={clsx("spinner-grow", styles.spinner)} role="status">
+      <span className={clsx("visually-hidden")}>Loading...</span>
     </div>
   );
 };
