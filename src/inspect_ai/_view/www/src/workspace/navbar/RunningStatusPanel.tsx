@@ -46,7 +46,9 @@ export const RunningStatusPanel: React.FC<RunningPanelProps> = ({
                   : `${displayMetric.name}`}
               </div>
               <div className={clsx("text-size-smaller", styles.value)}>
-                {formatPrettyDecimal(displayMetric.value!)}
+                {displayMetric.value
+                  ? formatPrettyDecimal(displayMetric.value)
+                  : undefined}
               </div>
             </Fragment>
           );

@@ -107,7 +107,7 @@ export const SampleRow: FC<SampleRowProps> = ({
 
 const Spinner: React.FC = () => {
   return (
-    <div className={clsx("spinner-grow", styles.spinner)} role="status">
+    <div className={clsx("spinner-border", styles.spinner)} role="status">
       <span className={clsx("visually-hidden")}>Running...</span>
     </div>
   );
