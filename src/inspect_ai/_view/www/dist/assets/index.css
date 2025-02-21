@@ -19070,11 +19070,31 @@ span.ap-marker-container:hover span.ap-marker {
   padding: 0;
   margin-bottom: 0;
 }
-._contents_188nv_1 {
+._contents_7pswv_1 {
   margin-top: 0.5em;
 }
 
-._contents_188nv_1 > :last-child {
+._contents_7pswv_1 > :last-child {
+  margin-bottom: 0;
+}
+
+._twoColumn_7pswv_9 {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 1.5em;
+  row-gap: 1em;
+}
+
+._exec_7pswv_16 {
+  margin-top: 0.5em;
+}
+
+._result_7pswv_20 {
+  margin-top: 0.5em;
+}
+
+._fileLabel_7pswv_24 {
+  margin-top: 0;
   margin-bottom: 0;
 }
 ._darkenedBg_c8m1t_1 {

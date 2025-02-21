@@ -5,3 +5,23 @@
 .contents > :last-child {
   margin-bottom: 0;
 }
+
+.twoColumn {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 1.5em;
+  row-gap: 1em;
+}
+
+.exec {
+  margin-top: 0.5em;
+}
+
+.result {
+  margin-top: 0.5em;
+}
+
+.fileLabel {
+  margin-top: 0;
+  margin-bottom: 0;
+}
