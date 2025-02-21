@@ -39,7 +39,7 @@ class SamplesView(Widget):
         padding: 0 1 0 1;
         layout: grid;
         grid-size: 2 3;
-        grid-rows: auto 1fr auto;
+        grid-rows: auto 1fr 3;
         grid-columns: 32 1fr;
         grid-gutter: 1;
     }
@@ -423,10 +423,6 @@ class SampleToolbar(Horizontal):
     CANCEL_DISABLED = "Cancelling sample..."
 
     DEFAULT_CSS = f"""
-    SampleToolbar {{
-        grid-size: 5 1;
-        grid-columns: auto auto 1fr auto auto;
-    }}
     SampleToolbar #{STATUS_GROUP} {{
         width: 22;
     }}
