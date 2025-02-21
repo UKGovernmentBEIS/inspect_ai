@@ -1,3 +1,8 @@
+## Unreleased
+
+- Compatiblity with textual version 2.0 (remove upper bound).
+- Align with HF datasets `fsspec` version contraints to avoid pip errors when installing alongside `datasets`.
+
 ## v0.3.69 (20 February 2025)
 
 - Google provider updated to use the [Google Gen AI SDK](https://googleapis.github.io/python-genai/), which is now the recommended API for Gemini 2.0 models.
