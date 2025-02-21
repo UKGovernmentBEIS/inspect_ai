@@ -134,6 +134,19 @@ def truncate(text: str, length: int, overflow: str = "...", pad: bool = True) ->
     return truncated
 
 
+def truncate_lines(
+    text: str, max_lines: int = 100, max_characters: int | None = 100 * 100
+) -> tuple[str, int | None]:
+    if max_characters is not None:
+        text = truncate(text, max_characters)
+    lines = text.splitlines()
+    if len(lines) > max_lines:
+        output = "\n".join(lines[0:max_lines])
+        return output, len(lines) - max_lines
+    else:
+        return text, None
+
+
 def generate_large_text(target_tokens: int) -> str:
     """Generate a large amount of text with approximately the target number of tokens"""
     generated_text = []

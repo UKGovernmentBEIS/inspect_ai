@@ -207,6 +207,34 @@ class ToolEvent(BaseEvent):
     """Required so that we can include '_task' as a member."""
 
 
+class SandboxEvent(BaseEvent):
+    """Sandbox execution or I/O"""
+
+    event: Literal["sandbox"] = Field(default="sandbox")
+    """Event type"""
+
+    action: Literal["exec", "read_file", "write_file"]
+    """Sandbox action"""
+
+    cmd: str | None = Field(default=None)
+    """Command (for exec)"""
+
+    options: dict[str, JsonValue] | None = Field(default=None)
+    """Options (for exec)"""
+
+    file: str | None = Field(default=None)
+    """File (for read_file and write_file)"""
+
+    input: str | None = Field(default=None)
+    """Input (for cmd and write_file). Truncated to 100 lines."""
+
+    result: int | None = Field(default=None)
+    """Result (for exec)"""
+
+    output: str | None = Field(default=None)
+    """Output (for exec and read_file). Truncated to 100 lines."""
+
+
 class ApprovalEvent(BaseEvent):
     """Tool approval."""
 
@@ -342,10 +370,12 @@ class SubtaskEvent(BaseEvent):
 Event: TypeAlias = Union[
     SampleInitEvent
     | SampleLimitEvent
+    | SandboxEvent
     | StateEvent
     | StoreEvent
     | ModelEvent
     | ToolEvent
+    | SandboxEvent
     | ApprovalEvent
     | InputEvent
     | ScoreEvent

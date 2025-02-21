@@ -1118,6 +1118,33 @@
       "type": "object",
       "additionalProperties": false
     },
+    "EvalMetricDefinition": {
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "options": {
+          "anyOf": [
+            {
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Options"
+        }
+      },
+      "required": [
+        "name",
+        "options"
+      ],
+      "title": "EvalMetricDefinition",
+      "type": "object",
+      "additionalProperties": false
+    },
     "EvalPlan": {
       "description": "Plan (solvers) used in evaluation.",
       "properties": {
@@ -1440,6 +1467,9 @@
               },
               {
                 "$ref": "#/$defs/SampleLimitEvent"
+              },
+              {
+                "$ref": "#/$defs/SandboxEvent"
               },
               {
                 "$ref": "#/$defs/StateEvent"
@@ -1790,6 +1820,84 @@
       "type": "object",
       "additionalProperties": false
     },
+    "EvalScorer": {
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "options": {
+          "anyOf": [
+            {
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Options"
+        },
+        "metrics": {
+          "anyOf": [
+            {
+              "items": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/EvalMetricDefinition"
+                  },
+                  {
+                    "additionalProperties": {
+                      "items": {
+                        "$ref": "#/$defs/EvalMetricDefinition"
+                      },
+                      "type": "array"
+                    },
+                    "type": "object"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            {
+              "additionalProperties": {
+                "items": {
+                  "$ref": "#/$defs/EvalMetricDefinition"
+                },
+                "type": "array"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Metrics"
+        },
+        "metadata": {
+          "anyOf": [
+            {
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Metadata"
+        }
+      },
+      "required": [
+        "name",
+        "options",
+        "metrics",
+        "metadata"
+      ],
+      "title": "EvalScorer",
+      "type": "object",
+      "additionalProperties": false
+    },
     "EvalSpec": {
       "description": "Eval target and configuration.",
       "properties": {
@@ -1939,6 +2047,45 @@
           ],
           "default": null,
           "title": "Metadata"
+        },
+        "scorers": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/EvalScorer"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Scorers"
+        },
+        "metrics": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/EvalMetricDefinition"
+              },
+              "type": "array"
+            },
+            {
+              "additionalProperties": {
+                "items": {
+                  "$ref": "#/$defs/EvalMetricDefinition"
+                },
+                "type": "array"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Metrics"
         }
       },
       "required": [
@@ -1961,7 +2108,9 @@
         "config",
         "revision",
         "packages",
-        "metadata"
+        "metadata",
+        "scorers",
+        "metrics"
       ],
       "title": "EvalSpec",
       "type": "object",
@@ -3213,6 +3362,133 @@
       ],
       "type": "array"
     },
+    "SandboxEvent": {
+      "description": "Sandbox execution or I/O",
+      "properties": {
+        "timestamp": {
+          "format": "date-time",
+          "title": "Timestamp",
+          "type": "string"
+        },
+        "pending": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pending"
+        },
+        "event": {
+          "const": "sandbox",
+          "default": "sandbox",
+          "title": "Event",
+          "type": "string"
+        },
+        "action": {
+          "enum": [
+            "exec",
+            "read_file",
+            "write_file"
+          ],
+          "title": "Action",
+          "type": "string"
+        },
+        "cmd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cmd"
+        },
+        "options": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "$ref": "#/$defs/JsonValue"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Options"
+        },
+        "file": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "File"
+        },
+        "input": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Input"
+        },
+        "result": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Result"
+        },
+        "output": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Output"
+        }
+      },
+      "required": [
+        "timestamp",
+        "pending",
+        "event",
+        "action",
+        "cmd",
+        "options",
+        "file",
+        "input",
+        "result",
+        "output"
+      ],
+      "title": "SandboxEvent",
+      "type": "object",
+      "additionalProperties": false
+    },
     "Score": {
       "description": "Score generated by a scorer.",
       "properties": {
@@ -3597,6 +3873,9 @@
                 "$ref": "#/$defs/SampleLimitEvent"
               },
               {
+                "$ref": "#/$defs/SandboxEvent"
+              },
+              {
                 "$ref": "#/$defs/StateEvent"
               },
               {
@@ -3955,6 +4234,9 @@
               },
               {
                 "$ref": "#/$defs/SampleLimitEvent"
+              },
+              {
+                "$ref": "#/$defs/SandboxEvent"
               },
               {
                 "$ref": "#/$defs/StateEvent"

@@ -19070,6 +19070,38 @@ span.ap-marker-container:hover span.ap-marker {
   padding: 0;
   margin-bottom: 0;
 }
+._contents_iwnfd_1 {
+  margin-top: 0.5em;
+}
+
+._contents_iwnfd_1 > :last-child {
+  margin-bottom: 0;
+}
+
+._twoColumn_iwnfd_9 {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 1.5em;
+}
+
+._exec_iwnfd_15 {
+  margin-top: 0.5em;
+}
+
+._result_iwnfd_19 {
+  margin-top: 0.5em;
+}
+
+._fileLabel_iwnfd_23 {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+._wrapPre_iwnfd_28 {
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
 ._darkenedBg_c8m1t_1 {
   background-color: var(--bs-light-bg-subtle);
 }
