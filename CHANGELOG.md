@@ -1,6 +1,7 @@
 ## Unreleased
 
-- Added `SandboxEvent` to transcript for recording sandbox execution and i/o.
+- Added `SandboxEvent` to transcript for recording sandbox execution and I/O.
+- Remove root logging handlers upon Inspect logger initialisation (as they result in lots of log spam if left installed).
 - Compatiblity with textual version 2.0 (remove upper bound).
 - Align with HF datasets `fsspec` version contraints to avoid pip errors when installing alongside `datasets`.
 
