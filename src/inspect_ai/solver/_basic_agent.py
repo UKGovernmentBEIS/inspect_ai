@@ -206,13 +206,11 @@ def basic_agent(
                             # exit if we are at max_attempts
                             attempts += 1
                             if attempts >= max_attempts:
-                                state.completed = True
                                 break
 
                             # exit if the submission is successful
                             answer_scores = await score(state)
                             if score_value_fn(answer_scores[0].value) == 1.0:
-                                state.completed = True
                                 break
 
                             # otherwise notify the model that it was incorrect and continue

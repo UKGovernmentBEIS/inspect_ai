@@ -118,9 +118,6 @@ class Plan(Solver):
                     st.complete(state)
                 check_sample_interrupt()
 
-            # mark completed
-            state.completed = True
-
         finally:
             # always do cleanup if we have one
             if self.cleanup:
