@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Added `SandboxEvent` to transcript for recording sandbox execution and i/o.
 - Compatiblity with textual version 2.0 (remove upper bound).
 - Align with HF datasets `fsspec` version contraints to avoid pip errors when installing alongside `datasets`.
 
