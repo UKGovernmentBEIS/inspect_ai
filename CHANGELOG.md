@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Remove root logging handlers upon Inspect logger initialisation (as they result in lots of log spam if left installed).
+- Only explicitly set `state.completed=True` when entering scoring (`basic_agent()` no longer sets `completed` so can be used in longer compositions of solvers).
 - Compatiblity with textual version 2.0 (remove upper bound).
 - Align with HF datasets `fsspec` version contraints to avoid pip errors when installing alongside `datasets`.
 
