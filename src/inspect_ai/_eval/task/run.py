@@ -661,10 +661,12 @@ async def task_run_sample(
 
                     # capture most recent state for scoring
                     state = ex.state or sample_state() or state
-                    state.completed = True
 
                 except BaseException as ex:
                     error, raise_error = handle_error(ex)
+
+                # mark completed
+                state.completed = True
 
                 # set timeout for scoring. if the original timeout was hit we still
                 # want to provide opportunity for scoring, but we don't necessarily
