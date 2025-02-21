@@ -74,17 +74,9 @@ const ExecView: React.FC<ExecViewProps> = ({ event }) => {
     <div className={clsx(styles.exec)}>
       <EventSection title={`Command`}>
         <div className={clsx(styles.twoColumn)}>
-          <pre>
-            <code className={clsx("text-size-base", "sourceCode", styles.cmd)}>
-              {cmd}
-            </code>
-          </pre>
-          <pre>
-            {input !== null ? (
-              <code className={clsx("text-size-base", "sourceCode")}>
-                {input?.trim()}
-              </code>
-            ) : undefined}
+          <pre className={clsx(styles.wrapPre)}>{cmd}</pre>
+          <pre className={clsx(styles.wrapPre)}>
+            {input !== null ? input?.trim() : undefined}
           </pre>
 
           {options !== null ? (
@@ -151,11 +143,7 @@ const FileView: React.FC<FileViewProps> = ({ file, contents }) => {
       {contents ? (
         <EventSection title="Contents">
           <ExpandablePanel collapse={false}>
-            <pre>
-              <code className={clsx("text-size-base", "sourceCode")}>
-                {contents}
-              </code>
-            </pre>
+            <pre>{contents}</pre>
           </ExpandablePanel>
         </EventSection>
       ) : undefined}

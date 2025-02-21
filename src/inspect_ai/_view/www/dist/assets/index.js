@@ -58357,17 +58357,19 @@ ${events}
         this.depth = depth;
       }
     }
-    const contents = "_contents_7pswv_1";
-    const twoColumn = "_twoColumn_7pswv_9";
-    const exec = "_exec_7pswv_16";
-    const result = "_result_7pswv_20";
-    const fileLabel = "_fileLabel_7pswv_24";
+    const contents = "_contents_iwnfd_1";
+    const twoColumn = "_twoColumn_iwnfd_9";
+    const exec = "_exec_iwnfd_15";
+    const result = "_result_iwnfd_19";
+    const fileLabel = "_fileLabel_iwnfd_23";
+    const wrapPre = "_wrapPre_iwnfd_28";
     const styles$l = {
       contents,
       twoColumn,
       exec,
       result,
-      fileLabel
+      fileLabel,
+      wrapPre
     };
     const SandboxEventView = ({
       id,
@@ -58407,8 +58409,8 @@ ${events}
       const output2 = event.output;
       return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$l.exec), children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx(EventSection, { title: `Command`, children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$l.twoColumn), children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("code", { className: clsx("text-size-base", "sourceCode", styles$l.cmd), children: cmd2 }) }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { children: input2 !== null ? /* @__PURE__ */ jsxRuntimeExports.jsx("code", { className: clsx("text-size-base", "sourceCode"), children: input2 == null ? void 0 : input2.trim() }) : void 0 }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: clsx(styles$l.wrapPre), children: cmd2 }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: clsx(styles$l.wrapPre), children: input2 !== null ? input2 == null ? void 0 : input2.trim() : void 0 }),
           options2 !== null ? /* @__PURE__ */ jsxRuntimeExports.jsx(EventSection, { title: `Options`, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
             MetaDataGrid,
             {
@@ -58445,7 +58447,7 @@ ${events}
     const FileView = ({ file, contents: contents2 }) => {
       return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx(EventSection, { title: "File", children: /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: clsx(styles$l.fileLabel), children: file }) }),
-        contents2 ? /* @__PURE__ */ jsxRuntimeExports.jsx(EventSection, { title: "Contents", children: /* @__PURE__ */ jsxRuntimeExports.jsx(ExpandablePanel, { collapse: false, children: /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("code", { className: clsx("text-size-base", "sourceCode"), children: contents2 }) }) }) }) : void 0
+        contents2 ? /* @__PURE__ */ jsxRuntimeExports.jsx(EventSection, { title: "Contents", children: /* @__PURE__ */ jsxRuntimeExports.jsx(ExpandablePanel, { collapse: false, children: /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { children: contents2 }) }) }) : void 0
       ] });
     };
     const darkenedBg = "_darkenedBg_c8m1t_1";
