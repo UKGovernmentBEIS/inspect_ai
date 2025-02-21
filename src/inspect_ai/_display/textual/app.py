@@ -316,7 +316,7 @@ class TaskScreenApp(App[TR]):
 
         def set_unread(unread: int | None) -> None:
             if unread is not None:
-                console_tab.label = "Console ({unread}"  # type: ignore[assignment]
+                console_tab.label = f"Console ({unread})"  # type: ignore[assignment]
             else:
                 console_tab.label = "Console"  # type: ignore[assignment]
 

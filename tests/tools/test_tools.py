@@ -10,7 +10,6 @@ from test_helpers.tools import addition, raise_error, read_file
 from test_helpers.utils import (
     skip_if_no_anthropic,
     skip_if_no_google,
-    skip_if_no_groq,
     skip_if_no_mistral,
     skip_if_no_openai,
     skip_if_no_vertex,
@@ -177,9 +176,11 @@ def test_mistral_tools():
     check_tools("mistral/mistral-large-latest")
 
 
-@skip_if_no_groq
-def test_groq_tools():
-    check_tools("groq/mixtral-8x7b-32768")
+# groq tool calling is extremely unreliable and consequently causes
+# failed tests that are red herrings. don't exercise this for now.
+# @skip_if_no_groq
+# def test_groq_tools():
+#     check_tools("groq/mixtral-8x7b-32768")
 
 
 @skip_if_no_google
