@@ -15,12 +15,14 @@ from openai._types import NOT_GIVEN
 from openai.types.chat import (
     ChatCompletion,
 )
+from shortuuid import uuid
 from typing_extensions import override
 
 from inspect_ai._util.constants import DEFAULT_MAX_RETRIES
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.logger import warn_once
 from inspect_ai.model._openai import chat_choices_from_openai
+from inspect_ai.model._providers.util.httpx import HttpxTimeTracker
 from inspect_ai.tool import ToolChoice, ToolInfo
 
 from .._chat_message import ChatMessage
@@ -137,6 +139,9 @@ class OpenAIAPI(ModelAPI):
                 **model_args,
             )
 
+        # create request tracker
+        self._time_tracker = HttpxTimeTracker(self.client._client)
+
     def is_azure(self) -> bool:
         return self.service == "azure"
 
@@ -193,12 +198,14 @@ class OpenAIAPI(ModelAPI):
                 config.max_tokens = OPENAI_IMAGE_DEFAULT_TOKENS
 
         # prepare request (we do this so we can log the ModelCall)
+        request_id = uuid()
         request = dict(
             messages=await openai_chat_messages(input, self.model_name),
             tools=openai_chat_tools(tools) if len(tools) > 0 else NOT_GIVEN,
             tool_choice=openai_chat_tool_choice(tool_choice)
             if len(tools) > 0
             else NOT_GIVEN,
+            extra_headers={HttpxTimeTracker.REQUEST_ID_HEADER: request_id},
             **self.completion_params(config, len(tools) > 0),
         )
 
@@ -207,6 +214,10 @@ class OpenAIAPI(ModelAPI):
             completion: ChatCompletion = await self.client.chat.completions.create(
                 **request
             )
+
+            # get elapsed time
+            request_time = self._time_tracker.collect_time(request_id)
+            print(request_time)
 
             # save response for model_call
             response = completion.model_dump()
