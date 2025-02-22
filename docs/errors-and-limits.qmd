@@ -10,7 +10,9 @@ This article covers various techniques for dealing with unexpected errors and se
 
 1.  Retrying failed evaluations (while preserving the samples completed during the initial failed run).
 2.  Establishing a threshold (count or percentage) of samples to tolerate errors for before failing an evaluation.
-3.  Setting a maximum number of messages in a sample before forcing the model to give up.
+3.  Setting time limits for samples (either running time or more narrowly execution time).
+4.  Setting a maximum number of messages or tokens in a sample before forcing the model to give up.
+
 
 {{< include _errors_and_retries.md >}}
 
@@ -90,6 +92,42 @@ inspect eval ctf.py --time-limit 900
 ```
 
 Appropriate timeouts will vary depending on the nature of your task so please view the above as examples only rather than recommend values.
+
+### Execution Limit
+
+::: {.callout-note appearance="simple"}
+The execution limit feature described below is currently available only in the development version of Inspect. To install the development version from GitHub:
+
+``` bash
+pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+```
+:::
+
+The `execution_limit` differs from the `time_limit` in that it measures only the time spent executing (as opposed to retrying in response to rate limits or waiting on other shared resources). Here we set an `execution_limit` of 10 minutes (10 x 60 seconds) for each sample within a task:
+
+``` python
+@task
+def intercode_ctf():
+    return Task(
+        dataset=read_dataset(),
+        solver=[
+            system_message("system.txt"),
+            use_tools([bash(timeout=3 * 60)]),
+            generate(),
+        ],
+        execution_limit=10 * 60,
+        scorer=includes(),
+        sandbox="docker",
+    )
+```
+
+Inspect keeps a count of execution time separate from sample running time. By default, only time spent inside successful calls to `model.generate()` (as opposed to retries) as well as time spent inside calls to `subprocess()` (which includes all calls to `sandbox().exec()` for the local and docker providers) are counted as execution time.
+
+::: {.callout-note appearance="simple"}
+
+Tools and solvers may additionally report execution time not captured by generation and subprocess execution using the `execution()` context manager or the `execution_time()` function. See the documentation on [tool execution time](tools.qmd#excution-time) for details.pip 
+
+:::
 
 ### Message Limit
 
