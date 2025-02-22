@@ -33,6 +33,8 @@ export const SampleLimitEventView: React.FC<SampleLimitEventViewProps> = ({
         return "Token Limit Exceeded";
       case "operator":
         return "Operator Canceled";
+      case "execution":
+        return "Execution Time Limit Exceeded";
     }
   };
 
@@ -48,6 +50,8 @@ export const SampleLimitEventView: React.FC<SampleLimitEventViewProps> = ({
         return ApplicationIcons.limits.tokens;
       case "operator":
         return ApplicationIcons.limits.operator;
+      case "execution":
+        return ApplicationIcons.limits.execution;
     }
   };
 

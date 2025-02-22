@@ -1,7 +1,7 @@
 import clsx from "clsx";
 import { MarkdownDiv } from "../components/MarkdownDiv";
-import { EvalSample } from "../types/log";
-import { arrayToString, inputString } from "../utils/format";
+import { EvalSample, ExecutionTime, TotalTime } from "../types/log";
+import { arrayToString, formatTime, inputString } from "../utils/format";
 import { SamplesDescriptor } from "./descriptor/samplesDescriptor";
 import { FlatSampleError } from "./error/FlatSampleErrorView";
 
@@ -20,6 +20,7 @@ interface SummaryColumn {
   size: string;
   center?: boolean;
   clamp?: boolean;
+  title?: string;
 }
 
 /**
@@ -46,6 +47,7 @@ export const SampleSummaryView: React.FC<SampleSummaryViewProps> = ({
     sampleDescriptor?.messageShape.normalized.limit > 0
       ? Math.max(0.15, sampleDescriptor.messageShape.normalized.limit)
       : 0;
+  const timeSize = sample.execution_time || sample.total_time ? 0.15 : 0;
   const idSize = Math.max(
     2,
     Math.min(10, sampleDescriptor?.messageShape.raw.id),
@@ -110,6 +112,44 @@ export const SampleSummaryView: React.FC<SampleSummaryViewProps> = ({
     });
   }
 
+  const has_value = (val?: number | null) => {
+    return val !== undefined && val !== null;
+  };
+
+  const duration = (total_time?: TotalTime, execution_time?: ExecutionTime) => {
+    if (has_value(total_time) && !has_value(execution_time)) {
+      return formatTime(total_time);
+    } else if (has_value(total_time) && has_value(execution_time)) {
+      return `${formatTime(total_time)} (${formatTime(execution_time)})`;
+    } else if (has_value(execution_time)) {
+      return formatTime(execution_time);
+    } else {
+      return undefined;
+    }
+  };
+
+  const label = (total_time?: TotalTime, execution_time?: ExecutionTime) => {
+    if (has_value(total_time) && !has_value(execution_time)) {
+      return "Total time";
+    } else if (has_value(total_time) && has_value(execution_time)) {
+      return "Total time (execution time)";
+    } else if (has_value(execution_time)) {
+      return "Execution time";
+    } else {
+      return undefined;
+    }
+  };
+
+  if (sample.execution_time || sample.total_time) {
+    columns.push({
+      label: "Runtime",
+      value: duration(sample.total_time, sample.execution_time),
+      size: `${timeSize}fr`,
+      center: true,
+      title: label(sample.total_time, sample.execution_time),
+    });
+  }
+
   if (sample?.limit && limitSize > 0) {
     columns.push({
       label: "Limit",
@@ -151,8 +191,10 @@ export const SampleSummaryView: React.FC<SampleSummaryViewProps> = ({
               "text-style-label",
               "text-style-secondary",
               "text-size-base",
+              col.title ? styles.titled : undefined,
               col.center ? styles.centerLabel : undefined,
             )}
+            title={col.title}
           >
             {col.label}
           </div>
