@@ -32,33 +32,28 @@ class HttpxTimeTracker:
     REQUEST_ID_HEADER = "x-rid"
 
     def __init__(self, client: httpx.AsyncClient):
-        # track requests
-        self._requests: dict[str, RequestTime] = {}
+        # track request start times
+        self._requests: dict[str, float] = {}
 
-        # install httpx hooks
+        # install httpx request hook
         client.event_hooks["request"].append(self.request_hook)
-        client.event_hooks["response"].append(self.response_hook)
 
     def start_request(self) -> str:
         request_id = uuid()
-        self._requests[request_id] = RequestTime(start=time.monotonic(), end=None)
+        self._requests[request_id] = time.monotonic()
         return request_id
 
     def end_request(self, request_id: str) -> float:
-        # read the total request if (if available) and purge from dict
+        # read the request time if (if available) and purge from dict
         request_time = self._requests.pop(request_id, None)
         if request_time is None:
             raise RuntimeError(f"request_id not registered: {request_id}")
 
-        # if there is no end time then use the current time
-        end_time = request_time.end or time.monotonic()
-
         # return elapsed time
-        return end_time - request_time.start
+        return time.monotonic() - request_time
 
     async def request_hook(self, request: httpx.Request) -> None:
-        # insert or update the last request time for this request id
-        # (as there could be multiple retries)
+        # update the last request time for this request id (as there could be retries)
         request_id = request.headers.get(self.REQUEST_ID_HEADER, None)
         if request_id:
             request_time = self._requests.get(request_id, None)
@@ -68,16 +63,4 @@ class HttpxTimeTracker:
                 )
 
             # update the request time
-            request_time.start = time.monotonic()
-
-    async def response_hook(self, response: httpx.Response) -> None:
-        # collect successful responses that we are already tracking a request id for
-        if response.status_code == 200:
-            request_id = response.request.headers.get(self.REQUEST_ID_HEADER, None)
-            if request_id:
-                request_time = self._requests.get(request_id, None)
-                if request_time is None:
-                    raise RuntimeError(f"request_id not registered: {request_id}")
-
-                # update
-                request_time.end = time.monotonic()
+            self._requests[request_id] = time.monotonic()
