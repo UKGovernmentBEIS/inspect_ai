@@ -7,7 +7,7 @@ import {
   useCallback,
   useMemo,
 } from "react";
-import { DisplayMetric, SampleSummary } from "../api/types";
+import { RunningMetric, SampleSummary } from "../api/types";
 import { EmptyPanel } from "../components/EmptyPanel";
 import { TabPanel, TabSet } from "../components/TabSet";
 import { EvalDescriptor } from "../samples/descriptor/types";
@@ -22,6 +22,7 @@ import { debounce } from "../utils/sync";
 import { Navbar } from "./navbar/Navbar";
 import { TabDescriptor } from "./types";
 
+import { Capabilities } from "../types";
 import styles from "./WorkSpaceView.module.css";
 
 interface WorkSpaceViewProps {
@@ -29,7 +30,7 @@ interface WorkSpaceViewProps {
   evalSpec: EvalSpec;
   evalPlan?: EvalPlan;
   evalResults?: EvalResults;
-  runningMetrics?: DisplayMetric[];
+  runningMetrics?: RunningMetric[];
   evalStats?: EvalStats;
   samples?: SampleSummary[];
   evalDescriptor?: EvalDescriptor;
@@ -43,6 +44,7 @@ interface WorkSpaceViewProps {
   setOffcanvas: (offcanvas: boolean) => void;
   workspaceTabScrollPositionRef: RefObject<Record<string, number>>;
   setWorkspaceTabScrollPosition: (tab: string, pos: number) => void;
+  capabilities: Capabilities;
 }
 
 export const WorkSpaceView: FC<WorkSpaceViewProps> = ({
@@ -64,6 +66,7 @@ export const WorkSpaceView: FC<WorkSpaceViewProps> = ({
   setOffcanvas,
   workspaceTabScrollPositionRef,
   setWorkspaceTabScrollPosition,
+  capabilities,
 }) => {
   const debouncedScroll = useMemo(() => {
     return debounce((id, position) => {
@@ -130,6 +133,7 @@ export const WorkSpaceView: FC<WorkSpaceViewProps> = ({
           showToggle={showToggle}
           offcanvas={offcanvas}
           setOffcanvas={setOffcanvas}
+          capabilities={capabilities}
         />
         <div ref={divRef} className={clsx("workspace", styles.workspace)}>
           <div className={clsx("log-detail", styles.tabContainer)}>
