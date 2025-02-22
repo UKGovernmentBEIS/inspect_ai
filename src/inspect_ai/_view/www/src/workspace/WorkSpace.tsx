@@ -6,7 +6,7 @@ import { SamplesTab } from "./tabs/SamplesTab";
 
 import clsx from "clsx";
 import { MouseEvent, RefObject, useEffect, useMemo, useRef } from "react";
-import { DisplayMetric, SampleSummary } from "../api/types.ts";
+import { RunningMetric, SampleSummary } from "../api/types.ts";
 import {
   kEvalWorkspaceTabId,
   kInfoWorkspaceTabId,
@@ -43,7 +43,7 @@ interface WorkSpaceProps {
   evalPlan?: EvalPlan;
   evalStats?: EvalStats;
   evalResults?: EvalResults;
-  runningMetrics?: DisplayMetric[];
+  runningMetrics?: RunningMetric[];
   log?: CurrentLog;
   samples?: SampleSummary[];
   sampleMode: SampleMode;
@@ -104,6 +104,7 @@ export const WorkSpace: React.FC<WorkSpaceProps> = (props) => {
     setSelectedTab,
     workspaceTabScrollPositionRef,
     setWorkspaceTabScrollPosition,
+    capabilities,
   } = props;
   if (!evalSpec) {
     return null;
@@ -140,6 +141,7 @@ export const WorkSpace: React.FC<WorkSpaceProps> = (props) => {
       workspaceTabScrollPositionRef={workspaceTabScrollPositionRef}
       setWorkspaceTabScrollPosition={setWorkspaceTabScrollPosition}
       setOffcanvas={setOffcanvas}
+      capabilities={capabilities}
     />
   );
 };
