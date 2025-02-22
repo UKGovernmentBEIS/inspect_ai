@@ -256,7 +256,13 @@ export type JsonValue = unknown;
 export type Timestamp1 = string;
 export type Pending1 = boolean | null;
 export type Event1 = "sample_limit";
-export type Type7 = "message" | "time" | "token" | "operator" | "custom";
+export type Type7 =
+  | "message"
+  | "time"
+  | "execution"
+  | "token"
+  | "operator"
+  | "custom";
 export type Message2 = string;
 export type Limit1 = number | null;
 export type Timestamp2 = string;
@@ -438,9 +444,12 @@ export type Events = (
   | StepEvent
   | SubtaskEvent
 )[];
+export type TotalTime = number | null;
+export type RunningTime = number | null;
 export type Type13 =
   | "context"
   | "time"
+  | "execution"
   | "message"
   | "token"
   | "operator"
@@ -715,6 +724,8 @@ export interface EvalSample {
   store: Store;
   events: Events;
   model_usage: ModelUsage2;
+  total_time: TotalTime;
+  running_time: RunningTime;
   error: EvalError | null;
   attachments: Attachments;
   limit: EvalSampleLimit | null;

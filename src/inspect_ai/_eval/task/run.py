@@ -79,6 +79,7 @@ from inspect_ai.solver._fork import set_task_generate
 from inspect_ai.solver._limit import SampleLimitExceededError
 from inspect_ai.solver._solver import Solver
 from inspect_ai.solver._task_state import sample_state, set_sample_state, state_jsonable
+from inspect_ai.util._execution import sample_execution_time
 from inspect_ai.util._sandbox.context import sandbox_connections
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
 from inspect_ai.util._subtask import init_subtask
@@ -575,6 +576,7 @@ async def task_run_sample(
             transcript=sample_transcript,
         ) as active,
     ):
+        start_time: float | None = None
         error: EvalError | None = None
         raise_error: BaseException | None = None
         results: dict[str, SampleScore] = {}
@@ -606,6 +608,9 @@ async def task_run_sample(
                         if time_limit is not None
                         else contextlib.nullcontext()
                     )
+
+                    # record start time
+                    start_time = time.monotonic()
 
                     # run sample w/ optional timeout
                     async with timeout_cm:
@@ -775,6 +780,7 @@ async def task_run_sample(
 
             # log the sample
             await log_sample(
+                start_time=start_time,
                 logger=logger,
                 sample=sample,
                 state=state,
@@ -795,6 +801,7 @@ async def task_run_sample(
 
 
 async def log_sample(
+    start_time: float | None,
     logger: TaskLogger,
     sample: Sample,
     state: TaskState,
@@ -810,6 +817,9 @@ async def log_sample(
         )
 
     # construct sample for logging
+
+    # compute total time if we can
+    total_time = int(time.monotonic() - start_time) if start_time is not None else None
 
     # if a limit was hit, note that in the Eval Sample
     limit = None
@@ -836,6 +846,8 @@ async def log_sample(
         store=dict(state.store.items()),
         events=list(transcript().events),
         model_usage=sample_model_usage(),
+        total_time=total_time,
+        running_time=int(sample_execution_time()),
         error=error,
         limit=limit,
     )

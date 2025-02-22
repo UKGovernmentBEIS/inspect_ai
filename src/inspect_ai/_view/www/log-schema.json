@@ -1519,6 +1519,30 @@
           "title": "Model Usage",
           "type": "object"
         },
+        "total_time": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Total Time"
+        },
+        "running_time": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Running Time"
+        },
         "error": {
           "anyOf": [
             {
@@ -1565,6 +1589,8 @@
         "store",
         "events",
         "model_usage",
+        "total_time",
+        "running_time",
         "error",
         "attachments",
         "limit"
@@ -1580,6 +1606,7 @@
           "enum": [
             "context",
             "time",
+            "execution",
             "message",
             "token",
             "operator",
@@ -3300,6 +3327,7 @@
           "enum": [
             "message",
             "time",
+            "execution",
             "token",
             "operator",
             "custom"

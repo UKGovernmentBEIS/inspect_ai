@@ -141,7 +141,9 @@ class EvalConfig(BaseModel):
 class EvalSampleLimit(BaseModel):
     """Limit encontered by sample."""
 
-    type: Literal["context", "time", "message", "token", "operator", "custom"]
+    type: Literal[
+        "context", "time", "execution", "message", "token", "operator", "custom"
+    ]
     """The type of limit"""
 
     limit: int
@@ -217,6 +219,12 @@ class EvalSample(BaseModel):
 
     model_usage: dict[str, ModelUsage] = Field(default_factory=dict)
     """Model token usage for sample."""
+
+    total_time: int | None = Field(default=None)
+    """Total time that the sample was running."""
+
+    running_time: int | None = Field(default=None)
+    """Time spent running the sample (model generation, sandbox calls, etc.)"""
 
     error: EvalError | None = Field(default=None)
     """Error that halted sample."""

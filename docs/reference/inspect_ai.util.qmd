@@ -33,6 +33,8 @@ title: "inspect_ai.util"
 ### throttle
 ### trace_action
 ### trace_message
+### execution
+### execution_time
 
 ## Sandbox
 
