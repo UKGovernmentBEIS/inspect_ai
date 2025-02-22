@@ -39,6 +39,7 @@ export type FailOnError = boolean | number | null;
 export type MessageLimit = number | null;
 export type TokenLimit = number | null;
 export type TimeLimit = number | null;
+export type ExecutionLimit = number | null;
 export type MaxSamples = number | null;
 export type MaxTasks = number | null;
 export type MaxSubprocesses = number | null;
@@ -445,7 +446,7 @@ export type Events = (
   | SubtaskEvent
 )[];
 export type TotalTime = number | null;
-export type RunningTime = number | null;
+export type ExecutionTime = number | null;
 export type Type13 =
   | "context"
   | "time"
@@ -541,6 +542,7 @@ export interface EvalConfig {
   message_limit: MessageLimit;
   token_limit: TokenLimit;
   time_limit: TimeLimit;
+  execution_limit: ExecutionLimit;
   max_samples: MaxSamples;
   max_tasks: MaxTasks;
   max_subprocesses: MaxSubprocesses;
@@ -725,7 +727,7 @@ export interface EvalSample {
   events: Events;
   model_usage: ModelUsage2;
   total_time: TotalTime;
-  running_time: RunningTime;
+  execution_time: ExecutionTime;
   error: EvalError | null;
   attachments: Attachments;
   limit: EvalSampleLimit | null;

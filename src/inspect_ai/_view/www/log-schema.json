@@ -830,6 +830,18 @@
           "default": null,
           "title": "Time Limit"
         },
+        "execution_limit": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Execution Limit"
+        },
         "max_samples": {
           "anyOf": [
             {
@@ -951,6 +963,7 @@
         "message_limit",
         "token_limit",
         "time_limit",
+        "execution_limit",
         "max_samples",
         "max_tasks",
         "max_subprocesses",
@@ -1531,7 +1544,7 @@
           "default": null,
           "title": "Total Time"
         },
-        "running_time": {
+        "execution_time": {
           "anyOf": [
             {
               "type": "integer"
@@ -1541,7 +1554,7 @@
             }
           ],
           "default": null,
-          "title": "Running Time"
+          "title": "Execution Time"
         },
         "error": {
           "anyOf": [
@@ -1590,7 +1603,7 @@
         "events",
         "model_usage",
         "total_time",
-        "running_time",
+        "execution_time",
         "error",
         "attachments",
         "limit"

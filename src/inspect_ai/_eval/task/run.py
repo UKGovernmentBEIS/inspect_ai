@@ -854,7 +854,7 @@ async def log_sample(
         events=list(transcript().events),
         model_usage=sample_model_usage(),
         total_time=total_time,
-        running_time=int(sample_execution_time()),
+        execution_time=int(sample_execution_time()),
         error=error,
         limit=limit,
     )

@@ -15,10 +15,12 @@ from inspect_ai.scorer._scorer import Scorer, scorer
 from inspect_ai.scorer._target import Target
 from inspect_ai.solver import Generate, TaskState, solver
 from inspect_ai.solver._solver import Solver
+from inspect_ai.util._execution import execution
+from inspect_ai.util._subprocess import subprocess
 
 
 @solver
-def looping_solver(check_tokens: bool = False):
+def looping_solver(check_tokens: bool = False, sleep_for: float | None = None):
     async def solve(state: TaskState, generate: Generate):
         # first generate
         state = await generate(state)
@@ -29,8 +31,39 @@ def looping_solver(check_tokens: bool = False):
 
         # keep generating until we hit a limit
         while True:
+            if sleep_for:
+                await asyncio.sleep(sleep_for)
             state.messages.append(state.user_prompt)
             state = await generate(state)
+
+        return state
+
+    return solve
+
+
+@solver
+def looping_subprocess_solver(sleep_for: float | None = None):
+    async def solve(state: TaskState, generate: Generate):
+        # keep calling subprocesses until we hit a limit
+        while True:
+            if sleep_for:
+                await asyncio.sleep(sleep_for)
+            await subprocess(["sleep", "1"])
+
+        return state
+
+    return solve
+
+
+@solver
+def looping_execution_solver(sleep_for: float | None = None):
+    async def solve(state: TaskState, generate: Generate):
+        # keep calling executing until we hit a limit
+        while True:
+            if sleep_for:
+                await asyncio.sleep(sleep_for)
+            with execution():
+                await asyncio.sleep(1)
 
         return state
 
@@ -169,6 +202,46 @@ def test_solver_timeout_not_scored():
         time_limit=2,
     )[0]
     assert log.status == "error"
+
+
+@skip_if_no_openai
+def test_execution_limit_generate():
+    execution_limit = 3
+    log = eval(
+        Task(solver=looping_solver(sleep_for=1)),
+        model="openai/gpt-4o",
+        execution_limit=execution_limit,
+    )[0]
+    check_execution_limit_event(log, execution_limit)
+
+
+def test_execution_limit_subprocess():
+    execution_limit = 2
+    log = eval(
+        Task(solver=looping_subprocess_solver(sleep_for=1)),
+        model="mockllm/model",
+        execution_limit=execution_limit,
+    )[0]
+    check_execution_limit_event(log, execution_limit)
+
+
+def test_execution_limit_custom():
+    execution_limit = 2
+    log = eval(
+        Task(solver=looping_execution_solver(sleep_for=1)),
+        model="mockllm/model",
+        execution_limit=execution_limit,
+    )[0]
+    check_execution_limit_event(log, execution_limit)
+
+
+def check_execution_limit_event(log: EvalLog, execution_limit: int):
+    assert log.eval.config.execution_limit == execution_limit
+    assert log.samples
+    assert log.samples[0].total_time
+    assert log.samples[0].execution_time
+    assert log.samples[0].total_time > log.samples[0].execution_time
+    check_limit_event(log, "execution")
 
 
 def check_limit_event(log: EvalLog, content: str) -> None:
