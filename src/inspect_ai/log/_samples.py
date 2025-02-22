@@ -47,7 +47,7 @@ class ActiveSample:
         self._interrupt_action: Literal["score", "error"] | None = None
 
     @property
-    def execution_time(self) -> float:
+    def running_time(self) -> float:
         if self.started is not None:
             completed = (
                 self.completed
