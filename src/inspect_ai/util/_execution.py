@@ -58,7 +58,10 @@ def execution_time(time: float) -> None:
         from inspect_ai.solver._limit import SampleLimitExceededError
 
         raise SampleLimitExceededError(
-            type="execution", value=int(executing), limit=int(execution_limit)
+            type="execution",
+            value=int(executing),
+            limit=int(execution_limit),
+            message=f"Exceeded execution time limit ({execution_limit:,} seconds)",
         )
 
 
