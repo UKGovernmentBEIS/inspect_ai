@@ -81,7 +81,7 @@ from inspect_ai.solver._solver import Solver
 from inspect_ai.solver._task_state import sample_state, set_sample_state, state_jsonable
 from inspect_ai.util._execution import (
     init_sample_working_limit,
-    sample_working_time,
+    sample_waiting_time,
 )
 from inspect_ai.util._sandbox.context import sandbox_connections
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
@@ -543,7 +543,6 @@ async def task_run_sample(
 
     # initialise subtask and scoring context
     init_sample_model_usage()
-    init_sample_working_limit(working_limit)
     set_sample_state(state)
     sample_transcript = init_subtask(SAMPLE_SUBTASK, state.store)
     if scorers:
@@ -618,6 +617,7 @@ async def task_run_sample(
 
                     # record start time
                     start_time = time.monotonic()
+                    init_sample_working_limit(start_time, working_limit)
 
                     # run sample w/ optional timeout
                     async with timeout_cm:
@@ -854,7 +854,9 @@ async def log_sample(
         events=list(transcript().events),
         model_usage=sample_model_usage(),
         total_time=total_time,
-        execution_time=int(sample_working_time()),
+        working_time=(total_time - int(sample_waiting_time()))
+        if total_time is not None
+        else None,
         error=error,
         limit=limit,
     )

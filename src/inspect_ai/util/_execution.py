@@ -1,79 +1,49 @@
-import contextlib
 import time
 from contextvars import ContextVar
 from logging import getLogger
-from typing import Iterator
-
-from inspect_ai._util.trace import trace_action
 
 logger = getLogger(__name__)
 
 
-@contextlib.contextmanager
-def working(trace: str | None = None) -> Iterator[None]:
-    """Context manager to denote a sample execution action.
-
-    `execution_time` is reported for each sample (and samples can
-    be subject to an `working_limit`). By default, model generation
-    and subprocess exeuction count as execution time. This context
-    manager allows for classification of other code as execution time.
-
-    Args:
-       trace: Optional trace action (will cause the code to be
-         tracked and logged by the trace manager)
-    """
-    start_time = time.monotonic()
-    try:
-        if trace is not None:
-            with trace_action(logger, trace, trace):
-                yield
-        else:
-            yield
-    finally:
-        working_time(time.monotonic() - start_time)
+def init_sample_working_limit(start_time: float, working_limit: float | None) -> None:
+    _sample_working_limit.set(working_limit)
+    _sample_start_time.set(start_time)
+    _sample_waiting_time.set(0)
 
 
-def working_time(time: float) -> None:
-    """Report sample execution time.
+def sample_waiting_time() -> float:
+    return _sample_waiting_time.get()
 
-    `execution_time` is reported for each sample (and samples can
-    be subject to an `working_limit`). By default, model generation
-    and subprocess exeuction count as execution time. This function
-    allows for reporting of additional execution time.
 
-    Args:
-      time: Seconds of exeuction time.
-    """
-    # ignore if there is no limit
+def report_sample_waiting_time(waiting_time: float) -> None:
+    _sample_waiting_time.set(_sample_waiting_time.get() + waiting_time)
+    check_sample_working_limit()
+
+
+def check_sample_working_limit() -> None:
+    # no check if we don't have a limit
     working_limit = _sample_working_limit.get()
     if working_limit is None:
         return
 
-    # update execution time
-    working = _sample_working_time.get() + time
-    _sample_working_time.set(working)
-
     # are we over the limit?
-    if working >= working_limit:
+    running_time = time.monotonic() - _sample_start_time.get()
+    working_time = running_time - sample_waiting_time()
+    if working_time > working_limit:
         from inspect_ai.solver._limit import SampleLimitExceededError
 
         raise SampleLimitExceededError(
             type="execution",
-            value=int(working),
+            value=int(working_time),
             limit=int(working_limit),
             message=f"Exceeded execution time limit ({working_limit:,} seconds)",
         )
 
 
-def init_sample_working_limit(working_limit: float | None) -> None:
-    _sample_working_limit.set(working_limit)
-
-
-def sample_working_time() -> float:
-    return _sample_working_time.get()
-
-
 _sample_working_limit: ContextVar[float | None] = ContextVar(
     "sample_working_limit", default=None
 )
-_sample_working_time: ContextVar[float] = ContextVar("sample_working_time", default=0)
+
+_sample_start_time: ContextVar[float] = ContextVar("sample_start_time", default=0)
+
+_sample_waiting_time: ContextVar[float] = ContextVar("sample_waiting_time", default=0)

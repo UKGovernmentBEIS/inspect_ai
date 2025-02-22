@@ -10,7 +10,6 @@ from pathlib import Path
 from typing import AsyncGenerator, Generic, Literal, TypeVar, Union, cast, overload
 
 from inspect_ai._util.trace import trace_action
-from inspect_ai.util._execution import working
 
 from ._concurrency import concurrency
 
@@ -228,8 +227,7 @@ async def subprocess(
     async with concurrency("subprocesses", max_subprocesses_context_var.get()):
         message = args if isinstance(args, str) else shlex.join(args)
         with trace_action(logger, "Subprocess", message):
-            with working():
-                return await run_command_timeout()
+            return await run_command_timeout()
 
 
 def init_max_subprocesses(max_subprocesses: int | None = None) -> None:

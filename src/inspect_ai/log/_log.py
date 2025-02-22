@@ -226,8 +226,8 @@ class EvalSample(BaseModel):
     total_time: int | None = Field(default=None)
     """Total time that the sample was running."""
 
-    execution_time: int | None = Field(default=None)
-    """Time spent executing the sample (model generation, sandbox calls, etc.)"""
+    working_time: int | None = Field(default=None)
+    """Time spent working (model generation, sandbox calls, etc.)"""
 
     error: EvalError | None = Field(default=None)
     """Error that halted sample."""

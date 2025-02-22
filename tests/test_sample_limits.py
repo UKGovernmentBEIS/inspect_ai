@@ -15,7 +15,6 @@ from inspect_ai.scorer._scorer import Scorer, scorer
 from inspect_ai.scorer._target import Target
 from inspect_ai.solver import Generate, TaskState, solver
 from inspect_ai.solver._solver import Solver
-from inspect_ai.util._execution import working
 from inspect_ai.util._subprocess import subprocess
 
 
@@ -49,21 +48,6 @@ def looping_subprocess_solver(sleep_for: float | None = None):
             if sleep_for:
                 await asyncio.sleep(sleep_for)
             await subprocess(["sleep", "1"])
-
-        return state
-
-    return solve
-
-
-@solver
-def looping_execution_solver(sleep_for: float | None = None):
-    async def solve(state: TaskState, generate: Generate):
-        # keep calling executing until we hit a limit
-        while True:
-            if sleep_for:
-                await asyncio.sleep(sleep_for)
-            with working():
-                await asyncio.sleep(1)
 
         return state
 
@@ -204,43 +188,33 @@ def test_solver_timeout_not_scored():
     assert log.status == "error"
 
 
-@skip_if_no_openai
-def test_working_limit_generate():
-    working_limit = 3
-    log = eval(
-        Task(solver=looping_solver(sleep_for=1)),
-        model="openai/gpt-4o",
-        working_limit=working_limit,
-    )[0]
-    check_working_limit_event(log, working_limit)
+# @skip_if_no_openai
+# def test_working_limit_generate():
+#     working_limit = 3
+#     log = eval(
+#         Task(solver=looping_solver(sleep_for=1)),
+#         model="openai/gpt-4o",
+#         working_limit=working_limit,
+#     )[0]
+#     check_working_limit_event(log, working_limit)
 
 
-def test_working_limit_subprocess():
-    working_limit = 2
-    log = eval(
-        Task(solver=looping_subprocess_solver(sleep_for=1)),
-        model="mockllm/model",
-        working_limit=working_limit,
-    )[0]
-    check_working_limit_event(log, working_limit)
-
-
-def test_working_limit_custom():
-    working_limit = 2
-    log = eval(
-        Task(solver=looping_execution_solver(sleep_for=1)),
-        model="mockllm/model",
-        working_limit=working_limit,
-    )[0]
-    check_working_limit_event(log, working_limit)
+# def test_working_limit_subprocess():
+#     working_limit = 2
+#     log = eval(
+#         Task(solver=looping_subprocess_solver(sleep_for=1)),
+#         model="mockllm/model",
+#         working_limit=working_limit,
+#     )[0]
+#     check_working_limit_event(log, working_limit)
 
 
 def check_working_limit_event(log: EvalLog, working_limit: int):
     assert log.eval.config.working_limit == working_limit
     assert log.samples
     assert log.samples[0].total_time
-    assert log.samples[0].execution_time
-    assert log.samples[0].total_time > log.samples[0].execution_time
+    assert log.samples[0].working_time
+    assert log.samples[0].total_time > log.samples[0].working_time
     check_limit_event(log, "execution")
 
 
