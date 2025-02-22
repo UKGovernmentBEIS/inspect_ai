@@ -30,10 +30,10 @@ def working(trace: str | None = None) -> Iterator[None]:
         else:
             yield
     finally:
-        working_Time(time.monotonic() - start_time)
+        working_time(time.monotonic() - start_time)
 
 
-def working_Time(time: float) -> None:
+def working_time(time: float) -> None:
     """Report sample execution time.
 
     `execution_time` is reported for each sample (and samples can
