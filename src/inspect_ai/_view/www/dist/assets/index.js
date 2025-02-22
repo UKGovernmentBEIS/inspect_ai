@@ -50184,17 +50184,19 @@ self.onmessage = function (e) {
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$B.lineBase), children: errorType(message2) })
       ] });
     };
-    const target = "_target_yamz4_1";
-    const answer = "_answer_yamz4_5";
-    const grid$3 = "_grid_yamz4_9";
-    const centerLabel = "_centerLabel_yamz4_17";
-    const wrap = "_wrap_yamz4_22";
+    const target = "_target_9qy4e_1";
+    const answer = "_answer_9qy4e_5";
+    const grid$3 = "_grid_9qy4e_9";
+    const centerLabel = "_centerLabel_9qy4e_17";
+    const wrap = "_wrap_9qy4e_22";
+    const titled = "_titled_9qy4e_26";
     const styles$A = {
       target,
       answer,
       grid: grid$3,
       centerLabel,
-      wrap
+      wrap,
+      titled
     };
     const SampleSummaryView = ({
       parent_id,
@@ -50206,6 +50208,7 @@ self.onmessage = function (e) {
       const target2 = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.normalized.target) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.normalized.target) : 0;
       const answer2 = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.normalized.answer) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.normalized.answer) : 0;
       const limitSize = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.normalized.limit) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.normalized.limit) : 0;
+      const timeSize = sample2.execution_time || sample2.total_time ? 0.15 : 0;
       const idSize = Math.max(
         2,
         Math.min(10, sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.raw.id)
@@ -50260,6 +50263,40 @@ self.onmessage = function (e) {
           clamp: true
         });
       }
+      const has_value = (val) => {
+        return val !== void 0 && val !== null;
+      };
+      const duration = (total_time, execution_time) => {
+        if (has_value(total_time) && !has_value(execution_time)) {
+          return formatTime$1(total_time);
+        } else if (has_value(total_time) && has_value(execution_time)) {
+          return `${formatTime$1(total_time)} (${formatTime$1(execution_time)})`;
+        } else if (has_value(execution_time)) {
+          return formatTime$1(execution_time);
+        } else {
+          return void 0;
+        }
+      };
+      const label2 = (total_time, execution_time) => {
+        if (has_value(total_time) && !has_value(execution_time)) {
+          return "Total time";
+        } else if (has_value(total_time) && has_value(execution_time)) {
+          return "Total time (execution time)";
+        } else if (has_value(execution_time)) {
+          return "Execution time";
+        } else {
+          return void 0;
+        }
+      };
+      if (sample2.execution_time || sample2.total_time) {
+        columns.push({
+          label: "Runtime",
+          value: duration(sample2.total_time, sample2.execution_time),
+          size: `${timeSize}fr`,
+          center: true,
+          title: label2(sample2.total_time, sample2.execution_time)
+        });
+      }
       if ((sample2 == null ? void 0 : sample2.limit) && limitSize > 0) {
         columns.push({
           label: "Limit",
@@ -50296,8 +50333,10 @@ self.onmessage = function (e) {
                     "text-style-label",
                     "text-style-secondary",
                     "text-size-base",
+                    col.title ? styles$A.titled : void 0,
                     col.center ? styles$A.centerLabel : void 0
                   ),
+                  title: col.title,
                   children: col.label
                 },
                 `sample-summ-lbl-${idx}`
