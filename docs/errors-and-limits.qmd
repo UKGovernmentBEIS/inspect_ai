@@ -103,7 +103,7 @@ pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
 ```
 :::
 
-The `execution_limit` differs from the `time_limit` in that it measures only the time spent executing (as opposed to retrying in response to rate limits or waiting on other shared resources). Here we set an `execution_limit` of 10 minutes (10 x 60 seconds) for each sample within a task:
+The `working_limit` differs from the `time_limit` in that it measures only the time spent working (as opposed to retrying in response to rate limits or waiting on other shared resources). Here we set an `working_limit` of 10 minutes (10 x 60 seconds) for each sample within a task:
 
 ``` python
 @task
@@ -115,19 +115,15 @@ def intercode_ctf():
             use_tools([bash(timeout=3 * 60)]),
             generate(),
         ],
-        execution_limit=10 * 60,
+        working_limit=10 * 60,
         scorer=includes(),
         sandbox="docker",
     )
 ```
 
-Inspect keeps a count of execution time separate from sample running time. By default, only time spent inside successful calls to `model.generate()` (as opposed to retries) as well as time spent inside calls to `subprocess()` (which includes all calls to `sandbox().exec()` for the local and docker providers) are counted as execution time.
+Working time is computed based on total clock time minus time spent on (a) unsuccessful model generations (e.g. rate limited requests); and (b) waiting on shared resources (e.g. Docker containers or local processes).
 
-::: {.callout-note appearance="simple"}
 
-Tools and solvers may additionally report execution time not captured by generation and subprocess execution using the `execution()` context manager or the `execution_time()` function. See the documentation on [tool execution time](tools.qmd#excution-time) for details.pip 
-
-:::
 
 ### Message Limit
 

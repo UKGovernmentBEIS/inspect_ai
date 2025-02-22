@@ -164,10 +164,10 @@ async def eval_run(
                     task.time_limit = task_eval_config.time_limit
 
                 # sample execution limit
-                if task_eval_config.execution_limit is None:
-                    task_eval_config.execution_limit = task.execution_limit
+                if task_eval_config.working_limit is None:
+                    task_eval_config.working_limit = task.working_limit
                 else:
-                    task.execution_limit = task_eval_config.execution_limit
+                    task.working_limit = task_eval_config.working_limit
 
                 # fail_on_error
                 if task_eval_config.fail_on_error is None:

@@ -10,11 +10,11 @@ logger = getLogger(__name__)
 
 
 @contextlib.contextmanager
-def execution(trace: str | None = None) -> Iterator[None]:
+def working(trace: str | None = None) -> Iterator[None]:
     """Context manager to denote a sample execution action.
 
     `execution_time` is reported for each sample (and samples can
-    be subject to an `execution_limit`). By default, model generation
+    be subject to an `working_limit`). By default, model generation
     and subprocess exeuction count as execution time. This context
     manager allows for classification of other code as execution time.
 
@@ -30,14 +30,14 @@ def execution(trace: str | None = None) -> Iterator[None]:
         else:
             yield
     finally:
-        execution_time(time.monotonic() - start_time)
+        working_Time(time.monotonic() - start_time)
 
 
-def execution_time(time: float) -> None:
+def working_Time(time: float) -> None:
     """Report sample execution time.
 
     `execution_time` is reported for each sample (and samples can
-    be subject to an `execution_limit`). By default, model generation
+    be subject to an `working_limit`). By default, model generation
     and subprocess exeuction count as execution time. This function
     allows for reporting of additional execution time.
 
@@ -45,37 +45,35 @@ def execution_time(time: float) -> None:
       time: Seconds of exeuction time.
     """
     # ignore if there is no limit
-    execution_limit = _sample_execution_limit.get()
-    if execution_limit is None:
+    working_limit = _sample_working_limit.get()
+    if working_limit is None:
         return
 
     # update execution time
-    executing = _sample_execution_time.get() + time
-    _sample_execution_time.set(executing)
+    working = _sample_working_time.get() + time
+    _sample_working_time.set(working)
 
     # are we over the limit?
-    if executing >= execution_limit:
+    if working >= working_limit:
         from inspect_ai.solver._limit import SampleLimitExceededError
 
         raise SampleLimitExceededError(
             type="execution",
-            value=int(executing),
-            limit=int(execution_limit),
-            message=f"Exceeded execution time limit ({execution_limit:,} seconds)",
+            value=int(working),
+            limit=int(working_limit),
+            message=f"Exceeded execution time limit ({working_limit:,} seconds)",
         )
 
 
-def init_sample_execution_limit(execution_limit: float | None) -> None:
-    _sample_execution_limit.set(execution_limit)
+def init_sample_working_limit(working_limit: float | None) -> None:
+    _sample_working_limit.set(working_limit)
 
 
-def sample_execution_time() -> float:
-    return _sample_execution_time.get()
+def sample_working_time() -> float:
+    return _sample_working_time.get()
 
 
-_sample_execution_limit: ContextVar[float | None] = ContextVar(
-    "sample_execution_limit", default=None
+_sample_working_limit: ContextVar[float | None] = ContextVar(
+    "sample_working_limit", default=None
 )
-_sample_execution_time: ContextVar[float] = ContextVar(
-    "sample_execution_time", default=0
-)
+_sample_working_time: ContextVar[float] = ContextVar("sample_working_time", default=0)

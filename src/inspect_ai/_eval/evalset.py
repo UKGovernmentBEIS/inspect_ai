@@ -79,7 +79,7 @@ def eval_set(
     message_limit: int | None = None,
     token_limit: int | None = None,
     time_limit: int | None = None,
-    execution_limit: int | None = None,
+    working_limit: int | None = None,
     max_samples: int | None = None,
     max_tasks: int | None = None,
     max_subprocesses: int | None = None,
@@ -148,7 +148,7 @@ def eval_set(
         message_limit: Limit on total messages used for each sample.
         token_limit: Limit on total tokens used for each sample.
         time_limit: Limit on clock time (in seconds) for samples.
-        execution_limit: Limit on execution time (in seconds) for sample. Execution
+        working_limit: Limit on working time (in seconds) for sample. Working
             time includes model generation, tool calls, etc. but does not include
             time spent waiting on retries or shared resources.
         max_samples: Maximum number of samples to run in parallel
@@ -206,7 +206,7 @@ def eval_set(
             message_limit=message_limit,
             token_limit=token_limit,
             time_limit=time_limit,
-            execution_limit=execution_limit,
+            working_limit=working_limit,
             max_samples=max_samples,
             max_tasks=max_tasks,
             max_subprocesses=max_subprocesses,

@@ -39,7 +39,7 @@ export type FailOnError = boolean | number | null;
 export type MessageLimit = number | null;
 export type TokenLimit = number | null;
 export type TimeLimit = number | null;
-export type ExecutionLimit = number | null;
+export type WorkingLimit = number | null;
 export type MaxSamples = number | null;
 export type MaxTasks = number | null;
 export type MaxSubprocesses = number | null;
@@ -542,7 +542,7 @@ export interface EvalConfig {
   message_limit: MessageLimit;
   token_limit: TokenLimit;
   time_limit: TimeLimit;
-  execution_limit: ExecutionLimit;
+  working_limit: WorkingLimit;
   max_samples: MaxSamples;
   max_tasks: MaxTasks;
   max_subprocesses: MaxSubprocesses;

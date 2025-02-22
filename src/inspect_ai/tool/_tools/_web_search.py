@@ -15,7 +15,7 @@ from tenacity import (
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.retry import httpx_should_retry, log_retry_attempt
 from inspect_ai.util._concurrency import concurrency
-from inspect_ai.util._execution import execution
+from inspect_ai.util._execution import working
 
 from .._tool import Tool, ToolResult, tool
 
@@ -83,11 +83,11 @@ def web_search(
         # Paginate through search results until we have successfully extracted num_results pages or we have reached max_provider_calls
         while len(page_contents) < num_results and search_calls < max_provider_calls:
             async with concurrency(f"{provider}_web_search", max_connections):
-                with execution():
+                with working():
                     links = await search_provider(query, start_idx=search_calls * 10)
 
             # Extract and summarize each page individually
-            with execution():
+            with working():
                 pages = await asyncio.gather(
                     *[
                         page_if_relevant(link.url, query, model, client)

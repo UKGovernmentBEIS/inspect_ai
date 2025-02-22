@@ -56,7 +56,7 @@ class Task:
         message_limit: int | None = None,
         token_limit: int | None = None,
         time_limit: int | None = None,
-        execution_limit: int | None = None,
+        working_limit: int | None = None,
         name: str | None = None,
         version: int = 0,
         metadata: dict[str, Any] | None = None,
@@ -88,7 +88,7 @@ class Task:
             message_limit (int | None): Limit on total messages used for each sample.
             token_limit (int | None): Limit on total tokens used for each sample.
             time_limit: Limit on clock time (in seconds) for samples.
-            execution_limit: Limit on execution time (in seconds) for sample. Execution
+            working_limit: Limit on working time (in seconds) for sample. Working
                 time includes model generation, tool calls, etc. but does not include
                 time spent waiting on retries or shared resources.
             name: (str | None): Task name. If not specified is automatically
@@ -139,7 +139,7 @@ class Task:
         self.message_limit = message_limit
         self.token_limit = token_limit
         self.time_limit = time_limit
-        self.execution_limit = execution_limit
+        self.working_limit = working_limit
         self.version = version
         self._name = name
         self.metadata = metadata
@@ -177,7 +177,7 @@ def task_with(
     message_limit: int | None | NotGiven = NOT_GIVEN,
     token_limit: int | None | NotGiven = NOT_GIVEN,
     time_limit: int | None | NotGiven = NOT_GIVEN,
-    execution_limit: int | None | NotGiven = NOT_GIVEN,
+    working_limit: int | None | NotGiven = NOT_GIVEN,
     name: str | None | NotGiven = NOT_GIVEN,
     version: int | NotGiven = NOT_GIVEN,
     metadata: dict[str, Any] | None | NotGiven = NOT_GIVEN,
@@ -209,7 +209,7 @@ def task_with(
         message_limit (int | None): Limit on total messages used for each sample.
         token_limit (int | None): Limit on total tokens used for each sample.
         time_limit: Limit on clock time (in seconds) for samples.
-        execution_limit: Limit on execution time (in seconds) for sample. Execution
+        working_limit: Limit on execution time (in seconds) for sample. Execution
             time includes model generation, tool calls, etc. but does not include
             time spent waiting on retries or shared resources.
         name: (str | None): Task name. If not specified is automatically
@@ -254,8 +254,8 @@ def task_with(
         task.token_limit = token_limit
     if not isinstance(time_limit, NotGiven):
         task.time_limit = time_limit
-    if not isinstance(execution_limit, NotGiven):
-        task.execution_limit = execution_limit
+    if not isinstance(working_limit, NotGiven):
+        task.working_limit = working_limit
     if not isinstance(version, NotGiven):
         task.version = version
     if not isinstance(name, NotGiven):

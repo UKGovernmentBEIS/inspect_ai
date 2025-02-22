@@ -61,7 +61,7 @@ While many tasks can be defined with only a dataset, solver, and scorer, there a
 | `message_limit`\  | Limits to apply to sample execution.                 | [Sample Limits](errors-and-limits.qmd#sample-limits)      |
 | `token_limit`\    |                                                      |                                                           |
 | `time_limit`\     |                                                      |                                                           |
-| `execution_limit` |                                                      |                                                           |
+| `working_limit`   |                                                      |                                                           |
 +-------------------+------------------------------------------------------+-----------------------------------------------------------+
 | `name`\           | Eval log attributes for task.                        | [Eval Logs](eval-logs.qmd)                                |
 | `version`\        |                                                      |                                                           |

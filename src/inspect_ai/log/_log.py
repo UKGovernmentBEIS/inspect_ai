@@ -94,8 +94,8 @@ class EvalConfig(BaseModel):
     time_limit: int | None = Field(default=None)
     """Maximum clock time per sample."""
 
-    execution_limit: int | None = Field(default=None)
-    """Meximum execution time per sample."""
+    working_limit: int | None = Field(default=None)
+    """Meximum working time per sample."""
 
     max_samples: int | None = Field(default=None)
     """Maximum number of samples to run in parallel."""

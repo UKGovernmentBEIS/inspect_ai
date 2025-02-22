@@ -80,8 +80,8 @@ from inspect_ai.solver._limit import SampleLimitExceededError
 from inspect_ai.solver._solver import Solver
 from inspect_ai.solver._task_state import sample_state, set_sample_state, state_jsonable
 from inspect_ai.util._execution import (
-    init_sample_execution_limit,
-    sample_execution_time,
+    init_sample_working_limit,
+    sample_working_time,
 )
 from inspect_ai.util._sandbox.context import sandbox_connections
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
@@ -313,7 +313,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                                 or config.fail_on_error is True
                             ),
                             time_limit=config.time_limit,
-                            execution_limit=config.execution_limit,
+                            working_limit=config.working_limit,
                             semaphore=sample_semaphore,
                         )
                         for (sample, state) in zip(samples, states)
@@ -506,7 +506,7 @@ async def task_run_sample(
     sample_complete: Callable[[dict[str, SampleScore]], None],
     fails_on_error: bool,
     time_limit: int | None,
-    execution_limit: int | None,
+    working_limit: int | None,
     semaphore: asyncio.Semaphore | None,
 ) -> dict[str, SampleScore] | None:
     # if there is an existing sample then tick off its progress, log it, and return it
@@ -543,7 +543,7 @@ async def task_run_sample(
 
     # initialise subtask and scoring context
     init_sample_model_usage()
-    init_sample_execution_limit(execution_limit)
+    init_sample_working_limit(working_limit)
     set_sample_state(state)
     sample_transcript = init_subtask(SAMPLE_SUBTASK, state.store)
     if scorers:
@@ -578,7 +578,7 @@ async def task_run_sample(
             message_limit=state.message_limit,
             token_limit=state.token_limit,
             time_limit=time_limit,
-            execution_limit=execution_limit,
+            working_limit=working_limit,
             fails_on_error=fails_on_error,
             transcript=sample_transcript,
         ) as active,
@@ -854,7 +854,7 @@ async def log_sample(
         events=list(transcript().events),
         model_usage=sample_model_usage(),
         total_time=total_time,
-        execution_time=int(sample_execution_time()),
+        execution_time=int(sample_working_time()),
         error=error,
         limit=limit,
     )

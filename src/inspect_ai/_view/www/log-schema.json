@@ -830,7 +830,7 @@
           "default": null,
           "title": "Time Limit"
         },
-        "execution_limit": {
+        "working_limit": {
           "anyOf": [
             {
               "type": "integer"
@@ -840,7 +840,7 @@
             }
           ],
           "default": null,
-          "title": "Execution Limit"
+          "title": "Working Limit"
         },
         "max_samples": {
           "anyOf": [
@@ -963,7 +963,7 @@
         "message_limit",
         "token_limit",
         "time_limit",
-        "execution_limit",
+        "working_limit",
         "max_samples",
         "max_tasks",
         "max_subprocesses",

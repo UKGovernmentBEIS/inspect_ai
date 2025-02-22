@@ -23,7 +23,7 @@ from inspect_ai._util.logger import warn_once
 from inspect_ai.model._openai import chat_choices_from_openai
 from inspect_ai.model._providers.util.httpx import HttpxTimeTracker
 from inspect_ai.tool import ToolChoice, ToolInfo
-from inspect_ai.util._execution import execution_time
+from inspect_ai.util._execution import working_Time
 
 from .._chat_message import ChatMessage
 from .._generate_config import GenerateConfig
@@ -216,7 +216,7 @@ class OpenAIAPI(ModelAPI):
             )
 
             # record running time
-            execution_time(self._time_tracker.end_request(request_id))
+            working_Time(self._time_tracker.end_request(request_id))
 
             # save response for model_call
             response = completion.model_dump()

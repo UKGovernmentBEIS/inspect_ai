@@ -23,7 +23,7 @@ class ActiveSample:
         message_limit: int | None,
         token_limit: int | None,
         time_limit: int | None,
-        execution_limit: int | None,
+        working_limit: int | None,
         fails_on_error: bool,
         transcript: Transcript,
         sandboxes: dict[str, SandboxConnection],
@@ -38,7 +38,7 @@ class ActiveSample:
         self.message_limit = message_limit
         self.token_limit = token_limit
         self.time_limit = time_limit
-        self.execution_limit = execution_limit
+        self.working_limit = working_limit
         self.fails_on_error = fails_on_error
         self.total_messages = 0
         self.total_tokens = 0
@@ -80,7 +80,7 @@ async def active_sample(
     message_limit: int | None,
     token_limit: int | None,
     time_limit: int | None,
-    execution_limit: int | None,
+    working_limit: int | None,
     fails_on_error: bool,
     transcript: Transcript,
 ) -> AsyncGenerator[ActiveSample, None]:
@@ -93,7 +93,7 @@ async def active_sample(
         message_limit=message_limit,
         token_limit=token_limit,
         time_limit=time_limit,
-        execution_limit=execution_limit,
+        working_limit=working_limit,
         sandboxes=await sandbox_connections(),
         fails_on_error=fails_on_error,
         transcript=transcript,

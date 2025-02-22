@@ -1,6 +1,6 @@
 ## Unreleased
 
-- [execution_limit](https://inspect.ai-safety-institute.org.uk/errors_and_limits.html#sample-limits) option for specifying a maximum execution time (e.g. model generation, tool calls, etc.) for samples.
+- [working_limit](https://inspect.ai-safety-institute.org.uk/errors_and_limits.html#sample-limits) option for specifying a maximum working time (e.g. model generation, tool calls, etc.) for samples.
 - Added `SandboxEvent` to transcript for recording sandbox execution and I/O.
 - Remove root logging handlers upon Inspect logger initialisation (as they result in lots of log spam if left installed).
 - Only explicitly set `state.completed=True` when entering scoring (`basic_agent()` no longer sets `completed` so can be used in longer compositions of solvers).
