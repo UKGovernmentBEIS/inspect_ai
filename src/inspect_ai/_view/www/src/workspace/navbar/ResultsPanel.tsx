@@ -1,63 +1,123 @@
 import clsx from "clsx";
 import { FC } from "react";
-import { EvalMetric, EvalResults, EvalScore, Reducer } from "../../types/log";
+import { RunningMetric } from "../../api/types";
+import { Scores } from "../../types/log";
 import { formatPrettyDecimal } from "../../utils/format";
 import { metricDisplayName } from "../utils";
 import styles from "./ResultsPanel.module.css";
 
-interface ResultsPanelProps {
-  results?: EvalResults;
+export interface ResultsMetric {
+  name: string;
+  params?: {};
+  value: number;
 }
 
-interface MetricSummary {
-  reducer: Reducer;
-  metric: EvalMetric;
+export interface ResultsScorer {
+  scorer: string;
+  reducer?: string;
+  metrics: ResultsMetric[];
 }
 
-export const ResultsPanel: FC<ResultsPanelProps> = ({ results }) => {
-  // Map the scores into a list of key/values
-  if (results?.scores?.length === 1) {
-    const scorers: Record<string, MetricSummary[]> = {};
-    results.scores.map((score) => {
-      scorers[score.name] = Object.keys(score.metrics).map((key) => {
-        return {
-          reducer: score.reducer,
-          metric: {
-            name: key,
-            value: score.metrics[key].value,
-            params: score.metrics[key].params,
-            metadata: {},
-          },
+export const displayScorersFromRunningMetrics = (metrics?: RunningMetric[]) => {
+  if (!metrics) {
+    return [];
+  }
+
+  const getKey = (metric: RunningMetric) => {
+    return metric.reducer
+      ? `${metric.scorer}-${metric.reducer}`
+      : metric.scorer;
+  };
+
+  const scorers: Record<string, ResultsScorer> = {};
+  metrics.forEach((metric) => {
+    if (metric.value !== undefined) {
+      const key = getKey(metric);
+      if (!!scorers[key]) {
+        scorers[key].metrics.push({
+          name: metric.name,
+          value: metric.value,
+        });
+      } else {
+        scorers[key] = {
+          scorer: metric.scorer,
+          reducer: metric.reducer,
+          metrics: [
+            {
+              name: metric.name,
+              value: metric.value,
+            },
+          ],
         };
-      });
-    });
+      }
+    }
+  });
 
-    const metrics = Object.values(scorers)[0];
-    const showReducer = metrics && metrics.length > 0 && !!metrics[0].reducer;
+  return Object.values(scorers);
+};
+
+export const toDisplayScorers = (scores?: Scores): ResultsScorer[] => {
+  if (!scores) {
+    return [];
+  }
+
+  return scores.map((score) => {
+    return {
+      scorer: score.name,
+      reducer: score.reducer === null ? undefined : score.reducer,
+      metrics: Object.keys(score.metrics).map((key) => {
+        const metric = score.metrics[key];
+        return {
+          name: metric.name,
+          value: metric.value,
+          params: metric.params,
+        };
+      }),
+    };
+  });
+};
+
+interface ResultsPanelProps {
+  scorers?: ResultsScorer[];
+}
+
+export const ResultsPanel: React.FC<ResultsPanelProps> = ({ scorers }) => {
+  if (!scorers || scorers.length === 0) {
+    return undefined;
+  }
+
+  // Get the display scorers
+  if (scorers.length === 1) {
+    const showReducer = !!scorers[0].reducer;
+    const metrics = scorers[0].metrics;
     return (
       <div className={styles.simpleMetricsRows}>
         {metrics.map((metric, i) => {
-          return (
-            <VerticalMetric
-              key={`simple-metric-${i}`}
-              metricSummary={metric}
-              isFirst={i === 0}
-              showReducer={showReducer}
-            />
-          );
+          if (metric.value) {
+            return (
+              <VerticalMetric
+                key={`simple-metric-${i}`}
+                reducer={scorers[0].reducer}
+                metric={metric}
+                isFirst={i === 0}
+                showReducer={showReducer}
+              />
+            );
+          } else {
+            return undefined;
+          }
         })}
       </div>
     );
   } else {
-    const showReducer =
-      results?.scores.findIndex((score) => !!score.reducer) !== -1;
+    const showReducer = scorers.findIndex((score) => !!score.reducer) !== -1;
     return (
       <div className={styles.multiMetricsRows}>
-        {results?.scores?.map((score, index) => {
+        {scorers.map((scorer, index) => {
           return (
             <MultiScorerMetric
               key={`multi-metric-${index}`}
-              scorer={score}
+              scorer={scorer}
               isFirst={index === 0}
               showReducer={showReducer}
             />
@@ -69,7 +129,8 @@ export const ResultsPanel: FC<ResultsPanelProps> = ({ results }) => {
 };
 
 interface VerticalMetricProps {
-  metricSummary: MetricSummary;
+  metric: ResultsMetric;
+  reducer?: string;
   isFirst: boolean;
   showReducer: boolean;
 }
@@ -77,7 +138,8 @@ interface VerticalMetricProps {
 /** Renders a Vertical Metric
  */
 const VerticalMetric: FC<VerticalMetricProps> = ({
-  metricSummary,
+  metric,
+  reducer,
   isFirst,
   showReducer,
 }) => {
@@ -91,7 +153,7 @@ const VerticalMetric: FC<VerticalMetricProps> = ({
           styles.verticalMetricName,
         )}
       >
-        {metricDisplayName(metricSummary.metric)}
+        {metricDisplayName(metric)}
       </div>
       {showReducer ? (
         <div
@@ -101,7 +163,7 @@ const VerticalMetric: FC<VerticalMetricProps> = ({
             styles.verticalMetricReducer,
           )}
         >
-          {metricSummary.reducer || "default"}
+          {reducer || "default"}
         </div>
       ) : undefined}
 
@@ -112,14 +174,14 @@ const VerticalMetric: FC<VerticalMetricProps> = ({
           styles.verticalMetricValue,
         )}
       >
-        {formatPrettyDecimal(metricSummary.metric.value)}
+        {metric.value ? formatPrettyDecimal(metric.value) : undefined}
       </div>
     </div>
   );
 };
 
 interface MultiScorerMetricProps {
-  scorer: EvalScore;
+  scorer: ResultsScorer;
   isFirst: boolean;
   showReducer: boolean;
 }
@@ -149,7 +211,7 @@ const MultiScorerMetric: FC<MultiScorerMetricProps> = ({
           styles.multiScorerLabel,
         )}
       >
-        {scorer.name}
+        {scorer.scorer}
       </div>
       {showReducer ? (
         <div
@@ -164,13 +226,12 @@ const MultiScorerMetric: FC<MultiScorerMetricProps> = ({
         </div>
       ) : undefined}
       <div className={clsx(valueFontClz, styles.multiScorerValue)}>
-        {Object.keys(scorer.metrics).map((key) => {
-          const metric = scorer.metrics[key];
+        {scorer.metrics.map((metric) => {
           return (
-            <div className={styles.multiScoreMetricGrid} key={key}>
+            <div className={styles.multiScoreMetricGrid} key={metric.name}>
               <div>{metricDisplayName(metric)}</div>
               <div className={styles.multiScorerValueContent}>
-                {formatPrettyDecimal(metric.value)}
+                {metric.value ? formatPrettyDecimal(metric.value) : undefined}
               </div>
             </div>
           );

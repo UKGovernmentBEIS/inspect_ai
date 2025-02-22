@@ -30,7 +30,7 @@ export interface PendingSampleResponse {
   status: "NotModified" | "NotFound" | "OK";
 }
 
-export interface DisplayMetric {
+export interface RunningMetric {
   scorer: string;
   name: string;
   value?: number;
@@ -38,7 +38,7 @@ export interface DisplayMetric {
 }
 
 export interface PendingSamples {
-  metrics?: DisplayMetric[];
+  metrics?: RunningMetric[];
   samples: SampleSummary[];
   refresh: number;
   etag?: string;

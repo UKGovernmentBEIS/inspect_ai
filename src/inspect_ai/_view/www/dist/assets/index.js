@@ -63718,43 +63718,87 @@ ${events}
       multiScorerValueContent,
       multiScoreMetricGrid
     };
-    const ResultsPanel = ({ results }) => {
-      var _a2, _b2;
-      if (((_a2 = results == null ? void 0 : results.scores) == null ? void 0 : _a2.length) === 1) {
-        const scorers = {};
-        results.scores.map((score2) => {
-          scorers[score2.name] = Object.keys(score2.metrics).map((key2) => {
-            return {
-              reducer: score2.reducer,
-              metric: {
-                name: key2,
-                value: score2.metrics[key2].value,
-                params: score2.metrics[key2].params,
-                metadata: {}
-              }
+    const displayScorersFromRunningMetrics = (metrics) => {
+      if (!metrics) {
+        return [];
+      }
+      const getKey = (metric2) => {
+        return metric2.reducer ? `${metric2.scorer}-${metric2.reducer}` : metric2.scorer;
+      };
+      const scorers = {};
+      metrics.forEach((metric2) => {
+        if (metric2.value !== void 0) {
+          const key2 = getKey(metric2);
+          if (!!scorers[key2]) {
+            scorers[key2].metrics.push({
+              name: metric2.name,
+              value: metric2.value
+            });
+          } else {
+            scorers[key2] = {
+              scorer: metric2.scorer,
+              reducer: metric2.reducer,
+              metrics: [
+                {
+                  name: metric2.name,
+                  value: metric2.value
+                }
+              ]
             };
-          });
-        });
-        const metrics = Object.values(scorers)[0];
-        const showReducer = metrics && metrics.length > 0 && !!metrics[0].reducer;
+          }
+        }
+      });
+      return Object.values(scorers);
+    };
+    const toDisplayScorers = (scores2) => {
+      if (!scores2) {
+        return [];
+      }
+      return scores2.map((score2) => {
+        return {
+          scorer: score2.name,
+          reducer: score2.reducer === null ? void 0 : score2.reducer,
+          metrics: Object.keys(score2.metrics).map((key2) => {
+            const metric2 = score2.metrics[key2];
+            return {
+              name: metric2.name,
+              value: metric2.value,
+              params: metric2.params
+            };
+          })
+        };
+      });
+    };
+    const ResultsPanel = ({ scorers }) => {
+      if (!scorers || scorers.length === 0) {
+        return void 0;
+      }
+      if (scorers.length === 1) {
+        const showReducer = !!scorers[0].reducer;
+        const metrics = scorers[0].metrics;
         return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$7.simpleMetricsRows, children: metrics.map((metric2, i2) => {
-          return /* @__PURE__ */ jsxRuntimeExports.jsx(
-            VerticalMetric,
-            {
-              metricSummary: metric2,
-              isFirst: i2 === 0,
-              showReducer
-            },
-            `simple-metric-${i2}`
-          );
+          if (metric2.value) {
+            return /* @__PURE__ */ jsxRuntimeExports.jsx(
+              VerticalMetric,
+              {
+                reducer: scorers[0].reducer,
+                metric: metric2,
+                isFirst: i2 === 0,
+                showReducer
+              },
+              `simple-metric-${i2}`
+            );
+          } else {
+            return void 0;
+          }
         }) });
       } else {
-        const showReducer = (results == null ? void 0 : results.scores.findIndex((score2) => !!score2.reducer)) !== -1;
-        return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$7.multiMetricsRows, children: (_b2 = results == null ? void 0 : results.scores) == null ? void 0 : _b2.map((score2, index2) => {
+        const showReducer = scorers.findIndex((score2) => !!score2.reducer) !== -1;
+        return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$7.multiMetricsRows, children: scorers.map((scorer, index2) => {
           return /* @__PURE__ */ jsxRuntimeExports.jsx(
             MultiScorerMetric,
             {
-              scorer: score2,
+              scorer,
               isFirst: index2 === 0,
               showReducer
             },
@@ -63764,7 +63808,8 @@ ${events}
       }
     };
     const VerticalMetric = ({
-      metricSummary,
+      metric: metric2,
+      reducer,
       isFirst,
       showReducer
     }) => {
@@ -63778,7 +63823,7 @@ ${events}
               "text-style-secondary",
               styles$7.verticalMetricName
             ),
-            children: metricDisplayName(metricSummary.metric)
+            children: metricDisplayName(metric2)
           }
         ),
         showReducer ? /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -63789,7 +63834,7 @@ ${events}
               "text-style-secondary",
               styles$7.verticalMetricReducer
             ),
-            children: metricSummary.reducer || "default"
+            children: reducer || "default"
           }
         ) : void 0,
         /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -63800,7 +63845,7 @@ ${events}
               "text-size-largest",
               styles$7.verticalMetricValue
             ),
-            children: formatPrettyDecimal(metricSummary.metric.value)
+            children: metric2.value ? formatPrettyDecimal(metric2.value) : void 0
           }
         )
       ] });
@@ -63831,7 +63876,7 @@ ${events}
                   "multi-score-label",
                   styles$7.multiScorerLabel
                 ),
-                children: scorer.name
+                children: scorer.scorer
               }
             ),
             showReducer ? /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -63846,12 +63891,11 @@ ${events}
                 children: scorer.reducer || "default"
               }
             ) : void 0,
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(valueFontClz, styles$7.multiScorerValue), children: Object.keys(scorer.metrics).map((key2) => {
-              const metric2 = scorer.metrics[key2];
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(valueFontClz, styles$7.multiScorerValue), children: scorer.metrics.map((metric2) => {
               return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$7.multiScoreMetricGrid, children: [
                 /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: metricDisplayName(metric2) }),
-                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$7.multiScorerValueContent, children: formatPrettyDecimal(metric2.value) })
-              ] }, key2);
+                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$7.multiScorerValueContent, children: metric2.value ? formatPrettyDecimal(metric2.value) : void 0 })
+              ] }, metric2.name);
             }) })
           ]
         }
@@ -63872,38 +63916,26 @@ ${events}
       value: value$1
     };
     const RunningStatusPanel = ({
-      sampleCount,
-      displayMetrics
+      sampleCount
     }) => {
-      const displayableMetrics = (displayMetrics == null ? void 0 : displayMetrics.filter((displayMetric) => {
-        return displayMetric.value !== void 0;
-      })) || [];
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$6.statusContainer), children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$6.status), children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(ApplicationIcons.running, styles$6.icon) }),
-          /* @__PURE__ */ jsxRuntimeExports.jsxs(
-            "div",
-            {
-              className: clsx(
-                styles$6.statusText,
-                "text-style-label",
-                "text-size-smaller"
-              ),
-              children: [
-                "Running (",
-                sampleCount,
-                " samples)"
-              ]
-            }
-          )
-        ] }) }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$6.metricsRows), children: displayableMetrics == null ? void 0 : displayableMetrics.map((displayMetric) => {
-          return /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-smaller"), children: displayMetric.reducer ? `${displayMetric.name} (${displayMetric.reducer})` : `${displayMetric.name}` }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-smaller", styles$6.value), children: displayMetric.value ? formatPrettyDecimal(displayMetric.value) : void 0 })
-          ] });
-        }) })
-      ] });
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$6.statusContainer), children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$6.status), children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(ApplicationIcons.running, styles$6.icon) }),
+        /* @__PURE__ */ jsxRuntimeExports.jsxs(
+          "div",
+          {
+            className: clsx(
+              styles$6.statusText,
+              "text-style-label",
+              "text-size-smaller"
+            ),
+            children: [
+              "Running (",
+              sampleCount,
+              " samples)"
+            ]
+          }
+        )
+      ] }) }) });
     };
     const statusPanel = "_statusPanel_66f9o_1";
     const statusIcon = "_statusIcon_66f9o_11";
@@ -63959,9 +63991,11 @@ ${events}
       samples,
       file,
       evalSpec,
-      setOffcanvas
+      setOffcanvas,
+      capabilities: capabilities2
     }) => {
       const logFileName = file ? filename(file) : "";
+      console.log({ runningMetrics });
       const handleToggle = reactExports.useCallback(() => {
         setOffcanvas(!offcanvas);
       }, [setOffcanvas, offcanvas]);
@@ -64025,15 +64059,14 @@ ${events}
           }
         ),
         /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$8.taskStatus, "navbar-text"), children: [
-          status2 === "success" ? /* @__PURE__ */ jsxRuntimeExports.jsx(ResultsPanel, { results: evalResults }) : void 0,
-          status2 === "cancelled" ? /* @__PURE__ */ jsxRuntimeExports.jsx(CancelledPanel, { sampleCount: (samples == null ? void 0 : samples.length) || 0 }) : void 0,
-          status2 === "started" ? /* @__PURE__ */ jsxRuntimeExports.jsx(
-            RunningStatusPanel,
+          status2 === "success" || status2 === "started" && capabilities2.streamSamples ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+            ResultsPanel,
             {
-              sampleCount: (samples == null ? void 0 : samples.length) || 0,
-              displayMetrics: runningMetrics
+              scorers: runningMetrics ? displayScorersFromRunningMetrics(runningMetrics) : toDisplayScorers(evalResults == null ? void 0 : evalResults.scores)
             }
           ) : void 0,
+          status2 === "cancelled" ? /* @__PURE__ */ jsxRuntimeExports.jsx(CancelledPanel, { sampleCount: (samples == null ? void 0 : samples.length) || 0 }) : void 0,
+          status2 === "started" && !capabilities2.streamSamples ? /* @__PURE__ */ jsxRuntimeExports.jsx(RunningStatusPanel, { sampleCount: (samples == null ? void 0 : samples.length) || 0 }) : void 0,
           status2 === "error" ? /* @__PURE__ */ jsxRuntimeExports.jsx(ErroredPanel, { sampleCount: (samples == null ? void 0 : samples.length) || 0 }) : void 0
         ] }),
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { id: "task-created", style: { display: "none" }, children: evalSpec == null ? void 0 : evalSpec.created })
@@ -64238,14 +64271,15 @@ ${events}
       evalSpec,
       evalPlan,
       evalResults,
-      runningMetrics,
       evalStats,
       samples,
       evalDescriptor,
       showToggle,
       offcanvas,
       setOffcanvas,
-      status: status2
+      status: status2,
+      capabilities: capabilities2,
+      runningMetrics
     }) => {
       return /* @__PURE__ */ jsxRuntimeExports.jsxs("nav", { className: clsx("navbar", "sticky-top", styles$a.navbarWrapper), children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -64254,12 +64288,13 @@ ${events}
             file,
             evalSpec,
             evalResults,
-            runningMetrics,
             samples,
             showToggle,
             offcanvas,
             setOffcanvas,
-            status: status2
+            status: status2,
+            capabilities: capabilities2,
+            runningMetrics
           }
         ),
         /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -64306,7 +64341,8 @@ ${events}
       offcanvas,
       setOffcanvas,
       workspaceTabScrollPositionRef,
-      setWorkspaceTabScrollPosition
+      setWorkspaceTabScrollPosition,
+      capabilities: capabilities2
     }) => {
       const debouncedScroll = reactExports.useMemo(() => {
         return debounce$1((id, position) => {
@@ -64366,7 +64402,8 @@ ${events}
               file: logFileName,
               showToggle,
               offcanvas,
-              setOffcanvas
+              setOffcanvas,
+              capabilities: capabilities2
             }
           ),
           /* @__PURE__ */ jsxRuntimeExports.jsx("div", { ref: divRef, className: clsx("workspace", styles$3.workspace), children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("log-detail", styles$3.tabContainer), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -64422,7 +64459,8 @@ ${events}
         selectedTab,
         setSelectedTab,
         workspaceTabScrollPositionRef,
-        setWorkspaceTabScrollPosition
+        setWorkspaceTabScrollPosition,
+        capabilities: capabilities2
       } = props;
       const divRef = reactExports.useRef(null);
       reactExports.useEffect(() => {
@@ -64454,7 +64492,8 @@ ${events}
           setSelectedTab,
           workspaceTabScrollPositionRef,
           setWorkspaceTabScrollPosition,
-          setOffcanvas
+          setOffcanvas,
+          capabilities: capabilities2
         }
       );
     };
