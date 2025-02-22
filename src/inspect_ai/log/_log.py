@@ -86,13 +86,16 @@ class EvalConfig(BaseModel):
     """
 
     message_limit: int | None = Field(default=None)
-    """Maximum messages to allow in a chat conversation."""
+    """Maximum messages to allow per sample."""
 
     token_limit: int | None = Field(default=None)
-    """Maximum tokens to allow in a chat conversation."""
+    """Maximum tokens usage per sample."""
 
     time_limit: int | None = Field(default=None)
-    """Maximum seconds for chat conversation."""
+    """Maximum clock time per sample."""
+
+    execution_limit: int | None = Field(default=None)
+    """Meximum execution time per sample."""
 
     max_samples: int | None = Field(default=None)
     """Maximum number of samples to run in parallel."""

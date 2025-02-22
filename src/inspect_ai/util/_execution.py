@@ -62,7 +62,7 @@ def execution_time(time: float) -> None:
         )
 
 
-def init_sample_execution(execution_limit: float | None) -> None:
+def init_sample_execution_limit(execution_limit: float | None) -> None:
     _sample_execution_limit.set(execution_limit)
 
 
