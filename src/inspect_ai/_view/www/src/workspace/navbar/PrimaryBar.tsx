@@ -1,12 +1,17 @@
 import clsx from "clsx";
 import { FC, useCallback } from "react";
-import { DisplayMetric, SampleSummary } from "../../api/types";
+import { RunningMetric, SampleSummary } from "../../api/types";
 import { ApplicationIcons } from "../../appearance/icons";
 import { CopyButton } from "../../components/CopyButton";
+import { Capabilities } from "../../types";
 import { EvalResults, EvalSpec, Status } from "../../types/log";
 import { filename } from "../../utils/path";
 import styles from "./PrimaryBar.module.css";
-import { ResultsPanel } from "./ResultsPanel";
+import {
+  displayScorersFromRunningMetrics,
+  ResultsPanel,
+  toDisplayScorers,
+} from "./ResultsPanel";
 import { RunningStatusPanel } from "./RunningStatusPanel";
 import { CancelledPanel, ErroredPanel } from "./StatusPanel";
 
@@ -16,10 +21,11 @@ interface PrimaryBarProps {
   setOffcanvas: (offcanvas: boolean) => void;
   status?: Status;
   evalResults?: EvalResults;
-  runningMetrics?: DisplayMetric[];
+  runningMetrics?: RunningMetric[];
   samples?: SampleSummary[];
   file?: string;
   evalSpec?: EvalSpec;
+  capabilities: Capabilities;
 }
 
 export const PrimaryBar: FC<PrimaryBarProps> = ({
@@ -32,8 +38,10 @@ export const PrimaryBar: FC<PrimaryBarProps> = ({
   file,
   evalSpec,
   setOffcanvas,
+  capabilities,
 }) => {
   const logFileName = file ? filename(file) : "";
+  console.log({ runningMetrics });
 
   const handleToggle = useCallback(() => {
     setOffcanvas(!offcanvas);
@@ -96,17 +104,21 @@ export const PrimaryBar: FC<PrimaryBarProps> = ({
         </div>
       </div>
       <div className={clsx(styles.taskStatus, "navbar-text")}>
-        {status === "success" ? (
-          <ResultsPanel results={evalResults} />
+        {status === "success" ||
+        (status === "started" && capabilities.streamSamples) ? (
+          <ResultsPanel
+            scorers={
+              runningMetrics
+                ? displayScorersFromRunningMetrics(runningMetrics)
+                : toDisplayScorers(evalResults?.scores)
+            }
+          />
         ) : undefined}
         {status === "cancelled" ? (
           <CancelledPanel sampleCount={samples?.length || 0} />
         ) : undefined}
-        {status === "started" ? (
-          <RunningStatusPanel
-            sampleCount={samples?.length || 0}
-            displayMetrics={runningMetrics}
-          />
+        {status === "started" && !capabilities.streamSamples ? (
+          <RunningStatusPanel sampleCount={samples?.length || 0} />
         ) : undefined}
         {status === "error" ? (
           <ErroredPanel sampleCount={samples?.length || 0} />
