@@ -13888,7 +13888,8 @@ var require_assets = __commonJS({
         custom: "bi bi-person-workspace",
         operator: "bi bi-person-workspace",
         tokens: "bi bi-list",
-        time: "bi bi-stopwatch"
+        time: "bi bi-clock",
+        execution: "bi bi-stopwatch"
       },
       logging: loggingIcons,
       menu: "bi bi-list",
@@ -51001,6 +51002,8 @@ self.onmessage = function (e) {
             return "Token Limit Exceeded";
           case "operator":
             return "Operator Canceled";
+          case "execution":
+            return "Execution Time Limit Exceeded";
         }
       };
       const resolve_icon = (type) => {
@@ -51015,6 +51018,8 @@ self.onmessage = function (e) {
             return ApplicationIcons.limits.tokens;
           case "operator":
             return ApplicationIcons.limits.operator;
+          case "execution":
+            return ApplicationIcons.limits.execution;
         }
       };
       const title2 = resolve_title(event.type);
