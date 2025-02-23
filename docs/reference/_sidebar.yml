@@ -409,10 +409,6 @@ website:
           href: reference/inspect_ai.util.qmd#trace_action
         - text: trace_message
           href: reference/inspect_ai.util.qmd#trace_message
-        - text: execution
-          href: reference/inspect_ai.util.qmd#execution
-        - text: execution_time
-          href: reference/inspect_ai.util.qmd#execution_time
         - text: sandbox
           href: reference/inspect_ai.util.qmd#sandbox
         - text: sandbox_with

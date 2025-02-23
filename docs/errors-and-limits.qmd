@@ -93,10 +93,10 @@ inspect eval ctf.py --time-limit 900
 
 Appropriate timeouts will vary depending on the nature of your task so please view the above as examples only rather than recommend values.
 
-### Execution Limit
+### Working Limit
 
 ::: {.callout-note appearance="simple"}
-The execution limit feature described below is currently available only in the development version of Inspect. To install the development version from GitHub:
+The working limit feature described below is currently available only in the development version of Inspect. To install the development version from GitHub:
 
 ``` bash
 pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
