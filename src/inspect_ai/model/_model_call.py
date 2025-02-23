@@ -1,6 +1,6 @@
 from typing import Any, Callable
 
-from pydantic import BaseModel, JsonValue
+from pydantic import BaseModel, Field, JsonValue
 
 from inspect_ai._util.json import jsonable_python
 
@@ -22,7 +22,7 @@ class ModelCall(BaseModel):
     response: dict[str, JsonValue]
     """Raw response data from model."""
 
-    time: float | None
+    time: float | None = Field(default=None)
     """Time taken for underlying model call."""
 
     @staticmethod
