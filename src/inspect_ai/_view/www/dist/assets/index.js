@@ -21555,13 +21555,13 @@ var require_assets = __commonJS({
         args: []
       };
     };
-    const outputPre = "_outputPre_18agr_1";
-    const outputCode = "_outputCode_18agr_7";
-    const bottomMargin = "_bottomMargin_18agr_12";
+    const outputPre = "_outputPre_1h1fn_1";
+    const outputCode = "_outputCode_1h1fn_7";
+    const bottomPadding = "_bottomPadding_1h1fn_12";
     const styles$$ = {
       outputPre,
       outputCode,
-      bottomMargin
+      bottomPadding
     };
     const useCodeHighlight = (language2) => {
       const codeRef = reactExports.useRef(null);
@@ -21596,7 +21596,7 @@ var require_assets = __commonJS({
           {
             markdown: toolCallView.content,
             ref: toolViewRef,
-            className: clsx(styles$$.bottomMargin, "text-size-small")
+            className: clsx(styles$$.bottomPadding, "text-size-small")
           }
         );
       }
@@ -58489,956 +58489,6 @@ ${events}
         contents2 ? /* @__PURE__ */ jsxRuntimeExports.jsx(EventSection, { title: "Contents", children: /* @__PURE__ */ jsxRuntimeExports.jsx(ExpandablePanel, { collapse: false, children: /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { children: contents2 }) }) }) : void 0
       ] });
     };
-    const darkenedBg = "_darkenedBg_c8m1t_1";
-    const normalBg = "_normalBg_c8m1t_5";
-    const node = "_node_c8m1t_9";
-    const first = "_first_c8m1t_9";
-    const nodes = "_nodes_c8m1t_18";
-    const transcriptComponent = "_transcriptComponent_c8m1t_23";
-    const eventNode = "_eventNode_c8m1t_29";
-    const darkenBg = "_darkenBg_c8m1t_35";
-    const lastNode = "_lastNode_c8m1t_39";
-    const eventNodeContainer = "_eventNodeContainer_c8m1t_43";
-    const noBottom = "_noBottom_c8m1t_47";
-    const styles$k = {
-      darkenedBg,
-      normalBg,
-      node,
-      first,
-      nodes,
-      transcriptComponent,
-      eventNode,
-      darkenBg,
-      lastNode,
-      eventNodeContainer,
-      noBottom
-    };
-    const TranscriptView = ({
-      id,
-      events,
-      depth
-    }) => {
-      const [transcriptState, setTranscriptState] = reactExports.useState({});
-      const onTranscriptState = reactExports.useCallback(
-        (state) => {
-          setTranscriptState(state);
-        },
-        [setTranscriptState]
-      );
-      const resolvedEvents = fixupEventStream(events);
-      const eventNodes = treeifyEvents(
-        resolvedEvents,
-        depth !== void 0 ? depth : 0
-      );
-      return /* @__PURE__ */ jsxRuntimeExports.jsx(
-        TranscriptComponent,
-        {
-          id,
-          eventNodes,
-          transcriptState,
-          setTranscriptState: onTranscriptState
-        }
-      );
-    };
-    const TranscriptVirtualList = (props) => {
-      let { id, scrollRef, events, depth } = props;
-      const resolvedEvents = fixupEventStream(events);
-      const eventNodes = treeifyEvents(resolvedEvents, depth || 0);
-      const [transcriptState, setTranscriptState] = reactExports.useState({});
-      const onTranscriptState = reactExports.useCallback(
-        (state) => {
-          setTranscriptState(state);
-        },
-        [transcriptState, setTranscriptState]
-      );
-      return /* @__PURE__ */ jsxRuntimeExports.jsx(
-        TranscriptVirtualListComponent,
-        {
-          id,
-          eventNodes,
-          scrollRef,
-          transcriptState,
-          setTranscriptState: onTranscriptState
-        }
-      );
-    };
-    const TranscriptVirtualListComponent = ({ id, eventNodes, scrollRef, transcriptState, setTranscriptState }) => {
-      const setEventState = reactExports.useCallback(
-        (eventId, state) => {
-          setTranscriptState({ ...transcriptState, [eventId]: state });
-        },
-        [setTranscriptState]
-      );
-      const renderRow = (item2, index2) => {
-        const bgClass = item2.depth % 2 == 0 ? styles$k.darkenedBg : styles$k.normalBg;
-        const paddingClass = index2 === 0 ? styles$k.first : void 0;
-        const eventId = `${id}-event${index2}`;
-        return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$k.node, paddingClass), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-          RenderedEventNode,
-          {
-            id: eventId,
-            node: item2,
-            className: clsx(bgClass),
-            scrollRef,
-            eventState: transcriptState[eventId] || {},
-            setEventState: (state) => setEventState(eventId, state)
-          }
-        ) }, eventId);
-      };
-      return /* @__PURE__ */ jsxRuntimeExports.jsx(
-        VirtualList,
-        {
-          data: eventNodes,
-          tabIndex: 0,
-          renderRow,
-          scrollRef,
-          className: styles$k.nodes
-        }
-      );
-    };
-    const TranscriptComponent = ({
-      id,
-      transcriptState,
-      setTranscriptState,
-      eventNodes
-    }) => {
-      const rows = eventNodes.map((eventNode2, index2) => {
-        const clz = [styles$k.eventNode];
-        if (eventNode2.depth % 2 == 0) {
-          clz.push(styles$k.darkenBg);
-        }
-        if (index2 === eventNodes.length - 1) {
-          clz.push(styles$k.lastNode);
-        }
-        const eventId = `${id}-event${index2}`;
-        const setEventState = reactExports.useCallback(
-          (state) => {
-            setTranscriptState({ ...transcriptState, [eventId]: state });
-          },
-          [setTranscriptState, transcriptState]
-        );
-        const row2 = /* @__PURE__ */ jsxRuntimeExports.jsx(
-          "div",
-          {
-            className: clsx(
-              styles$k.eventNodeContainer,
-              index2 === eventNodes.length - 1 ? styles$k.noBottom : void 0
-            ),
-            children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-              RenderedEventNode,
-              {
-                id: eventId,
-                node: eventNode2,
-                className: clsx(clz),
-                eventState: transcriptState[eventId] || {},
-                setEventState
-              }
-            )
-          },
-          eventId
-        );
-        return row2;
-      });
-      return /* @__PURE__ */ jsxRuntimeExports.jsx(
-        "div",
-        {
-          id,
-          className: clsx("text-size-small", styles$k.transcriptComponent),
-          children: rows
-        }
-      );
-    };
-    const RenderedEventNode = ({
-      id,
-      node: node2,
-      scrollRef,
-      eventState,
-      setEventState,
-      className: className2
-    }) => {
-      switch (node2.event.event) {
-        case "sample_init":
-          return /* @__PURE__ */ jsxRuntimeExports.jsx(
-            SampleInitEventView,
-            {
-              id,
-              event: node2.event,
-              eventState,
-              setEventState,
-              className: className2
-            }
-          );
-        case "sample_limit":
-          return /* @__PURE__ */ jsxRuntimeExports.jsx(
-            SampleLimitEventView,
-            {
-              id,
-              event: node2.event,
-              eventState,
-              setEventState,
-              className: className2
-            }
-          );
-        case "info":
-          return /* @__PURE__ */ jsxRuntimeExports.jsx(
-            InfoEventView,
-            {
-              id,
-              event: node2.event,
-              eventState,
-              setEventState,
-              className: className2
-            }
-          );
-        case "logger":
-          return /* @__PURE__ */ jsxRuntimeExports.jsx(LoggerEventView, { event: node2.event, className: className2 });
-        case "model":
-          return /* @__PURE__ */ jsxRuntimeExports.jsx(
-            ModelEventView,
-            {
-              id,
-              event: node2.event,
-              eventState,
-              setEventState,
-              className: className2
-            }
-          );
-        case "score":
-          return /* @__PURE__ */ jsxRuntimeExports.jsx(
-            ScoreEventView,
-            {
-              id,
-              event: node2.event,
-              eventState,
-              setEventState,
-              className: className2
-            }
-          );
-        case "state":
-          return /* @__PURE__ */ jsxRuntimeExports.jsx(
-            StateEventView,
-            {
-              id,
-              event: node2.event,
-              eventState,
-              setEventState,
-              className: className2
-            }
-          );
-        case "step":
-          return /* @__PURE__ */ jsxRuntimeExports.jsx(
-            StepEventView,
-            {
-              event: node2.event,
-              eventState,
-              setEventState,
-              children: node2.children,
-              scrollRef,
-              className: className2
-            }
-          );
-        case "store":
-          return /* @__PURE__ */ jsxRuntimeExports.jsx(
-            StateEventView,
-            {
-              id,
-              event: node2.event,
-              eventState,
-              setEventState,
-              className: className2,
-              isStore: true
-            }
-          );
-        case "subtask":
-          return /* @__PURE__ */ jsxRuntimeExports.jsx(
-            SubtaskEventView,
-            {
-              id,
-              event: node2.event,
-              eventState,
-              setEventState,
-              className: className2,
-              depth: node2.depth
-            }
-          );
-        case "tool":
-          return /* @__PURE__ */ jsxRuntimeExports.jsx(
-            ToolEventView,
-            {
-              id,
-              event: node2.event,
-              eventState,
-              setEventState,
-              className: className2,
-              depth: node2.depth
-            }
-          );
-        case "input":
-          return /* @__PURE__ */ jsxRuntimeExports.jsx(
-            InputEventView,
-            {
-              id,
-              event: node2.event,
-              eventState,
-              setEventState,
-              className: className2
-            }
-          );
-        case "error":
-          return /* @__PURE__ */ jsxRuntimeExports.jsx(
-            ErrorEventView,
-            {
-              id,
-              event: node2.event,
-              eventState,
-              setEventState,
-              className: className2
-            }
-          );
-        case "approval":
-          return /* @__PURE__ */ jsxRuntimeExports.jsx(ApprovalEventView, { event: node2.event, className: className2 });
-        case "sandbox":
-          return /* @__PURE__ */ jsxRuntimeExports.jsx(
-            SandboxEventView,
-            {
-              id,
-              event: node2.event,
-              className: className2,
-              eventState,
-              setEventState
-            }
-          );
-        default:
-          return null;
-      }
-    };
-    const fixupEventStream = (events) => {
-      const initEventIndex = events.findIndex((e) => {
-        return e.event === "sample_init";
-      });
-      const initEvent = events[initEventIndex];
-      const finalEvents = events.filter((e) => !e.pending);
-      const hasInitStep = events.findIndex((e) => {
-        return e.event === "step" && e.name === "init";
-      }) !== -1;
-      const fixedUp = [...finalEvents];
-      if (!hasInitStep && initEvent) {
-        fixedUp.splice(initEventIndex, 0, {
-          timestamp: initEvent.timestamp,
-          event: "step",
-          action: "begin",
-          type: null,
-          name: "sample_init",
-          pending: false
-        });
-        fixedUp.splice(initEventIndex + 2, 0, {
-          timestamp: initEvent.timestamp,
-          event: "step",
-          action: "end",
-          type: null,
-          name: "sample_init",
-          pending: false
-        });
-      }
-      return fixedUp;
-    };
-    function treeifyEvents(events, depth) {
-      const rootNodes = [];
-      const stack2 = [];
-      const pushNode = (event) => {
-        const node2 = new EventNode(event, stack2.length + depth);
-        if (stack2.length > 0) {
-          const parentNode = stack2[stack2.length - 1];
-          parentNode.children.push(node2);
-        } else {
-          rootNodes.push(node2);
-        }
-        return node2;
-      };
-      events.forEach((event) => {
-        if (event.event === "step" && event.action === "begin") {
-          const node2 = pushNode(event);
-          stack2.push(node2);
-        } else if (event.event === "step" && event.action === "end") {
-          if (stack2.length > 0) {
-            stack2.pop();
-          }
-        } else {
-          pushNode(event);
-        }
-      });
-      return rootNodes;
-    }
-    const SampleTranscript = ({
-      id,
-      evalEvents,
-      scrollRef
-    }) => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsx(TranscriptVirtualList, { id, events: evalEvents, scrollRef });
-    };
-    const SampleDisplay = ({
-      id,
-      sample: sample2,
-      sampleDescriptor,
-      selectedTab,
-      setSelectedTab,
-      scrollRef
-    }) => {
-      const baseId = `sample-dialog`;
-      if (!sample2) {
-        return /* @__PURE__ */ jsxRuntimeExports.jsx(EmptyPanel, {});
-      }
-      const onSelectedTab = (e) => {
-        const el = e.currentTarget;
-        const id2 = el.id;
-        setSelectedTab(id2);
-        return false;
-      };
-      const scorerNames = Object.keys(sample2.scores || {});
-      const sampleMetadatas = metadataViewsForSample(`${baseId}-${id}`, sample2);
-      const tabsetId = `task-sample-details-tab-${id}`;
-      const targetId = `${tabsetId}-content`;
-      const tools2 = [];
-      if (!isVscode()) {
-        tools2.push(
-          /* @__PURE__ */ jsxRuntimeExports.jsx(
-            ToolButton,
-            {
-              label: "Print",
-              icon: ApplicationIcons.copy,
-              onClick: () => {
-                printSample(id, targetId);
-              }
-            },
-            "sample-print-tool"
-          )
-        );
-      }
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx(
-          SampleSummaryView,
-          {
-            parent_id: id,
-            sample: sample2,
-            sampleDescriptor
-          }
-        ),
-        /* @__PURE__ */ jsxRuntimeExports.jsxs(
-          TabSet,
-          {
-            id: tabsetId,
-            tabControlsClassName: clsx("text-size-base"),
-            tabPanelsClassName: clsx(styles$C.tabPanel),
-            tools: tools2,
-            children: [
-              sample2.events && sample2.events.length > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
-                TabPanel,
-                {
-                  id: kSampleTranscriptTabId,
-                  className: "sample-tab",
-                  title: "Transcript",
-                  onSelected: onSelectedTab,
-                  selected: selectedTab === kSampleTranscriptTabId || selectedTab === void 0,
-                  scrollable: false,
-                  children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-                    SampleTranscript,
-                    {
-                      id: `${baseId}-transcript-display-${id}`,
-                      evalEvents: sample2.events,
-                      scrollRef
-                    },
-                    `${baseId}-transcript-display-${id}`
-                  )
-                },
-                kSampleTranscriptTabId
-              ) : null,
-              /* @__PURE__ */ jsxRuntimeExports.jsx(
-                TabPanel,
-                {
-                  id: kSampleMessagesTabId,
-                  className: clsx("sample-tab", styles$C.fullWidth),
-                  title: "Messages",
-                  onSelected: onSelectedTab,
-                  selected: selectedTab === kSampleMessagesTabId,
-                  scrollable: false,
-                  children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-                    ChatViewVirtualList,
-                    {
-                      id: `${baseId}-chat-${id}`,
-                      messages: sample2.messages,
-                      indented: true,
-                      scrollRef,
-                      toolCallStyle: "complete"
-                    },
-                    `${baseId}-chat-${id}`
-                  )
-                },
-                kSampleMessagesTabId
-              ),
-              scorerNames.length === 1 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
-                TabPanel,
-                {
-                  id: kSampleScoringTabId,
-                  className: "sample-tab",
-                  title: "Scoring",
-                  onSelected: onSelectedTab,
-                  selected: selectedTab === kSampleScoringTabId,
-                  children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-                    SampleScoreView,
-                    {
-                      sample: sample2,
-                      sampleDescriptor,
-                      scorer: scorerNames[0]
-                    }
-                  )
-                },
-                kSampleScoringTabId
-              ) : /* @__PURE__ */ jsxRuntimeExports.jsx(jsxRuntimeExports.Fragment, { children: Object.keys(sample2.scores || {}).map((scorer) => {
-                const tabId = `score-${scorer}`;
-                return /* @__PURE__ */ jsxRuntimeExports.jsx(
-                  TabPanel,
-                  {
-                    id: tabId,
-                    className: "sample-tab",
-                    title: scorer,
-                    onSelected: onSelectedTab,
-                    selected: selectedTab === tabId,
-                    children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-                      SampleScoreView,
-                      {
-                        sample: sample2,
-                        sampleDescriptor,
-                        scorer
-                      }
-                    )
-                  },
-                  tabId
-                );
-              }) }),
-              sampleMetadatas.length > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
-                TabPanel,
-                {
-                  id: kSampleMetdataTabId,
-                  className: clsx("sample-tab"),
-                  title: "Metadata",
-                  onSelected: onSelectedTab,
-                  selected: selectedTab === kSampleMetdataTabId,
-                  children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$C.metadataPanel), children: sampleMetadatas })
-                }
-              ) : null,
-              sample2.error ? /* @__PURE__ */ jsxRuntimeExports.jsx(
-                TabPanel,
-                {
-                  id: kSampleErrorTabId,
-                  className: "sample-tab",
-                  title: "Error",
-                  onSelected: onSelectedTab,
-                  selected: selectedTab === kSampleErrorTabId,
-                  children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$C.padded), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-                    ANSIDisplay,
-                    {
-                      output: sample2.error.traceback_ansi,
-                      className: clsx("text-size-small", styles$C.ansi)
-                    }
-                  ) })
-                }
-              ) : null,
-              sample2.messages.length < 100 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
-                TabPanel,
-                {
-                  id: kSampleJsonTabId,
-                  className: "sample-tab",
-                  title: "JSON",
-                  onSelected: onSelectedTab,
-                  selected: selectedTab === kSampleJsonTabId,
-                  children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$C.padded, styles$C.fullWidth), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-                    JSONPanel,
-                    {
-                      data: sample2,
-                      simple: true,
-                      className: clsx("text-size-small")
-                    }
-                  ) })
-                }
-              ) : null
-            ]
-          }
-        )
-      ] });
-    };
-    const metadataViewsForSample = (id, sample2) => {
-      const sampleMetadatas = [];
-      if (sample2.model_usage && Object.keys(sample2.model_usage).length > 0) {
-        sampleMetadatas.push(
-          /* @__PURE__ */ jsxRuntimeExports.jsxs(Card, { children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx(CardHeader, { label: "Usage" }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx(CardBody, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-              ModelTokenTable,
-              {
-                model_usage: sample2.model_usage,
-                className: clsx(styles$C.noTop)
-              }
-            ) })
-          ] }, `sample-usage-${id}`)
-        );
-      }
-      if (sample2.total_time !== void 0 && sample2.total_time !== null && sample2.working_time !== void 0 && sample2.working_time !== null) {
-        sampleMetadatas.push(
-          /* @__PURE__ */ jsxRuntimeExports.jsxs(Card, { children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx(CardHeader, { label: "Time" }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx(CardBody, { children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$C.timePanel, "text-size-smaller"), children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-label", "text-style-secondary"), children: "Working" }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: formatTime$1(sample2.working_time) }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-label", "text-style-secondary"), children: "Total" }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: formatTime$1(sample2.total_time) })
-            ] }) })
-          ] }, `sample-time-${id}`)
-        );
-      }
-      if (Object.keys(sample2 == null ? void 0 : sample2.metadata).length > 0) {
-        sampleMetadatas.push(
-          /* @__PURE__ */ jsxRuntimeExports.jsxs(Card, { children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx(CardHeader, { label: "Metadata" }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx(CardBody, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-              MetaDataView,
-              {
-                id: "task-sample-metadata-${id}",
-                entries: sample2 == null ? void 0 : sample2.metadata,
-                className: clsx("tab-pane", styles$C.noTop)
-              }
-            ) })
-          ] }, `sample-metadata-${id}`)
-        );
-      }
-      if (Object.keys(sample2 == null ? void 0 : sample2.store).length > 0) {
-        sampleMetadatas.push(
-          /* @__PURE__ */ jsxRuntimeExports.jsxs(Card, { children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx(CardHeader, { label: "Store" }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx(CardBody, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-              MetaDataView,
-              {
-                id: "task-sample-store-${id}",
-                entries: sample2 == null ? void 0 : sample2.store,
-                className: clsx("tab-pane", styles$C.noTop)
-              }
-            ) })
-          ] }, `sample-store-${id}`)
-        );
-      }
-      return sampleMetadatas;
-    };
-    const printSample = (id, targetId) => {
-      const targetTabEl = document.querySelector(
-        `#${escapeSelector(targetId)} .sample-tab.tab-pane.show.active`
-      );
-      if (targetTabEl) {
-        const targetEl = targetTabEl.firstElementChild;
-        if (targetEl) {
-          const headingId = `sample-heading-${id}`;
-          const headingEl = document.getElementById(headingId);
-          const headingHtml = printHeadingHtml();
-          const css = `
-      html { font-size: 9pt }
-      /* Allow content to break anywhere without any forced page breaks */
-      * {
-        break-inside: auto;  /* Let elements break anywhere */
-        page-break-inside: auto;  /* Legacy support */
-        break-before: auto;
-        page-break-before: auto;
-        break-after: auto;
-        page-break-after: auto;
-      }
-      /* Specifically disable all page breaks for divs */
-      div {
-        break-inside: auto;
-        page-break-inside: auto;
-      }
-      body > .transcript-step {
-        break-inside: avoid;
-      }
-      body{
-        -webkit-print-color-adjust:exact !important;
-        print-color-adjust:exact !important;
-      }
-      /* Allow preformatted text and code blocks to break across pages */
-      pre, code {
-          white-space: pre-wrap; /* Wrap long lines instead of keeping them on one line */
-          overflow-wrap: break-word; /* Ensure long words are broken to fit within the page */
-          break-inside: auto; /* Allow page breaks inside the element */
-          page-break-inside: auto; /* Older equivalent */
-      }
-
-      /* Additional control for long lines within code/preformatted blocks */
-      pre {
-          word-wrap: break-word; /* Break long words if needed */
-      }    
-          
-      `;
-          printHtml(
-            [headingHtml, headingEl == null ? void 0 : headingEl.outerHTML, targetEl.innerHTML].join("\n"),
-            css
-          );
-        }
-      }
-    };
-    const container$5 = "_container_gzd7f_1";
-    const body$2 = "_body_gzd7f_6";
-    const styles$j = {
-      container: container$5,
-      body: body$2
-    };
-    const InlineSampleDisplay = ({
-      id,
-      sample: sample2,
-      sampleStatus,
-      sampleError,
-      sampleDescriptor,
-      selectedTab,
-      setSelectedTab,
-      scrollRef
-    }) => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$j.container, children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx(ProgressBar, { animating: sampleStatus === "loading" }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$j.body, children: sampleError ? /* @__PURE__ */ jsxRuntimeExports.jsx(ErrorPanel, { title: "Unable to load sample", error: sampleError }) : /* @__PURE__ */ jsxRuntimeExports.jsx(
-          SampleDisplay,
-          {
-            id,
-            sample: sample2,
-            sampleDescriptor,
-            selectedTab,
-            setSelectedTab,
-            scrollRef
-          }
-        ) })
-      ] });
-    };
-    const title = "_title_yj2nt_1";
-    const detail = "_detail_yj2nt_5";
-    const detailText = "_detailText_yj2nt_13";
-    const close = "_close_yj2nt_18";
-    const modal = "_modal_yj2nt_26";
-    const hidden = "_hidden_yj2nt_31";
-    const modalBody = "_modalBody_yj2nt_35";
-    const content = "_content_yj2nt_41";
-    const header$1 = "_header_yj2nt_45";
-    const titleTool = "_titleTool_yj2nt_50";
-    const styles$i = {
-      title,
-      detail,
-      detailText,
-      close,
-      modal,
-      hidden,
-      modalBody,
-      content,
-      header: header$1,
-      titleTool
-    };
-    const LargeModal = ({
-      id,
-      title: title2,
-      detail: detail2,
-      detailTools,
-      children: children2,
-      footer: footer2,
-      onkeyup,
-      visible: visible2,
-      onHide,
-      showProgress,
-      initialScrollPositionRef,
-      setInitialScrollPosition,
-      scrollRef
-    }) => {
-      const modalFooter = footer2 ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "modal-footer", children: footer2 }) : "";
-      scrollRef = scrollRef || reactExports.useRef(null);
-      reactExports.useEffect(() => {
-        if (scrollRef.current) {
-          setTimeout(() => {
-            if (scrollRef.current && initialScrollPositionRef.current && scrollRef.current.scrollTop !== (initialScrollPositionRef == null ? void 0 : initialScrollPositionRef.current)) {
-              scrollRef.current.scrollTop = initialScrollPositionRef.current;
-            }
-          }, 0);
-        }
-      }, []);
-      const onScroll = reactExports.useCallback(
-        (e) => {
-          setInitialScrollPosition(e.currentTarget.scrollTop);
-        },
-        [setInitialScrollPosition]
-      );
-      return /* @__PURE__ */ jsxRuntimeExports.jsx(
-        "div",
-        {
-          id,
-          className: clsx(
-            "modal",
-            styles$i.modal,
-            !visible2 ? styles$i.hidden : void 0
-          ),
-          role: "dialog",
-          onKeyUp: onkeyup,
-          tabIndex: visible2 ? 0 : void 0,
-          children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-            "div",
-            {
-              className: clsx(
-                "modal-dialog",
-                "modal-dialog-scrollable",
-                styles$i.modalBody
-              ),
-              role: "document",
-              children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("modal-content", styles$i.content), children: [
-                /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("modal-header", styles$i.header), children: [
-                  /* @__PURE__ */ jsxRuntimeExports.jsx(
-                    "div",
-                    {
-                      className: clsx("modal-title", "text-size-smaller", styles$i.title),
-                      children: title2 || ""
-                    }
-                  ),
-                  detail2 ? /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$i.detail, children: [
-                    (detailTools == null ? void 0 : detailTools.left) ? detailTools.left.map((tool2, idx) => {
-                      return /* @__PURE__ */ jsxRuntimeExports.jsx(TitleTool, { ...tool2 }, `tool-left-${idx}`);
-                    }) : "",
-                    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-smaller", styles$i.detailText), children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: detail2 }) }),
-                    (detailTools == null ? void 0 : detailTools.right) ? detailTools.right.map((tool2, idx) => {
-                      return /* @__PURE__ */ jsxRuntimeExports.jsx(TitleTool, { ...tool2 }, `tool-right-${idx}`);
-                    }) : ""
-                  ] }) : void 0,
-                  /* @__PURE__ */ jsxRuntimeExports.jsx(
-                    "button",
-                    {
-                      type: "button",
-                      className: clsx(
-                        "btn",
-                        "btn-close-large-dialog",
-                        "text-size-larger",
-                        styles$i.close
-                      ),
-                      onClick: onHide,
-                      "aria-label": "Close",
-                      children: /* @__PURE__ */ jsxRuntimeExports.jsx(HtmlEntity, { html: "&times;" })
-                    }
-                  )
-                ] }),
-                /* @__PURE__ */ jsxRuntimeExports.jsx(ProgressBar, { animating: showProgress }),
-                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "modal-body", ref: scrollRef, onScroll, children: children2 }),
-                modalFooter
-              ] })
-            }
-          )
-        }
-      );
-    };
-    const HtmlEntity = ({ html }) => /* @__PURE__ */ jsxRuntimeExports.jsx("span", { dangerouslySetInnerHTML: { __html: html } });
-    const TitleTool = ({
-      label: label2,
-      icon,
-      enabled,
-      onClick
-    }) => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsx(
-        "button",
-        {
-          type: "button",
-          className: clsx(
-            "btn",
-            "btn-outline",
-            "text-size-small",
-            styles$i.titleTool
-          ),
-          "aria-label": label2,
-          onClick,
-          disabled: !enabled,
-          children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: icon })
-        }
-      );
-    };
-    const SampleDialog = ({
-      id,
-      title: title2,
-      sample: sample2,
-      sampleDescriptor,
-      nextSample,
-      prevSample,
-      sampleStatus,
-      sampleError,
-      showingSampleDialog,
-      setShowingSampleDialog,
-      selectedTab,
-      setSelectedTab,
-      sampleScrollPositionRef,
-      setSampleScrollPosition
-    }) => {
-      const scrollRef = reactExports.useRef(null);
-      const tools2 = reactExports.useMemo(() => {
-        const nextTool = {
-          label: "Next Sample",
-          icon: ApplicationIcons.next,
-          onClick: nextSample,
-          enabled: !!nextSample
-        };
-        const prevTool = {
-          label: "Previous Sample",
-          icon: ApplicationIcons.previous,
-          onClick: prevSample,
-          enabled: !!prevSample
-        };
-        return {
-          left: [prevTool],
-          right: [nextTool]
-        };
-      }, [prevSample, nextSample]);
-      const handleKeyUp = reactExports.useCallback(
-        (e) => {
-          switch (e.key) {
-            case "ArrowRight":
-              if (nextSample) {
-                nextSample();
-              }
-              break;
-            case "ArrowLeft":
-              if (prevSample) {
-                prevSample();
-              }
-              break;
-            case "Escape":
-              setShowingSampleDialog(false);
-              break;
-          }
-        },
-        [prevSample, nextSample]
-      );
-      const onHide = reactExports.useCallback(() => {
-        setShowingSampleDialog(false);
-      }, [setShowingSampleDialog]);
-      return /* @__PURE__ */ jsxRuntimeExports.jsx(
-        LargeModal,
-        {
-          id,
-          detail: title2,
-          detailTools: tools2,
-          onkeyup: handleKeyUp,
-          visible: showingSampleDialog,
-          onHide,
-          showProgress: sampleStatus === "loading",
-          initialScrollPositionRef: sampleScrollPositionRef,
-          setInitialScrollPosition: setSampleScrollPosition,
-          scrollRef,
-          children: sampleError ? /* @__PURE__ */ jsxRuntimeExports.jsx(ErrorPanel, { title: "Sample Error", error: sampleError }) : /* @__PURE__ */ jsxRuntimeExports.jsx(
-            SampleDisplay,
-            {
-              id,
-              sample: sample2,
-              sampleDescriptor,
-              selectedTab,
-              setSelectedTab,
-              scrollRef
-            }
-          )
-        }
-      );
-    };
     const Ce = 0, Lt = 1, Yt = 2, En = 4;
     function sn(t2) {
       return () => t2;
@@ -62445,6 +61495,969 @@ ${events}
     function Rn(t2, e, n) {
       return e !== "normal" && !(e != null && e.endsWith("px")) && n(`${t2} was not resolved to pixel value correctly`, e, ht.WARN), e === "normal" ? 0 : parseInt(e != null ? e : "0", 10);
     }
+    const darkenedBg = "_darkenedBg_c8m1t_1";
+    const normalBg = "_normalBg_c8m1t_5";
+    const node = "_node_c8m1t_9";
+    const first = "_first_c8m1t_9";
+    const nodes = "_nodes_c8m1t_18";
+    const transcriptComponent = "_transcriptComponent_c8m1t_23";
+    const eventNode = "_eventNode_c8m1t_29";
+    const darkenBg = "_darkenBg_c8m1t_35";
+    const lastNode = "_lastNode_c8m1t_39";
+    const eventNodeContainer = "_eventNodeContainer_c8m1t_43";
+    const noBottom = "_noBottom_c8m1t_47";
+    const styles$k = {
+      darkenedBg,
+      normalBg,
+      node,
+      first,
+      nodes,
+      transcriptComponent,
+      eventNode,
+      darkenBg,
+      lastNode,
+      eventNodeContainer,
+      noBottom
+    };
+    const TranscriptView = ({
+      id,
+      events,
+      depth
+    }) => {
+      const [transcriptState, setTranscriptState] = reactExports.useState({});
+      const onTranscriptState = reactExports.useCallback(
+        (state) => {
+          setTranscriptState(state);
+        },
+        [setTranscriptState]
+      );
+      const resolvedEvents = fixupEventStream(events);
+      const eventNodes = treeifyEvents(
+        resolvedEvents,
+        depth !== void 0 ? depth : 0
+      );
+      return /* @__PURE__ */ jsxRuntimeExports.jsx(
+        TranscriptComponent,
+        {
+          id,
+          eventNodes,
+          transcriptState,
+          setTranscriptState: onTranscriptState
+        }
+      );
+    };
+    const TranscriptVirtualList = (props) => {
+      let { id, scrollRef, events, depth } = props;
+      const resolvedEvents = fixupEventStream(events);
+      const eventNodes = treeifyEvents(resolvedEvents, depth || 0);
+      const [transcriptState, setTranscriptState] = reactExports.useState({});
+      const onTranscriptState = reactExports.useCallback(
+        (state) => {
+          setTranscriptState(state);
+        },
+        [transcriptState, setTranscriptState]
+      );
+      return /* @__PURE__ */ jsxRuntimeExports.jsx(
+        TranscriptVirtualListComponent,
+        {
+          id,
+          eventNodes,
+          scrollRef,
+          transcriptState,
+          setTranscriptState: onTranscriptState
+        }
+      );
+    };
+    const TranscriptVirtualListComponent = ({ id, eventNodes, scrollRef, transcriptState, setTranscriptState }) => {
+      const setEventState = reactExports.useCallback(
+        (eventId, state) => {
+          setTranscriptState({ ...transcriptState, [eventId]: state });
+        },
+        [setTranscriptState]
+      );
+      const [followOutput, setFollowOutput] = reactExports.useState(false);
+      const renderRow = (item2, index2) => {
+        const bgClass = item2.depth % 2 == 0 ? styles$k.darkenedBg : styles$k.normalBg;
+        const paddingClass = index2 === 0 ? styles$k.first : void 0;
+        const eventId = `${id}-event${index2}`;
+        return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$k.node, paddingClass), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+          RenderedEventNode,
+          {
+            id: eventId,
+            node: item2,
+            className: clsx(bgClass),
+            scrollRef,
+            eventState: transcriptState[eventId] || {},
+            setEventState: (state) => setEventState(eventId, state)
+          }
+        ) }, eventId);
+      };
+      return /* @__PURE__ */ jsxRuntimeExports.jsx(
+        $r,
+        {
+          customScrollParent: (scrollRef == null ? void 0 : scrollRef.current) ? scrollRef.current : void 0,
+          style: { height: "100%", width: "100%" },
+          data: eventNodes,
+          itemContent: (index2, data) => {
+            return renderRow(data, index2);
+          },
+          increaseViewportBy: { top: 1e3, bottom: 1e3 },
+          overscan: {
+            main: 10,
+            reverse: 10
+          },
+          followOutput,
+          atBottomStateChange: (atBottom) => {
+            setFollowOutput(atBottom);
+          },
+          skipAnimationFrameInResizeObserver: true,
+          className: clsx("transcript")
+        }
+      );
+    };
+    const TranscriptComponent = ({
+      id,
+      transcriptState,
+      setTranscriptState,
+      eventNodes
+    }) => {
+      const rows = eventNodes.map((eventNode2, index2) => {
+        const clz = [styles$k.eventNode];
+        if (eventNode2.depth % 2 == 0) {
+          clz.push(styles$k.darkenBg);
+        }
+        if (index2 === eventNodes.length - 1) {
+          clz.push(styles$k.lastNode);
+        }
+        const eventId = `${id}-event${index2}`;
+        const setEventState = reactExports.useCallback(
+          (state) => {
+            setTranscriptState({ ...transcriptState, [eventId]: state });
+          },
+          [setTranscriptState, transcriptState]
+        );
+        const row2 = /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "div",
+          {
+            className: clsx(
+              styles$k.eventNodeContainer,
+              index2 === eventNodes.length - 1 ? styles$k.noBottom : void 0
+            ),
+            children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+              RenderedEventNode,
+              {
+                id: eventId,
+                node: eventNode2,
+                className: clsx(clz),
+                eventState: transcriptState[eventId] || {},
+                setEventState
+              }
+            )
+          },
+          eventId
+        );
+        return row2;
+      });
+      return /* @__PURE__ */ jsxRuntimeExports.jsx(
+        "div",
+        {
+          id,
+          className: clsx("text-size-small", styles$k.transcriptComponent),
+          children: rows
+        }
+      );
+    };
+    const RenderedEventNode = ({
+      id,
+      node: node2,
+      scrollRef,
+      eventState,
+      setEventState,
+      className: className2
+    }) => {
+      switch (node2.event.event) {
+        case "sample_init":
+          return /* @__PURE__ */ jsxRuntimeExports.jsx(
+            SampleInitEventView,
+            {
+              id,
+              event: node2.event,
+              eventState,
+              setEventState,
+              className: className2
+            }
+          );
+        case "sample_limit":
+          return /* @__PURE__ */ jsxRuntimeExports.jsx(
+            SampleLimitEventView,
+            {
+              id,
+              event: node2.event,
+              eventState,
+              setEventState,
+              className: className2
+            }
+          );
+        case "info":
+          return /* @__PURE__ */ jsxRuntimeExports.jsx(
+            InfoEventView,
+            {
+              id,
+              event: node2.event,
+              eventState,
+              setEventState,
+              className: className2
+            }
+          );
+        case "logger":
+          return /* @__PURE__ */ jsxRuntimeExports.jsx(LoggerEventView, { event: node2.event, className: className2 });
+        case "model":
+          return /* @__PURE__ */ jsxRuntimeExports.jsx(
+            ModelEventView,
+            {
+              id,
+              event: node2.event,
+              eventState,
+              setEventState,
+              className: className2
+            }
+          );
+        case "score":
+          return /* @__PURE__ */ jsxRuntimeExports.jsx(
+            ScoreEventView,
+            {
+              id,
+              event: node2.event,
+              eventState,
+              setEventState,
+              className: className2
+            }
+          );
+        case "state":
+          return /* @__PURE__ */ jsxRuntimeExports.jsx(
+            StateEventView,
+            {
+              id,
+              event: node2.event,
+              eventState,
+              setEventState,
+              className: className2
+            }
+          );
+        case "step":
+          return /* @__PURE__ */ jsxRuntimeExports.jsx(
+            StepEventView,
+            {
+              event: node2.event,
+              eventState,
+              setEventState,
+              children: node2.children,
+              scrollRef,
+              className: className2
+            }
+          );
+        case "store":
+          return /* @__PURE__ */ jsxRuntimeExports.jsx(
+            StateEventView,
+            {
+              id,
+              event: node2.event,
+              eventState,
+              setEventState,
+              className: className2,
+              isStore: true
+            }
+          );
+        case "subtask":
+          return /* @__PURE__ */ jsxRuntimeExports.jsx(
+            SubtaskEventView,
+            {
+              id,
+              event: node2.event,
+              eventState,
+              setEventState,
+              className: className2,
+              depth: node2.depth
+            }
+          );
+        case "tool":
+          return /* @__PURE__ */ jsxRuntimeExports.jsx(
+            ToolEventView,
+            {
+              id,
+              event: node2.event,
+              eventState,
+              setEventState,
+              className: className2,
+              depth: node2.depth
+            }
+          );
+        case "input":
+          return /* @__PURE__ */ jsxRuntimeExports.jsx(
+            InputEventView,
+            {
+              id,
+              event: node2.event,
+              eventState,
+              setEventState,
+              className: className2
+            }
+          );
+        case "error":
+          return /* @__PURE__ */ jsxRuntimeExports.jsx(
+            ErrorEventView,
+            {
+              id,
+              event: node2.event,
+              eventState,
+              setEventState,
+              className: className2
+            }
+          );
+        case "approval":
+          return /* @__PURE__ */ jsxRuntimeExports.jsx(ApprovalEventView, { event: node2.event, className: className2 });
+        case "sandbox":
+          return /* @__PURE__ */ jsxRuntimeExports.jsx(
+            SandboxEventView,
+            {
+              id,
+              event: node2.event,
+              className: className2,
+              eventState,
+              setEventState
+            }
+          );
+        default:
+          return null;
+      }
+    };
+    const fixupEventStream = (events) => {
+      const initEventIndex = events.findIndex((e) => {
+        return e.event === "sample_init";
+      });
+      const initEvent = events[initEventIndex];
+      const finalEvents = events.filter((e) => !e.pending);
+      const hasInitStep = events.findIndex((e) => {
+        return e.event === "step" && e.name === "init";
+      }) !== -1;
+      const fixedUp = [...finalEvents];
+      if (!hasInitStep && initEvent) {
+        fixedUp.splice(initEventIndex, 0, {
+          timestamp: initEvent.timestamp,
+          event: "step",
+          action: "begin",
+          type: null,
+          name: "sample_init",
+          pending: false
+        });
+        fixedUp.splice(initEventIndex + 2, 0, {
+          timestamp: initEvent.timestamp,
+          event: "step",
+          action: "end",
+          type: null,
+          name: "sample_init",
+          pending: false
+        });
+      }
+      return fixedUp;
+    };
+    function treeifyEvents(events, depth) {
+      const rootNodes = [];
+      const stack2 = [];
+      const pushNode = (event) => {
+        const node2 = new EventNode(event, stack2.length + depth);
+        if (stack2.length > 0) {
+          const parentNode = stack2[stack2.length - 1];
+          parentNode.children.push(node2);
+        } else {
+          rootNodes.push(node2);
+        }
+        return node2;
+      };
+      events.forEach((event) => {
+        if (event.event === "step" && event.action === "begin") {
+          const node2 = pushNode(event);
+          stack2.push(node2);
+        } else if (event.event === "step" && event.action === "end") {
+          if (stack2.length > 0) {
+            stack2.pop();
+          }
+        } else {
+          pushNode(event);
+        }
+      });
+      return rootNodes;
+    }
+    const SampleTranscript = ({
+      id,
+      evalEvents,
+      scrollRef
+    }) => {
+      return /* @__PURE__ */ jsxRuntimeExports.jsx(TranscriptVirtualList, { id, events: evalEvents, scrollRef });
+    };
+    const SampleDisplay = ({
+      id,
+      sample: sample2,
+      sampleDescriptor,
+      selectedTab,
+      setSelectedTab,
+      scrollRef
+    }) => {
+      const baseId = `sample-dialog`;
+      if (!sample2) {
+        return /* @__PURE__ */ jsxRuntimeExports.jsx(EmptyPanel, {});
+      }
+      const onSelectedTab = (e) => {
+        const el = e.currentTarget;
+        const id2 = el.id;
+        setSelectedTab(id2);
+        return false;
+      };
+      const scorerNames = Object.keys(sample2.scores || {});
+      const sampleMetadatas = metadataViewsForSample(`${baseId}-${id}`, sample2);
+      const tabsetId = `task-sample-details-tab-${id}`;
+      const targetId = `${tabsetId}-content`;
+      const tools2 = [];
+      if (!isVscode()) {
+        tools2.push(
+          /* @__PURE__ */ jsxRuntimeExports.jsx(
+            ToolButton,
+            {
+              label: "Print",
+              icon: ApplicationIcons.copy,
+              onClick: () => {
+                printSample(id, targetId);
+              }
+            },
+            "sample-print-tool"
+          )
+        );
+      }
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx(
+          SampleSummaryView,
+          {
+            parent_id: id,
+            sample: sample2,
+            sampleDescriptor
+          }
+        ),
+        /* @__PURE__ */ jsxRuntimeExports.jsxs(
+          TabSet,
+          {
+            id: tabsetId,
+            tabControlsClassName: clsx("text-size-base"),
+            tabPanelsClassName: clsx(styles$C.tabPanel),
+            tools: tools2,
+            children: [
+              sample2.events && sample2.events.length > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+                TabPanel,
+                {
+                  id: kSampleTranscriptTabId,
+                  className: "sample-tab",
+                  title: "Transcript",
+                  onSelected: onSelectedTab,
+                  selected: selectedTab === kSampleTranscriptTabId || selectedTab === void 0,
+                  scrollable: false,
+                  children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+                    SampleTranscript,
+                    {
+                      id: `${baseId}-transcript-display-${id}`,
+                      evalEvents: sample2.events,
+                      scrollRef
+                    },
+                    `${baseId}-transcript-display-${id}`
+                  )
+                },
+                kSampleTranscriptTabId
+              ) : null,
+              /* @__PURE__ */ jsxRuntimeExports.jsx(
+                TabPanel,
+                {
+                  id: kSampleMessagesTabId,
+                  className: clsx("sample-tab", styles$C.fullWidth),
+                  title: "Messages",
+                  onSelected: onSelectedTab,
+                  selected: selectedTab === kSampleMessagesTabId,
+                  scrollable: false,
+                  children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+                    ChatViewVirtualList,
+                    {
+                      id: `${baseId}-chat-${id}`,
+                      messages: sample2.messages,
+                      indented: true,
+                      scrollRef,
+                      toolCallStyle: "complete"
+                    },
+                    `${baseId}-chat-${id}`
+                  )
+                },
+                kSampleMessagesTabId
+              ),
+              scorerNames.length === 1 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+                TabPanel,
+                {
+                  id: kSampleScoringTabId,
+                  className: "sample-tab",
+                  title: "Scoring",
+                  onSelected: onSelectedTab,
+                  selected: selectedTab === kSampleScoringTabId,
+                  children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+                    SampleScoreView,
+                    {
+                      sample: sample2,
+                      sampleDescriptor,
+                      scorer: scorerNames[0]
+                    }
+                  )
+                },
+                kSampleScoringTabId
+              ) : /* @__PURE__ */ jsxRuntimeExports.jsx(jsxRuntimeExports.Fragment, { children: Object.keys(sample2.scores || {}).map((scorer) => {
+                const tabId = `score-${scorer}`;
+                return /* @__PURE__ */ jsxRuntimeExports.jsx(
+                  TabPanel,
+                  {
+                    id: tabId,
+                    className: "sample-tab",
+                    title: scorer,
+                    onSelected: onSelectedTab,
+                    selected: selectedTab === tabId,
+                    children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+                      SampleScoreView,
+                      {
+                        sample: sample2,
+                        sampleDescriptor,
+                        scorer
+                      }
+                    )
+                  },
+                  tabId
+                );
+              }) }),
+              sampleMetadatas.length > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+                TabPanel,
+                {
+                  id: kSampleMetdataTabId,
+                  className: clsx("sample-tab"),
+                  title: "Metadata",
+                  onSelected: onSelectedTab,
+                  selected: selectedTab === kSampleMetdataTabId,
+                  children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$C.metadataPanel), children: sampleMetadatas })
+                }
+              ) : null,
+              sample2.error ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+                TabPanel,
+                {
+                  id: kSampleErrorTabId,
+                  className: "sample-tab",
+                  title: "Error",
+                  onSelected: onSelectedTab,
+                  selected: selectedTab === kSampleErrorTabId,
+                  children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$C.padded), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+                    ANSIDisplay,
+                    {
+                      output: sample2.error.traceback_ansi,
+                      className: clsx("text-size-small", styles$C.ansi)
+                    }
+                  ) })
+                }
+              ) : null,
+              sample2.messages.length < 100 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+                TabPanel,
+                {
+                  id: kSampleJsonTabId,
+                  className: "sample-tab",
+                  title: "JSON",
+                  onSelected: onSelectedTab,
+                  selected: selectedTab === kSampleJsonTabId,
+                  children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$C.padded, styles$C.fullWidth), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+                    JSONPanel,
+                    {
+                      data: sample2,
+                      simple: true,
+                      className: clsx("text-size-small")
+                    }
+                  ) })
+                }
+              ) : null
+            ]
+          }
+        )
+      ] });
+    };
+    const metadataViewsForSample = (id, sample2) => {
+      const sampleMetadatas = [];
+      if (sample2.model_usage && Object.keys(sample2.model_usage).length > 0) {
+        sampleMetadatas.push(
+          /* @__PURE__ */ jsxRuntimeExports.jsxs(Card, { children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx(CardHeader, { label: "Usage" }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx(CardBody, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+              ModelTokenTable,
+              {
+                model_usage: sample2.model_usage,
+                className: clsx(styles$C.noTop)
+              }
+            ) })
+          ] }, `sample-usage-${id}`)
+        );
+      }
+      if (sample2.total_time !== void 0 && sample2.total_time !== null && sample2.working_time !== void 0 && sample2.working_time !== null) {
+        sampleMetadatas.push(
+          /* @__PURE__ */ jsxRuntimeExports.jsxs(Card, { children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx(CardHeader, { label: "Time" }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx(CardBody, { children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$C.timePanel, "text-size-smaller"), children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-label", "text-style-secondary"), children: "Working" }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: formatTime$1(sample2.working_time) }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-label", "text-style-secondary"), children: "Total" }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: formatTime$1(sample2.total_time) })
+            ] }) })
+          ] }, `sample-time-${id}`)
+        );
+      }
+      if (Object.keys(sample2 == null ? void 0 : sample2.metadata).length > 0) {
+        sampleMetadatas.push(
+          /* @__PURE__ */ jsxRuntimeExports.jsxs(Card, { children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx(CardHeader, { label: "Metadata" }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx(CardBody, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+              MetaDataView,
+              {
+                id: "task-sample-metadata-${id}",
+                entries: sample2 == null ? void 0 : sample2.metadata,
+                className: clsx("tab-pane", styles$C.noTop)
+              }
+            ) })
+          ] }, `sample-metadata-${id}`)
+        );
+      }
+      if (Object.keys(sample2 == null ? void 0 : sample2.store).length > 0) {
+        sampleMetadatas.push(
+          /* @__PURE__ */ jsxRuntimeExports.jsxs(Card, { children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx(CardHeader, { label: "Store" }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx(CardBody, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+              MetaDataView,
+              {
+                id: "task-sample-store-${id}",
+                entries: sample2 == null ? void 0 : sample2.store,
+                className: clsx("tab-pane", styles$C.noTop)
+              }
+            ) })
+          ] }, `sample-store-${id}`)
+        );
+      }
+      return sampleMetadatas;
+    };
+    const printSample = (id, targetId) => {
+      const targetTabEl = document.querySelector(
+        `#${escapeSelector(targetId)} .sample-tab.tab-pane.show.active`
+      );
+      if (targetTabEl) {
+        const targetEl = targetTabEl.firstElementChild;
+        if (targetEl) {
+          const headingId = `sample-heading-${id}`;
+          const headingEl = document.getElementById(headingId);
+          const headingHtml = printHeadingHtml();
+          const css = `
+      html { font-size: 9pt }
+      /* Allow content to break anywhere without any forced page breaks */
+      * {
+        break-inside: auto;  /* Let elements break anywhere */
+        page-break-inside: auto;  /* Legacy support */
+        break-before: auto;
+        page-break-before: auto;
+        break-after: auto;
+        page-break-after: auto;
+      }
+      /* Specifically disable all page breaks for divs */
+      div {
+        break-inside: auto;
+        page-break-inside: auto;
+      }
+      body > .transcript-step {
+        break-inside: avoid;
+      }
+      body{
+        -webkit-print-color-adjust:exact !important;
+        print-color-adjust:exact !important;
+      }
+      /* Allow preformatted text and code blocks to break across pages */
+      pre, code {
+          white-space: pre-wrap; /* Wrap long lines instead of keeping them on one line */
+          overflow-wrap: break-word; /* Ensure long words are broken to fit within the page */
+          break-inside: auto; /* Allow page breaks inside the element */
+          page-break-inside: auto; /* Older equivalent */
+      }
+
+      /* Additional control for long lines within code/preformatted blocks */
+      pre {
+          word-wrap: break-word; /* Break long words if needed */
+      }    
+          
+      `;
+          printHtml(
+            [headingHtml, headingEl == null ? void 0 : headingEl.outerHTML, targetEl.innerHTML].join("\n"),
+            css
+          );
+        }
+      }
+    };
+    const container$5 = "_container_gzd7f_1";
+    const body$2 = "_body_gzd7f_6";
+    const styles$j = {
+      container: container$5,
+      body: body$2
+    };
+    const InlineSampleDisplay = ({
+      id,
+      sample: sample2,
+      sampleStatus,
+      sampleError,
+      sampleDescriptor,
+      selectedTab,
+      setSelectedTab,
+      scrollRef
+    }) => {
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$j.container, children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx(ProgressBar, { animating: sampleStatus === "loading" }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$j.body, children: sampleError ? /* @__PURE__ */ jsxRuntimeExports.jsx(ErrorPanel, { title: "Unable to load sample", error: sampleError }) : /* @__PURE__ */ jsxRuntimeExports.jsx(
+          SampleDisplay,
+          {
+            id,
+            sample: sample2,
+            sampleDescriptor,
+            selectedTab,
+            setSelectedTab,
+            scrollRef
+          }
+        ) })
+      ] });
+    };
+    const title = "_title_yj2nt_1";
+    const detail = "_detail_yj2nt_5";
+    const detailText = "_detailText_yj2nt_13";
+    const close = "_close_yj2nt_18";
+    const modal = "_modal_yj2nt_26";
+    const hidden = "_hidden_yj2nt_31";
+    const modalBody = "_modalBody_yj2nt_35";
+    const content = "_content_yj2nt_41";
+    const header$1 = "_header_yj2nt_45";
+    const titleTool = "_titleTool_yj2nt_50";
+    const styles$i = {
+      title,
+      detail,
+      detailText,
+      close,
+      modal,
+      hidden,
+      modalBody,
+      content,
+      header: header$1,
+      titleTool
+    };
+    const LargeModal = ({
+      id,
+      title: title2,
+      detail: detail2,
+      detailTools,
+      children: children2,
+      footer: footer2,
+      onkeyup,
+      visible: visible2,
+      onHide,
+      showProgress,
+      initialScrollPositionRef,
+      setInitialScrollPosition,
+      scrollRef
+    }) => {
+      const modalFooter = footer2 ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "modal-footer", children: footer2 }) : "";
+      scrollRef = scrollRef || reactExports.useRef(null);
+      reactExports.useEffect(() => {
+        if (scrollRef.current) {
+          setTimeout(() => {
+            if (scrollRef.current && initialScrollPositionRef.current && scrollRef.current.scrollTop !== (initialScrollPositionRef == null ? void 0 : initialScrollPositionRef.current)) {
+              scrollRef.current.scrollTop = initialScrollPositionRef.current;
+            }
+          }, 0);
+        }
+      }, []);
+      const onScroll = reactExports.useCallback(
+        (e) => {
+          setInitialScrollPosition(e.currentTarget.scrollTop);
+        },
+        [setInitialScrollPosition]
+      );
+      return /* @__PURE__ */ jsxRuntimeExports.jsx(
+        "div",
+        {
+          id,
+          className: clsx(
+            "modal",
+            styles$i.modal,
+            !visible2 ? styles$i.hidden : void 0
+          ),
+          role: "dialog",
+          onKeyUp: onkeyup,
+          tabIndex: visible2 ? 0 : void 0,
+          children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+            "div",
+            {
+              className: clsx(
+                "modal-dialog",
+                "modal-dialog-scrollable",
+                styles$i.modalBody
+              ),
+              role: "document",
+              children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("modal-content", styles$i.content), children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("modal-header", styles$i.header), children: [
+                  /* @__PURE__ */ jsxRuntimeExports.jsx(
+                    "div",
+                    {
+                      className: clsx("modal-title", "text-size-smaller", styles$i.title),
+                      children: title2 || ""
+                    }
+                  ),
+                  detail2 ? /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$i.detail, children: [
+                    (detailTools == null ? void 0 : detailTools.left) ? detailTools.left.map((tool2, idx) => {
+                      return /* @__PURE__ */ jsxRuntimeExports.jsx(TitleTool, { ...tool2 }, `tool-left-${idx}`);
+                    }) : "",
+                    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-smaller", styles$i.detailText), children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: detail2 }) }),
+                    (detailTools == null ? void 0 : detailTools.right) ? detailTools.right.map((tool2, idx) => {
+                      return /* @__PURE__ */ jsxRuntimeExports.jsx(TitleTool, { ...tool2 }, `tool-right-${idx}`);
+                    }) : ""
+                  ] }) : void 0,
+                  /* @__PURE__ */ jsxRuntimeExports.jsx(
+                    "button",
+                    {
+                      type: "button",
+                      className: clsx(
+                        "btn",
+                        "btn-close-large-dialog",
+                        "text-size-larger",
+                        styles$i.close
+                      ),
+                      onClick: onHide,
+                      "aria-label": "Close",
+                      children: /* @__PURE__ */ jsxRuntimeExports.jsx(HtmlEntity, { html: "&times;" })
+                    }
+                  )
+                ] }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx(ProgressBar, { animating: showProgress }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "modal-body", ref: scrollRef, onScroll, children: children2 }),
+                modalFooter
+              ] })
+            }
+          )
+        }
+      );
+    };
+    const HtmlEntity = ({ html }) => /* @__PURE__ */ jsxRuntimeExports.jsx("span", { dangerouslySetInnerHTML: { __html: html } });
+    const TitleTool = ({
+      label: label2,
+      icon,
+      enabled,
+      onClick
+    }) => {
+      return /* @__PURE__ */ jsxRuntimeExports.jsx(
+        "button",
+        {
+          type: "button",
+          className: clsx(
+            "btn",
+            "btn-outline",
+            "text-size-small",
+            styles$i.titleTool
+          ),
+          "aria-label": label2,
+          onClick,
+          disabled: !enabled,
+          children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: icon })
+        }
+      );
+    };
+    const SampleDialog = ({
+      id,
+      title: title2,
+      sample: sample2,
+      sampleDescriptor,
+      nextSample,
+      prevSample,
+      sampleStatus,
+      sampleError,
+      showingSampleDialog,
+      setShowingSampleDialog,
+      selectedTab,
+      setSelectedTab,
+      sampleScrollPositionRef,
+      setSampleScrollPosition
+    }) => {
+      const scrollRef = reactExports.useRef(null);
+      const tools2 = reactExports.useMemo(() => {
+        const nextTool = {
+          label: "Next Sample",
+          icon: ApplicationIcons.next,
+          onClick: nextSample,
+          enabled: !!nextSample
+        };
+        const prevTool = {
+          label: "Previous Sample",
+          icon: ApplicationIcons.previous,
+          onClick: prevSample,
+          enabled: !!prevSample
+        };
+        return {
+          left: [prevTool],
+          right: [nextTool]
+        };
+      }, [prevSample, nextSample]);
+      const handleKeyUp = reactExports.useCallback(
+        (e) => {
+          switch (e.key) {
+            case "ArrowRight":
+              if (nextSample) {
+                nextSample();
+              }
+              break;
+            case "ArrowLeft":
+              if (prevSample) {
+                prevSample();
+              }
+              break;
+            case "Escape":
+              setShowingSampleDialog(false);
+              break;
+          }
+        },
+        [prevSample, nextSample]
+      );
+      const onHide = reactExports.useCallback(() => {
+        setShowingSampleDialog(false);
+      }, [setShowingSampleDialog]);
+      return /* @__PURE__ */ jsxRuntimeExports.jsx(
+        LargeModal,
+        {
+          id,
+          detail: title2,
+          detailTools: tools2,
+          onkeyup: handleKeyUp,
+          visible: showingSampleDialog,
+          onHide,
+          showProgress: sampleStatus === "loading",
+          initialScrollPositionRef: sampleScrollPositionRef,
+          setInitialScrollPosition: setSampleScrollPosition,
+          scrollRef,
+          children: sampleError ? /* @__PURE__ */ jsxRuntimeExports.jsx(ErrorPanel, { title: "Sample Error", error: sampleError }) : /* @__PURE__ */ jsxRuntimeExports.jsx(
+            SampleDisplay,
+            {
+              id,
+              sample: sample2,
+              sampleDescriptor,
+              selectedTab,
+              setSelectedTab,
+              scrollRef
+            }
+          )
+        }
+      );
+    };
     const MessageBand = ({
       message: message2,
       hidden: hidden2,
