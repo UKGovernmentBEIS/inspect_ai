@@ -138,7 +138,7 @@ class OpenAIAPI(ModelAPI):
                 **model_args,
             )
 
-        # create request tracker
+        # create time tracker
         self._time_tracker = HttpxTimeTracker(self.client._client)
 
     def is_azure(self) -> bool:
