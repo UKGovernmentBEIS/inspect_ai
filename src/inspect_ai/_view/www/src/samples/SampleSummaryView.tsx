@@ -1,6 +1,6 @@
 import clsx from "clsx";
 import { MarkdownDiv } from "../components/MarkdownDiv";
-import { EvalSample, ExecutionTime, TotalTime } from "../types/log";
+import { EvalSample, TotalTime, WorkingTime } from "../types/log";
 import { arrayToString, formatTime, inputString } from "../utils/format";
 import { SamplesDescriptor } from "./descriptor/samplesDescriptor";
 import { FlatSampleError } from "./error/FlatSampleErrorView";
@@ -47,7 +47,7 @@ export const SampleSummaryView: React.FC<SampleSummaryViewProps> = ({
     sampleDescriptor?.messageShape.normalized.limit > 0
       ? Math.max(0.15, sampleDescriptor.messageShape.normalized.limit)
       : 0;
-  const timeSize = sample.execution_time || sample.total_time ? 0.15 : 0;
+  const timeSize = sample.working_time || sample.total_time ? 0.15 : 0;
   const idSize = Math.max(
     2,
     Math.min(10, sampleDescriptor?.messageShape.raw.id),
@@ -116,37 +116,37 @@ export const SampleSummaryView: React.FC<SampleSummaryViewProps> = ({
     return val !== undefined && val !== null;
   };
 
-  const duration = (total_time?: TotalTime, execution_time?: ExecutionTime) => {
-    if (has_value(total_time) && !has_value(execution_time)) {
+  const duration = (total_time?: TotalTime, working_time?: WorkingTime) => {
+    if (has_value(total_time) && !has_value(working_time)) {
       return formatTime(total_time);
-    } else if (has_value(total_time) && has_value(execution_time)) {
-      return `${formatTime(total_time)} (${formatTime(execution_time)})`;
-    } else if (has_value(execution_time)) {
-      return formatTime(execution_time);
+    } else if (has_value(total_time) && has_value(working_time)) {
+      return `${formatTime(total_time)} (${formatTime(working_time)})`;
+    } else if (has_value(working_time)) {
+      return formatTime(working_time);
     } else {
       return undefined;
     }
   };
 
-  const label = (total_time?: TotalTime, execution_time?: ExecutionTime) => {
-    if (has_value(total_time) && !has_value(execution_time)) {
+  const label = (total_time?: TotalTime, working_time?: WorkingTime) => {
+    if (has_value(total_time) && !has_value(working_time)) {
       return "Total time";
-    } else if (has_value(total_time) && has_value(execution_time)) {
+    } else if (has_value(total_time) && has_value(working_time)) {
       return "Total time (execution time)";
-    } else if (has_value(execution_time)) {
+    } else if (has_value(working_time)) {
       return "Execution time";
     } else {
       return undefined;
     }
   };
 
-  if (sample.execution_time || sample.total_time) {
+  if (sample.working_time || sample.total_time) {
     columns.push({
-      label: "Runtime",
-      value: duration(sample.total_time, sample.execution_time),
+      label: "Time",
+      value: duration(sample.total_time, sample.working_time),
       size: `${timeSize}fr`,
       center: true,
-      title: label(sample.total_time, sample.execution_time),
+      title: label(sample.total_time, sample.working_time),
     });
   }
 

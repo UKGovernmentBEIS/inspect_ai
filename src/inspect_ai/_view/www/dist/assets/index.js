@@ -50208,7 +50208,7 @@ self.onmessage = function (e) {
       const target2 = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.normalized.target) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.normalized.target) : 0;
       const answer2 = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.normalized.answer) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.normalized.answer) : 0;
       const limitSize = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.normalized.limit) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.normalized.limit) : 0;
-      const timeSize = sample2.execution_time || sample2.total_time ? 0.15 : 0;
+      const timeSize = sample2.working_time || sample2.total_time ? 0.15 : 0;
       const idSize = Math.max(
         2,
         Math.min(10, sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.raw.id)
@@ -50266,35 +50266,35 @@ self.onmessage = function (e) {
       const has_value = (val) => {
         return val !== void 0 && val !== null;
       };
-      const duration = (total_time, execution_time) => {
-        if (has_value(total_time) && !has_value(execution_time)) {
+      const duration = (total_time, working_time) => {
+        if (has_value(total_time) && !has_value(working_time)) {
           return formatTime$1(total_time);
-        } else if (has_value(total_time) && has_value(execution_time)) {
-          return `${formatTime$1(total_time)} (${formatTime$1(execution_time)})`;
-        } else if (has_value(execution_time)) {
-          return formatTime$1(execution_time);
+        } else if (has_value(total_time) && has_value(working_time)) {
+          return `${formatTime$1(total_time)} (${formatTime$1(working_time)})`;
+        } else if (has_value(working_time)) {
+          return formatTime$1(working_time);
         } else {
           return void 0;
         }
       };
-      const label2 = (total_time, execution_time) => {
-        if (has_value(total_time) && !has_value(execution_time)) {
+      const label2 = (total_time, working_time) => {
+        if (has_value(total_time) && !has_value(working_time)) {
           return "Total time";
-        } else if (has_value(total_time) && has_value(execution_time)) {
+        } else if (has_value(total_time) && has_value(working_time)) {
           return "Total time (execution time)";
-        } else if (has_value(execution_time)) {
+        } else if (has_value(working_time)) {
           return "Execution time";
         } else {
           return void 0;
         }
       };
-      if (sample2.execution_time || sample2.total_time) {
+      if (sample2.working_time || sample2.total_time) {
         columns.push({
-          label: "Runtime",
-          value: duration(sample2.total_time, sample2.execution_time),
+          label: "Time",
+          value: duration(sample2.total_time, sample2.working_time),
           size: `${timeSize}fr`,
           center: true,
-          title: label2(sample2.total_time, sample2.execution_time)
+          title: label2(sample2.total_time, sample2.working_time)
         });
       }
       if ((sample2 == null ? void 0 : sample2.limit) && limitSize > 0) {
