@@ -1,5 +1,4 @@
 import React, { RefObject, useCallback, useState } from "react";
-import { VirtualList } from "../../components/VirtualList";
 import { Events } from "../../types/log";
 import { ApprovalEventView } from "./ApprovalEventView";
 import { ErrorEventView } from "./ErrorEventView";
@@ -17,6 +16,7 @@ import { ToolEventView } from "./ToolEventView";
 import { EventNode, EventType, TranscriptEventState } from "./types";
 
 import clsx from "clsx";
+import { Virtuoso } from "react-virtuoso";
 import styles from "./TranscriptView.module.css";
 
 interface TranscriptViewProps {
@@ -118,6 +118,8 @@ export const TranscriptVirtualListComponent: React.FC<
     [setTranscriptState],
   );
 
+  const [followOutput, setFollowOutput] = useState(false);
+
   const renderRow = (item: EventNode, index: number) => {
     const bgClass = item.depth % 2 == 0 ? styles.darkenedBg : styles.normalBg;
     const paddingClass = index === 0 ? styles.first : undefined;
@@ -139,12 +141,24 @@ export const TranscriptVirtualListComponent: React.FC<
   };
 
   return (
-    <VirtualList
+    <Virtuoso
+      customScrollParent={scrollRef?.current ? scrollRef.current : undefined}
+      style={{ height: "100%", width: "100%" }}
       data={eventNodes}
-      tabIndex={0}
-      renderRow={renderRow}
-      scrollRef={scrollRef}
-      className={styles.nodes}
+      itemContent={(index: number, data: EventNode) => {
+        return renderRow(data, index);
+      }}
+      increaseViewportBy={{ top: 1000, bottom: 1000 }}
+      overscan={{
+        main: 10,
+        reverse: 10,
+      }}
+      followOutput={followOutput}
+      atBottomStateChange={(atBottom: boolean) => {
+        setFollowOutput(atBottom);
+      }}
+      skipAnimationFrameInResizeObserver={true}
+      className={clsx("transcript")}
     />
   );
 };
