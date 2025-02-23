@@ -32,6 +32,7 @@ interface SampleListProps {
   prevSample: () => void;
   showSample: (index: number) => void;
   className?: string | string[];
+  listHandle: RefObject<VirtuosoHandle | null>;
 }
 
 export const SampleList: React.FC<SampleListProps> = (props) => {
@@ -43,13 +44,13 @@ export const SampleList: React.FC<SampleListProps> = (props) => {
     prevSample,
     showSample,
     className,
+    listHandle,
   } = props;
 
   // If there are no samples, just display an empty state
   if (items.length === 0) {
     return <EmptyPanel>No Samples</EmptyPanel>;
   }
-  const listHandle: RefObject<VirtuosoHandle | null> = useRef(null);
   const [followOutput, setFollowOutput] = useState(false);
 
   const [hidden, setHidden] = useState(false);
