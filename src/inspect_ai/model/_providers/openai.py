@@ -176,6 +176,9 @@ class OpenAIAPI(ModelAPI):
                 **self.completion_params(config, False),
             )
 
+        # allocate request_id (so we can see it from ModelCall)
+        request_id = self._time_tracker.start_request()
+
         # setup request and response for ModelCall
         request: dict[str, Any] = {}
         response: dict[str, Any] = {}
@@ -185,6 +188,7 @@ class OpenAIAPI(ModelAPI):
                 request=request,
                 response=response,
                 filter=image_url_filter,
+                time=self._time_tracker.end_request(request_id),
             )
 
         # unlike text models, vision models require a max_tokens (and set it to a very low
@@ -197,7 +201,6 @@ class OpenAIAPI(ModelAPI):
                 config.max_tokens = OPENAI_IMAGE_DEFAULT_TOKENS
 
         # prepare request (we do this so we can log the ModelCall)
-        request_id = self._time_tracker.start_request()
         request = dict(
             messages=await openai_chat_messages(input, self.model_name),
             tools=openai_chat_tools(tools) if len(tools) > 0 else NOT_GIVEN,
@@ -213,9 +216,6 @@ class OpenAIAPI(ModelAPI):
             completion: ChatCompletion = await self.client.chat.completions.create(
                 **request
             )
-
-            # record running time
-            self._time_tracker.end_request(request_id)
 
             # save response for model_call
             response = completion.model_dump()

@@ -36,6 +36,7 @@ from inspect_ai._util.trace import trace_action
 from inspect_ai.tool import Tool, ToolChoice, ToolFunction, ToolInfo
 from inspect_ai.tool._tool_def import ToolDef, tool_defs
 from inspect_ai.util import concurrency
+from inspect_ai.util._execution import report_sample_waiting_time
 
 from ._cache import CacheEntry, CachePolicy, cache_fetch, cache_store
 from ._call_tools import disable_parallel_tools, tool_call_view, tools_info
@@ -435,20 +436,27 @@ class Model:
             )
 
             with trace_action(logger, "Model", f"generate ({str(self)})"):
-                time_start = time.perf_counter()
-                result = await self.api.generate(
-                    input=input,
-                    tools=tools,
-                    tool_choice=tool_choice,
-                    config=config,
-                )
-                time_elapsed = time.perf_counter() - time_start
+                time_start = time.monotonic()
+                try:
+                    result = await self.api.generate(
+                        input=input,
+                        tools=tools,
+                        tool_choice=tool_choice,
+                        config=config,
+                    )
+                finally:
+                    time_elapsed = time.monotonic() - time_start
 
             if isinstance(result, tuple):
                 output, call = result
             else:
                 output = result
                 call = None
+
+            # if there is a call time then use it to report time waiting
+            if call and call.time:
+                waiting_time = time_elapsed - call.time
+                report_sample_waiting_time(waiting_time)
 
             # raise error
             if isinstance(output, Exception):
