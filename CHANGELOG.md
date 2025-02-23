@@ -5,6 +5,7 @@
 - Only explicitly set `state.completed=True` when entering scoring (`basic_agent()` no longer sets `completed` so can be used in longer compositions of solvers).
 - Compatiblity with textual version 2.0 (remove upper bound).
 - Align with HF datasets `fsspec` version contraints to avoid pip errors when installing alongside `datasets`.
+- Bugfix: Fix issue with tools that had an ordinary `dict` as a parameter.
 
 ## v0.3.69 (20 February 2025)
 
