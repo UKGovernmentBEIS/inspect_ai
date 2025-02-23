@@ -1,5 +1,5 @@
 import abc
-import asyncio
+import contextlib
 import functools
 import json
 import logging
@@ -8,7 +8,7 @@ import time
 from contextvars import ContextVar
 from copy import deepcopy
 from types import TracebackType
-from typing import Any, Callable, Literal, Type, cast
+from typing import Any, AsyncIterator, Callable, Literal, Type, cast
 
 from pydantic_core import to_jsonable_python
 from tenacity import (
@@ -513,7 +513,10 @@ class Model:
     # override the _connection_key() argument to provide a scope within which
     # to enforce max_connections (e.g. by account/api_key, by endpoint, etc.)
 
-    def _connection_concurrency(self, config: GenerateConfig) -> asyncio.Semaphore:
+    @contextlib.asynccontextmanager
+    async def _connection_concurrency(
+        self, config: GenerateConfig
+    ) -> AsyncIterator[None]:
         """Get the appropriate connection semaphore for this model instance."""
         max_connections = (
             config.max_connections
@@ -521,11 +524,12 @@ class Model:
             else self.api.max_connections()
         )
         model_name = ModelName(self)
-        return concurrency(
+        async with concurrency(
             name=f"{model_name.api}",
             concurrency=max_connections,
             key=f"Model{self.api.connection_key()}",
-        )
+        ):
+            yield
 
     def _record_model_interaction(
         self,

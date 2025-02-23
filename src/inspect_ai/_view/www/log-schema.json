@@ -1535,7 +1535,7 @@
         "total_time": {
           "anyOf": [
             {
-              "type": "integer"
+              "type": "number"
             },
             {
               "type": "null"
@@ -1544,17 +1544,17 @@
           "default": null,
           "title": "Total Time"
         },
-        "execution_time": {
+        "working_time": {
           "anyOf": [
             {
-              "type": "integer"
+              "type": "number"
             },
             {
               "type": "null"
             }
           ],
           "default": null,
-          "title": "Execution Time"
+          "title": "Working Time"
         },
         "error": {
           "anyOf": [
@@ -1603,7 +1603,7 @@
         "events",
         "model_usage",
         "total_time",
-        "execution_time",
+        "working_time",
         "error",
         "attachments",
         "limit"

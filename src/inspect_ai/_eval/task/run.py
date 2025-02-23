@@ -826,7 +826,7 @@ async def log_sample(
     # construct sample for logging
 
     # compute total time if we can
-    total_time = int(time.monotonic() - start_time) if start_time is not None else None
+    total_time = time.monotonic() - start_time if start_time is not None else None
 
     # if a limit was hit, note that in the Eval Sample
     limit = None
@@ -854,7 +854,7 @@ async def log_sample(
         events=list(transcript().events),
         model_usage=sample_model_usage(),
         total_time=total_time,
-        working_time=(total_time - int(sample_waiting_time()))
+        working_time=(total_time - sample_waiting_time())
         if total_time is not None
         else None,
         error=error,

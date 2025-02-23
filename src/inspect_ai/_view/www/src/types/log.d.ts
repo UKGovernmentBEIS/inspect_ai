@@ -446,7 +446,7 @@ export type Events = (
   | SubtaskEvent
 )[];
 export type TotalTime = number | null;
-export type ExecutionTime = number | null;
+export type WorkingTime = number | null;
 export type Type13 =
   | "context"
   | "time"
@@ -727,7 +727,7 @@ export interface EvalSample {
   events: Events;
   model_usage: ModelUsage2;
   total_time: TotalTime;
-  execution_time: ExecutionTime;
+  working_time: WorkingTime;
   error: EvalError | null;
   attachments: Attachments;
   limit: EvalSampleLimit | null;

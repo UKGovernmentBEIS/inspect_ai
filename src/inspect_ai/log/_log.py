@@ -223,10 +223,10 @@ class EvalSample(BaseModel):
     model_usage: dict[str, ModelUsage] = Field(default_factory=dict)
     """Model token usage for sample."""
 
-    total_time: int | None = Field(default=None)
+    total_time: float | None = Field(default=None)
     """Total time that the sample was running."""
 
-    working_time: int | None = Field(default=None)
+    working_time: float | None = Field(default=None)
     """Time spent working (model generation, sandbox calls, etc.)"""
 
     error: EvalError | None = Field(default=None)
