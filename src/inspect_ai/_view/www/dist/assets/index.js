@@ -50145,19 +50145,21 @@ self.onmessage = function (e) {
       );
       return result2;
     };
-    const tabPanel = "_tabPanel_14odp_1";
-    const fullWidth = "_fullWidth_14odp_5";
-    const metadataPanel = "_metadataPanel_14odp_9";
-    const padded = "_padded_14odp_18";
-    const ansi = "_ansi_14odp_23";
-    const noTop = "_noTop_14odp_27";
+    const tabPanel = "_tabPanel_1isha_1";
+    const fullWidth = "_fullWidth_1isha_5";
+    const metadataPanel = "_metadataPanel_1isha_9";
+    const padded = "_padded_1isha_18";
+    const ansi = "_ansi_1isha_23";
+    const noTop = "_noTop_1isha_27";
+    const timePanel = "_timePanel_1isha_31";
     const styles$C = {
       tabPanel,
       fullWidth,
       metadataPanel,
       padded,
       ansi,
-      noTop
+      noTop,
+      timePanel
     };
     const flatBody = "_flatBody_gk2ju_1";
     const iconSmall$1 = "_iconSmall_gk2ju_9";
@@ -59005,7 +59007,7 @@ ${events}
                 TabPanel,
                 {
                   id: kSampleMetdataTabId,
-                  className: "sample-tab",
+                  className: clsx("sample-tab"),
                   title: "Metadata",
                   onSelected: onSelectedTab,
                   selected: selectedTab === kSampleMetdataTabId,
@@ -59066,6 +59068,19 @@ ${events}
               }
             ) })
           ] }, `sample-usage-${id}`)
+        );
+      }
+      if (sample2.total_time !== void 0 && sample2.total_time !== null && sample2.working_time !== void 0 && sample2.working_time !== null) {
+        sampleMetadatas.push(
+          /* @__PURE__ */ jsxRuntimeExports.jsxs(Card, { children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx(CardHeader, { label: "Time" }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx(CardBody, { children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$C.timePanel, "text-size-smaller"), children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-label", "text-style-secondary"), children: "Working" }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: formatTime$1(sample2.working_time) }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-label", "text-style-secondary"), children: "Total" }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: formatTime$1(sample2.total_time) })
+            ] }) })
+          ] }, `sample-time-${id}`)
         );
       }
       if (Object.keys(sample2 == null ? void 0 : sample2.metadata).length > 0) {
