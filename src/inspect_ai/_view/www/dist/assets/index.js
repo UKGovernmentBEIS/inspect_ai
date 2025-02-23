@@ -63789,7 +63789,6 @@ ${events}
       capabilities: capabilities2
     }) => {
       const logFileName = file ? filename(file) : "";
-      console.log({ runningMetrics });
       const handleToggle = reactExports.useCallback(() => {
         setOffcanvas(!offcanvas);
       }, [setOffcanvas, offcanvas]);
