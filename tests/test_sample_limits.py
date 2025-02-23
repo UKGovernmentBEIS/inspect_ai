@@ -15,7 +15,7 @@ from inspect_ai.scorer._scorer import Scorer, scorer
 from inspect_ai.scorer._target import Target
 from inspect_ai.solver import Generate, TaskState, solver
 from inspect_ai.solver._solver import Solver
-from inspect_ai.util._subprocess import subprocess
+from inspect_ai.util._concurrency import concurrency
 
 
 @solver
@@ -41,13 +41,11 @@ def looping_solver(check_tokens: bool = False, sleep_for: float | None = None):
 
 
 @solver
-def looping_subprocess_solver(sleep_for: float | None = None):
+def looping_concurrecy_solver():
     async def solve(state: TaskState, generate: Generate):
-        # keep calling subprocesses until we hit a limit
-        while True:
-            if sleep_for:
-                await asyncio.sleep(sleep_for)
-            await subprocess(["sleep", "1"])
+        # simulate waiting for shared resource
+        async with concurrency("shared-resource", 1):
+            await asyncio.sleep(1)
 
         return state
 
@@ -188,25 +186,27 @@ def test_solver_timeout_not_scored():
     assert log.status == "error"
 
 
-# @skip_if_no_openai
-# def test_working_limit_generate():
-#     working_limit = 3
-#     log = eval(
-#         Task(solver=looping_solver(sleep_for=1)),
-#         model="openai/gpt-4o",
-#         working_limit=working_limit,
-#     )[0]
-#     check_working_limit_event(log, working_limit)
+def test_working_limit():
+    working_limit = 3
+    log = eval(
+        Task(solver=looping_solver(sleep_for=1)),
+        model="mockllm/model",
+        working_limit=working_limit,
+    )[0]
+    check_working_limit_event(log, working_limit)
 
 
-# def test_working_limit_subprocess():
-#     working_limit = 2
-#     log = eval(
-#         Task(solver=looping_subprocess_solver(sleep_for=1)),
-#         model="mockllm/model",
-#         working_limit=working_limit,
-#     )[0]
-#     check_working_limit_event(log, working_limit)
+def test_working_limit_reporting():
+    log = eval(
+        Task(
+            dataset=[Sample(id=id, input=f"Input for {id}") for id in range(0, 3)],
+            solver=looping_concurrecy_solver(),
+        ),
+        model="mockllm/model",
+    )[0]
+    assert log.samples
+    for index, sample in enumerate(log.samples):
+        assert (sample.total_time - sample.working_time) >= index
 
 
 def check_working_limit_event(log: EvalLog, working_limit: int):
