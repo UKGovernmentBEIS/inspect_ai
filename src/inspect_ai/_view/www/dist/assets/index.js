@@ -62187,12 +62187,12 @@ ${events}
         nextSample,
         prevSample,
         showSample,
-        className: className2
+        className: className2,
+        listHandle
       } = props;
       if (items.length === 0) {
         return /* @__PURE__ */ jsxRuntimeExports.jsx(EmptyPanel, { children: "No Samples" });
       }
-      const listHandle = reactExports.useRef(null);
       const [followOutput, setFollowOutput] = reactExports.useState(false);
       const [hidden2, setHidden] = reactExports.useState(false);
       reactExports.useEffect(() => {
@@ -62540,7 +62540,7 @@ ${events}
     }) => {
       const [items, setItems] = reactExports.useState([]);
       const [sampleItems, setSampleItems] = reactExports.useState([]);
-      const sampleListRef = reactExports.useRef(null);
+      const sampleListHandle = reactExports.useRef(null);
       const sampleDialogRef = reactExports.useRef(null);
       const showSample = reactExports.useCallback(
         (index2) => {
@@ -62557,8 +62557,8 @@ ${events}
           }, 0);
         } else {
           setTimeout(() => {
-            if (sampleListRef.current) {
-              sampleListRef.current.focus();
+            if (sampleListHandle.current) {
+              sampleListHandle.current.scrollToIndex(0);
             }
           }, 0);
         }
@@ -62629,7 +62629,7 @@ ${events}
           sampleDescriptor && sampleMode === "many" ? /* @__PURE__ */ jsxRuntimeExports.jsx(
             SampleList,
             {
-              listRef: sampleListRef,
+              listHandle: sampleListHandle,
               items,
               running: running2,
               sampleDescriptor,
