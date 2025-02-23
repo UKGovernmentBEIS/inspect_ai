@@ -24,6 +24,7 @@ import {
 } from "../constants";
 import { EvalSample } from "../types/log";
 import { ModelTokenTable } from "../usage/ModelTokenTable";
+import { formatTime } from "../utils/format";
 import { printHeadingHtml, printHtml } from "../utils/print";
 import { ChatViewVirtualList } from "./chat/ChatViewVirtualList";
 import { SamplesDescriptor } from "./descriptor/samplesDescriptor";
@@ -180,7 +181,7 @@ export const SampleDisplay: React.FC<SampleDisplayProps> = ({
         {sampleMetadatas.length > 0 ? (
           <TabPanel
             id={kSampleMetdataTabId}
-            className="sample-tab"
+            className={clsx("sample-tab")}
             title="Metadata"
             onSelected={onSelectedTab}
             selected={selectedTab === kSampleMetdataTabId}
@@ -228,6 +229,7 @@ export const SampleDisplay: React.FC<SampleDisplayProps> = ({
 
 const metadataViewsForSample = (id: string, sample: EvalSample) => {
   const sampleMetadatas = [];
+
   if (sample.model_usage && Object.keys(sample.model_usage).length > 0) {
     sampleMetadatas.push(
       <Card key={`sample-usage-${id}`}>
@@ -237,6 +239,31 @@ const metadataViewsForSample = (id: string, sample: EvalSample) => {
             model_usage={sample.model_usage}
             className={clsx(styles.noTop)}
           />
+        </CardBody>
+      </Card>,
+    );
+  }
+
+  if (
+    sample.total_time !== undefined &&
+    sample.total_time !== null &&
+    sample.working_time !== undefined &&
+    sample.working_time !== null
+  ) {
+    sampleMetadatas.push(
+      <Card key={`sample-time-${id}`}>
+        <CardHeader label="Time" />
+        <CardBody>
+          <div className={clsx(styles.timePanel, "text-size-smaller")}>
+            <div className={clsx("text-style-label", "text-style-secondary")}>
+              Working
+            </div>
+            <div>{formatTime(sample.working_time)}</div>
+            <div className={clsx("text-style-label", "text-style-secondary")}>
+              Total
+            </div>
+            <div>{formatTime(sample.total_time)}</div>
+          </div>
         </CardBody>
       </Card>,
     );

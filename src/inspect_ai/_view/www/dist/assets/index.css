@@ -16317,34 +16317,42 @@ ul.jsondiffpatch-textdiff {
   width: 100%;
   margin-top: 1em;
 }
-._tabPanel_14odp_1 {
+._tabPanel_1isha_1 {
   padding-bottom: 1em;
 }
 
-._fullWidth_14odp_5 {
+._fullWidth_1isha_5 {
   width: 100%;
 }
 
-._metadataPanel_14odp_9 {
+._metadataPanel_1isha_9 {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-start;
+  align-items: stretch;
   gap: 1em;
   padding-left: 0;
   margin-top: 0.5em;
 }
 
-._padded_14odp_18 {
+._padded_1isha_18 {
   padding-left: 0.8em;
   margin-top: 0.4em;
 }
 
-._ansi_14odp_23 {
+._ansi_1isha_23 {
   margin: 1em 0;
 }
 
-._noTop_14odp_27 {
+._noTop_1isha_27 {
   margin-top: 0;
+}
+
+._timePanel_1isha_31 {
+  display: grid;
+  grid-template-columns: max-content max-content;
+  grid-template-rows: auto;
+  column-gap: 0.5em;
+  min-width: 200px;
 }
 ._flatBody_gk2ju_1 {
   color: var(--bs-danger);

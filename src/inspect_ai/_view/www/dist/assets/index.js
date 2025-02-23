@@ -14271,7 +14271,7 @@ var require_assets = __commonJS({
     };
     const formatTime$1 = (seconds) => {
       if (seconds < 60) {
-        return `${seconds} sec`;
+        return `${formatPrettyDecimal(seconds, 1)} sec`;
       } else if (seconds < 60 * 60) {
         return `${Math.floor(seconds / 60)} min ${seconds % 60} sec`;
       } else if (seconds < 60 * 60 * 24) {
@@ -14287,12 +14287,12 @@ var require_assets = __commonJS({
         return `${days} days ${hours} hr ${minutes} min ${remainingSeconds} sec`;
       }
     };
-    function formatPrettyDecimal(num2) {
+    function formatPrettyDecimal(num2, maxDecimals = 3) {
       const numDecimalPlaces = num2.toString().includes(".") ? num2.toString().split(".")[1].length : 0;
       if (numDecimalPlaces === 0) {
         return num2.toFixed(1);
-      } else if (numDecimalPlaces > 3) {
-        return num2.toFixed(3);
+      } else if (numDecimalPlaces > maxDecimals) {
+        return num2.toFixed(maxDecimals);
       } else {
         return num2.toString();
       }
@@ -50145,19 +50145,21 @@ self.onmessage = function (e) {
       );
       return result2;
     };
-    const tabPanel = "_tabPanel_14odp_1";
-    const fullWidth = "_fullWidth_14odp_5";
-    const metadataPanel = "_metadataPanel_14odp_9";
-    const padded = "_padded_14odp_18";
-    const ansi = "_ansi_14odp_23";
-    const noTop = "_noTop_14odp_27";
+    const tabPanel = "_tabPanel_1isha_1";
+    const fullWidth = "_fullWidth_1isha_5";
+    const metadataPanel = "_metadataPanel_1isha_9";
+    const padded = "_padded_1isha_18";
+    const ansi = "_ansi_1isha_23";
+    const noTop = "_noTop_1isha_27";
+    const timePanel = "_timePanel_1isha_31";
     const styles$C = {
       tabPanel,
       fullWidth,
       metadataPanel,
       padded,
       ansi,
-      noTop
+      noTop,
+      timePanel
     };
     const flatBody = "_flatBody_gk2ju_1";
     const iconSmall$1 = "_iconSmall_gk2ju_9";
@@ -50263,38 +50265,19 @@ self.onmessage = function (e) {
           clamp: true
         });
       }
-      const has_value = (val) => {
-        return val !== void 0 && val !== null;
-      };
-      const duration = (total_time, working_time) => {
-        if (has_value(total_time) && !has_value(working_time)) {
-          return formatTime$1(total_time);
-        } else if (has_value(total_time) && has_value(working_time)) {
-          return `${formatTime$1(total_time)} (${formatTime$1(working_time)})`;
-        } else if (has_value(working_time)) {
-          return formatTime$1(working_time);
-        } else {
+      const toolTip = (working_time) => {
+        if (working_time === void 0 || working_time === null) {
           return void 0;
         }
+        return `Working time: ${formatTime$1(working_time)}`;
       };
-      const label2 = (total_time, working_time) => {
-        if (has_value(total_time) && !has_value(working_time)) {
-          return "Total time";
-        } else if (has_value(total_time) && has_value(working_time)) {
-          return "Total time (execution time)";
-        } else if (has_value(working_time)) {
-          return "Execution time";
-        } else {
-          return void 0;
-        }
-      };
-      if (sample2.working_time || sample2.total_time) {
+      if (sample2.total_time) {
         columns.push({
           label: "Time",
-          value: duration(sample2.total_time, sample2.working_time),
+          value: formatTime$1(sample2.total_time),
           size: `${timeSize}fr`,
           center: true,
-          title: label2(sample2.total_time, sample2.working_time)
+          title: toolTip(sample2.working_time)
         });
       }
       if ((sample2 == null ? void 0 : sample2.limit) && limitSize > 0) {
@@ -59024,7 +59007,7 @@ ${events}
                 TabPanel,
                 {
                   id: kSampleMetdataTabId,
-                  className: "sample-tab",
+                  className: clsx("sample-tab"),
                   title: "Metadata",
                   onSelected: onSelectedTab,
                   selected: selectedTab === kSampleMetdataTabId,
@@ -59085,6 +59068,19 @@ ${events}
               }
             ) })
           ] }, `sample-usage-${id}`)
+        );
+      }
+      if (sample2.total_time !== void 0 && sample2.total_time !== null && sample2.working_time !== void 0 && sample2.working_time !== null) {
+        sampleMetadatas.push(
+          /* @__PURE__ */ jsxRuntimeExports.jsxs(Card, { children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx(CardHeader, { label: "Time" }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx(CardBody, { children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$C.timePanel, "text-size-smaller"), children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-label", "text-style-secondary"), children: "Working" }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: formatTime$1(sample2.working_time) }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-label", "text-style-secondary"), children: "Total" }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: formatTime$1(sample2.total_time) })
+            ] }) })
+          ] }, `sample-time-${id}`)
         );
       }
       if (Object.keys(sample2 == null ? void 0 : sample2.metadata).length > 0) {
