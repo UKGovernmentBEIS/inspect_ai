@@ -8,6 +8,7 @@ import { LoggerEventView } from "./LoggerEventView";
 import { ModelEventView } from "./ModelEventView";
 import { SampleInitEventView } from "./SampleInitEventView";
 import { SampleLimitEventView } from "./SampleLimitEventView";
+import { SandboxEventView } from "./SandboxEventView";
 import { ScoreEventView } from "./ScoreEventView";
 import { StateEventView } from "./state/StateEventView";
 import { StepEventView } from "./StepEventView";
@@ -17,7 +18,6 @@ import { EventNode, EventType, TranscriptEventState } from "./types";
 
 import clsx from "clsx";
 import { Virtuoso } from "react-virtuoso";
-import { SandboxEventView } from "./SandboxEventView";
 import styles from "./TranscriptView.module.css";
 
 interface TranscriptViewProps {
