@@ -49,7 +49,7 @@ export const ToolInput: FC<ToolInputProps> = memo((props) => {
       <MarkdownDiv
         markdown={toolCallView.content}
         ref={toolViewRef}
-        className={clsx("text-size-small", "tool-output")}
+        className={clsx(styles.bottomPadding, "text-size-small", "tool-output")}
       />
     );
   }
