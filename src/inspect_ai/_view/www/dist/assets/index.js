@@ -62731,7 +62731,6 @@ ${events}
     const kSeparatorHeight = 24;
     const SampleList = (props) => {
       const {
-        listRef,
         items,
         sampleDescriptor,
         selectedIndex,
@@ -62743,6 +62742,7 @@ ${events}
       if (items.length === 0) {
         return /* @__PURE__ */ jsxRuntimeExports.jsx(EmptyPanel, { children: "No Samples" });
       }
+      const listHandle = reactExports.useRef(null);
       const [followOutput, setFollowOutput] = reactExports.useState(false);
       const [hidden2, setHidden] = reactExports.useState(false);
       reactExports.useEffect(() => {
@@ -62759,15 +62759,13 @@ ${events}
       }, [items]);
       const prevSelectedIndexRef = reactExports.useRef(null);
       reactExports.useEffect(() => {
-        var _a2;
-        const listEl = listRef.current;
+        const listEl = listHandle.current;
         if (listEl) {
           const actualRowIndex = itemRowMapping[selectedIndex];
-          const direction = actualRowIndex > (prevSelectedIndexRef.current || 0) ? "down" : "up";
-          (_a2 = listRef.current) == null ? void 0 : _a2.scrollToIndex(actualRowIndex, direction);
+          listEl.scrollToIndex(actualRowIndex);
           prevSelectedIndexRef.current = actualRowIndex;
         }
-      }, [selectedIndex, listRef, itemRowMapping]);
+      }, [selectedIndex, listHandle, itemRowMapping]);
       const renderRow = (item2) => {
         if (item2.type === "sample") {
           return /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -62865,6 +62863,7 @@ ${events}
         /* @__PURE__ */ jsxRuntimeExports.jsx(
           $r,
           {
+            ref: listHandle,
             style: { height: "100%" },
             data: items,
             defaultItemHeight: 50,
