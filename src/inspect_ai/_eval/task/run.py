@@ -853,8 +853,8 @@ async def log_sample(
         store=dict(state.store.items()),
         events=list(transcript().events),
         model_usage=sample_model_usage(),
-        total_time=total_time,
-        working_time=(total_time - sample_waiting_time())
+        total_time=round(total_time, 3) if total_time is not None else None,
+        working_time=round(total_time - sample_waiting_time(), 3)
         if total_time is not None
         else None,
         error=error,
