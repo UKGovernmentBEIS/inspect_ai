@@ -1,6 +1,6 @@
 import clsx from "clsx";
 import { MarkdownDiv } from "../components/MarkdownDiv";
-import { EvalSample, TotalTime, WorkingTime } from "../types/log";
+import { EvalSample, WorkingTime } from "../types/log";
 import { arrayToString, formatTime, inputString } from "../utils/format";
 import { SamplesDescriptor } from "./descriptor/samplesDescriptor";
 import { FlatSampleError } from "./error/FlatSampleErrorView";
@@ -112,41 +112,20 @@ export const SampleSummaryView: React.FC<SampleSummaryViewProps> = ({
     });
   }
 
-  const has_value = (val?: number | null) => {
-    return val !== undefined && val !== null;
-  };
-
-  const duration = (total_time?: TotalTime, working_time?: WorkingTime) => {
-    if (has_value(total_time) && !has_value(working_time)) {
-      return formatTime(total_time);
-    } else if (has_value(total_time) && has_value(working_time)) {
-      return `${formatTime(total_time)} (${formatTime(working_time)})`;
-    } else if (has_value(working_time)) {
-      return formatTime(working_time);
-    } else {
+  const toolTip = (working_time?: WorkingTime) => {
+    if (working_time === undefined || working_time === null) {
       return undefined;
     }
+    return `Working time: ${formatTime(working_time)}`;
   };
 
-  const label = (total_time?: TotalTime, working_time?: WorkingTime) => {
-    if (has_value(total_time) && !has_value(working_time)) {
-      return "Total time";
-    } else if (has_value(total_time) && has_value(working_time)) {
-      return "Total time (execution time)";
-    } else if (has_value(working_time)) {
-      return "Execution time";
-    } else {
-      return undefined;
-    }
-  };
-
-  if (sample.working_time || sample.total_time) {
+  if (sample.total_time) {
     columns.push({
       label: "Time",
-      value: duration(sample.total_time, sample.working_time),
+      value: formatTime(sample.total_time),
       size: `${timeSize}fr`,
       center: true,
-      title: label(sample.total_time, sample.working_time),
+      title: toolTip(sample.working_time),
     });
   }
 

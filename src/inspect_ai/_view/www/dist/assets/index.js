@@ -14271,7 +14271,7 @@ var require_assets = __commonJS({
     };
     const formatTime$1 = (seconds) => {
       if (seconds < 60) {
-        return `${seconds} sec`;
+        return `${formatPrettyDecimal(seconds, 1)} sec`;
       } else if (seconds < 60 * 60) {
         return `${Math.floor(seconds / 60)} min ${seconds % 60} sec`;
       } else if (seconds < 60 * 60 * 24) {
@@ -14287,12 +14287,12 @@ var require_assets = __commonJS({
         return `${days} days ${hours} hr ${minutes} min ${remainingSeconds} sec`;
       }
     };
-    function formatPrettyDecimal(num2) {
+    function formatPrettyDecimal(num2, maxDecimals = 3) {
       const numDecimalPlaces = num2.toString().includes(".") ? num2.toString().split(".")[1].length : 0;
       if (numDecimalPlaces === 0) {
         return num2.toFixed(1);
-      } else if (numDecimalPlaces > 3) {
-        return num2.toFixed(3);
+      } else if (numDecimalPlaces > maxDecimals) {
+        return num2.toFixed(maxDecimals);
       } else {
         return num2.toString();
       }
@@ -50263,38 +50263,19 @@ self.onmessage = function (e) {
           clamp: true
         });
       }
-      const has_value = (val) => {
-        return val !== void 0 && val !== null;
-      };
-      const duration = (total_time, working_time) => {
-        if (has_value(total_time) && !has_value(working_time)) {
-          return formatTime$1(total_time);
-        } else if (has_value(total_time) && has_value(working_time)) {
-          return `${formatTime$1(total_time)} (${formatTime$1(working_time)})`;
-        } else if (has_value(working_time)) {
-          return formatTime$1(working_time);
-        } else {
+      const toolTip = (working_time) => {
+        if (working_time === void 0 || working_time === null) {
           return void 0;
         }
+        return `Working time: ${formatTime$1(working_time)}`;
       };
-      const label2 = (total_time, working_time) => {
-        if (has_value(total_time) && !has_value(working_time)) {
-          return "Total time";
-        } else if (has_value(total_time) && has_value(working_time)) {
-          return "Total time (execution time)";
-        } else if (has_value(working_time)) {
-          return "Execution time";
-        } else {
-          return void 0;
-        }
-      };
-      if (sample2.working_time || sample2.total_time) {
+      if (sample2.total_time) {
         columns.push({
           label: "Time",
-          value: duration(sample2.total_time, sample2.working_time),
+          value: formatTime$1(sample2.total_time),
           size: `${timeSize}fr`,
           center: true,
-          title: label2(sample2.total_time, sample2.working_time)
+          title: toolTip(sample2.working_time)
         });
       }
       if ((sample2 == null ? void 0 : sample2.limit) && limitSize > 0) {
