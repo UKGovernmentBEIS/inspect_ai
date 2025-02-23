@@ -1,8 +1,5 @@
 import time
 from contextvars import ContextVar
-from logging import getLogger
-
-logger = getLogger(__name__)
 
 
 def init_sample_working_limit(start_time: float, working_limit: float | None) -> None:

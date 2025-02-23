@@ -4,7 +4,7 @@ import time
 from dataclasses import dataclass
 from typing import AsyncIterator
 
-from inspect_ai.util._execution import report_sample_waiting_time
+from inspect_ai._util.working import report_sample_waiting_time
 
 
 @contextlib.asynccontextmanager

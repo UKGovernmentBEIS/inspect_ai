@@ -33,6 +33,10 @@ from inspect_ai._util.registry import (
     registry_unqualified_name,
 )
 from inspect_ai._util.timeouts import Timeout, timeout
+from inspect_ai._util.working import (
+    init_sample_working_limit,
+    sample_waiting_time,
+)
 from inspect_ai._view.notify import view_notify_eval
 from inspect_ai.dataset import Dataset, Sample
 from inspect_ai.log import (
@@ -79,10 +83,6 @@ from inspect_ai.solver._fork import set_task_generate
 from inspect_ai.solver._limit import SampleLimitExceededError
 from inspect_ai.solver._solver import Solver
 from inspect_ai.solver._task_state import sample_state, set_sample_state, state_jsonable
-from inspect_ai.util._execution import (
-    init_sample_working_limit,
-    sample_waiting_time,
-)
 from inspect_ai.util._sandbox.context import sandbox_connections
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
 from inspect_ai.util._subtask import init_subtask

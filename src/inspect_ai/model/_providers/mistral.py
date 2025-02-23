@@ -207,7 +207,7 @@ def mistral_model_call(
     request.update(messages=[message.model_dump() for message in request["messages"]])
     if request.get("tools", None) is not None:
         request["tools"] = [tool.model_dump() for tool in request["tools"]]
-    return ModelCall(
+    return ModelCall.create(
         request=request, response=response.model_dump() if response else {}
     )
 

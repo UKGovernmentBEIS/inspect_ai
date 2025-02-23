@@ -33,10 +33,10 @@ from inspect_ai._util.registry import (
 )
 from inspect_ai._util.retry import log_rate_limit_retry
 from inspect_ai._util.trace import trace_action
+from inspect_ai._util.working import report_sample_waiting_time
 from inspect_ai.tool import Tool, ToolChoice, ToolFunction, ToolInfo
 from inspect_ai.tool._tool_def import ToolDef, tool_defs
 from inspect_ai.util import concurrency
-from inspect_ai.util._execution import report_sample_waiting_time
 
 from ._cache import CacheEntry, CachePolicy, cache_fetch, cache_store
 from ._call_tools import disable_parallel_tools, tool_call_view, tools_info
