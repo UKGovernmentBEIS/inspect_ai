@@ -2851,11 +2851,23 @@
           },
           "title": "Response",
           "type": "object"
+        },
+        "time": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Time"
         }
       },
       "required": [
         "request",
-        "response"
+        "response",
+        "time"
       ],
       "title": "ModelCall",
       "type": "object",

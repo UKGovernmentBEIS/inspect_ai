@@ -320,6 +320,7 @@ export type ToolChoice = ("auto" | "any" | "none") | ToolFunction;
 export type Name8 = string;
 export type Error1 = string | null;
 export type Cache = ("read" | "write") | null;
+export type Time1 = number | null;
 export type Timestamp6 = string;
 export type Pending6 = boolean | null;
 export type Event6 = "tool";
@@ -1070,6 +1071,7 @@ export interface GenerateConfig1 {
 export interface ModelCall {
   request: Request;
   response: Response;
+  time: Time1;
 }
 export interface Request {
   [k: string]: JsonValue;
