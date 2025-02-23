@@ -36,7 +36,7 @@ def check_sample_working_limit() -> None:
             type="execution",
             value=int(working_time),
             limit=int(working_limit),
-            message=f"Exceeded execution time limit ({working_limit:,} seconds)",
+            message=f"Exceeded working time limit ({working_limit:,} seconds)",
         )
 
 
