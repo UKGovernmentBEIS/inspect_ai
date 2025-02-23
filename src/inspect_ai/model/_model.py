@@ -453,11 +453,6 @@ class Model:
                 output = result
                 call = None
 
-            # if there is a call time then use it to report time waiting
-            if call and call.time:
-                waiting_time = time_elapsed - call.time
-                report_sample_waiting_time(waiting_time)
-
             # raise error
             if isinstance(output, Exception):
                 complete(output, call)
@@ -469,8 +464,12 @@ class Model:
                 error_message = f"{error}\n\nRequest:\n{request}"
                 raise RuntimeError(error_message)
 
-            # update output with time elapsed
-            output.time = time_elapsed
+            # update output with time (call.time captures time spent
+            # on the actual request that succeeds w/ status 200)
+            if call and call.time is not None:
+                output.time = call.time
+            else:
+                output.time = time_elapsed
 
             # add views to tool calls
             for choice in output.choices:
@@ -496,8 +495,13 @@ class Model:
 
             return output
 
-        # call the model
+        # call the model (this will so retries, etc., so report waiting time
+        # as elapsed time - actual time for successful model call)
+        time_start = time.monotonic()
         model_output = await generate()
+        total_time = time.monotonic() - time_start
+        if model_output.time:
+            report_sample_waiting_time(total_time - model_output.time)
 
         # return results
         return model_output
