@@ -15,7 +15,7 @@ class SampleLimitExceededError(Exception):
 
     def __init__(
         self,
-        type: Literal["message", "time", "execution", "token", "operator", "custom"],
+        type: Literal["message", "time", "working", "token", "operator", "custom"],
         *,
         value: int,
         limit: int,

@@ -215,7 +215,7 @@ def check_working_limit_event(log: EvalLog, working_limit: int):
     assert log.samples[0].total_time
     assert log.samples[0].working_time
     assert log.samples[0].total_time > log.samples[0].working_time
-    check_limit_event(log, "execution")
+    check_limit_event(log, "working")
 
 
 def check_limit_event(log: EvalLog, content: str) -> None:

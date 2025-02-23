@@ -1619,7 +1619,7 @@
           "enum": [
             "context",
             "time",
-            "execution",
+            "working",
             "message",
             "token",
             "operator",
@@ -3352,7 +3352,7 @@
           "enum": [
             "message",
             "time",
-            "execution",
+            "working",
             "token",
             "operator",
             "custom"

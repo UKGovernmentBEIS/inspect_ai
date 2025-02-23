@@ -260,7 +260,7 @@ export type Event1 = "sample_limit";
 export type Type7 =
   | "message"
   | "time"
-  | "execution"
+  | "working"
   | "token"
   | "operator"
   | "custom";
@@ -451,7 +451,7 @@ export type WorkingTime = number | null;
 export type Type13 =
   | "context"
   | "time"
-  | "execution"
+  | "working"
   | "message"
   | "token"
   | "operator"

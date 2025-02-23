@@ -30,7 +30,7 @@ def check_sample_working_limit() -> None:
         from inspect_ai.solver._limit import SampleLimitExceededError
 
         raise SampleLimitExceededError(
-            type="execution",
+            type="working",
             value=int(working_time),
             limit=int(working_limit),
             message=f"Exceeded working time limit ({working_limit:,} seconds)",

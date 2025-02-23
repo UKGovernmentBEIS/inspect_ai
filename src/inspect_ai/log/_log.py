@@ -145,7 +145,7 @@ class EvalSampleLimit(BaseModel):
     """Limit encontered by sample."""
 
     type: Literal[
-        "context", "time", "execution", "message", "token", "operator", "custom"
+        "context", "time", "working", "message", "token", "operator", "custom"
     ]
     """The type of limit"""
 
