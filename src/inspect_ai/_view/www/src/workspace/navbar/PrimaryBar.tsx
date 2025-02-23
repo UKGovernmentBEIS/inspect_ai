@@ -41,7 +41,6 @@ export const PrimaryBar: React.FC<PrimaryBarProps> = ({
   capabilities,
 }) => {
   const logFileName = file ? filename(file) : "";
-  console.log({ runningMetrics });
 
   const handleToggle = useCallback(() => {
     setOffcanvas(!offcanvas);
