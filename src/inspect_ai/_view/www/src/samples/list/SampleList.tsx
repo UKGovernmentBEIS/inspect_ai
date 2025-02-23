@@ -198,6 +198,7 @@ export const SampleList: React.FC<SampleListProps> = (props) => {
         }}
         className={clsx(className)}
         onKeyDown={onkeydown}
+        skipAnimationFrameInResizeObserver={true}
       />
       <SampleFooter sampleCount={sampleCount} />
     </div>
