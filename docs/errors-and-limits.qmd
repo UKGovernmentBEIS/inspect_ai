@@ -123,6 +123,7 @@ def intercode_ctf():
 
 Working time is computed based on total clock time minus time spent on (a) unsuccessful model generations (e.g. rate limited requests); and (b) waiting on shared resources (e.g. Docker containers or local processes).
 
+In order to distinguish successful generate requests from rate limited and retried requests, Inspect install hooks in the HTTP client of various model packages. This is done for all models except [goodfire](providers.qmd#goodfire) (for this model `working_time` may therefore in some cases include retries).
 
 
 ### Message Limit
