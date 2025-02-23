@@ -29,7 +29,7 @@ class HttpxTimeTracker:
     the dict doesn't grow unbounded)
     """
 
-    REQUEST_ID_HEADER = "x-rid"
+    REQUEST_ID_HEADER = "x-irid"
 
     def __init__(self, client: httpx.AsyncClient):
         # track request start times
