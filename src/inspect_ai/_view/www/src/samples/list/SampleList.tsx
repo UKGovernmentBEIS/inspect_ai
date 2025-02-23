@@ -7,10 +7,9 @@ import {
   useRef,
   useState,
 } from "react";
-import { Virtuoso } from "react-virtuoso";
+import { Virtuoso, VirtuosoHandle } from "react-virtuoso";
 import { EmptyPanel } from "../../components/EmptyPanel";
 import { MessageBand } from "../../components/MessageBand";
-import { VirtualListRef } from "../../components/VirtualList";
 import { formatNoDecimal } from "../../utils/format";
 import { ListItem } from "../../workspace/tabs/types";
 import { SamplesDescriptor } from "../descriptor/samplesDescriptor";
@@ -26,7 +25,6 @@ const kSampleHeight = 88;
 const kSeparatorHeight = 24;
 
 interface SampleListProps {
-  listRef: RefObject<VirtualListRef | null>;
   items: ListItem[];
   running: boolean;
   sampleDescriptor: SamplesDescriptor;
@@ -39,7 +37,6 @@ interface SampleListProps {
 
 export const SampleList: React.FC<SampleListProps> = (props) => {
   const {
-    listRef,
     items,
     running,
     sampleDescriptor,
@@ -54,7 +51,7 @@ export const SampleList: React.FC<SampleListProps> = (props) => {
   if (items.length === 0) {
     return <EmptyPanel>No Samples</EmptyPanel>;
   }
-
+  const listHandle: RefObject<VirtuosoHandle | null> = useRef(null);
   const [followOutput, setFollowOutput] = useState(false);
 
   const [hidden, setHidden] = useState(false);
@@ -75,16 +72,13 @@ export const SampleList: React.FC<SampleListProps> = (props) => {
 
   const prevSelectedIndexRef = useRef<number>(null);
   useEffect(() => {
-    const listEl = listRef.current;
+    const listEl = listHandle.current;
     if (listEl) {
       const actualRowIndex = itemRowMapping[selectedIndex];
-
-      const direction =
-        actualRowIndex > (prevSelectedIndexRef.current || 0) ? "down" : "up";
-      listRef.current?.scrollToIndex(actualRowIndex, direction);
+      listEl.scrollToIndex(actualRowIndex);
       prevSelectedIndexRef.current = actualRowIndex;
     }
-  }, [selectedIndex, listRef, itemRowMapping]);
+  }, [selectedIndex, listHandle, itemRowMapping]);
 
   const gridColumnsTemplate = useMemo(() => {
     return gridColumnsValue(sampleDescriptor);
@@ -203,6 +197,7 @@ export const SampleList: React.FC<SampleListProps> = (props) => {
         gridColumnsTemplate={gridColumnsTemplate}
       />
       <Virtuoso
+        ref={listHandle}
         style={{ height: "100%" }}
         data={items}
         defaultItemHeight={50}
