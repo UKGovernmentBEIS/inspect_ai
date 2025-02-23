@@ -105,14 +105,14 @@ export const SampleList: FC<SampleListProps> = (props) => {
     [selectedIndex, nextSample, prevSample, showSample],
   );
 
+  const gridColumnsTemplate = useMemo(() => {
+    return gridColumnsValue(sampleDescriptor);
+  }, [sampleDescriptor]);
+
   // If there are no samples, just display an empty state
   if (items.length === 0) {
     return <EmptyPanel>No Samples</EmptyPanel>;
   }
-
-  const gridColumnsTemplate = useMemo(() => {
-    return gridColumnsValue(sampleDescriptor);
-  }, [sampleDescriptor]);
 
   const renderRow = useCallback(
     (item: ListItem) => {
