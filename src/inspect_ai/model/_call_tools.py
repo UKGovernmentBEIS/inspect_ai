@@ -407,7 +407,7 @@ def tool_param(type_hint: Type[Any], input: Any) -> Any:
             return tuple(input)
     elif origin is dict or origin is Dict:
         if args and len(args) > 1:
-            return {k: tool_param(args[1], v) for k, v in input}
+            return {k: tool_param(args[1], v) for k, v in input.items()}
         else:
             return input
     elif origin is Union or origin is types.UnionType:
