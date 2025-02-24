@@ -13948,35 +13948,6 @@ var require_assets = __commonJS({
         ] }) })
       ] });
     };
-    class AppErrorBoundary extends reactExports.Component {
-      constructor(props) {
-        super(props);
-        this.state = { hasError: false };
-      }
-      static getDerivedStateFromError(error2) {
-        return { hasError: true, error: error2 };
-      }
-      componentDidCatch(error2, errorInfo) {
-        console.log({ error: error2, errorInfo });
-      }
-      render() {
-        if (this.state.hasError) {
-          console.error({ e: this.state.error });
-          if (this.state.error) {
-            return /* @__PURE__ */ jsxRuntimeExports.jsx(
-              ErrorPanel,
-              {
-                title: "An unexpected error occurred.",
-                error: this.state.error
-              }
-            );
-          } else {
-            return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: "An unknown error with no additional information occured." });
-          }
-        }
-        return this.props.children;
-      }
-    }
     const wrapper$4 = "_wrapper_1phwy_1";
     const container$d = "_container_1phwy_13";
     const animate = "_animate_1phwy_21";
@@ -14000,16 +13971,6 @@ var require_assets = __commonJS({
           children: animating && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$18.animate })
         }
       ) });
-    };
-    const clearDocumentSelection = () => {
-      const sel = window.getSelection();
-      if (sel) {
-        if (sel.removeAllRanges) {
-          sel.removeAllRanges();
-        } else if (sel.empty) {
-          sel.empty();
-        }
-      }
     };
     function sleep$1(ms) {
       return new Promise((resolve) => setTimeout(resolve, ms));
@@ -14091,7 +14052,66 @@ var require_assets = __commonJS({
         return result2;
       };
     }
-    const FindBand = ({ hideBand }) => {
+    const clearDocumentSelection = () => {
+      const sel = window.getSelection();
+      if (sel) {
+        if (sel.removeAllRanges) {
+          sel.removeAllRanges();
+        } else if (sel.empty) {
+          sel.empty();
+        }
+      }
+    };
+    const initialAppState = {
+      status: { loading: false },
+      offcanvas: false,
+      showFind: false
+    };
+    function appReducer(state, action) {
+      switch (action.type) {
+        case "SET_STATUS":
+          return { ...state, status: action.payload };
+        case "SET_OFFCANVAS":
+          return { ...state, offcanvas: action.payload };
+        case "SET_SHOW_FIND":
+          return { ...state, showFind: action.payload };
+        case "HIDE_FIND":
+          clearDocumentSelection();
+          return { ...state, showFind: false };
+        default:
+          return state;
+      }
+    }
+    const AppContext = reactExports.createContext(void 0);
+    const AppProvider = ({
+      children: children2,
+      capabilities: capabilities2,
+      initialState: initialState2
+    }) => {
+      const [state, dispatch] = reactExports.useReducer(
+        appReducer,
+        initialState2 ? { ...initialAppState, ...initialState2.app } : initialAppState
+      );
+      const getState = () => {
+        return { app: state };
+      };
+      const contextValue = {
+        state,
+        dispatch,
+        capabilities: capabilities2,
+        getState
+      };
+      return /* @__PURE__ */ jsxRuntimeExports.jsx(AppContext.Provider, { value: contextValue, children: children2 });
+    };
+    const useAppContext = () => {
+      const context = reactExports.useContext(AppContext);
+      if (context === void 0) {
+        throw new Error("useAppContext must be used within an AppProvider");
+      }
+      return context;
+    };
+    const FindBand = () => {
+      const appContext = useAppContext();
       const searchBoxRef = reactExports.useRef(null);
       reactExports.useEffect(() => {
         setTimeout(() => {
@@ -14154,15 +14174,18 @@ var require_assets = __commonJS({
         },
         [getParentExpandablePanel]
       );
+      const hideFind = reactExports.useCallback(() => {
+        appContext.dispatch({ type: "HIDE_FIND" });
+      }, [appContext.dispatch]);
       const handleKeyDown = reactExports.useCallback(
         (e) => {
           if (e.key === "Escape") {
-            hideBand();
+            hideFind();
           } else if (e.key === "Enter") {
             handleSearch(false);
           }
         },
-        [hideBand, handleSearch]
+        [appContext.dispatch, handleSearch]
       );
       return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "findBand", children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -14201,7 +14224,7 @@ var require_assets = __commonJS({
             type: "button",
             title: "Close",
             className: "btn close",
-            onClick: hideBand,
+            onClick: hideFind,
             children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.close })
           }
         )
@@ -17172,9 +17195,9 @@ categories: ${categories.join(" ")}`;
       dirname: dirname$1
     };
     const LogDirectoryTitleView = ({
-      log_dir,
-      offcanvas
+      log_dir
     }) => {
+      const appContext = useAppContext();
       if (log_dir) {
         const displayDir = prettyDir(log_dir);
         return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { style: { display: "flex", flexDirection: "column" }, children: [
@@ -17194,12 +17217,12 @@ categories: ${categories.join(" ")}`;
             {
               title: displayDir,
               className: clsx("text-size-base", styles$16.dirname),
-              children: offcanvas ? displayDir : ""
+              children: appContext.state.offcanvas ? displayDir : ""
             }
           )
         ] });
       } else {
-        return /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx("text-size-title"), children: offcanvas ? "Log History" : "" });
+        return /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx("text-size-title"), children: appContext.state.offcanvas ? "Log History" : "" });
       }
     };
     const prettyDir = (path) => {
@@ -17478,27 +17501,29 @@ categories: ${categories.join(" ")}`;
     const Sidebar = ({
       logs,
       logHeaders,
-      offcanvas,
-      setOffcanvas,
       loading,
       selectedIndex,
       onSelectedIndexChanged
     }) => {
-      const handleToggle = () => {
-        setOffcanvas(!offcanvas);
-      };
+      const appContext = useAppContext();
+      const handleToggle = reactExports.useCallback(() => {
+        appContext.dispatch({
+          type: "SET_OFFCANVAS",
+          payload: !appContext.state.offcanvas
+        });
+      }, [appContext.state.offcanvas, appContext.dispatch]);
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
-        offcanvas && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$15.backdrop, onClick: handleToggle }),
+        appContext.state.offcanvas && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$15.backdrop, onClick: handleToggle }),
         /* @__PURE__ */ jsxRuntimeExports.jsxs(
           "div",
           {
             className: clsx(
               styles$15.sidebar,
-              offcanvas ? styles$15.sidebarOpen : styles$15.sidebarClosed
+              appContext.state.offcanvas ? styles$15.sidebarOpen : styles$15.sidebarClosed
             ),
             children: [
               /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$15.header, children: [
-                /* @__PURE__ */ jsxRuntimeExports.jsx(LogDirectoryTitleView, { log_dir: logs.log_dir, offcanvas }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx(LogDirectoryTitleView, { log_dir: logs.log_dir }),
                 /* @__PURE__ */ jsxRuntimeExports.jsx(
                   "button",
                   {
@@ -41083,8 +41108,9 @@ self.onmessage = function (e) {
       jsonTab
     };
     const kJsonMaxSize = 1e7;
-    const JsonTab = ({ logFile, capabilities: capabilities2, json }) => {
-      if (logFile && json.length > kJsonMaxSize && capabilities2.downloadFiles) {
+    const JsonTab = ({ logFile, json }) => {
+      const appContext = useAppContext();
+      if (logFile && json.length > kJsonMaxSize && appContext.capabilities.downloadFiles) {
         const file = `${filename(logFile)}.json`;
         return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$Z.jsonTab, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
           DownloadPanel,
@@ -62456,13 +62482,11 @@ ${events}
       const prevSelectedIndexRef = reactExports.useRef(null);
       reactExports.useEffect(() => {
         const listEl = listHandle.current;
-        if (listEl) {
+        if (listEl && itemRowMapping.length > selectedIndex) {
+          const actualRowIndex = itemRowMapping[selectedIndex];
           requestAnimationFrame(() => {
-            setTimeout(() => {
-              const actualRowIndex = itemRowMapping[selectedIndex];
-              listEl.scrollToIndex(actualRowIndex);
-              prevSelectedIndexRef.current = actualRowIndex;
-            }, 10);
+            listEl.scrollToIndex(actualRowIndex);
+            prevSelectedIndexRef.current = actualRowIndex;
           });
         }
       }, [selectedIndex, listHandle, itemRowMapping]);
@@ -63696,14 +63720,14 @@ ${events}
       );
     };
     const statusContainer = "_statusContainer_1sckj_1";
-    const status = "_status_1sckj_1";
+    const status$1 = "_status_1sckj_1";
     const statusText = "_statusText_1sckj_11";
     const metricsRows = "_metricsRows_1sckj_15";
     const icon = "_icon_1sckj_24";
     const value$1 = "_value_1sckj_30";
     const styles$6 = {
       statusContainer,
-      status,
+      status: status$1,
       statusText,
       metricsRows,
       icon,
@@ -63778,20 +63802,21 @@ ${events}
     };
     const PrimaryBar = ({
       showToggle,
-      offcanvas,
       status: status2,
       evalResults,
       runningMetrics,
       samples,
       file,
-      evalSpec,
-      setOffcanvas,
-      capabilities: capabilities2
+      evalSpec
     }) => {
+      const appContext = useAppContext();
       const logFileName = file ? filename(file) : "";
       const handleToggle = reactExports.useCallback(() => {
-        setOffcanvas(!offcanvas);
-      }, [setOffcanvas, offcanvas]);
+        appContext.dispatch({
+          type: "SET_OFFCANVAS",
+          payload: !appContext.state.offcanvas
+        });
+      }, [appContext.state.offcanvas, appContext.dispatch]);
       return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$8.wrapper), children: [
         /* @__PURE__ */ jsxRuntimeExports.jsxs(
           "div",
@@ -63810,7 +63835,7 @@ ${events}
                   onClick: handleToggle,
                   className: clsx(
                     "btn",
-                    offcanvas ? "d-md-none" : void 0,
+                    appContext.state.offcanvas ? "d-md-none" : void 0,
                     styles$8.toggle
                   ),
                   type: "button",
@@ -63852,14 +63877,14 @@ ${events}
           }
         ),
         /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$8.taskStatus, "navbar-text"), children: [
-          status2 === "success" || status2 === "started" && capabilities2.streamSamples ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+          status2 === "success" || status2 === "started" && appContext.capabilities.streamSamples ? /* @__PURE__ */ jsxRuntimeExports.jsx(
             ResultsPanel,
             {
               scorers: runningMetrics ? displayScorersFromRunningMetrics(runningMetrics) : toDisplayScorers(evalResults == null ? void 0 : evalResults.scores)
             }
           ) : void 0,
           status2 === "cancelled" ? /* @__PURE__ */ jsxRuntimeExports.jsx(CancelledPanel, { sampleCount: (samples == null ? void 0 : samples.length) || 0 }) : void 0,
-          status2 === "started" && !capabilities2.streamSamples ? /* @__PURE__ */ jsxRuntimeExports.jsx(RunningStatusPanel, { sampleCount: (samples == null ? void 0 : samples.length) || 0 }) : void 0,
+          status2 === "started" && !appContext.capabilities.streamSamples ? /* @__PURE__ */ jsxRuntimeExports.jsx(RunningStatusPanel, { sampleCount: (samples == null ? void 0 : samples.length) || 0 }) : void 0,
           status2 === "error" ? /* @__PURE__ */ jsxRuntimeExports.jsx(ErroredPanel, { sampleCount: (samples == null ? void 0 : samples.length) || 0 }) : void 0
         ] }),
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { id: "task-created", style: { display: "none" }, children: evalSpec == null ? void 0 : evalSpec.created })
@@ -64068,10 +64093,7 @@ ${events}
       samples,
       evalDescriptor,
       showToggle,
-      offcanvas,
-      setOffcanvas,
       status: status2,
-      capabilities: capabilities2,
       runningMetrics
     }) => {
       return /* @__PURE__ */ jsxRuntimeExports.jsxs("nav", { className: clsx("navbar", "sticky-top", styles$a.navbarWrapper), children: [
@@ -64083,10 +64105,7 @@ ${events}
             evalResults,
             samples,
             showToggle,
-            offcanvas,
-            setOffcanvas,
             status: status2,
-            capabilities: capabilities2,
             runningMetrics
           }
         ),
@@ -64131,11 +64150,8 @@ ${events}
       tabs: tabs2,
       setSelectedTab,
       divRef,
-      offcanvas,
-      setOffcanvas,
       workspaceTabScrollPositionRef,
-      setWorkspaceTabScrollPosition,
-      capabilities: capabilities2
+      setWorkspaceTabScrollPosition
     }) => {
       const debouncedScroll = reactExports.useMemo(() => {
         return debounce$1((id, position) => {
@@ -64193,10 +64209,7 @@ ${events}
               evalDescriptor,
               status: status2,
               file: logFileName,
-              showToggle,
-              offcanvas,
-              setOffcanvas,
-              capabilities: capabilities2
+              showToggle
             }
           ),
           /* @__PURE__ */ jsxRuntimeExports.jsx("div", { ref: divRef, className: clsx("workspace", styles$3.workspace), children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("log-detail", styles$3.tabContainer), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -64246,14 +64259,11 @@ ${events}
         runningMetrics,
         samples,
         showToggle,
-        offcanvas,
-        setOffcanvas,
         samplesDescriptor,
         selectedTab,
         setSelectedTab,
         workspaceTabScrollPositionRef,
-        setWorkspaceTabScrollPosition,
-        capabilities: capabilities2
+        setWorkspaceTabScrollPosition
       } = props;
       const divRef = reactExports.useRef(null);
       reactExports.useEffect(() => {
@@ -64281,12 +64291,9 @@ ${events}
           tabs: resolvedTabs,
           selectedTab,
           showToggle,
-          offcanvas,
           setSelectedTab,
           workspaceTabScrollPositionRef,
-          setWorkspaceTabScrollPosition,
-          setOffcanvas,
-          capabilities: capabilities2
+          setWorkspaceTabScrollPosition
         }
       );
     };
@@ -64345,11 +64352,11 @@ ${events}
       evalStats,
       evalError,
       logFileName,
-      capabilities: capabilities2,
       selectedTab,
       refreshLog
     }) => {
       const sampleTabScrollRef = reactExports.useRef(null);
+      const appContext = useAppContext();
       const samplesTab = sampleMode !== "none" ? {
         id: kEvalWorkspaceTabId,
         scrollable: (samples == null ? void 0 : samples.length) === 1,
@@ -64401,7 +64408,7 @@ ${events}
             },
             "sample-tools"
           ),
-          evalStatus === "started" && !capabilities2.streamSamples && /* @__PURE__ */ jsxRuntimeExports.jsx(
+          evalStatus === "started" && !appContext.capabilities.streamSamples && /* @__PURE__ */ jsxRuntimeExports.jsx(
             ToolButton,
             {
               label: "Refresh",
@@ -64447,7 +64454,6 @@ ${events}
             {
               logFile: logFileName,
               json: JSON.stringify(evalHeader, null, 2),
-              capabilities: capabilities2,
               selected: selectedTab === kJsonWorkspaceTabId
             }
           );
@@ -65703,10 +65709,10 @@ ${events}
       api: api2,
       applicationState,
       saveApplicationState,
-      pollForLogs = true,
-      capabilities: capabilities2
+      pollForLogs = true
     }) => {
       var _a2, _b2, _c, _d;
+      const appContext = useAppContext();
       const [logs, setLogs] = reactExports.useState(
         (applicationState == null ? void 0 : applicationState.logs) || { log_dir: "", files: [] }
       );
@@ -65746,15 +65752,6 @@ ${events}
       const [showingSampleDialog, setShowingSampleDialog] = reactExports.useState(
         !!(applicationState == null ? void 0 : applicationState.showingSampleDialog)
       );
-      const [status2, setStatus] = reactExports.useState(
-        (applicationState == null ? void 0 : applicationState.status) || { loading: false }
-      );
-      const [offcanvas, setOffcanvas] = reactExports.useState(
-        (applicationState == null ? void 0 : applicationState.offcanvas) || false
-      );
-      const [showFind, setShowFind] = reactExports.useState(
-        (applicationState == null ? void 0 : applicationState.showFind) || false
-      );
       const [filter, setFilter] = reactExports.useState(
         (applicationState == null ? void 0 : applicationState.filter) || {}
       );
@@ -65783,15 +65780,14 @@ ${events}
           sampleError,
           selectedSampleTab,
           showingSampleDialog,
-          status: status2,
-          offcanvas,
-          showFind,
+          status,
           filter,
           epoch,
           sort,
           score: score2,
           sampleScrollPosition: sampleScrollPosition.current,
-          workspaceTabScrollPosition: workspaceTabScrollPosition.current
+          workspaceTabScrollPosition: workspaceTabScrollPosition.current,
+          ...appContext.getState()
         };
         if (saveApplicationState) {
           saveApplicationState(state);
@@ -65809,9 +65805,8 @@ ${events}
         sampleError,
         selectedSampleTab,
         showingSampleDialog,
-        status2,
-        offcanvas,
-        showFind,
+        status,
+        appContext.getState,
         filter,
         epoch,
         sort,
@@ -65855,9 +65850,8 @@ ${events}
         sampleError,
         selectedSampleTab,
         showingSampleDialog,
-        status2,
-        offcanvas,
-        showFind,
+        status,
+        appContext.getState,
         filter,
         epoch,
         sort,
@@ -66044,7 +66038,10 @@ ${events}
             return logContents;
           } catch (e) {
             console.log(e);
-            setStatus({ loading: false, error: e });
+            appContext.dispatch({
+              type: "SET_STATUS",
+              payload: { loading: false, error: e }
+            });
           }
         },
         [api2]
@@ -66145,16 +66142,22 @@ ${events}
             }
           } catch (e) {
             if (e instanceof Error && (e.message === "Load failed" || e.message === "Failed to fetch")) {
-              setStatus({ loading: false });
+              appContext.dispatch({
+                type: "SET_STATUS",
+                payload: { loading: false }
+              });
             } else {
               console.log(e);
-              setStatus({ loading: false, error: e });
+              appContext.dispatch({
+                type: "SET_STATUS",
+                payload: { loading: false, error: e }
+              });
             }
           }
           setHeadersLoading(false);
         };
         loadHeaders();
-      }, [logs, setStatus, setLogHeaders, setHeadersLoading]);
+      }, [logs, appContext.dispatch, setLogHeaders, setHeadersLoading]);
       const resetWorkspace = reactExports.useCallback(
         (log2, sampleSummaries2) => {
           const hasSamples = sampleSummaries2.length > 0;
@@ -66186,7 +66189,10 @@ ${events}
           const targetLog = logs.files[selectedLogIndex];
           if (targetLog) {
             try {
-              setStatus({ loading: true, error: void 0 });
+              appContext.dispatch({
+                type: "SET_STATUS",
+                payload: { loading: true, error: void 0 }
+              });
               const logContents = await loadLog(targetLog.name);
               if (logContents) {
                 const log2 = logContents;
@@ -66195,36 +66201,51 @@ ${events}
                   resetWorkspace(log2, logContents.sampleSummaries);
                 }
                 lastSelectedIndex.current = selectedLogIndex;
-                setStatus({ loading: false, error: void 0 });
+                appContext.dispatch({
+                  type: "SET_STATUS",
+                  payload: { loading: false, error: void 0 }
+                });
               }
             } catch (e) {
               console.log(e);
-              setStatus({ loading: false, error: e });
+              appContext.dispatch({
+                type: "SET_STATUS",
+                payload: { loading: false, error: e }
+              });
             }
           } else if (logs.log_dir && logs.files.length === 0) {
-            setStatus({
-              loading: false,
-              error: new Error(
-                `No log files to display in the directory ${logs.log_dir}. Are you sure this is the correct log directory?`
-              )
+            appContext.dispatch({
+              type: "SET_STATUS",
+              payload: {
+                loading: false,
+                error: new Error(
+                  `No log files to display in the directory ${logs.log_dir}. Are you sure this is the correct log directory?`
+                )
+              }
             });
           }
         };
         loadSpecificLog();
-      }, [selectedLogIndex, logs, setSelectedLogSummary, setStatus]);
+      }, [selectedLogIndex, logs, setSelectedLogSummary, appContext.dispatch]);
       const loadLogs = async () => {
         try {
           const result2 = await api2.get_log_paths();
           return result2;
         } catch (e) {
           console.log(e);
-          setStatus({ loading: false, error: e });
+          appContext.dispatch({
+            type: "SET_STATUS",
+            payload: { loading: false, error: e }
+          });
           return { log_dir: "", files: [] };
         }
       };
       const refreshLog = reactExports.useCallback(async () => {
         try {
-          setStatus({ loading: true, error: void 0 });
+          appContext.dispatch({
+            type: "SET_STATUS",
+            payload: { loading: true, error: void 0 }
+          });
           const targetLog = logs.files[selectedLogIndex];
           const logContents = await loadLog(targetLog.name);
           if (logContents) {
@@ -66246,13 +66267,25 @@ ${events}
             }
             setSelectedLogSummary(log2);
             resetWorkspace(log2, sampleSummaries);
-            setStatus({ loading: false, error: void 0 });
+            appContext.dispatch({
+              type: "SET_STATUS",
+              payload: { loading: false, error: void 0 }
+            });
           }
         } catch (e) {
           console.log(e);
-          setStatus({ loading: false, error: e });
+          appContext.dispatch({
+            type: "SET_STATUS",
+            payload: { loading: false, error: e }
+          });
         }
-      }, [logs, selectedLogIndex, sampleSummaries, setStatus, setLogHeaders]);
+      }, [
+        logs,
+        selectedLogIndex,
+        sampleSummaries,
+        appContext.dispatch,
+        setLogHeaders
+      ]);
       const showLogFile = reactExports.useCallback(
         async (logUrl) => {
           const index2 = logs.files.findIndex((val) => {
@@ -66376,29 +66409,21 @@ ${events}
         loadLogsAndState();
       }, []);
       const fullScreen = logs.files.length === 1 && !logs.log_dir;
-      const hideFind = reactExports.useCallback(() => {
-        clearDocumentSelection();
-        if (showFind) {
-          setShowFind(false);
-        }
-      }, [showFind, setShowFind]);
       const showToggle = logs.files.length > 1 || !!logs.log_dir || false;
       const sampleMode = reactExports.useMemo(() => {
         return sampleSummaries.length === 0 ? "none" : sampleSummaries.length === 1 ? "single" : "many";
       }, [sampleSummaries]);
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs(AppErrorBoundary, { children: [
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
         !fullScreen && selectedLogSummary ? /* @__PURE__ */ jsxRuntimeExports.jsx(
           Sidebar,
           {
             logs,
             logHeaders,
             loading: headersLoading,
-            offcanvas,
-            setOffcanvas,
             selectedIndex: selectedLogIndex,
             onSelectedIndexChanged: (index2) => {
               setSelectedLogIndex(index2);
-              setOffcanvas(false);
+              appContext.dispatch({ type: "SET_OFFCANVAS", payload: false });
             }
           }
         ) : void 0,
@@ -66409,7 +66434,7 @@ ${events}
             className: clsx(
               "app-main-grid",
               fullScreen ? "full-screen" : void 0,
-              offcanvas ? "off-canvas" : void 0
+              appContext.state.offcanvas ? "off-canvas" : void 0
             ),
             tabIndex: 0,
             onKeyDown: (e) => {
@@ -66417,19 +66442,19 @@ ${events}
                 return;
               }
               if ((e.ctrlKey || e.metaKey) && e.key === "f") {
-                setShowFind(true);
+                appContext.dispatch({ type: "SET_SHOW_FIND", payload: true });
               } else if (e.key === "Escape") {
-                hideFind();
+                appContext.dispatch({ type: "HIDE_FIND" });
               }
             },
             children: [
-              showFind ? /* @__PURE__ */ jsxRuntimeExports.jsx(FindBand, { hideBand: hideFind }) : "",
-              /* @__PURE__ */ jsxRuntimeExports.jsx(ProgressBar, { animating: status2 == null ? void 0 : status2.loading }),
-              (status2 == null ? void 0 : status2.error) ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+              !appContext.capabilities.nativeFind && appContext.state.showFind ? /* @__PURE__ */ jsxRuntimeExports.jsx(FindBand, {}) : "",
+              /* @__PURE__ */ jsxRuntimeExports.jsx(ProgressBar, { animating: appContext.state.status.loading }),
+              appContext.state.status.error ? /* @__PURE__ */ jsxRuntimeExports.jsx(
                 ErrorPanel,
                 {
                   title: "An error occurred while loading this task.",
-                  error: status2.error
+                  error: appContext.state.status.error
                 }
               ) : /* @__PURE__ */ jsxRuntimeExports.jsx(
                 WorkSpace,
@@ -66453,9 +66478,6 @@ ${events}
                   sampleError,
                   samplesDescriptor,
                   refreshLog,
-                  offcanvas,
-                  setOffcanvas,
-                  capabilities: capabilities2,
                   selectedSample,
                   selectedSampleIndex,
                   setSelectedSampleIndex,
@@ -66492,6 +66514,35 @@ ${events}
       }
       return obj;
     };
+    class AppErrorBoundary extends reactExports.Component {
+      constructor(props) {
+        super(props);
+        this.state = { hasError: false };
+      }
+      static getDerivedStateFromError(error2) {
+        return { hasError: true, error: error2 };
+      }
+      componentDidCatch(error2, errorInfo) {
+        console.log({ error: error2, errorInfo });
+      }
+      render() {
+        if (this.state.hasError) {
+          console.error({ e: this.state.error });
+          if (this.state.error) {
+            return /* @__PURE__ */ jsxRuntimeExports.jsx(
+              ErrorPanel,
+              {
+                title: "An unexpected error occurred.",
+                error: this.state.error
+              }
+            );
+          } else {
+            return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: "An unknown error with no additional information occured." });
+          }
+        }
+        return this.props.children;
+      }
+    }
     const vscode = getVscodeApi();
     const resolvedApi = api;
     let initialState = void 0;
@@ -66499,7 +66550,8 @@ ${events}
       downloadFiles: true,
       webWorkers: true,
       streamSamples: !!resolvedApi.get_log_pending_samples,
-      streamSampleData: !!resolvedApi.get_log_sample_data
+      streamSampleData: !!resolvedApi.get_log_sample_data,
+      nativeFind: !vscode
     };
     if (vscode) {
       initialState = filterState(vscode.getState());
@@ -66522,7 +66574,7 @@ ${events}
     }
     const root = clientExports.createRoot(container);
     root.render(
-      /* @__PURE__ */ jsxRuntimeExports.jsx(
+      /* @__PURE__ */ jsxRuntimeExports.jsx(AppErrorBoundary, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(AppProvider, { capabilities, initialState, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
         App,
         {
           api: resolvedApi,
@@ -66533,10 +66585,9 @@ ${events}
               vscode2.setState(filterState(state));
             }
           }, 1e3),
-          capabilities,
           pollForLogs: false
         }
-      )
+      ) }) })
     );
     function filterState(state) {
       if (!state) {

@@ -1,7 +1,8 @@
 import clsx from "clsx";
-import { FC } from "react";
+import { FC, useCallback } from "react";
 import { Fragment } from "react/jsx-runtime";
 import { EvalLogHeader, LogFiles } from "../../api/types";
+import { useAppContext } from "../../AppContext";
 import { ApplicationIcons } from "../../appearance/icons";
 import { ProgressBar } from "../../components/ProgressBar";
 import { LogDirectoryTitleView } from "./LogDirectoryTitleView";
@@ -11,8 +12,6 @@ import { SidebarLogEntry } from "./SidebarLogEntry";
 interface SidebarProps {
   logs: LogFiles;
   logHeaders: Record<string, EvalLogHeader>;
-  offcanvas: boolean;
-  setOffcanvas: (offcanvas: boolean) => void;
   loading: boolean;
   selectedIndex: number;
   onSelectedIndexChanged: (index: number) => void;
@@ -21,29 +20,35 @@ interface SidebarProps {
 export const Sidebar: FC<SidebarProps> = ({
   logs,
   logHeaders,
-  offcanvas,
-  setOffcanvas,
   loading,
   selectedIndex,
   onSelectedIndexChanged,
 }) => {
-  const handleToggle = () => {
-    setOffcanvas(!offcanvas);
-  };
+  const appContext = useAppContext();
+  const handleToggle = useCallback(() => {
+    appContext.dispatch({
+      type: "SET_OFFCANVAS",
+      payload: !appContext.state.offcanvas,
+    });
+  }, [appContext.state.offcanvas, appContext.dispatch]);
 
   return (
     <Fragment>
       {/* Optional backdrop for small screens, appears only when offcanvas is open */}
-      {offcanvas && <div className={styles.backdrop} onClick={handleToggle} />}
+      {appContext.state.offcanvas && (
+        <div className={styles.backdrop} onClick={handleToggle} />
+      )}
 
       <div
         className={clsx(
           styles.sidebar,
-          offcanvas ? styles.sidebarOpen : styles.sidebarClosed,
+          appContext.state.offcanvas
+            ? styles.sidebarOpen
+            : styles.sidebarClosed,
         )}
       >
         <div className={styles.header}>
-          <LogDirectoryTitleView log_dir={logs.log_dir} offcanvas={offcanvas} />
+          <LogDirectoryTitleView log_dir={logs.log_dir} />
           <button
             onClick={handleToggle}
             className={clsx("btn", styles.toggle)}

@@ -1,10 +1,10 @@
 import clsx from "clsx";
 import { FC, useCallback } from "react";
 import { RunningMetric, SampleSummary } from "../../api/types";
+import { useAppContext } from "../../AppContext";
 import { ApplicationIcons } from "../../appearance/icons";
 import { CopyButton } from "../../components/CopyButton";
 import { kModelNone } from "../../constants";
-import { Capabilities } from "../../types";
 import { EvalResults, EvalSpec, Status } from "../../types/log";
 import { filename } from "../../utils/path";
 import styles from "./PrimaryBar.module.css";
@@ -18,34 +18,32 @@ import { CancelledPanel, ErroredPanel } from "./StatusPanel";
 
 interface PrimaryBarProps {
   showToggle: boolean;
-  offcanvas: boolean;
-  setOffcanvas: (offcanvas: boolean) => void;
   status?: Status;
   evalResults?: EvalResults;
   runningMetrics?: RunningMetric[];
   samples?: SampleSummary[];
   file?: string;
   evalSpec?: EvalSpec;
-  capabilities: Capabilities;
 }
 
 export const PrimaryBar: FC<PrimaryBarProps> = ({
   showToggle,
-  offcanvas,
   status,
   evalResults,
   runningMetrics,
   samples,
   file,
   evalSpec,
-  setOffcanvas,
-  capabilities,
 }) => {
+  const appContext = useAppContext();
   const logFileName = file ? filename(file) : "";
 
   const handleToggle = useCallback(() => {
-    setOffcanvas(!offcanvas);
-  }, [setOffcanvas, offcanvas]);
+    appContext.dispatch({
+      type: "SET_OFFCANVAS",
+      payload: !appContext.state.offcanvas,
+    });
+  }, [appContext.state.offcanvas, appContext.dispatch]);
 
   return (
     <div className={clsx(styles.wrapper)}>
@@ -63,7 +61,7 @@ export const PrimaryBar: FC<PrimaryBarProps> = ({
             onClick={handleToggle}
             className={clsx(
               "btn",
-              offcanvas ? "d-md-none" : undefined,
+              appContext.state.offcanvas ? "d-md-none" : undefined,
               styles.toggle,
             )}
             type="button"
@@ -109,7 +107,7 @@ export const PrimaryBar: FC<PrimaryBarProps> = ({
       </div>
       <div className={clsx(styles.taskStatus, "navbar-text")}>
         {status === "success" ||
-        (status === "started" && capabilities.streamSamples) ? (
+        (status === "started" && appContext.capabilities.streamSamples) ? (
           <ResultsPanel
             scorers={
               runningMetrics
@@ -121,7 +119,7 @@ export const PrimaryBar: FC<PrimaryBarProps> = ({
         {status === "cancelled" ? (
           <CancelledPanel sampleCount={samples?.length || 0} />
         ) : undefined}
-        {status === "started" && !capabilities.streamSamples ? (
+        {status === "started" && !appContext.capabilities.streamSamples ? (
           <RunningStatusPanel sampleCount={samples?.length || 0} />
         ) : undefined}
         {status === "error" ? (
