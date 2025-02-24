@@ -45,8 +45,8 @@ export interface PendingSamples {
 }
 
 export interface SampleData {
-  events: EventData;
-  attachments: AttachmentData;
+  events: EventData[];
+  attachments: AttachmentData[];
 }
 
 export interface EventData {

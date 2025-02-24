@@ -113,8 +113,14 @@ async function eval_log_sample_data(
   params.append("log", log_file);
   params.append("id", String(id));
   params.append("epoch", String(epoch));
-  params.append("last-event-id", String(last_event));
-  params.append("after-attachment-id", String(last_attachment));
+  if (last_event) {
+    params.append("last-event-id", String(last_event));
+  }
+
+  if (last_attachment) {
+    params.append("after-attachment-id", String(last_attachment));
+  }
+
   return (await api("GET", `/api/pending-sample-data?${params.toString()}`))
     .parsed;
 }
