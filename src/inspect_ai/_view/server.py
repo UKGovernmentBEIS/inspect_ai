@@ -188,7 +188,7 @@ def view_server(
         if sample_data is None:
             return web.Response(status=404)
         else:
-            return web.json_response(sample_data)
+            return web.Response(body=sample_data.model_dump_json())
 
     # optional auth middleware
     @web.middleware
@@ -501,7 +501,7 @@ def query_param_required(
 
 def query_param_optional(
     key: str, request: web.Request, converter: Callable[[str], T]
-) -> T:
+) -> T | None:
     """
     Generic parameter validation function.
 
@@ -518,7 +518,7 @@ def query_param_optional(
     """
     value = request.query.get(key)
     if value is None:
-        raise web.HTTPBadRequest(text=f"Missing parameter {key}")
+        return None
 
     try:
         return converter(value)
