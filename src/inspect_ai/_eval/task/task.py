@@ -1,7 +1,7 @@
 from copy import deepcopy
 from dataclasses import dataclass
 from logging import getLogger
-from typing import Any, Callable, Sequence, cast
+from typing import Any, Awaitable, Callable, Sequence, cast
 
 from pydantic import BaseModel
 from typing_extensions import TypedDict, Unpack
@@ -17,6 +17,7 @@ from inspect_ai.scorer import Metric, Scorer
 from inspect_ai.scorer._reducer import ScoreReducers, create_reducers
 from inspect_ai.solver import Plan, Solver, generate
 from inspect_ai.solver._chain import chain
+from inspect_ai.solver._task_state import TaskState
 from inspect_ai.util._sandbox.environment import (
     SandboxEnvironmentSpec,
     SandboxEnvironmentType,
@@ -46,6 +47,7 @@ class Task:
         dataset: Dataset | Sequence[Sample] | None = None,
         setup: Solver | list[Solver] | None = None,
         solver: Solver | list[Solver] = generate(),
+        cleanup: Callable[[TaskState], Awaitable[None]] | None = None,
         scorer: Scorer | list[Scorer] | None = None,
         metrics: list[Metric] | dict[str, list[Metric]] | None = None,
         config: GenerateConfig = GenerateConfig(),
@@ -69,6 +71,9 @@ class Task:
                 even when the main `solver` is replaced).
             solver: (Solver | list[Solver]): Solver or list of solvers.
                 Defaults to generate(), a normal call to the model.
+            cleanup: Optional cleanup function for task. Called after
+                all solvers have run for each sample (including if an
+                exception occurs during the run)
             scorer: (Scorer | list[Scorer] | None): Scorer used to evaluate model output.
             metrics (list[Metric] | dict[str, list[Metric]] | None):
                 Alternative metrics (overrides the metrics provided by the specified scorer).
@@ -123,6 +128,7 @@ class Task:
         self.dataset = resolve_dataset(dataset)
         self.setup = setup
         self.solver = resolve_solver(solver)
+        self.cleanup = cleanup
         self.scorer = resolve_scorer(scorer)
         self.metrics = metrics
         self.config = config
@@ -162,6 +168,7 @@ def task_with(
     dataset: Dataset | Sequence[Sample] | None | NotGiven = NOT_GIVEN,
     setup: Solver | list[Solver] | None | NotGiven = NOT_GIVEN,
     solver: Solver | list[Solver] | NotGiven = NOT_GIVEN,
+    cleanup: Callable[[TaskState], Awaitable[None]] | None | NotGiven = NOT_GIVEN,
     scorer: Scorer | list[Scorer] | None | NotGiven = NOT_GIVEN,
     metrics: list[Metric] | dict[str, list[Metric]] | None | NotGiven = NOT_GIVEN,
     config: GenerateConfig | NotGiven = NOT_GIVEN,
@@ -185,6 +192,9 @@ def task_with(
             even when the main `solver` is replaced).
         solver: (Solver | list[Solver]): Solver or list of solvers.
             Defaults to generate(), a normal call to the model.
+        cleanup: Optional cleanup function for task. Called after
+            all solvers have run for each sample (including if an
+            exception occurs during the run)
         scorer: (Scorer | list[Scorer] | None): Scorer used to evaluate model output.
         metrics (list[Metric] | dict[str, list[Metric]] | None):
             Alternative metrics (overrides the metrics provided by the specified scorer).
@@ -223,6 +233,8 @@ def task_with(
         task.setup = setup
     if not isinstance(solver, NotGiven):
         task.solver = resolve_solver(solver)
+    if not isinstance(cleanup, NotGiven):
+        task.cleanup = cleanup
     if not isinstance(scorer, NotGiven):
         task.scorer = resolve_scorer(scorer)
     if not isinstance(metrics, NotGiven):
