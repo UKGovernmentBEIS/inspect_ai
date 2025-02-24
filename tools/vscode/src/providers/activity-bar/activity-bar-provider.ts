@@ -13,6 +13,7 @@ import { InspectViewManager } from "../logview/logview-view";
 import { activateLogListing } from "./log-listing/log-listing-provider";
 import { InspectViewServer } from "../inspect/inspect-view-server";
 import { InspectLogsWatcher } from "../inspect/inspect-logs-watcher";
+import { end, start } from "../../core/log";
 
 export async function activateActivityBar(
   inspectManager: InspectManager,
@@ -27,11 +28,17 @@ export async function activateActivityBar(
   context: ExtensionContext
 ) {
 
-  const [outlineCommands, treeDataProvider] = await activateTaskOutline(context, inspectEvalMgr, workspaceTaskMgr, activeTaskManager, inspectManager, inspectLogviewManager);
-  context.subscriptions.push(treeDataProvider);
 
+  start("Log Listing");
   const [logsCommands, logsDispose] = await activateLogListing(context, workspaceEnvMgr, inspectViewServer, logsWatcher);
   context.subscriptions.push(...logsDispose);
+  end("Log Listing");
+
+
+  start("Task Outline");
+  const [outlineCommands, treeDataProvider] = await activateTaskOutline(context, inspectEvalMgr, workspaceTaskMgr, activeTaskManager, inspectManager, inspectLogviewManager);
+  context.subscriptions.push(treeDataProvider);
+  end("Task Outline");
 
   const envProvider = new EnvConfigurationProvider(context.extensionUri, workspaceEnvMgr, workspaceStateMgr, inspectManager);
   context.subscriptions.push(

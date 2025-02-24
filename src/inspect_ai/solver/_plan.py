@@ -2,6 +2,7 @@ import inspect
 from logging import getLogger
 from typing import Any, Awaitable, Callable, TypeVar, cast
 
+from inspect_ai._util.interrupt import check_sample_interrupt
 from inspect_ai._util.registry import (
     RegistryInfo,
     is_registry_object,
@@ -115,15 +116,14 @@ class Plan(Solver):
                 with solver_transcript(self.finish, state) as st:
                     state = await self.finish(state, generate)
                     st.complete(state)
-
-            # mark completed
-            state.completed = True
+                check_sample_interrupt()
 
         finally:
             # always do cleanup if we have one
             if self.cleanup:
                 try:
                     await self.cleanup(state)
+                    check_sample_interrupt()
                 except Exception as ex:
                     logger.warning(f"Exception occurred during plan cleanup: {ex}")
 

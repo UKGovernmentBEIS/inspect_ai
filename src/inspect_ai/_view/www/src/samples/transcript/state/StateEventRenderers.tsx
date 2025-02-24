@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { Fragment, ReactNode } from "react";
+import { Fragment, JSX, ReactNode } from "react";
 import {
   HumanBaselineView,
   SessionLog,
@@ -18,7 +18,10 @@ interface Signature {
 interface ChangeType {
   type: string;
   signature: Signature;
-  render: (changes: JsonChange[], state: Record<string, unknown>) => ReactNode;
+  render: (
+    changes: JsonChange[],
+    state: Record<string, unknown>,
+  ) => JSX.Element;
 }
 
 const system_msg_added_sig: ChangeType = {
@@ -33,6 +36,7 @@ const system_msg_added_sig: ChangeType = {
     const message = messages[0];
     return (
       <ChatView
+        key="system_msg_event_preview"
         id="system_msg_event_preview"
         messages={[message] as Messages}
       />
@@ -123,6 +127,7 @@ const human_baseline_session: ChangeType = {
 
     return (
       <HumanBaselineView
+        key="human_baseline_view"
         started={startedDate}
         running={running}
         completed={completed}
@@ -185,10 +190,10 @@ const renderTools = (
   }
 
   return (
-    <div className={clsx(styles.tools)}>
+    <div key={"state-diff-tools"} className={clsx(styles.tools)}>
       {Object.keys(toolsInfo).map((key) => {
         return (
-          <Fragment>
+          <Fragment key={key}>
             <div
               className={clsx(
                 "text-size-smaller",
@@ -242,12 +247,18 @@ interface ToolsProps {
  * Renders a list of tool components based on the provided tool definitions.
  */
 export const Tools: React.FC<ToolsProps> = ({ toolDefinitions }) => {
-  return toolDefinitions.map((toolDefinition) => {
+  return toolDefinitions.map((toolDefinition, idx) => {
     const toolName = toolDefinition.name;
     const toolArgs = toolDefinition.parameters?.properties
       ? Object.keys(toolDefinition.parameters.properties)
       : [];
-    return <Tool toolName={toolName} toolArgs={toolArgs} />;
+    return (
+      <Tool
+        key={`${toolName}-${idx}`}
+        toolName={toolName}
+        toolArgs={toolArgs}
+      />
+    );
   });
 };
 

@@ -90,6 +90,10 @@ class LogHandler(RichHandler):
         if "Event loop is closed" in record.getMessage():
             return
 
+        # skip google-genai AFC message
+        if "AFC is enabled with max remote calls" in record.getMessage():
+            return
+
         # write to stderr if we are at or above the threshold
         if record.levelno >= self.display_level:
             super().emit(record)
@@ -156,7 +160,9 @@ def init_logger(
 
     # init logging handler on demand
     global _logHandler
+    removed_root_handlers = False
     if not _logHandler:
+        removed_root_handlers = remove_non_pytest_root_logger_handlers()
         _logHandler = LogHandler(min(DEBUG, levelno), transcript_levelno)
         getLogger().addHandler(_logHandler)
 
@@ -169,11 +175,28 @@ def init_logger(
     getLogger("httpx").setLevel(capture_level)
     getLogger("botocore").setLevel(DEBUG)
 
+    if removed_root_handlers:
+        getLogger(PKG_NAME).warning(
+            "Inspect removed pre-existing root logger handlers and replaced them with its own handler."
+        )
+
     # set the levelno on the global handler
     _logHandler.display_level = levelno
 
 
 _logHandler: LogHandler | None = None
+
+
+def remove_non_pytest_root_logger_handlers() -> bool:
+    root_logger = getLogger()
+    non_pytest_handlers = [
+        handler
+        for handler in root_logger.handlers
+        if handler.__module__ != "_pytest.logging"
+    ]
+    for handler in non_pytest_handlers:
+        root_logger.removeHandler(handler)
+    return len(non_pytest_handlers) > 0
 
 
 def notify_logger_record(record: LogRecord, write: bool) -> None:

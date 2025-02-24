@@ -53,6 +53,7 @@ export const SecondaryBar: React.FC<SecondaryBarProps> = ({
     size: "minmax(12%, auto)",
     value: (
       <LabeledValue
+        key="sb-dataset"
         label="Dataset"
         className={(styles.staticCol, "text-size-small")}
       >
@@ -71,6 +72,7 @@ export const SecondaryBar: React.FC<SecondaryBarProps> = ({
     size: "minmax(12%, auto)",
     value: (
       <LabeledValue
+        key="sb-scorer"
         label={label}
         className={clsx(
           styles.staticCol,
@@ -88,6 +90,7 @@ export const SecondaryBar: React.FC<SecondaryBarProps> = ({
       size: "minmax(12%, auto)",
       value: (
         <LabeledValue
+          key="sb-params"
           label="Config"
           className={clsx(styles.justifyRight, "text-size-small")}
         >
@@ -106,6 +109,7 @@ export const SecondaryBar: React.FC<SecondaryBarProps> = ({
       size: "minmax(12%, auto)",
       value: (
         <LabeledValue
+          key="sb-duration"
           label="Duration"
           className={clsx(styles.justifyRight, "text-size-small")}
         >

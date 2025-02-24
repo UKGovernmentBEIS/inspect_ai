@@ -4,11 +4,17 @@ import sys
 import traceback
 from logging import getLogger
 from types import TracebackType
-from typing import Any, Literal, Type
+from typing import Any, Literal, Type, TypedDict
 
 import click
 import tenacity
-from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    PrivateAttr,
+    model_validator,
+)
 from rich.console import Console, RenderableType
 from rich.traceback import Traceback
 
@@ -28,6 +34,28 @@ from ._transcript import Event
 logger = getLogger(__name__)
 
 SCORER_PLACEHOLDER = "88F74D2C"
+
+
+class EvalConfigDefaults(TypedDict):
+    epochs: int
+    epochs_reducer: list[str]
+    fail_on_error: bool
+    sandbox_cleanup: bool
+    log_samples: bool
+    log_images: bool
+    score_display: bool
+
+
+def eval_config_defaults() -> EvalConfigDefaults:
+    return {
+        "epochs": 1,
+        "epochs_reducer": ["mean"],
+        "fail_on_error": True,
+        "sandbox_cleanup": True,
+        "log_samples": True,
+        "log_images": True,
+        "score_display": True,
+    }
 
 
 class EvalConfig(BaseModel):
@@ -454,6 +482,30 @@ class EvalDataset(BaseModel):
     """Was the dataset shuffled after reading."""
 
 
+class EvalMetricDefinition(BaseModel):
+    name: str
+    """Metric name"""
+
+    options: dict[str, Any] | None = Field(default=None)
+
+
+class EvalScorer(BaseModel):
+    name: str
+    """Scorer name"""
+
+    options: dict[str, Any] | None = Field(default=None)
+    """Scorer arguments"""
+
+    metrics: (
+        list[EvalMetricDefinition | dict[str, list[EvalMetricDefinition]]]
+        | dict[str, list[EvalMetricDefinition]]
+        | None
+    ) = Field(default=None)
+
+    metadata: dict[str, Any] | None = Field(default=None)
+    """Scorer metadata"""
+
+
 class EvalRevision(BaseModel):
     """Git revision for evaluation."""
 
@@ -529,6 +581,14 @@ class EvalSpec(BaseModel):
 
     metadata: dict[str, Any] | None = Field(default=None)
     """Additional eval metadata."""
+
+    scorers: list[EvalScorer] | None = Field(default=None)
+    """Scorers and args for this eval"""
+
+    metrics: (
+        list[EvalMetricDefinition] | dict[str, list[EvalMetricDefinition]] | None
+    ) = Field(default=None)
+    """metrics and args for this eval"""
 
     # allow field model_args
     model_config = ConfigDict(protected_namespaces=())

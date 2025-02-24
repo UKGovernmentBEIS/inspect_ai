@@ -56,6 +56,7 @@ from inspect_ai.log._transcript import (
     SampleInitEvent,
     SampleLimitEvent,
     ScoreEvent,
+    StepEvent,
     transcript,
 )
 from inspect_ai.model import (
@@ -190,7 +191,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
         if task.setup:
             plan.steps = unroll(task.setup) + plan.steps
 
-        # reaolve the scorer
+        # resolve the scorer
         score = score and task.scorer is not None
         scorers: list[Scorer] | None = task.scorer if (score and task.scorer) else None
         scorer_profiles = (
@@ -551,9 +552,11 @@ async def task_run_sample(
     # helper to handle exceptions (will throw if we've exceeded the limit)
     def handle_error(ex: BaseException) -> tuple[EvalError, BaseException | None]:
         err = sample_error(ex)
-        py_logger.warning(
-            f"Sample error (id: {sample.id}, epoch: {state.epoch}): {exception_message(ex)})"
-        )
+        # if we aren't raising the error then print a warning
+        if err[1] is None:
+            py_logger.warning(
+                f"Sample error (id: {sample.id}, epoch: {state.epoch}): {exception_message(ex)})"
+            )
         transcript()._event(ErrorEvent(error=err[0]))
         return err
 
@@ -576,10 +579,26 @@ async def task_run_sample(
         raise_error: BaseException | None = None
         results: dict[str, SampleScore] = {}
         try:
+            # begin init
+            transcript()._event(StepEvent(action="begin", name="init"))
+
+            # sample init event (remove file bodies as they have content or absolute paths)
+            event_sample = sample.model_copy(
+                update=dict(files={k: "" for k in sample.files.keys()})
+                if sample.files
+                else None
+            )
+            transcript()._event(
+                SampleInitEvent(sample=event_sample, state=state_jsonable(state))
+            )
+
             async with sandboxenv_cm:
                 try:
                     # update active sample wth sandboxes now that we are initialised
                     active.sandboxes = await sandbox_connections()
+
+                    # end init
+                    transcript()._event(StepEvent(action="end", name="init"))
 
                     # initialise timeout context manager
                     timeout_cm = (
@@ -592,18 +611,6 @@ async def task_run_sample(
                     async with timeout_cm:
                         # mark started
                         active.started = datetime.now().timestamp()
-
-                        # sample init event (remove file bodies as they have content or absolute paths)
-                        event_sample = sample.model_copy(
-                            update=dict(files={k: "" for k in sample.files.keys()})
-                            if sample.files
-                            else None
-                        )
-                        transcript()._event(
-                            SampleInitEvent(
-                                sample=event_sample, state=state_jsonable(state)
-                            )
-                        )
 
                         # set progress for plan then run it
                         state = await plan(state, generate)
@@ -659,10 +666,12 @@ async def task_run_sample(
 
                     # capture most recent state for scoring
                     state = ex.state or sample_state() or state
-                    state.completed = True
 
                 except BaseException as ex:
                     error, raise_error = handle_error(ex)
+
+                # mark completed
+                state.completed = True
 
                 # set timeout for scoring. if the original timeout was hit we still
                 # want to provide opportunity for scoring, but we don't necessarily

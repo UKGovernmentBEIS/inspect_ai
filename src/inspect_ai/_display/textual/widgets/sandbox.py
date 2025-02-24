@@ -9,6 +9,12 @@ from .port_mappings import PortMappingsView
 
 class SandboxView(Vertical):
     DEFAULT_CSS = """
+    SandboxView {
+        height: auto;
+    }
+    SandboxView * {
+        height: auto;
+    }
     .indent {
         width: 2;
     }
@@ -32,6 +38,6 @@ class SandboxView(Vertical):
         with Horizontal():
             yield Static("", classes="indent" if self.sandbox_name else "no_indent")
             with Vertical():
-                yield Static(self.connection.command)
+                yield Static(self.connection.command, markup=False)
                 if self.connection.ports:
                     yield PortMappingsView(self.connection.ports)

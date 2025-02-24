@@ -2,9 +2,9 @@
 title: Inspect
 subtitle: An open-source framework for large language model evaluations
 citation:
-  id: "UK_AI_Safety_Institute_Inspect_AI_Framework_2024"
+  id: "UK_AI_Security_Institute_Inspect_AI_Framework_2024"
   title: "Inspect AI: Framework for Large Language Model Evaluations"
-  author: "UK AI Safety Institute"
+  author: "UK AI Security Institute"
   issued: 2024-05
   url: "https://github.com/UKGovernmentBEIS/inspect_ai"
   type: "software"
@@ -12,7 +12,7 @@ citation:
 
 ## Welcome
 
-Welcome to Inspect, a framework for large language model evaluations created by the [UK AI Safety Institute](https://aisi.gov.uk).
+Welcome to Inspect, a framework for large language model evaluations created by the [UK AI Security Institute](https://aisi.gov.uk).
 
 Inspect provides many built-in components, including facilities for prompt engineering, tool usage, multi-turn dialog, and model graded evaluations. Extensions to Inspect (e.g. to support new elicitation and scoring techniques) can be provided by other Python packages.
 
@@ -56,7 +56,7 @@ inspect eval arc.py --model anthropic/claude-3-5-sonnet-latest
 #### Google
 
 ``` bash
-pip install google-generativeai
+pip install google-genai
 export GOOGLE_API_KEY=your-google-api-key
 inspect eval arc.py --model google/gemini-1.5-pro
 ```

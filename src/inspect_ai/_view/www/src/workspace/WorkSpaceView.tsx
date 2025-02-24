@@ -79,32 +79,6 @@ export const WorkSpaceView: React.FC<WorkSpaceViewProps> = ({
     [setSelectedTab],
   );
 
-  // Compute tab panels anytime the tabs change
-  const tabPanels = useMemo(() => {
-    return Object.keys(tabs).map((key) => {
-      const tab = tabs[key];
-      return (
-        <TabPanel
-          id={tab.id}
-          title={tab.label}
-          onSelected={onSelected}
-          selected={selectedTab === tab.id}
-          scrollable={!!tab.scrollable}
-          scrollRef={tab.scrollRef}
-          scrollPosition={workspaceTabScrollPositionRef.current?.[tab.id]}
-          setScrollPosition={useCallback(
-            (position: number) => {
-              onScroll(tab.id, position);
-            },
-            [onScroll],
-          )}
-        >
-          {tab.content()}
-        </TabPanel>
-      );
-    });
-  }, [tabs, selectedTab]);
-
   if (evalSpec === undefined) {
     return <EmptyPanel />;
   } else {
@@ -150,7 +124,31 @@ export const WorkSpaceView: React.FC<WorkSpaceViewProps> = ({
               tabControlsClassName={clsx(styles.tabs, "text-size-smaller")}
               tabPanelsClassName={clsx(styles.tabPanels)}
             >
-              {tabPanels}
+              {Object.keys(tabs).map((key) => {
+                const tab = tabs[key];
+                return (
+                  <TabPanel
+                    key={tab.id}
+                    id={tab.id}
+                    title={tab.label}
+                    onSelected={onSelected}
+                    selected={selectedTab === tab.id}
+                    scrollable={!!tab.scrollable}
+                    scrollRef={tab.scrollRef}
+                    scrollPosition={
+                      workspaceTabScrollPositionRef.current?.[tab.id]
+                    }
+                    setScrollPosition={useCallback(
+                      (position: number) => {
+                        onScroll(tab.id, position);
+                      },
+                      [onScroll],
+                    )}
+                  >
+                    {tab.content()}
+                  </TabPanel>
+                );
+              })}
             </TabSet>
           </div>
         </div>

@@ -21,6 +21,8 @@ logger = getLogger(__name__)
 class ComposeProject:
     name: str
     config: str | None
+    sample_id: int | str | None
+    epoch: int | None
     env: dict[str, str] | None
 
     @classmethod
@@ -28,6 +30,9 @@ class ComposeProject:
         cls,
         name: str,
         config: SandboxEnvironmentConfigType | None,
+        *,
+        sample_id: int | str | None = None,
+        epoch: int | None = None,
         env: dict[str, str] = {},
     ) -> "ComposeProject":
         # resolve config to full path if we have one
@@ -40,7 +45,8 @@ class ComposeProject:
         # if its a Dockerfile, then config is the auto-generated .compose.yaml
         if config_path and is_dockerfile(config_path.name):
             config = auto_compose_file(
-                COMPOSE_DOCKERFILE_YAML, config_path.parent.as_posix()
+                COMPOSE_DOCKERFILE_YAML.format(dockerfile=config_path.name),
+                config_path.parent.as_posix(),
             )
 
         # if its another config file, just take its path
@@ -57,16 +63,20 @@ class ComposeProject:
         ensure_auto_compose_file(config)
 
         # return project
-        return ComposeProject(name, config, env)
+        return ComposeProject(name, config, sample_id=sample_id, epoch=epoch, env=env)
 
     def __init__(
         self,
         name: str,
         config: str | None,
+        sample_id: int | str | None,
+        epoch: int | None,
         env: dict[str, str],
     ) -> None:
         self.name = name
         self.config = config
+        self.sample_id = sample_id
+        self.epoch = epoch
         self.env = env
 
     def __eq__(self, other: object) -> bool:

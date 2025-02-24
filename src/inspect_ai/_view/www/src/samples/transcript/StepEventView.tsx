@@ -47,7 +47,7 @@ export const StepEventView: React.FC<StepEventViewProps> = ({
       title={title}
       subTitle={formatDateTime(new Date(event.timestamp))}
       icon={descriptor.icon}
-      collapse={false}
+      collapse={descriptor.collapse}
       text={text}
       selectedNav={eventState.selectedNav || ""}
       setSelectedNav={(selectedNav) => {
@@ -115,7 +115,7 @@ const summarize = (children: EventNode[]) => {
  */
 const stepDescriptor = (
   event: StepEvent,
-): { icon?: string; name?: string; endSpace?: boolean } => {
+): { icon?: string; name?: string; endSpace?: boolean; collapse?: boolean } => {
   const rootStepDescriptor = {
     endSpace: true,
   };
@@ -161,6 +161,13 @@ const stepDescriptor = (
         return {
           ...rootStepDescriptor,
           name: "Sample Init",
+          collapse: true,
+        };
+      case "init":
+        return {
+          ...rootStepDescriptor,
+          name: "Init",
+          collapse: true,
         };
       default:
         return {

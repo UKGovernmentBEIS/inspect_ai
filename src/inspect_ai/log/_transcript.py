@@ -207,6 +207,34 @@ class ToolEvent(BaseEvent):
     """Required so that we can include '_task' as a member."""
 
 
+class SandboxEvent(BaseEvent):
+    """Sandbox execution or I/O"""
+
+    event: Literal["sandbox"] = Field(default="sandbox")
+    """Event type"""
+
+    action: Literal["exec", "read_file", "write_file"]
+    """Sandbox action"""
+
+    cmd: str | None = Field(default=None)
+    """Command (for exec)"""
+
+    options: dict[str, JsonValue] | None = Field(default=None)
+    """Options (for exec)"""
+
+    file: str | None = Field(default=None)
+    """File (for read_file and write_file)"""
+
+    input: str | None = Field(default=None)
+    """Input (for cmd and write_file). Truncated to 100 lines."""
+
+    result: int | None = Field(default=None)
+    """Result (for exec)"""
+
+    output: str | None = Field(default=None)
+    """Output (for exec and read_file). Truncated to 100 lines."""
+
+
 class ApprovalEvent(BaseEvent):
     """Tool approval."""
 
@@ -264,6 +292,9 @@ class InfoEvent(BaseEvent):
     event: Literal["info"] = Field(default="info")
     """Event type."""
 
+    source: str | None = Field(default=None)
+    """Optional source for info event."""
+
     data: JsonValue
     """Data provided with event."""
 
@@ -279,16 +310,23 @@ class ErrorEvent(BaseEvent):
 
 
 class ScoreEvent(BaseEvent):
-    """Event with sample score."""
+    """Event with score.
+
+    Can be the final score for a `Sample`, or can be an intermediate score
+    resulting from a call to `score`.
+    """
 
     event: Literal["score"] = Field(default="score")
     """Event type."""
 
     score: Score
-    """Sample score."""
+    """Score value."""
 
     target: str | list[str] | None = Field(default=None)
     """"Sample target."""
+
+    intermediate: bool = Field(default=False)
+    """Was this an intermediate scoring?"""
 
 
 class StepEvent(BaseEvent):
@@ -332,10 +370,12 @@ class SubtaskEvent(BaseEvent):
 Event: TypeAlias = Union[
     SampleInitEvent
     | SampleLimitEvent
+    | SandboxEvent
     | StateEvent
     | StoreEvent
     | ModelEvent
     | ToolEvent
+    | SandboxEvent
     | ApprovalEvent
     | InputEvent
     | ScoreEvent
@@ -355,13 +395,14 @@ class Transcript:
         self.name = name
         self._events: list[Event] = []
 
-    def info(self, data: JsonValue) -> None:
+    def info(self, data: JsonValue, *, source: str | None = None) -> None:
         """Add an `InfoEvent` to the transcript.
 
         Args:
-           data (JsonValue): Data associated with the event.
+           data: Data associated with the event.
+           source: Optional event source.
         """
-        self._event(InfoEvent(data=data))
+        self._event(InfoEvent(source=source, data=data))
 
     @contextlib.contextmanager
     def step(self, name: str, type: str | None = None) -> Iterator[None]:

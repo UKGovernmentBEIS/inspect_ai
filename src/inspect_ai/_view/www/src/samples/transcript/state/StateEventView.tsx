@@ -44,14 +44,6 @@ export const StateEventView: React.FC<StateEventViewProps> = ({
   // Synthesize objects for comparison
   const [before, after] = synthesizeComparable(event.changes);
 
-  const tabs = [
-    <StateDiffView
-      before={before}
-      after={after}
-      data-name="Diff"
-      className={clsx(styles.diff)}
-    />,
-  ];
   // This clone is important since the state is used by react as potential values that are rendered
   // and as a result may be decorated with additional properties, etc..., resulting in DOM elements
   // appearing attached to state.
@@ -60,14 +52,6 @@ export const StateEventView: React.FC<StateEventViewProps> = ({
     structuredClone(after),
     isStore,
   );
-  if (changePreview) {
-    tabs.unshift(
-      <div data-name="Summary" className={clsx(styles.summary)}>
-        {changePreview}
-      </div>,
-    );
-  }
-
   // Compute the title
   const title = event.event === "state" ? "State Updated" : "Store Updated";
 
@@ -77,7 +61,7 @@ export const StateEventView: React.FC<StateEventViewProps> = ({
       title={title}
       className={className}
       subTitle={formatDateTime(new Date(event.timestamp))}
-      text={tabs.length === 1 ? summary : undefined}
+      text={!changePreview ? summary : undefined}
       collapse={changePreview === undefined ? true : undefined}
       selectedNav={eventState.selectedNav || ""}
       setSelectedNav={(selectedNav) => {
@@ -88,7 +72,17 @@ export const StateEventView: React.FC<StateEventViewProps> = ({
         setEventState({ ...eventState, collapsed });
       }}
     >
-      {tabs}
+      {changePreview ? (
+        <div data-name="Summary" className={clsx(styles.summary)}>
+          {changePreview}
+        </div>
+      ) : undefined}
+      <StateDiffView
+        before={before}
+        after={after}
+        data-name="Diff"
+        className={clsx(styles.diff)}
+      />
     </EventPanel>
   );
 };
@@ -153,7 +147,8 @@ const generatePreview = (
       }
     }
     if (matchingOps === requiredMatchCount) {
-      results.push(changeType.render(changes, resolvedState));
+      const el = changeType.render(changes, resolvedState);
+      results.push(el);
       // Only one renderer can process a change
       // TODO: consider changing this to allow many handlers to render (though then we sort of need
       // to match the renderer to the key (e.g. a rendered for `tool_choice` a renderer for `tools` etc..))

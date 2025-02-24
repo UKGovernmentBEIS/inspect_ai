@@ -14338,15 +14338,15 @@ body[class^="vscode-"] .app-main-grid {
 
 /* Inspect Text Styles */
 .text-style-label {
-  text-transform: uppercase;
+  text-transform: uppercase !important;
 }
 
 .text-style-secondary {
-  color: var(--bs-secondary);
+  color: var(--bs-secondary) !important;
 }
 
 .text-style-tertiary {
-  color: var(--bs-tertiary-color);
+  color: var(--bs-tertiary-color) !important;
 }
 
 /* Inspect Font Size Styles */
@@ -16200,58 +16200,58 @@ ul.jsondiffpatch-textdiff {
   grid-template-columns: max-content max-content;
   column-gap: 1em;
 }
-._container_43lfg_1 {
+._container_1jqar_1 {
   margin-top: 0.5em;
   padding-left: 0;
 }
 
-._label_43lfg_6 {
-  padding-right: 2em;
-  padding-left: 0;
-  padding-bottom: 0;
+._label_1jqar_6 {
+  padding-right: 2em !important;
+  padding-left: 0 !important;
+  padding-bottom: 0 !important;
   font-weight: 400;
-  padding-bottom: 0;
+  padding-bottom: 0 !important;
 }
 
-._wordBreak_43lfg_14 {
+._wordBreak_1jqar_14 {
   word-break: break-all;
 }
 
-._scoreTable_43lfg_18 {
+._scoreTable_1jqar_18 {
   width: 100%;
   margin-bottom: 1em;
 }
 
-._bottomBorder_43lfg_23 {
+._bottomBorder_1jqar_23 {
   border-bottom-color: #00000000;
 }
 
-._headerScore_43lfg_27 {
+._headerScore_1jqar_27 {
   padding-left: 2em;
 }
 
-._targetValue_43lfg_31 {
-  padding-right: 2em;
-  padding-left: 0;
-  padding-top: 0;
+._targetValue_1jqar_31 {
+  padding-right: 2em !important;
+  padding-left: 0 !important;
+  padding-top: 0 !important;
 }
 
-._answerValue_43lfg_37 {
-  padding-left: 0;
-  padding-top: 0;
+._answerValue_1jqar_37 {
+  padding-left: 0 !important;
+  padding-top: 0 !important;
 }
 
-._scoreValue_43lfg_42 {
-  padding-left: 2em;
-  padding-top: 0;
+._scoreValue_1jqar_42 {
+  padding-left: 2em !important;
+  padding-top: 0 !important;
 }
 
-._noLeft_43lfg_47 {
-  padding-left: 0;
+._noLeft_1jqar_47 {
+  padding-left: 0 !important;
 }
 
-._noTop_43lfg_51 {
-  margin-top: 0;
+._noTop_1jqar_51 {
+  margin-top: 0 !important;
 }
 ._wrapper_b0it4_1 {
   display: grid;
@@ -16346,22 +16346,24 @@ ul.jsondiffpatch-textdiff {
 ._noTop_14odp_27 {
   margin-top: 0;
 }
-._body_5y0hl_1 {
+._flatBody_gk2ju_1 {
   color: var(--bs-danger);
   display: grid;
-  grid-template-columns: 1fr;
-  align-content: align;
-  justify-items: center;
+  grid-template-columns: max-content max-content;
+  column-gap: 0.2em;
+  margin-top: 0.4rem;
 }
 
-._iconSmall_5y0hl_9 {
+._iconSmall_gk2ju_9 {
   font-size: var(--inspect-font-size-small);
   line-height: var(--inspect-font-size-small);
   height: var(--inspect-font-size-small);
 }
 
-._message_5y0hl_15 {
-  width: 300px;
+._lineBase_gk2ju_15 {
+  font-size: var(--inspect-font-size-base);
+  line-height: var(--inspect-font-size-base);
+  height: var(--inspect-font-size-base);
 }
 ._target_yamz4_1 {
   padding-left: 0;
@@ -19068,6 +19070,38 @@ span.ap-marker-container:hover span.ap-marker {
   padding: 0;
   margin-bottom: 0;
 }
+._contents_iwnfd_1 {
+  margin-top: 0.5em;
+}
+
+._contents_iwnfd_1 > :last-child {
+  margin-bottom: 0;
+}
+
+._twoColumn_iwnfd_9 {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 1.5em;
+}
+
+._exec_iwnfd_15 {
+  margin-top: 0.5em;
+}
+
+._result_iwnfd_19 {
+  margin-top: 0.5em;
+}
+
+._fileLabel_iwnfd_23 {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+._wrapPre_iwnfd_28 {
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
 ._darkenedBg_c8m1t_1 {
   background-color: var(--bs-light-bg-subtle);
 }
@@ -19221,6 +19255,23 @@ span.ap-marker-container:hover span.ap-marker {
 
 .message-band-btn.warning {
   color: var(--bs-warning-text-emphasis);
+}
+._body_5y0hl_1 {
+  color: var(--bs-danger);
+  display: grid;
+  grid-template-columns: 1fr;
+  align-content: align;
+  justify-items: center;
+}
+
+._iconSmall_5y0hl_9 {
+  font-size: var(--inspect-font-size-small);
+  line-height: var(--inspect-font-size-small);
+  height: var(--inspect-font-size-small);
+}
+
+._message_5y0hl_15 {
+  width: 300px;
 }
 ._grid_1kcta_1 {
   display: grid;
@@ -19585,16 +19636,17 @@ span.ap-marker-container:hover span.ap-marker {
   padding: 0 0.2em;
   justify-content: center;
 }
-._statusPanel_1fzh4_1 {
+._statusPanel_66f9o_1 {
   padding: 1em;
   margin-top: 0.5em;
   text-transform: uppercase;
   font-size: var(--inspect-font-size-smaller);
   display: grid;
   grid-template-columns: auto auto;
+  justify-content: end;
 }
 
-._statusIcon_1fzh4_10 {
+._statusIcon_66f9o_11 {
   font-size: var(--inspect-font-size-large);
   margin-right: 0.3em;
   margin-top: -0.1em;

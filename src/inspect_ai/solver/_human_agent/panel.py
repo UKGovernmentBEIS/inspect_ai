@@ -83,7 +83,9 @@ class HumanAgentPanel(InputPanel):
             with VerticalScroll(id=self.SANDBOX_VIEW_ID):
                 yield StatusBar()
                 yield Static(
-                    id=self.SANDBOX_INSTRUCTIONS_ID, classes=self.INSTRUCTIONS_CLASS
+                    id=self.SANDBOX_INSTRUCTIONS_ID,
+                    classes=self.INSTRUCTIONS_CLASS,
+                    markup=False,
                 )
                 with Horizontal(id=self.VSCODE_LINKS_ID):
                     yield Label("Login:", classes=self.LINK_LABEL_CLASS)
@@ -97,9 +99,11 @@ class HumanAgentPanel(InputPanel):
                         id=self.LOGIN_VSCODE_TERMINAL_ID,
                     )
                 yield Static(
-                    id=self.COMMAND_INSTRUCTIONS_ID, classes=self.INSTRUCTIONS_CLASS
+                    id=self.COMMAND_INSTRUCTIONS_ID,
+                    classes=self.INSTRUCTIONS_CLASS,
+                    markup=False,
                 )
-                yield Static(id=self.SANDBOX_COMMAND_ID)
+                yield Static(id=self.SANDBOX_COMMAND_ID, markup=False)
 
     def watch_connection(self, connection: SandboxConnection | None) -> None:
         if connection:
@@ -200,9 +204,11 @@ class StatusBar(Horizontal):
 
     def compose(self) -> ComposeResult:
         yield Label("Status:", classes=self.LABEL_CLASS)
-        yield Static("Running", id=self.STATUS_ID, classes=self.VALUE_CLASS)
+        yield Static(
+            "Running", id=self.STATUS_ID, classes=self.VALUE_CLASS, markup=False
+        )
         yield Label(" Time:", classes=self.LABEL_CLASS)
-        yield Static("0:00:00", id=self.TIME_ID, classes=self.VALUE_CLASS)
+        yield Static("0:00:00", id=self.TIME_ID, classes=self.VALUE_CLASS, markup=False)
 
     def watch_running(self, running: bool) -> None:
         cast(Static, self.query_one(f"#{self.STATUS_ID}")).update(

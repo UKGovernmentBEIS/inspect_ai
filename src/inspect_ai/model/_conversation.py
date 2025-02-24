@@ -19,7 +19,7 @@ def conversation_tool_mesage(message: ChatMessageTool) -> None:
             message.error.message.strip() if message.error else message.text.strip()
         )
         if output:
-            content = lines_display(output, 100)
+            content = lines_display(output, 50)
 
             conversation_panel(
                 title=f"Tool Output: {message.function}",

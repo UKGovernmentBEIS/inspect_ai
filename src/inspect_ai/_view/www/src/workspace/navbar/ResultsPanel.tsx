@@ -32,12 +32,13 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({ results }) => {
     });
 
     const metrics = Object.values(scorers)[0];
-    const showReducer = !!metrics[0].reducer;
+    const showReducer = metrics && metrics.length > 0 && !!metrics[0].reducer;
     return (
       <div className={styles.simpleMetricsRows}>
         {metrics.map((metric, i) => {
           return (
             <VerticalMetric
+              key={`simple-metric-${i}`}
               metricSummary={metric}
               isFirst={i === 0}
               showReducer={showReducer}
@@ -54,6 +55,7 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({ results }) => {
         {results?.scores?.map((score, index) => {
           return (
             <MultiScorerMetric
+              key={`multi-metric-${index}`}
               scorer={score}
               isFirst={index === 0}
               showReducer={showReducer}
@@ -164,7 +166,7 @@ const MultiScorerMetric: React.FC<MultiScorerMetricProps> = ({
         {Object.keys(scorer.metrics).map((key) => {
           const metric = scorer.metrics[key];
           return (
-            <div className={styles.multiScoreMetricGrid}>
+            <div className={styles.multiScoreMetricGrid} key={key}>
               <div>{metricDisplayName(metric)}</div>
               <div className={styles.multiScorerValueContent}>
                 {formatPrettyDecimal(metric.value)}

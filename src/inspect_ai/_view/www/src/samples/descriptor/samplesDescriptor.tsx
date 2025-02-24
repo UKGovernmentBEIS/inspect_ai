@@ -158,8 +158,10 @@ export const createEvalDescriptor = (
   ): ReactNode => {
     const descriptor = scoreDescriptor(scoreLabel);
     const score = scoreValue(sample, scoreLabel);
-    if (score === null || score === "undefined") {
+    if (score === null) {
       return "null";
+    } else if (score === undefined) {
+      return "";
     } else if (score && descriptor && descriptor.render) {
       return descriptor.render(score);
     } else {

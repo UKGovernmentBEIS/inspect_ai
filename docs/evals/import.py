@@ -12,6 +12,8 @@ for record in records:
     record["categories"] = [record["group"]]
     if "tags" in record:
         record["categories"].extend(record["tags"])
+    record["tasks"] = [task["name"] for task in record["tasks"]]
+    
 
 with open(PATH / "evals.yml", "w") as f:
     yaml.safe_dump(records, f)

@@ -23,6 +23,8 @@ async def score(state: TaskState) -> list[Score]:
         a task that does not have a scorer.
 
     """
+    from inspect_ai.log._transcript import ScoreEvent, transcript
+
     scorers = _scorers.get(None)
     target = _target.get(None)
     if scorers is None or target is None:
@@ -30,7 +32,15 @@ async def score(state: TaskState) -> list[Score]:
             "The score() function can only be called while executing a task with a scorer."
         )
 
-    return [await scorer(state, target) for scorer in scorers]
+    scores: list[Score] = []
+    for scorer in scorers:
+        score = await scorer(state, target)
+        scores.append(score)
+        transcript()._event(
+            ScoreEvent(score=score, target=target.target, intermediate=True)
+        )
+
+    return scores
 
 
 def init_scoring_context(scorers: list[Scorer], target: Target) -> None:

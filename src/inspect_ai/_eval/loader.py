@@ -8,7 +8,7 @@ from importlib.util import module_from_spec, spec_from_loader
 from logging import getLogger
 from pathlib import Path
 from types import ModuleType
-from typing import Any, Callable, cast
+from typing import Any, Callable, Tuple, cast
 
 from typing_extensions import overload
 
@@ -26,7 +26,8 @@ from inspect_ai._util.registry import (
     registry_params,
 )
 from inspect_ai.model import Model, ModelName
-from inspect_ai.solver._bridge.bridge import bridge
+from inspect_ai.scorer._scorer import Scorer, ScorerSpec, scorer_create
+from inspect_ai.solver._bridge import bridge
 from inspect_ai.solver._solver import Solver, SolverSpec
 from inspect_ai.util import SandboxEnvironmentSpec, SandboxEnvironmentType
 from inspect_ai.util._sandbox.environment import resolve_sandbox_environment
@@ -421,16 +422,7 @@ def as_solver_spec(solver: Solver) -> SolverSpec:
 
 def solver_from_spec(spec: SolverSpec) -> Solver:
     # resolve @ reference
-    spec_split = split_spec(spec.solver)
-    if spec_split[1] is not None:
-        solver_file: Path | None = Path(spec_split[0]).resolve()
-        solver_name: str | None = spec_split[1]
-    elif Path(spec_split[0]).exists():
-        solver_file = Path(spec_split[0]).resolve()
-        solver_name = None
-    else:
-        solver_file = None
-        solver_name = spec_split[0]
+    solver_file, solver_name = parse_spec_str(spec.solver)
 
     # switch contexts if we are loading from a file
     create_cm = (
@@ -501,7 +493,7 @@ def solver_from_spec(spec: SolverSpec) -> Solver:
             else:
                 agent_fn = getattr(solver_module, solver_name, None)
                 if inspect.isfunction(agent_fn):
-                    return bridge(agent_fn(**spec.args))
+                    return bridge.bridge(agent_fn(**spec.args))
                 elif agent_fn is not None:
                     raise PrerequisiteError(
                         f"The object {solver_name} in file {pretty_solver_file} is not a Python function."
@@ -510,3 +502,121 @@ def solver_from_spec(spec: SolverSpec) -> Solver:
                     raise PrerequisiteError(
                         f"The function {solver_name} was not found in file {pretty_solver_file}."
                     )
+
+
+def scorer_from_spec(spec: ScorerSpec, task_path: Path | None, **kwargs: Any) -> Scorer:
+    """
+    Load a scorer
+
+    Args:
+        spec: The scorer spec
+        task_path: An optional path to the task file
+        **kwargs: Additional keyword arguments passed to the scorer initialization
+
+    Returns:
+        Scorer: the loaded scorer
+
+    Raises:
+        PrerequisiteError: If the scorer cannot be found, loaded, or lacks required type annotations
+    """
+    # resolve @ reference
+    scorer_file, scorer_name = parse_spec_str(spec.scorer)
+
+    # switch contexts if we are loading from a file
+    create_cm = (
+        chdir_python(scorer_file.parent.as_posix())
+        if scorer_file is not None
+        else contextlib.nullcontext()
+    )
+
+    # pretty solver name for error messages
+    pretty_scorer_file = (
+        cwd_relative_path(scorer_file.as_posix()) if scorer_file else None
+    )
+
+    with create_cm:
+        # is there a scorer file being provided? if not, load from registry
+        if scorer_file is None:
+            if scorer_name is None:
+                raise ValueError(f"Unable to resolve scorer name from {spec.scorer}")
+
+            try:
+                return scorer_create(scorer_name, **kwargs)
+            except ValueError:
+                # We need a valid path to a scorer file to try to load the scorer from there
+                if not task_path:
+                    raise PrerequisiteError(
+                        f"The scorer '{scorer_name}' couldn't be loaded. Please provide a path to the file containing the scorer using the '--scorer' parameter"
+                    )
+
+                task_pretty_path = task_path.as_posix()
+                if not task_path.exists():
+                    raise PrerequisiteError(
+                        f"The scorer `{scorer_name}` couldn't be loaded. The file '{task_pretty_path}' was not found. Please provide a path to the file containing the scorer using the '--scorer' parameter"
+                    )
+
+                # We have the path to a file, so load that and try again
+                try:
+                    load_module(task_path)
+                    scorer_fn = scorer_create(scorer_name, **kwargs)
+
+                    # See if the scorer doesn't have type annotations. Currently the registry will not load
+                    # the function without type annotations.
+                    # TODO: We could consider calling this ourselves if we're certain it is what we're looking for
+                    signature = inspect.signature(scorer_fn)
+                    if signature.return_annotation is inspect.Signature.empty:
+                        raise PrerequisiteError(
+                            f"The scorer '{scorer_name}' in the file '{task_pretty_path}' requires return type annotations. Please add type annotations to load the scorer."
+                        )
+                    return scorer_fn
+                except ValueError:
+                    # we still couldn't load this, request the user provide a path
+                    raise PrerequisiteError(
+                        f"The scorer '{scorer_name}' in the file '{task_pretty_path}' couldn't be loaded. Please provide a path to the file containing the scorer using the '--scorer' parameter."
+                    )
+                except ModuleNotFoundError:
+                    # we still couldn't load this, request the user provide a path
+                    raise PrerequisiteError(
+                        f"The scorer '{scorer_name}' in the file '{task_pretty_path}' couldn't be loaded. Please provide a path to the file containing the scorer using the '--scorer' parameter."
+                    )
+
+        # solver is a path, so load it that way
+        else:
+            load_module(scorer_file)
+            decorators = parse_decorators(scorer_file, "scorer")
+
+            # if there is no solver_name see if we can discover it
+            if scorer_name is None:
+                if len(decorators) == 1:
+                    # decorator based solver
+                    scorer_name = decorators[0][0]
+                elif len(decorators) == 0:
+                    raise PrerequisiteError(
+                        f"The source file {pretty_scorer_file} does not contain any @scorer functions."
+                    )
+                else:
+                    raise PrerequisiteError(
+                        f"The source file {pretty_scorer_file} has more than one @solver function (qualify which solver using e.g. '{scorer_file.name}y@solver_fn')"
+                    )
+
+            # create decorator based solvers using the registry
+            if any(solver[0] == scorer_name for solver in decorators):
+                return scorer_create(scorer_name, **kwargs)
+            else:
+                raise PrerequisiteError(
+                    f"The function {scorer_name} was not found in file {pretty_scorer_file}."
+                )
+
+
+def parse_spec_str(spec_str: str) -> Tuple[Path | None, str | None]:
+    spec_split = split_spec(spec_str)
+    if spec_split[1] is not None:
+        file: Path | None = Path(spec_split[0]).resolve()
+        name: str | None = spec_split[1]
+    elif Path(spec_split[0]).exists():
+        file = Path(spec_split[0]).resolve()
+        name = None
+    else:
+        file = None
+        name = spec_split[0]
+    return file, name

@@ -29,6 +29,10 @@ class FileRecorder(Recorder):
         return self.fs.is_local()
 
     @override
+    def is_writeable(self) -> bool:
+        return self.fs.is_writeable(self.log_dir)
+
+    @override
     @classmethod
     async def read_log_sample(
         cls, location: str, id: str | int, epoch: int = 1

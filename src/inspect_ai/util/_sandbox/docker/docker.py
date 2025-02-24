@@ -9,6 +9,7 @@ from typing import Literal, Union, cast, overload
 
 from typing_extensions import override
 
+from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.util._subprocess import ExecResult, subprocess
 
 from ..environment import (
@@ -85,6 +86,14 @@ class DockerSandboxEnvironment(SandboxEnvironment):
 
             services = await compose_services(project)
             for name, service in services.items():
+                # if the service has an explicit container_name then
+                # error (as this won't work w/ epochs > 1)
+                container_name = service.get("container_name", None)
+                if container_name:
+                    raise PrerequisiteError(
+                        f"ERROR: Docker service '{name}' includes an explicitly configured container_name ('{container_name}'). This is not permitted, as container names should be provisioned by Docker compose and an explicit container_name will not work with epochs > 1."
+                    )
+
                 # build internal images
                 image = service.get("image", None)
                 if image and is_internal_image(image):
@@ -130,8 +139,15 @@ class DockerSandboxEnvironment(SandboxEnvironment):
                     env[key] = str(value)
 
         # create project
+        from inspect_ai.log._samples import sample_active
+
+        sample = sample_active()
         project = await ComposeProject.create(
-            name=task_project_name(task_name), config=config, env=env
+            name=task_project_name(task_name),
+            config=config,
+            sample_id=sample.id if sample is not None else None,
+            epoch=sample.epoch if sample is not None else None,
+            env=env,
         )
 
         try:
@@ -139,12 +155,17 @@ class DockerSandboxEnvironment(SandboxEnvironment):
             services = await compose_services(project)
 
             # start the services
-            await compose_up(project)
+            result = await compose_up(project, services)
 
             # check to ensure that the services are running
             running_services = await compose_check_running(
                 list(services.keys()), project=project
             )
+
+            if not running_services:
+                raise RuntimeError(
+                    f"No services started.\nCompose up stderr: {result.stderr}"
+                )
 
             # note that the project is running
             project_startup(project)

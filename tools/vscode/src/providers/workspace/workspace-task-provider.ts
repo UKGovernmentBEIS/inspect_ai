@@ -98,7 +98,7 @@ interface TaskDescriptor {
 // Regexes to identify tasks
 const kTaskRegex = /@task/;
 const kTaskNameRegex = /^[ \t]*@task(?:\([^)]*\))?[ \t]*\r?\n[ \t]*def\s+([A-Za-z_]\w*)\s*\(/gm;
-const kExcludeGlob = '**/{.venv,venv,__pycache__,.git,node_modules,env,envs,conda-env}/**';
+const kExcludeGlob = '**/{.venv,venv,__pycache__,.git,node_modules,env,envs,conda-env,.tox,.pytest_cache,.mypy_cache,.idea,.vscode,build,dist,.eggs,*.egg-info,.ipynb_checkpoints}/**';
 
 // Cache tasks cache (caches task info per file)
 const taskFileCache: Record<string, { updated: number, descriptors: TaskDescriptor[] }> = {};

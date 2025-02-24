@@ -27,7 +27,9 @@ def resolve_compose_file(parent: str = "") -> str:
 
     # dockerfile just needs a compose.yaml synthesized
     elif has_dockerfile(parent):
-        return auto_compose_file(COMPOSE_DOCKERFILE_YAML, parent)
+        return auto_compose_file(
+            COMPOSE_DOCKERFILE_YAML.format(dockerfile=DOCKERFILE), parent
+        )
 
     # otherwise provide a generic python container
     else:
@@ -43,7 +45,7 @@ def find_compose_file(parent: str = "") -> str | None:
 
 def is_dockerfile(file: str) -> bool:
     path = Path(file)
-    return path.name == DOCKERFILE or path.suffix == f".{DOCKERFILE}"
+    return path.stem == DOCKERFILE or path.suffix == f".{DOCKERFILE}"
 
 
 def has_dockerfile(parent: str = "") -> bool:
@@ -92,6 +94,7 @@ services:
   default:
     build:
       context: "."
+      dockerfile: "{{dockerfile}}"
     command: "tail -f /dev/null"
     init: true
     network_mode: none

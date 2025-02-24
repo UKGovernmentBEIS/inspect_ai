@@ -17,6 +17,7 @@ import { ToolEventView } from "./ToolEventView";
 import { EventNode, EventType, TranscriptEventState } from "./types";
 
 import clsx from "clsx";
+import { SandboxEventView } from "./SandboxEventView";
 import styles from "./TranscriptView.module.css";
 
 interface TranscriptViewProps {
@@ -373,6 +374,17 @@ export const RenderedEventNode: React.FC<RenderedEventNodeProps> = ({
     case "approval":
       return <ApprovalEventView event={node.event} className={className} />;
 
+    case "sandbox":
+      return (
+        <SandboxEventView
+          id={id}
+          event={node.event}
+          className={className}
+          eventState={eventState}
+          setEventState={setEventState}
+        />
+      );
+
     default:
       return null;
   }
@@ -387,8 +399,17 @@ const fixupEventStream = (events: Events) => {
   });
   const initEvent = events[initEventIndex];
 
-  const fixedUp = [...events];
-  if (initEvent) {
+  // Filter pending events
+  const finalEvents = events.filter((e) => !e.pending);
+
+  // See if the find an init step
+  const hasInitStep =
+    events.findIndex((e) => {
+      return e.event === "step" && e.name === "init";
+    }) !== -1;
+
+  const fixedUp = [...finalEvents];
+  if (!hasInitStep && initEvent) {
     fixedUp.splice(initEventIndex, 0, {
       timestamp: initEvent.timestamp,
       event: "step",

@@ -4,7 +4,9 @@ import { EvalLog, EvalResults } from '../../../@types/log';
 import path from 'path';
 import { MarkdownString } from 'vscode';
 import { stringify } from 'yaml';
+import { sleep } from '../../../core/wait';
 
+export const kLogListCacheName = 'logListingCache'
 
 export class LogElementQueueProcessor {
   private queue: LogNode[] = [];
@@ -23,7 +25,7 @@ export class LogElementQueueProcessor {
     private readonly batchSize: number = 10,
   ) {
     // Load cache from workspace storage
-    const savedCache = this.context.workspaceState.get<Map<string, { iconPath?: string; tooltip?: vscode.MarkdownString }>>('elementCache');
+    const savedCache = this.context.workspaceState.get<Map<string, { iconPath?: string; tooltip?: vscode.MarkdownString }>>(kLogListCacheName);
     if (savedCache) {
       this.elementCache = new Map(savedCache);
     } else {
@@ -114,7 +116,7 @@ export class LogElementQueueProcessor {
                 });
 
                 // Persist the cache
-                await this.context.workspaceState.update('elementCache', Array.from(this.elementCache.entries()));
+                await this.context.workspaceState.update(kLogListCacheName, Array.from(this.elementCache.entries()));
                 this.enforceCacheLimit();
               }
 
@@ -134,6 +136,7 @@ export class LogElementQueueProcessor {
 
       // Process remaining items if any
       if (this.queue.length > 0) {
+        await sleep(5000);
         await this.processQueue();
       }
     }
@@ -197,7 +200,7 @@ function iconForStatus(
 }
 
 
-export function evalSummary(node: LogNode, log: EvalLog): MarkdownString {
+export function evalSummary(node: LogNode, log: EvalLog): MarkdownString | undefined {
   // build summary
   const summary = evalHeader(log);
 
@@ -213,7 +216,11 @@ export function evalSummary(node: LogNode, log: EvalLog): MarkdownString {
     summary.push(...config);
   }
 
-  return new MarkdownString(summary.join("\n  "), true);
+  if (summary.length > 0) {
+    return new MarkdownString(summary.join("\n  "), true);
+  } else {
+    return undefined;
+  }
 }
 
 function evalHeader(log: EvalLog): string[] {

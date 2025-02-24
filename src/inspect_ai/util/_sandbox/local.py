@@ -40,8 +40,8 @@ class LocalSandboxEnvironment(SandboxEnvironment):
         interrupted: bool,
     ) -> None:
         for environment in environments.values():
-            env = cast(LocalSandboxEnvironment, environment)
-            env.directory.cleanup()
+            sandbox = cast(LocalSandboxEnvironment, environment)
+            sandbox.directory.cleanup()
 
     def __init__(self) -> None:
         self.directory = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)

@@ -26,6 +26,7 @@ export const NavPills: React.FC<NavPillsProps> = ({ children }) => {
         : `Tab ${idx}`;
     return (
       <NavPill
+        key={`nav-pill-contents-${idx}`}
         title={title}
         activeItem={activeItem}
         setActiveItem={setActiveItem}
@@ -34,9 +35,10 @@ export const NavPills: React.FC<NavPillsProps> = ({ children }) => {
   });
 
   // Wrap each of the children in a 'body' to control its visibility
-  const navBodies = children.map((child) => {
+  const navBodies = children.map((child, idx) => {
     return (
       <div
+        key={`nav-pill-container-${idx}`}
         className={
           child["props"]?.title === activeItem ? styles.visible : styles.hidden
         }

@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.3.55
+
+- Remove display of status icons in log listing (it causes performance issues).
+
+## 0.3.54
+
+- Add startup output channel to monitor extension startup performance
+- Screen additional directories when scanning for tasks
+
+## 0.3.53
+
+- Fix 'Invalid Tree Item' error
+
+## 0.3.52
+
+- Don't add entries to the `.gitignore` file.
+
 ## 0.3.51
 
 - Improve performance of log listing rendering by caching information in the workspace.

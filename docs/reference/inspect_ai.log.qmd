@@ -46,6 +46,7 @@ title: "inspect_ai.log"
 ### StoreEvent
 ### ModelEvent
 ### ToolEvent
+### SandboxEvent
 ### ApprovalEvent
 ### InputEvent
 ### StoreEvent

@@ -12,6 +12,7 @@ title: "inspect_ai.solver"
 ### prompt_template
 ### system_message
 ### user_message
+### assistant_message
 ### chain_of_thought
 ### self_critique
 ### multiple_choice
