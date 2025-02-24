@@ -62414,8 +62414,10 @@ ${events}
         if (listEl && itemRowMapping.length > selectedIndex) {
           const actualRowIndex = itemRowMapping[selectedIndex];
           requestAnimationFrame(() => {
-            listEl.scrollToIndex(actualRowIndex);
-            prevSelectedIndexRef.current = actualRowIndex;
+            requestAnimationFrame(() => {
+              listEl.scrollToIndex(actualRowIndex);
+              prevSelectedIndexRef.current = actualRowIndex;
+            });
           });
         }
       }, [selectedIndex, listHandle, itemRowMapping]);
@@ -62537,6 +62539,11 @@ ${events}
             followOutput,
             atBottomStateChange: (atBottom) => {
               setFollowOutput(atBottom);
+            },
+            increaseViewportBy: { top: 300, bottom: 300 },
+            overscan: {
+              main: 10,
+              reverse: 10
             },
             className: clsx(className2),
             onKeyDown: onkeydown,
