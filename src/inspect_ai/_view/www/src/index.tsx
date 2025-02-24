@@ -58,7 +58,6 @@ root.render(
             vscode.setState(filterState(state));
           }
         }, 1000)}
-        pollForLogs={false}
       />
     </AppProvider>
   </AppErrorBoundary>,

@@ -38337,8 +38337,12 @@ self.onmessage = function (e) {
       params2.append("log", log_file);
       params2.append("id", String(id));
       params2.append("epoch", String(epoch));
-      params2.append("last-event-id", String(last_event));
-      params2.append("after-attachment-id", String(last_attachment));
+      if (last_event) {
+        params2.append("last-event-id", String(last_event));
+      }
+      if (last_attachment) {
+        params2.append("after-attachment-id", String(last_attachment));
+      }
       return (await api$2("GET", `/api/pending-sample-data?${params2.toString()}`)).parsed;
     }
     async function apiRequest(method, path, request) {
@@ -65265,8 +65269,7 @@ ${events}
     const App = ({
       api: api2,
       applicationState,
-      saveApplicationState,
-      pollForLogs = true
+      saveApplicationState
     }) => {
       var _a2, _b2, _c, _d;
       const appContext = useAppContext();
@@ -65938,30 +65941,6 @@ ${events}
             }
           }
           new ClipboardJS(".clipboard-button,.copy-button");
-          if (pollForLogs) {
-            let retryDelay = 1e3;
-            const maxRetryDelay = 6e4;
-            const pollEvents = async () => {
-              try {
-                const events = await api2.client_events();
-                if (events.includes("reload")) {
-                  window.location.reload();
-                }
-                if (events.includes("refresh-evals")) {
-                  const logs2 = await load();
-                  setLogs(logs2);
-                  setSelectedLogIndex(0);
-                }
-                retryDelay = 1e3;
-              } catch (error2) {
-                console.error("Error fetching client events:", error2);
-                retryDelay = Math.min(retryDelay * 2, maxRetryDelay);
-              } finally {
-                setTimeout(pollEvents, retryDelay);
-              }
-            };
-            pollEvents();
-          }
         };
         loadLogsAndState();
       }, []);
@@ -66141,8 +66120,7 @@ ${events}
             if (vscode2) {
               vscode2.setState(filterState(state));
             }
-          }, 1e3),
-          pollForLogs: false
+          }, 1e3)
         }
       ) }) })
     );
