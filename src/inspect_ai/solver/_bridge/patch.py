@@ -72,8 +72,6 @@ def init_openai_request_patch() -> None:
                 _patch_enabled.get()
                 # completions request
                 and options.url == "/chat/completions"
-                # call to openai not another service (e.g. TogetherAI)
-                and self.base_url == "https://api.openai.com/v1/"
             ):
                 # must also be an explicit request for an inspect model
                 json_data = cast(dict[str, Any], options.json_data)

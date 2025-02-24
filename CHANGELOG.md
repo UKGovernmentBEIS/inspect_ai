@@ -3,8 +3,12 @@
 - Added `SandboxEvent` to transcript for recording sandbox execution and I/O.
 - Remove root logging handlers upon Inspect logger initialisation (as they result in lots of log spam if left installed).
 - Only explicitly set `state.completed=True` when entering scoring (`basic_agent()` no longer sets `completed` so can be used in longer compositions of solvers).
+- Add `uuid` property to `TaskState` and `EvalSample` (globally unique identifer for sample run).
+- Add `cleanup` to tasks for executing a function at the end of each sample run.
+- Agent `bridge()` is now compatible with the use of a custom `OPENAI_BASE_URL`.
 - Compatiblity with textual version 2.0 (remove upper bound).
 - Align with HF datasets `fsspec` version contraints to avoid pip errors when installing alongside `datasets`.
+- Bugfix: Fix issue with tools that had an ordinary `dict` as a parameter.
 
 ## v0.3.69 (20 February 2025)
 
