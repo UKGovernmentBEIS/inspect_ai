@@ -7,12 +7,12 @@ Inspect has support for a wide variety of language model APIs and can be
 extended to support arbitrary additional ones. Support for the following
 providers is built in to Inspect:
 
-|  |  |
-|----|----|
-| Lab APIs | [OpenAI](providers.qmd#openai), [Anthropic](providers.qmd#anthropic), [Google](providers.qmd#google), [Grok](providers.qmd#grok), [Mistral](providers.qmd#mistral) |
-| Cloud APIs | [AWS Bedrock](providers.qmd#aws-bedrock), [Azure AI](providers.qmd#azure-ai), [Vertex AI](providers.qmd#vertex-ai) |
-| Open (Hosted) | [Groq](providers.qmd#groq), [Together AI](providers.qmd#together-ai), [Cloudflare](providers.qmd#cloudflare), [Goodfire](providers.qmd#goodfire) |
-| Open (Local) | [Hugging Face](providers.qmd#hugging-face), [vLLM](providers.qmd#vllm), [Ollama](providers.qmd#ollama), [Lllama-cpp-python](providers.qmd#llama-cpp-python) |
+|               |                                                                                                                                                                    |
+|---------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Lab APIs      | [OpenAI](providers.qmd#openai), [Anthropic](providers.qmd#anthropic), [Google](providers.qmd#google), [Grok](providers.qmd#grok), [Mistral](providers.qmd#mistral) |
+| Cloud APIs    | [AWS Bedrock](providers.qmd#aws-bedrock), [Azure AI](providers.qmd#azure-ai), [Vertex AI](providers.qmd#vertex-ai)                                                 |
+| Open (Hosted) | [Groq](providers.qmd#groq), [Together AI](providers.qmd#together-ai), [Cloudflare](providers.qmd#cloudflare), [Goodfire](providers.qmd#goodfire)                   |
+| Open (Local)  | [Hugging Face](providers.qmd#hugging-face), [vLLM](providers.qmd#vllm), [Ollama](providers.qmd#ollama), [Lllama-cpp-python](providers.qmd#llama-cpp-python)        |
 
 If the provider you are using is not listed above, you may still be able
 to use it if:
@@ -45,12 +45,12 @@ constructor of the `AsyncOpenAI` class.
 
 The following environment variables are supported by the OpenAI provider
 
-| Variable | Description |
-|----|----|
-| `OPENAI_API_KEY` | API key credentials (required). |
-| `OPENAI_BASE_URL` | Base URL for requests (optional, defaults to `https://api.openai.com/v1`) |
-| `OPENAI_ORG_ID` | OpenAI organization ID (optional) |
-| `OPENAI_PROJECT_ID` | OpenAI project ID (optional) |
+| Variable            | Description                                                               |
+|---------------------|---------------------------------------------------------------------------|
+| `OPENAI_API_KEY`    | API key credentials (required).                                           |
+| `OPENAI_BASE_URL`   | Base URL for requests (optional, defaults to `https://api.openai.com/v1`) |
+| `OPENAI_ORG_ID`     | OpenAI organization ID (optional)                                         |
+| `OPENAI_PROJECT_ID` | OpenAI project ID (optional)                                              |
 
 ### OpenAI on Azure
 
@@ -90,9 +90,9 @@ the constructor of the `AsyncAnthropic` class.
 The following environment variables are supported by the Anthropic
 provider
 
-| Variable | Description |
-|----|----|
-| `ANTHROPIC_API_KEY` | API key credentials (required). |
+| Variable             | Description                                                               |
+|----------------------|---------------------------------------------------------------------------|
+| `ANTHROPIC_API_KEY`  | API key credentials (required).                                           |
 | `ANTHROPIC_BASE_URL` | Base URL for requests (optional, defaults to `https://api.anthropic.com`) |
 
 ### Anthropic on AWS Bedrock
@@ -135,17 +135,17 @@ API).
 ## Google
 
 To use the [Google](https://ai.google.dev/) provider, install the
-`google-generativeai` package, set your credentials, and specify a model
-using the `--model` option:
+`google-genai` package, set your credentials, and specify a model using
+the `--model` option:
 
 ``` bash
-pip install google-generativeai
+pip install google-genai
 export GOOGLE_API_KEY=your-google-api-key
 inspect eval arc.py --model google/gemini-1.5-pro
 ```
 
 For the `google` provider, custom model args (`-M`) are forwarded to the
-`genai.configure` function.
+`genai.Client` function.
 
 The following environment variables are supported by the Google provider
 
@@ -154,29 +154,61 @@ The following environment variables are supported by the Google provider
 | `GOOGLE_API_KEY`  | API key credentials (required).  |
 | `GOOGLE_BASE_URL` | Base URL for requests (optional) |
 
+### Gemini on Vertex AI
+
+To use Google Gemini models on Vertex, you can use the standard `google`
+model provider with the `vertex` qualifier
+(e.g. `google/vertex/gemini-2.0-flash`). You should also set two
+environment variables indicating your project ID and region. Here is a
+complete example:
+
+``` bash
+export GOOGLE_CLOUD_PROJECT=project-12345
+export GOOGLE_CLOUD_LOCATION=us-east5
+inspect eval ctf.py --model google/vertex/gemini-2.0-flash
+```
+
+You can alternatively pass the project and location as custom model args
+(`-M`). For example:
+
+``` bash
+inspect eval ctf.py --model google/vertex/gemini-2.0-flash \
+   -M project=project-12345 -M location=us-east5
+```
+
+Authentication is done using the standard Google Cloud CLI. For example:
+
+``` bash
+gcloud auth application-default login
+```
+
+If you have authorised the CLI then no additional auth is needed for the
+model API.
+
 ### Safety Settings
 
 Google models make available [safety
 settings](https://ai.google.dev/gemini-api/docs/safety-settings) that
 you can adjust to determine what sorts of requests will be handled (or
-refused) by the model. The four categories of safety settings are as
+refused) by the model. The five categories of safety settings are as
 follows:
 
-| Category | Description |
-|----|----|
-| `sexually_explicit` | Contains references to sexual acts or other lewd content. |
-| `hate_speech` | Content that is rude, disrespectful, or profane. |
-| `harassment` | Negative or harmful comments targeting identity and/or protected attributes. |
-| `dangerous_content` | Promotes, facilitates, or encourages harmful acts. |
+| Category            | Description                                                                  |
+|---------------------|------------------------------------------------------------------------------|
+| `civic_integrity`   | Election-related queries.                                                    |
+| `sexually_explicit` | Contains references to sexual acts or other lewd content.                    |
+| `hate_speech`       | Content that is rude, disrespectful, or profane.                             |
+| `harassment`        | Negative or harmful comments targeting identity and/or protected attributes. |
+| `dangerous_content` | Promotes, facilitates, or encourages harmful acts.                           |
 
 For each category, the following block thresholds are available:
 
-| Block Threshold | Description |
-|----|----|
-| `none` | Always show regardless of probability of unsafe content |
-| `only_high` | Block when high probability of unsafe content |
-| `medium_and_above` | Block when medium or high probability of unsafe content |
-| `low_and_above` | Block when low, medium or high probability of unsafe content |
+| Block Threshold    | Description                                                  |
+|--------------------|--------------------------------------------------------------|
+| `none`             | Always show regardless of probability of unsafe content      |
+| `only_high`        | Block when high probability of unsafe content                |
+| `medium_and_above` | Block when medium or high probability of unsafe content      |
+| `low_and_above`    | Block when low, medium or high probability of unsafe content |
 
 By default, Inspect sets all four categories to `none` (enabling all
 content). You can override these defaults by using the `safety_settings`
@@ -217,9 +249,9 @@ the constructor of the `Mistral` class.
 The following environment variables are supported by the Mistral
 provider
 
-| Variable | Description |
-|----|----|
-| `MISTRAL_API_KEY` | API key credentials (required). |
+| Variable           | Description                                                            |
+|--------------------|------------------------------------------------------------------------|
+| `MISTRAL_API_KEY`  | API key credentials (required).                                        |
 | `MISTRAL_BASE_URL` | Base URL for requests (optional, defaults to `https://api.mistral.ai`) |
 
 ### Mistral on Azure AI
@@ -255,9 +287,9 @@ constructor of the `AsyncOpenAI` class.
 
 The following environment variables are supported by the Grok provider
 
-| Variable | Description |
-|----|----|
-| `GROK_API_KEY` | API key credentials (required). |
+| Variable        | Description                                                         |
+|-----------------|---------------------------------------------------------------------|
+| `GROK_API_KEY`  | API key credentials (required).                                     |
 | `GROK_BASE_URL` | Base URL for requests (optional, defaults to `https://api.x.ai/v1`) |
 
 ## AWS Bedrock
@@ -338,10 +370,16 @@ with `emulate_tools=false`.
 
 > [!NOTE]
 >
-> Vertex AI is a distinct service from Google AI, see a comparison
-> matrix
-> [here](https://cloud.google.com/vertex-ai/generative-ai/docs/migrate/migrate-google-ai#google-ai).
-> Make sure you are using the appropriate model provider.
+> If you are using Gemini or Anthropic models on Vertex AI, we recommend
+> you use the Google and Anthropic providers (respectively) which both
+> support models hosted on Vertex:
+>
+> - [Anthropic on Vertex AI](#anthropic-on-vertex-ai)
+> - [Gemini on Vertex AI](#gemini-on-vertex-ai)
+>
+> If you are using other models hosted on Vertex (e.g. Mistral, Llama,
+> Gemma, etc.) then you should instead use the `vertex` provider as
+> described below.
 
 To use the [Vertex AI](https://cloud.google.com/vertex-ai) provider,
 install the `google-cloud-aiplatform` package, [configure your
@@ -349,7 +387,7 @@ environment](https://cloud.google.com/vertex-ai/generative-ai/docs/start/quickst
 for Vertex API access, and specify a model using the `--model` option:
 
 ``` bash
-inspect eval eval.py --model vertex/gemini-1.5-flash
+inspect eval eval.py --model vertex/mistral-large-2411
 ```
 
 The core libraries for Vertex AI interact directly with Google Cloud
@@ -359,9 +397,6 @@ environment variables.
 
 Vertex AI also provides the same `safety_settings` outlined in the
 [Google](#safety-settings) provider.
-
-If you are using Anthropic on Vertex AI, you can alternatively use the
-[Anthropic provider](#anthropic-on-vertex-ai) as your means of access.
 
 ## Together AI
 
@@ -382,9 +417,9 @@ the constructor of the `AsyncOpenAI` class.
 The following environment variables are supported by the Together AI
 provider
 
-| Variable | Description |
-|----|----|
-| `TOGETHER_API_KEY` | API key credentials (required). |
+| Variable            | Description                                                                 |
+|---------------------|-----------------------------------------------------------------------------|
+| `TOGETHER_API_KEY`  | API key credentials (required).                                             |
 | `TOGETHER_BASE_URL` | Base URL for requests (optional, defaults to `https://api.together.xyz/v1`) |
 
 ## Groq
@@ -404,9 +439,9 @@ constructor of the `AsyncGroq` class.
 
 The following environment variables are supported by the Groq provider
 
-| Variable | Description |
-|----|----|
-| `GROQ_API_KEY` | API key credentials (required). |
+| Variable        | Description                                                          |
+|-----------------|----------------------------------------------------------------------|
+| `GROQ_API_KEY`  | API key credentials (required).                                      |
 | `GROQ_BASE_URL` | Base URL for requests (optional, defaults to `https://api.groq.com`) |
 
 ## Cloudflare
@@ -427,11 +462,11 @@ fields in the post body of the chat request.
 The following environment variables are supported by the Cloudflare
 provider:
 
-| Variable | Description |
-|----|----|
-| `CLOUDFLARE_ACCOUNT_ID` | Account id (required). |
-| `CLOUDFLARE_API_TOKEN` | API key credentials (required). |
-| `CLOUDFLARE_BASE_URL` | Base URL for requests (optional, defaults to `https://api.cloudflare.com/client/v4/accounts`) |
+| Variable                | Description                                                                                   |
+|-------------------------|-----------------------------------------------------------------------------------------------|
+| `CLOUDFLARE_ACCOUNT_ID` | Account id (required).                                                                        |
+| `CLOUDFLARE_API_TOKEN`  | API key credentials (required).                                                               |
+| `CLOUDFLARE_BASE_URL`   | Base URL for requests (optional, defaults to `https://api.cloudflare.com/client/v4/accounts`) |
 
 ## Goodfire
 
@@ -451,9 +486,9 @@ For the `goodfire` provider, custom model args (`-M`) are forwarded to
 The following environment variables are supported by the Goodfire
 provider
 
-| Variable | Description |
-|----|----|
-| `GOODFIRE_API_KEY` | API key credentials (required). |
+| Variable            | Description                                                             |
+|---------------------|-------------------------------------------------------------------------|
+| `GOODFIRE_API_KEY`  | API key credentials (required).                                         |
 | `GOODFIRE_BASE_URL` | Base URL for requests (optional, defaults to `https://api.goodfire.ai`) |
 
 ## Hugging Face
@@ -620,8 +655,8 @@ berore using it with Inspect.
 
 The following environment variables are supported by the Ollma provider
 
-| Variable | Description |
-|----|----|
+| Variable          | Description                                                               |
+|-------------------|---------------------------------------------------------------------------|
 | `OLLAMA_BASE_URL` | Base URL for requests (optional, defaults to `http://localhost:11434/v1`) |
 
 ## Llama-cpp-python
@@ -644,8 +679,8 @@ running on your system before using it with Inspect.
 The following environment variables are supported by the
 llama-cpp-python provider
 
-| Variable | Description |
-|----|----|
+| Variable                    | Description                                                              |
+|-----------------------------|--------------------------------------------------------------------------|
 | `LLAMA_CPP_PYTHON_BASE_URL` | Base URL for requests (optional, defaults to `http://localhost:8000/v1`) |
 
 ## OpenRouter
@@ -665,18 +700,18 @@ For the `openrouter` provider, the following custom model args (`-M`)
 are supported (click the argument name to see its docs on the OpenRouter
 site):
 
-| Argument | Example |
-|----|----|
+| Argument                                                                           | Example                                                           |
+|------------------------------------------------------------------------------------|-------------------------------------------------------------------|
 | [`models`](https://openrouter.ai/docs/features/model-routing#the-models-parameter) | `-M "models=anthropic/claude-3.5-sonnet, gryphe/mythomax-l2-13b"` |
-| [`provider`](https://openrouter.ai/docs/features/provider-routing) | `-M "provider={ 'quantizations': ['int8'] }"` |
-| [`transforms`](https://openrouter.ai/docs/features/message-transforms) | `-M "transforms=['middle-out']"` |
+| [`provider`](https://openrouter.ai/docs/features/provider-routing)                 | `-M "provider={ 'quantizations': ['int8'] }"`                     |
+| [`transforms`](https://openrouter.ai/docs/features/message-transforms)             | `-M "transforms=['middle-out']"`                                  |
 
 The following environment variables are supported by the OpenRouter AI
 provider
 
-| Variable | Description |
-|----|----|
-| `OPENROUTER_API_KEY` | API key credentials (required). |
+| Variable              | Description                                                                  |
+|-----------------------|------------------------------------------------------------------------------|
+| `OPENROUTER_API_KEY`  | API key credentials (required).                                              |
 | `OPENROUTER_BASE_URL` | Base URL for requests (optional, defaults to `https://openrouter.ai/api/v1`) |
 
 ## Custom Models

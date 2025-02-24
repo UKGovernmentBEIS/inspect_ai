@@ -60,12 +60,9 @@ Reasoning traces are currently captured in two ways:
     (this is how Together, Groq, and Ollama currently present reasoning
     traces).
 
-Gemini 2.0 Flash Thinking currently includes its reasoning inline with
-response content (there is currently no structured way to extract it,
-although this seems likely to change in the future).
-
-We have confirmed that `reasoning` traces can be extracted from models
-using the `together`, `groq`, and `ollama` providers.
+3.  Using the `Final Answer:` delimiter currently used by Gemini 2.0
+    Flash Thinking (the API has a separate field for `thinking` but it
+    is not currently used in responses).
 
 We would like to confirm this for other providers (e.g. `bedrock` and
 `azureai`) but as of yet have not been able to access reasoning models

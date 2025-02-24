@@ -7,12 +7,12 @@ Inspect has support for a wide variety of language model APIs and can be
 extended to support arbitrary additional ones. Support for the following
 providers is built in to Inspect:
 
-|  |  |
-|----|----|
-| Lab APIs | [OpenAI](providers.qmd#openai), [Anthropic](providers.qmd#anthropic), [Google](providers.qmd#google), [Grok](providers.qmd#grok), [Mistral](providers.qmd#mistral) |
-| Cloud APIs | [AWS Bedrock](providers.qmd#aws-bedrock), [Azure AI](providers.qmd#azure-ai), [Vertex AI](providers.qmd#vertex-ai) |
-| Open (Hosted) | [Groq](providers.qmd#groq), [Together AI](providers.qmd#together-ai), [Cloudflare](providers.qmd#cloudflare), [Goodfire](providers.qmd#goodfire) |
-| Open (Local) | [Hugging Face](providers.qmd#hugging-face), [vLLM](providers.qmd#vllm), [Ollama](providers.qmd#ollama), [Lllama-cpp-python](providers.qmd#llama-cpp-python) |
+|               |                                                                                                                                                                    |
+|---------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Lab APIs      | [OpenAI](providers.qmd#openai), [Anthropic](providers.qmd#anthropic), [Google](providers.qmd#google), [Grok](providers.qmd#grok), [Mistral](providers.qmd#mistral) |
+| Cloud APIs    | [AWS Bedrock](providers.qmd#aws-bedrock), [Azure AI](providers.qmd#azure-ai), [Vertex AI](providers.qmd#vertex-ai)                                                 |
+| Open (Hosted) | [Groq](providers.qmd#groq), [Together AI](providers.qmd#together-ai), [Cloudflare](providers.qmd#cloudflare), [Goodfire](providers.qmd#goodfire)                   |
+| Open (Local)  | [Hugging Face](providers.qmd#hugging-face), [vLLM](providers.qmd#vllm), [Ollama](providers.qmd#ollama), [Lllama-cpp-python](providers.qmd#llama-cpp-python)        |
 
 If the provider you are using is not listed above, you may still be able
 to use it if:
@@ -69,14 +69,14 @@ direct calls to `eval()`. For example:
 
 ``` bash
 inspect eval arc.py --model openai/gpt-4 --temperature 0.9
-inspect eval arc.py --model google/gemini-1.0-pro --max-connections 20
+inspect eval arc.py --model google/gemini-1.5-pro --max-connections 20
 ```
 
 Or:
 
 ``` python
 eval("arc.py", model="openai/gpt-4", temperature=0.9)
-eval("arc.py", model="google/gemini-1.0-pro", max_connections=20)
+eval("arc.py", model="google/gemini-1.5-pro", max_connections=20)
 ```
 
 Use `inspect eval --help` to learn about all of the available generation
@@ -87,10 +87,10 @@ config options.
 If there is an additional aspect of a model you want to tweak that isn’t
 covered by the `GenerateConfig`, you can use model args to pass
 additional arguments to model clients. For example, here we specify the
-`transport` option for a Google Gemini model:
+`location` option for a Google Gemini model:
 
 ``` bash
-inspect eval arc.py --model google/gemini-1.0-pro -M transport:grpc
+inspect eval arc.py --model google/gemini-1.5-pro -M location=us-east5
 ```
 
 See the documentation for the requisite model provider for information
