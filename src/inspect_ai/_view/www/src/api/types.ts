@@ -96,6 +96,9 @@ export interface BasicSampleData {
 export interface Capabilities {
   downloadFiles: boolean;
   webWorkers: boolean;
+  streamSamples: boolean;
+  streamSampleData: boolean;
+  nativeFind: boolean;
 }
 
 export interface LogViewAPI {

@@ -11,10 +11,8 @@ import "prismjs/themes/prism.css";
 
 import "../App.css";
 
-import { AppErrorBoundary } from "./AppErrorBoundary";
 import { ErrorPanel } from "./components/ErrorPanel";
 import { ProgressBar } from "./components/ProgressBar";
-import { clearDocumentSelection } from "./utils/browser";
 import { debounce, sleep } from "./utils/sync";
 
 import { FindBand } from "./components/FindBand";
@@ -47,6 +45,7 @@ import {
   PendingSamples,
   SampleSummary,
 } from "./api/types.ts";
+import { useAppContext } from "./AppContext.tsx";
 import {
   kEvalWorkspaceTabId,
   kInfoWorkspaceTabId,
@@ -58,13 +57,7 @@ import {
   createSamplesDescriptor,
 } from "./samples/descriptor/samplesDescriptor.tsx";
 import { getAvailableScorers, getDefaultScorer } from "./scoring/utils.ts";
-import {
-  ApplicationState,
-  AppStatus,
-  Capabilities,
-  ScoreFilter,
-  ScoreLabel,
-} from "./types.ts";
+import { ApplicationState, ScoreFilter, ScoreLabel } from "./types.ts";
 import { EvalSample, Timeout } from "./types/log";
 
 interface AppProps {
@@ -72,7 +65,6 @@ interface AppProps {
   applicationState?: ApplicationState;
   saveApplicationState?: (state: ApplicationState) => void;
   pollForLogs: boolean;
-  capabilities: Capabilities;
 }
 
 /**
@@ -83,8 +75,10 @@ export const App: FC<AppProps> = ({
   applicationState,
   saveApplicationState,
   pollForLogs = true,
-  capabilities,
 }) => {
+  // Application Context
+  const appContext = useAppContext();
+
   // List of Logs
   const [logs, setLogs] = useState<LogFiles>(
     applicationState?.logs || { log_dir: "", files: [] },
@@ -131,26 +125,16 @@ export const App: FC<AppProps> = ({
   const sampleScrollPosition = useRef<number>(
     applicationState?.sampleScrollPosition || 0,
   );
+
+  // Tracks the currently loading sample index (so we can ignore subsequent requests)
   const loadingSampleIndexRef = useRef<number | null>(null);
+
   const workspaceTabScrollPosition = useRef<Record<string, number>>(
     applicationState?.workspaceTabScrollPosition || {},
   );
 
   const [showingSampleDialog, setShowingSampleDialog] = useState<boolean>(
     !!applicationState?.showingSampleDialog,
-  );
-
-  // App loading status
-  const [status, setStatus] = useState<AppStatus>(
-    applicationState?.status || { loading: false },
-  );
-
-  // Other application state
-  const [offcanvas, setOffcanvas] = useState<boolean>(
-    applicationState?.offcanvas || false,
-  );
-  const [showFind, setShowFind] = useState<boolean>(
-    applicationState?.showFind || false,
   );
 
   // Filtering and sorting
@@ -188,14 +172,13 @@ export const App: FC<AppProps> = ({
       selectedSampleTab,
       showingSampleDialog,
       status,
-      offcanvas,
-      showFind,
       filter,
       epoch,
       sort,
       score,
       sampleScrollPosition: sampleScrollPosition.current,
       workspaceTabScrollPosition: workspaceTabScrollPosition.current,
+      ...appContext.getState(),
     };
     if (saveApplicationState) {
       saveApplicationState(state);
@@ -214,8 +197,7 @@ export const App: FC<AppProps> = ({
     selectedSampleTab,
     showingSampleDialog,
     status,
-    offcanvas,
-    showFind,
+    appContext.getState,
     filter,
     epoch,
     sort,
@@ -267,8 +249,7 @@ export const App: FC<AppProps> = ({
     selectedSampleTab,
     showingSampleDialog,
     status,
-    offcanvas,
-    showFind,
+    appContext.getState,
     filter,
     epoch,
     sort,
@@ -525,7 +506,10 @@ export const App: FC<AppProps> = ({
       } catch (e) {
         // Show an error
         console.log(e);
-        setStatus({ loading: false, error: e as Error });
+        appContext.dispatch({
+          type: "SET_STATUS",
+          payload: { loading: false, error: e as Error },
+        });
       }
     },
     [api],
@@ -655,17 +639,23 @@ export const App: FC<AppProps> = ({
           (e.message === "Load failed" || e.message === "Failed to fetch")
         ) {
           // This will happen if the server disappears (e.g. inspect view is terminated)
-          setStatus({ loading: false });
+          appContext.dispatch({
+            type: "SET_STATUS",
+            payload: { loading: false },
+          });
         } else {
           console.log(e);
-          setStatus({ loading: false, error: e as Error });
+          appContext.dispatch({
+            type: "SET_STATUS",
+            payload: { loading: false, error: e as Error },
+          });
         }
       }
       setHeadersLoading(false);
     };
 
     loadHeaders();
-  }, [logs, setStatus, setLogHeaders, setHeadersLoading]);
+  }, [logs, appContext.dispatch, setLogHeaders, setHeadersLoading]);
 
   /**
    * Resets the workspace tab based on the provided log's state.
@@ -718,7 +708,10 @@ export const App: FC<AppProps> = ({
       const targetLog = logs.files[selectedLogIndex];
       if (targetLog) {
         try {
-          setStatus({ loading: true, error: undefined });
+          appContext.dispatch({
+            type: "SET_STATUS",
+            payload: { loading: true, error: undefined },
+          });
           const logContents = await loadLog(targetLog.name);
           if (logContents) {
             // Don't reset the workspace if this is the first
@@ -737,23 +730,32 @@ export const App: FC<AppProps> = ({
             // Remember we selected this
             lastSelectedIndex.current = selectedLogIndex;
 
-            setStatus({ loading: false, error: undefined });
+            appContext.dispatch({
+              type: "SET_STATUS",
+              payload: { loading: false, error: undefined },
+            });
           }
         } catch (e) {
           console.log(e);
-          setStatus({ loading: false, error: e as Error });
+          appContext.dispatch({
+            type: "SET_STATUS",
+            payload: { loading: false, error: e as Error },
+          });
         }
       } else if (logs.log_dir && logs.files.length === 0) {
-        setStatus({
-          loading: false,
-          error: new Error(
-            `No log files to display in the directory ${logs.log_dir}. Are you sure this is the correct log directory?`,
-          ),
+        appContext.dispatch({
+          type: "SET_STATUS",
+          payload: {
+            loading: false,
+            error: new Error(
+              `No log files to display in the directory ${logs.log_dir}. Are you sure this is the correct log directory?`,
+            ),
+          },
         });
       }
     };
     loadSpecificLog();
-  }, [selectedLogIndex, logs, setSelectedLogSummary, setStatus]);
+  }, [selectedLogIndex, logs, setSelectedLogSummary, appContext.dispatch]);
 
   // Load the list of logs
   const loadLogs = async (): Promise<LogFiles> => {
@@ -764,14 +766,21 @@ export const App: FC<AppProps> = ({
     } catch (e) {
       // Show an error
       console.log(e);
-      setStatus({ loading: false, error: e as Error });
+      appContext.dispatch({
+        type: "SET_STATUS",
+        payload: { loading: false, error: e as Error },
+      });
       return { log_dir: "", files: [] };
     }
   };
 
   const refreshLog = useCallback(async () => {
     try {
-      setStatus({ loading: true, error: undefined });
+      appContext.dispatch({
+        type: "SET_STATUS",
+        payload: { loading: true, error: undefined },
+      });
+
       const targetLog = logs.files[selectedLogIndex];
       const logContents = await loadLog(targetLog.name);
       if (logContents) {
@@ -797,14 +806,26 @@ export const App: FC<AppProps> = ({
         // Reset the workspace tab
         resetWorkspace(log, sampleSummaries);
 
-        setStatus({ loading: false, error: undefined });
+        appContext.dispatch({
+          type: "SET_STATUS",
+          payload: { loading: false, error: undefined },
+        });
       }
     } catch (e) {
       // Show an error
       console.log(e);
-      setStatus({ loading: false, error: e as Error });
+      appContext.dispatch({
+        type: "SET_STATUS",
+        payload: { loading: false, error: e as Error },
+      });
     }
-  }, [logs, selectedLogIndex, sampleSummaries, setStatus, setLogHeaders]);
+  }, [
+    logs,
+    selectedLogIndex,
+    sampleSummaries,
+    appContext.dispatch,
+    setLogHeaders,
+  ]);
 
   const showLogFile = useCallback(
     async (logUrl: string) => {
@@ -962,13 +983,6 @@ export const App: FC<AppProps> = ({
   // if there are no log files, then don't show sidebar
   const fullScreen = logs.files.length === 1 && !logs.log_dir;
 
-  const hideFind = useCallback(() => {
-    clearDocumentSelection();
-    if (showFind) {
-      setShowFind(false);
-    }
-  }, [showFind, setShowFind]);
-
   const showToggle = logs.files.length > 1 || !!logs.log_dir || false;
 
   /**
@@ -983,18 +997,16 @@ export const App: FC<AppProps> = ({
   }, [sampleSummaries]);
 
   return (
-    <AppErrorBoundary>
+    <>
       {!fullScreen && selectedLogSummary ? (
         <Sidebar
           logs={logs}
           logHeaders={logHeaders}
           loading={headersLoading}
-          offcanvas={offcanvas}
-          setOffcanvas={setOffcanvas}
           selectedIndex={selectedLogIndex}
           onSelectedIndexChanged={(index) => {
             setSelectedLogIndex(index);
-            setOffcanvas(false);
+            appContext.dispatch({ type: "SET_OFFCANVAS", payload: false });
           }}
         />
       ) : undefined}
@@ -1003,7 +1015,7 @@ export const App: FC<AppProps> = ({
         className={clsx(
           "app-main-grid",
           fullScreen ? "full-screen" : undefined,
-          offcanvas ? "off-canvas" : undefined,
+          appContext.state.offcanvas ? "off-canvas" : undefined,
         )}
         tabIndex={0}
         onKeyDown={(e) => {
@@ -1013,18 +1025,22 @@ export const App: FC<AppProps> = ({
           }
 
           if ((e.ctrlKey || e.metaKey) && e.key === "f") {
-            setShowFind(true);
+            appContext.dispatch({ type: "SET_SHOW_FIND", payload: true });
           } else if (e.key === "Escape") {
-            hideFind();
+            appContext.dispatch({ type: "HIDE_FIND" });
           }
         }}
       >
-        {showFind ? <FindBand hideBand={hideFind} /> : ""}
-        <ProgressBar animating={status?.loading} />
-        {status?.error ? (
+        {!appContext.capabilities.nativeFind && appContext.state.showFind ? (
+          <FindBand />
+        ) : (
+          ""
+        )}
+        <ProgressBar animating={appContext.state.status.loading} />
+        {appContext.state.status.error ? (
           <ErrorPanel
             title="An error occurred while loading this task."
-            error={status.error}
+            error={appContext.state.status.error}
           />
         ) : (
           <WorkSpace
@@ -1047,9 +1063,6 @@ export const App: FC<AppProps> = ({
             sampleError={sampleError}
             samplesDescriptor={samplesDescriptor}
             refreshLog={refreshLog}
-            offcanvas={offcanvas}
-            setOffcanvas={setOffcanvas}
-            capabilities={capabilities}
             selectedSample={selectedSample}
             selectedSampleIndex={selectedSampleIndex}
             setSelectedSampleIndex={setSelectedSampleIndex}
@@ -1076,7 +1089,7 @@ export const App: FC<AppProps> = ({
           />
         )}
       </div>
-    </AppErrorBoundary>
+    </>
   );
 };
 

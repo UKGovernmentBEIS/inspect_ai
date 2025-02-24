@@ -7,13 +7,27 @@ import {
 import { ContentImage, ContentText, EvalSample } from "./types/log";
 
 export interface ApplicationState {
+  // Logs Context
   logs?: LogFiles;
-  selectedLogIndex?: number;
   logHeaders?: Record<string, EvalLogHeader>;
   headersLoading?: boolean;
+
+  // Log Context
+  selectedLogIndex?: number;
   selectedLogFile?: string;
   selectedLogSummary?: EvalSummary;
+  filteredSamples?: SampleSummary[];
+  filter?: ScoreFilter;
+  epoch?: string;
+  sort?: string;
+  scores?: ScoreLabel[];
+  score?: ScoreLabel;
+  groupBy?: "none" | "epoch" | "sample";
+  groupByOrder?: "asc" | "desc";
   selectedWorkspaceTab?: string;
+  workspaceTabScrollPosition?: Record<string, number>;
+
+  // Sample Context
   selectedSampleIndex?: number;
   selectedSample?: EvalSample;
   sampleStatus?: "loading" | "ok" | "error";
@@ -21,30 +35,18 @@ export interface ApplicationState {
   selectedSampleTab?: string;
   sampleScrollPosition?: number;
   showingSampleDialog?: boolean;
-  status?: AppStatus;
-  offcanvas?: boolean;
-  showFind?: boolean;
-  filter?: ScoreFilter;
-  epoch?: string;
-  sort?: string;
-  scores?: ScoreLabel[];
-  score?: ScoreLabel;
-  filteredSamples?: SampleSummary[];
-  groupBy?: "none" | "epoch" | "sample";
-  groupByOrder?: "asc" | "desc";
-  workspaceTabScrollPosition?: Record<string, number>;
+
+  // App Context
+  app: {
+    status?: AppStatus;
+    offcanvas?: boolean;
+    showFind?: boolean;
+  };
 }
 
 export interface AppStatus {
   loading: boolean;
   error?: Error;
-}
-
-export interface Capabilities {
-  downloadFiles: boolean;
-  webWorkers: boolean;
-  streamSamples: boolean;
-  streamSampleData: boolean;
 }
 
 export interface CurrentLog {

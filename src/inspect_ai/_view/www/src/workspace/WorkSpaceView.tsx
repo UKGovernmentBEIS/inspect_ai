@@ -22,7 +22,6 @@ import { debounce } from "../utils/sync";
 import { Navbar } from "./navbar/Navbar";
 import { TabDescriptor } from "./types";
 
-import { Capabilities } from "../types";
 import styles from "./WorkSpaceView.module.css";
 
 interface WorkSpaceViewProps {
@@ -40,11 +39,8 @@ interface WorkSpaceViewProps {
   selectedTab: string;
   setSelectedTab: (tab: string) => void;
   divRef: RefObject<HTMLDivElement | null>;
-  offcanvas: boolean;
-  setOffcanvas: (offcanvas: boolean) => void;
   workspaceTabScrollPositionRef: RefObject<Record<string, number>>;
   setWorkspaceTabScrollPosition: (tab: string, pos: number) => void;
-  capabilities: Capabilities;
 }
 
 export const WorkSpaceView: FC<WorkSpaceViewProps> = ({
@@ -62,11 +58,8 @@ export const WorkSpaceView: FC<WorkSpaceViewProps> = ({
   tabs,
   setSelectedTab,
   divRef,
-  offcanvas,
-  setOffcanvas,
   workspaceTabScrollPositionRef,
   setWorkspaceTabScrollPosition,
-  capabilities,
 }) => {
   const debouncedScroll = useMemo(() => {
     return debounce((id, position) => {
@@ -131,9 +124,6 @@ export const WorkSpaceView: FC<WorkSpaceViewProps> = ({
           status={status}
           file={logFileName}
           showToggle={showToggle}
-          offcanvas={offcanvas}
-          setOffcanvas={setOffcanvas}
-          capabilities={capabilities}
         />
         <div ref={divRef} className={clsx("workspace", styles.workspace)}>
           <div className={clsx("log-detail", styles.tabContainer)}>
