@@ -183,9 +183,9 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
         if isinstance(solver, Plan):
             plan = solver
         elif isinstance(solver, Chain):
-            plan = Plan(list(solver), internal=True)
+            plan = Plan(list(solver), cleanup=task.cleanup, internal=True)
         else:
-            plan = Plan(unroll(solver), internal=True)
+            plan = Plan(unroll(solver), cleanup=task.cleanup, internal=True)
 
         # add setup solver(s) if specified
         if task.setup:

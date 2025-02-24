@@ -242,6 +242,35 @@ def ctf(solver: Solver | None = None):
     )
 ```
 
+## Task Cleanup
+
+::: {.callout-note appearance="simple"}
+The task cleanup feature described below is currently available only in the development version of Inspect. To install the development version from GitHub:
+
+``` bash
+pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+```
+:::
+
+
+You can use the `cleanup` parameter for executing code at the end of each sample run. The `cleanup` function is passed the `TaskState` and is called for both successful runs and runs where are exception is thrown. Extending the example from above:
+
+```python
+async def ctf_cleanup(state: TaskState):
+    ## perform cleanup
+    ...
+
+Task(
+    dataset=read_dataset(),
+    setup=ctf_prompt(),
+    solver=solver,
+    cleanup=ctf_cleanup,
+    scorer=includes()
+)
+```
+
+Note that like solvers, cleanup functions should be `async`.
+
 ## Task Reuse {#task-reuse}
 
 The basic mechanism for task re-use is to create flexible and adaptable base `@task` functions (which often have many parameters) and then derive new higher-level tasks from them by creating additional `@task` functions that call the base function.
