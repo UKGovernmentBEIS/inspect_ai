@@ -64,7 +64,6 @@ interface AppProps {
   api: ClientAPI;
   applicationState?: ApplicationState;
   saveApplicationState?: (state: ApplicationState) => void;
-  pollForLogs: boolean;
 }
 
 /**
@@ -74,7 +73,6 @@ export const App: FC<AppProps> = ({
   api,
   applicationState,
   saveApplicationState,
-  pollForLogs = true,
 }) => {
   // Application Context
   const appContext = useAppContext();
@@ -939,41 +937,6 @@ export const App: FC<AppProps> = ({
       }
 
       new ClipboardJS(".clipboard-button,.copy-button");
-
-      if (pollForLogs) {
-        let retryDelay = 1000;
-        const maxRetryDelay = 60000;
-
-        const pollEvents = async () => {
-          try {
-            const events = await api.client_events();
-
-            if (events.includes("reload")) {
-              window.location.reload();
-            }
-
-            if (events.includes("refresh-evals")) {
-              const logs = await load();
-              setLogs(logs);
-              setSelectedLogIndex(0);
-            }
-
-            // Reset delay after a successful call
-            retryDelay = 1000;
-          } catch (error) {
-            console.error("Error fetching client events:", error);
-
-            // Exponential backoff with capping
-            retryDelay = Math.min(retryDelay * 2, maxRetryDelay);
-          } finally {
-            // Schedule the next poll
-            setTimeout(pollEvents, retryDelay);
-          }
-        };
-
-        // Start polling
-        pollEvents();
-      }
     };
 
     loadLogsAndState();
