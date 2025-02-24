@@ -54,7 +54,7 @@ from .util import (
     environment_prerequisite_error,
     model_base_url,
 )
-from .util.httpx import HttpxTimeTracker
+from .util.tracker import HttpxTimeTracker
 
 GROQ_API_KEY = "GROQ_API_KEY"
 

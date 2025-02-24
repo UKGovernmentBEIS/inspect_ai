@@ -5,7 +5,7 @@ from copy import copy
 from logging import getLogger
 from typing import Any, Literal, Tuple, TypedDict, cast
 
-from .util.httpx import HttpxTimeTracker
+from .util.tracker import HttpxTimeTracker
 
 if sys.version_info >= (3, 11):
     from typing import NotRequired

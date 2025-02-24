@@ -19,7 +19,7 @@ from .util import (
     is_chat_api_rate_limit,
     model_base_url,
 )
-from .util.httpx import HttpxTimeTracker
+from .util.tracker import HttpxTimeTracker
 
 # https://developers.cloudflare.com/workers-ai/models/#text-generation
 

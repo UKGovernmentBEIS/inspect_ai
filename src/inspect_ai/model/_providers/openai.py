@@ -21,7 +21,7 @@ from inspect_ai._util.constants import DEFAULT_MAX_RETRIES
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.logger import warn_once
 from inspect_ai.model._openai import chat_choices_from_openai
-from inspect_ai.model._providers.util.httpx import HttpxTimeTracker
+from inspect_ai.model._providers.util.tracker import HttpxTimeTracker
 from inspect_ai.tool import ToolChoice, ToolInfo
 
 from .._chat_message import ChatMessage
