@@ -6,6 +6,13 @@ import {
 } from "./api/types";
 import { ContentImage, ContentText, EvalSample } from "./types/log";
 
+// Define the state interface
+export interface AppState {
+  status: AppStatus;
+  offcanvas: boolean;
+  showFind: boolean;
+}
+
 export interface ApplicationState {
   // Logs Context
   logs?: LogFiles;
@@ -37,11 +44,7 @@ export interface ApplicationState {
   showingSampleDialog?: boolean;
 
   // App Context
-  app: {
-    status?: AppStatus;
-    offcanvas?: boolean;
-    showFind?: boolean;
-  };
+  app: AppState;
 }
 
 export interface AppStatus {
