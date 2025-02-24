@@ -125,7 +125,7 @@ Below are sections for the various categories of options supported by `inspect e
 | `--message-limit`    | Limit on total messages used for each sample.                                                                                                                         |
 | `--token-limit`      | Limit on total tokens used for each sample.                                                                                                                           |
 | `--time-limit`       | Limit on total running time for each sample.                                                                                                                        |
-| `--execution-limit`       | Limit on total execution time (model generation, tool calls, etc.) for each sample.                                                                                                                        |
+| `--working-limit`       | Limit on total working time (model generation, tool calls, etc.) for each sample.                                                                                                                        |
 
 ## Eval Logs
 
