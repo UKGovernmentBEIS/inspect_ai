@@ -7,19 +7,14 @@ import { SamplesTab } from "./tabs/SamplesTab";
 import clsx from "clsx";
 import { FC, MouseEvent, RefObject, useEffect, useMemo, useRef } from "react";
 import { RunningMetric, SampleSummary } from "../api/types.ts";
+import { useAppContext } from "../AppContext.tsx";
 import {
   kEvalWorkspaceTabId,
   kInfoWorkspaceTabId,
   kJsonWorkspaceTabId,
 } from "../constants";
 import { SamplesDescriptor } from "../samples/descriptor/samplesDescriptor";
-import {
-  Capabilities,
-  CurrentLog,
-  SampleMode,
-  ScoreFilter,
-  ScoreLabel,
-} from "../types.ts";
+import { CurrentLog, SampleMode, ScoreFilter, ScoreLabel } from "../types.ts";
 import {
   Epochs,
   EvalError,
@@ -54,7 +49,6 @@ interface WorkSpaceProps {
   sampleError?: Error;
   showToggle: boolean;
   refreshLog: () => Promise<void>;
-  capabilities: Capabilities;
   selectedSampleIndex: number;
   samplesDescriptor?: SamplesDescriptor;
   setSelectedSampleIndex: (index: number) => void;
@@ -72,8 +66,6 @@ interface WorkSpaceProps {
   score?: ScoreLabel;
   setScore: (score: ScoreLabel) => void;
   scores: ScoreLabel[];
-  offcanvas: boolean;
-  setOffcanvas: (offcanvas: boolean) => void;
   selectedTab: string;
   setSelectedTab: (id: string) => void;
   sampleScrollPositionRef: RefObject<number>;
@@ -97,14 +89,11 @@ export const WorkSpace: FC<WorkSpaceProps> = (props) => {
     runningMetrics,
     samples,
     showToggle,
-    offcanvas,
-    setOffcanvas,
     samplesDescriptor,
     selectedTab,
     setSelectedTab,
     workspaceTabScrollPositionRef,
     setWorkspaceTabScrollPosition,
-    capabilities,
   } = props;
 
   const divRef = useRef<HTMLDivElement>(null);
@@ -137,12 +126,9 @@ export const WorkSpace: FC<WorkSpaceProps> = (props) => {
       tabs={resolvedTabs}
       selectedTab={selectedTab}
       showToggle={showToggle}
-      offcanvas={offcanvas}
       setSelectedTab={setSelectedTab}
       workspaceTabScrollPositionRef={workspaceTabScrollPositionRef}
       setWorkspaceTabScrollPosition={setWorkspaceTabScrollPosition}
-      setOffcanvas={setOffcanvas}
-      capabilities={capabilities}
     />
   );
 };
@@ -202,11 +188,11 @@ const useResolvedTabs = ({
   evalStats,
   evalError,
   logFileName,
-  capabilities,
   selectedTab,
   refreshLog,
 }: WorkSpaceProps) => {
   const sampleTabScrollRef = useRef<HTMLDivElement>(null);
+  const appContext = useAppContext();
 
   const samplesTab =
     sampleMode !== "none"
@@ -260,14 +246,15 @@ const useResolvedTabs = ({
                     scores={scores}
                     sampleDescriptor={samplesDescriptor}
                   />,
-                  evalStatus === "started" && !capabilities.streamSamples && (
-                    <ToolButton
-                      key="refresh"
-                      label="Refresh"
-                      icon={ApplicationIcons.refresh}
-                      onClick={refreshLog}
-                    />
-                  ),
+                  evalStatus === "started" &&
+                    !appContext.capabilities.streamSamples && (
+                      <ToolButton
+                        key="refresh"
+                        label="Refresh"
+                        icon={ApplicationIcons.refresh}
+                        onClick={refreshLog}
+                      />
+                    ),
                 ].filter(Boolean),
         }
       : null;
@@ -306,7 +293,6 @@ const useResolvedTabs = ({
         <JsonTab
           logFile={logFileName}
           json={JSON.stringify(evalHeader, null, 2)}
-          capabilities={capabilities}
           selected={selectedTab === kJsonWorkspaceTabId}
         />
       );

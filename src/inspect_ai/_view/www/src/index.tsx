@@ -1,7 +1,10 @@
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
+import { AppProvider } from "./AppContext";
+import { AppErrorBoundary } from "./AppErrorBoundary";
 import api from "./api/index";
-import { ApplicationState, Capabilities } from "./types";
+import { Capabilities } from "./api/types";
+import { ApplicationState } from "./types";
 import { throttle } from "./utils/sync";
 import { getVscodeApi } from "./utils/vscode";
 
@@ -14,6 +17,7 @@ let capabilities: Capabilities = {
   webWorkers: true,
   streamSamples: !!resolvedApi.get_log_pending_samples,
   streamSampleData: !!resolvedApi.get_log_sample_data,
+  nativeFind: !vscode,
 };
 if (vscode) {
   initialState = filterState(vscode.getState() as ApplicationState);
@@ -43,18 +47,21 @@ if (!container) {
 
 const root = createRoot(container as HTMLElement);
 root.render(
-  <App
-    api={resolvedApi}
-    applicationState={initialState}
-    saveApplicationState={throttle((state) => {
-      const vscode = getVscodeApi();
-      if (vscode) {
-        vscode.setState(filterState(state));
-      }
-    }, 1000)}
-    capabilities={capabilities}
-    pollForLogs={false}
-  />,
+  <AppErrorBoundary>
+    <AppProvider capabilities={capabilities} initialState={initialState}>
+      <App
+        api={resolvedApi}
+        applicationState={initialState}
+        saveApplicationState={throttle((state) => {
+          const vscode = getVscodeApi();
+          if (vscode) {
+            vscode.setState(filterState(state));
+          }
+        }, 1000)}
+        pollForLogs={false}
+      />
+    </AppProvider>
+  </AppErrorBoundary>,
 );
 
 function filterState(state: ApplicationState) {
