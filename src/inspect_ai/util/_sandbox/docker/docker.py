@@ -5,7 +5,7 @@ import os
 import tempfile
 from logging import getLogger
 from pathlib import Path, PurePosixPath
-from typing import Literal, Union, cast, overload
+from typing import Literal, Union, overload
 
 from typing_extensions import override
 
@@ -221,9 +221,11 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         # (this enables us to show output for the cleanup operation)
         if not interrupted:
             # extract project from first environment
-            project = cast(
-                DockerSandboxEnvironment, next(iter(environments.values()))
-            )._project
+            project = (
+                next(iter(environments.values()))
+                .as_type(DockerSandboxEnvironment)
+                ._project
+            )
             # cleanup the project
             await project_cleanup(project=project, quiet=True)
 

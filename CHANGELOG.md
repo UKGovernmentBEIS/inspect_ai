@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Added `SandboxEvent` to transcript for recording sandbox execution and I/O.
+- Sandboxes: `as_type()` function for checked downcasting of `SandboxEnvironment`
 - Remove root logging handlers upon Inspect logger initialisation (as they result in lots of log spam if left installed).
 - Only explicitly set `state.completed=True` when entering scoring (`basic_agent()` no longer sets `completed` so can be used in longer compositions of solvers).
 - Add `uuid` property to `TaskState` and `EvalSample` (globally unique identifer for sample run).
