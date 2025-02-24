@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useRef } from "react";
+import { useAppContext } from "../AppContext";
 import { ApplicationIcons } from "../appearance/icons";
 import "./FindBand.css";
 
-interface FindBandProps {
-  hideBand: () => void;
-}
+interface FindBandProps {}
 
-export const FindBand: React.FC<FindBandProps> = ({ hideBand }) => {
+export const FindBand: React.FC<FindBandProps> = ({}) => {
+  const appContext = useAppContext();
   const searchBoxRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -81,15 +81,19 @@ export const FindBand: React.FC<FindBandProps> = ({ hideBand }) => {
     [getParentExpandablePanel],
   );
 
+  const hideFind = useCallback(() => {
+    appContext.dispatch({ type: "HIDE_FIND" });
+  }, [appContext.dispatch]);
+
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {
       if (e.key === "Escape") {
-        hideBand();
+        hideFind();
       } else if (e.key === "Enter") {
         handleSearch(false);
       }
     },
-    [hideBand, handleSearch],
+    [appContext.dispatch, handleSearch],
   );
 
   return (
@@ -121,7 +125,7 @@ export const FindBand: React.FC<FindBandProps> = ({ hideBand }) => {
         type="button"
         title="Close"
         className="btn close"
-        onClick={hideBand}
+        onClick={hideFind}
       >
         <i className={ApplicationIcons.close} />
       </button>

@@ -1,7 +1,6 @@
 import clsx from "clsx";
 import { RunningMetric, SampleSummary } from "../../api/types";
 import { EvalDescriptor } from "../../samples/descriptor/types";
-import { Capabilities } from "../../types";
 import {
   EvalPlan,
   EvalResults,
@@ -23,10 +22,7 @@ interface NavBarProps {
   evalDescriptor?: EvalDescriptor;
   samples?: SampleSummary[];
   status?: Status;
-  offcanvas: boolean;
-  setOffcanvas: (offcanvas: boolean) => void;
   showToggle: boolean;
-  capabilities: Capabilities;
 }
 
 /**
@@ -41,10 +37,7 @@ export const Navbar: React.FC<NavBarProps> = ({
   samples,
   evalDescriptor,
   showToggle,
-  offcanvas,
-  setOffcanvas,
   status,
-  capabilities,
   runningMetrics,
 }) => {
   return (
@@ -55,10 +48,7 @@ export const Navbar: React.FC<NavBarProps> = ({
         evalResults={evalResults}
         samples={samples}
         showToggle={showToggle}
-        offcanvas={offcanvas}
-        setOffcanvas={setOffcanvas}
         status={status}
-        capabilities={capabilities}
         runningMetrics={runningMetrics}
       />
       <SecondaryBar
