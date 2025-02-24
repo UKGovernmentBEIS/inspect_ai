@@ -9,6 +9,14 @@ from inspect_ai.util import (
     SandboxEnvironmentLimits,
 )
 
+# If you're wondering these tests are not using pytest fixtures,
+# see the discussion https://github.com/UKGovernmentBEIS/inspect_ai/pull/347
+# It's not ideal, so a PR to fix this would be welcome.
+#
+# If you are struggling to debug a failing one of these, two tips:
+# 1. Comment out everything apart from the failing test in the list in the `self_check` function
+# 2. Get rid of the try/catch in check_test_fn (the body can just be `await fn(sandbox_env); return True`
+
 
 async def check_test_fn(
     fn: Callable[[SandboxEnvironment], Coroutine[Any, Any, None]],
@@ -20,7 +28,7 @@ async def check_test_fn(
     except AssertionError as e:
         return f"FAILED: [{str(e)}]"
     except Exception as e:
-        return f"ERROR: {repr(e)}"
+        return f"ERROR: [{repr(e)}]"
 
 
 async def self_check(sandbox_env: SandboxEnvironment) -> dict[str, bool | str]:
@@ -514,10 +522,9 @@ async def test_exec_stdout_is_limited(sandbox_env: SandboxEnvironment) -> None:
     truncated_output = e_info.value.truncated_output
     # `yes` outputs 'y\n' (ASCII) so the size equals the string length.
     # some shells additionally output 'canceled\n' so we add fudge factor for that
-    assert truncated_output and (len(truncated_output) - 10 * 1024**2) < 10,  (
+    assert truncated_output and (len(truncated_output) - 10 * 1024**2) < 10, (
         f"output not truncated or wrong length; start of truncated output = {'' if not truncated_output else truncated_output[:10]}; len(truncated_output): {'n/a' if not truncated_output else len(truncated_output)}"
     )
-
 
 
 async def test_exec_stderr_is_limited(sandbox_env: SandboxEnvironment) -> None:
