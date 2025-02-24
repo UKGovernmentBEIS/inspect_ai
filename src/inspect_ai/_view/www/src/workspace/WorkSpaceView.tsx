@@ -78,6 +78,12 @@ export const WorkSpaceView: React.FC<WorkSpaceViewProps> = ({
     },
     [setSelectedTab],
   );
+  const handleScroll = useCallback(
+    (tabid: string, position: number) => {
+      onScroll(tabid, position);
+    },
+    [onScroll],
+  );
 
   if (evalSpec === undefined) {
     return <EmptyPanel />;
@@ -138,12 +144,9 @@ export const WorkSpaceView: React.FC<WorkSpaceViewProps> = ({
                     scrollPosition={
                       workspaceTabScrollPositionRef.current?.[tab.id]
                     }
-                    setScrollPosition={useCallback(
-                      (position: number) => {
-                        onScroll(tab.id, position);
-                      },
-                      [onScroll],
-                    )}
+                    setScrollPosition={(position: number) => {
+                      handleScroll(tab.id, position);
+                    }}
                   >
                     {tab.content()}
                   </TabPanel>

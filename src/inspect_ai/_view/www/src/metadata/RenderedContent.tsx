@@ -237,7 +237,6 @@ const contentRenderers: Record<string, ContentRenderer> = {
     },
     render: (id, entry) => {
       // Generate a json preview
-      console.log({ entry });
       return {
         rendered: (
           <MetaDataView
