@@ -141,8 +141,8 @@ class SamplesList(OptionList):
         if highlighted_sample and (highlighted_sample not in self.samples):
             self.samples.append(highlighted_sample)
 
-        # sort the samples by execution time
-        self.samples.sort(key=lambda sample: sample.execution_time, reverse=True)
+        # sort the samples by running time
+        self.samples.sort(key=lambda sample: sample.running_time, reverse=True)
 
         # rebuild the list
         self.clear_options()
@@ -154,9 +154,7 @@ class SamplesList(OptionList):
             table.add_column(width=1)
             task_name = Text.from_markup(f"{registry_unqualified_name(sample.task)}")
             task_name.truncate(18, overflow="ellipsis", pad=True)
-            task_time = Text.from_markup(
-                f"{format_progress_time(sample.execution_time)}"
-            )
+            task_time = Text.from_markup(f"{format_progress_time(sample.running_time)}")
             table.add_row(task_name, task_time, " ")
             sample_id = Text.from_markup(f"id: {sample.sample.id}")
             sample_id.truncate(18, overflow="ellipsis", pad=True)

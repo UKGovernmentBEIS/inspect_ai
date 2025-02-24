@@ -13888,7 +13888,8 @@ var require_assets = __commonJS({
         custom: "bi bi-person-workspace",
         operator: "bi bi-person-workspace",
         tokens: "bi bi-list",
-        time: "bi bi-stopwatch"
+        time: "bi bi-clock",
+        execution: "bi bi-stopwatch"
       },
       logging: loggingIcons,
       menu: "bi bi-list",
@@ -14270,7 +14271,7 @@ var require_assets = __commonJS({
     };
     const formatTime$1 = (seconds) => {
       if (seconds < 60) {
-        return `${seconds} sec`;
+        return `${formatPrettyDecimal(seconds, 1)} sec`;
       } else if (seconds < 60 * 60) {
         return `${Math.floor(seconds / 60)} min ${seconds % 60} sec`;
       } else if (seconds < 60 * 60 * 24) {
@@ -14286,12 +14287,12 @@ var require_assets = __commonJS({
         return `${days} days ${hours} hr ${minutes} min ${remainingSeconds} sec`;
       }
     };
-    function formatPrettyDecimal(num2) {
+    function formatPrettyDecimal(num2, maxDecimals = 3) {
       const numDecimalPlaces = num2.toString().includes(".") ? num2.toString().split(".")[1].length : 0;
       if (numDecimalPlaces === 0) {
         return num2.toFixed(1);
-      } else if (numDecimalPlaces > 3) {
-        return num2.toFixed(3);
+      } else if (numDecimalPlaces > maxDecimals) {
+        return num2.toFixed(maxDecimals);
       } else {
         return num2.toString();
       }
@@ -50144,19 +50145,21 @@ self.onmessage = function (e) {
       );
       return result2;
     };
-    const tabPanel = "_tabPanel_14odp_1";
-    const fullWidth = "_fullWidth_14odp_5";
-    const metadataPanel = "_metadataPanel_14odp_9";
-    const padded = "_padded_14odp_18";
-    const ansi = "_ansi_14odp_23";
-    const noTop = "_noTop_14odp_27";
+    const tabPanel = "_tabPanel_1isha_1";
+    const fullWidth = "_fullWidth_1isha_5";
+    const metadataPanel = "_metadataPanel_1isha_9";
+    const padded = "_padded_1isha_18";
+    const ansi = "_ansi_1isha_23";
+    const noTop = "_noTop_1isha_27";
+    const timePanel = "_timePanel_1isha_31";
     const styles$C = {
       tabPanel,
       fullWidth,
       metadataPanel,
       padded,
       ansi,
-      noTop
+      noTop,
+      timePanel
     };
     const flatBody = "_flatBody_gk2ju_1";
     const iconSmall$1 = "_iconSmall_gk2ju_9";
@@ -50183,17 +50186,19 @@ self.onmessage = function (e) {
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$B.lineBase), children: errorType(message2) })
       ] });
     };
-    const target = "_target_yamz4_1";
-    const answer = "_answer_yamz4_5";
-    const grid$3 = "_grid_yamz4_9";
-    const centerLabel = "_centerLabel_yamz4_17";
-    const wrap = "_wrap_yamz4_22";
+    const target = "_target_9qy4e_1";
+    const answer = "_answer_9qy4e_5";
+    const grid$3 = "_grid_9qy4e_9";
+    const centerLabel = "_centerLabel_9qy4e_17";
+    const wrap = "_wrap_9qy4e_22";
+    const titled = "_titled_9qy4e_26";
     const styles$A = {
       target,
       answer,
       grid: grid$3,
       centerLabel,
-      wrap
+      wrap,
+      titled
     };
     const SampleSummaryView = ({
       parent_id,
@@ -50205,6 +50210,7 @@ self.onmessage = function (e) {
       const target2 = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.normalized.target) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.normalized.target) : 0;
       const answer2 = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.normalized.answer) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.normalized.answer) : 0;
       const limitSize = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.normalized.limit) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.normalized.limit) : 0;
+      const timeSize = sample2.working_time || sample2.total_time ? 0.15 : 0;
       const idSize = Math.max(
         2,
         Math.min(10, sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.raw.id)
@@ -50259,6 +50265,21 @@ self.onmessage = function (e) {
           clamp: true
         });
       }
+      const toolTip = (working_time) => {
+        if (working_time === void 0 || working_time === null) {
+          return void 0;
+        }
+        return `Working time: ${formatTime$1(working_time)}`;
+      };
+      if (sample2.total_time) {
+        columns.push({
+          label: "Time",
+          value: formatTime$1(sample2.total_time),
+          size: `${timeSize}fr`,
+          center: true,
+          title: toolTip(sample2.working_time)
+        });
+      }
       if ((sample2 == null ? void 0 : sample2.limit) && limitSize > 0) {
         columns.push({
           label: "Limit",
@@ -50295,8 +50316,10 @@ self.onmessage = function (e) {
                     "text-style-label",
                     "text-style-secondary",
                     "text-size-base",
+                    col.title ? styles$A.titled : void 0,
                     col.center ? styles$A.centerLabel : void 0
                   ),
+                  title: col.title,
                   children: col.label
                 },
                 `sample-summ-lbl-${idx}`
@@ -51001,6 +51024,8 @@ self.onmessage = function (e) {
             return "Token Limit Exceeded";
           case "operator":
             return "Operator Canceled";
+          case "working":
+            return "Execution Time Limit Exceeded";
         }
       };
       const resolve_icon = (type) => {
@@ -51015,6 +51040,8 @@ self.onmessage = function (e) {
             return ApplicationIcons.limits.tokens;
           case "operator":
             return ApplicationIcons.limits.operator;
+          case "working":
+            return ApplicationIcons.limits.execution;
         }
       };
       const title2 = resolve_title(event.type);
@@ -58980,7 +59007,7 @@ ${events}
                 TabPanel,
                 {
                   id: kSampleMetdataTabId,
-                  className: "sample-tab",
+                  className: clsx("sample-tab"),
                   title: "Metadata",
                   onSelected: onSelectedTab,
                   selected: selectedTab === kSampleMetdataTabId,
@@ -59041,6 +59068,19 @@ ${events}
               }
             ) })
           ] }, `sample-usage-${id}`)
+        );
+      }
+      if (sample2.total_time !== void 0 && sample2.total_time !== null && sample2.working_time !== void 0 && sample2.working_time !== null) {
+        sampleMetadatas.push(
+          /* @__PURE__ */ jsxRuntimeExports.jsxs(Card, { children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx(CardHeader, { label: "Time" }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx(CardBody, { children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$C.timePanel, "text-size-smaller"), children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-label", "text-style-secondary"), children: "Working" }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: formatTime$1(sample2.working_time) }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-label", "text-style-secondary"), children: "Total" }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: formatTime$1(sample2.total_time) })
+            ] }) })
+          ] }, `sample-time-${id}`)
         );
       }
       if (Object.keys(sample2 == null ? void 0 : sample2.metadata).length > 0) {

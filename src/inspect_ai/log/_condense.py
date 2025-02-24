@@ -217,6 +217,7 @@ def walk_model_call(
         return ModelCall(
             request=walk_json_dict(call.request, content_fn),
             response=walk_json_dict(call.response, content_fn),
+            time=call.time,
         )
     else:
         return None

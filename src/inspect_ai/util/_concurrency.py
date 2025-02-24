@@ -1,13 +1,19 @@
 import asyncio
+import contextlib
+import time
 from dataclasses import dataclass
+from typing import AsyncIterator
+
+from inspect_ai._util.working import report_sample_waiting_time
 
 
-def concurrency(
+@contextlib.asynccontextmanager
+async def concurrency(
     name: str,
     concurrency: int,
     key: str | None = None,
-) -> asyncio.Semaphore:
-    """Obtain a concurrency context.
+) -> AsyncIterator[None]:
+    """Concurrency context manager.
 
     A concurrency context can be used to limit the number of coroutines
     executing a block of code (e.g calling an API). For example, here
@@ -32,9 +38,6 @@ def concurrency(
          Used if the unique key isn't human readable -- e.g. includes
          api tokens or account ids so that the more readable `name`
          can be presented to users e.g in console UI>
-
-    Returns:
-       Asyncio Semaphore for concurrency context.
     """
     # sort out key
     key = key if key else name
@@ -47,8 +50,11 @@ def concurrency(
         )
         _concurrency_semaphores[key] = semaphore
 
-    # return the semaphore
-    return semaphore.semaphore
+    # wait and yield to protected code
+    start_wait = time.monotonic()
+    async with semaphore.semaphore:
+        report_sample_waiting_time(time.monotonic() - start_wait)
+        yield
 
 
 def concurrency_status() -> dict[str, tuple[int, int]]:

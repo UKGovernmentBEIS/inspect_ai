@@ -1,5 +1,6 @@
 ## Unreleased
 
+- [working_limit](https://inspect.ai-safety-institute.org.uk/errors_and_limits.html#working-limit) option for specifying a maximum working time (e.g. model generation, tool calls, etc.) for samples.
 - Added `SandboxEvent` to transcript for recording sandbox execution and I/O.
 - Sandboxes: `as_type()` function for checked downcasting of `SandboxEnvironment`
 - Remove root logging handlers upon Inspect logger initialisation (as they result in lots of log spam if left installed).

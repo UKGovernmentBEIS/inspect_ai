@@ -7,15 +7,15 @@ class SampleLimitExceededError(Exception):
     """Exception raised when a sample limit is exceeded.
 
     Args:
-       type (Literal["message", "time", "token", "operator"]): Type of limit exceeded.
-       value (int): Value compared to
-       limit (int): Limit applied.
+       type: Type of limit exceeded.
+       value: Value compared to
+       limit: Limit applied.
        message (str | None): Optional. Human readable message.
     """
 
     def __init__(
         self,
-        type: Literal["message", "time", "token", "operator", "custom"],
+        type: Literal["message", "time", "working", "token", "operator", "custom"],
         *,
         value: int,
         limit: int,
