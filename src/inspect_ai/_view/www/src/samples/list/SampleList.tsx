@@ -71,13 +71,12 @@ export const SampleList: FC<SampleListProps> = (props) => {
   const prevSelectedIndexRef = useRef<number>(null);
   useEffect(() => {
     const listEl = listHandle.current;
-    if (listEl) {
+    if (listEl && itemRowMapping.length > selectedIndex) {
+      const actualRowIndex = itemRowMapping[selectedIndex];
+
       requestAnimationFrame(() => {
-        setTimeout(() => {
-          const actualRowIndex = itemRowMapping[selectedIndex];
-          listEl.scrollToIndex(actualRowIndex);
-          prevSelectedIndexRef.current = actualRowIndex;
-        }, 10);
+        listEl.scrollToIndex(actualRowIndex);
+        prevSelectedIndexRef.current = actualRowIndex;
       });
     }
   }, [selectedIndex, listHandle, itemRowMapping]);
