@@ -187,9 +187,9 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
         if isinstance(solver, Plan):
             plan = solver
         elif isinstance(solver, Chain):
-            plan = Plan(list(solver), internal=True)
+            plan = Plan(list(solver), cleanup=task.cleanup, internal=True)
         else:
-            plan = Plan(unroll(solver), internal=True)
+            plan = Plan(unroll(solver), cleanup=task.cleanup, internal=True)
 
         # add setup solver(s) if specified
         if task.setup:
@@ -851,6 +851,7 @@ async def log_sample(
         output=state.output,
         scores={k: v.score for k, v in scores.items()},
         store=dict(state.store.items()),
+        uuid=state.uuid,
         events=list(transcript().events),
         model_usage=sample_model_usage(),
         total_time=round(total_time, 3) if total_time is not None else None,

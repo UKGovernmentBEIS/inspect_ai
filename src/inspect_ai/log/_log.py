@@ -229,6 +229,9 @@ class EvalSample(BaseModel):
     working_time: float | None = Field(default=None)
     """Time spent working (model generation, sandbox calls, etc.)"""
 
+    uuid: str | None = Field(default=None)
+    """Globally unique identifier for sample run (exists for samples created in Inspect >= 0.3.70)"""
+
     error: EvalError | None = Field(default=None)
     """Error that halted sample."""
 

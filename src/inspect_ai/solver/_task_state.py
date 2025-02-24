@@ -7,6 +7,7 @@ from random import Random
 from typing import Any, Iterable, SupportsIndex, Type, Union, cast, overload
 
 from pydantic_core import to_jsonable_python
+from shortuuid import uuid
 
 from inspect_ai._util.interrupt import check_sample_interrupt
 from inspect_ai.dataset._dataset import MT, Sample, metadata_as
@@ -165,6 +166,7 @@ class TaskState:
         self._token_limit = token_limit
         self._completed = completed
         self._store = Store()
+        self._uuid = uuid()
 
         if choices:
             self.choices = Choices(choices)
@@ -372,6 +374,11 @@ class TaskState:
 
     scores: dict[str, Score] | None = None
     """Scores yielded by running task."""
+
+    @property
+    def uuid(self) -> str:
+        """Globally unique identifier for sample run."""
+        return self._uuid
 
     def metadata_as(self, metadata_cls: Type[MT]) -> MT:
         """Pydantic model interface to metadata.
