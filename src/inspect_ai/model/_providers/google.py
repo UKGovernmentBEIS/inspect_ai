@@ -229,6 +229,8 @@ class GoogleGenAIAPI(ModelAPI):
                 response=response,
             )
 
+        # TODO: would need to monkey patch AuthorizedSession.request
+
         try:
             response = await self.client.aio.models.generate_content(
                 model=self.model_name,

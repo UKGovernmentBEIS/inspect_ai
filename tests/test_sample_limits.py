@@ -15,10 +15,11 @@ from inspect_ai.scorer._scorer import Scorer, scorer
 from inspect_ai.scorer._target import Target
 from inspect_ai.solver import Generate, TaskState, solver
 from inspect_ai.solver._solver import Solver
+from inspect_ai.util._concurrency import concurrency
 
 
 @solver
-def looping_solver(check_tokens: bool = False):
+def looping_solver(check_tokens: bool = False, sleep_for: float | None = None):
     async def solve(state: TaskState, generate: Generate):
         # first generate
         state = await generate(state)
@@ -29,8 +30,22 @@ def looping_solver(check_tokens: bool = False):
 
         # keep generating until we hit a limit
         while True:
+            if sleep_for:
+                await asyncio.sleep(sleep_for)
             state.messages.append(state.user_prompt)
             state = await generate(state)
+
+        return state
+
+    return solve
+
+
+@solver
+def looping_concurrecy_solver():
+    async def solve(state: TaskState, generate: Generate):
+        # simulate waiting for shared resource
+        async with concurrency("shared-resource", 1):
+            await asyncio.sleep(1)
 
         return state
 
@@ -169,6 +184,38 @@ def test_solver_timeout_not_scored():
         time_limit=2,
     )[0]
     assert log.status == "error"
+
+
+def test_working_limit():
+    working_limit = 3
+    log = eval(
+        Task(solver=looping_solver(sleep_for=1)),
+        model="mockllm/model",
+        working_limit=working_limit,
+    )[0]
+    check_working_limit_event(log, working_limit)
+
+
+def test_working_limit_reporting():
+    log = eval(
+        Task(
+            dataset=[Sample(id=id, input=f"Input for {id}") for id in range(0, 3)],
+            solver=looping_concurrecy_solver(),
+        ),
+        model="mockllm/model",
+    )[0]
+    assert log.samples
+    for index, sample in enumerate(log.samples):
+        assert (sample.total_time - sample.working_time) >= index
+
+
+def check_working_limit_event(log: EvalLog, working_limit: int):
+    assert log.eval.config.working_limit == working_limit
+    assert log.samples
+    assert log.samples[0].total_time
+    assert log.samples[0].working_time
+    assert log.samples[0].total_time > log.samples[0].working_time
+    check_limit_event(log, "working")
 
 
 def check_limit_event(log: EvalLog, content: str) -> None:

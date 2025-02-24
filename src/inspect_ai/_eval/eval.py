@@ -75,6 +75,7 @@ def eval(
     message_limit: int | None = None,
     token_limit: int | None = None,
     time_limit: int | None = None,
+    working_limit: int | None = None,
     max_samples: int | None = None,
     max_tasks: int | None = None,
     max_subprocesses: int | None = None,
@@ -132,7 +133,10 @@ def eval(
             so they can be debugged (defaults to False).
         message_limit: Limit on total messages used for each sample.
         token_limit: Limit on total tokens used for each sample.
-        time_limit: Limit on time (in seconds) for execution of each sample.
+        time_limit: Limit on clock time (in seconds) for samples.
+        working_limit: Limit on working time (in seconds) for sample. Working
+            time includes model generation, tool calls, etc. but does not include
+            time spent waiting on retries or shared resources.
         max_samples: Maximum number of samples to run in parallel
             (default is max_connections)
         max_tasks: Maximum number of tasks to run in parallel
@@ -186,6 +190,7 @@ def eval(
             message_limit=message_limit,
             token_limit=token_limit,
             time_limit=time_limit,
+            working_limit=working_limit,
             max_samples=max_samples,
             max_tasks=max_tasks,
             max_subprocesses=max_subprocesses,
@@ -227,6 +232,7 @@ async def eval_async(
     message_limit: int | None = None,
     token_limit: int | None = None,
     time_limit: int | None = None,
+    working_limit: int | None = None,
     max_samples: int | None = None,
     max_tasks: int | None = None,
     max_subprocesses: int | None = None,
@@ -281,7 +287,10 @@ async def eval_async(
            so they can be debugged (defaults to False).
         message_limit (int | None): Limit on total messages used for each sample.
         token_limit (int | None): Limit on total tokens used for each sample.
-        time_limit (int | None): Limit on time (in seconds) for execution of each sample.
+        time_limit: Limit on clock time (in seconds) for samples.
+        working_limit: Limit on working time (in seconds) for sample. Working
+            time includes model generation, tool calls, etc. but does not include
+            time spent waiting on retries or shared resources.
         max_samples (int | None): Maximum number of samples to run in parallel
            (default is max_connections)
         max_tasks (int | None): Maximum number of tasks to run in parallel
@@ -395,6 +404,7 @@ async def eval_async(
             message_limit=message_limit,
             token_limit=token_limit,
             time_limit=time_limit,
+            working_limit=working_limit,
             max_samples=max_samples,
             max_tasks=max_tasks,
             max_subprocesses=max_subprocesses,
@@ -702,6 +712,7 @@ async def eval_retry_async(
         message_limit = eval_log.eval.config.message_limit
         token_limit = eval_log.eval.config.token_limit
         time_limit = eval_log.eval.config.time_limit
+        working_limit = eval_log.eval.config.working_limit
         max_samples = max_samples or eval_log.eval.config.max_samples
         max_tasks = max_tasks or eval_log.eval.config.max_tasks
         max_subprocesses = max_subprocesses or eval_log.eval.config.max_subprocesses
@@ -763,6 +774,7 @@ async def eval_retry_async(
                 message_limit=message_limit,
                 token_limit=token_limit,
                 time_limit=time_limit,
+                working_limit=working_limit,
                 max_samples=max_samples,
                 max_tasks=max_tasks,
                 max_subprocesses=max_subprocesses,

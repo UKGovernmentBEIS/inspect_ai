@@ -22,3 +22,7 @@
 .wrap {
   word-wrap: anywhere;
 }
+
+.titled:hover {
+  cursor: pointer;
+}

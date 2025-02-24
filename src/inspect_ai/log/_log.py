@@ -86,13 +86,16 @@ class EvalConfig(BaseModel):
     """
 
     message_limit: int | None = Field(default=None)
-    """Maximum messages to allow in a chat conversation."""
+    """Maximum messages to allow per sample."""
 
     token_limit: int | None = Field(default=None)
-    """Maximum tokens to allow in a chat conversation."""
+    """Maximum tokens usage per sample."""
 
     time_limit: int | None = Field(default=None)
-    """Maximum seconds for chat conversation."""
+    """Maximum clock time per sample."""
+
+    working_limit: int | None = Field(default=None)
+    """Meximum working time per sample."""
 
     max_samples: int | None = Field(default=None)
     """Maximum number of samples to run in parallel."""
@@ -141,7 +144,9 @@ class EvalConfig(BaseModel):
 class EvalSampleLimit(BaseModel):
     """Limit encontered by sample."""
 
-    type: Literal["context", "time", "message", "token", "operator", "custom"]
+    type: Literal[
+        "context", "time", "working", "message", "token", "operator", "custom"
+    ]
     """The type of limit"""
 
     limit: int
@@ -217,6 +222,12 @@ class EvalSample(BaseModel):
 
     model_usage: dict[str, ModelUsage] = Field(default_factory=dict)
     """Model token usage for sample."""
+
+    total_time: float | None = Field(default=None)
+    """Total time that the sample was running."""
+
+    working_time: float | None = Field(default=None)
+    """Time spent working (model generation, sandbox calls, etc.)"""
 
     uuid: str | None = Field(default=None)
     """Globally unique identifier for sample run (exists for samples created in Inspect >= 0.3.70)"""

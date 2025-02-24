@@ -33,6 +33,10 @@ from inspect_ai._util.registry import (
     registry_unqualified_name,
 )
 from inspect_ai._util.timeouts import Timeout, timeout
+from inspect_ai._util.working import (
+    init_sample_working_limit,
+    sample_waiting_time,
+)
 from inspect_ai._view.notify import view_notify_eval
 from inspect_ai.dataset import Dataset, Sample
 from inspect_ai.log import (
@@ -309,6 +313,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                                 or config.fail_on_error is True
                             ),
                             time_limit=config.time_limit,
+                            working_limit=config.working_limit,
                             semaphore=sample_semaphore,
                         )
                         for (sample, state) in zip(samples, states)
@@ -501,6 +506,7 @@ async def task_run_sample(
     sample_complete: Callable[[dict[str, SampleScore]], None],
     fails_on_error: bool,
     time_limit: int | None,
+    working_limit: int | None,
     semaphore: asyncio.Semaphore | None,
 ) -> dict[str, SampleScore] | None:
     # if there is an existing sample then tick off its progress, log it, and return it
@@ -571,10 +577,12 @@ async def task_run_sample(
             message_limit=state.message_limit,
             token_limit=state.token_limit,
             time_limit=time_limit,
+            working_limit=working_limit,
             fails_on_error=fails_on_error,
             transcript=sample_transcript,
         ) as active,
     ):
+        start_time: float | None = None
         error: EvalError | None = None
         raise_error: BaseException | None = None
         results: dict[str, SampleScore] = {}
@@ -606,6 +614,10 @@ async def task_run_sample(
                         if time_limit is not None
                         else contextlib.nullcontext()
                     )
+
+                    # record start time
+                    start_time = time.monotonic()
+                    init_sample_working_limit(start_time, working_limit)
 
                     # run sample w/ optional timeout
                     async with timeout_cm:
@@ -775,6 +787,7 @@ async def task_run_sample(
 
             # log the sample
             await log_sample(
+                start_time=start_time,
                 logger=logger,
                 sample=sample,
                 state=state,
@@ -795,6 +808,7 @@ async def task_run_sample(
 
 
 async def log_sample(
+    start_time: float | None,
     logger: TaskLogger,
     sample: Sample,
     state: TaskState,
@@ -810,6 +824,9 @@ async def log_sample(
         )
 
     # construct sample for logging
+
+    # compute total time if we can
+    total_time = time.monotonic() - start_time if start_time is not None else None
 
     # if a limit was hit, note that in the Eval Sample
     limit = None
@@ -837,6 +854,10 @@ async def log_sample(
         uuid=state.uuid,
         events=list(transcript().events),
         model_usage=sample_model_usage(),
+        total_time=round(total_time, 3) if total_time is not None else None,
+        working_time=round(total_time - sample_waiting_time(), 3)
+        if total_time is not None
+        else None,
         error=error,
         limit=limit,
     )
