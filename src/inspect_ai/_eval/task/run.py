@@ -834,6 +834,7 @@ async def log_sample(
         output=state.output,
         scores={k: v.score for k, v in scores.items()},
         store=dict(state.store.items()),
+        uuid=state.uuid,
         events=list(transcript().events),
         model_usage=sample_model_usage(),
         error=error,

@@ -218,6 +218,9 @@ class EvalSample(BaseModel):
     model_usage: dict[str, ModelUsage] = Field(default_factory=dict)
     """Model token usage for sample."""
 
+    uuid: str | None = Field(default=None)
+    """Globally unique identifier for sample run (exists for samples created in Inspect >= 0.3.70)"""
+
     error: EvalError | None = Field(default=None)
     """Error that halted sample."""
 
