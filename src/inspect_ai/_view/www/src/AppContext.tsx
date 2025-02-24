@@ -1,14 +1,7 @@
 import React, { createContext, ReactNode, useContext, useReducer } from "react";
 import { Capabilities } from "./api/types";
-import { AppStatus } from "./types";
+import { AppState, AppStatus } from "./types";
 import { clearDocumentSelection } from "./utils/browser";
-
-// Define the state interface
-interface AppState {
-  status: AppStatus;
-  offcanvas: boolean;
-  showFind: boolean;
-}
 
 // Define the initial state
 const initialAppState: AppState = {
