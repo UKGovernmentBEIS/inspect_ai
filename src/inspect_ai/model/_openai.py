@@ -302,7 +302,7 @@ def chat_messages_from_openai(
                 )
         elif message["role"] == "assistant":
             # resolve content
-            asst_content = message["content"]
+            asst_content = message.get("content", None)
             if isinstance(asst_content, str):
                 content: str | list[Content] = asst_content
             elif asst_content is None:
