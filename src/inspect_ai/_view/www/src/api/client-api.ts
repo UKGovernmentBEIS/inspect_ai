@@ -9,7 +9,7 @@ import {
   LogFiles,
   LogViewAPI,
   PendingSampleResponse,
-  SampleData,
+  SampleDataResponse,
 } from "./types";
 
 const isEvalFile = (file: string) => {
@@ -281,7 +281,7 @@ export const clientApi = (api: LogViewAPI, log_file?: string): ClientAPI => {
     epoch: number,
     last_event?: number,
     last_attachment?: number,
-  ): Promise<SampleData | undefined> => {
+  ): Promise<SampleDataResponse | undefined> => {
     if (!api.eval_log_sample_data) {
       throw new Error("API doesn't supported streamed sample data");
     }

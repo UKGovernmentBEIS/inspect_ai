@@ -30,6 +30,11 @@ export interface PendingSampleResponse {
   status: "NotModified" | "NotFound" | "OK";
 }
 
+export interface SampleDataResponse {
+  sampleData?: SampleData;
+  status: "NotModified" | "NotFound" | "OK";
+}
+
 export interface RunningMetric {
   scorer: string;
   name: string;
@@ -131,7 +136,7 @@ export interface LogViewAPI {
     epoch: number,
     last_event?: number,
     last_attachment?: number,
-  ) => Promise<SampleData | undefined>;
+  ) => Promise<SampleDataResponse | undefined>;
 }
 
 export interface ClientAPI {
@@ -160,7 +165,7 @@ export interface ClientAPI {
     epoch: number,
     last_event?: number,
     last_attachment?: number,
-  ) => Promise<SampleData | undefined>;
+  ) => Promise<SampleDataResponse | undefined>;
 }
 
 export interface FetchResponse {

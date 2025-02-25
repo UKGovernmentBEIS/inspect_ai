@@ -419,7 +419,6 @@ export const App: FC<AppProps> = ({
 
   const loadSample = useCallback(
     (summary: SampleSummary) => {
-
       // If already loading the selected sample, do nothing
       if (loadingSampleIndexRef.current === selectedSampleIndex) {
         return;
@@ -432,7 +431,7 @@ export const App: FC<AppProps> = ({
       setSampleStatus("loading");
       setSampleError(undefined);
 
-      if (summary.completed) {
+      if (summary.completed !== false) {
         api
           .get_log_sample(logFile.name, summary.id, summary.epoch)
           .then((sample) => {
@@ -481,16 +480,21 @@ export const App: FC<AppProps> = ({
         // This is a running sample, load the current event data and use that
         api
           .get_log_sample_data(logFile.name, summary.id, summary.epoch)
-          .then((sampleData) => {
-            if (sampleData) {
-              sampleScrollPosition.current = 0;
-              const adapter = sampleDataAdapter();
-              adapter.addData(sampleData);
-              const events = adapter.resolvedEvents();
-              setRunningSampleData({
-                events,
-                summary,
-              });
+          .then((sampleDataResponse) => {
+            if (sampleDataResponse) {
+              if (
+                sampleDataResponse.status === "OK" &&
+                sampleDataResponse.sampleData
+              ) {
+                sampleScrollPosition.current = 0;
+                const adapter = sampleDataAdapter();
+                adapter.addData(sampleDataResponse.sampleData);
+                const events = adapter.resolvedEvents();
+                setRunningSampleData({
+                  events,
+                  summary,
+                });
+              }
             }
             setSampleStatus("ok");
             loadingSampleIndexRef.current = null;
