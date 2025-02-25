@@ -217,6 +217,9 @@
                     "$ref": "#/$defs/ContentText"
                   },
                   {
+                    "$ref": "#/$defs/ContentReasoning"
+                  },
+                  {
                     "$ref": "#/$defs/ContentImage"
                   },
                   {
@@ -262,26 +265,13 @@
           ],
           "default": null,
           "title": "Tool Calls"
-        },
-        "reasoning": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Reasoning"
         }
       },
       "required": [
         "role",
         "content",
         "source",
-        "tool_calls",
-        "reasoning"
+        "tool_calls"
       ],
       "title": "ChatMessageAssistant",
       "type": "object",
@@ -306,6 +296,9 @@
                 "anyOf": [
                   {
                     "$ref": "#/$defs/ContentText"
+                  },
+                  {
+                    "$ref": "#/$defs/ContentReasoning"
                   },
                   {
                     "$ref": "#/$defs/ContentImage"
@@ -368,6 +361,9 @@
                 "anyOf": [
                   {
                     "$ref": "#/$defs/ContentText"
+                  },
+                  {
+                    "$ref": "#/$defs/ContentReasoning"
                   },
                   {
                     "$ref": "#/$defs/ContentImage"
@@ -468,6 +464,9 @@
                 "anyOf": [
                   {
                     "$ref": "#/$defs/ContentText"
+                  },
+                  {
+                    "$ref": "#/$defs/ContentReasoning"
                   },
                   {
                     "$ref": "#/$defs/ContentImage"
@@ -588,6 +587,47 @@
         "detail"
       ],
       "title": "ContentImage",
+      "type": "object",
+      "additionalProperties": false
+    },
+    "ContentReasoning": {
+      "description": "Reasoning content.\n\nSee the specification for [thinking blocks](https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking#understanding-thinking-blocks) for Claude models.",
+      "properties": {
+        "type": {
+          "const": "reasoning",
+          "default": "reasoning",
+          "title": "Type",
+          "type": "string"
+        },
+        "reasoning": {
+          "title": "Reasoning",
+          "type": "string"
+        },
+        "signature": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Signature"
+        },
+        "redacted": {
+          "default": false,
+          "title": "Redacted",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "type",
+        "reasoning",
+        "signature",
+        "redacted"
+      ],
+      "title": "ContentReasoning",
       "type": "object",
       "additionalProperties": false
     },
@@ -1556,6 +1596,18 @@
           "default": null,
           "title": "Working Time"
         },
+        "uuid": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Uuid"
+        },
         "error": {
           "anyOf": [
             {
@@ -1604,6 +1656,7 @@
         "model_usage",
         "total_time",
         "working_time",
+        "uuid",
         "error",
         "attachments",
         "limit"
@@ -2861,6 +2914,7 @@
               "type": "null"
             }
           ],
+          "default": null,
           "title": "Time"
         }
       },
@@ -4216,6 +4270,9 @@
               "$ref": "#/$defs/ContentText"
             },
             {
+              "$ref": "#/$defs/ContentReasoning"
+            },
+            {
               "$ref": "#/$defs/ContentImage"
             },
             {
@@ -4229,6 +4286,9 @@
                 "anyOf": [
                   {
                     "$ref": "#/$defs/ContentText"
+                  },
+                  {
+                    "$ref": "#/$defs/ContentReasoning"
                   },
                   {
                     "$ref": "#/$defs/ContentImage"

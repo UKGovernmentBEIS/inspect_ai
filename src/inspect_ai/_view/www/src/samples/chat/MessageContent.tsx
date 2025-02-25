@@ -1,8 +1,11 @@
+import clsx from "clsx";
+import { Fragment } from "react";
 import { MarkdownDiv } from "../../components/MarkdownDiv";
 import { ContentTool } from "../../types";
 import {
   ContentAudio,
   ContentImage,
+  ContentReasoning,
   ContentText,
   ContentVideo,
   Format,
@@ -10,11 +13,13 @@ import {
 } from "../../types/log";
 import styles from "./MessageContent.module.css";
 import { ToolOutput } from "./tools/ToolOutput";
+import ExpandablePanel from "../../components/ExpandablePanel";
 
 type ContentType =
   | string
   | string[]
   | ContentText
+  | ContentReasoning
   | ContentImage
   | ContentAudio
   | ContentVideo
@@ -26,6 +31,7 @@ interface MessageContentProps {
     | string[]
     | (
         | ContentText
+        | ContentReasoning
         | ContentImage
         | ContentAudio
         | ContentVideo
@@ -96,6 +102,27 @@ const messageRenderers: Record<string, MessageRenderer> = {
           markdown={c.text}
           className={isLast ? "no-last-para-padding" : ""}
         />
+      );
+    },
+  },
+  reasoning: {
+    render: (key, content, isLast) => {
+      const r = content as ContentReasoning;
+      return (
+        <Fragment key={key}>
+          <div
+            className={clsx(
+              "text-style-label",
+              "text-style-secondary",
+              isLast ? "no-last-para-padding" : "",
+            )}
+          >
+            Reasoning
+          </div>
+          <ExpandablePanel collapse={true}>
+            <MarkdownDiv markdown={r.reasoning} />
+          </ExpandablePanel>
+        </Fragment>
       );
     },
   },

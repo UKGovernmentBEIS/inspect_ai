@@ -1,8 +1,10 @@
 import pytest
-from test_helpers.utils import skip_if_no_groq, skip_if_no_together
+from test_helpers.utils import skip_if_no_google, skip_if_no_groq, skip_if_no_together
 
 from inspect_ai import Task, eval
+from inspect_ai._util.content import ContentReasoning
 from inspect_ai.dataset._dataset import Sample
+from inspect_ai.log._condense import resolve_sample_attachments
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model import get_model
 from inspect_ai.solver._prompt import user_message
@@ -15,7 +17,9 @@ async def check_reasoning_content(model_name: str):
         "Please say 'hello, world'", config=GenerateConfig(reasoning_effort="low")
     )
     assert "<think>" not in output.completion
-    assert output.choices[0].message.reasoning is not None
+    content = output.choices[0].message.content
+    assert isinstance(content, list)
+    assert isinstance(content[0], ContentReasoning)
 
 
 def check_reasoning_history(model_name: str, include_history: bool):
@@ -35,19 +39,13 @@ def check_reasoning_history(model_name: str, include_history: bool):
         reasoning_effort="low",
     )[0]
     assert log.samples
-    model_event = [event for event in log.samples[0].events if event.event == "model"][
-        1
-    ]
+    sample = resolve_sample_attachments(log.samples[0])
+    model_event = [event for event in sample.events if event.event == "model"][1]
     assistant_message = model_event.input[1]
-    if assistant_message.text.startswith("attachment://"):
-        attachment_id = assistant_message.text.removeprefix("attachment://")
-        message_content = log.samples[0].attachments[attachment_id]
-    else:
-        message_content = assistant_message.text
     if include_history:
-        assert "<think>" in message_content
+        assert "<think>" in assistant_message.text
     else:
-        assert "<think>" not in message_content
+        assert "<think>" not in assistant_message.text
 
 
 @pytest.mark.asyncio
@@ -60,6 +58,18 @@ async def test_reasoning_content_together():
 @skip_if_no_groq
 async def test_reasoning_content_groq():
     await check_reasoning_content("groq/deepseek-r1-distill-llama-70b")
+
+
+@skip_if_no_google
+def test_reasoning_content_google():
+    log = eval(
+        Task(dataset=[Sample(input="Solve 3*x^3-5*x=1")]),
+        model="google/gemini-2.0-flash-thinking-exp",
+    )[0]
+    assert log.samples
+    content = log.samples[0].output.message.content
+    assert isinstance(content, list)
+    assert isinstance(content[0], ContentReasoning)
 
 
 @pytest.mark.slow

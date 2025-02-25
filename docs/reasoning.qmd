@@ -2,6 +2,14 @@
 title: Reasoning
 ---
 
+::: {.callout-note appearance="simple"}
+The reasoning features described below are currently available only in the development version of Inspect. To install the development version from GitHub:
+
+``` bash
+pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+```
+:::
+
 ## Overview
 
 Reasoning models like OpenAI o1 and o3, Google's Gemini 2.0 Flash Thinking, and DeepSeek's r1 have some additional options that can be used to tailor their behaviour. They also in some cases make available full or partial reasoning traces for the chains of thought that led to their response.
@@ -24,7 +32,7 @@ If you are aware of other providers adding support for `reasoning_effort` please
 
 ## Reasoning Traces
 
-In some cases reasoning models provide traces of their chain of thought as part of assistant responses. When available, these traces are provided by Inspect in a new `reasoning` field of `ChatMessageAssistant`.
+In some cases reasoning models provide traces of their chain of thought as part of assistant responses. When available, these traces are provided by Inspect in a new `ContentReasoning` class that can appear in the `content` field of `ChatMessageAssistant`.
 
 Reasoning traces are currently captured in two ways:
 

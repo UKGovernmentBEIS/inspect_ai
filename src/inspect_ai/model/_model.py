@@ -21,7 +21,12 @@ from tenacity import (
 )
 
 from inspect_ai._util.constants import DEFAULT_MAX_CONNECTIONS
-from inspect_ai._util.content import Content, ContentImage, ContentText
+from inspect_ai._util.content import (
+    Content,
+    ContentImage,
+    ContentReasoning,
+    ContentText,
+)
 from inspect_ai._util.hooks import init_hooks, override_api_key, send_telemetry
 from inspect_ai._util.interrupt import check_sample_interrupt
 from inspect_ai._util.platform import platform_init
@@ -857,7 +862,9 @@ def resolve_reasoning_history(
     # determine up front if we have any reasoning content
     have_reasoning = any(
         [
-            isinstance(m, ChatMessageAssistant) and m.reasoning is not None
+            isinstance(m, ChatMessageAssistant)
+            and isinstance(m.content, list)
+            and any([c for c in m.content if isinstance(c, ContentReasoning)])
             for m in messages
         ]
     )
@@ -872,10 +879,14 @@ def resolve_reasoning_history(
         if not reasoning_history:
             resolved_messages: list[ChatMessage] = []
             for message in messages:
-                if isinstance(message, ChatMessageAssistant):
-                    resolved_messages.append(
-                        message.model_copy(update={"reasoning": None})
-                    )
+                if isinstance(message, ChatMessageAssistant) and isinstance(
+                    message.content, list
+                ):
+                    message.content = [
+                        content
+                        for content in message.content
+                        if not isinstance(content, ContentReasoning)
+                    ]
                 else:
                     resolved_messages.append(message)
 
@@ -889,20 +900,18 @@ def resolve_reasoning_history(
     elif reasoning_history:
         resolved_messages = []
         for message in messages:
-            if (
-                isinstance(message, ChatMessageAssistant)
-                and message.reasoning is not None
+            if isinstance(message, ChatMessageAssistant) and isinstance(
+                message.content, list
             ):
-                message = deepcopy(message)
-                if isinstance(message.content, str):
-                    message.content = (
-                        f"<think>\n{message.reasoning}\n</think>\n\n{message.content}"
-                    )
-                else:
-                    message.content.insert(
-                        0, ContentText(text=f"<think>\n{message.reasoning}\n</think>\n")
-                    )
-                message.reasoning = None
+                content: list[Content] = []
+                for c in message.content:
+                    if isinstance(c, ContentReasoning):
+                        content.append(
+                            ContentText(text=f"<think>\n{c.reasoning}\n</think>")
+                        )
+                    else:
+                        content.append(c)
+                message = message.model_copy(update={"content": content})
 
             resolved_messages.append(message)
 

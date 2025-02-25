@@ -9,7 +9,7 @@ from textual.containers import ScrollableContainer
 from textual.widget import Widget
 from textual.widgets import Static
 
-from inspect_ai._util.content import ContentText
+from inspect_ai._util.content import ContentReasoning, ContentText
 from inspect_ai._util.rich import lines_display
 from inspect_ai._util.transcript import (
     set_transcript_markdown_options,
@@ -36,7 +36,6 @@ from inspect_ai.log._transcript import (
 )
 from inspect_ai.model._chat_message import (
     ChatMessage,
-    ChatMessageAssistant,
     ChatMessageUser,
 )
 from inspect_ai.model._render import messages_preceding_assistant
@@ -333,11 +332,16 @@ def render_message(message: ChatMessage) -> list[RenderableType]:
         Text(),
     ]
 
-    if isinstance(message, ChatMessageAssistant) and message.reasoning:
-        content.extend(transcript_reasoning(message.reasoning))
-
-    if message.text:
+    # deal with plain text or with content blocks
+    if isinstance(message.content, str):
         content.extend([transcript_markdown(message.text.strip(), escape=True)])
+    else:
+        for c in message.content:
+            if isinstance(c, ContentReasoning):
+                content.extend(transcript_reasoning(c))
+            elif isinstance(c, ContentText):
+                content.extend([transcript_markdown(c.text.strip(), escape=True)])
+
     return content
 
 
