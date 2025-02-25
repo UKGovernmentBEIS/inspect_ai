@@ -5,7 +5,7 @@ import { EvalSample } from "../types/log";
 import { SampleDisplay } from "./SampleDisplay";
 import { SamplesDescriptor } from "./descriptor/samplesDescriptor";
 
-import { ScoreLabel } from "../types";
+import { RunningSampleData, ScoreLabel } from "../types";
 import styles from "./InlineSampleDisplay.module.css";
 
 interface InlineSampleDisplayProps {
@@ -18,6 +18,7 @@ interface InlineSampleDisplayProps {
   selectedTab?: string;
   setSelectedTab: (tab: string) => void;
   scrollRef: RefObject<HTMLDivElement | null>;
+  runningSampleData?: RunningSampleData;
 }
 
 /**
@@ -33,6 +34,7 @@ export const InlineSampleDisplay: FC<InlineSampleDisplayProps> = ({
   selectedTab,
   setSelectedTab,
   scrollRef,
+  runningSampleData,
 }) => {
   return (
     <div className={styles.container}>
@@ -49,6 +51,7 @@ export const InlineSampleDisplay: FC<InlineSampleDisplayProps> = ({
             selectedTab={selectedTab}
             setSelectedTab={setSelectedTab}
             scrollRef={scrollRef}
+            runningSampleData={runningSampleData}
           />
         )}
       </div>
