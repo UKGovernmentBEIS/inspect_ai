@@ -83,6 +83,9 @@ export const App: FC<AppProps> = ({
   // Application Context
   const appContext = useAppContext();
 
+  // The main application reference
+  const mainAppRef = useRef<HTMLDivElement>(null);
+
   // List of Logs
   const [logs, setLogs] = useState<LogFiles>(
     applicationState?.logs || { log_dir: "", files: [] },
@@ -414,130 +417,103 @@ export const App: FC<AppProps> = ({
     }
   }, [selectedSample, selectedSampleTab]);
 
-  // The main application reference
-  const mainAppRef = useRef<HTMLDivElement>(null);
-
   const loadSample = useCallback(
-    (summary: SampleSummary) => {
-      // If already loading the selected sample, do nothing
+    async (summary: SampleSummary) => {
       if (loadingSampleIndexRef.current === selectedSampleIndex) {
         return;
       }
 
       const logFile = logs.files[selectedLogIndex];
+      if (!logFile) {
+        return;
+      }
 
-      // Load the selected sample (if not already loaded)
       loadingSampleIndexRef.current = selectedSampleIndex;
       setSampleStatus("loading");
       setSampleError(undefined);
 
-      if (summary.completed !== false) {
-        api
-          .get_log_sample(logFile.name, summary.id, summary.epoch)
-          .then((sample) => {
-            if (sample) {
-              // This migrates old samples (with raw transcript element)
-              // to the new structure (hence the type bypass).
-              const anySample = sample as any;
-              if (anySample.transcript) {
-                sample.events = anySample.transcript.events;
-                sample.attachments = anySample.transcript.content;
-              }
-              sample.attachments = sample.attachments || {};
-              sample.input = resolveAttachments(
-                sample.input,
-                sample.attachments,
-              );
-              sample.messages = resolveAttachments(
-                sample.messages,
-                sample.attachments,
-              );
-              sample.events = resolveAttachments(
-                sample.events,
-                sample.attachments,
-              );
-              sample.attachments = {};
-
-              sampleScrollPosition.current = 0;
-              setSelectedSample(sample);
-
-              setSampleStatus("ok");
-              loadingSampleIndexRef.current = null;
-            } else {
-              throw Error("Unable to load sample - an unknown error occurred.");
-            }
-          })
-          .catch((e) => {
-            setSampleStatus("error");
-            setSampleError(e);
-
+      try {
+        if (summary.completed !== false) {
+          const sample = await api.get_log_sample(
+            logFile.name,
+            summary.id,
+            summary.epoch,
+          );
+          if (sample) {
+            const migratedSample = migrateOldSample(sample);
             sampleScrollPosition.current = 0;
-            setSelectedSample(undefined);
-
-            loadingSampleIndexRef.current = null;
-          });
-      } else if (api.get_log_sample_data) {
-        // This is a running sample, load the current event data and use that
-        api
-          .get_log_sample_data(logFile.name, summary.id, summary.epoch)
-          .then((sampleDataResponse) => {
-            if (sampleDataResponse) {
-              if (
-                sampleDataResponse.status === "OK" &&
-                sampleDataResponse.sampleData
-              ) {
-                sampleScrollPosition.current = 0;
-                const adapter = sampleDataAdapter();
-                adapter.addData(sampleDataResponse.sampleData);
-                const events = adapter.resolvedEvents();
-                setRunningSampleData({
-                  events,
-                  summary,
-                });
-              }
-            }
-            setSampleStatus("ok");
-            loadingSampleIndexRef.current = null;
-          })
-          .catch((e) => {
-            setSampleStatus("error");
-            setSampleError(e);
-
+            setSelectedSample(migratedSample);
+          } else {
+            throw new Error(
+              "Unable to load sample - an unknown error occurred.",
+            );
+          }
+        } else if (api.get_log_sample_data) {
+          const sampleDataResponse = await api.get_log_sample_data(
+            logFile.name,
+            summary.id,
+            summary.epoch,
+          );
+          if (
+            sampleDataResponse?.status === "OK" &&
+            sampleDataResponse.sampleData
+          ) {
             sampleScrollPosition.current = 0;
-            setSelectedSample(undefined);
+            const adapter = sampleDataAdapter();
+            adapter.addData(sampleDataResponse.sampleData);
+            setRunningSampleData({ events: adapter.resolvedEvents(), summary });
+          }
+        }
 
-            loadingSampleIndexRef.current = null;
-          });
+        setSampleStatus("ok");
+      } catch (e) {
+        handleSampleLoadError(e);
+      } finally {
+        loadingSampleIndexRef.current = null;
       }
     },
     [logs, selectedLogIndex],
   );
 
-  // Clear the selected sample
-  useEffect(() => {
-    const logFile = logs.files[selectedLogIndex];
-    if (!logFile) {
-      setSelectedSample(undefined);
+  // Helper function for old sample migration
+  const migrateOldSample = (sample: any) => {
+    if (sample.transcript) {
+      sample.events = sample.transcript.events;
+      sample.attachments = sample.transcript.content;
     }
+    sample.attachments = sample.attachments || {};
+    sample.input = resolveAttachments(sample.input, sample.attachments);
+    sample.messages = resolveAttachments(sample.messages, sample.attachments);
+    sample.events = resolveAttachments(sample.events, sample.attachments);
+    sample.attachments = {};
+    return sample;
+  };
 
-    if (selectedSampleIndex === -1) {
+  // Generic error handler
+  const handleSampleLoadError = (error: unknown) => {
+    setSampleStatus("error");
+    setSampleError(error as Error);
+    sampleScrollPosition.current = 0;
+    setSelectedSample(undefined);
+  };
+
+  // Clear the selected sample when log file changes
+  useEffect(() => {
+    if (!logs.files[selectedLogIndex] || selectedSampleIndex === -1) {
       setSelectedSample(undefined);
     }
   }, [selectedSampleIndex, selectedLogIndex, logs]);
 
+  // Refresh selected sample
   const refreshSelectedSample = useCallback(
     (selectedSampleIdx: number) => {
       const sampleSummary = filteredSamples[selectedSampleIdx];
-      if (sampleSummary) {
-        loadSample(sampleSummary);
-      } else {
-        setSelectedSample(undefined);
-      }
+      sampleSummary ? loadSample(sampleSummary) : setSelectedSample(undefined);
     },
-    [filteredSamples],
+    [filteredSamples, loadSample],
   );
 
-  // Loads a sample
+  // Load selected sample when index changes
   useEffect(() => {
     refreshSelectedSample(selectedSampleIndex);
   }, [selectedSampleIndex, refreshSelectedSample]);

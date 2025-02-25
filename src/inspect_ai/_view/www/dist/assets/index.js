@@ -62495,9 +62495,12 @@ ${events}
           const actualRowIndex = itemRowMapping[selectedIndex];
           requestAnimationFrame(() => {
             setTimeout(() => {
-              listEl.scrollToIndex(actualRowIndex);
-              prevSelectedIndexRef.current = actualRowIndex;
-            }, 10);
+              try {
+                listEl.scrollToIndex(actualRowIndex);
+                prevSelectedIndexRef.current = actualRowIndex;
+              } catch {
+              }
+            }, 25);
           });
         }
       }, [selectedIndex, listHandle, itemRowMapping]);
@@ -63896,14 +63899,14 @@ ${events}
           }
         ),
         /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$8.taskStatus, "navbar-text"), children: [
-          status2 === "success" || status2 === "started" && appContext.capabilities.streamSamples ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+          status2 === "success" || status2 === "started" && appContext.capabilities.streamSamples && runningMetrics ? /* @__PURE__ */ jsxRuntimeExports.jsx(
             ResultsPanel,
             {
               scorers: runningMetrics ? displayScorersFromRunningMetrics(runningMetrics) : toDisplayScorers(evalResults == null ? void 0 : evalResults.scores)
             }
           ) : void 0,
           status2 === "cancelled" ? /* @__PURE__ */ jsxRuntimeExports.jsx(CancelledPanel, { sampleCount: (samples == null ? void 0 : samples.length) || 0 }) : void 0,
-          status2 === "started" && !appContext.capabilities.streamSamples ? /* @__PURE__ */ jsxRuntimeExports.jsx(RunningStatusPanel, { sampleCount: (samples == null ? void 0 : samples.length) || 0 }) : void 0,
+          status2 === "started" && (!appContext.capabilities.streamSamples || !runningMetrics) ? /* @__PURE__ */ jsxRuntimeExports.jsx(RunningStatusPanel, { sampleCount: (samples == null ? void 0 : samples.length) || 0 }) : void 0,
           status2 === "error" ? /* @__PURE__ */ jsxRuntimeExports.jsx(ErroredPanel, { sampleCount: (samples == null ? void 0 : samples.length) || 0 }) : void 0
         ] }),
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { id: "task-created", style: { display: "none" }, children: evalSpec == null ? void 0 : evalSpec.created })
@@ -65782,6 +65785,7 @@ ${events}
     }) => {
       var _a2, _b2, _c, _d;
       const appContext = useAppContext();
+      const mainAppRef = reactExports.useRef(null);
       const [logs, setLogs] = reactExports.useState(
         (applicationState == null ? void 0 : applicationState.logs) || { log_dir: "", files: [] }
       );
@@ -66036,98 +66040,85 @@ ${events}
           setSelectedSampleTab(newTab);
         }
       }, [selectedSample, selectedSampleTab]);
-      const mainAppRef = reactExports.useRef(null);
       const loadSample = reactExports.useCallback(
-        (summary2) => {
+        async (summary2) => {
           if (loadingSampleIndexRef.current === selectedSampleIndex) {
             return;
           }
           const logFile = logs.files[selectedLogIndex];
+          if (!logFile) {
+            return;
+          }
           loadingSampleIndexRef.current = selectedSampleIndex;
           setSampleStatus("loading");
           setSampleError(void 0);
-          if (summary2.completed !== false) {
-            api2.get_log_sample(logFile.name, summary2.id, summary2.epoch).then((sample2) => {
+          try {
+            if (summary2.completed !== false) {
+              const sample2 = await api2.get_log_sample(
+                logFile.name,
+                summary2.id,
+                summary2.epoch
+              );
               if (sample2) {
-                const anySample = sample2;
-                if (anySample.transcript) {
-                  sample2.events = anySample.transcript.events;
-                  sample2.attachments = anySample.transcript.content;
-                }
-                sample2.attachments = sample2.attachments || {};
-                sample2.input = resolveAttachments(
-                  sample2.input,
-                  sample2.attachments
-                );
-                sample2.messages = resolveAttachments(
-                  sample2.messages,
-                  sample2.attachments
-                );
-                sample2.events = resolveAttachments(
-                  sample2.events,
-                  sample2.attachments
-                );
-                sample2.attachments = {};
+                const migratedSample = migrateOldSample(sample2);
                 sampleScrollPosition.current = 0;
-                setSelectedSample(sample2);
-                setSampleStatus("ok");
-                loadingSampleIndexRef.current = null;
+                setSelectedSample(migratedSample);
               } else {
-                throw Error("Unable to load sample - an unknown error occurred.");
+                throw new Error(
+                  "Unable to load sample - an unknown error occurred."
+                );
               }
-            }).catch((e) => {
-              setSampleStatus("error");
-              setSampleError(e);
-              sampleScrollPosition.current = 0;
-              setSelectedSample(void 0);
-              loadingSampleIndexRef.current = null;
-            });
-          } else if (api2.get_log_sample_data) {
-            api2.get_log_sample_data(logFile.name, summary2.id, summary2.epoch).then((sampleDataResponse) => {
-              if (sampleDataResponse) {
-                if (sampleDataResponse.status === "OK" && sampleDataResponse.sampleData) {
-                  sampleScrollPosition.current = 0;
-                  const adapter = sampleDataAdapter();
-                  adapter.addData(sampleDataResponse.sampleData);
-                  const events = adapter.resolvedEvents();
-                  setRunningSampleData({
-                    events,
-                    summary: summary2
-                  });
-                }
+            } else if (api2.get_log_sample_data) {
+              const sampleDataResponse = await api2.get_log_sample_data(
+                logFile.name,
+                summary2.id,
+                summary2.epoch
+              );
+              if ((sampleDataResponse == null ? void 0 : sampleDataResponse.status) === "OK" && sampleDataResponse.sampleData) {
+                sampleScrollPosition.current = 0;
+                const adapter = sampleDataAdapter();
+                adapter.addData(sampleDataResponse.sampleData);
+                setRunningSampleData({ events: adapter.resolvedEvents(), summary: summary2 });
               }
-              setSampleStatus("ok");
-              loadingSampleIndexRef.current = null;
-            }).catch((e) => {
-              setSampleStatus("error");
-              setSampleError(e);
-              sampleScrollPosition.current = 0;
-              setSelectedSample(void 0);
-              loadingSampleIndexRef.current = null;
-            });
+            }
+            setSampleStatus("ok");
+          } catch (e) {
+            handleSampleLoadError(e);
+          } finally {
+            loadingSampleIndexRef.current = null;
           }
         },
         [logs, selectedLogIndex]
       );
-      reactExports.useEffect(() => {
-        const logFile = logs.files[selectedLogIndex];
-        if (!logFile) {
-          setSelectedSample(void 0);
+      const migrateOldSample = (sample2) => {
+        if (sample2.transcript) {
+          sample2.events = sample2.transcript.events;
+          sample2.attachments = sample2.transcript.content;
         }
-        if (selectedSampleIndex === -1) {
+        sample2.attachments = sample2.attachments || {};
+        sample2.input = resolveAttachments(sample2.input, sample2.attachments);
+        sample2.messages = resolveAttachments(sample2.messages, sample2.attachments);
+        sample2.events = resolveAttachments(sample2.events, sample2.attachments);
+        sample2.attachments = {};
+        return sample2;
+      };
+      const handleSampleLoadError = (error2) => {
+        setSampleStatus("error");
+        setSampleError(error2);
+        sampleScrollPosition.current = 0;
+        setSelectedSample(void 0);
+      };
+      reactExports.useEffect(() => {
+        if (!logs.files[selectedLogIndex] || selectedSampleIndex === -1) {
           setSelectedSample(void 0);
         }
       }, [selectedSampleIndex, selectedLogIndex, logs]);
       const refreshSelectedSample = reactExports.useCallback(
         (selectedSampleIdx) => {
           const sampleSummary = filteredSamples[selectedSampleIdx];
-          if (sampleSummary) {
-            loadSample(sampleSummary);
-          } else {
-            setSelectedSample(void 0);
-          }
+          sampleSummary ? loadSample(sampleSummary) : setSelectedSample(void 0);
         },
-        [filteredSamples]
+        [filteredSamples, loadSample]
       );
       reactExports.useEffect(() => {
         refreshSelectedSample(selectedSampleIndex);
