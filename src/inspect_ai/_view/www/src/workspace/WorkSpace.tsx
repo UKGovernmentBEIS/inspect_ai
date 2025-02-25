@@ -14,7 +14,13 @@ import {
   kJsonWorkspaceTabId,
 } from "../constants";
 import { SamplesDescriptor } from "../samples/descriptor/samplesDescriptor";
-import { CurrentLog, SampleMode, ScoreFilter, ScoreLabel } from "../types.ts";
+import {
+  CurrentLog,
+  RunningSampleData,
+  SampleMode,
+  ScoreFilter,
+  ScoreLabel,
+} from "../types.ts";
 import {
   Epochs,
   EvalError,
@@ -50,6 +56,7 @@ interface WorkSpaceProps {
   showToggle: boolean;
   refreshLog: () => Promise<void>;
   selectedSampleIndex: number;
+  runningSampleData?: RunningSampleData;
   samplesDescriptor?: SamplesDescriptor;
   setSelectedSampleIndex: (index: number) => void;
   selectedSampleTab?: string;
@@ -166,6 +173,7 @@ const useResolvedTabs = ({
   groupByOrder,
   selectedSampleIndex,
   setSelectedSampleIndex,
+  runningSampleData,
   samplesDescriptor,
   selectedSampleTab,
   setSelectedSampleTab,
@@ -203,6 +211,7 @@ const useResolvedTabs = ({
           content: () => (
             <SamplesTab
               sample={selectedSample}
+              runningSampleData={runningSampleData}
               sampleStatus={sampleStatus}
               sampleError={sampleError}
               running={evalStatus === "started"}
