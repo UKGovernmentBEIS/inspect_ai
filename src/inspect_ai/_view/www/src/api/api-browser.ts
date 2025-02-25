@@ -1,7 +1,7 @@
-import { Capabilities } from "../types";
 import { asyncJsonParse } from "../utils/json-worker";
 import { download_file } from "./api-shared";
 import {
+  Capabilities,
   LogContents,
   LogViewAPI,
   PendingSampleResponse,

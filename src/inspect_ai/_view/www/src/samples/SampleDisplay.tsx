@@ -12,7 +12,6 @@ import { SampleScoreView } from "./scores/SampleScoreView";
 import clsx from "clsx";
 import { FC, Fragment, MouseEvent, RefObject } from "react";
 import { Card, CardBody, CardHeader } from "../components/Card";
-import { EmptyPanel } from "../components/EmptyPanel";
 import { JSONPanel } from "../components/JsonPanel";
 import {
   kSampleErrorTabId,
@@ -22,7 +21,7 @@ import {
   kSampleScoringTabId,
   kSampleTranscriptTabId,
 } from "../constants";
-import { ScoreLabel } from "../types";
+import { RunningSampleData, ScoreLabel } from "../types";
 import { EvalSample } from "../types/log";
 import { ModelTokenTable } from "../usage/ModelTokenTable";
 import { formatTime } from "../utils/format";
@@ -41,6 +40,7 @@ interface SampleDisplayProps {
   selectedTab?: string;
   setSelectedTab: (tab: string) => void;
   scrollRef: RefObject<HTMLDivElement | null>;
+  runningSampleData?: RunningSampleData;
 }
 
 /**
@@ -54,14 +54,12 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
   selectedTab,
   setSelectedTab,
   scrollRef,
+  runningSampleData,
 }) => {
   // Tab ids
   const baseId = `sample-dialog`;
 
-  if (!sample) {
-    // Placeholder
-    return <EmptyPanel />;
-  }
+  const sampleEvents = sample?.events || runningSampleData?.events;
 
   // Tab selection
   const onSelectedTab = (e: MouseEvent<HTMLElement>) => {
@@ -71,7 +69,7 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
     return false;
   };
 
-  const scorerNames = Object.keys(sample.scores || {});
+  const scorerNames = Object.keys(sample?.scores || {});
   const sampleMetadatas = metadataViewsForSample(`${baseId}-${id}`, sample);
 
   const tabsetId = `task-sample-details-tab-${id}`;
@@ -93,19 +91,21 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
 
   return (
     <Fragment>
-      <SampleSummaryView
-        score={score}
-        parent_id={id}
-        sample={sample}
-        sampleDescriptor={sampleDescriptor}
-      />
+      {sample ? (
+        <SampleSummaryView
+          score={score}
+          parent_id={id}
+          sample={sample}
+          sampleDescriptor={sampleDescriptor}
+        />
+      ) : undefined}
       <TabSet
         id={tabsetId}
         tabControlsClassName={clsx("text-size-base")}
         tabPanelsClassName={clsx(styles.tabPanel)}
         tools={tools}
       >
-        {sample.events && sample.events.length > 0 ? (
+        {sampleEvents && sampleEvents.length > 0 ? (
           <TabPanel
             key={kSampleTranscriptTabId}
             id={kSampleTranscriptTabId}
@@ -121,30 +121,32 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
             <SampleTranscript
               key={`${baseId}-transcript-display-${id}`}
               id={`${baseId}-transcript-display-${id}`}
-              evalEvents={sample.events}
+              evalEvents={sampleEvents}
               scrollRef={scrollRef}
             />
           </TabPanel>
         ) : null}
-        <TabPanel
-          key={kSampleMessagesTabId}
-          id={kSampleMessagesTabId}
-          className={clsx("sample-tab", styles.fullWidth)}
-          title="Messages"
-          onSelected={onSelectedTab}
-          selected={selectedTab === kSampleMessagesTabId}
-          scrollable={false}
-        >
-          <ChatViewVirtualList
-            key={`${baseId}-chat-${id}`}
-            id={`${baseId}-chat-${id}`}
-            messages={sample.messages}
-            indented={true}
-            scrollRef={scrollRef}
-            toolCallStyle="complete"
-          />
-        </TabPanel>
-        {scorerNames.length === 1 ? (
+        {sample?.messages ? (
+          <TabPanel
+            key={kSampleMessagesTabId}
+            id={kSampleMessagesTabId}
+            className={clsx("sample-tab", styles.fullWidth)}
+            title="Messages"
+            onSelected={onSelectedTab}
+            selected={selectedTab === kSampleMessagesTabId}
+            scrollable={false}
+          >
+            <ChatViewVirtualList
+              key={`${baseId}-chat-${id}`}
+              id={`${baseId}-chat-${id}`}
+              messages={sample.messages}
+              indented={true}
+              scrollRef={scrollRef}
+              toolCallStyle="complete"
+            />
+          </TabPanel>
+        ) : undefined}
+        {sample && scorerNames.length === 1 ? (
           <TabPanel
             key={kSampleScoringTabId}
             id={kSampleScoringTabId}
@@ -161,25 +163,27 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
           </TabPanel>
         ) : (
           <>
-            {Object.keys(sample.scores || {}).map((scorer) => {
-              const tabId = `score-${scorer}`;
-              return (
-                <TabPanel
-                  key={tabId}
-                  id={tabId}
-                  className="sample-tab"
-                  title={scorer}
-                  onSelected={onSelectedTab}
-                  selected={selectedTab === tabId}
-                >
-                  <SampleScoreView
-                    sample={sample}
-                    sampleDescriptor={sampleDescriptor}
-                    scorer={scorer}
-                  />
-                </TabPanel>
-              );
-            })}
+            {sample
+              ? Object.keys(sample?.scores || {}).map((scorer) => {
+                  const tabId = `score-${scorer}`;
+                  return (
+                    <TabPanel
+                      key={tabId}
+                      id={tabId}
+                      className="sample-tab"
+                      title={scorer}
+                      onSelected={onSelectedTab}
+                      selected={selectedTab === tabId}
+                    >
+                      <SampleScoreView
+                        sample={sample}
+                        sampleDescriptor={sampleDescriptor}
+                        scorer={scorer}
+                      />
+                    </TabPanel>
+                  );
+                })
+              : undefined}
           </>
         )}
         {sampleMetadatas.length > 0 ? (
@@ -193,7 +197,7 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
             <div className={clsx(styles.metadataPanel)}>{sampleMetadatas}</div>
           </TabPanel>
         ) : null}
-        {sample.error ? (
+        {sample?.error ? (
           <TabPanel
             id={kSampleErrorTabId}
             className="sample-tab"
@@ -209,7 +213,7 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
             </div>
           </TabPanel>
         ) : null}
-        {sample.messages.length < 100 ? (
+        {sample && sample?.messages.length < 100 ? (
           <TabPanel
             id={kSampleJsonTabId}
             className={"sample-tab"}
@@ -231,7 +235,10 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
   );
 };
 
-const metadataViewsForSample = (id: string, sample: EvalSample) => {
+const metadataViewsForSample = (id: string, sample?: EvalSample) => {
+  if (!sample) {
+    return [];
+  }
   const sampleMetadatas = [];
 
   if (sample.model_usage && Object.keys(sample.model_usage).length > 0) {

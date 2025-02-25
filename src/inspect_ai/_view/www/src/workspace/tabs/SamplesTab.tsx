@@ -14,7 +14,12 @@ import { InlineSampleDisplay } from "../../samples/InlineSampleDisplay";
 import { SampleDialog } from "../../samples/SampleDialog";
 import { SamplesDescriptor } from "../../samples/descriptor/samplesDescriptor.tsx";
 import { SampleList } from "../../samples/list/SampleList";
-import { SampleMode, ScoreFilter, ScoreLabel } from "../../types.ts";
+import {
+  RunningSampleData,
+  SampleMode,
+  ScoreFilter,
+  ScoreLabel,
+} from "../../types.ts";
 import { Epochs, EvalSample } from "../../types/log";
 import { getSampleProcessor } from "./grouping.ts";
 import { ListItem } from "./types.ts";
@@ -38,6 +43,7 @@ interface SamplesTabProps {
   setShowingSampleDialog: (showing: boolean) => void;
   selectedSampleTab?: string;
   setSelectedSampleTab: (tab: string) => void;
+  runningSampleData?: RunningSampleData;
   epoch: string;
   epochs: Epochs;
   score?: ScoreLabel;
@@ -61,6 +67,7 @@ export const SamplesTab: FC<SamplesTabProps> = ({
   setSelectedSampleIndex,
   showingSampleDialog,
   setShowingSampleDialog,
+  runningSampleData,
   selectedSampleTab,
   setSelectedSampleTab,
   sampleScrollPositionRef,
@@ -117,6 +124,7 @@ export const SamplesTab: FC<SamplesTabProps> = ({
       const items = sampleProcessor
         ? sampleProcessor(sample, index, previousSample)
         : [];
+
       results.push(...items);
       return results;
     });
@@ -172,6 +180,7 @@ export const SamplesTab: FC<SamplesTabProps> = ({
           <InlineSampleDisplay
             id="sample-display"
             sample={sample}
+            runningSampleData={runningSampleData}
             sampleStatus={sampleStatus}
             sampleError={sampleError}
             sampleDescriptor={sampleDescriptor}
@@ -198,6 +207,7 @@ export const SamplesTab: FC<SamplesTabProps> = ({
           sample={sample}
           sampleStatus={sampleStatus}
           sampleError={sampleError}
+          runningSampleData={runningSampleData}
           sampleDescriptor={sampleDescriptor}
           showingSampleDialog={showingSampleDialog}
           setShowingSampleDialog={setShowingSampleDialog}
