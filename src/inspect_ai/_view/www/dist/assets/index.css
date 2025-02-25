@@ -16450,11 +16450,15 @@ ul.jsondiffpatch-textdiff {
 ._panel_8zdtn_1 {
   margin: 0.5em 0;
 }
-._grid_1pgwi_1 {
+._grid_1eq5o_1 {
   width: 100%;
   display: grid;
   grid-template-columns: 1fr max-content;
   column-gap: 1em;
+}
+
+._jsonPanel_1eq5o_8 {
+  padding: 0 !important;
 }
 ._container_1brs9_1 {
   margin: 1em 0 0 0;

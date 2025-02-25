@@ -14,6 +14,7 @@
 - Align with HF datasets `fsspec` version contraints to avoid pip errors when installing alongside `datasets`.
 - Bugfix: Fix issue with tools that had an ordinary `dict` as a parameter.
 - Bugfix: Print the correct container `sample_id` for `--no-sandbox-cleanup`.
+- Inspect View: Improve rendering of JSON within logging events.
 
 ## v0.3.69 (20 February 2025)
 

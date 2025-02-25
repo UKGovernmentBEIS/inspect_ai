@@ -21439,7 +21439,17 @@ var require_assets = __commonJS({
         render: (key2, content2, isLast) => {
           const r2 = content2;
           return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-label", "text-style-secondary", isLast ? "no-last-para-padding" : ""), children: "Reasoning" }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx(
+              "div",
+              {
+                className: clsx(
+                  "text-style-label",
+                  "text-style-secondary",
+                  isLast ? "no-last-para-padding" : ""
+                ),
+                children: "Reasoning"
+              }
+            ),
             /* @__PURE__ */ jsxRuntimeExports.jsx(ExpandablePanel, { collapse: true, children: /* @__PURE__ */ jsxRuntimeExports.jsx(MarkdownDiv, { markdown: r2.reasoning }) })
           ] }, key2);
         }
@@ -50730,9 +50740,11 @@ self.onmessage = function (e) {
         }
       );
     };
-    const grid$2 = "_grid_1pgwi_1";
+    const grid$2 = "_grid_1eq5o_1";
+    const jsonPanel = "_jsonPanel_1eq5o_8";
     const styles$u = {
-      grid: grid$2
+      grid: grid$2,
+      jsonPanel
     };
     const LoggerEventView = ({
       event,
@@ -50745,7 +50757,13 @@ self.onmessage = function (e) {
           title: event.message.level,
           icon: ApplicationIcons.logging[event.message.level.toLowerCase()],
           children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("text-size-base", styles$u.grid), children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-smaller"), children: event.message.message }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-smaller"), children: isJson(event.message.message) ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+              JSONPanel,
+              {
+                json: event.message.message,
+                className: clsx(styles$u.jsonPanel)
+              }
+            ) : event.message.message }),
             /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("text-size-smaller", "text-style-secondary"), children: [
               event.message.filename,
               ":",
@@ -50754,6 +50772,18 @@ self.onmessage = function (e) {
           ] })
         }
       );
+    };
+    const isJson = (text2) => {
+      text2 = text2.trim();
+      if (text2.startsWith("{")) {
+        try {
+          JSON.parse(text2);
+          return true;
+        } catch {
+          return false;
+        }
+      }
+      return false;
     };
     const container$7 = "_container_1brs9_1";
     const title$1 = "_title_1brs9_5";
