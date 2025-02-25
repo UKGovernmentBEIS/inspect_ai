@@ -26,26 +26,25 @@ export const ToolInput: React.FC<ToolInputProps> = memo((props) => {
   const { highlightLanguage, contents, toolCallView } = props;
 
   const codeRef = useCodeHighlight(highlightLanguage);
+  const toolViewRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (toolCallView?.content && toolViewRef.current) {
+      requestAnimationFrame(() => {
+        const codeBlocks = toolViewRef.current!.querySelectorAll("pre code");
+        codeBlocks.forEach((block) => {
+          if (block.className.includes("language-")) {
+            block.classList.add("sourceCode");
+            highlightElement(block as HTMLElement);
+          }
+        });
+      });
+    }
+  }, [toolCallView?.content]);
 
   if (!contents && !toolCallView?.content) return null;
 
   if (toolCallView) {
-    const toolViewRef = useRef<HTMLDivElement>(null);
-
-    useEffect(() => {
-      if (toolCallView?.content && toolViewRef.current) {
-        requestAnimationFrame(() => {
-          const codeBlocks = toolViewRef.current!.querySelectorAll("pre code");
-          codeBlocks.forEach((block) => {
-            if (block.className.includes("language-")) {
-              block.classList.add("sourceCode");
-              highlightElement(block as HTMLElement);
-            }
-          });
-        });
-      }
-    }, [toolCallView?.content]);
-
     return (
       <MarkdownDiv
         markdown={toolCallView.content}

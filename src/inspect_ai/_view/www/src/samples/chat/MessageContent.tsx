@@ -1,5 +1,6 @@
 import clsx from "clsx";
 import { Fragment } from "react";
+import ExpandablePanel from "../../components/ExpandablePanel";
 import { MarkdownDiv } from "../../components/MarkdownDiv";
 import { ContentTool } from "../../types";
 import {
@@ -13,7 +14,6 @@ import {
 } from "../../types/log";
 import styles from "./MessageContent.module.css";
 import { ToolOutput } from "./tools/ToolOutput";
-import ExpandablePanel from "../../components/ExpandablePanel";
 
 type ContentType =
   | string
