@@ -1,4 +1,3 @@
-import clsx from "clsx";
 import {
   KeyboardEvent,
   RefObject,
@@ -8,15 +7,16 @@ import {
   useRef,
   useState,
 } from "react";
+import { Virtuoso, VirtuosoHandle } from "react-virtuoso";
 import { EmptyPanel } from "../../components/EmptyPanel";
 import { MessageBand } from "../../components/MessageBand";
-import { VirtualList, VirtualListRef } from "../../components/VirtualList";
 import { formatNoDecimal } from "../../utils/format";
 import { ListItem } from "../../workspace/tabs/types";
 import { SamplesDescriptor } from "../descriptor/samplesDescriptor";
 import { SampleRow } from "./SampleRow";
 import { SampleSeparator } from "./SampleSeparator";
 
+import clsx from "clsx";
 import { SampleFooter } from "./SampleFooter";
 import { SampleHeader } from "./SampleHeader";
 import styles from "./SampleList.module.css";
@@ -25,7 +25,6 @@ const kSampleHeight = 88;
 const kSeparatorHeight = 24;
 
 interface SampleListProps {
-  listRef: RefObject<VirtualListRef | null>;
   items: ListItem[];
   sampleDescriptor: SamplesDescriptor;
   selectedIndex: number;
@@ -33,11 +32,11 @@ interface SampleListProps {
   prevSample: () => void;
   showSample: (index: number) => void;
   className?: string | string[];
+  listHandle: RefObject<VirtuosoHandle | null>;
 }
 
 export const SampleList: React.FC<SampleListProps> = (props) => {
   const {
-    listRef,
     items,
     sampleDescriptor,
     selectedIndex,
@@ -45,12 +44,14 @@ export const SampleList: React.FC<SampleListProps> = (props) => {
     prevSample,
     showSample,
     className,
+    listHandle,
   } = props;
 
   // If there are no samples, just display an empty state
   if (items.length === 0) {
     return <EmptyPanel>No Samples</EmptyPanel>;
   }
+  const [followOutput, setFollowOutput] = useState(false);
 
   const [hidden, setHidden] = useState(false);
   useEffect(() => {
@@ -70,16 +71,17 @@ export const SampleList: React.FC<SampleListProps> = (props) => {
 
   const prevSelectedIndexRef = useRef<number>(null);
   useEffect(() => {
-    const listEl = listRef.current;
+    const listEl = listHandle.current;
     if (listEl) {
-      const actualRowIndex = itemRowMapping[selectedIndex];
-
-      const direction =
-        actualRowIndex > (prevSelectedIndexRef.current || 0) ? "down" : "up";
-      listRef.current?.scrollToIndex(actualRowIndex, direction);
-      prevSelectedIndexRef.current = actualRowIndex;
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          const actualRowIndex = itemRowMapping[selectedIndex];
+          listEl.scrollToIndex(actualRowIndex);
+          prevSelectedIndexRef.current = actualRowIndex;
+        }, 10);
+      });
     }
-  }, [selectedIndex, listRef, itemRowMapping]);
+  }, [selectedIndex, listHandle, itemRowMapping]);
 
   const renderRow = (item: ListItem) => {
     if (item.type === "sample") {
@@ -186,13 +188,21 @@ export const SampleList: React.FC<SampleListProps> = (props) => {
         limit={limit !== "0"}
         gridColumnsTemplate={gridColumnsValue(sampleDescriptor)}
       />
-      <VirtualList
-        ref={listRef}
+      <Virtuoso
+        ref={listHandle}
+        style={{ height: "100%" }}
         data={items}
-        tabIndex={0}
-        renderRow={renderRow}
+        defaultItemHeight={50}
+        itemContent={(_index: number, data: ListItem) => {
+          return renderRow(data);
+        }}
+        followOutput={followOutput}
+        atBottomStateChange={(atBottom: boolean) => {
+          setFollowOutput(atBottom);
+        }}
+        className={clsx(className)}
         onKeyDown={onkeydown}
-        className={clsx(styles.list, className)}
+        skipAnimationFrameInResizeObserver={true}
       />
       <SampleFooter sampleCount={sampleCount} />
     </div>

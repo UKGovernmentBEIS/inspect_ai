@@ -15708,19 +15708,19 @@ ul.jsondiffpatch-textdiff {
 ._textCode_hw4du_17 {
   word-wrap: anywhere;
 }
-._outputPre_18agr_1 {
+._outputPre_1h1fn_1 {
   padding: 0.5em;
   margin-top: 0.25em;
   margin-bottom: 1rem;
 }
 
-._outputCode_18agr_7 {
+._outputCode_1h1fn_7 {
   overflow-wrap: anywhere;
   white-space: pre-wrap;
 }
 
-._bottomMargin_18agr_12 {
-  margin-bottom: 1em;
+._bottomPadding_1h1fn_12 {
+  padding-bottom: 1em;
 }
 ._image_10saa_1 {
   margin-right: 0.2rem;
@@ -16293,25 +16293,6 @@ ul.jsondiffpatch-textdiff {
 
 ._model_dbhwb_15 {
   padding-right: 1em;
-}
-._container_1vi7u_1 {
-  position: relative;
-  width: 100%;
-  min-height: 100%;
-  overflow: visible;
-}
-
-._container_1vi7u_1._hidden_1vi7u_8 {
-  overflow: hidden;
-}
-
-._content_1vi7u_12 {
-  position: absolute;
-  top: 0;
-  left: 0;
-  height: 100%;
-  width: 100%;
-  overflow: visible;
 }
 ._list_1emnm_1 {
   width: 100%;

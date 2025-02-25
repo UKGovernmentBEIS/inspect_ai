@@ -1,11 +1,12 @@
-import { RefObject } from "react";
-import { VirtualList } from "../../components/VirtualList";
+import { RefObject, useState } from "react";
 import { Messages } from "../../types/log";
 
 import clsx from "clsx";
+import { Virtuoso } from "react-virtuoso";
 import { ChatMessageRow } from "./ChatMessageRow";
-import styles from "./ChatViewVirtualList.module.css";
 import { ResolvedMessage, resolveMessages } from "./messages";
+
+import styles from "./ChatViewVirtualList.module.css";
 
 interface ChatViewVirtualListProps {
   id?: string;
@@ -30,6 +31,7 @@ export const ChatViewVirtualList: React.FC<ChatViewVirtualListProps> = ({
   scrollRef,
 }) => {
   const collapsedMessages = resolveMessages(messages);
+  const [followOutput, setFollowOutput] = useState(false);
 
   const renderRow = (item: ResolvedMessage, index: number) => {
     const number =
@@ -46,10 +48,23 @@ export const ChatViewVirtualList: React.FC<ChatViewVirtualListProps> = ({
   };
 
   const result = (
-    <VirtualList
+    <Virtuoso
+      customScrollParent={scrollRef?.current ? scrollRef.current : undefined}
+      style={{ height: "100%", width: "100%" }}
       data={collapsedMessages}
-      renderRow={renderRow}
-      scrollRef={scrollRef}
+      itemContent={(index: number, data: ResolvedMessage) => {
+        return renderRow(data, index);
+      }}
+      increaseViewportBy={{ top: 1000, bottom: 1000 }}
+      overscan={{
+        main: 10,
+        reverse: 10,
+      }}
+      followOutput={followOutput}
+      atBottomStateChange={(atBottom: boolean) => {
+        setFollowOutput(atBottom);
+      }}
+      skipAnimationFrameInResizeObserver={true}
       className={clsx(styles.list, className)}
     />
   );
