@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { Fragment } from "react"
+import { Fragment } from "react";
 import { MarkdownDiv } from "../../components/MarkdownDiv";
 import { ContentTool } from "../../types";
 import {
@@ -109,14 +109,20 @@ const messageRenderers: Record<string, MessageRenderer> = {
     render: (key, content, isLast) => {
       const r = content as ContentReasoning;
       return (
-          <Fragment key={key}>
-            <div className={clsx("text-style-label", "text-style-secondary", isLast ? "no-last-para-padding" : "")}>
-              Reasoning
-            </div>
-            <ExpandablePanel collapse={true}>
-              <MarkdownDiv markdown={r.reasoning} />
-            </ExpandablePanel>
-          </Fragment>
+        <Fragment key={key}>
+          <div
+            className={clsx(
+              "text-style-label",
+              "text-style-secondary",
+              isLast ? "no-last-para-padding" : "",
+            )}
+          >
+            Reasoning
+          </div>
+          <ExpandablePanel collapse={true}>
+            <MarkdownDiv markdown={r.reasoning} />
+          </ExpandablePanel>
+        </Fragment>
       );
     },
   },
