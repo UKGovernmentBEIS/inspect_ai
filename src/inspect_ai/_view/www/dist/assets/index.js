@@ -38315,7 +38315,33 @@ self.onmessage = function (e) {
       if (last_attachment) {
         params2.append("after-attachment-id", String(last_attachment));
       }
-      return (await api$2("GET", `/api/pending-sample-data?${params2.toString()}`)).parsed;
+      const request = {
+        headers: {},
+        parse: async (text2) => {
+          const pendingSamples = await asyncJsonParse(text2);
+          return {
+            status: "OK",
+            pendingSamples
+          };
+        },
+        handleError: (status2) => {
+          if (status2 === 404) {
+            return {
+              status: "NotFound"
+            };
+          } else if (status2 === 304) {
+            return {
+              status: "NotModified"
+            };
+          }
+        }
+      };
+      const result = (await apiRequest(
+        "GET",
+        `/api/pending-samples?${params2.toString()}`,
+        request
+      )).parsed;
+      return result;
     }
     async function apiRequest(method, path, request) {
       const responseHeaders = {
@@ -65570,7 +65596,7 @@ ${events}
           loadingSampleIndexRef.current = selectedSampleIndex;
           setSampleStatus("loading");
           setSampleError(void 0);
-          if (summary2.completed) {
+          if (summary2.completed !== false) {
             api2.get_log_sample(logFile.name, summary2.id, summary2.epoch).then((sample2) => {
               if (sample2) {
                 const anySample = sample2;
@@ -65607,16 +65633,18 @@ ${events}
               loadingSampleIndexRef.current = null;
             });
           } else if (api2.get_log_sample_data) {
-            api2.get_log_sample_data(logFile.name, summary2.id, summary2.epoch).then((sampleData) => {
-              if (sampleData) {
-                sampleScrollPosition.current = 0;
-                const adapter = sampleDataAdapter();
-                adapter.addData(sampleData);
-                const events = adapter.resolvedEvents();
-                setRunningSampleData({
-                  events,
-                  summary: summary2
-                });
+            api2.get_log_sample_data(logFile.name, summary2.id, summary2.epoch).then((sampleDataResponse) => {
+              if (sampleDataResponse) {
+                if (sampleDataResponse.status === "OK" && sampleDataResponse.sampleData) {
+                  sampleScrollPosition.current = 0;
+                  const adapter = sampleDataAdapter();
+                  adapter.addData(sampleDataResponse.sampleData);
+                  const events = adapter.resolvedEvents();
+                  setRunningSampleData({
+                    events,
+                    summary: summary2
+                  });
+                }
               }
               setSampleStatus("ok");
               loadingSampleIndexRef.current = null;

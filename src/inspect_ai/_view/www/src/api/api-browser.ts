@@ -5,7 +5,7 @@ import {
   LogContents,
   LogViewAPI,
   PendingSampleResponse,
-  SampleData,
+  SampleDataResponse,
 } from "./types";
 
 const loaded_time = Date.now();
@@ -108,7 +108,7 @@ async function eval_log_sample_data(
   epoch: number,
   last_event?: number,
   last_attachment?: number,
-): Promise<SampleData | undefined> {
+): Promise<SampleDataResponse | undefined> {
   const params = new URLSearchParams();
   params.append("log", log_file);
   params.append("id", String(id));
@@ -121,8 +121,38 @@ async function eval_log_sample_data(
     params.append("after-attachment-id", String(last_attachment));
   }
 
-  return (await api("GET", `/api/pending-sample-data?${params.toString()}`))
-    .parsed;
+  // Build up the request
+  const request: Request<SampleDataResponse> = {
+    headers: {},
+    parse: async (text: string) => {
+      const pendingSamples = await asyncJsonParse(text);
+      return {
+        status: "OK",
+        pendingSamples,
+      };
+    },
+    handleError: (status: number) => {
+      if (status === 404) {
+        return {
+          status: "NotFound",
+        };
+      } else if (status === 304) {
+        return {
+          status: "NotModified",
+        };
+      }
+    },
+  };
+  // Fetch the result
+  const result = (
+    await apiRequest<SampleDataResponse>(
+      "GET",
+      `/api/pending-samples?${params.toString()}`,
+      request,
+    )
+  ).parsed;
+
+  return result;
 }
 
 interface Request<T> {
