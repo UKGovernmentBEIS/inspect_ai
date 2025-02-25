@@ -251,9 +251,7 @@ class OpenAIAPI(ModelAPI):
         if isinstance(ex, RateLimitError):
             # Do not retry on these rate limit errors
             # The quota exceeded one is related to monthly account quotas.
-            if (
-                "You exceeded your current quota" not in ex.message
-            ):
+            if "You exceeded your current quota" not in ex.message:
                 return True
         elif isinstance(
             ex, (APIConnectionError | APITimeoutError | InternalServerError)
