@@ -951,52 +951,6 @@ def resolve_reasoning_history(
     # return messages
     return resolved_messages
 
-    # # API asssistant message format directly supports reasoning history so we will:
-    # #   (a) Remove reasoning content entirely if config says not to include it; or
-    # #   (b) Leave the messages alone if config says to include it
-    # if not model_api.emulate_reasoning_history():
-    #     # remove reasoning history as per config
-    #     if not reasoning_history:
-    #         resolved_messages: list[ChatMessage] = []
-    #         for message in messages:
-    #             if isinstance(message, ChatMessageAssistant) and isinstance(
-    #                 message.content, list
-    #             ):
-    #                 message.content = [
-    #                     content
-    #                     for content in message.content
-    #                     if not isinstance(content, ContentReasoning)
-    #                 ]
-    #             else:
-    #                 resolved_messages.append(message)
-
-    #         return resolved_messages
-
-    #     # include reasoning history as per config
-    #     else:
-    #         return messages
-
-    # # API can't represent reasoning natively so include <think> tags
-    # else:
-    #     resolved_messages = []
-    #     for message in messages:
-    #         if isinstance(message, ChatMessageAssistant) and isinstance(
-    #             message.content, list
-    #         ):
-    #             content: list[Content] = []
-    #             for c in message.content:
-    #                 if isinstance(c, ContentReasoning):
-    #                     content.append(
-    #                         ContentText(text=f"<think>\n{c.reasoning}\n</think>")
-    #                     )
-    #                 else:
-    #                     content.append(c)
-    #             message = message.model_copy(update={"content": content})
-
-    #         resolved_messages.append(message)
-
-    #     return resolved_messages
-
 
 def resolve_tool_model_input(
     tdefs: list[ToolDef], messages: list[ChatMessage]
