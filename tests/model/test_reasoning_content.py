@@ -1,6 +1,7 @@
 from typing import Literal
 
 import pytest
+from pydantic_core import to_json
 from test_helpers.utils import skip_if_no_google, skip_if_no_groq, skip_if_no_together
 
 from inspect_ai import Task, eval
@@ -13,11 +14,15 @@ from inspect_ai.solver._prompt import user_message
 from inspect_ai.solver._solver import generate
 
 
-async def check_reasoning_content(model_name: str):
+async def check_reasoning_content(
+    model_name: str, config: GenerateConfig = GenerateConfig()
+):
     model = get_model(model_name)
     output = await model.generate(
         "Please say 'hello, world'",
-        config=GenerateConfig(reasoning_effort="low", reasoning_tokens=1024),
+        config=config.merge(
+            GenerateConfig(reasoning_effort="low", reasoning_tokens=1024)
+        ),
     )
     assert "<think>" not in output.completion
     content = output.choices[0].message.content
@@ -79,6 +84,30 @@ def test_reasoning_content_google():
 
 @pytest.mark.slow
 @skip_if_no_together
-def test_reasoning_history_together():
+def test_reasoning_history():
     check_reasoning_history("together/deepseek-ai/DeepSeek-R1", "all")
     check_reasoning_history("together/deepseek-ai/DeepSeek-R1", "none")
+
+
+@pytest.mark.slow
+@skip_if_no_google
+def test_reasoning_history_last():
+    task = Task(
+        dataset=[Sample(input="Solve 3*x^3-5*x=1")],
+        solver=[
+            generate(),
+            user_message("Great!, Now solve 3*x^3-5*x=2"),
+            generate(),
+        ],
+    )
+
+    log = eval(
+        task,
+        model="google/gemini-2.0-flash-thinking-exp",
+        reasoning_history="all",
+        reasoning_effort="low",
+    )[0]
+    assert log.samples
+    sample = resolve_sample_attachments(log.samples[0])
+    last_model_event = [event for event in sample.events if event.event == "model"][-1]
+    print(to_json(last_model_event.input, indent=2).decode())
