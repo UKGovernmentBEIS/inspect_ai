@@ -400,11 +400,9 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         envvar="INSPECT_EVAL_REASONING_TOKENS",
     )
     @click.option(
-        "--reasoning-history/--no-reasoning-history",
-        type=bool,
-        is_flag=True,
-        default=True,
-        help="Include reasoning in chat message history sent to generate.",
+        "--reasoning-history",
+        type=click.Choice(["none", "all", "last", "auto"]),
+        help='Include reasoning in chat message history sent to generate (defaults to "auto", which uses the recommended default for each provider)',
         envvar="INSPECT_EVAL_REASONING_HISTORY",
     )
     @click.option(
@@ -477,7 +475,7 @@ def eval_command(
     cache_prompt: str | None,
     reasoning_effort: str | None,
     reasoning_tokens: int | None,
-    reasoning_history: bool | None,
+    reasoning_history: Literal["none", "all", "last", "auto"] | None,
     message_limit: int | None,
     token_limit: int | None,
     time_limit: int | None,
@@ -641,7 +639,7 @@ def eval_set_command(
     cache_prompt: str | None,
     reasoning_effort: str | None,
     reasoning_tokens: int | None,
-    reasoning_history: bool | None,
+    reasoning_history: Literal["none", "all", "last", "auto"] | None,
     message_limit: int | None,
     token_limit: int | None,
     time_limit: int | None,

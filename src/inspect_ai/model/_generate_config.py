@@ -1,8 +1,8 @@
 from contextvars import ContextVar
 from copy import deepcopy
-from typing import Literal, Union
+from typing import Any, Literal, Union
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from typing_extensions import TypedDict
 
 
@@ -78,7 +78,7 @@ class GenerateConfigArgs(TypedDict, total=False):
     reasoning_tokens: int | None
     """Maximum number of tokens to use for reasoning. Anthropic Claude models only."""
 
-    reasoning_history: bool | None
+    reasoning_history: Literal["none", "all", "last", "auto"] | None
     """Include reasoning in chat message history sent to generate."""
 
 
@@ -154,8 +154,23 @@ class GenerateConfig(BaseModel):
     reasoning_tokens: int | None = Field(default=None)
     """Maximum number of tokens to use for reasoning. Anthropic Claude models only."""
 
-    reasoning_history: bool | None = Field(default=None)
+    reasoning_history: Literal["none", "all", "last", "auto"] | None = Field(
+        default=None
+    )
     """Include reasoning in chat message history sent to generate."""
+
+    # migrate reasoning_history as a bool
+    @model_validator(mode="before")
+    @classmethod
+    def migrate_reasoning(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            reasoning_history = data.get("reasoning_history", None)
+            if reasoning_history is True:
+                data["reasoning_history"] = "all"
+            elif reasoning_history is False:
+                data["reasoning_history"] = "none"
+
+        return data
 
     def merge(
         self, other: Union["GenerateConfig", GenerateConfigArgs]

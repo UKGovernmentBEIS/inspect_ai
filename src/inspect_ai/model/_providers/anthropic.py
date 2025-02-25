@@ -350,6 +350,14 @@ class AnthropicAPI(ModelAPI):
     def tool_result_images(self) -> bool:
         return True
 
+    @override
+    def emulate_reasoning_history(self) -> bool:
+        return False
+
+    @override
+    def force_reasoning_history(self) -> Literal["none", "all", "last"] | None:
+        return "all"
+
     # convert some common BadRequestError states into 'refusal' model output
     def handle_bad_request(self, ex: BadRequestError) -> ModelOutput | Exception:
         error = exception_message(ex).lower()

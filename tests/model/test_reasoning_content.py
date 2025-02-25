@@ -1,3 +1,5 @@
+from typing import Literal
+
 import pytest
 from test_helpers.utils import skip_if_no_google, skip_if_no_groq, skip_if_no_together
 
@@ -22,7 +24,9 @@ async def check_reasoning_content(model_name: str):
     assert isinstance(content[0], ContentReasoning)
 
 
-def check_reasoning_history(model_name: str, include_history: bool):
+def check_reasoning_history(
+    model_name: str, reasoning_history: Literal["none", "all", "last"]
+):
     task = Task(
         dataset=[Sample(input="Please say hello, world")],
         solver=[
@@ -35,17 +39,17 @@ def check_reasoning_history(model_name: str, include_history: bool):
     log = eval(
         task,
         model=model_name,
-        reasoning_history=include_history,
+        reasoning_history=reasoning_history,
         reasoning_effort="low",
     )[0]
     assert log.samples
     sample = resolve_sample_attachments(log.samples[0])
     model_event = [event for event in sample.events if event.event == "model"][1]
     assistant_message = model_event.input[1]
-    if include_history:
-        assert "<think>" in assistant_message.text
-    else:
+    if reasoning_history == "none":
         assert "<think>" not in assistant_message.text
+    else:
+        assert "<think>" in assistant_message.text
 
 
 @pytest.mark.asyncio
@@ -75,5 +79,5 @@ def test_reasoning_content_google():
 @pytest.mark.slow
 @skip_if_no_together
 def test_reasoning_history_together():
-    check_reasoning_history("together/deepseek-ai/DeepSeek-R1", True)
-    check_reasoning_history("together/deepseek-ai/DeepSeek-R1", False)
+    check_reasoning_history("together/deepseek-ai/DeepSeek-R1", "all")
+    check_reasoning_history("together/deepseek-ai/DeepSeek-R1", "none")

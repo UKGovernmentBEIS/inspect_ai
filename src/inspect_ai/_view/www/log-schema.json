@@ -1250,6 +1250,7 @@
             "max_tool_output": null,
             "cache_prompt": null,
             "reasoning_effort": null,
+            "reasoning_tokens": null,
             "reasoning_history": null
           }
         }
@@ -2519,10 +2520,28 @@
           "default": null,
           "title": "Reasoning Effort"
         },
+        "reasoning_tokens": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reasoning Tokens"
+        },
         "reasoning_history": {
           "anyOf": [
             {
-              "type": "boolean"
+              "enum": [
+                "none",
+                "all",
+                "last",
+                "auto"
+              ],
+              "type": "string"
             },
             {
               "type": "null"
@@ -2557,6 +2576,7 @@
         "max_tool_output",
         "cache_prompt",
         "reasoning_effort",
+        "reasoning_tokens",
         "reasoning_history"
       ],
       "additionalProperties": false

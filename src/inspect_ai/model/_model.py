@@ -189,9 +189,17 @@ class ModelAPI(abc.ABC):
         """Tool results can contain images"""
         return False
 
-    def has_reasoning_history(self) -> bool:
-        """Chat message assistant messages can include reasoning."""
-        return False
+    def emulate_reasoning_history(self) -> bool:
+        """Chat message assistant messages with reasoning should playback reasoning with emulation (.e.g. <think> tags)"""
+        return True
+
+    def force_reasoning_history(self) -> Literal["none", "all", "last"] | None:
+        """Force a specific reasoning history behavior for this provider."""
+        return None
+
+    def auto_reasoning_history(self) -> Literal["none", "all", "last"]:
+        """Behavior to use for reasoning_history='auto'"""
+        return "all"
 
 
 class Model:
@@ -359,9 +367,7 @@ class Model:
             tool_choice = "none"
 
         # handle reasoning history
-        input = resolve_reasoning_history(
-            input, config, self.api.has_reasoning_history()
-        )
+        input = resolve_reasoning_history(input, config, self.api)
 
         # apply any tool model_input handlers
         input = resolve_tool_model_input(tdefs, input)
@@ -859,11 +865,10 @@ def simple_input_messages(
 
 
 def resolve_reasoning_history(
-    messages: list[ChatMessage], config: GenerateConfig, api_has_reasoning_history: bool
+    messages: list[ChatMessage],
+    config: GenerateConfig,
+    model_api: ModelAPI,
 ) -> list[ChatMessage]:
-    # determine if we are including reasoning history
-    reasoning_history = config.reasoning_history is not False
-
     # determine up front if we have any reasoning content
     have_reasoning = any(
         [
@@ -876,35 +881,52 @@ def resolve_reasoning_history(
     if not have_reasoning:
         return messages
 
-    # API asssistant message format directly supports reasoning history so we will:
-    #   (a) Remove reasoning content entirely if config says not to include it; or
-    #   (b) Leave the messages alone if config says to include it
-    if api_has_reasoning_history:
-        # remove reasoning history as per config
-        if not reasoning_history:
-            resolved_messages: list[ChatMessage] = []
-            for message in messages:
-                if isinstance(message, ChatMessageAssistant) and isinstance(
-                    message.content, list
-                ):
-                    message.content = [
-                        content
-                        for content in message.content
-                        if not isinstance(content, ContentReasoning)
-                    ]
-                else:
-                    resolved_messages.append(message)
+    # determine reasoning history configuration
+    reasoning_history = (
+        config.reasoning_history if config.reasoning_history is not None else "auto"
+    )
 
-            return resolved_messages
+    # see if the provider is forcing a reasoning history
+    force = model_api.force_reasoning_history()
+    if force is not None:
+        reasoning_history = force
+    # if it's 'auto' then defer to the provider
+    elif reasoning_history == "auto":
+        reasoning_history = model_api.auto_reasoning_history()
 
-        # include reasoning history as per config
-        else:
-            return messages
-
-    # API can't represent reasoning natively so include <think> tags
-    elif reasoning_history:
+    # generate a version of message history with the correct history
+    if reasoning_history == "all":
+        resolved_messages: list[ChatMessage] = messages
+    else:
+        found_last = False
         resolved_messages = []
-        for message in messages:
+        for message in reversed(messages):
+            if isinstance(message, ChatMessageAssistant) and isinstance(
+                message.content, list
+            ):
+                # is there reasoning in this message?
+                has_reasoning = any(
+                    isinstance(c, ContentReasoning) for c in message.content
+                )
+                # remove it unless we are in "last" mode and haven't yet found last
+                if has_reasoning:
+                    if reasoning_history == "none" or not found_last:
+                        message.content = [
+                            content
+                            for content in message.content
+                            if not isinstance(content, ContentReasoning)
+                        ]
+                    found_last = True
+            else:
+                resolved_messages.append(message)
+
+        # reverse them back
+        resolved_messages.reverse()
+
+    # api can't represent reasoning natively so emulate it
+    if model_api.emulate_reasoning_history():
+        emulated_messages: list[ChatMessage] = []
+        for message in resolved_messages:
             if isinstance(message, ChatMessageAssistant) and isinstance(
                 message.content, list
             ):
@@ -918,13 +940,58 @@ def resolve_reasoning_history(
                         content.append(c)
                 message = message.model_copy(update={"content": content})
 
-            resolved_messages.append(message)
+            emulated_messages.append(message)
 
-        return resolved_messages
+        resolved_messages = emulated_messages
 
-    # api doesn't handle reasoning and config says no reasoning_history, nothing to do
-    else:
-        return messages
+    # return messages
+    return resolved_messages
+
+    # # API asssistant message format directly supports reasoning history so we will:
+    # #   (a) Remove reasoning content entirely if config says not to include it; or
+    # #   (b) Leave the messages alone if config says to include it
+    # if not model_api.emulate_reasoning_history():
+    #     # remove reasoning history as per config
+    #     if not reasoning_history:
+    #         resolved_messages: list[ChatMessage] = []
+    #         for message in messages:
+    #             if isinstance(message, ChatMessageAssistant) and isinstance(
+    #                 message.content, list
+    #             ):
+    #                 message.content = [
+    #                     content
+    #                     for content in message.content
+    #                     if not isinstance(content, ContentReasoning)
+    #                 ]
+    #             else:
+    #                 resolved_messages.append(message)
+
+    #         return resolved_messages
+
+    #     # include reasoning history as per config
+    #     else:
+    #         return messages
+
+    # # API can't represent reasoning natively so include <think> tags
+    # else:
+    #     resolved_messages = []
+    #     for message in messages:
+    #         if isinstance(message, ChatMessageAssistant) and isinstance(
+    #             message.content, list
+    #         ):
+    #             content: list[Content] = []
+    #             for c in message.content:
+    #                 if isinstance(c, ContentReasoning):
+    #                     content.append(
+    #                         ContentText(text=f"<think>\n{c.reasoning}\n</think>")
+    #                     )
+    #                 else:
+    #                     content.append(c)
+    #             message = message.model_copy(update={"content": content})
+
+    #         resolved_messages.append(message)
+
+    #     return resolved_messages
 
 
 def resolve_tool_model_input(
