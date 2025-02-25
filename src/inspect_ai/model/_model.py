@@ -153,6 +153,10 @@ class ModelAPI(abc.ABC):
         """Default max_tokens."""
         return None
 
+    def max_tokens_for_config(self, config: GenerateConfig) -> int | None:
+        """Default max_tokens for a given config."""
+        return None
+
     def max_connections(self) -> int:
         """Default max_connections."""
         return DEFAULT_MAX_CONNECTIONS
@@ -290,9 +294,10 @@ class Model:
         config = base_config.merge(config)
 
         # provide max_tokens from the model api if required
-        config.max_tokens = (
-            config.max_tokens if config.max_tokens else self.api.max_tokens()
-        )
+        if config.max_tokens is None:
+            config.max_tokens = self.api.max_tokens_for_config(config)
+            if config.max_tokens is None:
+                config.max_tokens = self.api.max_tokens()
 
         # disable parallel tool calls if requested by any of our tools
         if disable_parallel_tools(tools):

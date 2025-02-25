@@ -21439,8 +21439,23 @@ var require_assets = __commonJS({
         render: (key2, content2, isLast) => {
           const r2 = content2;
           return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-label", "text-style-secondary", isLast ? "no-last-para-padding" : ""), children: "Reasoning" }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx(ExpandablePanel, { collapse: true, children: /* @__PURE__ */ jsxRuntimeExports.jsx(MarkdownDiv, { markdown: r2.reasoning }) })
+            /* @__PURE__ */ jsxRuntimeExports.jsx(
+              "div",
+              {
+                className: clsx(
+                  "text-style-label",
+                  "text-style-secondary",
+                  isLast ? "no-last-para-padding" : ""
+                ),
+                children: "Reasoning"
+              }
+            ),
+            /* @__PURE__ */ jsxRuntimeExports.jsx(ExpandablePanel, { collapse: true, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+              MarkdownDiv,
+              {
+                markdown: r2.redacted ? "Reasoning encrypted for safety reasons." : r2.reasoning
+              }
+            ) })
           ] }, key2);
         }
       },

@@ -390,8 +390,14 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
     @click.option(
         "--reasoning-effort",
         type=click.Choice(["low", "medium", "high"]),
-        help="Constrains effort on reasoning for reasoning models. Open AI o1 models only.",
+        help="Constrains effort on reasoning for reasoning models. Open AI o-series models only.",
         envvar="INSPECT_EVAL_REASONING_EFFORT",
+    )
+    @click.option(
+        "--reasoning-tokens",
+        type=int,
+        help="Maximum number of tokens to use for reasoning. Anthropic Claude models only.",
+        envvar="INSPECT_EVAL_REASONING_TOKENS",
     )
     @click.option(
         "--reasoning-history/--no-reasoning-history",
@@ -470,6 +476,7 @@ def eval_command(
     max_tool_output: int | None,
     cache_prompt: str | None,
     reasoning_effort: str | None,
+    reasoning_tokens: int | None,
     reasoning_history: bool | None,
     message_limit: int | None,
     token_limit: int | None,
@@ -633,6 +640,7 @@ def eval_set_command(
     max_tool_output: int | None,
     cache_prompt: str | None,
     reasoning_effort: str | None,
+    reasoning_tokens: int | None,
     reasoning_history: bool | None,
     message_limit: int | None,
     token_limit: int | None,

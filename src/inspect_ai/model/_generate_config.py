@@ -75,6 +75,9 @@ class GenerateConfigArgs(TypedDict, total=False):
     reasoning_effort: Literal["low", "medium", "high"] | None
     """Constrains effort on reasoning for reasoning models. Open AI o1 models only."""
 
+    reasoning_tokens: int | None
+    """Maximum number of tokens to use for reasoning. Anthropic Claude models only."""
+
     reasoning_history: bool | None
     """Include reasoning in chat message history sent to generate."""
 
@@ -147,6 +150,9 @@ class GenerateConfig(BaseModel):
 
     reasoning_effort: Literal["low", "medium", "high"] | None = Field(default=None)
     """Constrains effort on reasoning for reasoning models. Open AI o1 models only."""
+
+    reasoning_tokens: int | None = Field(default=None)
+    """Maximum number of tokens to use for reasoning. Anthropic Claude models only."""
 
     reasoning_history: bool | None = Field(default=None)
     """Include reasoning in chat message history sent to generate."""
