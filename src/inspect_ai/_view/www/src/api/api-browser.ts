@@ -147,7 +147,7 @@ async function eval_log_sample_data(
   const result = (
     await apiRequest<SampleDataResponse>(
       "GET",
-      `/api/pending-samples?${params.toString()}`,
+      `/api/pending-sample-data?${params.toString()}`,
       request,
     )
   ).parsed;
