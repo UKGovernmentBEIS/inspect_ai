@@ -5,7 +5,6 @@ from inspect_ai import Task, eval
 from inspect_ai._util.content import ContentReasoning
 from inspect_ai.dataset import Sample
 from inspect_ai.model._generate_config import GenerateConfig
-from inspect_ai.model._model import get_model
 
 from .test_reasoning_content import check_reasoning_content
 
