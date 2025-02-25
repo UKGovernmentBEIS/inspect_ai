@@ -38340,7 +38340,7 @@ self.onmessage = function (e) {
       };
       const result = (await apiRequest(
         "GET",
-        `/api/pending-samples?${params2.toString()}`,
+        `/api/pending-sample-data?${params2.toString()}`,
         request
       )).parsed;
       return result;
