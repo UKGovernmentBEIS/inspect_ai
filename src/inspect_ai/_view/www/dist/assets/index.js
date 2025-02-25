@@ -62561,9 +62561,13 @@ ${events}
       reactExports.useEffect(() => {
         const listEl = listHandle.current;
         if (listEl) {
-          const actualRowIndex = itemRowMapping[selectedIndex];
-          listEl.scrollToIndex(actualRowIndex);
-          prevSelectedIndexRef.current = actualRowIndex;
+          requestAnimationFrame(() => {
+            setTimeout(() => {
+              const actualRowIndex = itemRowMapping[selectedIndex];
+              listEl.scrollToIndex(actualRowIndex);
+              prevSelectedIndexRef.current = actualRowIndex;
+            }, 10);
+          });
         }
       }, [selectedIndex, listHandle, itemRowMapping]);
       const renderRow = (item2) => {
