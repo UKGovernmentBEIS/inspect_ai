@@ -7,6 +7,8 @@
 - OpenAI: Retry on rate limit requests with "Request too large".
 - OpenAI: Tolerate `None` for assistant content (can happen when there is a refusal).
 - Bugfix: Catch standard `TimeoutError` for running shell commands in the computer tool container.
+- Inspect View: Improve rendering of JSON within logging events.
+- Inspect View: Improve virtualized rendering of Sample List, Sample Transcript, and Sample Messages.
 
 ## v0.3.70 (25 February 2025)
 

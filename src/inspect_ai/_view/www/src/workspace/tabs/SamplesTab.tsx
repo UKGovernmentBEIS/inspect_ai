@@ -6,9 +6,9 @@ import {
   useRef,
   useState,
 } from "react";
+import { VirtuosoHandle } from "react-virtuoso";
 import { SampleSummary } from "../../api/types.ts";
 import { EmptyPanel } from "../../components/EmptyPanel.tsx";
-import { VirtualListRef } from "../../components/VirtualList.tsx";
 import { InlineSampleDisplay } from "../../samples/InlineSampleDisplay";
 import { SampleDialog } from "../../samples/SampleDialog";
 import { SamplesDescriptor } from "../../samples/descriptor/samplesDescriptor.tsx";
@@ -65,7 +65,7 @@ export const SamplesTab: React.FC<SamplesTabProps> = ({
   const [items, setItems] = useState<ListItem[]>([]);
   const [sampleItems, setSampleItems] = useState<ListItem[]>([]);
 
-  const sampleListRef = useRef<VirtualListRef>(null);
+  const sampleListHandle = useRef<VirtuosoHandle | null>(null);
   const sampleDialogRef = useRef<HTMLDivElement>(null);
 
   // Shows the sample dialog
@@ -84,8 +84,8 @@ export const SamplesTab: React.FC<SamplesTabProps> = ({
       }, 0);
     } else {
       setTimeout(() => {
-        if (sampleListRef.current) {
-          sampleListRef.current.focus();
+        if (sampleListHandle.current) {
+          sampleListHandle.current.scrollToIndex(0);
         }
       }, 0);
     }
@@ -173,7 +173,7 @@ export const SamplesTab: React.FC<SamplesTabProps> = ({
         ) : undefined}
         {sampleDescriptor && sampleMode === "many" ? (
           <SampleList
-            listRef={sampleListRef}
+            listHandle={sampleListHandle}
             items={items}
             sampleDescriptor={sampleDescriptor}
             selectedIndex={selectedSampleIndex}
