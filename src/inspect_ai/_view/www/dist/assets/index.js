@@ -38323,7 +38323,7 @@ self.onmessage = function (e) {
           const pendingSamples = await asyncJsonParse(text2);
           return {
             status: "OK",
-            pendingSamples
+            sampleData: pendingSamples
           };
         },
         handleError: (status2) => {
@@ -66053,7 +66053,7 @@ ${events}
           setSampleStatus("loading");
           setSampleError(void 0);
           try {
-            if (summary2.completed !== false) {
+            if (summary2.completed !== false && !samplePollingRef.current) {
               const sample2 = await api2.get_log_sample(
                 logFile.name,
                 summary2.id,
@@ -66068,18 +66068,8 @@ ${events}
                   "Unable to load sample - an unknown error occurred."
                 );
               }
-            } else if (api2.get_log_sample_data) {
-              const sampleDataResponse = await api2.get_log_sample_data(
-                logFile.name,
-                summary2.id,
-                summary2.epoch
-              );
-              if ((sampleDataResponse == null ? void 0 : sampleDataResponse.status) === "OK" && sampleDataResponse.sampleData) {
-                sampleScrollPosition.current = 0;
-                const adapter = sampleDataAdapter();
-                adapter.addData(sampleDataResponse.sampleData);
-                setRunningSampleData({ events: adapter.resolvedEvents(), summary: summary2 });
-              }
+            } else {
+              pollForSampleData(logFile.name, summary2);
             }
             setSampleStatus("ok");
           } catch (e) {
@@ -66089,6 +66079,61 @@ ${events}
           }
         },
         [logs, selectedLogIndex]
+      );
+      const samplePollingRef = reactExports.useRef(null);
+      const samplePollInterval = 2;
+      reactExports.useEffect(() => {
+        return () => {
+          if (samplePollingRef.current) {
+            clearTimeout(samplePollingRef.current);
+            samplePollingRef.current = null;
+          }
+        };
+      }, [selectedSampleIndex]);
+      const pollForSampleData = reactExports.useCallback(
+        (logFile, summary2) => {
+          if (samplePollingRef.current) {
+            clearTimeout(samplePollingRef.current);
+            samplePollingRef.current = null;
+          }
+          const poll = async () => {
+            if (!api2.get_log_sample_data) {
+              return;
+            }
+            try {
+              const sampleDataResponse = await api2.get_log_sample_data(
+                logFile,
+                summary2.id,
+                summary2.epoch
+              );
+              if ((sampleDataResponse == null ? void 0 : sampleDataResponse.status) === "OK" && sampleDataResponse.sampleData) {
+                sampleScrollPosition.current = 0;
+                const adapter = sampleDataAdapter();
+                adapter.addData(sampleDataResponse.sampleData);
+                const runningData = { events: adapter.resolvedEvents(), summary: summary2 };
+                setRunningSampleData(runningData);
+              } else if ((sampleDataResponse == null ? void 0 : sampleDataResponse.status) === "NotFound") {
+                if (samplePollingRef.current) {
+                  clearTimeout(samplePollingRef.current);
+                  samplePollingRef.current = null;
+                }
+                return;
+              }
+              samplePollingRef.current = setTimeout(
+                poll,
+                samplePollInterval * 1e3
+              );
+            } catch (e) {
+              console.error("Error polling pending samples:", e);
+              samplePollingRef.current = setTimeout(
+                poll,
+                Math.min(samplePollInterval * 2 * 1e3, 6e4)
+              );
+            }
+          };
+          poll();
+        },
+        [api2.get_log_sample_data, setRunningSampleData]
       );
       const migrateOldSample = (sample2) => {
         if (sample2.transcript) {
