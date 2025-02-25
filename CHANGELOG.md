@@ -8,6 +8,7 @@
 - Add `uuid` property to `TaskState` and `EvalSample` (globally unique identifer for sample run).
 - Add `cleanup` to tasks for executing a function at the end of each sample run.
 - Agent `bridge()` is now compatible with the use of a custom `OPENAI_BASE_URL`.
+- Truncate tracebacks included in evaluation log to a maximum of 1MB.
 - Compatiblity with textual version 2.0 (remove upper bound).
 - Align with HF datasets `fsspec` version contraints to avoid pip errors when installing alongside `datasets`.
 - Bugfix: Fix issue with tools that had an ordinary `dict` as a parameter.
