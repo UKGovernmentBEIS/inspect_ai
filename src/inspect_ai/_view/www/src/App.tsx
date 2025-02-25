@@ -51,6 +51,7 @@ import {
   kSampleMessagesTabId,
   kSampleTranscriptTabId,
 } from "./constants";
+import { useLogsContext } from "./LogsContext.tsx";
 import {
   createEvalDescriptor,
   createSamplesDescriptor,
@@ -82,14 +83,18 @@ export const App: FC<AppProps> = ({
 }) => {
   // Application Context
   const appContext = useAppContext();
+  const logsContext = useLogsContext();
 
   // The main application reference
   const mainAppRef = useRef<HTMLDivElement>(null);
 
-  // List of Logs
-  const [logs, setLogs] = useState<LogFiles>(
-    applicationState?.logs || { log_dir: "", files: [] },
+  const [logHeaders, setLogHeaders] = useState<Record<string, EvalLogHeader>>(
+    applicationState?.logs?.logHeaders || {},
   );
+  const [headersLoading, setHeadersLoading] = useState<boolean>(
+    applicationState?.logs?.headersLoading || false,
+  );
+
   const [selectedLogIndex, setSelectedLogIndex] = useState<number>(
     applicationState?.selectedLogIndex !== undefined
       ? applicationState.selectedLogIndex
@@ -99,14 +104,6 @@ export const App: FC<AppProps> = ({
   const [selectedLogSummary, setSelectedLogSummary] = useState<
     EvalSummary | undefined
   >(applicationState?.selectedLogSummary);
-
-  // Log Headers
-  const [logHeaders, setLogHeaders] = useState<Record<string, EvalLogHeader>>(
-    applicationState?.logHeaders || {},
-  );
-  const [headersLoading, setHeadersLoading] = useState<boolean>(
-    applicationState?.headersLoading || false,
-  );
 
   // Workspace (the selected tab)
   const [selectedWorkspaceTab, setSelectedWorkspaceTab] = useState<string>(
@@ -171,7 +168,6 @@ export const App: FC<AppProps> = ({
 
   const saveState = useCallback(() => {
     const state = {
-      logs,
       selectedLogIndex,
       logHeaders,
       headersLoading,
@@ -191,12 +187,12 @@ export const App: FC<AppProps> = ({
       sampleScrollPosition: sampleScrollPosition.current,
       workspaceTabScrollPosition: workspaceTabScrollPosition.current,
       ...appContext.getState(),
+      ...logsContext.getState(),
     };
     if (saveApplicationState) {
       saveApplicationState(state);
     }
   }, [
-    logs,
     selectedLogIndex,
     logHeaders,
     headersLoading,
@@ -210,6 +206,7 @@ export const App: FC<AppProps> = ({
     showingSampleDialog,
     status,
     appContext.getState,
+    logsContext.getState,
     filter,
     epoch,
     sort,
@@ -248,7 +245,6 @@ export const App: FC<AppProps> = ({
   useEffect(() => {
     saveStateRef.current();
   }, [
-    logs,
     selectedLogIndex,
     logHeaders,
     headersLoading,
@@ -262,6 +258,7 @@ export const App: FC<AppProps> = ({
     showingSampleDialog,
     status,
     appContext.getState,
+    logsContext.getState,
     filter,
     epoch,
     sort,
@@ -423,7 +420,7 @@ export const App: FC<AppProps> = ({
         return;
       }
 
-      const logFile = logs.files[selectedLogIndex];
+      const logFile = logsContext.state.logs.files[selectedLogIndex];
       if (!logFile) {
         return;
       }
@@ -462,7 +459,7 @@ export const App: FC<AppProps> = ({
         loadingSampleIndexRef.current = null;
       }
     },
-    [logs, selectedLogIndex],
+    [logsContext.state.logs, selectedLogIndex],
   );
 
   const samplePollingRef = useRef<Timeout | null>(null);
@@ -479,7 +476,6 @@ export const App: FC<AppProps> = ({
 
   const pollForSampleData = useCallback(
     (logFile: string, summary: SampleSummary) => {
-
       // Ensure any existing polling instance is cleared before starting a new one
       if (samplePollingRef.current) {
         clearTimeout(samplePollingRef.current);
@@ -555,10 +551,13 @@ export const App: FC<AppProps> = ({
 
   // Clear the selected sample when log file changes
   useEffect(() => {
-    if (!logs.files[selectedLogIndex] || selectedSampleIndex === -1) {
+    if (
+      !logsContext.state.logs.files[selectedLogIndex] ||
+      selectedSampleIndex === -1
+    ) {
       setSelectedSample(undefined);
     }
-  }, [selectedSampleIndex, selectedLogIndex, logs]);
+  }, [selectedSampleIndex, selectedLogIndex, logsContext.state.logs]);
 
   // Refresh selected sample
   const refreshSelectedSample = useCallback(
@@ -593,18 +592,23 @@ export const App: FC<AppProps> = ({
   );
 
   const reloadSelectedLog = useCallback(async () => {
-    const targetLog = logs.files[selectedLogIndex];
+    const targetLog = logsContext.state.logs.files[selectedLogIndex];
     if (!targetLog) return;
 
     const log = await loadLog(targetLog.name);
     if (log) {
       setSelectedLogSummary(log);
     }
-  }, [logs, selectedLogIndex, loadLog, setSelectedLogSummary]);
+  }, [
+    logsContext.state.logs,
+    selectedLogIndex,
+    loadLog,
+    setSelectedLogSummary,
+  ]);
 
   // Poll for pending samples when a log is selected
   useEffect(() => {
-    const logFile = logs.files[selectedLogIndex];
+    const logFile = logsContext.state.logs.files[selectedLogIndex];
     if (!logFile) return;
 
     let isActive = true;
@@ -677,7 +681,7 @@ export const App: FC<AppProps> = ({
       }
     };
   }, [
-    logs,
+    logsContext.state.logs,
     selectedLogIndex,
     pendingSampleSummaries.etag,
     pendingSampleSummaries.refresh,
@@ -693,8 +697,10 @@ export const App: FC<AppProps> = ({
       // Group into chunks
       const chunkSize = 8;
       const fileLists = [];
-      for (let i = 0; i < logs.files.length; i += chunkSize) {
-        let chunk = logs.files.slice(i, i + chunkSize).map((log) => log.name);
+      for (let i = 0; i < logsContext.state.logs.files.length; i += chunkSize) {
+        let chunk = logsContext.state.logs.files
+          .slice(i, i + chunkSize)
+          .map((log) => log.name);
         fileLists.push(chunk);
       }
 
@@ -737,7 +743,12 @@ export const App: FC<AppProps> = ({
     };
 
     loadHeaders();
-  }, [logs, appContext.dispatch, setLogHeaders, setHeadersLoading]);
+  }, [
+    logsContext.state.logs,
+    appContext.dispatch,
+    setLogHeaders,
+    setHeadersLoading,
+  ]);
 
   /**
    * Resets the workspace tab based on the provided log's state.
@@ -787,7 +798,7 @@ export const App: FC<AppProps> = ({
         return;
       }
 
-      const targetLog = logs.files[selectedLogIndex];
+      const targetLog = logsContext.state.logs.files[selectedLogIndex];
       if (targetLog) {
         try {
           appContext.dispatch({
@@ -824,20 +835,28 @@ export const App: FC<AppProps> = ({
             payload: { loading: false, error: e as Error },
           });
         }
-      } else if (logs.log_dir && logs.files.length === 0) {
+      } else if (
+        logsContext.state.logs.log_dir &&
+        logsContext.state.logs.files.length === 0
+      ) {
         appContext.dispatch({
           type: "SET_STATUS",
           payload: {
             loading: false,
             error: new Error(
-              `No log files to display in the directory ${logs.log_dir}. Are you sure this is the correct log directory?`,
+              `No log files to display in the directory ${logsContext.state.logs.log_dir}. Are you sure this is the correct log directory?`,
             ),
           },
         });
       }
     };
     loadSpecificLog();
-  }, [selectedLogIndex, logs, setSelectedLogSummary, appContext.dispatch]);
+  }, [
+    selectedLogIndex,
+    logsContext.state.logs,
+    setSelectedLogSummary,
+    appContext.dispatch,
+  ]);
 
   // Load the list of logs
   const loadLogs = async (): Promise<LogFiles> => {
@@ -863,7 +882,7 @@ export const App: FC<AppProps> = ({
         payload: { loading: true, error: undefined },
       });
 
-      const targetLog = logs.files[selectedLogIndex];
+      const targetLog = logsContext.state.logs.files[selectedLogIndex];
       const logContents = await loadLog(targetLog.name);
       if (logContents) {
         const log = logContents;
@@ -902,7 +921,7 @@ export const App: FC<AppProps> = ({
       });
     }
   }, [
-    logs,
+    logsContext.state.logs,
     selectedLogIndex,
     sampleSummaries,
     appContext.dispatch,
@@ -911,7 +930,7 @@ export const App: FC<AppProps> = ({
 
   const showLogFile = useCallback(
     async (logUrl: string) => {
-      const index = logs.files.findIndex((val) => {
+      const index = logsContext.state.logs.files.findIndex((val) => {
         return logUrl.endsWith(val.name);
       });
       if (index > -1) {
@@ -921,17 +940,27 @@ export const App: FC<AppProps> = ({
         const idx = result?.files.findIndex((file) => {
           return logUrl.endsWith(file.name);
         });
-        setLogs(result || { log_dir: "", files: [] });
+        logsContext.dispatch({
+          type: "SET_LOGS",
+          payload: result || { log_dir: "", files: [] },
+        });
         setSelectedLogIndex(idx && idx > -1 ? idx : 0);
       }
     },
-    [logs, setSelectedLogIndex, setLogs],
+    [logsContext.state.logs, setSelectedLogIndex, logsContext.dispatch],
   );
 
+  // TODO: Remove this to context
   const refreshLogList = useCallback(async () => {
-    const currentLog = logs.files[selectedLogIndex > -1 ? selectedLogIndex : 0];
+    const currentLog =
+      logsContext.state.logs.files[
+        selectedLogIndex > -1 ? selectedLogIndex : 0
+      ];
     const refreshedLogs = await loadLogs();
-    setLogs(refreshedLogs || { log_dir: "", files: [] });
+    logsContext.dispatch({
+      type: "SET_LOGS",
+      payload: refreshedLogs || { log_dir: "", files: [] },
+    });
 
     const newIndex = refreshedLogs?.files.findIndex((file) => {
       return currentLog.name.endsWith(file.name);
@@ -939,7 +968,12 @@ export const App: FC<AppProps> = ({
     if (newIndex !== undefined) {
       setSelectedLogIndex(newIndex);
     }
-  }, [logs, selectedLogIndex, setSelectedLogIndex, setLogs]);
+  }, [
+    logsContext.state.logs,
+    selectedLogIndex,
+    setSelectedLogIndex,
+    logsContext.dispatch,
+  ]);
 
   const onMessage = useCallback(
     async (e: HostMessage) => {
@@ -956,7 +990,7 @@ export const App: FC<AppProps> = ({
           const log_dir = e.data.log_dir;
           const isFocused = document.hasFocus();
           if (!isFocused) {
-            if (log_dir === logs.log_dir) {
+            if (log_dir === logsContext.state.logs.log_dir) {
               showLogFile(decodedUrl);
             } else {
               api.open_log_file(e.data.url, e.data.log_dir);
@@ -968,7 +1002,7 @@ export const App: FC<AppProps> = ({
         }
       }
     },
-    [logs, showLogFile, refreshLogList],
+    [logsContext.state.logs, showLogFile, refreshLogList],
   );
 
   // listen for updateState messages from vscode
@@ -1004,7 +1038,10 @@ export const App: FC<AppProps> = ({
         onMessage({ data: state });
       } else {
         const result = await load();
-        setLogs(result);
+        logsContext.dispatch({
+          type: "SET_LOGS",
+          payload: result,
+        });
 
         // If a log file was passed, select it
         const log_file = urlParams.get("log_file");
@@ -1024,13 +1061,18 @@ export const App: FC<AppProps> = ({
     };
 
     loadLogsAndState();
-  }, []);
+  }, [logsContext.dispatch]);
 
   // Configure an app envelope specific to the current state
   // if there are no log files, then don't show sidebar
-  const fullScreen = logs.files.length === 1 && !logs.log_dir;
+  const fullScreen =
+    logsContext.state.logs.files.length === 1 &&
+    !logsContext.state.logs.log_dir;
 
-  const showToggle = logs.files.length > 1 || !!logs.log_dir || false;
+  const showToggle =
+    logsContext.state.logs.files.length > 1 ||
+    !!logsContext.state.logs.log_dir ||
+    false;
 
   /**
    * Determines the sample mode based on the selected log's contents.
@@ -1050,7 +1092,7 @@ export const App: FC<AppProps> = ({
     <>
       {!fullScreen && selectedLogSummary ? (
         <Sidebar
-          logs={logs}
+          logs={logsContext.state.logs}
           logHeaders={logHeaders}
           loading={headersLoading}
           selectedIndex={selectedLogIndex}
@@ -1095,7 +1137,7 @@ export const App: FC<AppProps> = ({
         ) : (
           <WorkSpace
             task_id={selectedLogSummary?.eval?.task_id}
-            logFileName={logs.files[selectedLogIndex]?.name}
+            logFileName={logsContext.state.logs.files[selectedLogIndex]?.name}
             evalStatus={selectedLogSummary?.status}
             evalError={filterNull(selectedLogSummary?.error)}
             evalVersion={selectedLogSummary?.version}
