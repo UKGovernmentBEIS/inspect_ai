@@ -41,31 +41,32 @@ For convenience, tasks always define a default solver. That said, it is often de
 
 While many tasks can be defined with only a dataset, solver, and scorer, there are lots of other useful `Task` options. We won't describe these options in depth here, but rather provide a list along with links to other sections of the documentation that cover their usage:
 
-+------------------+------------------------------------------------------+-----------------------------------------------------------+
-| Option           | Description                                          | Docs                                                      |
-+==================+======================================================+===========================================================+
-| `epochs`         | Epochs to run for each dataset sample.               | [Epochs](scorers.qmd#reducing-epochs)                     |
-+------------------+------------------------------------------------------+-----------------------------------------------------------+
-| `config`         | Config for model generation.                         | [Generate Config](options.qmd#model-generation)           |
-+------------------+------------------------------------------------------+-----------------------------------------------------------+
-| `setup`          | Setup solver(s) to run prior to the main solver.     | [Sample Setup](#setup-parameter)                          |
-+------------------+------------------------------------------------------+-----------------------------------------------------------+
-| `sandbox`        | Sandbox configuration for un-trusted code execution. | [Sandboxing](sandboxing.qmd)                              |
-+------------------+------------------------------------------------------+-----------------------------------------------------------+
-| `approval`       | Approval policy for tool calls.                      | [Tool Approval](approval.qmd)                             |
-+------------------+------------------------------------------------------+-----------------------------------------------------------+
-| `metrics`        | Metrics to use in place of scorer metrics.           | [Scoring Metrics](scorers.qmd#scoring-metrics)            |
-+------------------+------------------------------------------------------+-----------------------------------------------------------+
-| `fail_on_error`  | Failure tolerance for samples.                       | [Sample Failure](errors-and-limits.qmd#failure-threshold) |
-+------------------+------------------------------------------------------+-----------------------------------------------------------+
-| `message_limit`\ | Limits to apply to sample execution.                 | [Sample Limits](errors-and-limits.qmd#sample-limits)      |
-| `token_limit`\   |                                                      |                                                           |
-| `time_limit`     |                                                      |                                                           |
-+------------------+------------------------------------------------------+-----------------------------------------------------------+
-| `name`\          | Eval log attributes for task.                        | [Eval Logs](eval-logs.qmd)                                |
-| `version`\       |                                                      |                                                           |
-| `metadata`       |                                                      |                                                           |
-+------------------+------------------------------------------------------+-----------------------------------------------------------+
++-------------------+------------------------------------------------------+-----------------------------------------------------------+
+| Option            | Description                                          | Docs                                                      |
++===================+======================================================+===========================================================+
+| `epochs`          | Epochs to run for each dataset sample.               | [Epochs](scorers.qmd#reducing-epochs)                     |
++-------------------+------------------------------------------------------+-----------------------------------------------------------+
+| `config`          | Config for model generation.                         | [Generate Config](options.qmd#model-generation)           |
++-------------------+------------------------------------------------------+-----------------------------------------------------------+
+| `setup`           | Setup solver(s) to run prior to the main solver.     | [Sample Setup](#setup-parameter)                          |
++-------------------+------------------------------------------------------+-----------------------------------------------------------+
+| `sandbox`         | Sandbox configuration for un-trusted code execution. | [Sandboxing](sandboxing.qmd)                              |
++-------------------+------------------------------------------------------+-----------------------------------------------------------+
+| `approval`        | Approval policy for tool calls.                      | [Tool Approval](approval.qmd)                             |
++-------------------+------------------------------------------------------+-----------------------------------------------------------+
+| `metrics`         | Metrics to use in place of scorer metrics.           | [Scoring Metrics](scorers.qmd#scoring-metrics)            |
++-------------------+------------------------------------------------------+-----------------------------------------------------------+
+| `fail_on_error`   | Failure tolerance for samples.                       | [Sample Failure](errors-and-limits.qmd#failure-threshold) |
++-------------------+------------------------------------------------------+-----------------------------------------------------------+
+| `message_limit`\  | Limits to apply to sample execution.                 | [Sample Limits](errors-and-limits.qmd#sample-limits)      |
+| `token_limit`\    |                                                      |                                                           |
+| `time_limit`\     |                                                      |                                                           |
+| `working_limit`   |                                                      |                                                           |
++-------------------+------------------------------------------------------+-----------------------------------------------------------+
+| `name`\           | Eval log attributes for task.                        | [Eval Logs](eval-logs.qmd)                                |
+| `version`\        |                                                      |                                                           |
+| `metadata`        |                                                      |                                                           |
++-------------------+------------------------------------------------------+-----------------------------------------------------------+
 
 : {tbl-colwidths=\[25,50,25\]}
 
@@ -212,7 +213,7 @@ inspect eval ctf.py --solver=ctf_agent -S max_attempts=5
 
 Note the use of the `-S` CLI option to pass an alternate value for `max_attempts` to the `ctf_agent()` solver.
 
-### Setup Parameter
+### Setup Parameter {#setup-parameter}
 
 In some cases, there will be important steps in the setup of a task that *should not be substituted* when another solver is used with the task. For example, you might have a step that does dynamic prompt engineering based on values in the sample `metadata` or you might have a step that initialises resources in a sample's sandbox.
 

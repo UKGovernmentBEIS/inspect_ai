@@ -10,7 +10,9 @@ This article covers various techniques for dealing with unexpected errors and se
 
 1.  Retrying failed evaluations (while preserving the samples completed during the initial failed run).
 2.  Establishing a threshold (count or percentage) of samples to tolerate errors for before failing an evaluation.
-3.  Setting a maximum number of messages in a sample before forcing the model to give up.
+3.  Setting time limits for samples (either running time or more narrowly execution time).
+4.  Setting a maximum number of messages or tokens in a sample before forcing the model to give up.
+
 
 {{< include _errors_and_retries.md >}}
 
@@ -90,6 +92,41 @@ inspect eval ctf.py --time-limit 900
 ```
 
 Appropriate timeouts will vary depending on the nature of your task so please view the above as examples only rather than recommend values.
+
+### Working Limit
+
+::: {.callout-note appearance="simple"}
+The working limit feature described below is currently available only in the development version of Inspect. To install the development version from GitHub:
+
+``` bash
+pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+```
+:::
+
+The `working_limit` differs from the `time_limit` in that it measures only the time spent working (as opposed to retrying in response to rate limits or waiting on other shared resources). Here we set an `working_limit` of 10 minutes (10 x 60 seconds) for each sample within a task:
+
+``` python
+@task
+def intercode_ctf():
+    return Task(
+        dataset=read_dataset(),
+        solver=[
+            system_message("system.txt"),
+            use_tools([bash(timeout=3 * 60)]),
+            generate(),
+        ],
+        working_limit=10 * 60,
+        scorer=includes(),
+        sandbox="docker",
+    )
+```
+
+Working time is computed based on total clock time minus time spent on (a) unsuccessful model generations (e.g. rate limited requests); and (b) waiting on shared resources (e.g. Docker containers or subprocess execution).
+
+::: {.callout-note appearance="simple"}
+In order to distinguish successful generate requests from rate limited and retried requests, Inspect installs hooks into the HTTP client of various model packages. This is not possible for some models (`google`, `vertex`, `azureai`, and `goodfire`), and in these cases the `working_time` will include any internal retries that the model client performs. 
+:::
+
 
 ### Message Limit
 

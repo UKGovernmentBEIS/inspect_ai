@@ -19,6 +19,7 @@ from .util import (
     is_chat_api_rate_limit,
     model_base_url,
 )
+from .util.tracker import HttpxTimeTracker
 
 # https://developers.cloudflare.com/workers-ai/models/#text-generation
 
@@ -50,6 +51,7 @@ class CloudFlareAPI(ModelAPI):
             if not self.api_key:
                 raise environment_prerequisite_error("CloudFlare", CLOUDFLARE_API_TOKEN)
         self.client = httpx.AsyncClient()
+        self._time_tracker = HttpxTimeTracker(self.client)
         base_url = model_base_url(base_url, "CLOUDFLARE_BASE_URL")
         self.base_url = (
             base_url if base_url else "https://api.cloudflare.com/client/v4/accounts"
@@ -76,12 +78,28 @@ class CloudFlareAPI(ModelAPI):
             json["max_tokens"] = config.max_tokens
         json["messages"] = chat_api_input(input, tools, self.chat_api_handler())
 
+        # request_id
+        request_id = self._time_tracker.start_request()
+
+        # setup response
+        response: dict[str, Any] = {}
+
+        def model_call() -> ModelCall:
+            return ModelCall.create(
+                request=json,
+                response=response,
+                time=self._time_tracker.end_request(request_id),
+            )
+
         # make the call
         response = await chat_api_request(
             self.client,
             model_name=self.model_name,
             url=f"{chat_url}/{self.model_name}",
-            headers={"Authorization": f"Bearer {self.api_key}"},
+            headers={
+                "Authorization": f"Bearer {self.api_key}",
+                HttpxTimeTracker.REQUEST_ID_HEADER: request_id,
+            },
             json=json,
             config=config,
         )
@@ -102,13 +120,8 @@ class CloudFlareAPI(ModelAPI):
                 ],
             )
 
-            # record call
-            call = ModelCall.create(
-                request=dict(model_name=self.model_name, **json), response=response
-            )
-
             # return
-            return output, call
+            return output, model_call()
         else:
             error = str(response.get("errors", "Unknown"))
             raise RuntimeError(f"Error calling {self.model_name}: {error}")

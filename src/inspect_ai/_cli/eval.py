@@ -218,8 +218,14 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
     @click.option(
         "--time-limit",
         type=int,
-        help="Limit on total execution time for each sample.",
+        help="Limit on total running time for each sample.",
         envvar="INSPECT_EVAL_TIME_LIMIT",
+    )
+    @click.option(
+        "--working-limit",
+        type=int,
+        help="Limit on total working time (e.g. model generation, tool calls, etc.) for each sample.",
+        envvar="INSPECT_EVAL_WORKING_LIMIT",
     )
     @click.option(
         "--fail-on-error",
@@ -468,6 +474,7 @@ def eval_command(
     message_limit: int | None,
     token_limit: int | None,
     time_limit: int | None,
+    working_limit: int | None,
     max_samples: int | None,
     max_tasks: int | None,
     max_subprocesses: int | None,
@@ -518,6 +525,7 @@ def eval_command(
         message_limit=message_limit,
         token_limit=token_limit,
         time_limit=time_limit,
+        working_limit=working_limit,
         max_samples=max_samples,
         max_tasks=max_tasks,
         max_subprocesses=max_subprocesses,
@@ -629,6 +637,7 @@ def eval_set_command(
     message_limit: int | None,
     token_limit: int | None,
     time_limit: int | None,
+    working_limit: int | None,
     max_samples: int | None,
     max_tasks: int | None,
     max_subprocesses: int | None,
@@ -684,6 +693,7 @@ def eval_set_command(
         message_limit=message_limit,
         token_limit=token_limit,
         time_limit=time_limit,
+        working_limit=working_limit,
         max_samples=max_samples,
         max_tasks=max_tasks,
         max_subprocesses=max_subprocesses,
@@ -737,6 +747,7 @@ def eval_exec(
     message_limit: int | None,
     token_limit: int | None,
     time_limit: int | None,
+    working_limit: int | None,
     max_samples: int | None,
     max_tasks: int | None,
     max_subprocesses: int | None,
@@ -817,6 +828,7 @@ def eval_exec(
             message_limit=message_limit,
             token_limit=token_limit,
             time_limit=time_limit,
+            working_limit=working_limit,
             max_samples=max_samples,
             max_tasks=max_tasks,
             max_subprocesses=max_subprocesses,

@@ -21,6 +21,7 @@ from inspect_ai._util.constants import DEFAULT_MAX_RETRIES
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.logger import warn_once
 from inspect_ai.model._openai import chat_choices_from_openai
+from inspect_ai.model._providers.util.tracker import HttpxTimeTracker
 from inspect_ai.tool import ToolChoice, ToolInfo
 
 from .._chat_message import ChatMessage
@@ -137,6 +138,9 @@ class OpenAIAPI(ModelAPI):
                 **model_args,
             )
 
+        # create time tracker
+        self._time_tracker = HttpxTimeTracker(self.client._client)
+
     def is_azure(self) -> bool:
         return self.service == "azure"
 
@@ -172,6 +176,9 @@ class OpenAIAPI(ModelAPI):
                 **self.completion_params(config, False),
             )
 
+        # allocate request_id (so we can see it from ModelCall)
+        request_id = self._time_tracker.start_request()
+
         # setup request and response for ModelCall
         request: dict[str, Any] = {}
         response: dict[str, Any] = {}
@@ -181,6 +188,7 @@ class OpenAIAPI(ModelAPI):
                 request=request,
                 response=response,
                 filter=image_url_filter,
+                time=self._time_tracker.end_request(request_id),
             )
 
         # unlike text models, vision models require a max_tokens (and set it to a very low
@@ -199,6 +207,7 @@ class OpenAIAPI(ModelAPI):
             tool_choice=openai_chat_tool_choice(tool_choice)
             if len(tools) > 0
             else NOT_GIVEN,
+            extra_headers={HttpxTimeTracker.REQUEST_ID_HEADER: request_id},
             **self.completion_params(config, len(tools) > 0),
         )
 

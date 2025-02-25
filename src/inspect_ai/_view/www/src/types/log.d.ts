@@ -39,6 +39,7 @@ export type FailOnError = boolean | number | null;
 export type MessageLimit = number | null;
 export type TokenLimit = number | null;
 export type TimeLimit = number | null;
+export type WorkingLimit = number | null;
 export type MaxSamples = number | null;
 export type MaxTasks = number | null;
 export type MaxSubprocesses = number | null;
@@ -256,7 +257,13 @@ export type JsonValue = unknown;
 export type Timestamp1 = string;
 export type Pending1 = boolean | null;
 export type Event1 = "sample_limit";
-export type Type7 = "message" | "time" | "token" | "operator" | "custom";
+export type Type7 =
+  | "message"
+  | "time"
+  | "working"
+  | "token"
+  | "operator"
+  | "custom";
 export type Message2 = string;
 export type Limit1 = number | null;
 export type Timestamp2 = string;
@@ -313,6 +320,7 @@ export type ToolChoice = ("auto" | "any" | "none") | ToolFunction;
 export type Name8 = string;
 export type Error1 = string | null;
 export type Cache = ("read" | "write") | null;
+export type Time1 = number | null;
 export type Timestamp6 = string;
 export type Pending6 = boolean | null;
 export type Event6 = "tool";
@@ -438,9 +446,12 @@ export type Events = (
   | StepEvent
   | SubtaskEvent
 )[];
+export type TotalTime = number | null;
+export type WorkingTime = number | null;
 export type Type13 =
   | "context"
   | "time"
+  | "working"
   | "message"
   | "token"
   | "operator"
@@ -532,6 +543,7 @@ export interface EvalConfig {
   message_limit: MessageLimit;
   token_limit: TokenLimit;
   time_limit: TimeLimit;
+  working_limit: WorkingLimit;
   max_samples: MaxSamples;
   max_tasks: MaxTasks;
   max_subprocesses: MaxSubprocesses;
@@ -715,6 +727,8 @@ export interface EvalSample {
   store: Store;
   events: Events;
   model_usage: ModelUsage2;
+  total_time: TotalTime;
+  working_time: WorkingTime;
   error: EvalError | null;
   attachments: Attachments;
   limit: EvalSampleLimit | null;
@@ -1057,6 +1071,7 @@ export interface GenerateConfig1 {
 export interface ModelCall {
   request: Request;
   response: Response;
+  time: Time1;
 }
 export interface Request {
   [k: string]: JsonValue;

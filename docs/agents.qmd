@@ -32,7 +32,7 @@ The `basic_agent()`provides a ReAct tool loop with support for retries and encou
 
 The basic agent incorporates best practices for giving models some additional resilience and persistence, both through the optional `max_attempts` parameter, as well as by continuing the task even when the model stops making tool calls. The basic agent can frequently match or exceed custom scaffolds, so you should always try it as a baseline for your tasks!
 
-Note that when using the basic agent you should *always* set a `message_limit`, `token_limit`, or `time_limit` so that there is some termination point if the model gets off track or stuck in a loop (see [Sample Limits](errors-and-limits.qmd#sample-limits) for additional details).
+Note that when using the basic agent you should *always* set a `message_limit`, `token_limit`, `time_limit`, or `working_limit` so that there is some termination point if the model gets off track or stuck in a loop (see [Sample Limits](errors-and-limits.qmd#sample-limits) for additional details).
 
 ### Example
 
