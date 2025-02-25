@@ -16,6 +16,7 @@ from inspect_ai._util.constants import LOG_SCHEMA_VERSION
 from inspect_ai._util.content import (
     ContentAudio,
     ContentImage,
+    ContentReasoning,
     ContentText,
     ContentVideo,
 )
@@ -252,7 +253,11 @@ def text_inputs(inputs: str | list[ChatMessage]) -> str | list[ChatMessage]:
         for message in inputs:
             if not isinstance(message.content, str):
                 filtered_content: list[
-                    ContentText | ContentImage | ContentAudio | ContentVideo
+                    ContentText
+                    | ContentReasoning
+                    | ContentImage
+                    | ContentAudio
+                    | ContentVideo
                 ] = []
                 for content in message.content:
                     if content.type == "text":

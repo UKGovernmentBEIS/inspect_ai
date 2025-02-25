@@ -27,7 +27,13 @@ from openai.types.chat.chat_completion_message_tool_call import Function
 from openai.types.completion_usage import CompletionUsage
 from openai.types.shared_params.function_definition import FunctionDefinition
 
-from inspect_ai._util.content import Content, ContentAudio, ContentImage, ContentText
+from inspect_ai._util.content import (
+    Content,
+    ContentAudio,
+    ContentImage,
+    ContentReasoning,
+    ContentText,
+)
 from inspect_ai._util.images import file_as_data_uri
 from inspect_ai._util.url import is_http_url
 from inspect_ai.model._call_tools import parse_tool_call
@@ -310,7 +316,10 @@ def chat_messages_from_openai(
                 "reasoning", None
             )
             if reasoning is not None:
-                reasoning = str(reasoning)
+                if isinstance(content, str):
+                    content = [ContentText(text=content)]
+                else:
+                    content.insert(0, ContentReasoning(reasoning=str(reasoning)))
 
             # return message
             if "tool_calls" in message:
@@ -321,11 +330,11 @@ def chat_messages_from_openai(
 
             else:
                 tool_calls = []
+
             chat_messages.append(
                 ChatMessageAssistant(
                     content=content,
                     tool_calls=tool_calls or None,
-                    reasoning=reasoning,
                 )
             )
         elif message["role"] == "tool":
@@ -380,11 +389,20 @@ def chat_message_assistant_from_openai(
     reasoning = getattr(message, "reasoning_content", None) or getattr(
         message, "reasoning", None
     )
+
+    msg_content = refusal or message.content or ""
+    if reasoning is not None:
+        content: str | list[Content] = [
+            ContentReasoning(reasoning=str(reasoning)),
+            ContentText(text=msg_content),
+        ]
+    else:
+        content = msg_content
+
     return ChatMessageAssistant(
-        content=refusal or message.content or "",
+        content=content,
         source="generate",
         tool_calls=chat_tool_calls_from_openai(message, tools),
-        reasoning=reasoning,
     )
 
 

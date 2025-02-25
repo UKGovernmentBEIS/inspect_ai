@@ -93,9 +93,6 @@ class ChatMessageAssistant(ChatMessageBase):
     tool_calls: list[ToolCall] | None = Field(default=None)
     """Tool calls made by the model."""
 
-    reasoning: str | None = Field(default=None)
-    """Reasoning content."""
-
     # Some OpenAI compatible REST endpoints include reasoning as a field alongside
     # content, however since this field doesn't exist in the OpenAI interface,
     # hosting providers (so far we've seen this with Together and Groq) may

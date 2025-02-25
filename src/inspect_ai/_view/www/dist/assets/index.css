@@ -15653,9 +15653,6 @@ ul.jsondiffpatch-textdiff {
   border: none;
   padding: 0.1rem 0.5rem;
 }
-.markdown-ordered-list-item {
-  margin-bottom: 0.2em;
-}
 ._message_xh8qq_1 {
   font-weight: 300;
   padding-bottom: 0.5em;
@@ -15684,6 +15681,9 @@ ul.jsondiffpatch-textdiff {
 ._messageContents_xh8qq_21._indented_xh8qq_26 {
   margin-left: 1.1rem;
   padding-bottom: 0.8rem;
+}
+.markdown-ordered-list-item {
+  margin-bottom: 0.2em;
 }
 ._contentImage_121dp_1 {
   max-width: 800px;
