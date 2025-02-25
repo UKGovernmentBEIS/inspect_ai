@@ -670,26 +670,24 @@ def truncate_traceback(
     ellipsis = "\n...\n"
 
     # Minimum header size
-    header_size = min(len(header), 512)
+    header_size = min(len(header), 1024)
 
     # Minimum frames size
-    min_frames_size = min(len(frames), 2048)
+    frames_size = min(len(frames), 1024)
 
     # Remaining space for error message
-    error_msg_size = max(0, max_length - header_size - min_frames_size - len(ellipsis))
+    error_msg_size = max(0, max_length - header_size - frames_size - len(ellipsis))
+
+    def truncate_middle(text: str, size: int) -> str:
+        if len(text) <= size:
+            return text
+        half = (size - len(ellipsis)) // 2
+        return f"{text[:half]}{ellipsis}{text[-half:]}"
 
     # Truncate each part as needed
-    truncated_header = header[:header_size]
-    truncated_frames = frames[:min_frames_size]
-    truncated_error = error_msg[:error_msg_size]
-
-    # Add ellipsis to any truncated part
-    if len(header) > header_size:
-        truncated_header += "..."
-    if len(frames) > min_frames_size:
-        truncated_frames += ellipsis
-    if len(error_msg) > error_msg_size:
-        truncated_error = truncated_error + "..."
+    truncated_header = truncate_middle(header, header_size)
+    truncated_frames = truncate_middle(frames, frames_size)
+    truncated_error = truncate_middle(error_msg, error_msg_size)
 
     return truncated_header + truncated_frames + truncated_error, True
 
