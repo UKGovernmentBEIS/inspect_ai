@@ -1,9 +1,4 @@
-import {
-  EvalLogHeader,
-  EvalSummary,
-  LogFiles,
-  SampleSummary,
-} from "./api/types";
+import { EvalSummary, SampleSummary } from "./api/types";
 import { ContentImage, ContentText, EvalSample, Events } from "./types/log";
 
 // Define the state interface
@@ -14,10 +9,7 @@ export interface AppState {
 }
 
 export interface ApplicationState {
-  // Logs Context
-  logs?: LogFiles;
-  logHeaders?: Record<string, EvalLogHeader>;
-  headersLoading?: boolean;
+  logs: LogState;
 
   // Log Context
   selectedLogIndex?: number;
