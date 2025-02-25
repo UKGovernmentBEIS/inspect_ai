@@ -128,7 +128,7 @@ async function eval_log_sample_data(
       const pendingSamples = await asyncJsonParse(text);
       return {
         status: "OK",
-        pendingSamples,
+        sampleData: pendingSamples,
       };
     },
     handleError: (status: number) => {
