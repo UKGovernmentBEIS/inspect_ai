@@ -910,15 +910,19 @@ def resolve_reasoning_history(
                 )
                 # remove it unless we are in "last" mode and haven't yet found last
                 if has_reasoning:
-                    if reasoning_history == "none" or not found_last:
-                        message.content = [
-                            content
-                            for content in message.content
-                            if not isinstance(content, ContentReasoning)
-                        ]
+                    if reasoning_history == "none" or found_last:
+                        message = message.model_copy(
+                            update={
+                                "content": [
+                                    content
+                                    for content in message.content
+                                    if not isinstance(content, ContentReasoning)
+                                ]
+                            }
+                        )
                     found_last = True
-            else:
-                resolved_messages.append(message)
+
+            resolved_messages.append(message)
 
         # reverse them back
         resolved_messages.reverse()
