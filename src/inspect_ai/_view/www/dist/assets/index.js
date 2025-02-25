@@ -22056,6 +22056,85 @@ var require_assets = __commonJS({
         return entries;
       }
     };
+    const kPrismRenderMaxSize = 25e4;
+    const JSONPanel = ({
+      id,
+      json,
+      data,
+      simple = false,
+      style: style2,
+      className: className2
+    }) => {
+      const codeRef = reactExports.useRef(null);
+      const sourceCode = reactExports.useMemo(() => {
+        return json || JSON.stringify(resolveBase64(data), void 0, 2);
+      }, [json, data]);
+      reactExports.useEffect(() => {
+        if (sourceCode.length < kPrismRenderMaxSize && codeRef.current) {
+          prismExports.highlightElement(codeRef.current);
+        }
+      }, [sourceCode]);
+      return /* @__PURE__ */ jsxRuntimeExports.jsx(
+        "pre",
+        {
+          className: clsx("json-panel", simple ? "simple" : "", className2),
+          style: style2,
+          children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+            "code",
+            {
+              id,
+              ref: codeRef,
+              className: clsx("source-code", "language-javascript"),
+              children: sourceCode
+            }
+          )
+        }
+      );
+    };
+    const resolveBase64 = (value2) => {
+      const prefix2 = "data:image";
+      if (Array.isArray(value2)) {
+        return value2.map((v) => resolveBase64(v));
+      }
+      if (value2 && typeof value2 === "object") {
+        const resolvedObject = {};
+        for (const key2 of Object.keys(value2)) {
+          resolvedObject[key2] = resolveBase64(value2[key2]);
+        }
+        return resolvedObject;
+      }
+      if (typeof value2 === "string") {
+        let resolvedValue = value2;
+        if (resolvedValue.startsWith(prefix2)) {
+          resolvedValue = "[base64 image]";
+        }
+        return resolvedValue;
+      }
+      return value2;
+    };
+    const isJson = (text2) => {
+      text2 = text2.trim();
+      if (text2.startsWith("{") && text2.endsWith("}")) {
+        try {
+          JSON.parse(text2);
+          return true;
+        } catch {
+          return false;
+        }
+      }
+      return false;
+    };
+    const parsedJson = (text2) => {
+      text2 = text2.trim();
+      if (text2.startsWith("{") && text2.endsWith("}")) {
+        try {
+          return JSON.parse(text2);
+        } catch {
+          return void 0;
+        }
+      }
+      return void 0;
+    };
     const query = "_query_9u9bt_1";
     const summary$3 = "_summary_9u9bt_6";
     const preWrap = "_preWrap_9u9bt_10";
@@ -22106,6 +22185,20 @@ var require_assets = __commonJS({
           return {
             rendered: /* @__PURE__ */ jsxRuntimeExports.jsx(ANSIDisplay, { output: entry2.value })
           };
+        }
+      },
+      JsonString: {
+        bucket: Buckets.first,
+        canRender: (entry2) => {
+          if (typeof entry2.value === "string") {
+            const trimmed = entry2.value.trim();
+            return isJson(trimmed);
+          }
+          return false;
+        },
+        render: (_id, entry2) => {
+          const obj = JSON.parse(entry2.value);
+          return { rendered: /* @__PURE__ */ jsxRuntimeExports.jsx(JSONPanel, { data: obj }) };
         }
       },
       Model: {
@@ -49162,62 +49255,6 @@ self.onmessage = function (e) {
         )
       ] }) });
     };
-    const kPrismRenderMaxSize = 25e4;
-    const JSONPanel = ({
-      id,
-      json,
-      data,
-      simple = false,
-      style: style2,
-      className: className2
-    }) => {
-      const codeRef = reactExports.useRef(null);
-      const sourceCode = reactExports.useMemo(() => {
-        return json || JSON.stringify(resolveBase64(data), void 0, 2);
-      }, [json, data]);
-      reactExports.useEffect(() => {
-        if (sourceCode.length < kPrismRenderMaxSize && codeRef.current) {
-          prismExports.highlightElement(codeRef.current);
-        }
-      }, [sourceCode]);
-      return /* @__PURE__ */ jsxRuntimeExports.jsx(
-        "pre",
-        {
-          className: clsx("json-panel", simple ? "simple" : "", className2),
-          style: style2,
-          children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-            "code",
-            {
-              id,
-              ref: codeRef,
-              className: clsx("source-code", "language-javascript"),
-              children: sourceCode
-            }
-          )
-        }
-      );
-    };
-    const resolveBase64 = (value2) => {
-      const prefix2 = "data:image";
-      if (Array.isArray(value2)) {
-        return value2.map((v) => resolveBase64(v));
-      }
-      if (value2 && typeof value2 === "object") {
-        const resolvedObject = {};
-        for (const key2 of Object.keys(value2)) {
-          resolvedObject[key2] = resolveBase64(value2[key2]);
-        }
-        return resolvedObject;
-      }
-      if (typeof value2 === "string") {
-        let resolvedValue = value2;
-        if (resolvedValue.startsWith(prefix2)) {
-          resolvedValue = "[base64 image]";
-        }
-        return resolvedValue;
-      }
-      return value2;
-    };
     const jsonTab = "_jsonTab_6pq03_1";
     const styles$J = {
       jsonTab
@@ -49427,9 +49464,9 @@ self.onmessage = function (e) {
     const Card = ({ id, children: children2 }) => {
       return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "card", id, children: children2 });
     };
-    const grid$5 = "_grid_12d2w_1";
-    const cell$1 = "_cell_12d2w_7";
-    const value = "_value_12d2w_12";
+    const grid$5 = "_grid_ktnsp_1";
+    const cell$1 = "_cell_ktnsp_8";
+    const value = "_value_ktnsp_13";
     const styles$I = {
       grid: grid$5,
       cell: cell$1,
@@ -49446,7 +49483,7 @@ self.onmessage = function (e) {
       const entryEls = entryRecords(entries).map((entry2, index2) => {
         const id2 = `${baseId}-value-${index2}`;
         return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx(
+          index2 !== 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
             "div",
             {
               style: {
@@ -49454,7 +49491,7 @@ self.onmessage = function (e) {
                 borderBottom: `${!plain ? "solid 1px var(--bs-light-border-subtle" : ""}`
               }
             }
-          ),
+          ) : void 0,
           /* @__PURE__ */ jsxRuntimeExports.jsx(
             "div",
             {
@@ -53547,14 +53584,17 @@ self.onmessage = function (e) {
         }
       );
     };
-    const grid$2 = "_grid_1pgwi_1";
+    const grid$2 = "_grid_1eq5o_1";
+    const jsonPanel = "_jsonPanel_1eq5o_8";
     const styles$u = {
-      grid: grid$2
+      grid: grid$2,
+      jsonPanel
     };
     const LoggerEventView = ({
       event,
       className: className2
     }) => {
+      const obj = parsedJson(event.message.message);
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
         EventRow,
         {
@@ -53562,7 +53602,7 @@ self.onmessage = function (e) {
           title: event.message.level,
           icon: ApplicationIcons.logging[event.message.level.toLowerCase()],
           children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("text-size-base", styles$u.grid), children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-smaller"), children: event.message.message }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-smaller"), children: obj !== void 0 && obj !== null ? /* @__PURE__ */ jsxRuntimeExports.jsx(MetaDataGrid, { entries: obj }) : event.message.message }),
             /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("text-size-smaller", "text-style-secondary"), children: [
               event.message.filename,
               ":",

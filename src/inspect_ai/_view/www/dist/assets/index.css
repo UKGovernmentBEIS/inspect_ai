@@ -15773,6 +15773,26 @@ ul.jsondiffpatch-textdiff {
   white-space: pre-wrap;
   word-wrap: anywhere;
 }
+.json-panel {
+  width: 100%;
+  padding: 0.5em;
+}
+
+.json-panel:not(.simple) {
+  background: var(--bs-light);
+  border-radius: var(--bs-border-radius);
+}
+
+.json-panel .source-code {
+  font-size: var(--inspect-font-size-small);
+  white-space: pre-wrap;
+  word-wrap: anywhere;
+}
+
+/* Prism.js theme customizations can go here if needed */
+.language-javascript {
+  background: transparent !important;
+}
 ._query_9u9bt_1 {
   margin-bottom: 0.5rem;
   font-weight: 500;
@@ -16055,26 +16075,6 @@ ul.jsondiffpatch-textdiff {
 .download-panel-message {
   font-size: var(--inspect-font-size-small);
 }
-.json-panel {
-  width: 100%;
-  padding: 0.5em;
-}
-
-.json-panel:not(.simple) {
-  background: var(--bs-light);
-  border-radius: var(--bs-border-radius);
-}
-
-.json-panel .source-code {
-  font-size: var(--inspect-font-size-small);
-  white-space: pre-wrap;
-  word-wrap: anywhere;
-}
-
-/* Prism.js theme customizations can go here if needed */
-.language-javascript {
-  background: transparent !important;
-}
 ._jsonTab_6pq03_1 {
   padding: 0.5rem;
   font-size: var(--inspect-font-size-small);
@@ -16180,18 +16180,19 @@ ul.jsondiffpatch-textdiff {
   padding: 0 0.5em 0.1em 0.5em;
   font-size: var(--inspect-font-size-smaller);
 }
-._grid_12d2w_1 {
+._grid_ktnsp_1 {
   display: grid;
   grid-template-columns: max-content auto;
   column-gap: 1em;
+  row-gap: 0.2em;
 }
 
-._cell_12d2w_7 {
+._cell_ktnsp_8 {
   font-weight: 400;
   white-space: nowrap;
 }
 
-._value_12d2w_12 {
+._value_ktnsp_13 {
   white-space: pre-wrap;
   word-wrap: anywhere;
 }
@@ -16431,11 +16432,15 @@ ul.jsondiffpatch-textdiff {
 ._panel_8zdtn_1 {
   margin: 0.5em 0;
 }
-._grid_1pgwi_1 {
+._grid_1eq5o_1 {
   width: 100%;
   display: grid;
   grid-template-columns: 1fr max-content;
   column-gap: 1em;
+}
+
+._jsonPanel_1eq5o_8 {
+  padding: 0 !important;
 }
 ._container_1brs9_1 {
   margin: 1em 0 0 0;

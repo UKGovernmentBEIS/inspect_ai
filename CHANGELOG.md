@@ -3,6 +3,8 @@
 - OpenAI: Retry on rate limit requests with "Request too large".
 - OpenAI: Tolerate `None` for assistant content (can happen when there is a refusal).
 - Bugfix: Catch standard `TimeoutError` for running shell commands in the computer tool container.
+- Inspect View: Improve rendering of JSON within logging events.
+- Inspect View: Improve virtualized rendering of Sample List, Sample Transcript, and Sample Messages.
 
 ## v0.3.70 (25 February 2025)
 
@@ -20,7 +22,6 @@
 - Align with HF datasets `fsspec` version contraints to avoid pip errors when installing alongside `datasets`.
 - Bugfix: Fix issue with tools that had an ordinary `dict` as a parameter.
 - Bugfix: Print the correct container `sample_id` for `--no-sandbox-cleanup`.
-- Inspect View: Improve virtualized rendering of Sample List, Sample Transcript, and Sample Messages.
 
 ## v0.3.69 (20 February 2025)
 
