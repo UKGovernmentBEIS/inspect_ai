@@ -433,7 +433,10 @@ export const App: FC<AppProps> = ({
       setSampleError(undefined);
 
       try {
-        if (summary.completed !== false) {
+        // If a sample is completed, but we're still polling,
+        // this means that the sample hasn't been flushed, so we should
+        // continue to show the live view until the sample is flushed
+        if (summary.completed !== false && !samplePollingRef.current) {
           const sample = await api.get_log_sample(
             logFile.name,
             summary.id,
@@ -448,21 +451,8 @@ export const App: FC<AppProps> = ({
               "Unable to load sample - an unknown error occurred.",
             );
           }
-        } else if (api.get_log_sample_data) {
-          const sampleDataResponse = await api.get_log_sample_data(
-            logFile.name,
-            summary.id,
-            summary.epoch,
-          );
-          if (
-            sampleDataResponse?.status === "OK" &&
-            sampleDataResponse.sampleData
-          ) {
-            sampleScrollPosition.current = 0;
-            const adapter = sampleDataAdapter();
-            adapter.addData(sampleDataResponse.sampleData);
-            setRunningSampleData({ events: adapter.resolvedEvents(), summary });
-          }
+        } else {
+          pollForSampleData(logFile.name, summary);
         }
 
         setSampleStatus("ok");
@@ -473,6 +463,72 @@ export const App: FC<AppProps> = ({
       }
     },
     [logs, selectedLogIndex],
+  );
+
+  const samplePollingRef = useRef<Timeout | null>(null);
+  const samplePollInterval = 2;
+
+  useEffect(() => {
+    return () => {
+      if (samplePollingRef.current) {
+        clearTimeout(samplePollingRef.current);
+        samplePollingRef.current = null;
+      }
+    };
+  }, [selectedSampleIndex]);
+
+  const pollForSampleData = useCallback(
+    (logFile: string, summary: SampleSummary) => {
+
+      // Ensure any existing polling instance is cleared before starting a new one
+      if (samplePollingRef.current) {
+        clearTimeout(samplePollingRef.current);
+        samplePollingRef.current = null;
+      }
+
+      const poll = async () => {
+        if (!api.get_log_sample_data) {
+          return;
+        }
+        try {
+          const sampleDataResponse = await api.get_log_sample_data(
+            logFile,
+            summary.id,
+            summary.epoch,
+          );
+          if (
+            sampleDataResponse?.status === "OK" &&
+            sampleDataResponse.sampleData
+          ) {
+            sampleScrollPosition.current = 0;
+            const adapter = sampleDataAdapter();
+            adapter.addData(sampleDataResponse.sampleData);
+            const runningData = { events: adapter.resolvedEvents(), summary };
+            setRunningSampleData(runningData);
+          } else if (sampleDataResponse?.status === "NotFound") {
+            if (samplePollingRef.current) {
+              clearTimeout(samplePollingRef.current);
+              samplePollingRef.current = null;
+            }
+            return;
+          }
+          samplePollingRef.current = setTimeout(
+            poll,
+            samplePollInterval * 1000,
+          );
+        } catch (e) {
+          // TODO: Backoff
+          console.error("Error polling pending samples:", e);
+          samplePollingRef.current = setTimeout(
+            poll,
+            Math.min(samplePollInterval * 2 * 1000, 60000),
+          );
+        }
+      };
+
+      poll();
+    },
+    [api.get_log_sample_data, setRunningSampleData],
   );
 
   // Helper function for old sample migration
