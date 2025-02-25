@@ -54,15 +54,23 @@ def test_reasoning_claude_max_tokens():
     check_max_tokens(None, 8096, 4096 + 8096)
 
 
-@pytest.mark.asyncio
 @skip_if_no_anthropic
-async def test_reasoning_claude_redacted():
-    model = get_model("anthropic/claude-3-7-sonnet-20250219")
-    output = await model.generate(
-        "ANTHROPIC_MAGIC_STRING_TRIGGER_REDACTED_THINKING_46C9A13E193C177646C7398A98432ECCCE4C1253D5E2D82641AC0E52CC2876CB",
-        config=GenerateConfig(reasoning_tokens=1024),
+def test_reasoning_claude_redacted():
+    task = Task(
+        dataset=[
+            Sample(
+                input="ANTHROPIC_MAGIC_STRING_TRIGGER_REDACTED_THINKING_46C9A13E193C177646C7398A98432ECCCE4C1253D5E2D82641AC0E52CC2876CB"
+            )
+        ]
     )
+    log = eval(
+        task,
+        model="anthropic/claude-3-7-sonnet-20250219",
+        reasoning_tokens=1024,
+    )[0]
 
+    assert log.samples
+    output = log.samples[0].output
     content = output.choices[0].message.content
     assert isinstance(content, list)
     assert isinstance(content[0], ContentReasoning)
