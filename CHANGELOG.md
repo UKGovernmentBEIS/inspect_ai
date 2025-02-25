@@ -2,6 +2,7 @@
 
 - OpenAI: Retry on rate limit requests with "Request too large".
 - OpenAI: Tolerate `None` for assistant content (can happen when there is a refusal).
+- Bugfix: Catch standard `TimeoutError` for running shell commands in the computer tool container.
 
 ## v0.3.70 (25 February 2025)
 
