@@ -1,6 +1,7 @@
 from rich.console import RenderableType
 from rich.text import Text
 
+from inspect_ai._util.content import ContentReasoning, ContentText
 from inspect_ai._util.rich import lines_display
 from inspect_ai._util.transcript import transcript_markdown, transcript_reasoning
 from inspect_ai.util._conversation import conversation_panel
@@ -19,7 +20,7 @@ def conversation_tool_mesage(message: ChatMessageTool) -> None:
             message.error.message.strip() if message.error else message.text.strip()
         )
         if output:
-            content = lines_display(output, 100)
+            content = lines_display(output, 50)
 
             conversation_panel(
                 title=f"Tool Output: {message.function}",
@@ -41,14 +42,15 @@ def conversation_assistant_message(
         # build content
         content: list[RenderableType] = []
 
-        # reasoning
-        if message.reasoning:
-            content.extend(transcript_reasoning(message.reasoning))
-
-        # message text
-        content.extend(
-            [transcript_markdown(message.text, escape=True)] if message.text else []
-        )
+        # deal with plain text or with content blocks
+        if isinstance(message.content, str):
+            content.extend([transcript_markdown(message.text.strip(), escape=True)])
+        else:
+            for c in message.content:
+                if isinstance(c, ContentReasoning):
+                    content.extend(transcript_reasoning(c))
+                elif isinstance(c, ContentText) and c.text:
+                    content.extend([transcript_markdown(c.text.strip(), escape=True)])
 
         # print tool calls
         if message.tool_calls:

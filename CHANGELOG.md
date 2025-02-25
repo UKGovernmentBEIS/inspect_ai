@@ -1,8 +1,34 @@
 ## Unreleased
 
+- OpenAI: Retry on rate limit requests with "Request too large".
+- OpenAI: Tolerate `None` for assistant content (can happen when there is a refusal).
+
+## v0.3.70 (25 February 2025)
+
+- [working_limit](https://inspect.ai-safety-institute.org.uk/errors_and_limits.html#working-limit) option for specifying a maximum working time (e.g. model generation, tool calls, etc.) for samples.
+- Added `SandboxEvent` to transcript for recording sandbox execution and I/O.
+- Sandboxes: `as_type()` function for checked downcasting of `SandboxEnvironment`
+- Remove root logging handlers upon Inspect logger initialisation (as they result in lots of log spam if left installed).
+- Only explicitly set `state.completed=True` when entering scoring (`basic_agent()` no longer sets `completed` so can be used in longer compositions of solvers).
+- Add `uuid` property to `TaskState` and `EvalSample` (globally unique identifer for sample run).
+- Add `cleanup` to tasks for executing a function at the end of each sample run.
+- Agent `bridge()` is now compatible with the use of a custom `OPENAI_BASE_URL`.
+- Mistral: Bump required version of `mistralai` package to 1.5 (required for `working_limit`).
+- Truncate tracebacks included in evaluation log to a maximum of 1MB.
+- Compatiblity with textual version 2.0 (remove upper bound).
+- Align with HF datasets `fsspec` version contraints to avoid pip errors when installing alongside `datasets`.
+- Bugfix: Fix issue with tools that had an ordinary `dict` as a parameter.
+- Bugfix: Print the correct container `sample_id` for `--no-sandbox-cleanup`.
+
+## v0.3.69 (20 February 2025)
+
 - Google provider updated to use the [Google Gen AI SDK](https://googleapis.github.io/python-genai/), which is now the recommended API for Gemini 2.0 models.
+- Task display: Use cooperative cancellation for cancel buttons in task display.
 - Task display: Print task progress every 5 seconds for 'plain' display mode.
 - Task display: Handle click on running samples tab when there is no transcript.
+- Docker: Print stderr from `compose up` when no services startup successfully. 
+- Docker: Print sample id and epoch for each container when using `--no-sandbox-cleanup`
+- Mistral: Create and destroy client within generate.
 - Inspect View: Fix display of score dictionaries containing boolean values
 - Bugfix: Catch standard `TimeoutError` for subprocess timeouts (ensure kill/cleanup of timed out process).
 - Bugfix: Catch standard `TimeoutError` for running shell commands in the computer tool container.

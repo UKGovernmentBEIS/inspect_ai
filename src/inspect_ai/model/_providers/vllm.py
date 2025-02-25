@@ -2,6 +2,7 @@ import asyncio
 import functools
 import gc
 import os
+import time
 from dataclasses import dataclass
 from queue import Empty, Queue
 from threading import Thread
@@ -48,7 +49,8 @@ class GenerateOutput:
     output_tokens: int
     total_tokens: int
     stop_reason: StopReason
-    logprobs: Logprobs | None = None
+    logprobs: Logprobs | None
+    time: float
 
 
 class VLLMAPI(ModelAPI):
@@ -258,6 +260,7 @@ class VLLMAPI(ModelAPI):
         ]
 
         # TODO: what's the best way to calculate token usage for num_choices > 1
+        total_time = responses[0].time
         input_tokens = responses[0].input_tokens
         output_tokens = sum(response.output_tokens for response in responses)
         total_tokens = input_tokens + output_tokens
@@ -270,6 +273,7 @@ class VLLMAPI(ModelAPI):
                 output_tokens=output_tokens,
                 total_tokens=total_tokens,
             ),
+            time=total_time,
         )
 
 
@@ -356,7 +360,7 @@ def get_stop_reason(finish_reason: str | None) -> StopReason:
 
 
 def post_process_output(
-    output: RequestOutput, i: int, num_top_logprobs: int | None
+    output: RequestOutput, i: int, num_top_logprobs: int | None, total_time: float
 ) -> GenerateOutput:
     completion = output.outputs[i]
     output_text: str = completion.text
@@ -377,14 +381,15 @@ def post_process_output(
         total_tokens=total_tokens,
         stop_reason=get_stop_reason(completion.finish_reason),
         logprobs=extract_logprobs(completion, num_top_logprobs),
+        time=total_time,
     )
 
 
 def post_process_outputs(
-    output: RequestOutput, num_top_logprobs: int | None
+    output: RequestOutput, num_top_logprobs: int | None, total_time: float
 ) -> list[GenerateOutput]:
     return [
-        post_process_output(output, i, num_top_logprobs)
+        post_process_output(output, i, num_top_logprobs, total_time)
         for i in range(len(output.outputs))
     ]
 
@@ -412,6 +417,7 @@ def process_batches() -> None:
             continue
 
         try:
+            start_time = time.monotonic()
             first_input = inputs[0][0]
             generator = first_input.generator
             num_top_logprobs = first_input.num_top_logprobs
@@ -419,6 +425,7 @@ def process_batches() -> None:
             # generate
             outputs = generator([input[0].input for input in inputs])
 
+            total_time = time.monotonic() - start_time
             for i, output in enumerate(outputs):
                 future = inputs[i][1]
 
@@ -426,7 +433,8 @@ def process_batches() -> None:
                 # down to this point, so we can mark the future as done in a thread safe manner.
                 # see: https://docs.python.org/3/library/asyncio-dev.html#concurrency-and-multithreading
                 loop.call_soon_threadsafe(
-                    future.set_result, post_process_outputs(output, num_top_logprobs)
+                    future.set_result,
+                    post_process_outputs(output, num_top_logprobs, total_time),
                 )
 
         except Exception as e:

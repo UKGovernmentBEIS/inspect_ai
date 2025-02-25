@@ -55,16 +55,19 @@ export const EventPanel: React.FC<EventPanelProps> = ({
   const defaultPillId = pillId(0);
 
   const gridColumns = [];
+
+  // chevron
   if (hasCollapse) {
     gridColumns.push("minmax(0, max-content)");
   }
+
+  // icon
   if (icon) {
     gridColumns.push("max-content");
   }
+
+  // title
   gridColumns.push("minmax(0, max-content)");
-  if (subTitle) {
-    gridColumns.push("minmax(0, max-content)");
-  }
   gridColumns.push("auto");
   gridColumns.push("minmax(0, max-content)");
   gridColumns.push("minmax(0, max-content)");

@@ -10,6 +10,7 @@ from inspect_ai._util.content import (
     Content,
     ContentAudio,
     ContentImage,
+    ContentReasoning,
     ContentText,
     ContentVideo,
 )
@@ -217,6 +218,7 @@ def walk_model_call(
         return ModelCall(
             request=walk_json_dict(call.request, content_fn),
             response=walk_json_dict(call.response, content_fn),
+            time=call.time,
         )
     else:
         return None
@@ -314,3 +316,5 @@ def walk_content(content: Content, content_fn: Callable[[str], str]) -> Content:
         return content.model_copy(update=dict(audio=content_fn(content.audio)))
     elif isinstance(content, ContentVideo):
         return content.model_copy(update=dict(video=content_fn(content.video)))
+    elif isinstance(content, ContentReasoning):
+        return content.model_copy(update=dict(reasoning=content_fn(content.reasoning)))

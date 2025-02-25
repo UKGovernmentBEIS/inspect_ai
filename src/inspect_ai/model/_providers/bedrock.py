@@ -31,6 +31,7 @@ from .._model_output import ChatCompletionChoice, ModelOutput, ModelUsage
 from .util import (
     model_base_url,
 )
+from .util.tracker import BotoTimeTracker
 
 # Model for Bedrock Converse API (Response)
 # generated from: https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/bedrock-runtime/client/converse.html#converse
@@ -256,6 +257,9 @@ class BedrockAPI(ModelAPI):
             # Create a shared session to be used when generating
             self.session = aioboto3.Session()
 
+            # create time tracker
+            self._time_tracker = BotoTimeTracker(self.session)
+
         except ImportError:
             raise pip_dependency_error("Bedrock API", ["aioboto3"])
 
@@ -313,6 +317,7 @@ class BedrockAPI(ModelAPI):
         from botocore.exceptions import ClientError
 
         # The bedrock client
+        request_id = self._time_tracker.start_request()
         async with self.session.client(  # type: ignore[call-overload]
             service_name="bedrock-runtime",
             endpoint_url=self.base_url,
@@ -325,6 +330,7 @@ class BedrockAPI(ModelAPI):
                     else DEFAULT_MAX_RETRIES,
                     mode="adaptive",
                 ),
+                user_agent_extra=self._time_tracker.user_agent_extra(request_id),
             ),
             **self.model_args,
         ) as client:
@@ -364,6 +370,7 @@ class BedrockAPI(ModelAPI):
                         request.model_dump(exclude_none=True)
                     ),
                     response=response,
+                    time=self._time_tracker.end_request(request_id),
                 )
 
             try:

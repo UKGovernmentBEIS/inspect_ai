@@ -33,6 +33,10 @@ from inspect_ai._util.registry import (
     registry_unqualified_name,
 )
 from inspect_ai._util.timeouts import Timeout, timeout
+from inspect_ai._util.working import (
+    init_sample_working_limit,
+    sample_waiting_time,
+)
 from inspect_ai._view.notify import view_notify_eval
 from inspect_ai.dataset import Dataset, Sample
 from inspect_ai.log import (
@@ -56,6 +60,7 @@ from inspect_ai.log._transcript import (
     SampleInitEvent,
     SampleLimitEvent,
     ScoreEvent,
+    StepEvent,
     transcript,
 )
 from inspect_ai.model import (
@@ -182,9 +187,9 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
         if isinstance(solver, Plan):
             plan = solver
         elif isinstance(solver, Chain):
-            plan = Plan(list(solver), internal=True)
+            plan = Plan(list(solver), cleanup=task.cleanup, internal=True)
         else:
-            plan = Plan(unroll(solver), internal=True)
+            plan = Plan(unroll(solver), cleanup=task.cleanup, internal=True)
 
         # add setup solver(s) if specified
         if task.setup:
@@ -308,6 +313,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                                 or config.fail_on_error is True
                             ),
                             time_limit=config.time_limit,
+                            working_limit=config.working_limit,
                             semaphore=sample_semaphore,
                         )
                         for (sample, state) in zip(samples, states)
@@ -500,6 +506,7 @@ async def task_run_sample(
     sample_complete: Callable[[dict[str, SampleScore]], None],
     fails_on_error: bool,
     time_limit: int | None,
+    working_limit: int | None,
     semaphore: asyncio.Semaphore | None,
 ) -> dict[str, SampleScore] | None:
     # if there is an existing sample then tick off its progress, log it, and return it
@@ -570,18 +577,36 @@ async def task_run_sample(
             message_limit=state.message_limit,
             token_limit=state.token_limit,
             time_limit=time_limit,
+            working_limit=working_limit,
             fails_on_error=fails_on_error,
             transcript=sample_transcript,
         ) as active,
     ):
+        start_time: float | None = None
         error: EvalError | None = None
         raise_error: BaseException | None = None
         results: dict[str, SampleScore] = {}
         try:
+            # begin init
+            transcript()._event(StepEvent(action="begin", name="init"))
+
+            # sample init event (remove file bodies as they have content or absolute paths)
+            event_sample = sample.model_copy(
+                update=dict(files={k: "" for k in sample.files.keys()})
+                if sample.files
+                else None
+            )
+            transcript()._event(
+                SampleInitEvent(sample=event_sample, state=state_jsonable(state))
+            )
+
             async with sandboxenv_cm:
                 try:
                     # update active sample wth sandboxes now that we are initialised
                     active.sandboxes = await sandbox_connections()
+
+                    # end init
+                    transcript()._event(StepEvent(action="end", name="init"))
 
                     # initialise timeout context manager
                     timeout_cm = (
@@ -590,22 +615,14 @@ async def task_run_sample(
                         else contextlib.nullcontext()
                     )
 
+                    # record start time
+                    start_time = time.monotonic()
+                    init_sample_working_limit(start_time, working_limit)
+
                     # run sample w/ optional timeout
                     async with timeout_cm:
                         # mark started
                         active.started = datetime.now().timestamp()
-
-                        # sample init event (remove file bodies as they have content or absolute paths)
-                        event_sample = sample.model_copy(
-                            update=dict(files={k: "" for k in sample.files.keys()})
-                            if sample.files
-                            else None
-                        )
-                        transcript()._event(
-                            SampleInitEvent(
-                                sample=event_sample, state=state_jsonable(state)
-                            )
-                        )
 
                         # set progress for plan then run it
                         state = await plan(state, generate)
@@ -661,10 +678,12 @@ async def task_run_sample(
 
                     # capture most recent state for scoring
                     state = ex.state or sample_state() or state
-                    state.completed = True
 
                 except BaseException as ex:
                     error, raise_error = handle_error(ex)
+
+                # mark completed
+                state.completed = True
 
                 # set timeout for scoring. if the original timeout was hit we still
                 # want to provide opportunity for scoring, but we don't necessarily
@@ -768,6 +787,7 @@ async def task_run_sample(
 
             # log the sample
             await log_sample(
+                start_time=start_time,
                 logger=logger,
                 sample=sample,
                 state=state,
@@ -788,6 +808,7 @@ async def task_run_sample(
 
 
 async def log_sample(
+    start_time: float | None,
     logger: TaskLogger,
     sample: Sample,
     state: TaskState,
@@ -803,6 +824,9 @@ async def log_sample(
         )
 
     # construct sample for logging
+
+    # compute total time if we can
+    total_time = time.monotonic() - start_time if start_time is not None else None
 
     # if a limit was hit, note that in the Eval Sample
     limit = None
@@ -827,8 +851,13 @@ async def log_sample(
         output=state.output,
         scores={k: v.score for k, v in scores.items()},
         store=dict(state.store.items()),
+        uuid=state.uuid,
         events=list(transcript().events),
         model_usage=sample_model_usage(),
+        total_time=round(total_time, 3) if total_time is not None else None,
+        working_time=round(total_time - sample_waiting_time(), 3)
+        if total_time is not None
+        else None,
         error=error,
         limit=limit,
     )

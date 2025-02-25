@@ -1,4 +1,3 @@
-import asyncio
 import contextlib
 from contextvars import ContextVar
 from datetime import datetime
@@ -24,6 +23,7 @@ class ActiveSample:
         message_limit: int | None,
         token_limit: int | None,
         time_limit: int | None,
+        working_limit: int | None,
         fails_on_error: bool,
         transcript: Transcript,
         sandboxes: dict[str, SandboxConnection],
@@ -38,16 +38,16 @@ class ActiveSample:
         self.message_limit = message_limit
         self.token_limit = token_limit
         self.time_limit = time_limit
+        self.working_limit = working_limit
         self.fails_on_error = fails_on_error
         self.total_messages = 0
         self.total_tokens = 0
         self.transcript = transcript
         self.sandboxes = sandboxes
-        self._sample_task = asyncio.current_task()
         self._interrupt_action: Literal["score", "error"] | None = None
 
     @property
-    def execution_time(self) -> float:
+    def running_time(self) -> float:
         if self.started is not None:
             completed = (
                 self.completed
@@ -60,8 +60,6 @@ class ActiveSample:
 
     def interrupt(self, action: Literal["score", "error"]) -> None:
         self._interrupt_action = action
-        assert self._sample_task
-        self._sample_task.cancel()
 
     @property
     def interrupt_action(self) -> Literal["score", "error"] | None:
@@ -82,6 +80,7 @@ async def active_sample(
     message_limit: int | None,
     token_limit: int | None,
     time_limit: int | None,
+    working_limit: int | None,
     fails_on_error: bool,
     transcript: Transcript,
 ) -> AsyncGenerator[ActiveSample, None]:
@@ -94,6 +93,7 @@ async def active_sample(
         message_limit=message_limit,
         token_limit=token_limit,
         time_limit=time_limit,
+        working_limit=working_limit,
         sandboxes=await sandbox_connections(),
         fails_on_error=fails_on_error,
         transcript=transcript,

@@ -4,6 +4,7 @@ from inspect_ai._util.content import (
     Content,
     ContentAudio,
     ContentImage,
+    ContentReasoning,
     ContentText,
     ContentVideo,
 )
@@ -51,6 +52,7 @@ __all__ = [
     "CachePolicy",
     "ContentAudio",
     "ContentImage",
+    "ContentReasoning",
     "ContentText",
     "ContentVideo",
     "Content",

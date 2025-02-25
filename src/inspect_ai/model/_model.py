@@ -1,5 +1,5 @@
 import abc
-import asyncio
+import contextlib
 import functools
 import json
 import logging
@@ -8,7 +8,7 @@ import time
 from contextvars import ContextVar
 from copy import deepcopy
 from types import TracebackType
-from typing import Any, Callable, Literal, Type, cast
+from typing import Any, AsyncIterator, Callable, Literal, Type, cast
 
 from pydantic_core import to_jsonable_python
 from tenacity import (
@@ -21,8 +21,14 @@ from tenacity import (
 )
 
 from inspect_ai._util.constants import DEFAULT_MAX_CONNECTIONS
-from inspect_ai._util.content import Content, ContentImage, ContentText
+from inspect_ai._util.content import (
+    Content,
+    ContentImage,
+    ContentReasoning,
+    ContentText,
+)
 from inspect_ai._util.hooks import init_hooks, override_api_key, send_telemetry
+from inspect_ai._util.interrupt import check_sample_interrupt
 from inspect_ai._util.platform import platform_init
 from inspect_ai._util.registry import (
     RegistryInfo,
@@ -32,6 +38,7 @@ from inspect_ai._util.registry import (
 )
 from inspect_ai._util.retry import log_rate_limit_retry
 from inspect_ai._util.trace import trace_action
+from inspect_ai._util.working import report_sample_waiting_time
 from inspect_ai.tool import Tool, ToolChoice, ToolFunction, ToolInfo
 from inspect_ai.tool._tool_def import ToolDef, tool_defs
 from inspect_ai.util import concurrency
@@ -390,6 +397,8 @@ class Model:
             before_sleep=functools.partial(log_rate_limit_retry, self.api.model_name),
         )
         async def generate() -> ModelOutput:
+            check_sample_interrupt()
+
             if cache:
                 if isinstance(cache, CachePolicy):
                     policy = cache
@@ -432,14 +441,16 @@ class Model:
             )
 
             with trace_action(logger, "Model", f"generate ({str(self)})"):
-                time_start = time.perf_counter()
-                result = await self.api.generate(
-                    input=input,
-                    tools=tools,
-                    tool_choice=tool_choice,
-                    config=config,
-                )
-                time_elapsed = time.perf_counter() - time_start
+                time_start = time.monotonic()
+                try:
+                    result = await self.api.generate(
+                        input=input,
+                        tools=tools,
+                        tool_choice=tool_choice,
+                        config=config,
+                    )
+                finally:
+                    time_elapsed = time.monotonic() - time_start
 
             if isinstance(result, tuple):
                 output, call = result
@@ -458,8 +469,12 @@ class Model:
                 error_message = f"{error}\n\nRequest:\n{request}"
                 raise RuntimeError(error_message)
 
-            # update output with time elapsed
-            output.time = time_elapsed
+            # update output with time (call.time captures time spent
+            # on the actual request that succeeds w/ status 200)
+            if call and call.time is not None:
+                output.time = call.time
+            else:
+                output.time = time_elapsed
 
             # add views to tool calls
             for choice in output.choices:
@@ -485,8 +500,13 @@ class Model:
 
             return output
 
-        # call the model
+        # call the model (this will so retries, etc., so report waiting time
+        # as elapsed time - actual time for successful model call)
+        time_start = time.monotonic()
         model_output = await generate()
+        total_time = time.monotonic() - time_start
+        if model_output.time:
+            report_sample_waiting_time(total_time - model_output.time)
 
         # return results
         return model_output
@@ -510,7 +530,10 @@ class Model:
     # override the _connection_key() argument to provide a scope within which
     # to enforce max_connections (e.g. by account/api_key, by endpoint, etc.)
 
-    def _connection_concurrency(self, config: GenerateConfig) -> asyncio.Semaphore:
+    @contextlib.asynccontextmanager
+    async def _connection_concurrency(
+        self, config: GenerateConfig
+    ) -> AsyncIterator[None]:
         """Get the appropriate connection semaphore for this model instance."""
         max_connections = (
             config.max_connections
@@ -518,11 +541,12 @@ class Model:
             else self.api.max_connections()
         )
         model_name = ModelName(self)
-        return concurrency(
+        async with concurrency(
             name=f"{model_name.api}",
             concurrency=max_connections,
             key=f"Model{self.api.connection_key()}",
-        )
+        ):
+            yield
 
     def _record_model_interaction(
         self,
@@ -838,7 +862,9 @@ def resolve_reasoning_history(
     # determine up front if we have any reasoning content
     have_reasoning = any(
         [
-            isinstance(m, ChatMessageAssistant) and m.reasoning is not None
+            isinstance(m, ChatMessageAssistant)
+            and isinstance(m.content, list)
+            and any([c for c in m.content if isinstance(c, ContentReasoning)])
             for m in messages
         ]
     )
@@ -853,10 +879,14 @@ def resolve_reasoning_history(
         if not reasoning_history:
             resolved_messages: list[ChatMessage] = []
             for message in messages:
-                if isinstance(message, ChatMessageAssistant):
-                    resolved_messages.append(
-                        message.model_copy(update={"reasoning": None})
-                    )
+                if isinstance(message, ChatMessageAssistant) and isinstance(
+                    message.content, list
+                ):
+                    message.content = [
+                        content
+                        for content in message.content
+                        if not isinstance(content, ContentReasoning)
+                    ]
                 else:
                     resolved_messages.append(message)
 
@@ -870,20 +900,18 @@ def resolve_reasoning_history(
     elif reasoning_history:
         resolved_messages = []
         for message in messages:
-            if (
-                isinstance(message, ChatMessageAssistant)
-                and message.reasoning is not None
+            if isinstance(message, ChatMessageAssistant) and isinstance(
+                message.content, list
             ):
-                message = deepcopy(message)
-                if isinstance(message.content, str):
-                    message.content = (
-                        f"<think>\n{message.reasoning}\n</think>\n\n{message.content}"
-                    )
-                else:
-                    message.content.insert(
-                        0, ContentText(text=f"<think>\n{message.reasoning}\n</think>\n")
-                    )
-                message.reasoning = None
+                content: list[Content] = []
+                for c in message.content:
+                    if isinstance(c, ContentReasoning):
+                        content.append(
+                            ContentText(text=f"<think>\n{c.reasoning}\n</think>")
+                        )
+                    else:
+                        content.append(c)
+                message = message.model_copy(update={"content": content})
 
             resolved_messages.append(message)
 

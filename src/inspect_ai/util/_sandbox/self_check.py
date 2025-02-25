@@ -445,7 +445,8 @@ async def test_exec_stdout_is_limited(sandbox_env: SandboxEnvironment) -> None:
     assert "limit of 10 MiB was exceeded" in str(e_info.value)
     truncated_output = e_info.value.truncated_output
     # `yes` outputs 'y\n' (ASCII) so the size equals the string length.
-    assert truncated_output and len(truncated_output) == 10 * 1024**2
+    # some shells additionally output 'canceled\n' so we add fudge factor for that
+    assert truncated_output and (len(truncated_output) - 10 * 1024**2) < 10
 
 
 async def test_exec_stderr_is_limited(sandbox_env: SandboxEnvironment) -> None:
