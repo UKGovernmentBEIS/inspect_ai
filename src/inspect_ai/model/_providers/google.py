@@ -253,7 +253,7 @@ class GoogleGenAIAPI(ModelAPI):
 
     @override
     def is_rate_limit(self, ex: BaseException) -> bool:
-        return isinstance(ex, APIError) and ex.code in (429, 500, 503, 504)
+        return isinstance(ex, APIError) and ex.code in (429, 500, 503, 502, 504)
 
     @override
     def connection_key(self) -> str:
