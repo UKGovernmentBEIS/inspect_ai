@@ -1,4 +1,4 @@
-## Unreleased
+## v0.3.70 (25 February 2025)
 
 - [working_limit](https://inspect.ai-safety-institute.org.uk/errors_and_limits.html#working-limit) option for specifying a maximum working time (e.g. model generation, tool calls, etc.) for samples.
 - Added `SandboxEvent` to transcript for recording sandbox execution and I/O.
