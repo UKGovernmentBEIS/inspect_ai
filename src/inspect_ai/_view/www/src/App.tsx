@@ -28,7 +28,6 @@ import {
   bySample,
   sortSamples,
 } from "./samples/sample-tools/SortFilter";
-import { resolveAttachments } from "./utils/attachments";
 import { getVscodeApi } from "./utils/vscode";
 import { Sidebar } from "./workspace/sidebar/Sidebar.tsx";
 import { WorkSpace } from "./workspace/WorkSpace";
@@ -56,9 +55,16 @@ import {
   createEvalDescriptor,
   createSamplesDescriptor,
 } from "./samples/descriptor/samplesDescriptor.tsx";
+import { sampleDataAdapter } from "./samples/sampleDataAdapter.ts";
 import { getAvailableScorers, getDefaultScorer } from "./scoring/utils.ts";
-import { ApplicationState, ScoreFilter, ScoreLabel } from "./types.ts";
+import {
+  ApplicationState,
+  RunningSampleData,
+  ScoreFilter,
+  ScoreLabel,
+} from "./types.ts";
 import { EvalSample, Timeout } from "./types/log";
+import { resolveAttachments } from "./utils/attachments.ts";
 
 interface AppProps {
   api: ClientAPI;
@@ -117,6 +123,11 @@ export const App: FC<AppProps> = ({
   const [sampleError, setSampleError] = useState<Error | undefined>(
     applicationState?.sampleError,
   );
+
+  const [runningSampleData, setRunningSampleData] = useState<
+    RunningSampleData | undefined
+  >();
+
   const [selectedSampleTab, setSelectedSampleTab] = useState<
     string | undefined
   >(applicationState?.selectedSampleTab);
@@ -406,94 +417,126 @@ export const App: FC<AppProps> = ({
   // The main application reference
   const mainAppRef = useRef<HTMLDivElement>(null);
 
-  // Loads a sample
-  useEffect(() => {
-    const logFile = logs.files[selectedLogIndex];
+  const loadSample = useCallback(
+    (summary: SampleSummary) => {
 
-    // Clear the selected sample
-    if (!logFile || selectedSampleIndex === -1) {
-      setSelectedSample(undefined);
-      return;
-    }
-
-    // If already loading the selected sample, do nothing
-    if (loadingSampleIndexRef.current === selectedSampleIndex) {
-      return;
-    }
-
-    if (!showingSampleDialog && sampleSummaries.length > 1) {
-      return;
-    }
-
-    if (selectedSampleIndex < filteredSamples.length) {
-      const summary = filteredSamples[selectedSampleIndex];
-      // If this sample is already loaded, don't bother
-      if (
-        selectedSample &&
-        selectedSample.id === summary.id &&
-        selectedSample.epoch === summary.epoch
-      ) {
+      // If already loading the selected sample, do nothing
+      if (loadingSampleIndexRef.current === selectedSampleIndex) {
         return;
       }
+
+      const logFile = logs.files[selectedLogIndex];
 
       // Load the selected sample (if not already loaded)
       loadingSampleIndexRef.current = selectedSampleIndex;
       setSampleStatus("loading");
       setSampleError(undefined);
 
-      api
-        .get_log_sample(logFile.name, summary.id, summary.epoch)
-        .then((sample) => {
-          if (sample) {
-            // This migrates old samples (with raw transcript element)
-            // to the new structure (hence the type bypass).
-            const anySample = sample as any;
-            if (anySample.transcript) {
-              sample.events = anySample.transcript.events;
-              sample.attachments = anySample.transcript.content;
+      if (summary.completed) {
+        api
+          .get_log_sample(logFile.name, summary.id, summary.epoch)
+          .then((sample) => {
+            if (sample) {
+              // This migrates old samples (with raw transcript element)
+              // to the new structure (hence the type bypass).
+              const anySample = sample as any;
+              if (anySample.transcript) {
+                sample.events = anySample.transcript.events;
+                sample.attachments = anySample.transcript.content;
+              }
+              sample.attachments = sample.attachments || {};
+              sample.input = resolveAttachments(
+                sample.input,
+                sample.attachments,
+              );
+              sample.messages = resolveAttachments(
+                sample.messages,
+                sample.attachments,
+              );
+              sample.events = resolveAttachments(
+                sample.events,
+                sample.attachments,
+              );
+              sample.attachments = {};
+
+              sampleScrollPosition.current = 0;
+              setSelectedSample(sample);
+
+              setSampleStatus("ok");
+              loadingSampleIndexRef.current = null;
+            } else {
+              throw Error("Unable to load sample - an unknown error occurred.");
             }
-            sample.attachments = sample.attachments || {};
-            sample.input = resolveAttachments(sample.input, sample.attachments);
-            sample.messages = resolveAttachments(
-              sample.messages,
-              sample.attachments,
-            );
-            sample.events = resolveAttachments(
-              sample.events,
-              sample.attachments,
-            );
-            sample.attachments = {};
+          })
+          .catch((e) => {
+            setSampleStatus("error");
+            setSampleError(e);
 
             sampleScrollPosition.current = 0;
-            setSelectedSample(sample);
+            setSelectedSample(undefined);
 
+            loadingSampleIndexRef.current = null;
+          });
+      } else if (api.get_log_sample_data) {
+        // This is a running sample, load the current event data and use that
+        api
+          .get_log_sample_data(logFile.name, summary.id, summary.epoch)
+          .then((sampleData) => {
+            if (sampleData) {
+              sampleScrollPosition.current = 0;
+              const adapter = sampleDataAdapter();
+              adapter.addData(sampleData);
+              const events = adapter.resolvedEvents();
+              setRunningSampleData({
+                events,
+                summary,
+              });
+            }
             setSampleStatus("ok");
             loadingSampleIndexRef.current = null;
-          } else {
-            throw Error("Unable to load sample - an unknown error occurred.");
-          }
-        })
-        .catch((e) => {
-          setSampleStatus("error");
-          setSampleError(e);
+          })
+          .catch((e) => {
+            setSampleStatus("error");
+            setSampleError(e);
 
-          sampleScrollPosition.current = 0;
-          setSelectedSample(undefined);
+            sampleScrollPosition.current = 0;
+            setSelectedSample(undefined);
 
-          loadingSampleIndexRef.current = null;
-        });
+            loadingSampleIndexRef.current = null;
+          });
+      }
+    },
+    [logs, selectedLogIndex],
+  );
+
+  // Clear the selected sample
+  useEffect(() => {
+    const logFile = logs.files[selectedLogIndex];
+    if (!logFile) {
+      setSelectedSample(undefined);
     }
-  }, [
-    selectedSample,
-    selectedSampleIndex,
-    showingSampleDialog,
-    selectedLogIndex,
-    sampleSummaries,
-    filteredSamples,
-    setSelectedSample,
-    setSampleStatus,
-    setSampleError,
-  ]);
+
+    if (selectedSampleIndex === -1) {
+      setSelectedSample(undefined);
+    }
+  }, [selectedSampleIndex, selectedLogIndex, logs]);
+
+  const refreshSelectedSample = useCallback(
+    (selectedSampleIdx: number) => {
+      const sampleSummary = filteredSamples[selectedSampleIdx];
+      if (sampleSummary) {
+        loadSample(sampleSummary);
+      } else {
+        setSelectedSample(undefined);
+      }
+    },
+    [filteredSamples],
+  );
+
+  // Loads a sample
+  useEffect(() => {
+    refreshSelectedSample(selectedSampleIndex);
+  }, [selectedSampleIndex, refreshSelectedSample]);
 
   // Load a specific log file
   const loadLog = useCallback(
@@ -957,12 +1000,15 @@ export const App: FC<AppProps> = ({
    * Determines the sample mode based on the selected log's contents.
    */
   const sampleMode = useMemo(() => {
-    return sampleSummaries.length === 0
+    const totalSummaryCount =
+      sampleSummaries.length + pendingSampleSummaries.samples.length;
+
+    return totalSummaryCount === 0
       ? "none"
-      : sampleSummaries.length === 1
+      : totalSummaryCount === 1
         ? "single"
         : "many";
-  }, [sampleSummaries]);
+  }, [sampleSummaries, pendingSampleSummaries]);
 
   return (
     <>
@@ -1033,6 +1079,7 @@ export const App: FC<AppProps> = ({
             refreshLog={refreshLog}
             selectedSample={selectedSample}
             selectedSampleIndex={selectedSampleIndex}
+            runningSampleData={runningSampleData}
             setSelectedSampleIndex={setSelectedSampleIndex}
             showingSampleDialog={showingSampleDialog}
             setShowingSampleDialog={handleSampleShowingDialog}

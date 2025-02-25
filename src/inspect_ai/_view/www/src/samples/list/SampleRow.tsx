@@ -1,6 +1,7 @@
 import clsx from "clsx";
 import { FC, ReactNode, useCallback } from "react";
 import { SampleSummary } from "../../api/types";
+import { useAppContext } from "../../AppContext";
 import { MarkdownDiv } from "../../components/MarkdownDiv";
 import { arrayToString, inputString } from "../../utils/format";
 import { SampleErrorView } from "../error/SampleErrorView";
@@ -31,8 +32,9 @@ export const SampleRow: FC<SampleRowProps> = ({
   selected,
   showSample,
 }) => {
+  const appContext = useAppContext();
   const handleClick = useCallback(() => {
-    if (completed) {
+    if (completed || appContext.capabilities.streamSampleData) {
       showSample(index);
     }
   }, [index, showSample, completed]);

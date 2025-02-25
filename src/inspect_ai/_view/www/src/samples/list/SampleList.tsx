@@ -75,10 +75,10 @@ export const SampleList: FC<SampleListProps> = (props) => {
       const actualRowIndex = itemRowMapping[selectedIndex];
 
       requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
+        setTimeout(() => {
           listEl.scrollToIndex(actualRowIndex);
           prevSelectedIndexRef.current = actualRowIndex;
-        });
+        }, 10);
       });
     }
   }, [selectedIndex, listHandle, itemRowMapping]);

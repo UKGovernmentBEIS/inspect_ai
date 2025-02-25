@@ -4,7 +4,7 @@ import {
   LogFiles,
   SampleSummary,
 } from "./api/types";
-import { ContentImage, ContentText, EvalSample } from "./types/log";
+import { ContentImage, ContentText, EvalSample, Events } from "./types/log";
 
 // Define the state interface
 export interface AppState {
@@ -76,4 +76,9 @@ export type SampleMode = "none" | "single" | "many";
 export interface ContentTool {
   type: "tool";
   content: (ContentImage | ContentText)[];
+}
+
+export interface RunningSampleData {
+  events: Events;
+  summary: SampleSummary;
 }
