@@ -3,7 +3,8 @@ import { ApplicationIcons } from "../../appearance/icons";
 import { LoggerEvent } from "../../types/log";
 import { EventRow } from "./event/EventRow";
 
-import JSONPanel from "../../components/JsonPanel";
+import { MetaDataGrid } from "../../metadata/MetaDataGrid";
+import { parsedJson as maybeParseJson } from "../../utils/json";
 import styles from "./LoggerEventView.module.css";
 
 interface LoggerEventViewProps {
@@ -18,6 +19,7 @@ export const LoggerEventView: React.FC<LoggerEventViewProps> = ({
   event,
   className,
 }) => {
+  const obj = maybeParseJson(event.message.message);
   return (
     <EventRow
       className={className}
@@ -26,11 +28,8 @@ export const LoggerEventView: React.FC<LoggerEventViewProps> = ({
     >
       <div className={clsx("text-size-base", styles.grid)}>
         <div className={clsx("text-size-smaller")}>
-          {isJson(event.message.message) ? (
-            <JSONPanel
-              json={event.message.message}
-              className={clsx(styles.jsonPanel)}
-            />
+          {obj !== undefined && obj !== null ? (
+            <MetaDataGrid entries={obj as Record<string, unknown>} />
           ) : (
             event.message.message
           )}
@@ -41,17 +40,4 @@ export const LoggerEventView: React.FC<LoggerEventViewProps> = ({
       </div>
     </EventRow>
   );
-};
-
-export const isJson = (text: string): boolean => {
-  text = text.trim();
-  if (text.startsWith("{")) {
-    try {
-      JSON.parse(text);
-      return true;
-    } catch {
-      return false;
-    }
-  }
-  return false;
 };
