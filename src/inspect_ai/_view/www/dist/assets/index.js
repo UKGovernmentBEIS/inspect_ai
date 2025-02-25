@@ -21574,22 +21574,22 @@ var require_assets = __commonJS({
     const ToolInput = reactExports.memo((props) => {
       const { highlightLanguage, contents: contents2, toolCallView } = props;
       const codeRef = useCodeHighlight(highlightLanguage);
+      const toolViewRef = reactExports.useRef(null);
+      reactExports.useEffect(() => {
+        if ((toolCallView == null ? void 0 : toolCallView.content) && toolViewRef.current) {
+          requestAnimationFrame(() => {
+            const codeBlocks = toolViewRef.current.querySelectorAll("pre code");
+            codeBlocks.forEach((block2) => {
+              if (block2.className.includes("language-")) {
+                block2.classList.add("sourceCode");
+                prismExports.highlightElement(block2);
+              }
+            });
+          });
+        }
+      }, [toolCallView == null ? void 0 : toolCallView.content]);
       if (!contents2 && !(toolCallView == null ? void 0 : toolCallView.content)) return null;
       if (toolCallView) {
-        const toolViewRef = reactExports.useRef(null);
-        reactExports.useEffect(() => {
-          if ((toolCallView == null ? void 0 : toolCallView.content) && toolViewRef.current) {
-            requestAnimationFrame(() => {
-              const codeBlocks = toolViewRef.current.querySelectorAll("pre code");
-              codeBlocks.forEach((block2) => {
-                if (block2.className.includes("language-")) {
-                  block2.classList.add("sourceCode");
-                  prismExports.highlightElement(block2);
-                }
-              });
-            });
-          }
-        }, [toolCallView == null ? void 0 : toolCallView.content]);
         return /* @__PURE__ */ jsxRuntimeExports.jsx(
           MarkdownDiv,
           {
