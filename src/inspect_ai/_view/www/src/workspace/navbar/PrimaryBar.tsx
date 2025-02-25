@@ -107,7 +107,9 @@ export const PrimaryBar: FC<PrimaryBarProps> = ({
       </div>
       <div className={clsx(styles.taskStatus, "navbar-text")}>
         {status === "success" ||
-        (status === "started" && appContext.capabilities.streamSamples) ? (
+        (status === "started" &&
+          appContext.capabilities.streamSamples &&
+          runningMetrics) ? (
           <ResultsPanel
             scorers={
               runningMetrics
@@ -119,7 +121,8 @@ export const PrimaryBar: FC<PrimaryBarProps> = ({
         {status === "cancelled" ? (
           <CancelledPanel sampleCount={samples?.length || 0} />
         ) : undefined}
-        {status === "started" && !appContext.capabilities.streamSamples ? (
+        {status === "started" &&
+        (!appContext.capabilities.streamSamples || !runningMetrics) ? (
           <RunningStatusPanel sampleCount={samples?.length || 0} />
         ) : undefined}
         {status === "error" ? (
