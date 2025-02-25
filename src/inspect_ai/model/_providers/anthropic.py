@@ -1,5 +1,6 @@
 import functools
 import os
+import re
 import sys
 from copy import copy
 from logging import getLogger
@@ -316,7 +317,7 @@ class AnthropicAPI(ModelAPI):
         return not self.is_claude_3() and not self.is_claude_3_5()
 
     def is_claude_3(self) -> bool:
-        return "claude-3-" in self.model_name
+        return re.search(r"claude-3-[a-zA-Z]", self.model_name) is not None
 
     def is_claude_3_5(self) -> bool:
         return "claude-3-5-" in self.model_name

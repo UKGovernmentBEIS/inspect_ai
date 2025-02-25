@@ -16,7 +16,8 @@ from inspect_ai.solver._solver import generate
 async def check_reasoning_content(model_name: str):
     model = get_model(model_name)
     output = await model.generate(
-        "Please say 'hello, world'", config=GenerateConfig(reasoning_effort="low")
+        "Please say 'hello, world'",
+        config=GenerateConfig(reasoning_effort="low", reasoning_tokens=1024),
     )
     assert "<think>" not in output.completion
     content = output.choices[0].message.content
