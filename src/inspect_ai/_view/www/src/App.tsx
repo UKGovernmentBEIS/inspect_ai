@@ -550,7 +550,11 @@ export const App: React.FC<AppProps> = ({
       }
 
       try {
-        const pendingSamples = await api.get_log_pending_samples(logFile.name);
+        const pendingSamples = await api.get_log_pending_samples(
+          logFile.name,
+          pendingSampleSummaries.etag,
+        );
+
         if (!isActive) return;
 
         if (pendingSamples.status === "OK" && pendingSamples.pendingSamples) {
@@ -596,6 +600,7 @@ export const App: React.FC<AppProps> = ({
   }, [
     logs,
     selectedLogIndex,
+    pendingSampleSummaries.etag,
     pendingSampleSummaries.refresh,
     reloadSelectedLog,
   ]);
