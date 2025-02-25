@@ -22245,7 +22245,6 @@ var require_assets = __commonJS({
           return typeof entry2.value === "object";
         },
         render: (id, entry2) => {
-          console.log({ entry: entry2 });
           return {
             rendered: /* @__PURE__ */ jsxRuntimeExports.jsx(
               MetaDataView,
@@ -61305,6 +61304,12 @@ ${events}
         },
         [setSelectedTab]
       );
+      const handleScroll = reactExports.useCallback(
+        (tabid, position) => {
+          onScroll(tabid, position);
+        },
+        [onScroll]
+      );
       if (evalSpec === void 0) {
         return /* @__PURE__ */ jsxRuntimeExports.jsx(EmptyPanel, {});
       } else {
@@ -61360,12 +61365,9 @@ ${events}
                     scrollable: !!tab2.scrollable,
                     scrollRef: tab2.scrollRef,
                     scrollPosition: (_a2 = workspaceTabScrollPositionRef.current) == null ? void 0 : _a2[tab2.id],
-                    setScrollPosition: reactExports.useCallback(
-                      (position) => {
-                        onScroll(tab2.id, position);
-                      },
-                      [onScroll]
-                    ),
+                    setScrollPosition: (position) => {
+                      handleScroll(tab2.id, position);
+                    },
                     children: tab2.content()
                   },
                   tab2.id
