@@ -1,3 +1,9 @@
+## Unreleased
+
+- OpenAI: Retry on rate limit requests with "Request too large".
+- OpenAI: Tolerate `None` for assistant content (can happen when there is a refusal).
+- Bugfix: Catch standard `TimeoutError` for running shell commands in the computer tool container.
+
 ## v0.3.70 (25 February 2025)
 
 - [working_limit](https://inspect.ai-safety-institute.org.uk/errors_and_limits.html#working-limit) option for specifying a maximum working time (e.g. model generation, tool calls, etc.) for samples.

@@ -32,7 +32,7 @@ async def run(
             maybe_truncate(stdout.decode(), truncate_after=truncate_after),
             maybe_truncate(stderr.decode(), truncate_after=truncate_after),
         )
-    except asyncio.TimeoutError as exc:
+    except (TimeoutError, asyncio.TimeoutError) as exc:
         try:
             process.kill()
         except ProcessLookupError:
