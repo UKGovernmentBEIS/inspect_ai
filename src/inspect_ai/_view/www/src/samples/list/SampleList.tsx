@@ -76,9 +76,13 @@ export const SampleList: FC<SampleListProps> = (props) => {
 
       requestAnimationFrame(() => {
         setTimeout(() => {
-          listEl.scrollToIndex(actualRowIndex);
-          prevSelectedIndexRef.current = actualRowIndex;
-        }, 10);
+          try {
+            // TODO: Improve our behavior with regards to scrolling
+            // Theory: calling this while following the bottom of the list isn't great
+            listEl.scrollToIndex(actualRowIndex);
+            prevSelectedIndexRef.current = actualRowIndex;
+          } catch {}
+        }, 25);
       });
     }
   }, [selectedIndex, listHandle, itemRowMapping]);
