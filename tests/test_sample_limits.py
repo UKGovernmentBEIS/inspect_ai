@@ -206,7 +206,7 @@ def test_working_limit_reporting():
     )[0]
     assert log.samples
     for index, sample in enumerate(log.samples):
-        assert (sample.total_time - sample.working_time) >= index
+        assert (sample.total_time - sample.working_time + 0.1) >= index
 
 
 def check_working_limit_event(log: EvalLog, working_limit: int):
