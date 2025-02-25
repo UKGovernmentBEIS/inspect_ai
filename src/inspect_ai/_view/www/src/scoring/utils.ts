@@ -35,11 +35,12 @@ const getScorersFromResults = (results?: EvalResults): ScorerInfo[] => {
  * Extracts scorer information from sample summaries
  */
 const getScorersFromSamples = (samples: SampleSummary[]): ScorerInfo[] => {
-  if (!samples.length || samples[0].scores === null) {
-    return [];
-  }
+  // Find a sample with scores
+  const scoredSample = samples.find((sample) => {
+    return !!sample.scores;
+  });
 
-  return Object.keys(samples[0].scores).map((key) => ({
+  return Object.keys(scoredSample?.scores || {}).map((key) => ({
     name: key,
     scorer: key,
   }));
