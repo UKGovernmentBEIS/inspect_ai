@@ -830,6 +830,18 @@
           "default": null,
           "title": "Time Limit"
         },
+        "working_limit": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Working Limit"
+        },
         "max_samples": {
           "anyOf": [
             {
@@ -951,6 +963,7 @@
         "message_limit",
         "token_limit",
         "time_limit",
+        "working_limit",
         "max_samples",
         "max_tasks",
         "max_subprocesses",
@@ -1519,6 +1532,30 @@
           "title": "Model Usage",
           "type": "object"
         },
+        "total_time": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Total Time"
+        },
+        "working_time": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Working Time"
+        },
         "error": {
           "anyOf": [
             {
@@ -1565,6 +1602,8 @@
         "store",
         "events",
         "model_usage",
+        "total_time",
+        "working_time",
         "error",
         "attachments",
         "limit"
@@ -1580,6 +1619,7 @@
           "enum": [
             "context",
             "time",
+            "working",
             "message",
             "token",
             "operator",
@@ -2811,11 +2851,23 @@
           },
           "title": "Response",
           "type": "object"
+        },
+        "time": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Time"
         }
       },
       "required": [
         "request",
-        "response"
+        "response",
+        "time"
       ],
       "title": "ModelCall",
       "type": "object",
@@ -3300,6 +3352,7 @@
           "enum": [
             "message",
             "time",
+            "working",
             "token",
             "operator",
             "custom"

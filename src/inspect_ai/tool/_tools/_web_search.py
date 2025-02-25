@@ -1,6 +1,6 @@
 import asyncio
 import os
-from typing import Literal, Protocol, cast, runtime_checkable
+from typing import Literal, Protocol, runtime_checkable
 
 import httpx
 from bs4 import BeautifulSoup, NavigableString
@@ -90,8 +90,8 @@ def web_search(
                 return_exceptions=True,
             )
             for page, link in zip(pages, links):
-                if page and not isinstance(page, Exception):
-                    page_contents.append(cast(str, page))
+                if page and not isinstance(page, BaseException):
+                    page_contents.append(page)
                     urls.append(link.url)
                     snippets.append(link.snippet)
             search_calls += 1

@@ -1,5 +1,5 @@
 import shlex
-from typing import Literal, Union, overload
+from typing import Literal, Type, Union, overload
 
 from pydantic import JsonValue
 from pydantic_core import to_jsonable_python
@@ -9,6 +9,7 @@ from inspect_ai._util.text import truncate_lines
 from inspect_ai.util._subprocess import ExecResult
 
 from .environment import (
+    ST,
     SandboxConnection,
     SandboxEnvironment,
     SandboxEnvironmentConfigType,
@@ -108,6 +109,15 @@ class SandboxEnvironmentProxy(SandboxEnvironment):
     @override
     async def connection(self) -> SandboxConnection:
         return await self._sandbox.connection()
+
+    @override
+    def as_type(self, sandbox_cls: Type[ST]) -> ST:
+        if isinstance(self._sandbox, sandbox_cls):
+            return self._sandbox
+        else:
+            raise TypeError(
+                f"Expected instance of {sandbox_cls.__name__}, got {type(self._sandbox).__name__}"
+            )
 
     @classmethod
     async def sample_cleanup(

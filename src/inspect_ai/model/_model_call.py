@@ -1,6 +1,6 @@
 from typing import Any, Callable
 
-from pydantic import BaseModel, JsonValue
+from pydantic import BaseModel, Field, JsonValue
 
 from inspect_ai._util.json import jsonable_python
 
@@ -22,9 +22,15 @@ class ModelCall(BaseModel):
     response: dict[str, JsonValue]
     """Raw response data from model."""
 
+    time: float | None = Field(default=None)
+    """Time taken for underlying model call."""
+
     @staticmethod
     def create(
-        request: Any, response: Any, filter: ModelCallFilter | None = None
+        request: Any,
+        response: Any,
+        filter: ModelCallFilter | None = None,
+        time: float | None = None,
     ) -> "ModelCall":
         """Create a ModelCall object.
 
@@ -36,6 +42,7 @@ class ModelCall(BaseModel):
            request (Any): Request object (dict, dataclass, BaseModel, etc.)
            response (Any): Response object (dict, dataclass, BaseModel, etc.)
            filter (ModelCallFilter): Function for filtering model call data.
+           time: Time taken for underlying ModelCall
         """
         request_dict = jsonable_python(request)
         if filter:
@@ -43,7 +50,7 @@ class ModelCall(BaseModel):
         response_dict = jsonable_python(response)
         if filter:
             response_dict = _walk_json_value(None, response_dict, filter)
-        return ModelCall(request=request_dict, response=response_dict)
+        return ModelCall(request=request_dict, response=response_dict, time=time)
 
 
 def _walk_json_value(

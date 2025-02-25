@@ -352,6 +352,8 @@ website:
           href: reference/inspect_ai.log.qmd#modelevent
         - text: ToolEvent
           href: reference/inspect_ai.log.qmd#toolevent
+        - text: SandboxEvent
+          href: reference/inspect_ai.log.qmd#sandboxevent
         - text: ApprovalEvent
           href: reference/inspect_ai.log.qmd#approvalevent
         - text: InputEvent

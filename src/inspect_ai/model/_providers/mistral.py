@@ -61,6 +61,7 @@ from .._model_output import (
     StopReason,
 )
 from .util import environment_prerequisite_error, model_base_url
+from .util.tracker import HttpxTimeTracker
 
 AZURE_MISTRAL_API_KEY = "AZURE_MISTRAL_API_KEY"
 AZUREAI_MISTRAL_API_KEY = "AZUREAI_MISTRAL_API_KEY"
@@ -125,57 +126,83 @@ class MistralAPI(ModelAPI):
         tool_choice: ToolChoice,
         config: GenerateConfig,
     ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
-        # build request
-        request: dict[str, Any] = dict(
-            model=self.model_name,
-            messages=await mistral_chat_messages(input),
-            tools=mistral_chat_tools(tools) if len(tools) > 0 else None,
-            tool_choice=(
-                mistral_chat_tool_choice(tool_choice) if len(tools) > 0 else None
-            ),
-        )
-        if config.temperature is not None:
-            request["temperature"] = config.temperature
-        if config.top_p is not None:
-            request["top_p"] = config.top_p
-        if config.max_tokens is not None:
-            request["max_tokens"] = config.max_tokens
-        if config.seed is not None:
-            request["random_seed"] = config.seed
+        # create client
+        with Mistral(
+            api_key=self.api_key,
+            timeout_ms=(config.timeout if config.timeout else DEFAULT_TIMEOUT) * 1000,
+            **self.model_args,
+        ) as client:
+            # create time tracker
+            time_tracker = HttpxTimeTracker(client.sdk_configuration.async_client)
 
-        # send request
-        try:
-            with Mistral(
-                api_key=self.api_key,
-                timeout_ms=(config.timeout if config.timeout else DEFAULT_TIMEOUT)
-                * 1000,
-                **self.model_args,
-            ) as client:
-                response = await client.chat.complete_async(**request)
-        except SDKError as ex:
-            if ex.status_code == 400:
-                return self.handle_bad_request(ex), mistral_model_call(request, None)
-            else:
-                raise ex
-
-        if response is None:
-            raise RuntimeError("Mistral model did not return a response from generate.")
-
-        # return model output (w/ tool calls if they exist)
-        choices = completion_choices_from_response(response, tools)
-        return ModelOutput(
-            model=response.model,
-            choices=choices,
-            usage=ModelUsage(
-                input_tokens=response.usage.prompt_tokens,
-                output_tokens=(
-                    response.usage.completion_tokens
-                    if response.usage.completion_tokens
-                    else response.usage.total_tokens - response.usage.prompt_tokens
+            # build request
+            request_id = time_tracker.start_request()
+            request: dict[str, Any] = dict(
+                model=self.model_name,
+                messages=await mistral_chat_messages(input),
+                tools=mistral_chat_tools(tools) if len(tools) > 0 else None,
+                tool_choice=(
+                    mistral_chat_tool_choice(tool_choice) if len(tools) > 0 else None
                 ),
-                total_tokens=response.usage.total_tokens,
-            ),
-        ), mistral_model_call(request, response)
+                http_headers={HttpxTimeTracker.REQUEST_ID_HEADER: request_id},
+            )
+            if config.temperature is not None:
+                request["temperature"] = config.temperature
+            if config.top_p is not None:
+                request["top_p"] = config.top_p
+            if config.max_tokens is not None:
+                request["max_tokens"] = config.max_tokens
+            if config.seed is not None:
+                request["random_seed"] = config.seed
+
+            # prepare response for inclusion in model call
+            response: dict[str, Any] = {}
+
+            def model_call() -> ModelCall:
+                req = request.copy()
+                req.update(
+                    messages=[message.model_dump() for message in req["messages"]]
+                )
+                if req.get("tools", None) is not None:
+                    req["tools"] = [tool.model_dump() for tool in req["tools"]]
+
+                return ModelCall.create(
+                    request=req,
+                    response=response,
+                    time=time_tracker.end_request(request_id),
+                )
+
+            # send request
+            try:
+                completion = await client.chat.complete_async(**request)
+                response = completion.model_dump()
+            except SDKError as ex:
+                if ex.status_code == 400:
+                    return self.handle_bad_request(ex), model_call()
+                else:
+                    raise ex
+
+            if completion is None:
+                raise RuntimeError(
+                    "Mistral model did not return a response from generate."
+                )
+
+            # return model output (w/ tool calls if they exist)
+            choices = completion_choices_from_response(completion, tools)
+            return ModelOutput(
+                model=completion.model,
+                choices=choices,
+                usage=ModelUsage(
+                    input_tokens=completion.usage.prompt_tokens,
+                    output_tokens=(
+                        completion.usage.completion_tokens
+                        if completion.usage.completion_tokens
+                        else completion.usage.total_tokens
+                        - completion.usage.prompt_tokens
+                    ),
+                    total_tokens=completion.usage.total_tokens,
+                ),
+            ), model_call()
 
     @override
     def is_rate_limit(self, ex: BaseException) -> bool:
@@ -207,7 +234,7 @@ def mistral_model_call(
     request.update(messages=[message.model_dump() for message in request["messages"]])
     if request.get("tools", None) is not None:
         request["tools"] = [tool.model_dump() for tool in request["tools"]]
-    return ModelCall(
+    return ModelCall.create(
         request=request, response=response.model_dump() if response else {}
     )
 

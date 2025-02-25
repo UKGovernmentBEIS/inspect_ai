@@ -124,7 +124,8 @@ Below are sections for the various categories of options supported by `inspect e
 | `--no-fail-on-error` | Do not fail the eval if errors occur within samples (instead, continue running other samples)                                                                         |
 | `--message-limit`    | Limit on total messages used for each sample.                                                                                                                         |
 | `--token-limit`      | Limit on total tokens used for each sample.                                                                                                                           |
-| `--time-limit`       | Limit on total execution time for each sample.                                                                                                                        |
+| `--time-limit`       | Limit on total running time for each sample.                                                                                                                        |
+| `--working-limit`       | Limit on total working time (model generation, tool calls, etc.) for each sample.                                                                                                                        |
 
 ## Eval Logs
 

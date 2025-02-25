@@ -4,6 +4,7 @@ import functools
 import gc
 import json
 import os
+import time
 from dataclasses import dataclass
 from queue import Empty, Queue
 from threading import Thread
@@ -220,6 +221,7 @@ class HuggingFaceAPI(ModelAPI):
                 output_tokens=response.output_tokens,
                 total_tokens=response.total_tokens,
             ),
+            time=response.time,
         )
 
     @override
@@ -377,6 +379,7 @@ class GenerateOutput:
     output_tokens: int
     total_tokens: int
     logprobs: torch.Tensor | None
+    time: float
 
 
 @dataclass
@@ -432,6 +435,7 @@ def process_batches() -> None:
 
         try:
             # capture the generator and decoder functions
+            start_time = time.monotonic()
             first_input = inputs[0][0]
             device = first_input.device
             tokenizer = first_input.tokenizer
@@ -467,6 +471,7 @@ def process_batches() -> None:
             outputs = decoder(sequences=generated_tokens)
 
             # call back futures
+            total_time = time.monotonic() - start_time
             for i, output in enumerate(outputs):
                 future = inputs[i][1]
                 input_tokens = input_ids.size(dim=1)
@@ -483,6 +488,7 @@ def process_batches() -> None:
                         output_tokens=output_tokens,
                         total_tokens=input_tokens + output_tokens,
                         logprobs=logprobs[i] if logprobs is not None else None,
+                        time=total_time,
                     ),
                 )
 

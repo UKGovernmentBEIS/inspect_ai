@@ -2,11 +2,23 @@ from __future__ import annotations
 
 import abc
 from dataclasses import dataclass, field
-from typing import Any, Awaitable, Callable, Literal, NamedTuple, Union, overload
+from typing import (
+    Any,
+    Awaitable,
+    Callable,
+    Literal,
+    NamedTuple,
+    Type,
+    TypeVar,
+    Union,
+    overload,
+)
 
 from pydantic import BaseModel, Field
 
 from .._subprocess import ExecResult
+
+ST = TypeVar("ST", bound="SandboxEnvironment")
 
 TaskInit = Callable[[str, Union["SandboxEnvironmentConfigType", None]], Awaitable[None]]
 TaskCleanup = Callable[
@@ -179,6 +191,25 @@ class SandboxEnvironment(abc.ABC):
            ConnectionError: If sandbox is not currently running.
         """
         raise NotImplementedError("connection not implemented")
+
+    def as_type(self, sandbox_cls: Type[ST]) -> ST:
+        """Verify and return a reference to a subclass of SandboxEnvironment.
+
+        Args:
+           sandbox_cls: Class of sandbox (subclass of SandboxEnvironment)
+
+        Returns:
+           Reference to the sandbox using the requested type.
+
+        Raises:
+           TypeError: If the sandbox is not of the requested type.
+        """
+        if isinstance(self, sandbox_cls):
+            return self
+        else:
+            raise TypeError(
+                f"Expected instance of {sandbox_cls.__name__}, got {type(self).__name__}"
+            )
 
     @classmethod
     def config_files(cls) -> list[str]:

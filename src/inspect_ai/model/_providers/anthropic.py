@@ -5,6 +5,8 @@ from copy import copy
 from logging import getLogger
 from typing import Any, Literal, Tuple, TypedDict, cast
 
+from .util.tracker import HttpxTimeTracker
+
 if sys.version_info >= (3, 11):
     from typing import NotRequired
 else:
@@ -150,6 +152,9 @@ class AnthropicAPI(ModelAPI):
                 **model_args,
             )
 
+        # create time tracker
+        self._time_tracker = HttpxTimeTracker(self.client._client)
+
     @override
     async def close(self) -> None:
         await self.client.close()
@@ -167,6 +172,9 @@ class AnthropicAPI(ModelAPI):
         tool_choice: ToolChoice,
         config: GenerateConfig,
     ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
+        # allocate request_id (so we can see it from ModelCall)
+        request_id = self._time_tracker.start_request()
+
         # setup request and response for ModelCall
         request: dict[str, Any] = {}
         response: dict[str, Any] = {}
@@ -176,6 +184,7 @@ class AnthropicAPI(ModelAPI):
                 request=request,
                 response=response,
                 filter=model_call_filter,
+                time=self._time_tracker.end_request(request_id),
             )
 
         # generate
@@ -200,9 +209,11 @@ class AnthropicAPI(ModelAPI):
             # additional options
             request = request | self.completion_params(config)
 
-            # computer use beta
+            # extra headers (for time tracker and computer use)
+            extra_headers = {HttpxTimeTracker.REQUEST_ID_HEADER: request_id}
             if computer_use:
-                request["extra_headers"] = {"anthropic-beta": "computer-use-2024-10-22"}
+                extra_headers["anthropic-beta"] = "computer-use-2024-10-22"
+            request["extra_headers"] = extra_headers
 
             # extra_body
             if self.extra_body is not None:

@@ -4,7 +4,7 @@ import sys
 import traceback
 from logging import getLogger
 from types import TracebackType
-from typing import Any, Literal, Type, TypedDict
+from typing import Any, Literal, Tuple, Type, TypedDict
 
 import click
 import tenacity
@@ -86,13 +86,16 @@ class EvalConfig(BaseModel):
     """
 
     message_limit: int | None = Field(default=None)
-    """Maximum messages to allow in a chat conversation."""
+    """Maximum messages to allow per sample."""
 
     token_limit: int | None = Field(default=None)
-    """Maximum tokens to allow in a chat conversation."""
+    """Maximum tokens usage per sample."""
 
     time_limit: int | None = Field(default=None)
-    """Maximum seconds for chat conversation."""
+    """Maximum clock time per sample."""
+
+    working_limit: int | None = Field(default=None)
+    """Meximum working time per sample."""
 
     max_samples: int | None = Field(default=None)
     """Maximum number of samples to run in parallel."""
@@ -141,7 +144,9 @@ class EvalConfig(BaseModel):
 class EvalSampleLimit(BaseModel):
     """Limit encontered by sample."""
 
-    type: Literal["context", "time", "message", "token", "operator", "custom"]
+    type: Literal[
+        "context", "time", "working", "message", "token", "operator", "custom"
+    ]
     """The type of limit"""
 
     limit: int
@@ -217,6 +222,15 @@ class EvalSample(BaseModel):
 
     model_usage: dict[str, ModelUsage] = Field(default_factory=dict)
     """Model token usage for sample."""
+
+    total_time: float | None = Field(default=None)
+    """Total time that the sample was running."""
+
+    working_time: float | None = Field(default=None)
+    """Time spent working (model generation, sandbox calls, etc.)"""
+
+    uuid: str | None = Field(default=None)
+    """Globally unique identifier for sample run (exists for samples created in Inspect >= 0.3.70)"""
 
     error: EvalError | None = Field(default=None)
     """Error that halted sample."""
@@ -601,14 +615,15 @@ def eval_error(
     exc_traceback: TracebackType | None,
 ) -> EvalError:
     # get text traceback
-    traceback_text = "\n".join(
-        traceback.format_exception(exc_type, exc_value, exc_traceback)
-    )
+    traceback_text, truncated = truncate_traceback(exc_type, exc_value, exc_traceback)
 
-    with open(os.devnull, "w") as f:
-        console = Console(record=True, file=f, legacy_windows=True)
-        console.print(rich_traceback(exc_type, exc_value, exc_traceback))
-        traceback_ansi = console.export_text(styles=True)
+    if not truncated:
+        with open(os.devnull, "w") as f:
+            console = Console(record=True, file=f, legacy_windows=True)
+            console.print(rich_traceback(exc_type, exc_value, exc_traceback))
+            traceback_ansi = console.export_text(styles=True)
+    else:
+        traceback_ansi = traceback_text
 
     # return error
     return EvalError(
@@ -630,6 +645,51 @@ def rich_traceback(
         width=CONSOLE_DISPLAY_WIDTH,
     )
     return rich_tb
+
+
+def truncate_traceback(
+    exc_type: Type[Any],
+    exc_value: BaseException,
+    exc_traceback: TracebackType | None,
+    max_length: int = 1048576,  # 1MB
+) -> Tuple[str, bool]:
+    tb_list = traceback.format_exception(exc_type, exc_value, exc_traceback)
+
+    # Keep the front and back of the traceback
+    header = tb_list[0]
+    error_msg = tb_list[-1]
+
+    # Join the middle parts (stack frames)
+    frames = "".join(tb_list[1:-1])
+
+    # It all fits, use it as is
+    full_tb = header + frames + error_msg
+    if len(full_tb) <= max_length:
+        return full_tb, False
+
+    ellipsis = "\n...\n"
+
+    # Minimum header size
+    header_size = min(len(header), 1024)
+
+    # Minimum frames size
+    frames_size = min(len(frames), 1024)
+
+    # Remaining space for error message
+    error_msg_size = max(0, max_length - header_size - frames_size)
+
+    def truncate_middle(text: str, size: int) -> str:
+        if len(text) <= size:
+            return text
+        half = (size - len(ellipsis)) // 2
+        return f"{text[:half]}{ellipsis}{text[-half:]}"
+
+    # Truncate each part as needed
+    truncated_header = truncate_middle(header, header_size)
+    truncated_frames = truncate_middle(frames, frames_size)
+    truncated_error = truncate_middle(error_msg, error_msg_size)
+
+    return truncated_header + truncated_frames + truncated_error, True
 
 
 class EvalStats(BaseModel):
