@@ -676,7 +676,7 @@ def truncate_traceback(
     frames_size = min(len(frames), 1024)
 
     # Remaining space for error message
-    error_msg_size = max(0, max_length - header_size - frames_size - len(ellipsis))
+    error_msg_size = max(0, max_length - header_size - frames_size)
 
     def truncate_middle(text: str, size: int) -> str:
         if len(text) <= size:
