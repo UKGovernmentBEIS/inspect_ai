@@ -2,6 +2,7 @@ import { createRoot } from "react-dom/client";
 import { App } from "./App";
 import { AppProvider } from "./AppContext";
 import { AppErrorBoundary } from "./AppErrorBoundary";
+import { LogsProvider } from "./LogsContext";
 import api from "./api/index";
 import { Capabilities } from "./api/types";
 import { ApplicationState } from "./types";
@@ -49,16 +50,18 @@ const root = createRoot(container as HTMLElement);
 root.render(
   <AppErrorBoundary>
     <AppProvider capabilities={capabilities} initialState={initialState}>
-      <App
-        api={resolvedApi}
-        applicationState={initialState}
-        saveApplicationState={throttle((state) => {
-          const vscode = getVscodeApi();
-          if (vscode) {
-            vscode.setState(filterState(state));
-          }
-        }, 1000)}
-      />
+      <LogsProvider initialState={initialState}>
+        <App
+          api={resolvedApi}
+          applicationState={initialState}
+          saveApplicationState={throttle((state) => {
+            const vscode = getVscodeApi();
+            if (vscode) {
+              vscode.setState(filterState(state));
+            }
+          }, 1000)}
+        />
+      </LogsProvider>
     </AppProvider>
   </AppErrorBoundary>,
 );
