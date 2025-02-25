@@ -17145,34 +17145,6 @@ categories: ${categories.join(" ")}`;
       });
       return sortedSamples;
     };
-    const resolveAttachments = (value2, attachments) => {
-      const kContentProtocol = "tc://";
-      const kAttachmentProtocol = "attachment://";
-      if (Array.isArray(value2)) {
-        return value2.map((v) => resolveAttachments(v, attachments));
-      }
-      if (value2 && typeof value2 === "object") {
-        const resolvedObject = {};
-        for (const key2 of Object.keys(value2)) {
-          resolvedObject[key2] = resolveAttachments(value2[key2], attachments);
-        }
-        return resolvedObject;
-      }
-      if (typeof value2 === "string") {
-        let resolvedValue = value2;
-        if (resolvedValue.startsWith(kContentProtocol)) {
-          resolvedValue = resolvedValue.replace(
-            kContentProtocol,
-            kAttachmentProtocol
-          );
-        }
-        if (resolvedValue.startsWith(kAttachmentProtocol)) {
-          return attachments[resolvedValue.replace(kAttachmentProtocol, "")];
-        }
-        return resolvedValue;
-      }
-      return value2;
-    };
     let vscodeApi;
     const getVscodeApi = () => {
       if (window.acquireVsCodeApi) {
@@ -61597,19 +61569,18 @@ ${events}
       sampleDescriptor,
       selectedTab,
       setSelectedTab,
-      scrollRef
+      scrollRef,
+      runningSampleData
     }) => {
       const baseId = `sample-dialog`;
-      if (!sample2) {
-        return /* @__PURE__ */ jsxRuntimeExports.jsx(EmptyPanel, {});
-      }
+      const sampleEvents = (sample2 == null ? void 0 : sample2.events) || (runningSampleData == null ? void 0 : runningSampleData.events);
       const onSelectedTab = (e) => {
         const el = e.currentTarget;
         const id2 = el.id;
         setSelectedTab(id2);
         return false;
       };
-      const scorerNames = Object.keys(sample2.scores || {});
+      const scorerNames = Object.keys((sample2 == null ? void 0 : sample2.scores) || {});
       const sampleMetadatas = metadataViewsForSample(`${baseId}-${id}`, sample2);
       const tabsetId = `task-sample-details-tab-${id}`;
       const targetId = `${tabsetId}-content`;
@@ -61630,7 +61601,7 @@ ${events}
         );
       }
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx(
+        sample2 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
           SampleSummaryView,
           {
             score: score2,
@@ -61638,7 +61609,7 @@ ${events}
             sample: sample2,
             sampleDescriptor
           }
-        ),
+        ) : void 0,
         /* @__PURE__ */ jsxRuntimeExports.jsxs(
           TabSet,
           {
@@ -61647,7 +61618,7 @@ ${events}
             tabPanelsClassName: clsx(styles$I.tabPanel),
             tools: tools2,
             children: [
-              sample2.events && sample2.events.length > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+              sampleEvents && sampleEvents.length > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
                 TabPanel,
                 {
                   id: kSampleTranscriptTabId,
@@ -61660,7 +61631,7 @@ ${events}
                     SampleTranscript,
                     {
                       id: `${baseId}-transcript-display-${id}`,
-                      evalEvents: sample2.events,
+                      evalEvents: sampleEvents,
                       scrollRef
                     },
                     `${baseId}-transcript-display-${id}`
@@ -61668,7 +61639,7 @@ ${events}
                 },
                 kSampleTranscriptTabId
               ) : null,
-              /* @__PURE__ */ jsxRuntimeExports.jsx(
+              (sample2 == null ? void 0 : sample2.messages) ? /* @__PURE__ */ jsxRuntimeExports.jsx(
                 TabPanel,
                 {
                   id: kSampleMessagesTabId,
@@ -61690,8 +61661,8 @@ ${events}
                   )
                 },
                 kSampleMessagesTabId
-              ),
-              scorerNames.length === 1 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+              ) : void 0,
+              sample2 && scorerNames.length === 1 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
                 TabPanel,
                 {
                   id: kSampleScoringTabId,
@@ -61709,7 +61680,7 @@ ${events}
                   )
                 },
                 kSampleScoringTabId
-              ) : /* @__PURE__ */ jsxRuntimeExports.jsx(jsxRuntimeExports.Fragment, { children: Object.keys(sample2.scores || {}).map((scorer) => {
+              ) : /* @__PURE__ */ jsxRuntimeExports.jsx(jsxRuntimeExports.Fragment, { children: sample2 ? Object.keys((sample2 == null ? void 0 : sample2.scores) || {}).map((scorer) => {
                 const tabId = `score-${scorer}`;
                 return /* @__PURE__ */ jsxRuntimeExports.jsx(
                   TabPanel,
@@ -61730,7 +61701,7 @@ ${events}
                   },
                   tabId
                 );
-              }) }),
+              }) : void 0 }),
               sampleMetadatas.length > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
                 TabPanel,
                 {
@@ -61742,7 +61713,7 @@ ${events}
                   children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$I.metadataPanel), children: sampleMetadatas })
                 }
               ) : null,
-              sample2.error ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+              (sample2 == null ? void 0 : sample2.error) ? /* @__PURE__ */ jsxRuntimeExports.jsx(
                 TabPanel,
                 {
                   id: kSampleErrorTabId,
@@ -61759,7 +61730,7 @@ ${events}
                   ) })
                 }
               ) : null,
-              sample2.messages.length < 100 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+              sample2 && (sample2 == null ? void 0 : sample2.messages.length) < 100 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
                 TabPanel,
                 {
                   id: kSampleJsonTabId,
@@ -61783,6 +61754,9 @@ ${events}
       ] });
     };
     const metadataViewsForSample = (id, sample2) => {
+      if (!sample2) {
+        return [];
+      }
       const sampleMetadatas = [];
       if (sample2.model_usage && Object.keys(sample2.model_usage).length > 0) {
         sampleMetadatas.push(
@@ -61912,7 +61886,8 @@ ${events}
       sampleDescriptor,
       selectedTab,
       setSelectedTab,
-      scrollRef
+      scrollRef,
+      runningSampleData
     }) => {
       return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$n.container, children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx(ProgressBar, { animating: sampleStatus === "loading" }),
@@ -61925,7 +61900,8 @@ ${events}
             sampleDescriptor,
             selectedTab,
             setSelectedTab,
-            scrollRef
+            scrollRef,
+            runningSampleData
           }
         ) })
       ] });
@@ -62083,7 +62059,8 @@ ${events}
       selectedTab,
       setSelectedTab,
       sampleScrollPositionRef,
-      setSampleScrollPosition
+      setSampleScrollPosition,
+      runningSampleData
     }) => {
       const scrollRef = reactExports.useRef(null);
       const tools2 = reactExports.useMemo(() => {
@@ -62149,7 +62126,8 @@ ${events}
               sampleDescriptor,
               selectedTab,
               setSelectedTab,
-              scrollRef
+              scrollRef,
+              runningSampleData
             }
           )
         }
@@ -62297,8 +62275,9 @@ ${events}
       selected: selected2,
       showSample
     }) => {
+      const appContext = useAppContext();
       const handleClick = reactExports.useCallback(() => {
-        if (completed) {
+        if (completed || appContext.capabilities.streamSampleData) {
           showSample(index2);
         }
       }, [index2, showSample, completed]);
@@ -62489,10 +62468,10 @@ ${events}
         if (listEl && itemRowMapping.length > selectedIndex) {
           const actualRowIndex = itemRowMapping[selectedIndex];
           requestAnimationFrame(() => {
-            requestAnimationFrame(() => {
+            setTimeout(() => {
               listEl.scrollToIndex(actualRowIndex);
               prevSelectedIndexRef.current = actualRowIndex;
-            });
+            }, 10);
           });
         }
       }, [selectedIndex, listHandle, itemRowMapping]);
@@ -62817,6 +62796,7 @@ ${events}
       setSelectedSampleIndex,
       showingSampleDialog,
       setShowingSampleDialog,
+      runningSampleData,
       selectedSampleTab,
       setSelectedSampleTab,
       sampleScrollPositionRef,
@@ -62905,6 +62885,7 @@ ${events}
             {
               id: "sample-display",
               sample: sample2,
+              runningSampleData,
               sampleStatus,
               sampleError,
               sampleDescriptor,
@@ -62934,6 +62915,7 @@ ${events}
               sample: sample2,
               sampleStatus,
               sampleError,
+              runningSampleData,
               sampleDescriptor,
               showingSampleDialog,
               setShowingSampleDialog,
@@ -64342,6 +64324,7 @@ ${events}
       groupByOrder,
       selectedSampleIndex,
       setSelectedSampleIndex,
+      runningSampleData,
       samplesDescriptor,
       selectedSampleTab,
       setSelectedSampleTab,
@@ -64377,6 +64360,7 @@ ${events}
           SamplesTab,
           {
             sample: selectedSample,
+            runningSampleData,
             sampleStatus,
             sampleError,
             running: evalStatus === "started",
@@ -65668,6 +65652,55 @@ ${events}
     const scoreLabelKey = (scoreLabel) => {
       return `${scoreLabel == null ? void 0 : scoreLabel.scorer}.${scoreLabel.name}`;
     };
+    const resolveAttachments = (value2, attachments) => {
+      const kContentProtocol = "tc://";
+      const kAttachmentProtocol = "attachment://";
+      if (Array.isArray(value2)) {
+        return value2.map((v) => resolveAttachments(v, attachments));
+      }
+      if (value2 && typeof value2 === "object") {
+        const resolvedObject = {};
+        for (const key2 of Object.keys(value2)) {
+          resolvedObject[key2] = resolveAttachments(value2[key2], attachments);
+        }
+        return resolvedObject;
+      }
+      if (typeof value2 === "string") {
+        let resolvedValue = value2;
+        if (resolvedValue.startsWith(kContentProtocol)) {
+          resolvedValue = resolvedValue.replace(
+            kContentProtocol,
+            kAttachmentProtocol
+          );
+        }
+        if (resolvedValue.startsWith(kAttachmentProtocol)) {
+          return attachments[resolvedValue.replace(kAttachmentProtocol, "")];
+        }
+        return resolvedValue;
+      }
+      return value2;
+    };
+    const sampleDataAdapter = () => {
+      const attachments = {};
+      const events = {};
+      return {
+        addData: (data) => {
+          data.attachments.forEach((a) => {
+            attachments[a.hash] = a.content;
+          });
+          data.events.forEach((e) => {
+            events[e.event_id] = e;
+          });
+        },
+        resolvedEvents: () => {
+          const eventDatas = Object.values(events);
+          const resolvedEvents = eventDatas.map((ed) => {
+            return ed.event;
+          });
+          return resolveAttachments(resolvedEvents, attachments);
+        }
+      };
+    };
     const getScorersFromResults = (results) => {
       if (!(results == null ? void 0 : results.scores)) {
         return [];
@@ -65686,10 +65719,10 @@ ${events}
       }, []);
     };
     const getScorersFromSamples = (samples) => {
-      if (!samples.length || samples[0].scores === null) {
-        return [];
-      }
-      return Object.keys(samples[0].scores).map((key2) => ({
+      const scoredSample = samples.find((sample2) => {
+        return !!sample2.scores;
+      });
+      return Object.keys((scoredSample == null ? void 0 : scoredSample.scores) || {}).map((key2) => ({
         name: key2,
         scorer: key2
       }));
@@ -65751,6 +65784,7 @@ ${events}
       const [sampleError, setSampleError] = reactExports.useState(
         applicationState == null ? void 0 : applicationState.sampleError
       );
+      const [runningSampleData, setRunningSampleData] = reactExports.useState();
       const [selectedSampleTab, setSelectedSampleTab] = reactExports.useState(applicationState == null ? void 0 : applicationState.selectedSampleTab);
       const sampleScrollPosition = reactExports.useRef(
         (applicationState == null ? void 0 : applicationState.sampleScrollPosition) || 0
@@ -65977,70 +66011,99 @@ ${events}
         }
       }, [selectedSample, selectedSampleTab]);
       const mainAppRef = reactExports.useRef(null);
-      reactExports.useEffect(() => {
-        const logFile = logs.files[selectedLogIndex];
-        if (!logFile || selectedSampleIndex === -1) {
-          setSelectedSample(void 0);
-          return;
-        }
-        if (loadingSampleIndexRef.current === selectedSampleIndex) {
-          return;
-        }
-        if (!showingSampleDialog && sampleSummaries.length > 1) {
-          return;
-        }
-        if (selectedSampleIndex < filteredSamples.length) {
-          const summary2 = filteredSamples[selectedSampleIndex];
-          if (selectedSample && selectedSample.id === summary2.id && selectedSample.epoch === summary2.epoch) {
+      const loadSample = reactExports.useCallback(
+        (summary2) => {
+          if (loadingSampleIndexRef.current === selectedSampleIndex) {
             return;
           }
+          const logFile = logs.files[selectedLogIndex];
           loadingSampleIndexRef.current = selectedSampleIndex;
           setSampleStatus("loading");
           setSampleError(void 0);
-          api2.get_log_sample(logFile.name, summary2.id, summary2.epoch).then((sample2) => {
-            if (sample2) {
-              const anySample = sample2;
-              if (anySample.transcript) {
-                sample2.events = anySample.transcript.events;
-                sample2.attachments = anySample.transcript.content;
+          if (summary2.completed) {
+            api2.get_log_sample(logFile.name, summary2.id, summary2.epoch).then((sample2) => {
+              if (sample2) {
+                const anySample = sample2;
+                if (anySample.transcript) {
+                  sample2.events = anySample.transcript.events;
+                  sample2.attachments = anySample.transcript.content;
+                }
+                sample2.attachments = sample2.attachments || {};
+                sample2.input = resolveAttachments(
+                  sample2.input,
+                  sample2.attachments
+                );
+                sample2.messages = resolveAttachments(
+                  sample2.messages,
+                  sample2.attachments
+                );
+                sample2.events = resolveAttachments(
+                  sample2.events,
+                  sample2.attachments
+                );
+                sample2.attachments = {};
+                sampleScrollPosition.current = 0;
+                setSelectedSample(sample2);
+                setSampleStatus("ok");
+                loadingSampleIndexRef.current = null;
+              } else {
+                throw Error("Unable to load sample - an unknown error occurred.");
               }
-              sample2.attachments = sample2.attachments || {};
-              sample2.input = resolveAttachments(sample2.input, sample2.attachments);
-              sample2.messages = resolveAttachments(
-                sample2.messages,
-                sample2.attachments
-              );
-              sample2.events = resolveAttachments(
-                sample2.events,
-                sample2.attachments
-              );
-              sample2.attachments = {};
+            }).catch((e) => {
+              setSampleStatus("error");
+              setSampleError(e);
               sampleScrollPosition.current = 0;
-              setSelectedSample(sample2);
+              setSelectedSample(void 0);
+              loadingSampleIndexRef.current = null;
+            });
+          } else if (api2.get_log_sample_data) {
+            api2.get_log_sample_data(logFile.name, summary2.id, summary2.epoch).then((sampleData) => {
+              if (sampleData) {
+                sampleScrollPosition.current = 0;
+                const adapter = sampleDataAdapter();
+                adapter.addData(sampleData);
+                const events = adapter.resolvedEvents();
+                setRunningSampleData({
+                  events,
+                  summary: summary2
+                });
+              }
               setSampleStatus("ok");
               loadingSampleIndexRef.current = null;
-            } else {
-              throw Error("Unable to load sample - an unknown error occurred.");
-            }
-          }).catch((e) => {
-            setSampleStatus("error");
-            setSampleError(e);
-            sampleScrollPosition.current = 0;
-            setSelectedSample(void 0);
-            loadingSampleIndexRef.current = null;
-          });
+            }).catch((e) => {
+              setSampleStatus("error");
+              setSampleError(e);
+              sampleScrollPosition.current = 0;
+              setSelectedSample(void 0);
+              loadingSampleIndexRef.current = null;
+            });
+          }
+        },
+        [logs, selectedLogIndex]
+      );
+      reactExports.useEffect(() => {
+        const logFile = logs.files[selectedLogIndex];
+        if (!logFile) {
+          setSelectedSample(void 0);
         }
-      }, [
-        selectedSample,
-        selectedSampleIndex,
-        showingSampleDialog,
-        selectedLogIndex,
-        sampleSummaries,
-        filteredSamples,
-        setSelectedSample,
-        setSampleStatus,
-        setSampleError
-      ]);
+        if (selectedSampleIndex === -1) {
+          setSelectedSample(void 0);
+        }
+      }, [selectedSampleIndex, selectedLogIndex, logs]);
+      const refreshSelectedSample = reactExports.useCallback(
+        (selectedSampleIdx) => {
+          const sampleSummary = filteredSamples[selectedSampleIdx];
+          if (sampleSummary) {
+            loadSample(sampleSummary);
+          } else {
+            setSelectedSample(void 0);
+          }
+        },
+        [filteredSamples]
+      );
+      reactExports.useEffect(() => {
+        refreshSelectedSample(selectedSampleIndex);
+      }, [selectedSampleIndex, refreshSelectedSample]);
       const loadLog = reactExports.useCallback(
         async (logFileName) => {
           try {
@@ -66084,7 +66147,10 @@ ${events}
             return;
           }
           try {
-            const pendingSamples = await api2.get_log_pending_samples(logFile.name);
+            const pendingSamples = await api2.get_log_pending_samples(
+              logFile.name,
+              pendingSampleSummaries.etag
+            );
             if (!isActive) return;
             if (pendingSamples.status === "OK" && pendingSamples.pendingSamples) {
               setPendingSampleSummaries(pendingSamples.pendingSamples);
@@ -66123,6 +66189,7 @@ ${events}
       }, [
         logs,
         selectedLogIndex,
+        pendingSampleSummaries.etag,
         pendingSampleSummaries.refresh,
         reloadSelectedLog
       ]);
@@ -66397,8 +66464,9 @@ ${events}
       const fullScreen = logs.files.length === 1 && !logs.log_dir;
       const showToggle = logs.files.length > 1 || !!logs.log_dir || false;
       const sampleMode = reactExports.useMemo(() => {
-        return sampleSummaries.length === 0 ? "none" : sampleSummaries.length === 1 ? "single" : "many";
-      }, [sampleSummaries]);
+        const totalSummaryCount = sampleSummaries.length + pendingSampleSummaries.samples.length;
+        return totalSummaryCount === 0 ? "none" : totalSummaryCount === 1 ? "single" : "many";
+      }, [sampleSummaries, pendingSampleSummaries]);
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
         !fullScreen && selectedLogSummary ? /* @__PURE__ */ jsxRuntimeExports.jsx(
           Sidebar,
@@ -66466,6 +66534,7 @@ ${events}
                   refreshLog,
                   selectedSample,
                   selectedSampleIndex,
+                  runningSampleData,
                   setSelectedSampleIndex,
                   showingSampleDialog,
                   setShowingSampleDialog: handleSampleShowingDialog,

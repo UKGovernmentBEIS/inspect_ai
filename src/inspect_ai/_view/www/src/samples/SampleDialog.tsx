@@ -3,7 +3,7 @@ import { LargeModal, ModalTool, ModalTools } from "../components/LargeModal";
 
 import { FC, Ref, RefObject, useCallback, useMemo, useRef } from "react";
 import { ErrorPanel } from "../components/ErrorPanel";
-import { ScoreLabel } from "../types";
+import { RunningSampleData, ScoreLabel } from "../types";
 import { EvalSample } from "../types/log";
 import { SampleDisplay } from "./SampleDisplay";
 import { SamplesDescriptor } from "./descriptor/samplesDescriptor";
@@ -24,6 +24,7 @@ interface SampleDialogProps {
   prevSample: () => void;
   sampleScrollPositionRef: RefObject<number>;
   setSampleScrollPosition: (position: number) => void;
+  runningSampleData?: RunningSampleData;
 }
 
 /**
@@ -45,6 +46,7 @@ export const SampleDialog: FC<SampleDialogProps> = ({
   setSelectedTab,
   sampleScrollPositionRef,
   setSampleScrollPosition,
+  runningSampleData,
 }) => {
   const scrollRef: Ref<HTMLDivElement> = useRef(null);
 
@@ -119,6 +121,7 @@ export const SampleDialog: FC<SampleDialogProps> = ({
           selectedTab={selectedTab}
           setSelectedTab={setSelectedTab}
           scrollRef={scrollRef}
+          runningSampleData={runningSampleData}
         />
       )}
     </LargeModal>
