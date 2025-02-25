@@ -73,9 +73,13 @@ export const SampleList: React.FC<SampleListProps> = (props) => {
   useEffect(() => {
     const listEl = listHandle.current;
     if (listEl) {
-      const actualRowIndex = itemRowMapping[selectedIndex];
-      listEl.scrollToIndex(actualRowIndex);
-      prevSelectedIndexRef.current = actualRowIndex;
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          const actualRowIndex = itemRowMapping[selectedIndex];
+          listEl.scrollToIndex(actualRowIndex);
+          prevSelectedIndexRef.current = actualRowIndex;
+        }, 10);
+      });
     }
   }, [selectedIndex, listHandle, itemRowMapping]);
 
