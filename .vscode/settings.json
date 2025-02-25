@@ -4,13 +4,6 @@
   "[json]": {
     "editor.wordWrap": "on"
   },
-  "editor.rulers": [
-    80,
-    120
-  ],
-  "workbench.colorCustomizations": {
-    "editorRuler.foreground": "#ff4081"
-  },
   "[markdown]": {
     "editor.formatOnSave": false
   },
