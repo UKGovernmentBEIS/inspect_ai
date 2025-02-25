@@ -1,4 +1,4 @@
-## Unreleased
+## v0.3.70 (25 February 2025)
 
 - [working_limit](https://inspect.ai-safety-institute.org.uk/errors_and_limits.html#working-limit) option for specifying a maximum working time (e.g. model generation, tool calls, etc.) for samples.
 - Added `SandboxEvent` to transcript for recording sandbox execution and I/O.
@@ -8,10 +8,12 @@
 - Add `uuid` property to `TaskState` and `EvalSample` (globally unique identifer for sample run).
 - Add `cleanup` to tasks for executing a function at the end of each sample run.
 - Agent `bridge()` is now compatible with the use of a custom `OPENAI_BASE_URL`.
+- Mistral: Bump required version of `mistralai` package to 1.5 (required for `working_limit`).
 - Truncate tracebacks included in evaluation log to a maximum of 1MB.
 - Compatiblity with textual version 2.0 (remove upper bound).
 - Align with HF datasets `fsspec` version contraints to avoid pip errors when installing alongside `datasets`.
 - Bugfix: Fix issue with tools that had an ordinary `dict` as a parameter.
+- Bugfix: Print the correct container `sample_id` for `--no-sandbox-cleanup`.
 
 ## v0.3.69 (20 February 2025)
 

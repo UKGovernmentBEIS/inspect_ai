@@ -145,7 +145,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         project = await ComposeProject.create(
             name=task_project_name(task_name),
             config=config,
-            sample_id=sample.id if sample is not None else None,
+            sample_id=sample.sample.id if sample is not None else None,
             epoch=sample.epoch if sample is not None else None,
             env=env,
         )
