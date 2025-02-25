@@ -250,10 +250,8 @@ class OpenAIAPI(ModelAPI):
     def is_rate_limit(self, ex: BaseException) -> bool:
         if isinstance(ex, RateLimitError):
             # Do not retry on these rate limit errors
-            if (
-                "Request too large" not in ex.message
-                and "You exceeded your current quota" not in ex.message
-            ):
+            # The quota exceeded one is related to monthly account quotas.
+            if "You exceeded your current quota" not in ex.message:
                 return True
         elif isinstance(
             ex, (APIConnectionError | APITimeoutError | InternalServerError)
