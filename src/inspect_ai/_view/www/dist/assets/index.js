@@ -64701,7 +64701,8 @@ ${events}
     const initialLogsState = {
       logs: { log_dir: "", files: [] },
       logHeaders: {},
-      headersLoading: false
+      headersLoading: false,
+      selectedLogIndex: -1
     };
     const logsReducer = (state, action) => {
       switch (action.type) {
@@ -65394,9 +65395,6 @@ ${events}
       const appContext = useAppContext();
       const logsContext = useLogsContext();
       const mainAppRef = reactExports.useRef(null);
-      const [selectedLogIndex, setSelectedLogIndex] = reactExports.useState(
-        (applicationState == null ? void 0 : applicationState.selectedLogIndex) !== void 0 ? applicationState.selectedLogIndex : -1
-      );
       const [selectedLogSummary, setSelectedLogSummary] = reactExports.useState(applicationState == null ? void 0 : applicationState.selectedLogSummary);
       const [selectedWorkspaceTab, setSelectedWorkspaceTab] = reactExports.useState(
         (applicationState == null ? void 0 : applicationState.selectedWorkspaceTab) || kEvalWorkspaceTabId
@@ -65441,7 +65439,6 @@ ${events}
       });
       const saveState = reactExports.useCallback(() => {
         const state = {
-          selectedLogIndex,
           selectedLogSummary,
           selectedSampleIndex,
           selectedWorkspaceTab,
@@ -65464,7 +65461,6 @@ ${events}
           saveApplicationState(state);
         }
       }, [
-        selectedLogIndex,
         selectedLogSummary,
         selectedSampleIndex,
         selectedWorkspaceTab,
@@ -65507,7 +65503,6 @@ ${events}
       reactExports.useEffect(() => {
         saveStateRef.current();
       }, [
-        selectedLogIndex,
         selectedLogSummary,
         selectedSampleIndex,
         selectedWorkspaceTab,
@@ -65638,7 +65633,7 @@ ${events}
           if (loadingSampleIndexRef.current === selectedSampleIndex) {
             return;
           }
-          const logFile = logsContext.state.logs.files[selectedLogIndex];
+          const logFile = logsContext.state.logs.files[logsContext.state.selectedLogIndex];
           if (!logFile) {
             return;
           }
@@ -65671,7 +65666,7 @@ ${events}
             loadingSampleIndexRef.current = null;
           }
         },
-        [logsContext.state.logs, selectedLogIndex]
+        [logsContext.state.logs, logsContext.state.selectedLogIndex]
       );
       const samplePollingRef = reactExports.useRef(null);
       const samplePollInterval = 2;
@@ -65747,10 +65742,14 @@ ${events}
         setSelectedSample(void 0);
       };
       reactExports.useEffect(() => {
-        if (!logsContext.state.logs.files[selectedLogIndex] || selectedSampleIndex === -1) {
+        if (!logsContext.state.logs.files[logsContext.state.selectedLogIndex] || selectedSampleIndex === -1) {
           setSelectedSample(void 0);
         }
-      }, [selectedSampleIndex, selectedLogIndex, logsContext.state.logs]);
+      }, [
+        selectedSampleIndex,
+        logsContext.state.selectedLogIndex,
+        logsContext.state.logs
+      ]);
       const refreshSelectedSample = reactExports.useCallback(
         (selectedSampleIdx) => {
           const sampleSummary = filteredSamples[selectedSampleIdx];
@@ -65777,7 +65776,7 @@ ${events}
         [api2]
       );
       const reloadSelectedLog = reactExports.useCallback(async () => {
-        const targetLog = logsContext.state.logs.files[selectedLogIndex];
+        const targetLog = logsContext.state.logs.files[logsContext.state.selectedLogIndex];
         if (!targetLog) return;
         const log2 = await loadLog(targetLog.name);
         if (log2) {
@@ -65785,12 +65784,12 @@ ${events}
         }
       }, [
         logsContext.state.logs,
-        selectedLogIndex,
+        logsContext.state.selectedLogIndex,
         loadLog,
         setSelectedLogSummary
       ]);
       reactExports.useEffect(() => {
-        const logFile = logsContext.state.logs.files[selectedLogIndex];
+        const logFile = logsContext.state.logs.files[logsContext.state.selectedLogIndex];
         if (!logFile) return;
         let isActive = true;
         let pollTimeout;
@@ -65850,7 +65849,7 @@ ${events}
         };
       }, [
         logsContext.state.logs,
-        selectedLogIndex,
+        logsContext.state.selectedLogIndex,
         pendingSampleSummaries.etag,
         pendingSampleSummaries.refresh,
         reloadSelectedLog
@@ -65929,10 +65928,10 @@ ${events}
       const lastSelectedIndex = reactExports.useRef(-1);
       reactExports.useEffect(() => {
         const loadSpecificLog = async () => {
-          if (lastSelectedIndex.current === selectedLogIndex) {
+          if (lastSelectedIndex.current === logsContext.state.selectedLogIndex) {
             return;
           }
-          const targetLog = logsContext.state.logs.files[selectedLogIndex];
+          const targetLog = logsContext.state.logs.files[logsContext.state.selectedLogIndex];
           if (targetLog) {
             try {
               appContext.dispatch({
@@ -65946,7 +65945,7 @@ ${events}
                 if (lastSelectedIndex.current !== -1) {
                   resetWorkspace(log2, logContents.sampleSummaries);
                 }
-                lastSelectedIndex.current = selectedLogIndex;
+                lastSelectedIndex.current = logsContext.state.selectedLogIndex;
                 appContext.dispatch({
                   type: "SET_STATUS",
                   payload: { loading: false, error: void 0 }
@@ -65973,7 +65972,7 @@ ${events}
         };
         loadSpecificLog();
       }, [
-        selectedLogIndex,
+        logsContext.state.selectedLogIndex,
         logsContext.state.logs,
         setSelectedLogSummary,
         appContext.dispatch
@@ -65997,7 +65996,7 @@ ${events}
             type: "SET_STATUS",
             payload: { loading: true, error: void 0 }
           });
-          const targetLog = logsContext.state.logs.files[selectedLogIndex];
+          const targetLog = logsContext.state.logs.files[logsContext.state.selectedLogIndex];
           const logContents = await loadLog(targetLog.name);
           if (logContents) {
             const log2 = logContents;
@@ -66032,7 +66031,7 @@ ${events}
         }
       }, [
         logsContext.state.logs,
-        selectedLogIndex,
+        logsContext.state.selectedLogIndex,
         sampleSummaries,
         appContext.dispatch,
         logsContext.dispatch
@@ -66043,7 +66042,10 @@ ${events}
             return logUrl.endsWith(val.name);
           });
           if (index2 > -1) {
-            setSelectedLogIndex(index2);
+            logsContext.dispatch({
+              type: "SET_SELECTED_LOG_INDEX",
+              payload: index2
+            });
           } else {
             const result = await loadLogs();
             const idx = result == null ? void 0 : result.files.findIndex((file) => {
@@ -66053,13 +66055,16 @@ ${events}
               type: "SET_LOGS",
               payload: result || { log_dir: "", files: [] }
             });
-            setSelectedLogIndex(idx && idx > -1 ? idx : 0);
+            logsContext.dispatch({
+              type: "SET_SELECTED_LOG_INDEX",
+              payload: idx && idx > -1 ? idx : 0
+            });
           }
         },
-        [logsContext.state.logs, setSelectedLogIndex, logsContext.dispatch]
+        [logsContext.state.logs, logsContext.dispatch]
       );
       const refreshLogList = reactExports.useCallback(async () => {
-        const currentLog = logsContext.state.logs.files[selectedLogIndex > -1 ? selectedLogIndex : 0];
+        const currentLog = logsContext.state.logs.files[logsContext.state.selectedLogIndex > -1 ? logsContext.state.selectedLogIndex : 0];
         const refreshedLogs = await loadLogs();
         logsContext.dispatch({
           type: "SET_LOGS",
@@ -66069,12 +66074,14 @@ ${events}
           return currentLog.name.endsWith(file.name);
         });
         if (newIndex !== void 0) {
-          setSelectedLogIndex(newIndex);
+          logsContext.dispatch({
+            type: "SET_SELECTED_LOG_INDEX",
+            payload: newIndex
+          });
         }
       }, [
         logsContext.state.logs,
-        selectedLogIndex,
-        setSelectedLogIndex,
+        logsContext.state.selectedLogIndex,
         logsContext.dispatch
       ]);
       const onMessage = reactExports.useCallback(
@@ -66139,16 +66146,22 @@ ${events}
                 return log_file.endsWith(val.name);
               });
               if (index2 > -1) {
-                setSelectedLogIndex(index2);
+                logsContext.dispatch({
+                  type: "SET_SELECTED_LOG_INDEX",
+                  payload: index2
+                });
               }
-            } else if (selectedLogIndex === -1) {
-              setSelectedLogIndex(0);
+            } else if (logsContext.state.selectedLogIndex === -1) {
+              logsContext.dispatch({
+                type: "SET_SELECTED_LOG_INDEX",
+                payload: 0
+              });
             }
           }
           new ClipboardJS(".clipboard-button,.copy-button");
         };
         loadLogsAndState();
-      }, [logsContext.dispatch]);
+      }, [logsContext.dispatch, logsContext.state.selectedLogIndex]);
       const fullScreen = logsContext.state.logs.files.length === 1 && !logsContext.state.logs.log_dir;
       const showToggle = logsContext.state.logs.files.length > 1 || !!logsContext.state.logs.log_dir || false;
       const sampleMode = reactExports.useMemo(() => {
@@ -66162,9 +66175,12 @@ ${events}
             logs: logsContext.state.logs,
             logHeaders: logsContext.state.logHeaders,
             loading: logsContext.state.headersLoading,
-            selectedIndex: selectedLogIndex,
+            selectedIndex: logsContext.state.selectedLogIndex,
             onSelectedIndexChanged: (index2) => {
-              setSelectedLogIndex(index2);
+              logsContext.dispatch({
+                type: "SET_SELECTED_LOG_INDEX",
+                payload: index2
+              });
               appContext.dispatch({ type: "SET_OFFCANVAS", payload: false });
             }
           }
@@ -66202,7 +66218,7 @@ ${events}
                 WorkSpace,
                 {
                   task_id: (_a2 = selectedLogSummary == null ? void 0 : selectedLogSummary.eval) == null ? void 0 : _a2.task_id,
-                  logFileName: (_b2 = logsContext.state.logs.files[selectedLogIndex]) == null ? void 0 : _b2.name,
+                  logFileName: (_b2 = logsContext.state.logs.files[logsContext.state.selectedLogIndex]) == null ? void 0 : _b2.name,
                   evalStatus: selectedLogSummary == null ? void 0 : selectedLogSummary.status,
                   evalError: filterNull(selectedLogSummary == null ? void 0 : selectedLogSummary.error),
                   evalVersion: selectedLogSummary == null ? void 0 : selectedLogSummary.version,
