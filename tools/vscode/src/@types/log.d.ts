@@ -103,7 +103,8 @@ export type InternalTools = boolean | null;
 export type MaxToolOutput = number | null;
 export type CachePrompt = "auto" | boolean | null;
 export type ReasoningEffort = ("low" | "medium" | "high") | null;
-export type ReasoningHistory = boolean | null;
+export type ReasoningTokens = number | null;
+export type ReasoningHistory = ("none" | "all" | "last" | "auto") | null;
 export type TotalSamples = number;
 export type CompletedSamples = number;
 export type Name5 = string;
@@ -678,6 +679,7 @@ export interface GenerateConfig {
   max_tool_output: MaxToolOutput;
   cache_prompt: CachePrompt;
   reasoning_effort: ReasoningEffort;
+  reasoning_tokens: ReasoningTokens;
   reasoning_history: ReasoningHistory;
 }
 /**
@@ -1109,6 +1111,7 @@ export interface GenerateConfig1 {
   max_tool_output: MaxToolOutput;
   cache_prompt: CachePrompt;
   reasoning_effort: ReasoningEffort;
+  reasoning_tokens: ReasoningTokens;
   reasoning_history: ReasoningHistory;
 }
 /**

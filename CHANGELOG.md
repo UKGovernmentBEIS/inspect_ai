@@ -1,5 +1,9 @@
 ## Unreleased
 
+- Anthropic: Support for [extended thinking](https://inspect.ai-safety-institute.org.uk/reasoning.html#claude-3.7-sonnet) features of Claude Sonnet 3.7 (minimum version of `anthropic` package bumped to 0.47.1).
+- Reasoning: `ContentReasoning` type for representing model reasoning blocks.
+- Reasoning: `reasoning_tokens` for setting maximum reasoning tokens (currently only supported by Claude Sonnet 3.7)
+- Reasoning: `reasoning_history` can now be specified as "none", "all", "last", or "auto" (which yields a provider specific recommended default).
 - OpenAI: Retry on rate limit requests with "Request too large".
 - OpenAI: Tolerate `None` for assistant content (can happen when there is a refusal).
 - Bugfix: Catch standard `TimeoutError` for running shell commands in the computer tool container.

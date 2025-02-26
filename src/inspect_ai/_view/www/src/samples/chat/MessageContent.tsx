@@ -120,7 +120,13 @@ const messageRenderers: Record<string, MessageRenderer> = {
             Reasoning
           </div>
           <ExpandablePanel collapse={true}>
-            <MarkdownDiv markdown={r.reasoning} />
+            <MarkdownDiv
+              markdown={
+                r.redacted
+                  ? "Reasoning encrypted for safety reasons."
+                  : r.reasoning
+              }
+            />
           </ExpandablePanel>
         </Fragment>
       );
