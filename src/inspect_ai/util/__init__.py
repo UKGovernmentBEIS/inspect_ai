@@ -2,7 +2,7 @@ from inspect_ai._util.trace import trace_action, trace_message
 
 from ._concurrency import concurrency
 from ._console import input_screen
-from ._display import DisplayType, display_type, status
+from ._display import DisplayType, display_type, status_counter
 from ._panel import InputPanel, input_panel
 from ._resource import resource
 from ._sandbox import (
@@ -48,7 +48,7 @@ __all__ = [
     "sandboxenv",
     "sandbox",
     "sandbox_with",
-    "status",
+    "status_counter",
     "Store",
     "store",
     "StoreModel",

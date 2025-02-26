@@ -6,7 +6,7 @@ import pytest
 from inspect_ai import Task, eval, task
 from inspect_ai.dataset import Sample
 from inspect_ai.solver import Generate, TaskState, solver
-from inspect_ai.util import status
+from inspect_ai.util import status_counter
 from inspect_ai.util._display import DisplayType
 
 
@@ -28,11 +28,11 @@ def status_task():
 @solver
 def status_solver():
     async def solve(state: TaskState, generate: Generate):
-        status("My status", "1")
-        status("My status", "2")
+        status_counter("My status", "1")
+        status_counter("My status", "2")
         # The footer is throttled at 1 Hz, so sleep for longer than that.
         await asyncio.sleep(1.1)
-        status("My status", "3")
+        status_counter("My status", "3")
         return state
 
     return solve
