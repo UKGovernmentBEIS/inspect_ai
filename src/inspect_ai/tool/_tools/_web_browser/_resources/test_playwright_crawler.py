@@ -1,10 +1,12 @@
-import playwright_crawler
 from absl.testing import parameterized
+
+import playwright_browser
+import playwright_crawler
 
 
 class TestPlaywrightCrawler(parameterized.TestCase):
     def setUp(self):
-        self._browser = playwright_crawler.PlaywrightBrowser()
+        self._browser = playwright_browser.PlaywrightBrowser()
         self._crawler = playwright_crawler.PlaywrightCrawler(
             self._browser.get_new_context()
         )
@@ -26,12 +28,14 @@ class TestPlaywrightCrawler(parameterized.TestCase):
 
     def test_render_accessibility_tree(self):
         self._crawler.go_to_page("https://www.example.com")
-        at_no_update = self._crawler.render(playwright_crawler.CrawlerOutputFormat.AT)
+        at_no_update = self._crawler.render_at(
+            playwright_crawler.CrawlerOutputFormat.AT
+        )
         self.assertEqual(at_no_update, "<empty>")
 
         self._crawler.update()
 
-        at_update = self._crawler.render(playwright_crawler.CrawlerOutputFormat.AT)
+        at_update = self._crawler.render_at(playwright_crawler.CrawlerOutputFormat.AT)
         nodes = at_update.splitlines()
         self.assertEqual(len(nodes), 3)
         self.assertTrue(
@@ -72,9 +76,9 @@ class TestPlaywrightCrawler(parameterized.TestCase):
             </body>
             </html>
             """
-        self._crawler._page.set_content(test_html)
+        self._crawler._page_crawler.set_content(test_html)
         self._crawler.update()
-        at_before_scroll = self._crawler.render(
+        at_before_scroll = self._crawler.render_at(
             playwright_crawler.CrawlerOutputFormat.AT
         )
         self.assertIn("Scrolling Test Page", at_before_scroll)
@@ -82,12 +86,14 @@ class TestPlaywrightCrawler(parameterized.TestCase):
 
         self._crawler.scroll("down")
         self._crawler.update()
-        at_after_scroll = self._crawler.render(
+        at_after_scroll = self._crawler.render_at(
             playwright_crawler.CrawlerOutputFormat.AT
         )
         self.assertIn("Click Me", at_after_scroll)
 
         self._crawler.click("17")
         self._crawler.update()
-        at_after_click = self._crawler.render(playwright_crawler.CrawlerOutputFormat.AT)
+        at_after_click = self._crawler.render_at(
+            playwright_crawler.CrawlerOutputFormat.AT
+        )
         self.assertIn("Text Changed!", at_after_click)

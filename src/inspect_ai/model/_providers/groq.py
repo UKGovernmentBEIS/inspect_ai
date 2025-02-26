@@ -28,7 +28,7 @@ from inspect_ai._util.constants import (
     DEFAULT_MAX_RETRIES,
     DEFAULT_MAX_TOKENS,
 )
-from inspect_ai._util.content import Content
+from inspect_ai._util.content import Content, ContentReasoning, ContentText
 from inspect_ai._util.images import file_as_data_uri
 from inspect_ai._util.url import is_http_url
 from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
@@ -326,12 +326,17 @@ def chat_tool_calls(message: Any, tools: list[ToolInfo]) -> Optional[List[ToolCa
 def chat_message_assistant(message: Any, tools: list[ToolInfo]) -> ChatMessageAssistant:
     reasoning = getattr(message, "reasoning", None)
     if reasoning is not None:
-        reasoning = str(reasoning)
+        content: str | list[Content] = [
+            ContentReasoning(reasoning=str(reasoning)),
+            ContentText(text=message.content or ""),
+        ]
+    else:
+        content = message.content or ""
+
     return ChatMessageAssistant(
-        content=message.content or "",
+        content=content,
         source="generate",
         tool_calls=chat_tool_calls(message, tools),
-        reasoning=reasoning,
     )
 
 

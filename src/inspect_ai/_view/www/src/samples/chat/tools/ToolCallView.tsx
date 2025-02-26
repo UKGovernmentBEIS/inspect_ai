@@ -4,6 +4,7 @@ import { ContentTool } from "../../../types";
 import {
   ContentAudio,
   ContentImage,
+  ContentReasoning,
   ContentText,
   ContentVideo,
   ToolCallContent,
@@ -26,12 +27,14 @@ interface ToolCallViewProps {
     | ContentImage
     | ContentVideo
     | ContentTool
+    | ContentReasoning
     | (
         | ContentText
         | ContentAudio
         | ContentImage
         | ContentVideo
         | ContentTool
+        | ContentReasoning
       )[];
   mode?: "compact";
 }
@@ -57,7 +60,8 @@ export const ToolCallView: React.FC<ToolCallViewProps> = ({
       | ContentAudio
       | ContentImage
       | ContentVideo
-      | ContentTool,
+      | ContentTool
+      | ContentReasoning,
   ) {
     if (value && typeof value === "object") {
       if (value.type === "image") {
@@ -115,12 +119,14 @@ const normalizeContent = (
     | ContentAudio
     | ContentVideo
     | ContentTool
+    | ContentReasoning
     | (
         | ContentText
         | ContentImage
         | ContentAudio
         | ContentVideo
         | ContentTool
+        | ContentReasoning
       )[],
 ): (
   | ContentText
@@ -128,6 +134,7 @@ const normalizeContent = (
   | ContentAudio
   | ContentVideo
   | ContentTool
+  | ContentReasoning
 )[] => {
   if (Array.isArray(output)) {
     return output;

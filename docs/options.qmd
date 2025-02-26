@@ -80,7 +80,9 @@ Below are sections for the various categories of options supported by `inspect e
 | `--log-probs`           | Return log probabilities of the output tokens. OpenAI, Grok, TogetherAI, Huggingface, llama-cpp-python, and vLLM only.                                                                                                                                  |
 | `--top-logprobs`        | Number of most likely tokens (0-20) to return at each token position, each with an associated log probability. OpenAI, Grok, TogetherAI, Huggingface, and vLLM only.                                                                                    |
 | `--cache-prompt`        | Values: `auto`, `true`, or `false`. Cache prompt prefix (Anthropic only). Defaults to "auto", which will enable caching for requests with tools.                                                                                                        |
-| `--reasoning-effort`    | Values: `low`, `medium`, or `high`. Constrains effort on reasoning for reasoning models. Open AI o1 models only.                                                                                                                                        |
+| `--reasoning-effort`    | Values: `low`, `medium`, or `high`. Constrains effort on reasoning for reasoning models. Open AI o-series models only.                                                                                                                                  |
+| `--reasoning-tokens`    | Maximum number of tokens to use for reasoning. Anthropic Claude models only.                                                                                                                                                                            |
+| `--reasoning-history`   | Values: `none`, `all`, `last`, or `auto`. Include reasoning in chat message history sent to generate (defaults to "auto", which uses the recommended default for each provider)                                                                         |
 | `--parallel-tool-calls` | Whether to enable calling multiple functions during tool use (defaults to True) OpenAI and Groq only.                                                                                                                                                   |
 | `--max-tool-output`     | Maximum size of tool output (in bytes). Defaults to 16 \* 1024.                                                                                                                                                                                         |
 | `--internal-tools`      | Whether to automatically map tools to model internal implementations (e.g. 'computer' for Anthropic).                                                                                                                                                   |
@@ -100,7 +102,7 @@ Below are sections for the various categories of options supported by `inspect e
 ## Sample Selection
 
 |                    |                                                                                                                                                                |
-|-------------------------|----------------------------------------------|
+|--------------------------|----------------------------------------------|
 | `--limit`          | Limit samples to evaluate by specifying a maximum (e.g. `10`) or range (e.g. `10-20`)                                                                          |
 | `--sample-id`      | Evalute a specific sample (e.g. `44`) or list of samples (e.g. `44,63,91`)                                                                                     |
 | `--epochs`         | Number of times to repeat each sample (defaults to 1)                                                                                                          |
@@ -109,7 +111,7 @@ Below are sections for the various categories of options supported by `inspect e
 ## Parallelism
 
 |                      |                                                                                                 |
-|-------------------------|----------------------------------------------|
+|--------------------------|----------------------------------------------|
 | `--max-connections`  | Maximum number of concurrent connections to Model provider (defaults to 10)                     |
 | `--max-samples`      | Maximum number of samples to run in parallel (default is `--max-connections`)                   |
 | `--max-subprocesses` | Maximum number of subprocesses to run in parallel (default is `os.cpu_count()`)                 |
@@ -119,18 +121,18 @@ Below are sections for the various categories of options supported by `inspect e
 ## Errors and Limits
 
 |                      |                                                                                                                                                                       |
-|-------------------------|----------------------------------------------|
+|--------------------------|----------------------------------------------|
 | `--fail-on-error`    | Threshold of sample errors to tolerate (by default, evals fail when any error occurs). Value between 0 to 1 to set a proportion; value greater than 1 to set a count. |
 | `--no-fail-on-error` | Do not fail the eval if errors occur within samples (instead, continue running other samples)                                                                         |
 | `--message-limit`    | Limit on total messages used for each sample.                                                                                                                         |
 | `--token-limit`      | Limit on total tokens used for each sample.                                                                                                                           |
-| `--time-limit`       | Limit on total running time for each sample.                                                                                                                        |
-| `--working-limit`       | Limit on total working time (model generation, tool calls, etc.) for each sample.                                                                                                                        |
+| `--time-limit`       | Limit on total running time for each sample.                                                                                                                          |
+| `--working-limit`    | Limit on total working time (model generation, tool calls, etc.) for each sample.                                                                                     |
 
 ## Eval Logs
 
 |                          |                                                                                                                                                                                                     |
-|-------------------------|----------------------------------------------|
+|--------------------------|----------------------------------------------|
 | `--log-dir`              | Directory for log files (defaults to `./logs`)                                                                                                                                                      |
 | `--no-log-samples`       | Do not log sample details.                                                                                                                                                                          |
 | `--no-log-images`        | Do not log images and other media.                                                                                                                                                                  |
@@ -142,21 +144,21 @@ Below are sections for the various categories of options supported by `inspect e
 ## Scoring
 
 |                      |                                                                                   |
-|-------------------------|----------------------------------------------|
+|--------------------------|----------------------------------------------|
 | `--no-score`         | Do not score model output (use the `inspect score` command to score output later) |
 | `--no-score-display` | Do not display realtime scoring information.                                      |
 
 ## Sandboxes
 
 |                        |                                                                                             |
-|-------------------------|----------------------------------------------|
+|--------------------------|----------------------------------------------|
 | `--sandbox`            | Sandbox environment type (with optional config file). e.g. 'docker' or 'docker:compose.yml' |
 | `--no-sandbox-cleanup` | Do not cleanup sandbox environments after task completes                                    |
 
 ## Debugging
 
 |                  |                                                                       |
-|-------------------------|----------------------------------------------|
+|--------------------------|----------------------------------------------|
 | `--debug`        | Wait to attach debugger                                               |
 | `--debug-port`   | Port number for debugger                                              |
 | `--debug-errors` | Raise task errors (rather than logging them) so they can be debugged. |
@@ -164,7 +166,7 @@ Below are sections for the various categories of options supported by `inspect e
 ## Miscellaneous
 
 |              |                                                                                             |
-|-------------------------|----------------------------------------------|
+|--------------------------|----------------------------------------------|
 | `--display`  | Display type. Values: `full`, `conversation`, `rich`, `plain`, `none` (defaults to `full`). |
 | `--approval` | Config file for tool call approval.                                                         |
 | `--tags`     | Tags to associate with this evaluation run.                                                 |

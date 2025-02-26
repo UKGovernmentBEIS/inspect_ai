@@ -26,6 +26,7 @@ title: "inspect_ai.model"
 
 ### Content
 ### ContentText
+### ContentReasoning
 ### ContentImage
 ### ContentAudio
 ### ContentVideo

@@ -48,7 +48,7 @@ def openai() -> type[ModelAPI]:
 def anthropic() -> type[ModelAPI]:
     FEATURE = "Anthropic API"
     PACKAGE = "anthropic"
-    MIN_VERSION = "0.29.0"
+    MIN_VERSION = "0.47.1"
 
     # verify we have the package
     try:
@@ -148,7 +148,7 @@ def cf() -> type[ModelAPI]:
 def mistral() -> type[ModelAPI]:
     FEATURE = "Mistral API"
     PACKAGE = "mistralai"
-    MIN_VERSION = "1.2.0"
+    MIN_VERSION = "1.5.0"
 
     # verify we have the package
     try:
