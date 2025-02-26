@@ -24,16 +24,10 @@ from inspect_ai.model import (
 )
 from inspect_ai.tool import ToolCall, ToolInfo
 
+from .._call_tools import parse_tool_call, tool_parse_error_message
 from .._model_call import ModelCall
-from .._model_output import ModelUsage
-from .._providers.util import (
-    ChatAPIHandler,
-    ChatAPIMessage,
-    as_stop_reason,
-    chat_api_input,
-    parse_tool_call,
-    tool_parse_error_message,
-)
+from .._model_output import ModelUsage, StopReason, as_stop_reason
+from .._providers.util import ChatAPIHandler, ChatAPIMessage, chat_api_input
 
 logger = getLogger(__name__)
 
@@ -44,15 +38,9 @@ async def generate_o1(
     input: list[ChatMessage],
     tools: list[ToolInfo],
     **params: Any,
-) -> ModelOutput | tuple[ModelOutput, ModelCall]:
+) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
     # create chatapi handler
     handler = O1PreviewChatAPIHandler()
-
-    # map max_tokens => max_completion_tokens
-    max_tokens = params.get("max_tokens", None)
-    if max_tokens:
-        params["max_completion_tokens"] = max_tokens
-        del params["max_tokens"]
 
     # call model
     request = dict(
@@ -60,35 +48,58 @@ async def generate_o1(
         messages=chat_messages(input, tools, handler),
         **params,
     )
+    response: dict[str, Any] = {}
+
+    def model_call() -> ModelCall:
+        return ModelCall.create(
+            request=request,
+            response=response,
+        )
+
     try:
-        response: ChatCompletion = await client.chat.completions.create(**request)
+        completion: ChatCompletion = await client.chat.completions.create(**request)
+        response = completion.model_dump()
     except BadRequestError as ex:
-        return handle_bad_request(model, ex)
+        return handle_bad_request(model, ex), model_call()
 
     # return model output
     return ModelOutput(
-        model=response.model,
-        choices=chat_choices_from_response(response, tools, handler),
+        model=completion.model,
+        choices=chat_choices_from_response(completion, tools, handler),
         usage=ModelUsage(
-            input_tokens=response.usage.prompt_tokens,
-            output_tokens=response.usage.completion_tokens,
-            total_tokens=response.usage.total_tokens,
+            input_tokens=completion.usage.prompt_tokens,
+            output_tokens=completion.usage.completion_tokens,
+            input_tokens_cache_read=(
+                completion.usage.prompt_tokens_details.cached_tokens
+                if completion.usage.prompt_tokens_details is not None
+                else None  # openai only have cache read stats/pricing.
+            ),
+            reasoning_tokens=(
+                completion.usage.completion_tokens_details.reasoning_tokens
+                if completion.usage.completion_tokens_details is not None
+                else None
+            ),
+            total_tokens=completion.usage.total_tokens,
         )
-        if response.usage
+        if completion.usage
         else None,
-    ), ModelCall.create(
-        request=request,
-        response=response.model_dump(),
-    )
+    ), model_call()
 
 
-def handle_bad_request(model: str, ex: BadRequestError) -> ModelOutput:
-    if ex.code == "invalid_prompt":
+def handle_bad_request(model: str, ex: BadRequestError) -> ModelOutput | Exception:
+    if ex.code == "context_length_exceeded":
+        stop_reason: StopReason | None = "model_length"
+    elif ex.code == "invalid_prompt":
+        stop_reason = "content_filter"
+    else:
+        stop_reason = None
+
+    if stop_reason:
         return ModelOutput.from_content(
-            model=model, content=str(ex), stop_reason="content_filter"
+            model=model, content=str(ex), stop_reason=stop_reason
         )
     else:
-        raise ex
+        return ex
 
 
 def chat_messages(
@@ -267,7 +278,7 @@ class O1PreviewChatAPIHandler(ChatAPIHandler):
         results = f"Error: {message.error.message}" if message.error else message.text
 
         # try to clearly spell out that this 'user' message is the response to a function call
-        content = f"The '{message.tool_call_id}' function was called. The results are:\n\n{results}"
+        content = f"The '{message.function}' function was called. The results are:\n\n{results}"
 
         # return user message
         return {"role": "user", "content": content}

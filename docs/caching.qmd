@@ -1,4 +1,6 @@
-# Caching {#sec-caching}
+---
+title: Caching 
+---
 
 ## Overview
 

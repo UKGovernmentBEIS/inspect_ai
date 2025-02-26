@@ -6,10 +6,12 @@ from datetime import datetime, timezone
 from hashlib import md5
 from pathlib import Path
 from shutil import rmtree
+from typing import Any
 
 from dateutil.relativedelta import relativedelta
 
 from inspect_ai._util.appdirs import inspect_cache_dir
+from inspect_ai._util.trace import trace_message
 from inspect_ai.tool import ToolChoice, ToolInfo
 
 from ._chat_message import ChatMessage
@@ -17,6 +19,10 @@ from ._generate_config import GenerateConfig
 from ._model_output import ModelOutput
 
 logger = logging.getLogger(__name__)
+
+
+def trace(msg: str, *args: Any) -> None:
+    trace_message(logger, "Cache", msg, *args)
 
 
 def _path_is_in_cache(path: Path | str) -> bool:
@@ -52,22 +58,23 @@ def _parse_expiry(period: str) -> int:
 class CachePolicy:
     """The `CachePolicy` is used to define various criteria that impact how model calls are cached.
 
-    Attributes:
-        expiry(str | None): Default "24h". The expiry time for the cache entry.
-          This is a string of the format "12h" for 12 hours or "1W" for a week,
-          etc. This is how long we will keep the cache entry, if we access it
-          after this point we'll clear it. Setting to `None` will cache
-          indefinitely.
-        per_epoch(bool): Default True. By default we cache responses separately
-          for different epochs. The general use case is that if there are
-          multiple epochs, we should cache each response separately because
-          scorers will aggregate across epochs. However, sometimes a response
-          can be cached regardless of epoch if the call being made isn't under
-          test as part of the evaluation. If False, this option allows you to
-          bypass that and cache independently of the epoch.
-        scopes(dict[str, str]): A dictionary of additional metadata that should
-          be included in the cache key. This allows for more fine-grained
-          control over the cache key generation.
+    `expiry`: Default "24h". The expiry time for the cache entry.
+    This is a string of the format "12h" for 12 hours or "1W" for a week,
+    etc. This is how long we will keep the cache entry, if we access it
+    after this point we'll clear it. Setting to `None` will cache
+    indefinitely.
+
+    `per_epoch`: Default True. By default we cache responses separately
+    for different epochs. The general use case is that if there are
+    multiple epochs, we should cache each response separately because
+    scorers will aggregate across epochs. However, sometimes a response
+    can be cached regardless of epoch if the call being made isn't under
+    test as part of the evaluation. If False, this option allows you to
+    bypass that and cache independently of the epoch.
+
+    `scopes`: A dictionary of additional metadata that should
+    be included in the cache key. This allows for more fine-grained
+    control over the cache key generation.
     """
 
     def __init__(
@@ -76,6 +83,14 @@ class CachePolicy:
         per_epoch: bool = True,
         scopes: dict[str, str] = {},
     ) -> None:
+        """Create a CachePolicy.
+
+        Args:
+           expiry: Expiry.
+           per_epoch: Per epoch
+           scopes: Scopes
+
+        """
         self.per_epoch = per_epoch
         self.scopes = scopes
 
@@ -153,7 +168,14 @@ def _cache_key(entry: CacheEntry) -> str:
 
     base_string = "|".join([str(component) for component in components])
 
+    trace(_cache_key_debug_string([str(component) for component in components]))
+
     return md5(base_string.encode("utf-8")).hexdigest()
+
+
+def _cache_key_debug_string(components: list[str]) -> str:
+    components_str = "\n".join(f"  - {component}" for component in components)
+    return f"Computed cache key from components:\n{components_str}"
 
 
 def _cache_expiry(policy: CachePolicy) -> datetime | None:
@@ -185,11 +207,11 @@ def cache_store(
 
         with open(filename, "wb") as f:
             expiry = _cache_expiry(entry.policy)
-            logger.debug("Storing in cache: %s (expires: %s)", filename, expiry)
+            trace("Storing in cache: %s (expires: %s)", filename, expiry)
             pickle.dump((expiry, output), f)
         return True
     except Exception as e:
-        logger.debug(f"Failed to cache {filename}: {e}")
+        trace(f"Failed to cache {filename}: {e}")
         return False
 
 
@@ -197,12 +219,12 @@ def cache_fetch(entry: CacheEntry) -> ModelOutput | None:
     """Fetch a value from the cache directory."""
     filename = cache_path(model=entry.model) / _cache_key(entry)
     try:
-        logger.debug("Fetching from cache: %s", filename)
+        trace("Fetching from cache: %s", filename)
 
         with open(filename, "rb") as f:
             expiry, output = pickle.load(f)
             if not isinstance(output, ModelOutput):
-                logger.debug(
+                trace(
                     "Unexpected cached type, can only fetch ModelOutput: %s (%s)",
                     type(output),
                     filename,
@@ -210,7 +232,7 @@ def cache_fetch(entry: CacheEntry) -> ModelOutput | None:
                 return None
 
             if _is_expired(expiry):
-                logger.debug("Cache expired for %s (%s)", filename, expiry)
+                trace("Cache expired for %s (%s)", filename, expiry)
                 # If it's expired, no point keeping it as we'll never access it
                 # successfully again.
                 filename.unlink(missing_ok=True)
@@ -218,17 +240,21 @@ def cache_fetch(entry: CacheEntry) -> ModelOutput | None:
 
             return output
     except Exception as e:
-        logger.debug(f"Failed to fetch from cache {filename}: {e}")
+        trace(f"Failed to fetch from cache {filename}: {e}")
         return None
 
 
 def cache_clear(model: str = "") -> bool:
-    """Clear the cache directory."""
+    """Clear the cache directory.
+
+    Args:
+       model: Model to clear cache for.
+    """
     try:
         path = cache_path(model)
 
         if (model == "" or _path_is_in_cache(path)) and path.exists():
-            logger.debug("Clearing cache: %s", path)
+            trace("Clearing cache: %s", path)
             rmtree(path)
             return True
 
@@ -239,6 +265,11 @@ def cache_clear(model: str = "") -> bool:
 
 
 def cache_path(model: str = "") -> Path:
+    """Path to cache directory.
+
+    Args:
+       model: Path to cache directory for specific model.
+    """
     env_cache_dir = os.environ.get("INSPECT_CACHE_DIR", None)
     if env_cache_dir:
         generate_cache = Path(env_cache_dir) / "generate"
@@ -307,9 +338,9 @@ def cache_size(
     will be calculated.
 
     Args:
-        subdirs(list[str]): List of folders to filter by, which are generally
+        subdirs: List of folders to filter by, which are generally
             model names. Empty directories will be ignored.
-        files(list[str]): List of files to filter by explicitly. Note that
+        files: List of files to filter by explicitly. Note that
             return value group these up by their parent directory
 
     Returns:
@@ -331,7 +362,7 @@ def cache_list_expired(filter_by: list[str] = []) -> list[Path]:
     """Returns a list of all the cached files that have passed their expiry time.
 
     Args:
-        filter_by(list[str]): Default []. List of model names to filter by. If
+        filter_by: Default []. List of model names to filter by. If
             an empty list, this will search the entire cache.
     """
     expired_cache_entries = []
@@ -344,24 +375,24 @@ def cache_list_expired(filter_by: list[str] = []) -> list[Path]:
         # "../../foo/bar") but we don't want to search the entire cache
         return []
 
-    logger.debug("Filtering by paths: %s", filter_by_paths)
+    trace("Filtering by paths: %s", filter_by_paths)
     for dirpath, _dirnames, filenames in os.walk(cache_path()):
         if filter_by_paths and Path(dirpath) not in filter_by_paths:
-            logger.debug("Skipping path %s", dirpath)
+            trace("Skipping path %s", dirpath)
             continue
 
-        logger.debug("Checking dirpath %s", dirpath)
+        trace("Checking dirpath %s", dirpath)
         for filename in filenames:
             path = Path(dirpath) / filename
-            logger.debug("Checking path %s", path)
+            trace("Checking path %s", path)
             try:
                 with open(path, "rb") as f:
                     expiry, _cache_entry = pickle.load(f)
                     if _is_expired(expiry):
-                        logger.debug("Expired cache entry found: %s (%s)", path, expiry)
+                        trace("Expired cache entry found: %s (%s)", path, expiry)
                         expired_cache_entries.append(path)
             except Exception as e:
-                logger.debug("Failed to load cached item %s: %s", path, e)
+                trace("Failed to load cached item %s: %s", path, e)
                 continue
 
     return expired_cache_entries
@@ -371,7 +402,7 @@ def cache_prune(files: list[Path] = []) -> None:
     """Delete all expired cache entries.
 
     Args:
-        files(list[Path]): Default []. List of files to prune. If empty, this
+        files: List of files to prune. If empty, this
             will search the entire cache.
     """
     if not files:
@@ -382,8 +413,8 @@ def cache_prune(files: list[Path] = []) -> None:
             with open(file, "rb") as f:
                 expiry, _cache_entry = pickle.load(f)
                 if _is_expired(expiry):
-                    logger.debug("Pruning expired cache: %s", file)
+                    trace("Pruning expired cache: %s", file)
                     file.unlink(missing_ok=True)
         except Exception as e:
-            logger.debug("Failed to prune cache %s: %s", file, e)
+            trace("Failed to prune cache %s: %s", file, e)
             continue

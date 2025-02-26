@@ -1,6 +1,6 @@
 import asyncio
 import os
-from typing import Literal, Protocol, cast, runtime_checkable
+from typing import Literal, Protocol, runtime_checkable
 
 import httpx
 from bs4 import BeautifulSoup, NavigableString
@@ -41,14 +41,16 @@ def web_search(
     A web search is conducted using the specified provider, the results are parsed for relevance
     using the specified model, and the top 'num_results' relevant pages are returned.
 
+    See further documentation at <https://inspect.ai-safety-institute.org.uk/tools.html#sec-web-search>.
+
     Args:
-      provider (Literal["google"]): Search provider (defaults to "google", currently
+      provider: Search provider (defaults to "google", currently
         the only provider). Possible future providers include "brave" and "bing".
-      num_results (int): Number of web search result pages to return to the model.
-      max_provider_calls (int): Maximum number of search calls to make to the search provider.
-      max_connections (int): Maximum number of concurrent connections to API
+      num_results: Number of web search result pages to return to the model.
+      max_provider_calls: Maximum number of search calls to make to the search provider.
+      max_connections: Maximum number of concurrent connections to API
         endpoint of search provider.
-      model (str | Model): Model used to parse web pages for relevance.
+      model: Model used to parse web pages for relevance.
 
     Returns:
        A tool that can be registered for use by models to search the web.
@@ -88,8 +90,8 @@ def web_search(
                 return_exceptions=True,
             )
             for page, link in zip(pages, links):
-                if page and not isinstance(page, Exception):
-                    page_contents.append(cast(str, page))
+                if page and not isinstance(page, BaseException):
+                    page_contents.append(page)
                     urls.append(link.url)
                     snippets.append(link.snippet)
             search_calls += 1

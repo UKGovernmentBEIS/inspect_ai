@@ -1,0 +1,9 @@
+.grid {
+  display: grid;
+  grid-template-columns: max-content auto;
+  column-gap: 0.4em;
+}
+
+.number {
+  margin-top: 0.1em;
+}

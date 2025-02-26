@@ -1,15 +1,20 @@
-import abc
 import asyncio
 import os
 import sys
 import traceback
 from logging import getLogger
 from types import TracebackType
-from typing import Any, Literal, Type
+from typing import Any, Literal, Tuple, Type, TypedDict
 
 import click
 import tenacity
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    PrivateAttr,
+    model_validator,
+)
 from rich.console import Console, RenderableType
 from rich.traceback import Traceback
 
@@ -17,34 +22,56 @@ from inspect_ai._util.constants import CONSOLE_DISPLAY_WIDTH, PKG_NAME
 from inspect_ai._util.error import EvalError, exception_message
 from inspect_ai._util.logger import warn_once
 from inspect_ai.approval._policy import ApprovalPolicyConfig
-from inspect_ai.model import (
-    ChatMessage,
-    GenerateConfig,
-    ModelOutput,
-    ModelUsage,
-)
+from inspect_ai.dataset._dataset import MT, metadata_as
+from inspect_ai.model import ChatMessage, GenerateConfig, ModelOutput, ModelUsage
 from inspect_ai.scorer import Score
-from inspect_ai.scorer._metric import SampleScore
+from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
+from inspect_ai.util._store import Store
+from inspect_ai.util._store_model import SMT
 
-from ._transcript import EvalEvents
+from ._transcript import Event
 
 logger = getLogger(__name__)
 
 SCORER_PLACEHOLDER = "88F74D2C"
 
 
+class EvalConfigDefaults(TypedDict):
+    epochs: int
+    epochs_reducer: list[str]
+    fail_on_error: bool
+    sandbox_cleanup: bool
+    log_samples: bool
+    log_images: bool
+    score_display: bool
+
+
+def eval_config_defaults() -> EvalConfigDefaults:
+    return {
+        "epochs": 1,
+        "epochs_reducer": ["mean"],
+        "fail_on_error": True,
+        "sandbox_cleanup": True,
+        "log_samples": True,
+        "log_images": True,
+        "score_display": True,
+    }
+
+
 class EvalConfig(BaseModel):
+    """Configuration used for evaluation."""
+
     limit: int | tuple[int, int] | None = Field(default=None)
     """Sample limit (number of samples or range of samples)."""
+
+    sample_id: str | int | list[str | int] | None = Field(default=None)
+    """Evaluate specific sample(s)."""
 
     epochs: int | None = Field(default=None)
     """Number of epochs to run samples over."""
 
     epochs_reducer: list[str] | None = Field(default=None)
     """Reducers for aggregating per-sample scores."""
-
-    trace: bool | None = Field(default=None)
-    """Trace message interactions with evaluated model to terminal."""
 
     approval: ApprovalPolicyConfig | None = Field(default=None)
     """Approval policy for tool use."""
@@ -59,10 +86,16 @@ class EvalConfig(BaseModel):
     """
 
     message_limit: int | None = Field(default=None)
-    """Maximum messages to allow in a chat conversation."""
+    """Maximum messages to allow per sample."""
 
     token_limit: int | None = Field(default=None)
-    """Maximum tokens to allow in a chat conversation."""
+    """Maximum tokens usage per sample."""
+
+    time_limit: int | None = Field(default=None)
+    """Maximum clock time per sample."""
+
+    working_limit: int | None = Field(default=None)
+    """Meximum working time per sample."""
 
     max_samples: int | None = Field(default=None)
     """Maximum number of samples to run in parallel."""
@@ -72,6 +105,9 @@ class EvalConfig(BaseModel):
 
     max_subprocesses: int | None = Field(default=None)
     """Maximum number of subprocesses to run concurrently."""
+
+    max_sandboxes: int | None = Field(default=None)
+    """Maximum number of sandboxes to run concurrently."""
 
     sandbox_cleanup: bool | None = Field(default=None)
     """Cleanup sandbox environments after task completes."""
@@ -84,6 +120,9 @@ class EvalConfig(BaseModel):
 
     log_buffer: int | None = Field(default=None)
     """Number of samples to buffer before writing log file."""
+
+    score_display: bool | None = Field(default=None)
+    """Display scoring metrics realtime."""
 
     @property
     def max_messages(self) -> int | None:
@@ -102,7 +141,21 @@ class EvalConfig(BaseModel):
         return values
 
 
+class EvalSampleLimit(BaseModel):
+    """Limit encontered by sample."""
+
+    type: Literal[
+        "context", "time", "working", "message", "token", "operator", "custom"
+    ]
+    """The type of limit"""
+
+    limit: int
+    """The limit value"""
+
+
 class EvalSample(BaseModel):
+    """Sample from evaluation task."""
+
     id: int | str
     """Unique id for sample."""
 
@@ -118,7 +171,7 @@ class EvalSample(BaseModel):
     target: str | list[str]
     """Sample target value(s)"""
 
-    sandbox: tuple[str, str | None] | None = Field(default=None)
+    sandbox: SandboxEnvironmentSpec | None = Field(default=None)
     """Sandbox environment type and optional config file."""
 
     files: list[str] | None = Field(default=None)
@@ -133,6 +186,67 @@ class EvalSample(BaseModel):
     output: ModelOutput
     """Model output from sample."""
 
+    scores: dict[str, Score] | None = Field(default=None)
+    """Scores for sample."""
+
+    metadata: dict[str, Any]
+    """Additional sample metadata."""
+
+    def metadata_as(self, metadata_cls: Type[MT]) -> MT:
+        """Pydantic model interface to metadata.
+
+        Args:
+          metadata_cls: Pydantic model type
+
+        Returns:
+          BaseModel: Instance of metadata_cls bound to sample metadata.
+        """
+        return metadata_as(self.metadata, metadata_cls)
+
+    store: dict[str, Any] = Field(default_factory=dict)
+    """State at end of sample execution."""
+
+    def store_as(self, model_cls: Type[SMT]) -> SMT:
+        """Pydantic model interface to the store.
+
+        Args:
+          model_cls: Pydantic model type (must derive from StoreModel)
+
+        Returns:
+          StoreModel: Instance of model_cls bound to sample store data.
+        """
+        return model_cls(store=Store(self.store))
+
+    events: list[Event] = Field(default_factory=list)
+    """Events that occurred during sample execution."""
+
+    model_usage: dict[str, ModelUsage] = Field(default_factory=dict)
+    """Model token usage for sample."""
+
+    total_time: float | None = Field(default=None)
+    """Total time that the sample was running."""
+
+    working_time: float | None = Field(default=None)
+    """Time spent working (model generation, sandbox calls, etc.)"""
+
+    uuid: str | None = Field(default=None)
+    """Globally unique identifier for sample run (exists for samples created in Inspect >= 0.3.70)"""
+
+    error: EvalError | None = Field(default=None)
+    """Error that halted sample."""
+
+    attachments: dict[str, str] = Field(default_factory=dict)
+    """Attachments referenced from messages and events.
+
+    Resolve attachments for a sample (replacing attachment://* references with
+    attachment content) by passing `resolve_attachments=True` to log reading functions.
+    """
+
+    limit: EvalSampleLimit | None = Field(default=None)
+    """The limit that halted the sample"""
+
+    # deprecated properties
+
     @property
     def score(self) -> Score | None:
         """Score for sample (deprecated)."""
@@ -143,24 +257,18 @@ class EvalSample(BaseModel):
 
         return list(self.scores.values())[0] if self.scores else None
 
-    scores: dict[str, Score] | None = Field(default=None)
-    """Scores for sample."""
-
-    metadata: dict[str, Any]
-    """Additional sample metadata."""
-
-    store: dict[str, Any] = Field(default={})
-    """State at end of sample execution."""
-
-    transcript: EvalEvents = Field(default_factory=EvalEvents)
-    """Transcript of sample events."""
-
-    error: EvalError | None = Field(default=None)
-    """Error that halted sample."""
+    @property
+    def transcript(self) -> "EvalEvents":
+        """Transcript of sample events (deprecated)."""
+        warn_once(
+            logger,
+            "EvalSample 'transcript' field is deprecated. Please use 'events' and 'attachments' fields instead.",
+        )
+        return EvalEvents(events=self.events, content=self.attachments)
 
     @model_validator(mode="before")
     @classmethod
-    def convert_score_to_scores(
+    def migrate_deprecated(
         cls: Type["EvalSample"], values: dict[str, Any]
     ) -> dict[str, Any]:
         if "score" in values:
@@ -177,18 +285,43 @@ class EvalSample(BaseModel):
             # Get rid of the 'scorer' property
             del values["score"]
 
+        if "transcript" in values:
+            # promote 'transcript' up to 'events' and 'attachments'
+            eval_events = EvalEvents(**values["transcript"])
+            values["events"] = eval_events.events
+            values["attachments"] = eval_events.content
+
+            # get rid of transcript (property accessor w/ deprecation
+            # warning will handle this)
+            del values["transcript"]
+
         return values
+
+    # allow field model_usage
+    model_config = ConfigDict(protected_namespaces=())
+
+
+class EvalEvents(BaseModel):
+    events: list[Event] = Field(default_factory=list)
+    """List of events."""
+
+    content: dict[str, str] = Field(default_factory=dict)
+    """Content references."""
 
 
 class EvalPlanStep(BaseModel):
+    """Solver step."""
+
     solver: str
     """Name of solver."""
 
-    params: dict[str, Any] = Field(default={})
+    params: dict[str, Any] = Field(default_factory=dict)
     """Parameters used to instantiate solver."""
 
 
 class EvalPlan(BaseModel):
+    """Plan (solvers) used in evaluation."""
+
     name: str = Field(default="plan")
     """Plan name."""
 
@@ -203,20 +336,24 @@ class EvalPlan(BaseModel):
 
 
 class EvalMetric(BaseModel):
+    """Metric for evaluation score."""
+
     name: str
     """Metric name."""
 
     value: int | float
     """Metric value."""
 
-    options: dict[str, Any] = Field(default={})
-    """Options specified when creating metric."""
+    params: dict[str, Any] = Field(default_factory=dict)
+    """Params specified when creating metric."""
 
     metadata: dict[str, Any] | None = Field(default=None)
     """Additional metadata associated with metric."""
 
 
 class EvalScore(BaseModel):
+    """Score for evaluation task."""
+
     name: str
     """Score name."""
 
@@ -226,28 +363,39 @@ class EvalScore(BaseModel):
     reducer: str | None = Field(default=None)
     """Reducer name."""
 
-    params: dict[str, Any] = Field(default={})
+    params: dict[str, Any] = Field(default_factory=dict)
     """Parameters specified when creating scorer."""
 
-    metrics: dict[str, EvalMetric] = Field(default=[])
+    metrics: dict[str, EvalMetric] = Field(default_factory=dict)
     """Metrics computed for this scorer."""
 
     metadata: dict[str, Any] | None = Field(default=None)
     """Additional scorer metadata."""
 
 
+class EvalSampleScore(Score):
+    """Score and sample_id scored."""
+
+    sample_id: str | int | None = Field(default=None)
+    """Sample ID."""
+
+
 class EvalSampleReductions(BaseModel):
+    """Score reductions."""
+
     scorer: str
     """Name the of scorer"""
 
     reducer: str | None = Field(default=None)
     """Name the of reducer"""
 
-    samples: list[SampleScore]
+    samples: list[EvalSampleScore]
     """List of reduced scores"""
 
 
 class EvalResults(BaseModel):
+    """Scoring results from evaluation."""
+
     total_samples: int = Field(default=0)
     """Total samples in eval (dataset samples * epochs)"""
 
@@ -262,7 +410,7 @@ class EvalResults(BaseModel):
         """Scorer used to compute results (deprecated)."""
         warn_once(
             logger,
-            "The 'scorer' field is deprecated. Use 'scorers' instead.",
+            "The 'scorer' field is deprecated. Use 'scores' instead.",
         )
         return self.scores[0] if self.scores else None
 
@@ -271,7 +419,7 @@ class EvalResults(BaseModel):
         """Metrics computed (deprecated)."""
         warn_once(
             logger,
-            "The 'metrics' field is deprecated. Access metrics through 'scorers' instead.",
+            "The 'metrics' field is deprecated. Access metrics through 'scores' instead.",
         )
         return self.scores[0].metrics if self.scores else {}
 
@@ -281,8 +429,22 @@ class EvalResults(BaseModel):
     metadata: dict[str, Any] | None = Field(default=None)
     """Additional results metadata."""
 
-    sample_reductions: list[EvalSampleReductions] | None = Field(default=None)
-    """List of per sample scores reduced across epochs"""
+    _sample_reductions: list[EvalSampleReductions] | None = PrivateAttr(default=None)
+    """Private member to hold sample reductions"""
+
+    @property
+    def sample_reductions(self) -> list[EvalSampleReductions] | None:
+        """List of per sample scores reduced across epochs"""
+        warn_once(
+            logger,
+            "The 'sample_reductions' field is deprecated. Access reductions through the 'reductions' field on EvalLog instead.",
+        )
+        return self._sample_reductions
+
+    @sample_reductions.setter
+    def sample_reductions(self, value: list[EvalSampleReductions] | None) -> None:
+        """Set list of per sample scores reduced across epochs"""
+        self._sample_reductions = value
 
     @model_validator(mode="before")
     @classmethod
@@ -300,6 +462,8 @@ class EvalResults(BaseModel):
             if "metrics" in values:
                 metrics = values["metrics"]
                 del values["metrics"]
+            else:
+                metrics = None
             # Convert the scorer to the new schema
             score = values["scorer"]
             if metrics:
@@ -314,6 +478,8 @@ class EvalResults(BaseModel):
 
 
 class EvalDataset(BaseModel):
+    """Dataset used for evaluation."""
+
     name: str | None = Field(default=None)
     """Dataset name."""
 
@@ -323,11 +489,40 @@ class EvalDataset(BaseModel):
     samples: int | None = Field(default=None)
     """Number of samples in the dataset."""
 
+    sample_ids: list[int | str] | None = Field(default=None)
+    """IDs of samples in the dataset."""
+
     shuffled: bool | None = Field(default=None)
     """Was the dataset shuffled after reading."""
 
 
+class EvalMetricDefinition(BaseModel):
+    name: str
+    """Metric name"""
+
+    options: dict[str, Any] | None = Field(default=None)
+
+
+class EvalScorer(BaseModel):
+    name: str
+    """Scorer name"""
+
+    options: dict[str, Any] | None = Field(default=None)
+    """Scorer arguments"""
+
+    metrics: (
+        list[EvalMetricDefinition | dict[str, list[EvalMetricDefinition]]]
+        | dict[str, list[EvalMetricDefinition]]
+        | None
+    ) = Field(default=None)
+
+    metadata: dict[str, Any] | None = Field(default=None)
+    """Scorer metadata"""
+
+
 class EvalRevision(BaseModel):
+    """Git revision for evaluation."""
+
     type: Literal["git"]
     """Type of revision (currently only "git")"""
 
@@ -339,7 +534,9 @@ class EvalRevision(BaseModel):
 
 
 class EvalSpec(BaseModel):
-    run_id: str = Field(default="")
+    """Eval target and configuration."""
+
+    run_id: str = Field(default_factory=str)
     """Unique run id"""
 
     created: str
@@ -348,7 +545,7 @@ class EvalSpec(BaseModel):
     task: str
     """Task name."""
 
-    task_id: str = Field(default="")
+    task_id: str = Field(default_factory=str)
     """Unique task id."""
 
     task_version: int = Field(default=0)
@@ -357,10 +554,10 @@ class EvalSpec(BaseModel):
     task_file: str | None = Field(default=None)
     """Task source file."""
 
-    task_attribs: dict[str, Any] = Field(default={})
+    task_attribs: dict[str, Any] = Field(default_factory=dict)
     """Attributes of the @task decorator."""
 
-    task_args: dict[str, Any] = Field(default={})
+    task_args: dict[str, Any] = Field(default_factory=dict)
     """Arguments used for invoking the task."""
 
     solver: str | None = Field(default=None)
@@ -369,10 +566,13 @@ class EvalSpec(BaseModel):
     solver_args: dict[str, Any] | None = Field(default=None)
     """Arguments used for invoking the solver."""
 
+    tags: list[str] | None = Field(default=None)
+    """Tags associated with evaluation run."""
+
     dataset: EvalDataset
     """Dataset used for eval."""
 
-    sandbox: tuple[str, str | None] | None = Field(default=None)
+    sandbox: SandboxEnvironmentSpec | None = Field(default=None)
     """Sandbox environment type and optional config file."""
 
     model: str
@@ -381,7 +581,7 @@ class EvalSpec(BaseModel):
     model_base_url: str | None = Field(default=None)
     """Optional override of model base url"""
 
-    model_args: dict[str, Any] = Field(default={})
+    model_args: dict[str, Any] = Field(default_factory=dict)
     """Model specific arguments."""
 
     config: EvalConfig
@@ -390,11 +590,19 @@ class EvalSpec(BaseModel):
     revision: EvalRevision | None = Field(default=None)
     """Source revision of eval."""
 
-    packages: dict[str, str] = Field(default={})
+    packages: dict[str, str] = Field(default_factory=dict)
     """Package versions for eval."""
 
     metadata: dict[str, Any] | None = Field(default=None)
     """Additional eval metadata."""
+
+    scorers: list[EvalScorer] | None = Field(default=None)
+    """Scorers and args for this eval"""
+
+    metrics: (
+        list[EvalMetricDefinition] | dict[str, list[EvalMetricDefinition]] | None
+    ) = Field(default=None)
+    """metrics and args for this eval"""
 
     # allow field model_args
     model_config = ConfigDict(protected_namespaces=())
@@ -407,14 +615,15 @@ def eval_error(
     exc_traceback: TracebackType | None,
 ) -> EvalError:
     # get text traceback
-    traceback_text = "\n".join(
-        traceback.format_exception(exc_type, exc_value, exc_traceback)
-    )
+    traceback_text, truncated = truncate_traceback(exc_type, exc_value, exc_traceback)
 
-    with open(os.devnull, "w") as f:
-        console = Console(record=True, file=f, legacy_windows=True)
-        console.print(rich_traceback(exc_type, exc_value, exc_traceback))
-        traceback_ansi = console.export_text(styles=True)
+    if not truncated:
+        with open(os.devnull, "w") as f:
+            console = Console(record=True, file=f, legacy_windows=True)
+            console.print(rich_traceback(exc_type, exc_value, exc_traceback))
+            traceback_ansi = console.export_text(styles=True)
+    else:
+        traceback_ansi = traceback_text
 
     # return error
     return EvalError(
@@ -438,14 +647,61 @@ def rich_traceback(
     return rich_tb
 
 
+def truncate_traceback(
+    exc_type: Type[Any],
+    exc_value: BaseException,
+    exc_traceback: TracebackType | None,
+    max_length: int = 1048576,  # 1MB
+) -> Tuple[str, bool]:
+    tb_list = traceback.format_exception(exc_type, exc_value, exc_traceback)
+
+    # Keep the front and back of the traceback
+    header = tb_list[0]
+    error_msg = tb_list[-1]
+
+    # Join the middle parts (stack frames)
+    frames = "".join(tb_list[1:-1])
+
+    # It all fits, use it as is
+    full_tb = header + frames + error_msg
+    if len(full_tb) <= max_length:
+        return full_tb, False
+
+    ellipsis = "\n...\n"
+
+    # Minimum header size
+    header_size = min(len(header), 1024)
+
+    # Minimum frames size
+    frames_size = min(len(frames), 1024)
+
+    # Remaining space for error message
+    error_msg_size = max(0, max_length - header_size - frames_size)
+
+    def truncate_middle(text: str, size: int) -> str:
+        if len(text) <= size:
+            return text
+        half = (size - len(ellipsis)) // 2
+        return f"{text[:half]}{ellipsis}{text[-half:]}"
+
+    # Truncate each part as needed
+    truncated_header = truncate_middle(header, header_size)
+    truncated_frames = truncate_middle(frames, frames_size)
+    truncated_error = truncate_middle(error_msg, error_msg_size)
+
+    return truncated_header + truncated_frames + truncated_error, True
+
+
 class EvalStats(BaseModel):
-    started_at: str = Field(default="")
+    """Timing and usage statistics."""
+
+    started_at: str = Field(default_factory=str)
     """Evaluation start time."""
 
-    completed_at: str = Field(default="")
+    completed_at: str = Field(default_factory=str)
     """Evaluation completion time."""
 
-    model_usage: dict[str, ModelUsage] = Field(default={})
+    model_usage: dict[str, ModelUsage] = Field(default_factory=dict)
     """Model token usage for evaluation."""
 
     # allow field model_usage
@@ -453,6 +709,8 @@ class EvalStats(BaseModel):
 
 
 class EvalLog(BaseModel):
+    """Evaluation log."""
+
     # WARNING: The order of these fields is important for the log file format.
     # Do not change the order of these fields without incrementing the version number,
     # updating the log file read/write functionality (such as read_eval_log),
@@ -468,13 +726,13 @@ class EvalLog(BaseModel):
     eval: EvalSpec
     """Eval identity and configuration."""
 
-    plan: EvalPlan = Field(default=EvalPlan())
+    plan: EvalPlan = Field(default_factory=EvalPlan)
     """Eval plan (solvers and config)"""
 
     results: EvalResults | None = None
     """Eval results (scores and metrics)."""
 
-    stats: EvalStats = Field(default=EvalStats())
+    stats: EvalStats = Field(default_factory=EvalStats)
     """Eval stats (runtime, model usage)"""
 
     error: EvalError | None = Field(default=None)
@@ -482,6 +740,12 @@ class EvalLog(BaseModel):
 
     samples: list[EvalSample] | None = Field(default=None)
     """Samples processed by eval."""
+
+    reductions: list[EvalSampleReductions] | None = Field(default=None)
+    """Reduced sample values"""
+
+    location: str = Field(default_factory=str, exclude=True)
+    """Location that the log file was read from."""
 
     @model_validator(mode="after")
     def populate_scorer_name_for_samples(self) -> "EvalLog":
@@ -494,40 +758,29 @@ class EvalLog(BaseModel):
 
         return self
 
+    @model_validator(mode="before")
+    @classmethod
+    def resolve_sample_reductions(
+        cls: Type["EvalLog"], values: dict[str, Any]
+    ) -> dict[str, Any]:
+        has_reductions = "reductions" in values
+        has_results = values.get("results", None) is not None
+        has_sample_reductions = has_results and (
+            "sample_reductions" in values["results"]
+        )
 
-LogType = Literal["plan", "sample", "score", "results", "scorer"]
+        if has_sample_reductions and not has_reductions:
+            values["reductions"] = values["results"]["sample_reductions"]
+        elif has_reductions and (has_results and not has_sample_reductions):
+            values["results"]["sample_reductions"] = values["reductions"]
+        return values
 
 
-class Recorder(abc.ABC):
-    @abc.abstractmethod
-    def log_start(self, eval: EvalSpec) -> str: ...
-
-    @abc.abstractmethod
-    def log(
-        self,
-        spec: EvalSpec,
-        type: LogType,
-        data: EvalSample | EvalPlan | EvalResults,
-        flush: bool = False,
-    ) -> None:
-        pass
-
-    @abc.abstractmethod
-    def log_cancelled(self, eval: EvalSpec, stats: EvalStats) -> EvalLog: ...
-
-    @abc.abstractmethod
-    def log_success(self, eval: EvalSpec, stats: EvalStats) -> EvalLog: ...
-
-    @abc.abstractmethod
-    def log_failure(
-        self, eval: EvalSpec, stats: EvalStats, error: EvalError
-    ) -> EvalLog: ...
-
-    @abc.abstractmethod
-    def read_log(self, location: str) -> EvalLog: ...
-
-    @abc.abstractmethod
-    def write_log(self, location: str, log: EvalLog) -> None: ...
-
-    @abc.abstractmethod
-    def read_latest_log(self) -> EvalLog: ...
+def sort_samples(samples: list[EvalSample]) -> None:
+    # convert into string zfilled so order is preserved
+    samples.sort(
+        key=lambda sample: (
+            sample.epoch,
+            (sample.id if isinstance(sample.id, str) else str(sample.id).zfill(20)),
+        )
+    )

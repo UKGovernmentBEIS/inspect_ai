@@ -8,16 +8,15 @@ RUN apt-get update
 
 RUN pip install --upgrade pip
 
+RUN pip install playwright jsonrpcclient jsonrpcserver httpx aiohttp pillow pydantic tenacity
+
 # Install playwright
-RUN pip install playwright 
 RUN playwright install
 RUN playwright install-deps 
 
-# Install other dependancies
-RUN pip install dm-env-rpc pillow bs4 lxml
-
 # Copy Python files alongside the Dockerfile
-COPY *.py ./
+COPY . .
 
 # Run the server
 CMD ["python3", "/app/web_browser/web_server.py"]
+# CMD ["tail", "-f", "/dev/null"]

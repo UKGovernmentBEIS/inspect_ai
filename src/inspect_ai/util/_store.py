@@ -34,18 +34,14 @@ class Store:
     inheriting from Pydantic `BaseModel`)
     """
 
-    def __init__(self) -> None:
-        self._data: dict[str, Any] = {}
+    def __init__(self, data: dict[str, Any] | None = None) -> None:
+        self._data = deepcopy(data) if data else {}
 
     @overload
-    def get(self, key: str, default: None = None) -> Any:
-        return self._data.get(key, default)
+    def get(self, key: str, default: None = None) -> Any: ...
 
     @overload
-    def get(self, key: str, default: VT) -> VT:
-        if key not in self._data.keys():
-            self._data[key] = default
-        return cast(VT, self._data.get(key, default))
+    def get(self, key: str, default: VT) -> VT: ...
 
     def get(self, key: str, default: VT | None = None) -> VT | Any:
         """Get a value from the store.
@@ -60,6 +56,9 @@ class Store:
         Returns:
            Value if is exists, otherwise default.
         """
+        if default is not None:
+            if key not in self._data.keys():
+                self._data[key] = default
         return cast(VT, self._data.get(key, default))
 
     def set(self, key: str, value: Any) -> None:

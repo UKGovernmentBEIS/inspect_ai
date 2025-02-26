@@ -90,3 +90,21 @@ def test_tool_store():
         ).text
         == "42"
     )
+
+
+def test_store_create():
+    @solver
+    def store_solver():
+        async def solve(state: TaskState, generate: Generate):
+            COLORS = ["red", "green", "blue"]
+            colors = state.store.get("colors", COLORS.copy())
+            colors.append("orange")
+            assert state.store.get("colors") == (COLORS + ["orange"])
+            return state
+
+        return solve
+
+    task = Task(solver=[store_solver()])
+
+    log = eval(task, model="mockllm/model")[0]
+    assert log.status == "success"

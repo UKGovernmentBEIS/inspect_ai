@@ -4,6 +4,7 @@ import pytest
 from test_helpers.utils import (
     skip_if_no_anthropic,
     skip_if_no_google,
+    skip_if_no_grok,
     skip_if_no_groq,
     skip_if_no_mistral,
     skip_if_no_openai,
@@ -37,6 +38,12 @@ async def test_openai_api_key():
 
 
 @pytest.mark.asyncio
+@skip_if_no_grok
+async def test_grok_api_key():
+    await check_explicit_api_key("grok/grok-beta", "GROK_API_KEY")
+
+
+@pytest.mark.asyncio
 @skip_if_no_anthropic
 async def test_anthropic_api_key():
     await check_explicit_api_key(
@@ -47,7 +54,7 @@ async def test_anthropic_api_key():
 @pytest.mark.asyncio
 @skip_if_no_google
 async def test_google_api_key():
-    await check_explicit_api_key("google/gemini-1.0-pro", "GOOGLE_API_KEY")
+    await check_explicit_api_key("google/gemini-1.5-pro", "GOOGLE_API_KEY")
 
 
 @pytest.mark.asyncio

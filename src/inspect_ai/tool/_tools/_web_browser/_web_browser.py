@@ -1,24 +1,28 @@
 import re
 from textwrap import dedent
 
-from inspect_ai._util.error import PrerequisiteError
-from inspect_ai.util._sandbox import SandboxEnvironment, sandbox_with
-from inspect_ai.util._sandbox.docker.internal import INSPECT_WEB_BROWSER_IMAGE
-from inspect_ai.util._store import store
+from pydantic import Field
 
-from ..._tool import Tool, ToolError, tool
-from ..._tool_call import ToolCall, ToolCallContent, ToolCallView
-from ..._tool_info import parse_tool_info
-from ..._tool_with import tool_with
+from inspect_ai._util.content import ContentText
+from inspect_ai._util.error import PrerequisiteError
+from inspect_ai.tool._tool import Tool, ToolError, ToolResult, tool
+from inspect_ai.tool._tool_call import ToolCall, ToolCallContent, ToolCallView
+from inspect_ai.tool._tool_info import parse_tool_info
+from inspect_ai.tool._tool_with import tool_with
+from inspect_ai.util._sandbox import SandboxEnvironment, sandbox_with
+from inspect_ai.util._sandbox.docker.internal import INSPECT_WEB_BROWSER_IMAGE_DOCKERHUB
+from inspect_ai.util._store_model import StoreModel, store_as
 
 
 def web_browser(interactive: bool = True) -> list[Tool]:
     """Tools used for web browser navigation.
 
+     See documentation at <https://inspect.ai-safety-institute.org.uk/tools.html#sec-web-browser>.
+
     Args:
-       interactive (bool): Provide interactive tools (enable
-         clicking, typing, and submitting forms). Defaults
-         to True.
+       interactive: Provide interactive tools (enable
+          clicking, typing, and submitting forms). Defaults
+          to True.
 
     Returns:
        List of tools used for web browser navigation.
@@ -55,10 +59,10 @@ def web_browser_go() -> Tool:
        Web browser navigation tool.
     """
 
-    async def execute(url: str) -> str:
+    async def execute(url: str) -> ToolResult:
         """Navigate the web browser to a URL.
 
-        Once you have navigated to a page, you will be presented with a web accessibilty tree of the elements on the page. Each element has an ID, which is displayed in brackets at the beginning of its line. For example:
+        Once you have navigated to a page, you will be presented with a web accessibility tree of the elements on the page. Each element has an ID, which is displayed in brackets at the beginning of its line. For example:
 
         ```
         [1] RootWebArea "Google" [focused: True, url: https://www.google.com/]
@@ -96,14 +100,18 @@ def go_without_interactive_docs(tool: Tool) -> Tool:
 
 
 # custom viewer for interactive tool calls that shows a truncated
-# version of current the web accessiblity tree if available
+# version of current the web accessibility tree if available
 
-WEB_BROWSER_AT = "web_browser:at"
+
+class WebBrowserStore(StoreModel):
+    main_content: str = Field(default_factory=str)
+    web_at: str = Field(default_factory=str)
+    session_id: str = Field(default_factory=str)
 
 
 def web_at_viewer(call: ToolCall) -> ToolCallView:
-    # get the web accessiblity tree, if we have it create a view from it
-    web_at = store().get(WEB_BROWSER_AT, "")
+    # get the web accessibility tree, if we have it create a view from it
+    web_at = store_as(WebBrowserStore).web_at
     element_id = call.arguments.get("element_id", 0)
     if web_at and element_id:
         lines = web_at.splitlines()
@@ -135,10 +143,10 @@ def web_browser_click() -> Tool:
        Web browser clicking tool.
     """
 
-    async def execute(element_id: int) -> str:
+    async def execute(element_id: int) -> ToolResult:
         """Click an element on the page currently displayed by the web browser.
 
-        For example, with the following web accessibilty tree:
+        For example, with the following web accessibility tree:
 
         ```
         [304] RootWebArea "Poetry Foundation" [focused: True, url: https://www.poetryfoundation.org/]
@@ -170,7 +178,7 @@ def web_browser_type_submit() -> Tool:
        Web browser type and submit tool.
     """
 
-    async def execute(element_id: int, text: str) -> str:
+    async def execute(element_id: int, text: str) -> ToolResult:
         """Type text into a form input on a web browser page and press ENTER to submit the form.
 
         For example, to execute a search for "Yeats" from this page:
@@ -208,7 +216,7 @@ def web_browser_type() -> Tool:
        Web browser typing tool.
     """
 
-    async def execute(element_id: int, text: str) -> str:
+    async def execute(element_id: int, text: str) -> ToolResult:
         """Type text into an input on a web browser page.
 
         For example, to type "Norah" into the "First Name" search box on this page:
@@ -246,7 +254,7 @@ def web_browser_scroll() -> Tool:
        Web browser scrolling tool.
     """
 
-    async def execute(direction: str) -> str:
+    async def execute(direction: str) -> ToolResult:
         """Scroll the web browser up or down by one page.
 
         Occasionally some very long pages don't display all of their content at once. To see additional content you can scroll the page down with:
@@ -276,7 +284,7 @@ def web_browser_back() -> Tool:
        Web browser back navigation tool.
     """
 
-    async def execute() -> str:
+    async def execute() -> ToolResult:
         """Navigate the web browser back in the browser history.
 
         If you want to view a page that you have previously browsed (or perhaps just didn't find what you were looking for on a page and want to backtrack) use the web_browser_back tool.
@@ -297,7 +305,7 @@ def web_browser_forward() -> Tool:
        Web browser forward navigation tool.
     """
 
-    async def execute() -> str:
+    async def execute() -> ToolResult:
         """Navigate the web browser forward in the browser history.
 
         If you have navigated back in the browser history and then want to navigate forward use the web_browser_forward tool.
@@ -318,7 +326,7 @@ def web_browser_refresh() -> Tool:
        Web browser page refresh tool.
     """
 
-    async def execute() -> str:
+    async def execute() -> ToolResult:
         """Refresh the current page of the web browser.
 
         If you have interacted with a page by clicking buttons and want to reset it to its original state, use the web_browser_refresh tool.
@@ -331,27 +339,72 @@ def web_browser_refresh() -> Tool:
     return execute
 
 
-WEB_CLIENT_SCRIPT = "/app/web_browser/web_client.py"
+WEB_CLIENT_REQUEST = "/app/web_browser/web_client.py"
+WEB_CLIENT_NEW_SESSION = "/app/web_browser/web_client_new_session.py"
 
 
-async def web_browser_cmd(cmd: str, *args: str) -> str:
-    result = await (await web_browser_sandbox()).exec(
-        ["python3", WEB_CLIENT_SCRIPT, cmd] + list(args)
-    )
+async def web_browser_cmd(cmd: str, *args: str) -> ToolResult:
+    sandbox_env = await sandbox_with(WEB_CLIENT_NEW_SESSION)
+    session_flag = ""
+    if sandbox_env:
+        store = store_as(WebBrowserStore)
+        if not store.session_id:
+            result = await sandbox_env.exec(
+                ["python3", WEB_CLIENT_NEW_SESSION], timeout=180
+            )
+
+            if not result.success:
+                raise RuntimeError(
+                    f"Error creating new web browser session: {result.stderr}"
+                )
+
+            store.session_id = result.stdout.strip("\n")
+
+        session_flag = f"--session_name={store.session_id}"
+
+    else:
+        sandbox_env = await web_browser_sandbox()
+
+    arg_list = None
+    if session_flag:
+        arg_list = ["python3", WEB_CLIENT_REQUEST, session_flag, cmd] + list(args)
+    else:
+        arg_list = ["python3", WEB_CLIENT_REQUEST, cmd] + list(args)
+
+    result = await sandbox_env.exec(arg_list, timeout=180)
     if not result.success:
         raise RuntimeError(
             f"Error executing web browser command {cmd}({', '.join(args)}): {result.stderr}"
         )
     else:
         response = parse_web_browser_output(result.stdout)
-        if "web_at" in response:
-            web_at = (
-                str(response.get("web_at")) or "(no web accessiblity tree available)"
-            )
-            store().set(WEB_BROWSER_AT, web_at)
-            return web_at
-        elif "error" in response:
+        if "error" in response and response.get("error", "").strip() != "":
             raise ToolError(str(response.get("error")) or "(unknown error)")
+        elif "web_at" in response:
+            main_content = str(response.get("main_content")) or None
+            web_at = (
+                str(response.get("web_at")) or "(no web accessibility tree available)"
+            )
+            # Remove base64 data from images.
+            web_at_lines = web_at.split("\n")
+            web_at_lines = [
+                line.partition("data:image/png;base64")[0] for line in web_at_lines
+            ]
+
+            store_as(WebBrowserStore).main_content = (
+                main_content or "(no main text summary)"
+            )
+            store_as(WebBrowserStore).web_at = web_at
+
+            web_at = "\n".join(web_at_lines)
+            return (
+                [
+                    ContentText(text=f"main content:\n{main_content}\n\n"),
+                    ContentText(text=f"accessibility tree:\n{web_at}"),
+                ]
+                if main_content
+                else web_at
+            )
         else:
             raise RuntimeError(
                 f"web_browser output must contain either 'error' or 'web_at' field: {result.stdout}"
@@ -359,16 +412,16 @@ async def web_browser_cmd(cmd: str, *args: str) -> str:
 
 
 async def web_browser_sandbox() -> SandboxEnvironment:
-    sb = await sandbox_with(WEB_CLIENT_SCRIPT)
+    sb = await sandbox_with(WEB_CLIENT_REQUEST)
     if sb:
         return sb
     else:
         msg = dedent(f"""
-                The web browser service was not found in any of the sandboxes for this sample. Please add the web browser service to your configuration. For example, the following Docker compose file uses the {INSPECT_WEB_BROWSER_IMAGE} image as its default sandbox:
+                The web browser service was not found in any of the sandboxes for this sample. Please add the web browser service to your configuration. For example, the following Docker compose file uses the {INSPECT_WEB_BROWSER_IMAGE_DOCKERHUB} image as its default sandbox:
 
                 services:
                   default:
-                    image: "{INSPECT_WEB_BROWSER_IMAGE}"
+                    image: "{INSPECT_WEB_BROWSER_IMAGE_DOCKERHUB}"
                     init: true
 
                 Alternatively, this Docker compose file creates a dedicated image for the web browser service:
@@ -380,14 +433,16 @@ async def web_browser_sandbox() -> SandboxEnvironment:
                     command: "tail -f /dev/null"
 
                   web_browser:
-                    image: "{INSPECT_WEB_BROWSER_IMAGE}"
+                    image: "{INSPECT_WEB_BROWSER_IMAGE_DOCKERHUB}"
                     init: true
                 """).strip()
         raise PrerequisiteError(msg)
 
 
 def parse_web_browser_output(output: str) -> dict[str, str]:
-    response: dict[str, str] = dict(web_url="", web_at="", info="", error="")
+    response: dict[str, str] = dict(
+        web_url="", main_content="", web_at="", info="", error=""
+    )
     active_field: str | None = None
     active_field_lines: list[str] = []
 
@@ -397,7 +452,9 @@ def parse_web_browser_output(output: str) -> dict[str, str]:
         active_field_lines.clear()
 
     for line in output.splitlines():
-        field_match = re.match(r"^(error|web_at|web_url|info)\s*:\s*(.+)$", line)
+        field_match = re.match(
+            r"^(error|main_content|web_at|web_url|info)\s*:\s*(.+)$", line
+        )
         if field_match:
             collect_active_field()
             active_field = field_match.group(1)

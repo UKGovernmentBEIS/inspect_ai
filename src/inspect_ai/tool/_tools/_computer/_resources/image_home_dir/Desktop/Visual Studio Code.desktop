@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Visual Studio Code
+Comment=Code Editing. Redefined.
+Exec=/usr/share/code/code %F
+Icon=vscode
+Path=
+Terminal=false
+StartupNotify=false

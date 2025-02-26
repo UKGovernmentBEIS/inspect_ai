@@ -33,7 +33,7 @@ def input_screen(
     Returns:
        Console to use for input.
     """
-    from inspect_ai._display._display import task_screen
+    from inspect_ai._display.core.active import task_screen
 
     with task_screen().input_screen(
         header=header, transient=transient, width=width

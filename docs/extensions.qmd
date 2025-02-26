@@ -1,4 +1,6 @@
-# Extensions {#sec-extensions}
+---
+title: Extensions 
+---
 
 ## Overview
 
@@ -53,7 +55,7 @@ The layer of indirection (creating a function that returns a ModelAPI class) is 
 
 The `__init__()` method *must* call the `super().__init__()` method, and typically instantiates the model client library.
 
-The `__init__()` method receive a `**model_args` parameter that will carry any custom `model_args` (or `-M` arguments from the CLI) specified by the user. You can then pass these on to the appropriate place in your model initialisation code (for example, here is what many of the built-in providers do with `model_args` passed to them: <https://inspect.ai-safety-institute.org.uk/models.html#model-args>).
+The `__init__()` method receive a `**model_args` parameter that will carry any custom `model_args` (or `-M` and `--model-config` arguments from the CLI) specified by the user. You can then pass these on to the appropriate place in your model initialisation code (for example, here is what many of the built-in providers do with `model_args` passed to them: <https://inspect.ai-safety-institute.org.uk/models.html#model-args>).
 
 The `generate()` method handles interacting with the model, converting inspect messages, tools, and config into model native data structures. Note that the generate method may optionally return a `tuple[ModelOutput,ModelCall]` in order to record the raw request and response to the model within the sample transcript.
 
@@ -105,7 +107,7 @@ eval(math, model = "custom/my-model")
 
 ## Sandboxes {#sec-sandbox-environment-extensions}
 
-[Sandbox Environments](#sec-sandbox-environments) provide a mechanism for sandboxing execution of tool code as well as providing more sophisticated infrastructure (e.g. creating network hosts for a cybersecurity eval). Inspect comes with two sandbox environments built in:
+[Sandbox Environments](sandboxing.qmd) provide a mechanism for sandboxing execution of tool code as well as providing more sophisticated infrastructure (e.g. creating network hosts for a cybersecurity eval). Inspect comes with two sandbox environments built in:
 
 | Environment Type | Description |
 |----------------------------|--------------------------------------------|
@@ -124,8 +126,12 @@ class PodmanSandboxEnvironment(SandboxEnvironment):
         ...
 
     @classmethod
+    def default_concurrency(cls) -> int | None:
+        ...
+
+    @classmethod
     async def task_init(
-        cls, task_name: str, config: str | None
+        cls, task_name: str, config: SandboxEnvironmentConfigType | None
     ) -> None:
         ...
 
@@ -133,7 +139,7 @@ class PodmanSandboxEnvironment(SandboxEnvironment):
     async def sample_init(
         cls, 
         task_name: str, 
-        config: str | None, 
+        config: SandboxEnvironmentConfigType | None, 
         metadata: dict[str, str]
     ) -> dict[str, SandboxEnvironment]:
         ...
@@ -142,7 +148,7 @@ class PodmanSandboxEnvironment(SandboxEnvironment):
     async def sample_cleanup(
         cls,
         task_name: str,
-        config: str | None,
+        config: SandboxEnvironmentConfigType | None,
         environments: dict[str, SandboxEnvironment],
         interrupted: bool,
     ) -> None:
@@ -150,7 +156,10 @@ class PodmanSandboxEnvironment(SandboxEnvironment):
 
     @classmethod
     async def task_cleanup(
-        cls, task_name: str, config: str | None, cleanup: bool
+        cls,
+        task_name: str,
+        config: SandboxEnvironmentConfigType | None,
+        cleanup: bool,
     ) -> None:
        ...
 
@@ -175,6 +184,7 @@ The class methods take care of various stages of initialisation, setup, and tear
 | Method | Lifecycle | Purpose |
 |-------------------|-------------------|----------------------------------|
 | `config_files()` | Called once to determine the names of 'default' config files for this provider (e.g. 'compose.yaml'). |  |
+| `default_concurrency()` | Called once to determine the default maximum number of sandboxes to run in parallel. Return `None` for no limit (the default behavior). |  |
 | `task_init()` | Called once for each unique sandbox environment config before executing the tasks in an `eval()` run. | Expensive initialisation operations (e.g. pulling or building images) |
 | `sample_init()` | Called at the beginning of each `Sample`. | Create `SandboxEnvironment` instances for the sample. |
 | `sample_cleanup()` | Called at the end of each `Sample` | Cleanup `SandboxEnvironment` instances for the sample. |
@@ -182,6 +192,10 @@ The class methods take care of various stages of initialisation, setup, and tear
 | `cli_cleanup()` | Called via `inspect sandbox cleanup` | CLI invoked manual cleanup of resources created by this `SandboxEnvironment`. |
 
 In the case of parallel execution of a group of tasks within the same working directory, the `task_init()` and `task_cleanup()` functions will be called once for each unique sandbox environment configuration (e.g. Docker Compose file). This is a performance optimisation derived from the fact that initialisation and cleanup are shared for tasks with identical configurations.
+
+::: {.callout-note appearance="simple"}
+The "default" `SandboxEnvironment` i.e. that named "default" or marked as default in some other provider-specific way, **must** be the first key/value in the dictionary returned from `sample_init()`.
+:::
 
 The `task_cleanup()` has a number of important functions:
 
@@ -209,7 +223,7 @@ The best way to learn about writing sandbox environments is to look at the sourc
 
 You should build your custom sandbox environment within a Python package, and then register an `inspect_ai` [setuptools entry point](https://setuptools.pypa.io/en/latest/userguide/entry_point.html). This will ensure that inspect loads your extension before it attempts to resolve a sandbox environment that uses your provider.
 
-For example, if your package was named `inspect_package` and your sandbox environment provider was exported from a source file named `_registry.py` at the root of your package, you would register it like this in `pyproject.toml`:
+For example, if your package was named `evaltools` and your sandbox environment provider was exported from a source file named `_registry.py` at the root of your package, you would register it like this in `pyproject.toml`:
 
 ::: {.panel-tabset group="entry-points"}
 ## Setuptools
@@ -244,6 +258,22 @@ Sandbox environments can be invoked with an optional configuration parameter, wh
 Task(
     ...,
     sandbox=("podman","config.yaml")
+)
+```
+
+Specialised configuration types which derive from Pydantic's `BaseModel` can also be passed as the `config` argument to `SandboxEnvironmentSpec`. Note: they must be hashable (i.e. `frozen=True`).
+
+``` python
+class PodmanSandboxEnvironmentConfig(BaseModel, frozen=True):
+    socket: str
+    runtime: str
+
+Task(
+    ...,
+    sandbox=SandboxEnvironmentSpec(
+        "podman",
+        PodmanSandboxEnvironmentConfig(socket="/podman-socket", runtime="crun"),
+    )
 )
 ```
 
@@ -294,7 +324,7 @@ The `_registry.py` file serves a place to import things that you wan't registere
 from .approvers import auto_approver
 ```
 
-You can then register your `auto_approver` Inspect extension (and anyting else imported into `_registry.py`) like this in `pyproject.toml`:
+You can then register your `auto_approver` Inspect extension (and anything else imported into `_registry.py`) like this in `pyproject.toml`:
 
 ::: {.panel-tabset group="entry-points"}
 ## Setuptools
@@ -327,13 +357,13 @@ approvers:
 
 Datasets, prompt templates, and evaluation logs can be stored using either the local filesystem or a remote filesystem. Inspect uses the [fsspec](https://filesystem-spec.readthedocs.io/en/latest/) package to read and write files, which provides support for a wide variety of filesystems, including:
 
--   [Amazon S3]((#sec-amazon-s3))
+-   [Amazon S3](https://aws.amazon.com/pm/serv-s3)
 -   [Google Cloud Storage](https://gcsfs.readthedocs.io/en/latest/)
 -   [Azure Blob Storage](https://github.com/fsspec/adlfs)
 -   [Azure Data Lake Storage](https://github.com/fsspec/adlfs)
 -   [DVC](https://dvc.org/doc/api-reference/dvcfilesystem)
 
-Support for [Amazon S3]((#sec-amazon-s3)) is built in to Inspect via the [s3fs](https://pypi.org/project/s3fs/) package. Other filesystems may require installation of additional packages. See the list of [built in filesystems](https://filesystem-spec.readthedocs.io/en/latest/api.html#built-in-implementations) and [other known implementations](https://filesystem-spec.readthedocs.io/en/latest/api.html#other-known-implementations) for all supported storage back ends.
+Support for [Amazon S3](eval-logs.qmd#sec-amazon-s3) is built in to Inspect via the [s3fs](https://pypi.org/project/s3fs/) package. Other filesystems may require installation of additional packages. See the list of [built in filesystems](https://filesystem-spec.readthedocs.io/en/latest/api.html#built-in-implementations) and [other known implementations](https://filesystem-spec.readthedocs.io/en/latest/api.html#other-known-implementations) for all supported storage back ends.
 
 See [Custom Filesystems](#sec-custom-filesystems) below for details on implementing your own fsspec compatible filesystem as a storage back-end.
 
@@ -360,7 +390,7 @@ csv_dataset("s3://inspect-datasets/ctf-12.csv")
 list_eval_logs("s3://my-s3-inspect-log-bucket")
 ```
 
-### Custom Filesystems
+### Custom Filesystems {#sec-custom-filesystems}
 
 See the fsspec [developer documentation](https://filesystem-spec.readthedocs.io/en/latest/developer.html) for details on implementing a custom filesystem. Note that if your implementation is *only* for use with Inspect, you need to implement only the subset of the fsspec API used by Inspect. The properties and methods used by Inspect include:
 

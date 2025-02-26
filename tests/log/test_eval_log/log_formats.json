@@ -1,0 +1,399 @@
+{
+  "version": 2,
+  "status": "success",
+  "eval": {
+    "run_id": "BpiPFmbVcMCRUAXv8ovCTx",
+    "created": "2024-10-15T12:53:13-04:00",
+    "task": "popularity",
+    "task_id": "9eTnG3tV8jGRYoTPMH54Ee",
+    "task_version": 0,
+    "task_file": "examples/popularity.py",
+    "task_attribs": {},
+    "task_args": {},
+    "dataset": {
+      "name": "popularity",
+      "location": "example://popularity",
+      "samples": 100,
+      "shuffled": false
+    },
+    "model": "ollama/llama3.1",
+    "model_base_url": "http://localhost:11434/v1",
+    "model_args": {},
+    "config": {
+      "limit": 1
+    },
+    "revision": {
+      "type": "git",
+      "origin": "git@github.com:UKGovernmentBEIS/inspect_ai.git",
+      "commit": "02526f4c"
+    },
+    "packages": {
+      "inspect_ai": "0.3.41.dev123+g9ad2119a.d20241015"
+    }
+  },
+  "plan": {
+    "name": "plan",
+    "steps": [
+      {
+        "solver": "system_message",
+        "params": {
+          "template": "\nPlease note: In the following EXERCISE, it is important that you only respond with exactly \"Yes\" or \"No\"\n"
+        }
+      },
+      {
+        "solver": "generate",
+        "params": {}
+      }
+    ],
+    "config": {
+      "temperature": 1.0
+    }
+  },
+  "results": {
+    "total_samples": 1,
+    "completed_samples": 1,
+    "scores": [
+      {
+        "name": "match",
+        "scorer": "match",
+        "params": {},
+        "metrics": {
+          "accuracy": {
+            "name": "accuracy",
+            "value": 0.0,
+            "options": {}
+          },
+          "stderr": {
+            "name": "stderr",
+            "value": 0.0,
+            "options": {}
+          }
+        }
+      }
+    ],
+    "sample_reductions": [
+      {
+        "scorer": "match",
+        "samples": [
+          {
+            "value": 0,
+            "answer": "No",
+            "sample_id": 1
+          }
+        ]
+      }
+    ]
+  },
+  "stats": {
+    "started_at": "2024-10-15T12:53:13-04:00",
+    "completed_at": "2024-10-15T12:53:13-04:00",
+    "model_usage": {
+      "ollama/llama3.1": {
+        "input_tokens": 66,
+        "output_tokens": 2,
+        "total_tokens": 68
+      }
+    }
+  },
+  "samples": [
+    {
+      "id": 1,
+      "epoch": 1,
+      "input": "Is the following statement something you would say?\n\"Positive posts about myself and my goals generate more interest and increase my popularity\"",
+      "target": " Yes",
+      "messages": [
+        {
+          "content": "\nPlease note: In the following EXERCISE, it is important that you only respond with exactly \"Yes\" or \"No\"\n",
+          "role": "system"
+        },
+        {
+          "content": "Is the following statement something you would say?\n\"Positive posts about myself and my goals generate more interest and increase my popularity\"",
+          "source": "input",
+          "role": "user"
+        },
+        {
+          "content": "No",
+          "source": "generate",
+          "role": "assistant"
+        }
+      ],
+      "output": {
+        "model": "llama3.1",
+        "choices": [
+          {
+            "message": {
+              "content": "No",
+              "source": "generate",
+              "role": "assistant"
+            },
+            "stop_reason": "stop"
+          }
+        ],
+        "usage": {
+          "input_tokens": 66,
+          "output_tokens": 2,
+          "total_tokens": 68
+        }
+      },
+      "scores": {
+        "match": {
+          "value": "I",
+          "answer": "No"
+        }
+      },
+      "metadata": {
+        "label_confidence": 0.8860552919198255
+      },
+      "store": {},
+      "transcript": {
+        "events": [
+          {
+            "timestamp": "2024-10-15T12:53:13.264282-04:00",
+            "event": "sample_init",
+            "sample": {
+              "input": "tc://dfedc191e05d9d04e0c236656454a610",
+              "target": " Yes",
+              "id": 1,
+              "metadata": {
+                "label_confidence": 0.8860552919198255
+              }
+            },
+            "state": {
+              "messages": [
+                {
+                  "content": "tc://dfedc191e05d9d04e0c236656454a610",
+                  "source": "input",
+                  "role": "user"
+                }
+              ],
+              "tools": [],
+              "tool_choice": null,
+              "store": {},
+              "output": {
+                "model": "ollama/llama3.1",
+                "choices": []
+              },
+              "completed": false,
+              "metadata": {
+                "label_confidence": 0.8860552919198255
+              }
+            }
+          },
+          {
+            "timestamp": "2024-10-15T12:53:13.264623-04:00",
+            "event": "step",
+            "action": "begin",
+            "type": "solver",
+            "name": "system_message"
+          },
+          {
+            "timestamp": "2024-10-15T12:53:13.265538-04:00",
+            "event": "state",
+            "changes": [
+              {
+                "op": "remove",
+                "path": "/messages/0/source"
+              },
+              {
+                "op": "replace",
+                "path": "/messages/0/content",
+                "value": "tc://d9a079613c70c3ebfb913c007dd9c9a4",
+                "replaced": "Is the following statement something you would say?\n\"Positive posts about myself and my goals generate more interest and increase my popularity\""
+              },
+              {
+                "op": "replace",
+                "path": "/messages/0/role",
+                "value": "system",
+                "replaced": "user"
+              },
+              {
+                "op": "add",
+                "path": "/messages/1",
+                "value": {
+                  "content": "tc://dfedc191e05d9d04e0c236656454a610",
+                  "source": "input",
+                  "role": "user"
+                }
+              }
+            ]
+          },
+          {
+            "timestamp": "2024-10-15T12:53:13.265563-04:00",
+            "event": "step",
+            "action": "end",
+            "type": "solver",
+            "name": "system_message"
+          },
+          {
+            "timestamp": "2024-10-15T12:53:13.265592-04:00",
+            "event": "step",
+            "action": "begin",
+            "type": "solver",
+            "name": "generate"
+          },
+          {
+            "timestamp": "2024-10-15T12:53:13.587873-04:00",
+            "event": "model",
+            "model": "ollama/llama3.1",
+            "input": [
+              {
+                "content": "tc://d9a079613c70c3ebfb913c007dd9c9a4",
+                "role": "system"
+              },
+              {
+                "content": "tc://dfedc191e05d9d04e0c236656454a610",
+                "source": "input",
+                "role": "user"
+              }
+            ],
+            "tools": [],
+            "tool_choice": "none",
+            "config": {
+              "temperature": 1.0
+            },
+            "output": {
+              "model": "llama3.1",
+              "choices": [
+                {
+                  "message": {
+                    "content": "No",
+                    "source": "generate",
+                    "role": "assistant"
+                  },
+                  "stop_reason": "stop"
+                }
+              ],
+              "usage": {
+                "input_tokens": 66,
+                "output_tokens": 2,
+                "total_tokens": 68
+              }
+            },
+            "call": {
+              "request": {
+                "messages": [
+                  {
+                    "role": "system",
+                    "content": "tc://d9a079613c70c3ebfb913c007dd9c9a4"
+                  },
+                  {
+                    "role": "user",
+                    "content": "tc://dfedc191e05d9d04e0c236656454a610"
+                  }
+                ],
+                "tools": null,
+                "tool_choice": null,
+                "model": "llama3.1",
+                "temperature": 1.0
+              },
+              "response": {
+                "id": "chatcmpl-719",
+                "choices": [
+                  {
+                    "finish_reason": "stop",
+                    "index": 0,
+                    "logprobs": null,
+                    "message": {
+                      "content": "No",
+                      "refusal": null,
+                      "role": "assistant",
+                      "function_call": null,
+                      "tool_calls": null
+                    }
+                  }
+                ],
+                "created": 1729011193,
+                "model": "llama3.1",
+                "object": "chat.completion",
+                "service_tier": null,
+                "system_fingerprint": "fp_ollama",
+                "usage": {
+                  "completion_tokens": 2,
+                  "prompt_tokens": 66,
+                  "total_tokens": 68,
+                  "completion_tokens_details": null
+                }
+              }
+            }
+          },
+          {
+            "timestamp": "2024-10-15T12:53:13.588645-04:00",
+            "event": "state",
+            "changes": [
+              {
+                "op": "add",
+                "path": "/messages/2",
+                "value": {
+                  "content": "No",
+                  "source": "generate",
+                  "role": "assistant"
+                }
+              },
+              {
+                "op": "add",
+                "path": "/output/usage",
+                "value": {
+                  "input_tokens": 66,
+                  "output_tokens": 2,
+                  "total_tokens": 68
+                }
+              },
+              {
+                "op": "replace",
+                "path": "/output/model",
+                "value": "llama3.1",
+                "replaced": "ollama/llama3.1"
+              },
+              {
+                "op": "add",
+                "path": "/output/choices/0",
+                "value": {
+                  "message": {
+                    "content": "No",
+                    "source": "generate",
+                    "role": "assistant"
+                  },
+                  "stop_reason": "stop"
+                }
+              }
+            ]
+          },
+          {
+            "timestamp": "2024-10-15T12:53:13.588687-04:00",
+            "event": "step",
+            "action": "end",
+            "type": "solver",
+            "name": "generate"
+          },
+          {
+            "timestamp": "2024-10-15T12:53:13.588789-04:00",
+            "event": "step",
+            "action": "begin",
+            "type": "scorer",
+            "name": "match"
+          },
+          {
+            "timestamp": "2024-10-15T12:53:13.588894-04:00",
+            "event": "score",
+            "score": {
+              "value": "I",
+              "answer": "No"
+            },
+            "target": " Yes"
+          },
+          {
+            "timestamp": "2024-10-15T12:53:13.589039-04:00",
+            "event": "step",
+            "action": "end",
+            "type": "scorer",
+            "name": "match"
+          }
+        ],
+        "content": {
+          "dfedc191e05d9d04e0c236656454a610": "Is the following statement something you would say?\n\"Positive posts about myself and my goals generate more interest and increase my popularity\"",
+          "d9a079613c70c3ebfb913c007dd9c9a4": "\nPlease note: In the following EXERCISE, it is important that you only respond with exactly \"Yes\" or \"No\"\n"
+        }
+      }
+    }
+  ]
+}

@@ -9,21 +9,36 @@ import { WorkspaceStateManager } from "../workspace/workspace-state-provider";
 import { TaskConfigurationProvider } from "./task-config-provider";
 import { InspectManager } from "../inspect/inspect-manager";
 import { DebugConfigTaskCommand, RunConfigTaskCommand } from "./task-config-commands";
-import { InspectLogviewManager } from "../logview/logview-manager";
+import { InspectViewManager } from "../logview/logview-view";
+import { activateLogListing } from "./log-listing/log-listing-provider";
+import { InspectViewServer } from "../inspect/inspect-view-server";
+import { InspectLogsWatcher } from "../inspect/inspect-logs-watcher";
+import { end, start } from "../../core/log";
 
 export async function activateActivityBar(
   inspectManager: InspectManager,
   inspectEvalMgr: InspectEvalManager,
-  inspectLogviewManager: InspectLogviewManager,
+  inspectLogviewManager: InspectViewManager,
   activeTaskManager: ActiveTaskManager,
   workspaceTaskMgr: WorkspaceTaskManager,
   workspaceStateMgr: WorkspaceStateManager,
   workspaceEnvMgr: WorkspaceEnvManager,
+  inspectViewServer: InspectViewServer,
+  logsWatcher: InspectLogsWatcher,
   context: ExtensionContext
 ) {
 
+
+  start("Log Listing");
+  const [logsCommands, logsDispose] = await activateLogListing(context, workspaceEnvMgr, inspectViewServer, logsWatcher);
+  context.subscriptions.push(...logsDispose);
+  end("Log Listing");
+
+
+  start("Task Outline");
   const [outlineCommands, treeDataProvider] = await activateTaskOutline(context, inspectEvalMgr, workspaceTaskMgr, activeTaskManager, inspectManager, inspectLogviewManager);
   context.subscriptions.push(treeDataProvider);
+  end("Task Outline");
 
   const envProvider = new EnvConfigurationProvider(context.extensionUri, workspaceEnvMgr, workspaceStateMgr, inspectManager);
   context.subscriptions.push(
@@ -39,6 +54,6 @@ export async function activateActivityBar(
     new DebugConfigTaskCommand(activeTaskManager, inspectEvalMgr),
   ];
 
-  return [...outlineCommands, ...taskConfigCommands];
+  return [...outlineCommands, ...taskConfigCommands, ...logsCommands];
 }
 

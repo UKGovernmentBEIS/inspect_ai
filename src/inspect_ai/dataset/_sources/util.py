@@ -1,8 +1,9 @@
 from typing import Callable
 
-from inspect_ai._util.content import Content, ContentImage
+from inspect_ai._util.content import Content, ContentAudio, ContentImage, ContentVideo
 from inspect_ai._util.file import filesystem
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
+from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
 
 from .._dataset import Dataset
 
@@ -33,32 +34,38 @@ def resolve_sample_files(dataset: Dataset) -> None:
     # for each sample
     for sample in dataset:
         # check for sandbox config file
-        if isinstance(sample.sandbox, tuple) and sample.sandbox[1] is not None:
-            sample.sandbox = (sample.sandbox[0], resolve_file(sample.sandbox[1]))
+        if sample.sandbox and isinstance(sample.sandbox.config, str):
+            sample.sandbox = SandboxEnvironmentSpec(
+                sample.sandbox.type, resolve_file(sample.sandbox.config)
+            )
 
         # check for files
         if sample.files is not None:
             for path in sample.files.keys():
                 sample.files[path] = resolve_file(sample.files[path])
 
+        # check for setup script
+        if sample.setup is not None:
+            sample.setup = resolve_file(sample.setup)
+
         # check for image paths
         if not isinstance(sample.input, str):
-            sample.input = messages_with_resolved_images(sample.input, resolve_file)
+            sample.input = messages_with_resolved_content(sample.input, resolve_file)
 
 
-def messages_with_resolved_images(
+def messages_with_resolved_content(
     messages: list[ChatMessage], resolver: Callable[[str], str]
 ) -> list[ChatMessage]:
-    return [message_with_resolved_image(message, resolver) for message in messages]
+    return [message_with_resolved_content(message, resolver) for message in messages]
 
 
-def message_with_resolved_image(
+def message_with_resolved_content(
     message: ChatMessage, resolver: Callable[[str], str]
 ) -> ChatMessage:
     if isinstance(message, ChatMessageUser) and not isinstance(message.content, str):
         return ChatMessageUser(
             content=[
-                chat_content_with_resolved_image(content, resolver)
+                chat_content_with_resolved_content(content, resolver)
                 for content in message.content
             ],
             source=message.source,
@@ -67,16 +74,17 @@ def message_with_resolved_image(
         return message
 
 
-def chat_content_with_resolved_image(
+def chat_content_with_resolved_content(
     content: Content, resolver: Callable[[str], str]
 ) -> Content:
     if isinstance(content, ContentImage):
-        if isinstance(content.image, str):
-            return ContentImage(image=resolver(content.image))
-        else:
-            return ContentImage(
-                image=resolver(content.image),
-                detail=content.image.detail,
-            )
+        return ContentImage(
+            image=resolver(content.image),
+            detail=content.detail,
+        )
+    elif isinstance(content, ContentAudio):
+        return ContentAudio(audio=resolver(content.audio), format=content.format)
+    elif isinstance(content, ContentVideo):
+        return ContentVideo(video=resolver(content.video), format=content.format)
     else:
         return content

@@ -1,0 +1,17 @@
+.body {
+  color: var(--bs-danger);
+  display: grid;
+  grid-template-columns: 1fr;
+  align-content: align;
+  justify-items: center;
+}
+
+.iconSmall {
+  font-size: var(--inspect-font-size-small);
+  line-height: var(--inspect-font-size-small);
+  height: var(--inspect-font-size-small);
+}
+
+.message {
+  width: 300px;
+}

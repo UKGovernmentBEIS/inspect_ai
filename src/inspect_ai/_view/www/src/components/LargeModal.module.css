@@ -1,0 +1,54 @@
+.title {
+  flex: 1 1 auto;
+}
+
+.detail {
+  margin-left: auto;
+  margin-right: auto;
+  display: flex;
+  flex: 1 1 auto;
+  justify-content: center;
+}
+
+.detailText {
+  display: flex;
+  align-items: center;
+}
+
+.close {
+  border-width: 0px;
+  font-weight: 300;
+  padding: 0em 0.5em;
+  flex: 1;
+  text-align: right;
+}
+
+.modal {
+  border-radius: var(--bs-border-radius);
+  display: block;
+}
+
+.hidden {
+  display: none;
+}
+
+.modalBody {
+  max-width: 100%;
+  margin-left: var(--bs-modal-margin);
+  margin-right: var(--bs-modal-margin);
+}
+
+.content {
+  height: 100%;
+}
+
+.header {
+  padding: 0 0 0 1em;
+  display: flex;
+}
+
+.titleTool {
+  padding-top: 0;
+  padding-bottom: 0;
+  border: none;
+}

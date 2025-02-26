@@ -2,12 +2,15 @@ from collections.abc import Sequence
 from contextvars import ContextVar
 from copy import deepcopy
 from dataclasses import dataclass
+from itertools import tee
 from random import Random
-from typing import Any, Union, cast, overload
+from typing import Any, Iterable, SupportsIndex, Type, Union, cast, overload
 
 from pydantic_core import to_jsonable_python
+from shortuuid import uuid
 
-from inspect_ai.dataset._dataset import Sample
+from inspect_ai._util.interrupt import check_sample_interrupt
+from inspect_ai.dataset._dataset import MT, Sample, metadata_as
 from inspect_ai.model import (
     ChatMessage,
     ChatMessageUser,
@@ -15,9 +18,14 @@ from inspect_ai.model import (
     ModelOutput,
 )
 from inspect_ai.model._call_tools import tools_info
+from inspect_ai.model._chat_message import ChatMessageBase
 from inspect_ai.model._model import sample_total_tokens
+from inspect_ai.scorer._metric import Score
+from inspect_ai.scorer._target import Target
 from inspect_ai.tool import Tool, ToolChoice
+from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.util._store import Store, store_jsonable
+from inspect_ai.util._store_model import SMT
 
 
 @dataclass
@@ -25,17 +33,20 @@ class Choice:
     """
     A `Choice` represents a single choice in a multiple choice question.
 
-    It is only relevant for the `multiple_choice` solver and corresponding `choice` scorer.
+    It is only relevant for the `multiple_choice` solver and corresponding
+    `choice` scorer.
     """
 
     value: str
     """The original value of the choice from the `Sample`."""
 
     correct: bool | None
-    """Did the model think this choice satisfies the question? `None` indicates this has not been set yet"""
+    """Did the model think this choice satisfies the question? `None`
+    indicates this has not been set yet"""
 
     original_position: int
-    """Choices may be re-ordered during processing, this represents the original position in the sample's list of choices"""
+    """Choices may be re-ordered during processing, this represents the
+    original position in the sample's list of choices"""
 
 
 class Choices(Sequence[Choice]):
@@ -121,10 +132,10 @@ class TaskState:
     """
     The `TaskState` represents the internal state of the `Task` being run for a single `Sample`.
 
-    It's a mutable object that is updated by each solver during a sample's
-    evaluation. It allows us to maintain things like the message history between
-    the running `Task` and the model, the tools available to the model, the
-    final output of the model and whether or not it's completed yet.
+    The `TaskState` is passed to and returned from each solver during a sample's
+    evaluation. It allows us to manipulated the message history, the tools
+    available to the model, the final output of the model, and whether the task
+    is completed or has hit a limit.
     """
 
     def __init__(
@@ -134,9 +145,8 @@ class TaskState:
         epoch: int,
         input: str | list[ChatMessage],
         messages: list[ChatMessage],
+        target: Target = Target(""),
         choices: list[str] | None = [],
-        tools: list[Tool] = [],
-        tool_choice: ToolChoice | None = None,
         output: ModelOutput | None = None,
         message_limit: int | None = None,
         token_limit: int | None = None,
@@ -144,58 +154,19 @@ class TaskState:
         metadata: dict[str, Any] = {},
     ) -> None:
         self._model = model
-        """Model name used for this task."""
-
-        self.sample_id = sample_id
-        """Unique id for sample."""
-
-        self.epoch = epoch
-        """Epoch number for sample."""
-
+        self._sample_id = sample_id
+        self._epoch = epoch
         self._input = input
-        """
-        The original input from the `Sample` for this `TaskState`.
-
-        Should be treated as immutable and not changed during the run, so that
-        it can be referenced or checked wherever needed. Access through `input`
-        or `input_text` only
-        """
-
-        self.metadata = metadata
-        """Metadata from the `Sample` for this `TaskState`"""
-
-        self.messages = messages
-        """
-        Chat conversation history for sample.
-
-        This will generally get appended to every time a `generate` call is made
-        to the model. Useful for both debug and for solvers/scorers to assess
-        model performance or choose the next step.
-        """
-
-        self.tools = tools
-        """Tools available to the model."""
-
-        self.tool_choice = tool_choice
-        """Tool choice directive."""
-
-        self.output = output if output else ModelOutput(model=str(model), choices=[])
-        """
-        The 'final' model output once we've completed all solving.
-
-        For simple evals this may just be the last `message` from the
-        conversation history, but more complex solvers may generate this in
-        different ways depending on what solvers are used..
-        """
-
+        self._target = target
+        self._metadata = metadata
+        self._messages: list[ChatMessage] = ChatMessageList(messages, self)
+        self._tools: list[Tool] = []
+        self._output = output if output else ModelOutput(model=str(model))
         self._message_limit = message_limit
-        self._message_limit_exceeded = False
         self._token_limit = token_limit
-        self._token_limit_exceeded = False
         self._completed = completed
-
-        """Store for shared data"""
-        self.store = Store()
+        self._store = Store()
+        self._uuid = uuid()
 
         if choices:
             self.choices = Choices(choices)
@@ -206,6 +177,16 @@ class TaskState:
     def model(self) -> ModelName:
         """Name of model being evaluated."""
         return self._model
+
+    @property
+    def sample_id(self) -> int | str:
+        """Unique id for sample."""
+        return self._sample_id
+
+    @property
+    def epoch(self) -> int:
+        """Epoch number for sample."""
+        return self._epoch
 
     @property
     def input(self) -> str | list[ChatMessage]:
@@ -244,15 +225,69 @@ class TaskState:
         engineering solvers). This property enables easy read and
         write access to the user chat prompt. Raises an
         exception if there is no user prompt
-
-        Returns:
-           First user `ChatMessage` in the task state.
         """
         prompt = next((m for m in self.messages if m.role == "user"), None)
         if prompt:
             return prompt
         else:
             raise ValueError("user_prompt requested from TaskState but none available")
+
+    @property
+    def metadata(self) -> dict[str, Any]:
+        """Metadata from the `Sample` for this `TaskState`"""
+        return self._metadata
+
+    @metadata.setter
+    def metadata(self, metadata: dict[str, Any]) -> None:
+        self._metadata = metadata
+
+    @property
+    def messages(self) -> list[ChatMessage]:
+        """
+        Chat conversation history for sample.
+
+        This will generally get appended to every time a `generate` call is made
+        to the model. Useful for both debug and for solvers/scorers to assess
+        model performance or choose the next step.
+        """
+        return self._messages
+
+    @messages.setter
+    def messages(self, messages: list[ChatMessage]) -> None:
+        self._messages = ChatMessageList(messages, self)
+
+    @property
+    def output(self) -> ModelOutput:
+        """
+        The 'final' model output once we've completed all solving.
+
+        For simple evals this may just be the last `message` from the
+        conversation history, but more complex solvers may set this directly.
+        """
+        return self._output
+
+    @output.setter
+    def output(self, output: ModelOutput) -> None:
+        self._output = output
+
+    @property
+    def store(self) -> Store:
+        """Store for shared data"""
+        return self._store
+
+    @property
+    def tools(self) -> list[Tool]:
+        """Tools available to the model."""
+        return self._tools
+
+    @tools.setter
+    def tools(self, tools: list[Tool | ToolDef]) -> None:
+        self._tools.clear()
+        for tool in tools:
+            self._tools.append(tool if isinstance(tool, Tool) else tool.as_tool())
+
+    tool_choice: ToolChoice | None = None
+    """Tool choice directive."""
 
     @property
     def max_messages(self) -> int | None:
@@ -274,6 +309,10 @@ class TaskState:
         """Set limit on total messages allowed per conversation."""
         self._message_limit = messages
 
+        from inspect_ai.log._samples import set_active_sample_message_limit
+
+        set_active_sample_message_limit(messages)
+
     @property
     def token_limit(self) -> int | None:
         """Limit on total tokens allowed per conversation."""
@@ -284,31 +323,44 @@ class TaskState:
         """Set limit on total tokens allowed per conversation."""
         self._token_limit = tokens
 
+        from inspect_ai.log._samples import set_active_sample_token_limit
+
+        set_active_sample_token_limit(tokens)
+
+    @property
+    def token_usage(self) -> int:
+        """Total tokens used for the current sample."""
+        return sample_total_tokens()
+
     @property
     def completed(self) -> bool:
-        """Is the task completed."""
-        from inspect_ai.log._transcript import transcript
+        """Is the task completed.
+
+        Additionally, checks message and token limits and raises if they are exceeded, and also checks for an operator interrupt of the sample.
+        """
+        from inspect_ai.log._samples import set_active_sample_total_messages
+
+        from ._limit import SampleLimitExceededError
+
+        # update messages
+        set_active_sample_total_messages(len(self.messages))
 
         if self._completed:
             return True
         elif self.message_limit and len(self.messages) >= self.message_limit:
-            # log if this is the first time we hit this
-            if not self._message_limit_exceeded:
-                self._message_limit_exceeded = True
-                transcript().info(
-                    f"Sample completed: exceeded message limit ({self.message_limit})"
-                )
-            return True
-        elif self.token_limit and sample_total_tokens() >= self.token_limit:
-            # log if this is the first time we hit this
-            if not self._token_limit_exceeded:
-                self._token_limit_exceeded = True
-                transcript().info(
-                    f"Sample completed: exceeded token limit ({self.token_limit:,})"
-                )
-            return True
+            raise SampleLimitExceededError(
+                "message",
+                value=len(self.messages),
+                limit=self.message_limit,
+                state=self,
+            )
+        elif self.token_limit and self.token_usage >= self.token_limit:
+            raise SampleLimitExceededError(
+                "token", value=self.token_usage, limit=self.token_limit, state=self
+            )
         else:
-            return False
+            check_sample_interrupt()
+            return self._completed
 
     @completed.setter
     def completed(self, completed: bool) -> None:
@@ -316,12 +368,42 @@ class TaskState:
         self._completed = completed
 
     @property
-    def tools(self) -> list[Tool]:
-        return self._tools
+    def target(self) -> Target:
+        """The scoring target for this `Sample`."""
+        return self._target
 
-    @tools.setter
-    def tools(self, tools: list[Tool]) -> None:
-        self._tools = tools
+    scores: dict[str, Score] | None = None
+    """Scores yielded by running task."""
+
+    @property
+    def uuid(self) -> str:
+        """Globally unique identifier for sample run."""
+        return self._uuid
+
+    def metadata_as(self, metadata_cls: Type[MT]) -> MT:
+        """Pydantic model interface to metadata.
+
+        Args:
+          metadata_cls: Pydantic model type
+
+        Returns:
+          BaseModel: Instance of metadata_cls bound to current Store.
+        """
+        if not self.metadata:
+            raise ValueError("Sample does not have metadata")
+
+        return metadata_as(self.metadata, metadata_cls)
+
+    def store_as(self, model_cls: Type[SMT]) -> SMT:
+        """Pydantic model interface to the store.
+
+        Args:
+          model_cls: Pydantic model type (must derive from StoreModel)
+
+        Returns:
+          StoreModel: Instance of model_cls bound to current Store.
+        """
+        return model_cls(store=self.store)
 
 
 def sample_state() -> TaskState | None:
@@ -361,3 +443,65 @@ def state_jsonable(state: TaskState | None = None) -> dict[str, Any]:
 def sample_jsonable(sample: Sample) -> dict[str, Any]:
     jsonable = to_jsonable_python(sample, exclude_none=True, fallback=lambda _x: None)
     return cast(dict[str, Any], deepcopy(jsonable))
+
+
+class ChatMessageList(list[ChatMessage]):
+    def __init__(self, iterable: Iterable[ChatMessage], parent_state: TaskState):
+        self.parent_state = parent_state
+        items, length = self._iterable_length(iterable)
+        self._check_size(length)
+        super().__init__(items)
+
+    def _check_size(self, additional_items: int = 1) -> None:
+        from inspect_ai.log._samples import active_sample_message_limit
+
+        from ._limit import SampleLimitExceededError
+
+        messages_limit = active_sample_message_limit()
+        if messages_limit is not None:
+            messages = len(self) + additional_items
+            if messages > messages_limit:
+                raise SampleLimitExceededError(
+                    "message",
+                    value=messages,
+                    limit=messages_limit,
+                    message=None,
+                    state=self.parent_state,
+                )
+
+    def append(self, item: ChatMessage) -> None:
+        self._check_size()
+        super().append(item)
+
+    def extend(self, items: Iterable[ChatMessage]) -> None:
+        items, length = self._iterable_length(items)
+        self._check_size(length)
+        super().extend(items)
+
+    def insert(self, index: SupportsIndex, item: ChatMessage) -> None:
+        self._check_size()
+        super().insert(index, item)
+
+    @overload
+    def __setitem__(self, index: SupportsIndex, item: ChatMessage) -> None: ...
+
+    @overload
+    def __setitem__(self, index: slice, item: Iterable[ChatMessage]) -> None: ...
+
+    def __setitem__(
+        self, index: SupportsIndex | slice, item: ChatMessage | Iterable[ChatMessage]
+    ) -> None:
+        if isinstance(index, slice) and not isinstance(item, ChatMessageBase):
+            item, length = self._iterable_length(item)
+            size_change = length - len(self[index])
+            if size_change > 0:
+                self._check_size(size_change)
+
+        super().__setitem__(index, item)  # type: ignore[assignment,index]
+
+    def _iterable_length(
+        self, items: Iterable[ChatMessage]
+    ) -> tuple[Iterable[ChatMessage], int]:
+        items, counter = tee(items)
+        length = sum(1 for _ in counter)
+        return items, length

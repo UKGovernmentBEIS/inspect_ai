@@ -25,15 +25,15 @@ def self_critique(
     need to use the model being evaluated).
 
     Args:
-      critique_template (str | None): String or path to file
+      critique_template: String or path to file
          containing critique template. The template uses two
          variables: `question` and `completion`.
          Variables from sample `metadata` are also available
          in the template.
-      completion_template (str | None): String or path to file
+      completion_template: String or path to file
           containing completion template. The template uses
           three variables: `question`,  `completion`, and `critique`
-      model (str | Model | None): Alternate model to be used
+      model: Alternate model to be used
          for critique (by default the model being evaluated
          is used).
     """
@@ -43,15 +43,16 @@ def self_critique(
         completion_template or DEFAULT_CRITIQUE_COMPLETION_TEMPLATE
     )
 
-    # resolve model
-    critique_model = get_model(model)
-
     async def solve(state: TaskState, generate: Generate) -> TaskState:
+        # resolve model
+        nonlocal model
+        model = model if isinstance(model, Model) else get_model(model)
+
         # metadata without critique template variables
         metadata = omit(state.metadata, ["question", "completion", "critique"])
 
         # run critique
-        critique = await critique_model.generate(
+        critique = await model.generate(
             critique_templ.format(
                 question=state.input_text,
                 completion=state.output.completion,

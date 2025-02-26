@@ -3,7 +3,14 @@ import tempfile
 from copy import deepcopy
 from pathlib import Path
 
-from test_helpers.utils import failing_solver, failing_task, failing_task_deterministic
+import pytest
+from test_helpers.utils import (
+    failing_solver,
+    failing_task,
+    failing_task_deterministic,
+    keyboard_interrupt,
+    sleep_for_solver,
+)
 
 from inspect_ai import Task, task
 from inspect_ai._eval.evalset import (
@@ -16,10 +23,10 @@ from inspect_ai._eval.evalset import (
 )
 from inspect_ai._eval.loader import ResolvedTask
 from inspect_ai.dataset import Sample
-from inspect_ai.log._file import list_eval_logs
+from inspect_ai.log._file import list_eval_logs, read_eval_log, write_eval_log
 from inspect_ai.model import Model, get_model
 from inspect_ai.scorer._match import includes
-from inspect_ai.solver._solver import generate
+from inspect_ai.solver import generate
 
 
 def test_eval_set() -> None:
@@ -34,6 +41,15 @@ def test_eval_set() -> None:
         )
         assert success
         assert logs[0].status == "success"
+
+        # read and write logs based on location
+        for log in logs:
+            log = read_eval_log(log.location)
+            log.eval.metadata = {"foo": "bar"}
+            write_eval_log(log)
+            log = read_eval_log(log.location)
+            assert log.eval.metadata
+            log.eval.metadata["foo"] = "bar"
 
     # run eval that is guaranteed to fail
     with tempfile.TemporaryDirectory() as log_dir:
@@ -115,11 +131,11 @@ def test_eval_set_identifiers() -> None:
 
 
 def test_schedule_pending_tasks() -> None:
-    task1 = Task(dataset=[], name="task1")
-    task2 = Task(dataset=[], name="task2")
-    task3 = Task(dataset=[], name="task3")
-    task4 = Task(dataset=[], name="task4")
-    task5 = Task(dataset=[], name="task5")
+    task1 = Task(name="task1")
+    task2 = Task(name="task2")
+    task3 = Task(name="task3")
+    task4 = Task(name="task4")
+    task5 = Task(name="task5")
     openai = get_model("mockllm/openai")
     anthropic = get_model("mockllm/anthropic")
     mock = get_model("mockllm/model")
@@ -209,6 +225,7 @@ def test_latest_completed_task_eval_logs() -> None:
         shutil.rmtree(clean_dir, ignore_errors=True)
 
 
+@pytest.mark.slow
 def test_eval_set_s3(mock_s3) -> None:
     success, logs = eval_set(
         tasks=failing_task(rate=0, samples=1),
@@ -231,3 +248,74 @@ def test_eval_zero_retries() -> None:
             model="mockllm/model",
         )
         assert not success
+
+
+def test_eval_set_previous_task_args():
+    with tempfile.TemporaryDirectory() as log_dir:
+
+        def run_eval_set():
+            eval_set(
+                tasks=[sleep_for_3_task("foo"), sleep_for_1_task("bar")],
+                log_dir=log_dir,
+                max_tasks=2,
+                model="mockllm/model",
+            )
+
+        # initial pass
+        try:
+            with keyboard_interrupt(2):
+                run_eval_set()
+        except KeyboardInterrupt:
+            pass
+
+        # second pass (no keyboard interrupt so runs to completion)
+        run_eval_set()
+
+        # re-run the eval-set again (it should complete without errors b/c
+        # the logs in the directory are successfully matched against the
+        # task args of the tasks passed to eval_set)
+        run_eval_set()
+
+
+def test_eval_set_retry_started():
+    with tempfile.TemporaryDirectory() as log_dir:
+
+        def run_eval_set():
+            eval_set(
+                tasks=[sleep_for_1_task("bar")],
+                log_dir=log_dir,
+                model="mockllm/model",
+            )
+
+        def eval_log_status():
+            log_file = list_eval_logs(log_dir)[0].name
+            log = read_eval_log(log_file)
+            return log.status
+
+        # run a first pass
+        run_eval_set()
+
+        # modify the log to be 'started' and save it
+        log_file = list_eval_logs(log_dir)[0].name
+        log = read_eval_log(log_file)
+        log.status = "started"
+        write_eval_log(log)
+        assert eval_log_status() == "started"
+
+        # re-run the eval set and confirm status 'succes'
+        run_eval_set()
+        assert eval_log_status() == "success"
+
+
+@task
+def sleep_for_1_task(task_arg: str):
+    return Task(
+        solver=[sleep_for_solver(1)],
+    )
+
+
+@task
+def sleep_for_3_task(task_arg: str):
+    return Task(
+        solver=[sleep_for_solver(3)],
+    )

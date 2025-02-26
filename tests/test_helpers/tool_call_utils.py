@@ -1,3 +1,5 @@
+from inspect_ai.log._log import EvalLog
+from inspect_ai.log._transcript import ToolEvent
 from inspect_ai.model import (
     ChatMessage,
     ChatMessageAssistant,
@@ -44,5 +46,15 @@ def get_tool_response(
     )
     if tool_response:
         return tool_response
+    else:
+        return None
+
+
+def get_tool_event(log: EvalLog) -> ToolEvent | None:
+    if log.samples:
+        return next(
+            (event for event in log.samples[0].events if isinstance(event, ToolEvent)),
+            None,
+        )
     else:
         return None

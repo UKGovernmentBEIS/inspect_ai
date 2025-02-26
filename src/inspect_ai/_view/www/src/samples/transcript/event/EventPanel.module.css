@@ -1,0 +1,25 @@
+.label {
+  margin-right: 0.2em;
+  justify-self: end;
+}
+
+.navs {
+  justify-self: end;
+  display: flex;
+  flex-direction: columns;
+}
+
+.card {
+  padding: 0.625rem;
+  border: solid 1px var(--bs-light-border-subtle);
+  border-radius: var(--bs-border-radius);
+}
+
+.cardContent {
+  padding: 0;
+  display: inherit;
+}
+
+.cardContent.hidden {
+  display: none;
+}

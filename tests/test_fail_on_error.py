@@ -8,7 +8,7 @@ from inspect_ai.solver import Generate, TaskState, generate, solver
 
 
 @solver
-def failing_solver(fail: Callable[[TaskState], bool]):
+def failing_solver(fail: Callable[[TaskState], bool] = lambda state: True):
     async def solve(state: TaskState, generate: Generate):
         if fail(state):
             raise ValueError("Eval failed!")
@@ -112,3 +112,20 @@ def test_fail_on_error_retry():
     ):
         log = eval_retry(log)[0]
         assert log.eval.task_id == task_id
+
+
+@task
+def always_fails():
+    return Task(
+        solver=[failing_solver(), generate()],
+    )
+
+
+def test_fail_on_error_retry_override():
+    # fail the first time
+    log = eval(always_fails(), model="mockllm/model")[0]
+    assert log.status == "error"
+
+    # try again with fail_on_error = False
+    log = eval_retry(log, fail_on_error=False)[0]
+    assert log.status == "success"

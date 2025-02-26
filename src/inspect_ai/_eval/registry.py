@@ -1,9 +1,12 @@
 import inspect
 import logging
 from copy import deepcopy
+from functools import wraps
+from pathlib import Path
 from typing import Any, Callable, TypeVar, cast, overload
 
 from inspect_ai._util.error import PrerequisiteError
+from inspect_ai._util.package import get_installed_package_name
 from inspect_ai._util.registry import (
     RegistryInfo,
     registry_add,
@@ -16,6 +19,7 @@ from inspect_ai._util.registry import (
 from inspect_ai.model import ModelName
 
 from .task import Task
+from .task.constants import TASK_FILE_ATTR, TASK_RUN_DIR_ATTR
 
 MODEL_PARAM = "model"
 
@@ -122,6 +126,7 @@ def task(*args: Any, name: str | None = None, **attribs: Any) -> Any:
         params = list(inspect.signature(task_type).parameters.keys())
 
         # Create and return the wrapper function
+        @wraps(task_type)
         def wrapper(*w_args: Any, **w_kwargs: Any) -> Task:
             # Create the task
             task_instance = task_type(*w_args, **w_kwargs)
@@ -139,8 +144,21 @@ def task(*args: Any, name: str | None = None, **attribs: Any) -> Any:
                 **w_kwargs,
             )
 
+            # if its not from an installed package then it is a "local"
+            # module import, so set its task file and run dir
+            if get_installed_package_name(task_type) is None:
+                module = inspect.getmodule(task_type)
+                if module and hasattr(module, "__file__") and module.__file__:
+                    file = Path(getattr(module, "__file__"))
+                    setattr(task_instance, TASK_FILE_ATTR, file.as_posix())
+                    setattr(task_instance, TASK_RUN_DIR_ATTR, file.parent.as_posix())
+
             # Return the task instance
             return task_instance
+
+        # functools.wraps overrides the return type annotation of the inner function, so
+        # we explicitly set it again
+        wrapper.__annotations__["return"] = Task
 
         # Register the task and return the wrapper
         return task_register(

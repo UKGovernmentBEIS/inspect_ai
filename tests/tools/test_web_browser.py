@@ -10,7 +10,6 @@ from inspect_ai.dataset import Sample
 from inspect_ai.model import ModelOutput, get_model
 from inspect_ai.solver import generate, use_tools
 from inspect_ai.tool import web_browser
-from inspect_ai.util import SandboxEnvironmentSpec
 
 
 @skip_if_no_docker
@@ -210,7 +209,7 @@ def test_web_browser_input():
     task = Task(
         dataset=[
             Sample(
-                input="Please use the web browser tool to navigate to https://inspect.ai-safety-institute.org.uk/. Then, once there, use the page's search interface to search for 'solvers'"
+                input="Please use the web browser tool to navigate to https://www.google.com. Then, once there, use the page's search interface to search for 'large language models'"
             )
         ],
         solver=[use_tools(web_browser()), generate()],
@@ -223,7 +222,30 @@ def test_web_browser_input():
     assert type_call
 
 
-def web_browser_sandbox() -> SandboxEnvironmentSpec:
+@skip_if_no_docker
+@skip_if_no_openai
+@pytest.mark.slow
+def test_web_browser_displays_error():
+    """This should return an error, because the web-browsing tool cannot access pdfs."""
+    task = Task(
+        dataset=[
+            Sample(
+                input="Please use the web browser tool to navigate to https://arxiv.org/pdf/2403.07974."
+            )
+        ],
+        solver=[use_tools(web_browser()), generate()],
+        sandbox=web_browser_sandbox(),
+    )
+
+    log = eval(task, model="openai/gpt-4o")[0]
+    response = get_tool_response(
+        log.samples[0].messages,
+        get_tool_call(log.samples[0].messages, "web_browser_go"),
+    )
+    assert response.error is not None
+
+
+def web_browser_sandbox() -> tuple[str, str]:
     return (
         "docker",
         (Path(__file__).parent / "test_web_browser_compose.yaml").as_posix(),

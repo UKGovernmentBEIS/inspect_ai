@@ -1,10 +1,12 @@
-# Agents API {#sec-agents-api}
+---
+title: Agent API
+---
 
 ## Overview
 
 This article describes advanced Inspect APIs available for creating evaluations with agents. You can also build agents evals using Inspect's built in [Basic Agent](agents.qmd#sec-basic-agent) or by bridging to an external agent library (see the main [Agents](agents.qmd) article for further details). Topics covered in this article include:
 
-1.  Sharing state across solvers and tools
+1.  Sharing per-sample state across solvers and tools
 2.  Creating a custom tool use loop
 3.  Dynamically customising tool descriptions
 4.  Observability with sample transcripts.
@@ -13,19 +15,10 @@ This article describes advanced Inspect APIs available for creating evaluations 
 
 We'll assume that you have already covered the basics of [Solvers](solvers.qmd), [Tools](tools.qmd), and [Agents](agents.qmd) (please review those articles as required before proceeding).
 
-## Use of `metadata`
 
-Before proceeding, it's important to point that some of the features described below were previously approximated by using the `metadata` field of `TaskState`, specifically `metadata` was often used as a catch-all storage location for:
+## Sample Store
 
--   Sharing state between solvers.
--   Providing a place to log additional structured data.
--   Recording calls to "helper" models used for elicitation or scoring.
-
-The `metadata` field no longer need be used for these scenarios (and in fact should now be treated as a read-only part of the `TaskState`). Below we'll describe how the `Store` can be used for state, how structured data can be logged to the sample `Transcript`, and how all model calls are now automatically recorded and included in the transcript.
-
-## Sharing State
-
-Sequences of solvers often need to store and manipulate shared state. Further, tools may often want their own persistent state (or groups of tools may want to share state). This can be accomplished in Inspect using the `Store`, which provides a scoped scratchpad for arbitrary values.
+Sequences of solvers executing against a sample often need to store and manipulate shared state. Further, tools may often want their own persistent state (or groups of tools may want to share state). This can be accomplished in Inspect using the `Store`, which provides a sample-scoped scratchpad for arbitrary values.
 
 The core of the `Store` interface is:
 
@@ -37,6 +30,8 @@ class Store:
     def set(self, key: str, value: Any) -> None
     def delete(self, key: str) -> None
 ```
+
+Note that the core `Store` interface is a property bag without strong typing. See the section below on [typed store access](#store-typing) for details on how to interact with the store in a typesafe fashion.
 
 Basic views on the store's collection (e.g. `items()`, `keys()`, `values()`) are also provided. Note that the `get()` method will automatically add the `default` to the store if it doesn't exist.
 
@@ -65,55 +60,17 @@ You should generally try to use JSON serialisable Python types in the `Store` (e
 
 While the default `Store` for a sample is shared globally between solvers and tools, a more narrowly scoped `Store` is created automatically for [Subtasks](#sec-subtasks).
 
-## Tool Use
+### Store Typing {#store-typing}
 
-### Custom Loop
+{{< include _store_typing.md >}}
+
+
+## Tool Loop
 
 The higher level `generate()` function passed to solvers includes a built-in tool use loop—when the model calls a tool, Inspect calls the underlying Python function and reports the result to the model, proceeding until the model stops calling tools. However, for more advanced agents you may want to intervene in the tool use loop in a variety of ways:
 
 {{< include _tools-scaffold.md >}}
 
-Note that you don't necessarily even need to structure the agent using a loop. For example, you might have an inner function implementing the loop, while an outer function dynamically swaps out what tools are available. For example, imagine the above was implemented in a function named `tool_use_loop()`, you might have outer function like this:
-
-``` python
-# first pass w/ core tools
-state.tools = [decompile(), dissasemble(), bash()]
-state = await tool_use_loop(state)
-
-# second pass w/ prompt and python tool only
-state.tools = [python()]
-state = await tool_use_loop(state)
-```
-
-Taken together these APIs enable you to build a custom version of `generate()` with whatever structure and logic you need.
-
-### Tool Descriptions
-
-In some cases you may want to change the default descriptions created by a tool author—for example you might want to provide better disambiguation between multiple similar tools that are used together. You also might have need to do this during development of tools (to explore what descriptions are most useful to models).
-
-The `tool_with()` function enables you to take any tool and adapt its name and/or descriptions. For example:
-
-``` python
-from inspect_ai.tool import tool_with
-
-my_add = tool_with(
-  tool=add(), 
-  name="my_add",
-  description="a tool to add numbers", 
-  parameters={
-    "x": "the x argument",
-    "y": "the y argument"
-  })
-```
-
-You need not provide all of the parameters shown above, for example here are some examples where we modify just the main tool description or only a single parameter:
-
-``` python
-my_add = tool_with(add(), description="a tool to add numbers")
-my_add = tool_with(add(), parameters={"x": "the x argument"})
-```
-
-Note that the `tool_with()` function returns a copy of the passed tool with modified descriptions (the passed tool retains its original descriptions)..
 
 ## Transcripts {#sec-transcripts}
 
@@ -277,4 +234,4 @@ def list_files():
     return execute
 ```
 
-See the section on [Sandbox Environments](agents.qmd#sec-sandbox-environments) for further details on using sandboxes with Inspect.
+See the section on [Sandboxing](sandboxing.qmd) for further details on using sandboxes with Inspect.

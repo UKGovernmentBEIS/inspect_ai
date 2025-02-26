@@ -1,0 +1,15 @@
+.statusPanel {
+  padding: 1em;
+  margin-top: 0.5em;
+  text-transform: uppercase;
+  font-size: var(--inspect-font-size-smaller);
+  display: grid;
+  grid-template-columns: auto auto;
+  justify-content: end;
+}
+
+.statusIcon {
+  font-size: var(--inspect-font-size-large);
+  margin-right: 0.3em;
+  margin-top: -0.1em;
+}

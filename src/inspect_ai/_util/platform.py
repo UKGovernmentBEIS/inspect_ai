@@ -1,6 +1,8 @@
 import importlib.util
 import os
 
+from inspect_ai._util._async import init_nest_asyncio
+
 from .error import set_exception_hook
 
 
@@ -21,7 +23,7 @@ def platform_init() -> None:
     # set exception hook if we haven't already
     set_exception_hook()
 
-    # if we are running in a notebook, confirm that we have ipywidgets
+    # if we are running in a notebook...
     if running_in_notebook():
         # check for required packages
         if not have_package("ipywidgets"):
@@ -30,11 +32,8 @@ def platform_init() -> None:
                 + "pip install ipywidgets\n"
             )
 
-        # activate nest_asyncio (required so we operate properly within
-        # the Jupyter async event loop)
-        import nest_asyncio  # type: ignore
-
-        nest_asyncio.apply()
+        # setup nested asyncio
+        init_nest_asyncio()
 
 
 def have_package(package: str) -> bool:

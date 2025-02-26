@@ -40,9 +40,9 @@ def score_reducer(
     """Decorator for registering Score Reducers.
 
     Args:
-        func (ScoreReducerType | None): Function returning `ScoreReducer` targeted by
+        func: Function returning `ScoreReducer` targeted by
             plain task decorator without attributes (e.g. `@score_reducer`)
-        name (str | None): Optional name for reducer. If the decorator has no name
+        name: Optional name for reducer. If the decorator has no name
             argument then the name of the function will be used to automatically assign a name.
 
     Returns:

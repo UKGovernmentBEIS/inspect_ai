@@ -1,14 +1,13 @@
 import fnmatch
-import json
-import re
+import sys
 from dataclasses import dataclass
 from pathlib import Path
-from re import Pattern
 from typing import Any, Generator, cast
 
-import yaml
 from pydantic import BaseModel, Field, model_validator
 
+from inspect_ai._util.config import read_config_object
+from inspect_ai._util.format import format_function_call
 from inspect_ai._util.registry import registry_create, registry_lookup
 from inspect_ai.solver._task_state import TaskState
 from inspect_ai.tool._tool_call import ToolCall, ToolCallView
@@ -21,8 +20,13 @@ from ._call import call_approver, record_approval
 
 @dataclass
 class ApprovalPolicy:
+    """Policy mapping approvers to tools."""
+
     approver: Approver
+    """Approver for policy."""
+
     tools: str | list[str]
+    """Tools to use this approver for (can be full tool names or globs)."""
 
 
 def policy_approver(policies: str | list[ApprovalPolicy]) -> Approver:
@@ -31,17 +35,23 @@ def policy_approver(policies: str | list[ApprovalPolicy]) -> Approver:
         policies = approval_policies_from_config(policies)
 
     # compile policy into approvers and regexes for matching
-    policy_matchers: list[tuple[list[Pattern[str]], Approver]] = []
+    policy_matchers: list[tuple[list[str], Approver]] = []
     for policy in policies:
         tools = [policy.tools] if isinstance(policy.tools, str) else policy.tools
-        patterns = [re.compile(fnmatch.translate(tool)) for tool in tools]
-        policy_matchers.append((patterns, policy.approver))
+        globs = [f"{tool}*" for tool in tools]
+        policy_matchers.append((globs, policy.approver))
 
     # generator for policies that match a tool_call
     def tool_approvers(tool_call: ToolCall) -> Generator[Approver, None, None]:
         for policy_matcher in iter(policy_matchers):
+            function_call = format_function_call(
+                tool_call.function, tool_call.arguments, width=sys.maxsize
+            )
             if any(
-                [pattern.match(tool_call.function) for pattern in policy_matcher[0]]
+                [
+                    fnmatch.fnmatch(function_call, pattern)
+                    for pattern in policy_matcher[0]
+                ]
             ):
                 yield policy_matcher[1]
 
@@ -103,7 +113,7 @@ class ApproverPolicyConfig(BaseModel):
         if not isinstance(data, dict):
             return data
 
-        known_fields = set(cls.model_fields.keys())
+        known_fields = set(["name", "tools", "params"])
         unknown_fields = {k: v for k, v in data.items() if k not in known_fields}
 
         if unknown_fields:
@@ -179,10 +189,7 @@ def read_policy_config(policy_config: str) -> ApprovalPolicyConfig:
     policy_config = resource(policy_config, type="file")
 
     # detect json vs. yaml
-    is_json = policy_config.strip().startswith("{")
-    policy_config_dict = (
-        json.loads(policy_config) if is_json else yaml.safe_load(policy_config)
-    )
+    policy_config_dict = read_config_object(policy_config)
     if not isinstance(policy_config_dict, dict):
         raise ValueError(f"Invalid approval policy: {specified_policy_config}")
 

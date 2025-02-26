@@ -38,7 +38,7 @@ import {
 import { throttle } from "lodash";
 import { inspectVersion } from "../../inspect";
 import { InspectManager } from "../inspect/inspect-manager";
-import { InspectLogviewManager } from "../logview/logview-manager";
+import { InspectViewManager } from "../logview/logview-view";
 import { DocumentTaskInfo } from "../../components/task";
 
 // Activation function for the task outline
@@ -48,13 +48,14 @@ export async function activateTaskOutline(
   workspaceTaskMgr: WorkspaceTaskManager,
   activeTaskManager: ActiveTaskManager,
   inspectManager: InspectManager,
-  inspectLogviewManager: InspectLogviewManager
+  inspectLogviewManager: InspectViewManager
 ): Promise<[Command[], Disposable]> {
   // Command when item is clicked
   const treeDataProvider = new TaskOutLineTreeDataProvider(workspaceTaskMgr, {
     title: "Edit Item",
     command: EditSelectedTaskCommand.id,
   });
+
 
   const checkInspect = async () => {
     const inspectAvailable = inspectVersion() !== null;
@@ -64,7 +65,7 @@ export async function activateTaskOutline(
       !inspectAvailable
     );
     if (inspectAvailable) {
-      treeDataProvider.refresh();
+      await treeDataProvider.refresh();
     } else {
       treeDataProvider.clear();
     }
@@ -255,8 +256,8 @@ export class TaskOutLineTreeDataProvider
         )
       )
     );
-    this.workspaceMgr.refresh();
   }
+
   private disposables_: Disposable[] = [];
   dispose() {
     this.disposables_.forEach((disposable) => {
@@ -272,8 +273,8 @@ export class TaskOutLineTreeDataProvider
   readonly onDidChangeTreeData: Event<TaskTreeItem | undefined | null | void> =
     this.onDidChangeTreeData_.event;
 
-  refresh() {
-    this.workspaceMgr.refresh();
+  async refresh() {
+    await this.workspaceMgr.refresh();
   }
 
   clear() {

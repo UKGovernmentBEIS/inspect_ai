@@ -1,21 +1,22 @@
 import functools
-import os
-from typing import Any, Callable, Tuple, cast
+from typing import Any, Callable, Literal, cast
 
 import click
+import rich
 from typing_extensions import TypedDict
 
 from inspect_ai._util.constants import (
     ALL_LOG_LEVELS,
+    DEFAULT_DISPLAY,
     DEFAULT_LOG_LEVEL,
-    DEFAULT_LOG_LEVEL_TRANSCRIPT,
 )
+from inspect_ai.util._display import init_display_type
 
 
 class CommonOptions(TypedDict):
     log_level: str
-    log_level_transcript: str
     log_dir: str
+    display: Literal["full", "conversation", "rich", "plain", "none"]
     no_ansi: bool | None
     debug: bool
     debug_port: int
@@ -33,16 +34,6 @@ def log_level_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         envvar="INSPECT_LOG_LEVEL",
         help=f"Set the log level (defaults to '{DEFAULT_LOG_LEVEL}')",
     )
-    @click.option(
-        "--log-level-transcript",
-        type=click.Choice(
-            [level.lower() for level in ALL_LOG_LEVELS],
-            case_sensitive=False,
-        ),
-        default=DEFAULT_LOG_LEVEL_TRANSCRIPT,
-        envvar="INSPECT_LOG_LEVEL_TRANSCRIPT",
-        help=f"Set the log level of the transcript (defaults to '{DEFAULT_LOG_LEVEL_TRANSCRIPT}')",
-    )
     @functools.wraps(func)
     def wrapper(*args: Any, **kwargs: Any) -> click.Context:
         return cast(click.Context, func(*args, **kwargs))
@@ -56,13 +47,24 @@ def common_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         "--log-dir",
         type=str,
         default="./logs",
+        callback=clean_log_dir,
         envvar="INSPECT_LOG_DIR",
         help="Directory for log files.",
+    )
+    @click.option(
+        "--display",
+        type=click.Choice(
+            ["full", "conversation", "rich", "plain", "none"], case_sensitive=False
+        ),
+        default=DEFAULT_DISPLAY,
+        envvar="INSPECT_DISPLAY",
+        help="Set the display type (defaults to 'full')",
     )
     @click.option(
         "--no-ansi",
         type=bool,
         is_flag=True,
+        hidden=True,
         help="Do not print ANSI control characters.",
         envvar="INSPECT_NO_ANSI",
     )
@@ -89,10 +91,14 @@ def common_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
     return wrapper
 
 
-def resolve_common_options(options: CommonOptions) -> Tuple[str, str, str]:
-    # disable ansi if requested
+def process_common_options(options: CommonOptions) -> None:
+    # propagate display
     if options["no_ansi"]:
-        os.environ["INSPECT_NO_ANSI"] = "1"
+        display = "rich"
+        rich.reconfigure(no_color=True)
+    else:
+        display = options["display"].lower().strip()
+    init_display_type(display)
 
     # attach debugger if requested
     if options["debug"]:
@@ -103,5 +109,10 @@ def resolve_common_options(options: CommonOptions) -> Tuple[str, str, str]:
         debugpy.wait_for_client()
         print("Debugger attached")
 
-    # return resolved options
-    return (options["log_dir"], options["log_level"], options["log_level_transcript"])
+
+def clean_log_dir(
+    ctx: click.Context, param: click.Option, value: str | None
+) -> str | None:
+    if value is not None:
+        value = value.rstrip("/\\")
+    return value

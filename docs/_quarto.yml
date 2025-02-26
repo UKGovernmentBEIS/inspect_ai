@@ -1,16 +1,27 @@
 project:
-   type: book
+   type: website
    resources: 
       - CNAME
-  
-book:
+      - llms.txt
+   pre-render: 
+      - reference/filter/sidebar.py
+   post-render: 
+      - scripts/post-render.sh
+
+metadata-files: 
+  - reference/_sidebar.yml  
+
+filters:
+  - at: pre-quarto
+    path: reference/filter/interlink.lua
+ 
+website:
    title: "Inspect"
-   subtitle: "An open-source framework for large language model evaluations"
+   bread-crumbs: true
    page-navigation: true
    repo-url: https://github.com/UKGovernmentBEIS/inspect_ai
    site-url: https://inspect.ai-safety-institute.org.uk/
    repo-actions: [issue]
-   # downloads: [pdf, epub, docx]
    twitter-card:
       title: "Inspect"
       description: "Open-source framework for large language model evaluations"
@@ -20,13 +31,78 @@ book:
       title: "Inspect"
       description: "Open-source framework for large language model evaluations"
       image: /images/inspect.png
+   navbar:
+      title: "Inspect AI"
+      background: light
+      search: true
+      logo: images/aisi-logo.svg
+      logo-href: https://www.aisi.gov.uk/     
+      left:      
+          - text: "User Guide"
+            href: index.qmd
+          - text: "Reference"
+            href: reference/index.qmd
+          - text: "Evals"
+            href: evals/index.qmd
+      right: 
+          - icon: github
+            href: https://github.com/UKGovernmentBEIS/inspect_ai
+      
    sidebar:
-      header: >
-         [![](/images/aisi-logo.png){fig-alt="UK AI Safety Institute Website"}](https://aisi.gov.uk/)
+      - title: Guide
+        style: docked
+        contents:
+         - section: "Basics"
+           contents:
+               - text: "Welcome"
+                 href: index.qmd
+               - tutorial.qmd
+               - options.qmd
+               - log-viewer.qmd
+               - text: "VS Code"
+                 href: vscode.qmd
+
+         - section: "Components"
+           contents: 
+               - tasks.qmd
+               - datasets.qmd
+               - solvers.qmd
+               - tools.qmd
+               - scorers.qmd
+
+         - section: "Models"
+           contents:
+               - models.qmd
+               - text: "Providers"
+                 href: providers.qmd
+               - caching.qmd
+               - multimodal.qmd
+               - reasoning.qmd
+
+         - section: "Agents"
+           contents:
+               - agents.qmd
+               - sandboxing.qmd
+               - agents-api.qmd
+               - agent-bridge.qmd
+               - human-agent.qmd
+               - approval.qmd
+
+         - section: "Advanced"
+           contents:
+               - eval-logs.qmd
+               - eval-sets.qmd
+               - text: "Errors & Limits"
+                 href: errors-and-limits.qmd
+               - typing.qmd
+               - tracing.qmd
+               - parallelism.qmd
+               - interactivity.qmd
+               - extensions.qmd
 
    page-footer: 
       left: 
-         - text: UK AI Safety Institute
+         - text: UK AI Security Institute
            href: https://aisi.gov.uk/
       center: 
          - text: Code
@@ -40,46 +116,12 @@ book:
        
       right:
          - icon: twitter
-           href: https://twitter.com/AISafetyInst
-           aria-label: UK AI Safety Institute Twitter
+           href: https://x.com/AISecurityInst
+           aria-label: UK AI Security Institute Twitter
          - icon: github
            href: https://github.com/UKGovernmentBEIS/inspect_ai/
            aria-label: Inspect on GitHub
       
-   chapters: 
-      - "index.qmd"     
-      - part: "Basics"
-        chapters:
-           - tutorial.qmd
-           - workflow.qmd
-           - examples/index.qmd
-           - log-viewer.qmd
-           - text: "VS Code"
-             href: vscode.qmd
-
-      - part: "Components"
-        chapters: 
-           - solvers.qmd
-           - tools.qmd
-           - agents.qmd
-           - scorers.qmd
-           - datasets.qmd
-           - models.qmd
-
-      - part: "Advanced"
-        chapters:
-           - eval-sets.qmd
-           - text: "Errors & Limits"
-             href: errors-and-limits.qmd
-           - caching.qmd
-           - parallelism.qmd
-           - agents-api.qmd
-           - interactivity.qmd
-           - approval.qmd
-           - eval-logs.qmd
-           - extensions.qmd
-
-
 toc-depth: 2
 number-sections: true
 number-depth: 2
@@ -87,20 +129,10 @@ number-depth: 2
 format:
    html:
      theme: [cosmo, theme.scss]
+     toc: true
      toc-depth: 3
      number-sections: false
      code-annotations: select
-   # pdf: 
-   #    number-depth: 1
-   #    listings: false
-   #    author: UK AI Safety Institute
-   #    date: today
-   # docx: 
-   #    author: UK AI Safety Institute
-   #    date: today
-   # epub: 
-   #    author: UK AI Safety Institute
-   #    date: today
 
 execute: 
   enabled: false

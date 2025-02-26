@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Type, TypeVar
 
 import pytest
+from pydantic import BaseModel
 from test_helpers.utils import skip_if_github_action
 
 from inspect_ai._util.content import ContentImage
@@ -71,8 +72,57 @@ def test_dataset_multiple_samples_fn(type: Type[T_ds], file: str):
 # test reading metadata field
 @pytest.mark.parametrize("type,file", dataset_md_params)
 def test_dataset_metadata(type: Type[T_ds], file: str) -> None:
-    dataset: Dataset = type.__call__(dataset_path(file))
+    sample_fields = (
+        FieldSpec(metadata=["name", "age", "foo"]) if file.endswith(".json") else None
+    )
+    dataset: Dataset = type.__call__(dataset_path(file), sample_fields=sample_fields)
     assert dataset[0].metadata and dataset[0].metadata.get("foo") == "bar"
+
+
+# test pydantic metadata handling
+@pytest.mark.parametrize("type,file", dataset_md_params)
+def test_dataset_metadata_pydantic(type: Type[T_ds], file: str) -> None:
+    class Metadata(BaseModel, frozen=True):
+        name: str
+        age: int
+        foo: str
+
+    dataset: Dataset = type.__call__(
+        dataset_path(file), sample_fields=FieldSpec(metadata=Metadata)
+    )
+    assert dataset[0].metadata and dataset[0].metadata.get("foo") == "bar"
+    metadata = dataset[0].metadata_as(Metadata)
+    assert metadata.name == "jim"
+    assert metadata.age == 42
+    assert metadata.foo == "bar"
+
+    class MetadataSlice(BaseModel, frozen=True):
+        foo: str
+
+    dataset = type.__call__(
+        dataset_path(file), sample_fields=FieldSpec(metadata=MetadataSlice)
+    )
+    metadata_slice = dataset[0].metadata_as(MetadataSlice)
+    assert metadata_slice.foo == "bar"
+
+    class MetadataInvalid(BaseModel, frozen=True):
+        x: int
+        y: int
+
+    with pytest.raises(ValueError):
+        dataset = type.__call__(
+            dataset_path(file), sample_fields=FieldSpec(metadata=MetadataInvalid)
+        )
+
+    class MetadataNotFrozen(BaseModel):
+        name: str
+        age: int
+        foo: str
+
+    with pytest.raises(ValueError):
+        dataset = type.__call__(
+            dataset_path(file), sample_fields=FieldSpec(metadata=MetadataNotFrozen)
+        )
 
 
 @skip_if_github_action

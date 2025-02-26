@@ -8,8 +8,10 @@ from .cache import cache_command
 from .eval import eval_command, eval_retry_command, eval_set_command
 from .info import info_command
 from .list import list_command
+from .log import log_command
 from .sandbox import sandbox_command
 from .score import score_command
+from .trace import trace_command
 from .view import view_command
 
 
@@ -41,15 +43,17 @@ inspect.add_command(eval_set_command)
 inspect.add_command(eval_retry_command)
 inspect.add_command(info_command)
 inspect.add_command(list_command)
+inspect.add_command(log_command)
 inspect.add_command(score_command)
 inspect.add_command(view_command)
 inspect.add_command(sandbox_command)
+inspect.add_command(trace_command)
 
 
 def main() -> None:
     set_exception_hook()
     init_dotenv()
-    inspect(auto_envvar_prefix="INSPECT")
+    inspect(auto_envvar_prefix="INSPECT")  # pylint: disable=no-value-for-parameter
 
 
 if __name__ == "__main__":
