@@ -50,11 +50,7 @@ from inspect_ai.log import (
 from inspect_ai.log._condense import condense_sample
 from inspect_ai.log._file import eval_log_json_str
 from inspect_ai.log._log import EvalSampleLimit, EvalSampleReductions, eval_error
-from inspect_ai.log._samples import (
-    active_sample,
-    set_active_sample_message_limit,
-    set_active_sample_token_limit,
-)
+from inspect_ai.log._samples import active_sample
 from inspect_ai.log._transcript import (
     ErrorEvent,
     SampleInitEvent,
@@ -695,9 +691,10 @@ async def task_run_sample(
                     assert time_limit
                     timeout_cm = timeout(time_limit / 2)
 
-                # turn off sample limits
-                set_active_sample_token_limit(None)
-                set_active_sample_message_limit(None)
+                # turn off message and token limits
+                state.message_limit = None
+                state.token_limit = None
+                set_sample_state(state)
 
                 # scoring
                 try:
