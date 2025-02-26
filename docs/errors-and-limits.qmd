@@ -95,14 +95,6 @@ Appropriate timeouts will vary depending on the nature of your task so please vi
 
 ### Working Limit
 
-::: {.callout-note appearance="simple"}
-The working limit feature described below is currently available only in the development version of Inspect. To install the development version from GitHub:
-
-``` bash
-pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-```
-:::
-
 The `working_limit` differs from the `time_limit` in that it measures only the time spent working (as opposed to retrying in response to rate limits or waiting on other shared resources). Here we set an `working_limit` of 10 minutes (10 x 60 seconds) for each sample within a task:
 
 ``` python

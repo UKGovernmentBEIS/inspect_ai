@@ -1,0 +1,24 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "debugpy",
+      "request": "launch",
+      "name": "Debug Web Server",
+      "program": "${workspaceFolder}/web_server.py"
+    },
+    {
+      "type": "debugpy",
+      "request": "launch",
+      "name": "Debug Web Client interactive mode",
+      "program": "${workspaceFolder}/web_client.py"
+    },
+    {
+      "type": "debugpy",
+      "request": "launch",
+      "name": "Debug Web Client w/arguments",
+      "program": "${workspaceFolder}/web_client.py",
+      "args": ["${command:pickArgs}"]
+    }
+  ]
+}

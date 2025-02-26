@@ -7,6 +7,8 @@ import { MetaDataView } from "./MetaDataView";
 
 import clsx from "clsx";
 import React, { Fragment, JSX } from "react";
+import JSONPanel from "../components/JsonPanel";
+import { isJson } from "../utils/json";
 import styles from "./RenderedContent.module.css";
 import { Buckets, ContentRenderer } from "./types";
 
@@ -77,6 +79,20 @@ const contentRenderers: Record<string, ContentRenderer> = {
       return {
         rendered: <ANSIDisplay output={entry.value} />,
       };
+    },
+  },
+  JsonString: {
+    bucket: Buckets.first,
+    canRender: (entry) => {
+      if (typeof entry.value === "string") {
+        const trimmed = entry.value.trim();
+        return isJson(trimmed);
+      }
+      return false;
+    },
+    render: (_id, entry) => {
+      const obj = JSON.parse(entry.value);
+      return { rendered: <JSONPanel data={obj as Record<string, unknown>} /> };
     },
   },
   Model: {

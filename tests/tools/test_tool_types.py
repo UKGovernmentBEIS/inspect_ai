@@ -44,7 +44,7 @@ class Point(TypedDict):
 
 @tool
 def offset():
-    async def execute(point: Point, offset: int):
+    async def execute(point: Point, offset: int) -> str:
         """
         Offset a point by the specified offset value
 
