@@ -425,7 +425,8 @@ async def chat_content_to_part(
         content_bytes, mime_type = await file_as_data(content.image)
         return Part.from_bytes(mime_type=mime_type, data=content_bytes)
     else:
-        return await file_for_content(client, content)
+        file = await file_for_content(client, content)
+        return Part.from_uri(file_uri=file.uri, mime_type=file.mime_type)
 
 
 async def extract_system_message_as_parts(
@@ -758,7 +759,7 @@ async def file_for_content(
         uploaded_file = files_db.get(content_sha256)
         if uploaded_file:
             try:
-                upload: File = client.files.get(uploaded_file)
+                upload: File = client.files.get(name=uploaded_file)
                 if upload.state.name == "ACTIVE":
                     trace(f"Using uploaded file: {uploaded_file}")
                     return upload
@@ -770,10 +771,12 @@ async def file_for_content(
                 trace(f"Error attempting to access uploaded file: {ex}")
                 files_db.delete(content_sha256)
         # do the upload (and record it)
-        upload = client.files.upload(BytesIO(content_bytes), mime_type=mime_type)
+        upload = client.files.upload(
+            file=BytesIO(content_bytes), config=dict(mime_type=mime_type)
+        )
         while upload.state.name == "PROCESSING":
             await asyncio.sleep(3)
-            upload = client.files.get(upload.name)
+            upload = client.files.get(name=upload.name)
         if upload.state.name == "FAILED":
             trace(f"Failed to upload file '{upload.name}: {upload.error}")
             raise ValueError(f"Google file upload failed: {upload.error}")
