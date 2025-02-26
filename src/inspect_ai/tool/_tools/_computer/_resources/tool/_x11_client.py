@@ -1,4 +1,4 @@
-"""Based on https://github.com/anthropics/anthropic-quickstarts/blob/main/computer-use-demo/computer_use_demo/tools/computer.py"""
+"""Inspired by https://github.com/anthropics/anthropic-quickstarts/blob/main/computer-use-demo/computer_use_demo/tools/computer.py"""
 
 import asyncio
 import base64
@@ -19,21 +19,8 @@ TYPING_GROUP_SIZE = 50
 
 ColorCount = Literal[4096, 2048, 1024, 512, 256, 128, 64, 32, 16, 8, 4]
 
-Action = Literal[
-    "key",
-    "type",
-    "mouse_move",
-    "left_click",
-    "left_click_drag",
-    "right_click",
-    "middle_click",
-    "double_click",
-    "screenshot",
-    "cursor_position",
-]
 
-
-class ToolError(Exception):
+class X11ClientError(Exception):
     def __init__(self, message):
         self.message = message
 
@@ -83,7 +70,7 @@ class X11Client:
 
     @property
     def options(self) -> ComputerToolOptions:
-        width, height = self.scale_coordinates("computer", self.width, self.height)
+        width, height = self._scale_coordinates("computer", self.width, self.height)
         return {
             "display_width_px": width,
             "display_height_px": height,
@@ -105,120 +92,191 @@ class X11Client:
 
         self.xdotool = f"{self._display_prefix}xdotool"
 
-    async def __call__(
+    async def key(self, text: str) -> ToolResult:
+        return await self._shell(f"{self.xdotool} key -- {_key_arg_for_text(text)}")
+
+    async def hold_key(self, text: str, duration: int) -> ToolResult:
+        key_arg = _key_arg_for_text(text)
+        await self._shell(f"{self.xdotool} keydown -- {key_arg}", False)
+        await asyncio.sleep(duration)
+        return await self._shell(f"{self.xdotool} keyup -- {key_arg}")
+
+    async def type(self, text: str) -> ToolResult:
+        results: list[ToolResult] = []
+        for chunk in chunks(text, TYPING_GROUP_SIZE):
+            cmd = (
+                f"{self.xdotool} type --delay {TYPING_DELAY_MS} -- {shlex.quote(chunk)}"
+            )
+            results.append(await self._shell(cmd, take_screenshot=False))
+
+        screenshot_base64 = await self._take_screenshot_after_delay()
+        return ToolResult(
+            output="".join(result.output or "" for result in results),
+            error="".join(result.error or "" for result in results),
+            base64_image=screenshot_base64,
+        )
+
+    async def cursor_position(self) -> ToolResult:
+        result = await self._shell(
+            f"{self.xdotool} getmouselocation --shell",
+            take_screenshot=False,
+        )
+        output = result.output or ""
+        x, y = self._scale_coordinates(
+            "computer",
+            int(output.split("X=")[1].split("\n")[0]),
+            int(output.split("Y=")[1].split("\n")[0]),
+        )
+        return result.replace(output=f"X={x},Y={y}")
+
+    async def left_mouse_down(self) -> ToolResult:
+        return await self._shell(f"{self.xdotool} mousedown 1")
+
+    async def left_mouse_up(self) -> ToolResult:
+        return await self._shell(f"{self.xdotool} mouseup 1")
+
+    async def mouse_move(self, coordinate: tuple[int, int]) -> ToolResult:
+        return await self._mouse_move_and("mouse_move", coordinate, None)
+
+    async def left_click(
+        self, coordinate: tuple[int, int] | None, text: str | None
+    ) -> ToolResult:
+        return await self._mouse_move_and("left_click", coordinate, text)
+
+    async def right_click(
+        self, coordinate: tuple[int, int] | None, text: str | None
+    ) -> ToolResult:
+        return await self._mouse_move_and("right_click", coordinate, text)
+
+    async def middle_click(
+        self, coordinate: tuple[int, int] | None, text: str | None
+    ) -> ToolResult:
+        return await self._mouse_move_and("middle_click", coordinate, text)
+
+    async def double_click(
+        self, coordinate: tuple[int, int] | None, text: str | None
+    ) -> ToolResult:
+        return await self._mouse_move_and("double_click", coordinate, text)
+
+    async def triple_click(
+        self, coordinate: tuple[int, int] | None, text: str | None
+    ) -> ToolResult:
+        return await self._mouse_move_and("triple_click", coordinate, text)
+
+    async def left_click_drag(
+        self, start_coordinate: tuple[int, int], coordinate: tuple[int, int]
+    ) -> ToolResult:
+        await self._move_mouse_to_coordinate(start_coordinate, False)
+        x, y = self._scale_coordinates("api", *coordinate)
+        return await self._shell(
+            f"{self.xdotool} mousedown 1 mousemove --sync {x} {y} mouseup 1"
+        )
+
+    async def scroll(
         self,
-        *,
-        action: Action,
-        text: str | None = None,
-        coordinate: tuple[int, int] | None = None,
-        **kwargs,
-    ):
-        if action in ("mouse_move", "left_click_drag"):
-            if coordinate is None:
-                raise ToolError(f"coordinate is required for {action}")
-            if text is not None:
-                raise ToolError(f"text is not accepted for {action}")
-            if not isinstance(coordinate, list) or len(coordinate) != 2:
-                raise ToolError(f"{coordinate} must be a tuple of length 2")
-            if not all(isinstance(i, int) and i >= 0 for i in coordinate):
-                raise ToolError(f"{coordinate} must be a tuple of non-negative ints")
+        scroll_direction: Literal["up", "down", "left", "right"],
+        scroll_amount: int,
+        coordinate: tuple[int, int] | None,
+        text: str | None,
+    ) -> ToolResult:
+        if coordinate:
+            await self._move_mouse_to_coordinate(coordinate, False)
+        scroll_button = {
+            "up": 4,
+            "down": 5,
+            "left": 6,
+            "right": 7,
+        }[scroll_direction]
 
-            x, y = self.scale_coordinates("api", coordinate[0], coordinate[1])
+        if text:
+            key_arg = _key_arg_for_text(text)
+            await self._shell(f"{self.xdotool} keydown -- {key_arg}", False)
+            await self._shell(
+                f"{self.xdotool} click --repeat {scroll_amount} {scroll_button}",
+                False,
+            )
+            return await self._shell(f"{self.xdotool} keyup -- {key_arg}")
+        else:
+            return await self._shell(
+                f"{self.xdotool} click --repeat {scroll_amount} {scroll_button}"
+            )
 
-            if action == "mouse_move":
-                return await self.shell(f"{self.xdotool} mousemove --sync {x} {y}")
-            elif action == "left_click_drag":
-                return await self.shell(
-                    f"{self.xdotool} mousedown 1 mousemove --sync {x} {y} mouseup 1"
-                )
+    async def wait(self, duration: int) -> ToolResult:
+        await asyncio.sleep(duration)
+        return await self.screenshot()
 
-        if action in ("key", "type"):
-            if text is None:
-                raise ToolError(f"text is required for {action}")
-            if coordinate is not None:
-                raise ToolError(f"coordinate is not accepted for {action}")
-            if not isinstance(text, str):
-                raise ToolError(f"{text} must be a string")
+    async def screenshot(self) -> ToolResult:
+        return await self._screenshot()
 
-            if action == "key":
-                return await self.shell(
-                    f"{self.xdotool} key -- {' '.join(shlex.quote(part) for part in text.split())}"
-                )
-            elif action == "type":
-                results: list[ToolResult] = []
-                for chunk in chunks(text, TYPING_GROUP_SIZE):
-                    cmd = f"{self.xdotool} type --delay {TYPING_DELAY_MS} -- {shlex.quote(chunk)}"
-                    results.append(await self.shell(cmd, take_screenshot=False))
-
-                screenshot_base64 = await self.take_screenshot_after_delay()
-                return ToolResult(
-                    output="".join(result.output or "" for result in results),
-                    error="".join(result.error or "" for result in results),
-                    base64_image=screenshot_base64,
-                )
-
-        if action in (
+    async def _mouse_move_and(
+        self,
+        action: Literal[
+            "mouse_move",
             "left_click",
             "right_click",
-            "double_click",
             "middle_click",
-            "screenshot",
-            "cursor_position",
-        ):
-            if text is not None:
-                raise ToolError(f"text is not accepted for {action}")
-            if coordinate is not None:
-                raise ToolError(f"coordinate is not accepted for {action}")
+            "double_click",
+            "triple_click",
+        ],
+        coordinate: tuple[int, int] | None,
+        text: str | None,
+    ):
+        should_move = action == "mouse_move" or coordinate
+        if should_move:
+            assert coordinate  # coding/type safety error
+            move_result = await self._move_mouse_to_coordinate(
+                coordinate, action == "mouse_move"
+            )
+            if action == "mouse_move":
+                return move_result
+        click_arg = {
+            "left_click": "1",
+            "right_click": "3",
+            "middle_click": "2",
+            "double_click": "--repeat 2 --delay 300 1",
+            "triple_click": "--repeat 3 --delay 300 1",
+        }[action]
 
-            if action == "screenshot":
-                return await self.screenshot()
-            elif action == "cursor_position":
-                result = await self.shell(
-                    f"{self.xdotool} getmouselocation --shell",
-                    take_screenshot=False,
-                )
-                output = result.output or ""
-                x, y = self.scale_coordinates(
-                    "computer",
-                    int(output.split("X=")[1].split("\n")[0]),
-                    int(output.split("Y=")[1].split("\n")[0]),
-                )
-                return result.replace(output=f"X={x},Y={y}")
-            else:
-                click_arg = {
-                    "left_click": "1",
-                    "right_click": "3",
-                    "middle_click": "2",
-                    "double_click": "--repeat 2 --delay 300 1",
-                }[action]
-                return await self.shell(f"{self.xdotool} click {click_arg}")
+        if text:
+            key_arg = _key_arg_for_text(text)
+            await self._shell(f"{self.xdotool} keydown -- {key_arg}", False)
+            await self._shell(f"{self.xdotool} click {click_arg}", False)
+            return await self._shell(f"{self.xdotool} keyup -- {key_arg}")
+        else:
+            return await self._shell(f"{self.xdotool} click {click_arg}")
 
-        raise ToolError(f"Invalid action: {action}")
+    async def _move_mouse_to_coordinate(
+        self, coordinate: tuple[int, int], take_screenshot: bool
+    ):
+        x, y = self._scale_coordinates("api", *coordinate)
+        return await self._shell(
+            f"{self.xdotool} mousemove --sync {x} {y}", take_screenshot=take_screenshot
+        )
 
-    async def screenshot(self):
+    async def _screenshot(self):
         """Take a screenshot of the current screen and return the base64 encoded image."""
         output_dir = Path(OUTPUT_DIR)
         output_dir.mkdir(parents=True, exist_ok=True)
         path = output_dir / f"screenshot_{uuid4().hex}.png"
 
-        result = await self.shell(
+        result = await self._shell(
             f"{self._display_prefix}scrot --silent -p {path}", take_screenshot=False
         )
         if self._scaling_enabled:
-            x, y = self.scale_coordinates("computer", self.width, self.height)
+            x, y = self._scale_coordinates("computer", self.width, self.height)
             convert_cmd = f"convert {path} -resize {x}x{y}!"
             if self.color_count is not None:
                 convert_cmd += f" -colors {self.color_count}"
             convert_cmd += f" {path}"
-            await self.shell(convert_cmd, take_screenshot=False)
+            await self._shell(convert_cmd, take_screenshot=False)
 
         if path.exists():
             return result.replace(
                 base64_image=base64.b64encode(path.read_bytes()).decode()
             )
-        raise ToolError(f"Failed to take screenshot: {result.error}")
+        raise X11ClientError(f"Failed to take screenshot: {result.error}")
 
-    async def shell(self, command: str, take_screenshot=True) -> ToolResult:
+    async def _shell(self, command: str, take_screenshot=True) -> ToolResult:
         """Run a shell command and return the output, error, and optionally a screenshot."""
         logging.debug(f"running shell command {command}")
         _, stdout, stderr = await run(command)
@@ -226,17 +284,17 @@ class X11Client:
         return ToolResult(
             output=stdout,
             error=stderr,
-            base64_image=(await self.take_screenshot_after_delay())
+            base64_image=(await self._take_screenshot_after_delay())
             if take_screenshot
             else None,
         )
 
-    async def take_screenshot_after_delay(self) -> str:
+    async def _take_screenshot_after_delay(self) -> str:
         # delay to let things settle before taking a screenshot
         await asyncio.sleep(self._screenshot_delay)
-        return (await self.screenshot()).base64_image
+        return (await self._screenshot()).base64_image
 
-    def scale_coordinates(self, source: ScalingSource, x: int, y: int):
+    def _scale_coordinates(self, source: ScalingSource, x: int, y: int):
         """Scale coordinates to a target maximum resolution."""
         if not self._scaling_enabled:
             return x, y
@@ -255,8 +313,12 @@ class X11Client:
         y_scaling_factor = target_dimension["height"] / self.height
         if source == "api":
             if x > self.width or y > self.height:
-                raise ToolError(f"Coordinates {x}, {y} are out of bounds")
+                raise X11ClientError(f"Coordinates {x}, {y} are out of bounds")
             # scale up
             return round(x / x_scaling_factor), round(y / y_scaling_factor)
         # scale down
         return round(x * x_scaling_factor), round(y * y_scaling_factor)
+
+
+def _key_arg_for_text(text: str) -> str:
+    return " ".join(shlex.quote(part) for part in text.split())
