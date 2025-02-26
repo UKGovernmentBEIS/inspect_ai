@@ -213,6 +213,8 @@ website:
           href: reference/inspect_ai.model.qmd#content
         - text: ContentText
           href: reference/inspect_ai.model.qmd#contenttext
+        - text: ContentReasoning
+          href: reference/inspect_ai.model.qmd#contentreasoning
         - text: ContentImage
           href: reference/inspect_ai.model.qmd#contentimage
         - text: ContentAudio

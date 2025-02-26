@@ -1,5 +1,6 @@
 import functools
 import os
+import re
 import sys
 from copy import copy
 from logging import getLogger
@@ -28,8 +29,12 @@ from anthropic.types import (
     ImageBlockParam,
     Message,
     MessageParam,
+    RedactedThinkingBlock,
+    RedactedThinkingBlockParam,
     TextBlock,
     TextBlockParam,
+    ThinkingBlock,
+    ThinkingBlockParam,
     ToolParam,
     ToolResultBlockParam,
     ToolUseBlock,
@@ -44,7 +49,12 @@ from inspect_ai._util.constants import (
     DEFAULT_MAX_RETRIES,
     NO_CONTENT,
 )
-from inspect_ai._util.content import Content, ContentImage, ContentText
+from inspect_ai._util.content import (
+    Content,
+    ContentImage,
+    ContentReasoning,
+    ContentText,
+)
 from inspect_ai._util.error import exception_message
 from inspect_ai._util.images import file_as_data_uri
 from inspect_ai._util.logger import warn_once
@@ -204,15 +214,21 @@ class AnthropicAPI(ModelAPI):
                 request["system"] = system_param
             request["tools"] = tools_param
             if len(tools) > 0:
-                request["tool_choice"] = message_tool_choice(tool_choice)
+                request["tool_choice"] = message_tool_choice(
+                    tool_choice, self.is_using_thinking(config)
+                )
 
             # additional options
-            request = request | self.completion_params(config)
+            req, headers, betas = self.completion_config(config)
+            request = request | req
 
             # extra headers (for time tracker and computer use)
-            extra_headers = {HttpxTimeTracker.REQUEST_ID_HEADER: request_id}
+            extra_headers = headers | {HttpxTimeTracker.REQUEST_ID_HEADER: request_id}
             if computer_use:
-                extra_headers["anthropic-beta"] = "computer-use-2024-10-22"
+                betas.append("computer-use-2024-10-22")
+            if len(betas) > 0:
+                extra_headers["anthropic-beta"] = ",".join(betas)
+
             request["extra_headers"] = extra_headers
 
             # extra_body
@@ -245,26 +261,66 @@ class AnthropicAPI(ModelAPI):
             else:
                 raise ex
 
-    def completion_params(self, config: GenerateConfig) -> dict[str, Any]:
-        params = dict(model=self.model_name, max_tokens=cast(int, config.max_tokens))
-        if config.temperature is not None:
-            params["temperature"] = config.temperature
-        if config.top_p is not None:
-            params["top_p"] = config.top_p
-        if config.top_k is not None:
-            params["top_k"] = config.top_k
+    def completion_config(
+        self, config: GenerateConfig
+    ) -> tuple[dict[str, Any], dict[str, str], list[str]]:
+        max_tokens = cast(int, config.max_tokens)
+        params = dict(model=self.model_name, max_tokens=max_tokens)
+        headers: dict[str, str] = {}
+        betas: list[str] = []
+        # some params not compatible with thinking models
+        if not self.is_using_thinking(config):
+            if config.temperature is not None:
+                params["temperature"] = config.temperature
+            if config.top_p is not None:
+                params["top_p"] = config.top_p
+            if config.top_k is not None:
+                params["top_k"] = config.top_k
+
+        # some thinking-only stuff
+        if self.is_using_thinking(config):
+            params["thinking"] = dict(
+                type="enabled", budget_tokens=config.reasoning_tokens
+            )
+            headers["anthropic-version"] = "2023-06-01"
+            if max_tokens > 8192:
+                betas.append("output-128k-2025-02-19")
+
+        # config that applies to all models
         if config.timeout is not None:
             params["timeout"] = float(config.timeout)
         if config.stop_seqs is not None:
             params["stop_sequences"] = config.stop_seqs
-        return params
+
+        # return config
+        return params, headers, betas
 
     @override
     def max_tokens(self) -> int | None:
         # anthropic requires you to explicitly specify max_tokens (most others
         # set it to the maximum allowable output tokens for the model).
-        # set to 4096 which is the lowest documented max_tokens for claude models
+        # set to 4096 which is the highest possible for claude 3 (claude 3.5
+        # allows up to 8192)
         return 4096
+
+    @override
+    def max_tokens_for_config(self, config: GenerateConfig) -> int | None:
+        max_tokens = cast(int, self.max_tokens())
+        if self.is_thinking_model() and config.reasoning_tokens is not None:
+            max_tokens = max_tokens + config.reasoning_tokens
+        return max_tokens
+
+    def is_using_thinking(self, config: GenerateConfig) -> bool:
+        return self.is_thinking_model() and config.reasoning_tokens is not None
+
+    def is_thinking_model(self) -> bool:
+        return not self.is_claude_3() and not self.is_claude_3_5()
+
+    def is_claude_3(self) -> bool:
+        return re.search(r"claude-3-[a-zA-Z]", self.model_name) is not None
+
+    def is_claude_3_5(self) -> bool:
+        return "claude-3-5-" in self.model_name
 
     @override
     def connection_key(self) -> str:
@@ -294,6 +350,14 @@ class AnthropicAPI(ModelAPI):
     @override
     def tool_result_images(self) -> bool:
         return True
+
+    @override
+    def emulate_reasoning_history(self) -> bool:
+        return False
+
+    @override
+    def force_reasoning_history(self) -> Literal["none", "all", "last"] | None:
+        return "all"
 
     # convert some common BadRequestError states into 'refusal' model output
     def handle_bad_request(self, ex: BadRequestError) -> ModelOutput | Exception:
@@ -514,9 +578,15 @@ def combine_messages(a: MessageParam, b: MessageParam) -> MessageParam:
         raise ValueError(f"Unexpected content types for messages: {a}, {b}")
 
 
-def message_tool_choice(tool_choice: ToolChoice) -> message_create_params.ToolChoice:
+def message_tool_choice(
+    tool_choice: ToolChoice, thinking_model: bool
+) -> message_create_params.ToolChoice:
     if isinstance(tool_choice, ToolFunction):
-        return {"type": "tool", "name": tool_choice.name}
+        # forced tool use not compatible with thinking models
+        if thinking_model:
+            return {"type": "any"}
+        else:
+            return {"type": "tool", "name": tool_choice.name}
     elif tool_choice == "any":
         return {"type": "any"}
     elif tool_choice == "none":
@@ -544,9 +614,15 @@ async def message_param(message: ChatMessage) -> MessageParam:
     # "tool" means serving a tool call result back to claude
     elif message.role == "tool":
         if message.error is not None:
-            content: str | list[TextBlockParam | ImageBlockParam] = (
-                message.error.message
-            )
+            content: (
+                str
+                | list[
+                    TextBlockParam
+                    | ImageBlockParam
+                    | ThinkingBlockParam
+                    | RedactedThinkingBlockParam
+                ]
+            ) = message.error.message
             # anthropic requires that content be populated when
             # is_error is true (throws bad_request_error when not)
             # so make sure this precondition is met
@@ -567,7 +643,7 @@ async def message_param(message: ChatMessage) -> MessageParam:
                 ToolResultBlockParam(
                     tool_use_id=str(message.tool_call_id),
                     type="tool_result",
-                    content=content,
+                    content=cast(list[TextBlockParam | ImageBlockParam], content),
                     is_error=message.error is not None,
                 )
             ],
@@ -576,7 +652,13 @@ async def message_param(message: ChatMessage) -> MessageParam:
     # tool_calls means claude is attempting to call our tools
     elif message.role == "assistant" and message.tool_calls:
         # first include content (claude <thinking>)
-        tools_content: list[TextBlockParam | ImageBlockParam | ToolUseBlockParam] = (
+        tools_content: list[
+            TextBlockParam
+            | ThinkingBlockParam
+            | RedactedThinkingBlockParam
+            | ImageBlockParam
+            | ToolUseBlockParam
+        ] = (
             [TextBlockParam(type="text", text=message.content or NO_CONTENT)]
             if isinstance(message.content, str)
             else (
@@ -645,6 +727,16 @@ def model_output_from_message(message: Message, tools: list[ToolInfo]) -> ModelO
                     arguments=content_block.model_dump().get("input", {}),
                 )
             )
+        elif isinstance(content_block, RedactedThinkingBlock):
+            content.append(
+                ContentReasoning(reasoning=content_block.data, redacted=True)
+            )
+        elif isinstance(content_block, ThinkingBlock):
+            content.append(
+                ContentReasoning(
+                    reasoning=content_block.thinking, signature=content_block.signature
+                )
+            )
 
     # resolve choice
     choice = ChatCompletionChoice(
@@ -702,7 +794,7 @@ def split_system_messages(
 
 async def message_param_content(
     content: Content,
-) -> TextBlockParam | ImageBlockParam:
+) -> TextBlockParam | ImageBlockParam | ThinkingBlockParam | RedactedThinkingBlockParam:
     if isinstance(content, ContentText):
         return TextBlockParam(type="text", text=content.text or NO_CONTENT)
     elif isinstance(content, ContentImage):
@@ -720,6 +812,18 @@ async def message_param_content(
             type="image",
             source=dict(type="base64", media_type=cast(Any, media_type), data=image),
         )
+    elif isinstance(content, ContentReasoning):
+        if content.redacted:
+            return RedactedThinkingBlockParam(
+                type="redacted_thinking",
+                data=content.reasoning,
+            )
+        else:
+            if content.signature is None:
+                raise ValueError("Thinking content without signature.")
+            return ThinkingBlockParam(
+                type="thinking", thinking=content.reasoning, signature=content.signature
+            )
     else:
         raise RuntimeError(
             "Anthropic models do not currently support audio or video inputs."

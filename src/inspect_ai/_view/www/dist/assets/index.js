@@ -21451,7 +21451,12 @@ var require_assets = __commonJS({
                 children: "Reasoning"
               }
             ),
-            /* @__PURE__ */ jsxRuntimeExports.jsx(ExpandablePanel, { collapse: true, children: /* @__PURE__ */ jsxRuntimeExports.jsx(MarkdownDiv, { markdown: r2.reasoning }) })
+            /* @__PURE__ */ jsxRuntimeExports.jsx(ExpandablePanel, { collapse: true, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+              MarkdownDiv,
+              {
+                markdown: r2.redacted ? "Reasoning encrypted for safety reasons." : r2.reasoning
+              }
+            ) })
           ] }, key2);
         }
       },
