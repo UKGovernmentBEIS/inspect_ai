@@ -1,7 +1,7 @@
 import clsx from "clsx";
 import { useCallback, useEffect, useState } from "react";
 import { ApplicationIcons } from "../appearance/icons";
-import "./LightboxCarousel.css";
+import styles from "./LightboxCarousel.module.css";
 
 interface Slide {
   label: string;
@@ -22,17 +22,20 @@ export const LightboxCarousel: React.FC<LightboxCarouselProps> = ({
   const [showOverlay, setShowOverlay] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
 
-  const openLightbox = (index: number) => {
-    setCurrentIndex(index);
-    setShowOverlay(true);
+  const openLightbox = useCallback(
+    (index: number) => {
+      setCurrentIndex(index);
+      setShowOverlay(true);
 
-    // Slight delay before setting isOpen so the fade-in starts from opacity: 0
-    setTimeout(() => setIsOpen(true), 10);
-  };
+      // Slight delay before setting isOpen so the fade-in starts from opacity: 0
+      setTimeout(() => setIsOpen(true), 10);
+    },
+    [setCurrentIndex, setShowOverlay],
+  );
 
-  const closeLightbox = () => {
+  const closeLightbox = useCallback(() => {
     setIsOpen(false);
-  };
+  }, [setIsOpen]);
 
   // Remove the overlay from the DOM after fade-out completes
   useEffect(() => {
@@ -42,17 +45,17 @@ export const LightboxCarousel: React.FC<LightboxCarouselProps> = ({
       }, 300); // match your transition duration
       return () => clearTimeout(timer);
     }
-  }, [isOpen, showOverlay]);
+  }, [isOpen, showOverlay, setShowOverlay]);
 
   const showNext = useCallback(() => {
     setCurrentIndex((prev) => {
       return (prev + 1) % slides.length;
     });
-  }, [slides]);
+  }, [slides, setCurrentIndex]);
 
   const showPrev = useCallback(() => {
     setCurrentIndex((prev) => (prev - 1 + slides.length) % slides.length);
-  }, [slides]);
+  }, [slides, setCurrentIndex]);
 
   // Keyboard Navigation
   useEffect(() => {
@@ -73,19 +76,22 @@ export const LightboxCarousel: React.FC<LightboxCarouselProps> = ({
   }, [isOpen, showNext, showPrev]);
 
   return (
-    <div className="lightbox-carousel-container">
-      <div className="carousel-thumbs">
+    <div className={clsx("lightbox-carousel-container")}>
+      <div className={clsx(styles.carouselThumbs)}>
         {slides.map((slide, index) => {
           return (
             <div
               key={index}
-              className="carousel-thumb"
+              className={clsx(styles.carouselThumb)}
               onClick={() => openLightbox(index)}
             >
               <div>{slide.label}</div>
               <div>
                 <i
-                  className={clsx(ApplicationIcons.play, "carousel-play-icon")}
+                  className={clsx(
+                    ApplicationIcons.play,
+                    styles.carouselPlayIcon,
+                  )}
                 />
               </div>
             </div>
@@ -93,15 +99,20 @@ export const LightboxCarousel: React.FC<LightboxCarouselProps> = ({
         })}
       </div>
       {showOverlay && (
-        <div className={clsx("lightbox-overlay", isOpen ? "open" : "closed")}>
-          <div className={"lightbox-button-close-wrapper"}>
-            <button className={"lightbox-button-close"} onClick={closeLightbox}>
+        <div
+          className={clsx(styles.lightboxOverlay, isOpen ? "open" : "closed")}
+        >
+          <div className={clsx(styles.lightboxButtonCloseWrapper)}>
+            <button
+              className={styles.lightboxButtonClose}
+              onClick={closeLightbox}
+            >
               <i className={ApplicationIcons.close}></i>
             </button>
           </div>
           {slides.length > 1 ? (
             <button
-              className={"lightbox-preview-button prev"}
+              className={clsx(styles.lightboxPreviewButton, "prev")}
               onClick={showPrev}
             >
               <i className={ApplicationIcons.previous}></i>
@@ -111,7 +122,7 @@ export const LightboxCarousel: React.FC<LightboxCarouselProps> = ({
           )}
           {slides.length > 1 ? (
             <button
-              className={"lightbox-preview-button next"}
+              className={clsx(styles.lightboxPreviewButton, "next")}
               onClick={showNext}
             >
               <i className={ApplicationIcons.next} />
@@ -121,7 +132,7 @@ export const LightboxCarousel: React.FC<LightboxCarouselProps> = ({
           )}
           <div
             key={`carousel-slide-${currentIndex}`}
-            className={clsx("lightbox-content", isOpen ? "open" : "closed")}
+            className={clsx(styles.lightboxContent, isOpen ? "open" : "closed")}
           >
             {slides[currentIndex].render()}
           </div>

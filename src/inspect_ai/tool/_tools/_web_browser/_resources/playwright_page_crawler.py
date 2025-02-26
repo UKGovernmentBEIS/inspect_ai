@@ -47,7 +47,7 @@ class PageCrawler:
 
         # Start with an empty accessibility tree
         self._rendered_main_content: str | None = None
-        self._rendered_accessibility_tree: str = "<empty>"
+        self._rendered_accessibility_tree: str = ""
         self._accessibility_tree: AccessibilityTree | None = None
         self._device_scale_factor = device_scale_factor
 
@@ -135,7 +135,7 @@ class PageCrawler:
                     self._accessibility_tree["root"].render_accessibility_tree(),
                 )
                 if self._accessibility_tree
-                else (None, "<empty>")
+                else (None, "")
             )
 
             if self._rendered_accessibility_tree:

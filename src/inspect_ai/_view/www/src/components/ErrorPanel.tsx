@@ -26,10 +26,10 @@ export const ErrorPanel: React.FC<ErrorPanelProps> = ({ title, error }) => {
       </div>
       <div className={"error-panel-body"}>
         <div>
-          Error: {message || ""}$
+          Error: {message || ""}
           {stack && error.displayStack !== false && (
             <pre className={"error-panel-stack"}>
-              <code>at ${stack}</code>
+              <code>at {stack}</code>
             </pre>
           )}
         </div>

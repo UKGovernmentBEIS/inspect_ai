@@ -31,7 +31,7 @@ class TestPlaywrightCrawler(parameterized.TestCase):
         at_no_update = self._crawler.render_at(
             playwright_crawler.CrawlerOutputFormat.AT
         )
-        self.assertEqual(at_no_update, "<empty>")
+        self.assertEqual(at_no_update, "")
 
         self._crawler.update()
 
@@ -76,7 +76,7 @@ class TestPlaywrightCrawler(parameterized.TestCase):
             </body>
             </html>
             """
-        self._crawler._page_crawler.set_content(test_html)
+        self._crawler._page_future.set_content(test_html)
         self._crawler.update()
         at_before_scroll = self._crawler.render_at(
             playwright_crawler.CrawlerOutputFormat.AT

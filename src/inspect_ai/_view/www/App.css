@@ -805,15 +805,19 @@ table.table.table-sm td {
   overflow: unset;
 }
 
+.markdown-content pre[class*="language-"],
 pre[class*="language-"].tool-output,
 .tool-output {
   background-color: #f8f8f8;
 }
+
+.vscode-dark .markdown-content pre[class*="language-"],
 .vscode-dark pre[class*="language-"].tool-output,
 .vscode-dark .tool-output {
   background-color: #333333;
 }
 
+.markdown-content pre[class*="language-"],
 pre[class*="language-"].tool-output {
   border: none !important;
   box-shadow: none !important;
