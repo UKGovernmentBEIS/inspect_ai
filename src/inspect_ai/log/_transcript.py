@@ -252,6 +252,9 @@ class SandboxEvent(BaseEvent):
     output: str | None = Field(default=None)
     """Output (for exec and read_file). Truncated to 100 lines."""
 
+    completed: datetime | None = Field(default=None)
+    """Time that sandbox action completed (see `timestamp` for started)"""
+
 
 class ApprovalEvent(BaseEvent):
     """Tool approval."""
@@ -383,6 +386,12 @@ class SubtaskEvent(BaseEvent):
 
     events: list["Event"] = Field(default_factory=list)
     """Transcript of events for subtask."""
+
+    completed: datetime | None = Field(default=None)
+    """Time that subtask completed (see `timestamp` for started)"""
+
+    working: float | None = Field(default=None)
+    """Working time for subtask (i.e. time not spent waiting on semaphores or model retries)."""
 
 
 Event: TypeAlias = Union[
