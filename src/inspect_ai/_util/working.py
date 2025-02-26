@@ -12,6 +12,10 @@ def sample_waiting_time() -> float:
     return _sample_waiting_time.get()
 
 
+def sample_working_time() -> float:
+    return time.monotonic() - _sample_start_time.get() - sample_waiting_time()
+
+
 def report_sample_waiting_time(waiting_time: float) -> None:
     _sample_waiting_time.set(_sample_waiting_time.get() + waiting_time)
     check_sample_working_limit()

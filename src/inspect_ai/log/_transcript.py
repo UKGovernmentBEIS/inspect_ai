@@ -19,6 +19,7 @@ from pydantic import BaseModel, ConfigDict, Field, JsonValue, field_serializer
 from inspect_ai._util.constants import SAMPLE_SUBTASK
 from inspect_ai._util.error import EvalError
 from inspect_ai._util.json import JsonChange, json_changes
+from inspect_ai._util.working import sample_working_time
 from inspect_ai.dataset._dataset import Sample
 from inspect_ai.log._message import LoggingMessage
 from inspect_ai.model._chat_message import ChatMessage
@@ -43,7 +44,10 @@ logger = getLogger(__name__)
 
 class BaseEvent(BaseModel):
     timestamp: datetime = Field(default_factory=datetime.now)
-    """Time at which event occurred."""
+    """Clock time at which event occurred."""
+
+    working_start: float = Field(default_factory=sample_working_time)
+    """Working time (within sample) at which the event occurred."""
 
     pending: bool | None = Field(default=None)
     """Is this event pending?"""
