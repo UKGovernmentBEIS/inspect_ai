@@ -1,4 +1,5 @@
 import clsx from "clsx";
+import { FC } from "react";
 import ExpandablePanel from "../../components/ExpandablePanel";
 import {
   ChatMessageAssistant,
@@ -18,7 +19,7 @@ interface ChatMessageProps {
   toolCallStyle: "compact" | "complete";
 }
 
-export const ChatMessage: React.FC<ChatMessageProps> = ({
+export const ChatMessage: FC<ChatMessageProps> = ({
   id,
   message,
   toolMessages,

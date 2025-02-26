@@ -1,4 +1,5 @@
 import clsx from "clsx";
+import { FC, ReactNode } from "react";
 import { ApplicationIcons } from "../../../appearance/icons";
 import styles from "./EventRow.module.css";
 
@@ -6,12 +7,12 @@ interface EventRowProps {
   title: string;
   icon: string;
   className?: string | string[];
-  children?: React.ReactNode | React.ReactNode[];
+  children?: ReactNode | ReactNode[];
 }
 /**
  * Renders the EventRow component.
  */
-export const EventRow: React.FC<EventRowProps> = ({
+export const EventRow: FC<EventRowProps> = ({
   title,
   icon,
   className,

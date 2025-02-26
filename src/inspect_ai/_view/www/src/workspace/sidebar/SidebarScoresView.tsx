@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { Fragment } from "react";
+import { FC, Fragment } from "react";
 import { Scores } from "../../types/log";
 import { formatPrettyDecimal } from "../../utils/format";
 import { metricDisplayName } from "../utils";
@@ -9,7 +9,7 @@ interface SidebarScoresProps {
   scores: Scores;
 }
 
-export const SidebarScoresView: React.FC<SidebarScoresProps> = ({ scores }) => {
+export const SidebarScoresView: FC<SidebarScoresProps> = ({ scores }) => {
   const showReducer = scores.findIndex((score) => !!score.reducer) !== -1;
   return (
     <div className={styles.container}>

@@ -1,3 +1,4 @@
+import { FC } from "react";
 import { ApplicationIcons } from "../../appearance/icons";
 import { ANSIDisplay } from "../../components/AnsiDisplay";
 import { ErrorEvent } from "../../types/log";
@@ -16,7 +17,7 @@ interface ErrorEventViewProps {
 /**
  * Renders the ErrorEventView component.
  */
-export const ErrorEventView: React.FC<ErrorEventViewProps> = ({
+export const ErrorEventView: FC<ErrorEventViewProps> = ({
   id,
   event,
   eventState,

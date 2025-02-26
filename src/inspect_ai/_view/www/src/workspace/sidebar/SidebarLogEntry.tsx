@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { Fragment } from "react";
+import { FC, Fragment } from "react";
 import { EvalLogHeader } from "../../api/types";
 import { EvalStatus } from "./EvalStatus";
 import styles from "./SidebarLogEntry.module.css";
@@ -9,7 +9,7 @@ interface SidebarLogEntryProps {
   task: string;
 }
 
-export const SidebarLogEntry: React.FC<SidebarLogEntryProps> = ({
+export const SidebarLogEntry: FC<SidebarLogEntryProps> = ({
   logHeader,
   task,
 }) => {

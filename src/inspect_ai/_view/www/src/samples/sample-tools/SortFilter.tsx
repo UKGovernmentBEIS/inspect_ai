@@ -1,4 +1,5 @@
 import clsx from "clsx";
+import { FC } from "react";
 import { SampleSummary } from "../../api/types";
 import {
   kEpochAscVal,
@@ -18,11 +19,7 @@ interface SortFilterProps {
   epochs: number;
 }
 
-export const SortFilter: React.FC<SortFilterProps> = ({
-  sort,
-  setSort,
-  epochs,
-}) => {
+export const SortFilter: FC<SortFilterProps> = ({ sort, setSort, epochs }) => {
   const options = [
     { label: "sample asc", val: kSampleAscVal },
     { label: "sample desc", val: kSampleDescVal },

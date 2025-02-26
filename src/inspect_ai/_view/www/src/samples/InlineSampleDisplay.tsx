@@ -1,4 +1,4 @@
-import { RefObject } from "react";
+import { FC, RefObject } from "react";
 import { ErrorPanel } from "../components/ErrorPanel";
 import { ProgressBar } from "../components/ProgressBar";
 import { EvalSample } from "../types/log";
@@ -21,7 +21,7 @@ interface InlineSampleDisplayProps {
 /**
  * Inline Sample Display
  */
-export const InlineSampleDisplay: React.FC<InlineSampleDisplayProps> = ({
+export const InlineSampleDisplay: FC<InlineSampleDisplayProps> = ({
   id,
   sample,
   sampleStatus,

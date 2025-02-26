@@ -1,5 +1,6 @@
+import { FC } from "react";
 import { ApplicationIcons } from "../../appearance/icons";
-import { SampleLimitEvent, Type7 } from "../../types/log";
+import { SampleLimitEvent, Type8 } from "../../types/log";
 import { EventPanel } from "./event/EventPanel";
 import { TranscriptEventState } from "./types";
 
@@ -14,14 +15,14 @@ interface SampleLimitEventViewProps {
 /**
  * Renders the InfoEventView component.
  */
-export const SampleLimitEventView: React.FC<SampleLimitEventViewProps> = ({
+export const SampleLimitEventView: FC<SampleLimitEventViewProps> = ({
   id,
   event,
   eventState,
   setEventState,
   className,
 }) => {
-  const resolve_title = (type: Type7) => {
+  const resolve_title = (type: Type8) => {
     switch (type) {
       case "custom":
         return "Custom Limit Exceeded";
@@ -38,7 +39,7 @@ export const SampleLimitEventView: React.FC<SampleLimitEventViewProps> = ({
     }
   };
 
-  const resolve_icon = (type: Type7) => {
+  const resolve_icon = (type: Type8) => {
     switch (type) {
       case "custom":
         return ApplicationIcons.limits.custom;

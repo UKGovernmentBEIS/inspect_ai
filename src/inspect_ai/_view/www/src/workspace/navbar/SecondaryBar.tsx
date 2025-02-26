@@ -1,4 +1,5 @@
 import clsx from "clsx";
+import { FC } from "react";
 import { SampleSummary } from "../../api/types";
 import { ExpandablePanel } from "../../components/ExpandablePanel";
 import { LabeledValue } from "../../components/LabeledValue";
@@ -27,7 +28,7 @@ interface SecondaryBarProps {
 /**
  * Renders the SecondaryBar
  */
-export const SecondaryBar: React.FC<SecondaryBarProps> = ({
+export const SecondaryBar: FC<SecondaryBarProps> = ({
   evalSpec,
   evalPlan,
   evalResults,
@@ -152,7 +153,7 @@ interface DatasetSummaryProps {
 /**
  * A component that displays the dataset
  */
-const DatasetSummary: React.FC<DatasetSummaryProps> = ({
+const DatasetSummary: FC<DatasetSummaryProps> = ({
   dataset,
   samples,
   epochs,
@@ -177,7 +178,7 @@ interface ScoreSummaryProps {
 /**
  * A component that displays a list of scrorers
  */
-const ScorerSummary: React.FC<ScoreSummaryProps> = ({ evalDescriptor }) => {
+const ScorerSummary: FC<ScoreSummaryProps> = ({ evalDescriptor }) => {
   if (!evalDescriptor) {
     return null;
   }
@@ -202,7 +203,7 @@ interface ParamSummaryProps {
 /**
  * A component that displays a summary of parameters.
  */
-const ParamSummary: React.FC<ParamSummaryProps> = ({ params }) => {
+const ParamSummary: FC<ParamSummaryProps> = ({ params }) => {
   if (!params) {
     return null;
   }

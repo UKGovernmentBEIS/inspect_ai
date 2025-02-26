@@ -17,6 +17,7 @@ import {
   StoreSpecificRenderableTypes,
 } from "./StateEventRenderers";
 
+import { useMemo, FC } from "react";
 import styles from "./StateEventView.module.css";
 
 interface StateEventViewProps {
@@ -31,7 +32,7 @@ interface StateEventViewProps {
 /**
  * Renders the StateEventView component.
  */
-export const StateEventView: React.FC<StateEventViewProps> = ({
+export const StateEventView: FC<StateEventViewProps> = ({
   id,
   event,
   eventState,
@@ -39,19 +40,21 @@ export const StateEventView: React.FC<StateEventViewProps> = ({
   isStore = false,
   className,
 }) => {
-  const summary = summarizeChanges(event.changes);
+  const summary = useMemo(() => {
+    return summarizeChanges(event.changes);
+  }, [event.changes]);
 
   // Synthesize objects for comparison
-  const [before, after] = synthesizeComparable(event.changes);
+  const [before, after] = useMemo(() => {
+    return synthesizeComparable(event.changes);
+  }, [event.changes]);
 
   // This clone is important since the state is used by react as potential values that are rendered
   // and as a result may be decorated with additional properties, etc..., resulting in DOM elements
   // appearing attached to state.
-  const changePreview = generatePreview(
-    event.changes,
-    structuredClone(after),
-    isStore,
-  );
+  const changePreview = useMemo(() => {
+    return generatePreview(event.changes, structuredClone(after), isStore);
+  }, [event.changes, after, isStore]);
   // Compute the title
   const title = event.event === "state" ? "State Updated" : "Store Updated";
 

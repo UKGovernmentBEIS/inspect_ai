@@ -2,19 +2,20 @@ import { ApplicationIcons } from "../../appearance/icons";
 import { ApplicationStyles } from "../../appearance/styles";
 
 import clsx from "clsx";
+import { CSSProperties, FC } from "react";
 import styles from "./SampleErrorView.module.css";
 import { errorType } from "./error";
 
 interface SampleErrorViewProps {
   message?: string;
   align?: string;
-  style?: React.CSSProperties;
+  style?: CSSProperties;
 }
 
 /**
  * Component to display a styled error message.
  */
-export const SampleErrorView: React.FC<SampleErrorViewProps> = ({
+export const SampleErrorView: FC<SampleErrorViewProps> = ({
   message,
   align,
 }) => {

@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { RefObject, useCallback, useState } from "react";
+import { FC, RefObject, useCallback, useState } from "react";
 import { StepEvent } from "../../types/log";
 import { formatDateTime } from "../../utils/format";
 import { EventPanel } from "./event/EventPanel";
@@ -18,7 +18,7 @@ interface StepEventViewProps {
 /**
  * Renders the StepEventView component.
  */
-export const StepEventView: React.FC<StepEventViewProps> = ({
+export const StepEventView: FC<StepEventViewProps> = ({
   event,
   eventState,
   setEventState,
@@ -37,7 +37,7 @@ export const StepEventView: React.FC<StepEventViewProps> = ({
     (state: TranscriptEventState) => {
       setTranscriptState({ ...state });
     },
-    [transcriptState, setTranscriptState],
+    [setTranscriptState],
   );
 
   return (

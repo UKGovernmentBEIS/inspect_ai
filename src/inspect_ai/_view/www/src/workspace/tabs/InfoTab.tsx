@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { FC, useEffect, useState } from "react";
 import { SampleSummary } from "../../api/types";
 import { MessageBand } from "../../components/MessageBand";
 import { PlanCard } from "../../plan/PlanCard";
@@ -22,7 +22,7 @@ interface PlanTabProps {
   evalError?: EvalError;
 }
 
-export const InfoTab: React.FC<PlanTabProps> = ({
+export const InfoTab: FC<PlanTabProps> = ({
   evalSpec,
   evalPlan,
   evalResults,

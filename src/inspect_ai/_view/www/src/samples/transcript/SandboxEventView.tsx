@@ -9,6 +9,7 @@ import { EventSection } from "./event/EventSection";
 import { TranscriptEventState } from "./types";
 
 import clsx from "clsx";
+import { FC } from "react";
 import styles from "./SandboxEventView.module.css";
 
 interface SandboxEventViewProps {
@@ -22,7 +23,7 @@ interface SandboxEventViewProps {
 /**
  * Renders the SandboxEventView component.
  */
-export const SandboxEventView: React.FC<SandboxEventViewProps> = ({
+export const SandboxEventView: FC<SandboxEventViewProps> = ({
   id,
   event,
   eventState,
@@ -60,7 +61,7 @@ interface ExecViewProps {
   event: SandboxEvent;
 }
 
-const ExecView: React.FC<ExecViewProps> = ({ event }) => {
+const ExecView: FC<ExecViewProps> = ({ event }) => {
   if (event.cmd === null) {
     return undefined;
   }
@@ -105,7 +106,7 @@ interface ReadFileViewProps {
   event: SandboxEvent;
 }
 
-const ReadFileView: React.FC<ReadFileViewProps> = ({ event }) => {
+const ReadFileView: FC<ReadFileViewProps> = ({ event }) => {
   if (event.file === null) {
     return undefined;
   }
@@ -118,7 +119,7 @@ interface WriteFileViewProps {
   event: SandboxEvent;
 }
 
-const WriteFileView: React.FC<WriteFileViewProps> = ({ event }) => {
+const WriteFileView: FC<WriteFileViewProps> = ({ event }) => {
   if (event.file === null) {
     return undefined;
   }
@@ -133,7 +134,7 @@ interface FileViewProps {
   contents?: string;
 }
 
-const FileView: React.FC<FileViewProps> = ({ file, contents }) => {
+const FileView: FC<FileViewProps> = ({ file, contents }) => {
   return (
     <div>
       <EventSection title="File">

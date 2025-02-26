@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { useCallback } from "react";
+import { FC, useCallback } from "react";
 import { SampleSummary } from "../../api/types";
 import { ApplicationIcons } from "../../appearance/icons";
 import { CopyButton } from "../../components/CopyButton";
@@ -20,7 +20,7 @@ interface PrimaryBarProps {
   evalSpec?: EvalSpec;
 }
 
-export const PrimaryBar: React.FC<PrimaryBarProps> = ({
+export const PrimaryBar: FC<PrimaryBarProps> = ({
   showToggle,
   offcanvas,
   status,
@@ -34,7 +34,7 @@ export const PrimaryBar: React.FC<PrimaryBarProps> = ({
 
   const handleToggle = useCallback(() => {
     setOffcanvas(!offcanvas);
-  }, [offcanvas]);
+  }, [setOffcanvas, offcanvas]);
 
   return (
     <div className={clsx(styles.wrapper)}>

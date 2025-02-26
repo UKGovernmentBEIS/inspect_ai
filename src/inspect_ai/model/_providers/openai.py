@@ -1,8 +1,12 @@
 import os
+import socket
 from logging import getLogger
 from typing import Any
 
+import httpx
 from openai import (
+    DEFAULT_CONNECTION_LIMITS,
+    DEFAULT_TIMEOUT,
     APIConnectionError,
     APITimeoutError,
     AsyncAzureOpenAI,
@@ -102,6 +106,9 @@ class OpenAIAPI(ModelAPI):
                         ],
                     )
 
+        # create async http client
+        http_client = OpenAIAsyncHttpxClient()
+
         # azure client
         if self.is_azure():
             # resolve base_url
@@ -126,6 +133,7 @@ class OpenAIAPI(ModelAPI):
                 max_retries=(
                     config.max_retries if config.max_retries else DEFAULT_MAX_RETRIES
                 ),
+                http_client=http_client,
                 **model_args,
             )
         else:
@@ -135,6 +143,7 @@ class OpenAIAPI(ModelAPI):
                 max_retries=(
                     config.max_retries if config.max_retries else DEFAULT_MAX_RETRIES
                 ),
+                http_client=http_client,
                 **model_args,
             )
 
@@ -350,3 +359,39 @@ class OpenAIAPI(ModelAPI):
             )
         else:
             return e
+
+
+class OpenAIAsyncHttpxClient(httpx.AsyncClient):
+    """Custom async client that deals better with long running Async requests.
+
+    Based on Anthropic DefaultAsyncHttpClient implementation that they
+    released along with Claude 3.7 as well as the OpenAI DefaultAsyncHttpxClient
+
+    """
+
+    def __init__(self, **kwargs: Any) -> None:
+        # This is based on the openai DefaultAsyncHttpxClient:
+        # https://github.com/openai/openai-python/commit/347363ed67a6a1611346427bb9ebe4becce53f7e
+        kwargs.setdefault("timeout", DEFAULT_TIMEOUT)
+        kwargs.setdefault("limits", DEFAULT_CONNECTION_LIMITS)
+        kwargs.setdefault("follow_redirects", True)
+
+        # This is based on the anthrpopic changes for claude 3.7:
+        # https://github.com/anthropics/anthropic-sdk-python/commit/c5387e69e799f14e44006ea4e54fdf32f2f74393#diff-3acba71f89118b06b03f2ba9f782c49ceed5bb9f68d62727d929f1841b61d12bR1387-R1403
+
+        # set socket options to deal with long running reasoning requests
+        socket_options = [
+            (socket.SOL_SOCKET, socket.SO_KEEPALIVE, True),
+            (socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, 60),
+            (socket.IPPROTO_TCP, socket.TCP_KEEPCNT, 5),
+        ]
+        TCP_KEEPIDLE = getattr(socket, "TCP_KEEPIDLE", None)
+        if TCP_KEEPIDLE is not None:
+            socket_options.append((socket.IPPROTO_TCP, TCP_KEEPIDLE, 60))
+
+        kwargs["transport"] = httpx.AsyncHTTPTransport(
+            limits=DEFAULT_CONNECTION_LIMITS,
+            socket_options=socket_options,
+        )
+
+        super().__init__(**kwargs)

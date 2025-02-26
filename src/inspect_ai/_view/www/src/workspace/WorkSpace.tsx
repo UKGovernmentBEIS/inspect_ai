@@ -5,7 +5,7 @@ import { JsonTab } from "./tabs/JsonTab";
 import { SamplesTab } from "./tabs/SamplesTab";
 
 import clsx from "clsx";
-import { MouseEvent, RefObject, useEffect, useMemo, useRef } from "react";
+import { FC, MouseEvent, RefObject, useEffect, useMemo, useRef } from "react";
 import { SampleSummary } from "../api/types.ts";
 import {
   kEvalWorkspaceTabId,
@@ -84,7 +84,7 @@ interface WorkSpaceProps {
 /**
  * Renders the Main Application
  */
-export const WorkSpace: React.FC<WorkSpaceProps> = (props) => {
+export const WorkSpace: FC<WorkSpaceProps> = (props) => {
   const {
     task_id,
     evalStatus,
@@ -103,9 +103,6 @@ export const WorkSpace: React.FC<WorkSpaceProps> = (props) => {
     workspaceTabScrollPositionRef,
     setWorkspaceTabScrollPosition,
   } = props;
-  if (!evalSpec) {
-    return null;
-  }
 
   const divRef = useRef<HTMLDivElement>(null);
 
@@ -117,6 +114,10 @@ export const WorkSpace: React.FC<WorkSpaceProps> = (props) => {
   }, [task_id]);
 
   const resolvedTabs = useResolvedTabs(props);
+
+  if (!evalSpec) {
+    return undefined;
+  }
 
   return (
     <WorkSpaceView

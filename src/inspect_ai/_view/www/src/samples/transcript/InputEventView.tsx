@@ -1,3 +1,4 @@
+import { FC } from "react";
 import { ApplicationIcons } from "../../appearance/icons";
 import { ANSIDisplay } from "../../components/AnsiDisplay";
 import { InputEvent } from "../../types/log";
@@ -16,7 +17,7 @@ interface InputEventViewProps {
 /**
  * Renders the ErrorEventView component.
  */
-export const InputEventView: React.FC<InputEventViewProps> = ({
+export const InputEventView: FC<InputEventViewProps> = ({
   id,
   event,
   eventState,

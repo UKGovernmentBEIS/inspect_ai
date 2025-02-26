@@ -1,4 +1,5 @@
 import clsx from "clsx";
+import { FC } from "react";
 import { SampleSummary } from "../../api/types";
 import { MarkdownDiv } from "../../components/MarkdownDiv";
 import { arrayToString, inputString } from "../../utils/format";
@@ -17,7 +18,7 @@ interface SampleRowProps {
   showSample: (index: number) => void;
 }
 
-export const SampleRow: React.FC<SampleRowProps> = ({
+export const SampleRow: FC<SampleRowProps> = ({
   id,
   index,
   sample,
