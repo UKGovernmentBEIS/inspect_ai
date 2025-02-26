@@ -1246,6 +1246,10 @@ def set_model_usage(
             if total_usage.input_tokens_cache_read is None:
                 total_usage.input_tokens_cache_read = 0
             total_usage.input_tokens_cache_read += usage.input_tokens_cache_read
+        if usage.reasoning_tokens is not None:
+            if total_usage.reasoning_tokens is None:
+                total_usage.reasoning_tokens = 0
+            total_usage.reasoning_tokens += usage.reasoning_tokens
 
         model_usage[model] = total_usage
 
