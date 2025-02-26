@@ -6459,23 +6459,23 @@ var require_assets = __commonJS({
               }
               var length = 0, start = -1, end = -1, indexWithinAnchor = 0, indexWithinFocus = 0, node2 = root2, parentNode = null;
               b: for (; ; ) {
-                for (var next; ; ) {
+                for (var next2; ; ) {
                   node2 !== JSCompiler_temp || 0 !== anchorOffset && 3 !== node2.nodeType || (start = length + anchorOffset);
                   node2 !== focusNode || 0 !== selection && 3 !== node2.nodeType || (end = length + selection);
                   3 === node2.nodeType && (length += node2.nodeValue.length);
-                  if (null === (next = node2.firstChild)) break;
+                  if (null === (next2 = node2.firstChild)) break;
                   parentNode = node2;
-                  node2 = next;
+                  node2 = next2;
                 }
                 for (; ; ) {
                   if (node2 === root2) break b;
                   parentNode === JSCompiler_temp && ++indexWithinAnchor === anchorOffset && (start = length);
                   parentNode === focusNode && ++indexWithinFocus === selection && (end = length);
-                  if (null !== (next = node2.nextSibling)) break;
+                  if (null !== (next2 = node2.nextSibling)) break;
                   node2 = parentNode;
                   parentNode = node2.parentNode;
                 }
-                node2 = next;
+                node2 = next2;
               }
               JSCompiler_temp = -1 === start || -1 === end ? null : { start, end };
             } else JSCompiler_temp = null;
@@ -8748,42 +8748,42 @@ var require_assets = __commonJS({
         performUnitOfWork(workInProgress);
     }
     function performUnitOfWork(unitOfWork) {
-      var next = beginWork(unitOfWork.alternate, unitOfWork, entangledRenderLanes);
+      var next2 = beginWork(unitOfWork.alternate, unitOfWork, entangledRenderLanes);
       unitOfWork.memoizedProps = unitOfWork.pendingProps;
-      null === next ? completeUnitOfWork(unitOfWork) : workInProgress = next;
+      null === next2 ? completeUnitOfWork(unitOfWork) : workInProgress = next2;
     }
     function replaySuspendedUnitOfWork(unitOfWork) {
-      var next = unitOfWork;
-      var current = next.alternate;
-      switch (next.tag) {
+      var next2 = unitOfWork;
+      var current = next2.alternate;
+      switch (next2.tag) {
         case 15:
         case 0:
-          next = replayFunctionComponent(
+          next2 = replayFunctionComponent(
             current,
-            next,
-            next.pendingProps,
-            next.type,
+            next2,
+            next2.pendingProps,
+            next2.type,
             void 0,
             workInProgressRootRenderLanes
           );
           break;
         case 11:
-          next = replayFunctionComponent(
+          next2 = replayFunctionComponent(
             current,
-            next,
-            next.pendingProps,
-            next.type.render,
-            next.ref,
+            next2,
+            next2.pendingProps,
+            next2.type.render,
+            next2.ref,
             workInProgressRootRenderLanes
           );
           break;
         case 5:
-          resetHooksOnUnwind(next);
+          resetHooksOnUnwind(next2);
         default:
-          unwindInterruptedWork(current, next), next = workInProgress = resetWorkInProgress(next, entangledRenderLanes), next = beginWork(current, next, entangledRenderLanes);
+          unwindInterruptedWork(current, next2), next2 = workInProgress = resetWorkInProgress(next2, entangledRenderLanes), next2 = beginWork(current, next2, entangledRenderLanes);
       }
       unitOfWork.memoizedProps = unitOfWork.pendingProps;
-      null === next ? completeUnitOfWork(unitOfWork) : workInProgress = next;
+      null === next2 ? completeUnitOfWork(unitOfWork) : workInProgress = next2;
     }
     function throwAndUnwindWorkLoop(root2, unitOfWork, thrownValue, suspendedReason) {
       lastContextDependency = currentlyRenderingFiber = null;
@@ -8837,13 +8837,13 @@ var require_assets = __commonJS({
           return;
         }
         unitOfWork = completedWork.return;
-        var next = completeWork(
+        var next2 = completeWork(
           completedWork.alternate,
           completedWork,
           entangledRenderLanes
         );
-        if (null !== next) {
-          workInProgress = next;
+        if (null !== next2) {
+          workInProgress = next2;
           return;
         }
         completedWork = completedWork.sibling;
@@ -8857,19 +8857,19 @@ var require_assets = __commonJS({
     }
     function unwindUnitOfWork(unitOfWork, skipSiblings) {
       do {
-        var next = unwindWork(unitOfWork.alternate, unitOfWork);
-        if (null !== next) {
-          next.flags &= 32767;
-          workInProgress = next;
+        var next2 = unwindWork(unitOfWork.alternate, unitOfWork);
+        if (null !== next2) {
+          next2.flags &= 32767;
+          workInProgress = next2;
           return;
         }
-        next = unitOfWork.return;
-        null !== next && (next.flags |= 32768, next.subtreeFlags = 0, next.deletions = null);
+        next2 = unitOfWork.return;
+        null !== next2 && (next2.flags |= 32768, next2.subtreeFlags = 0, next2.deletions = null);
         if (!skipSiblings && (unitOfWork = unitOfWork.sibling, null !== unitOfWork)) {
           workInProgress = unitOfWork;
           return;
         }
-        workInProgress = unitOfWork = next;
+        workInProgress = unitOfWork = next2;
       } while (null !== unitOfWork);
       workInProgressRootExitStatus = 6;
       workInProgress = null;
@@ -9106,13 +9106,13 @@ var require_assets = __commonJS({
       mightHavePendingSyncWork = didScheduleMicrotask = false;
       var syncTransitionLanes = 0;
       0 !== currentEventTransitionLane && (shouldAttemptEagerTransition() && (syncTransitionLanes = currentEventTransitionLane), currentEventTransitionLane = 0);
-      for (var currentTime = now(), prev = null, root2 = firstScheduledRoot; null !== root2; ) {
-        var next = root2.next, nextLanes = scheduleTaskForRootDuringMicrotask(root2, currentTime);
+      for (var currentTime = now(), prev2 = null, root2 = firstScheduledRoot; null !== root2; ) {
+        var next2 = root2.next, nextLanes = scheduleTaskForRootDuringMicrotask(root2, currentTime);
         if (0 === nextLanes)
-          root2.next = null, null === prev ? firstScheduledRoot = next : prev.next = next, null === next && (lastScheduledRoot = prev);
-        else if (prev = root2, 0 !== syncTransitionLanes || 0 !== (nextLanes & 3))
+          root2.next = null, null === prev2 ? firstScheduledRoot = next2 : prev2.next = next2, null === next2 && (lastScheduledRoot = prev2);
+        else if (prev2 = root2, 0 !== syncTransitionLanes || 0 !== (nextLanes & 3))
           mightHavePendingSyncWork = true;
-        root2 = next;
+        root2 = next2;
       }
       flushSyncWorkAcrossRoots_impl(syncTransitionLanes);
     }
@@ -12717,20 +12717,20 @@ var require_assets = __commonJS({
           this.length = 0;
         }
         function addAfter(list2, node2, value2) {
-          var next = node2.next;
-          var newNode = { value: value2, prev: node2, next };
+          var next2 = node2.next;
+          var newNode = { value: value2, prev: node2, next: next2 };
           node2.next = newNode;
-          next.prev = newNode;
+          next2.prev = newNode;
           list2.length++;
           return newNode;
         }
         function removeRange(list2, node2, count) {
-          var next = node2.next;
-          for (var i2 = 0; i2 < count && next !== list2.tail; i2++) {
-            next = next.next;
+          var next2 = node2.next;
+          for (var i2 = 0; i2 < count && next2 !== list2.tail; i2++) {
+            next2 = next2.next;
           }
-          node2.next = next;
-          next.prev = node2;
+          node2.next = next2;
+          next2.prev = node2;
           list2.length -= i2;
         }
         function toArray2(list2) {
@@ -13941,9 +13941,8 @@ var require_assets = __commonJS({
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "error-panel-body", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
           "Error: ",
           message2 || "",
-          "$",
           stack2 && error2.displayStack !== false && /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: "error-panel-stack", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("code", { children: [
-            "at $",
+            "at ",
             stack2
           ] }) })
         ] }) })
@@ -13982,23 +13981,23 @@ var require_assets = __commonJS({
     const container$d = "_container_1phwy_13";
     const animate = "_animate_1phwy_21";
     const leftToRight = "_leftToRight_1phwy_1";
-    const styles$15 = {
+    const styles$16 = {
       wrapper: wrapper$3,
       container: container$d,
       animate,
       leftToRight
     };
     const ProgressBar = ({ animating }) => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$15.wrapper, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$16.wrapper, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
         "div",
         {
-          className: styles$15.container,
+          className: styles$16.container,
           role: "progressbar",
           "aria-label": "Basic example",
           "aria-valuenow": 25,
           "aria-valuemin": 0,
           "aria-valuemax": 100,
-          children: animating && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$15.animate })
+          children: animating && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$16.animate })
         }
       ) });
     };
@@ -14359,7 +14358,7 @@ var require_assets = __commonJS({
     const circle$1 = "_circle_upui3_1";
     const green$1 = "_green_upui3_12";
     const red$1 = "_red_upui3_18";
-    const styles$14 = {
+    const styles$15 = {
       circle: circle$1,
       green: green$1,
       red: red$1
@@ -14375,7 +14374,7 @@ var require_assets = __commonJS({
             "span",
             {
               className: clsx(
-                styles$14.circle,
+                styles$15.circle,
                 "text-size-small",
                 score2 ? "green" : "red"
               ),
@@ -14432,7 +14431,7 @@ var require_assets = __commonJS({
     const padded$1 = "_padded_w37fs_8";
     const key$1 = "_key_w37fs_12";
     const value$1 = "_value_w37fs_16";
-    const styles$13 = {
+    const styles$14 = {
       container: container$c,
       padded: padded$1,
       key: key$1,
@@ -14479,12 +14478,12 @@ var require_assets = __commonJS({
                 "div",
                 {
                   className: clsx(
-                    styles$13.container,
-                    index2 + 1 < keys.length ? styles$13.padded : void 0
+                    styles$14.container,
+                    index2 + 1 < keys.length ? styles$14.padded : void 0
                   ),
                   children: [
-                    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$13.key, "text-size-smaller"), children: key2 }),
-                    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$13.value, "text-size-title"), children: formattedValue })
+                    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$14.key, "text-size-smaller"), children: key2 }),
+                    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$14.value, "text-size-title"), children: formattedValue })
                   ]
                 }
               )
@@ -15891,7 +15890,7 @@ var require_assets = __commonJS({
     const hidden$2 = "_hidden_tm52u_5";
     const pills = "_pills_tm52u_9";
     const pill = "_pill_tm52u_9";
-    const styles$12 = {
+    const styles$13 = {
       visible,
       hidden: hidden$2,
       pills,
@@ -15920,7 +15919,7 @@ var require_assets = __commonJS({
         return /* @__PURE__ */ jsxRuntimeExports.jsx(
           "div",
           {
-            className: ((_a2 = child["props"]) == null ? void 0 : _a2.title) === activeItem ? styles$12.visible : styles$12.hidden,
+            className: ((_a2 = child["props"]) == null ? void 0 : _a2.title) === activeItem ? styles$13.visible : styles$13.hidden,
             children: child
           },
           `nav-pill-container-${idx}`
@@ -15930,7 +15929,7 @@ var require_assets = __commonJS({
         /* @__PURE__ */ jsxRuntimeExports.jsx(
           "ul",
           {
-            className: clsx("nav", "nav-pills", styles$12.pills),
+            className: clsx("nav", "nav-pills", styles$13.pills),
             role: "tablist",
             "aria-orientation": "horizontal",
             children: navPills
@@ -15957,7 +15956,7 @@ var require_assets = __commonJS({
               "nav-link",
               "text-style-label",
               active2 ? "active " : "",
-              styles$12.pill
+              styles$13.pill
             ),
             onClick: () => {
               setActiveItem(title2);
@@ -16075,7 +16074,7 @@ var require_assets = __commonJS({
     const messageGrid = "_messageGrid_xh8qq_13";
     const messageContents = "_messageContents_xh8qq_21";
     const indented = "_indented_xh8qq_26";
-    const styles$11 = {
+    const styles$12 = {
       message: message$1,
       systemRole,
       messageGrid,
@@ -20584,7 +20583,7 @@ var require_assets = __commonJS({
       if (!text2.length) {
         return false;
       }
-      let m, ml, me, len, shift2, next, re2, tld_pos, at_pos;
+      let m, ml, me, len, shift2, next2, re2, tld_pos, at_pos;
       if (this.re.schema_test.test(text2)) {
         re2 = this.re.schema_search;
         re2.lastIndex = 0;
@@ -20618,11 +20617,11 @@ var require_assets = __commonJS({
         if (at_pos >= 0) {
           if ((me = text2.match(this.re.email_fuzzy)) !== null) {
             shift2 = me.index + me[1].length;
-            next = me.index + me[0].length;
-            if (this.__index__ < 0 || shift2 < this.__index__ || shift2 === this.__index__ && next > this.__last_index__) {
+            next2 = me.index + me[0].length;
+            if (this.__index__ < 0 || shift2 < this.__index__ || shift2 === this.__index__ && next2 > this.__last_index__) {
               this.__schema__ = "mailto:";
               this.__index__ = shift2;
-              this.__last_index__ = next;
+              this.__last_index__ = next2;
             }
           }
         }
@@ -21333,14 +21332,14 @@ var require_assets = __commonJS({
       );
     }
     const contentImage = "_contentImage_121dp_1";
-    const styles$10 = {
+    const styles$11 = {
       contentImage
     };
-    const toolImage = "_toolImage_hw4du_1";
-    const output$1 = "_output_hw4du_6";
-    const textOutput = "_textOutput_hw4du_10";
-    const textCode = "_textCode_hw4du_17";
-    const styles$$ = {
+    const toolImage = "_toolImage_1j5uu_1";
+    const output$1 = "_output_1j5uu_6";
+    const textOutput = "_textOutput_1j5uu_10";
+    const textCode = "_textCode_1j5uu_17";
+    const styles$10 = {
       toolImage,
       output: output$1,
       textOutput,
@@ -21362,7 +21361,7 @@ var require_assets = __commonJS({
                 /* @__PURE__ */ jsxRuntimeExports.jsx(
                   "img",
                   {
-                    className: clsx(styles$$.toolImage),
+                    className: clsx(styles$10.toolImage),
                     src: out.image
                   },
                   key2
@@ -21378,10 +21377,10 @@ var require_assets = __commonJS({
           /* @__PURE__ */ jsxRuntimeExports.jsx(ToolTextOutput, { text: String(output2) }, "tool-output-single")
         );
       }
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$$.output), children: outputs });
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$10.output), children: outputs });
     };
     const ToolTextOutput = ({ text: text2 }) => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: clsx(styles$$.textOutput), children: /* @__PURE__ */ jsxRuntimeExports.jsx("code", { className: clsx("sourceCode", styles$$.textCode), children: text2.trim() }) });
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: clsx(styles$10.textOutput, "tool-output"), children: /* @__PURE__ */ jsxRuntimeExports.jsx("code", { className: clsx("sourceCode", styles$10.textCode), children: text2.trim() }) });
     };
     const MessageContent = ({ contents: contents2 }) => {
       if (Array.isArray(contents2)) {
@@ -21464,7 +21463,7 @@ var require_assets = __commonJS({
         render: (key2, content2) => {
           const c2 = content2;
           if (c2.image.startsWith("data:")) {
-            return /* @__PURE__ */ jsxRuntimeExports.jsx("img", { src: c2.image, className: styles$10.contentImage }, key2);
+            return /* @__PURE__ */ jsxRuntimeExports.jsx("img", { src: c2.image, className: styles$11.contentImage }, key2);
           } else {
             return /* @__PURE__ */ jsxRuntimeExports.jsx("code", { children: c2.image }, key2);
           }
@@ -21563,7 +21562,7 @@ var require_assets = __commonJS({
     const outputPre = "_outputPre_1h1fn_1";
     const outputCode = "_outputCode_1h1fn_7";
     const bottomPadding = "_bottomPadding_1h1fn_12";
-    const styles$_ = {
+    const styles$$ = {
       outputPre,
       outputCode,
       bottomPadding
@@ -21601,12 +21600,12 @@ var require_assets = __commonJS({
           {
             markdown: toolCallView.content,
             ref: toolViewRef,
-            className: clsx(styles$_.bottomPadding, "text-size-small")
+            className: clsx("text-size-small", "tool-output")
           }
         );
       }
       const formattedContent = typeof contents2 === "object" ? JSON.stringify(contents2) : contents2;
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: clsx("tool-output", styles$_.outputPre, styles$_.bottomMargin), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: clsx("tool-output", styles$$.outputPre, styles$$.bottomMargin), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
         "code",
         {
           ref: codeRef,
@@ -21614,19 +21613,19 @@ var require_assets = __commonJS({
             "source-code",
             "sourceCode",
             `language-${highlightLanguage}`,
-            styles$_.outputCode
+            styles$$.outputCode
           ),
           children: formattedContent
         }
       ) });
     });
     const image = "_image_10saa_1";
-    const styles$Z = {
+    const styles$_ = {
       image
     };
     const ToolTitle = ({ title: title2 }) => {
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx("bi", "bi-tools", styles$Z.styles) }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx("bi", "bi-tools", styles$_.styles) }),
         /* @__PURE__ */ jsxRuntimeExports.jsx("code", { className: "text-size-small", children: title2 })
       ] });
     };
@@ -21685,7 +21684,7 @@ var require_assets = __commonJS({
       }
     };
     const content$2 = "_content_p4lvn_1";
-    const styles$Y = {
+    const styles$Z = {
       content: content$2
     };
     const MessageContents = ({
@@ -21727,7 +21726,7 @@ var require_assets = __commonJS({
           }
         });
         return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$Y.content, children: message2.content ? /* @__PURE__ */ jsxRuntimeExports.jsx(MessageContent, { contents: message2.content }) : void 0 }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$Z.content, children: message2.content ? /* @__PURE__ */ jsxRuntimeExports.jsx(MessageContent, { contents: message2.content }) : void 0 }),
           toolCalls
         ] });
       } else {
@@ -21852,11 +21851,11 @@ var require_assets = __commonJS({
           className: clsx(
             message2.role,
             "text-size-base",
-            styles$11.message,
-            message2.role === "system" ? styles$11.systemRole : void 0
+            styles$12.message,
+            message2.role === "system" ? styles$12.systemRole : void 0
           ),
           children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$11.messageGrid, "text-style-label"), children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$12.messageGrid, "text-style-label"), children: [
               /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: iconForMsg(message2) }),
               message2.role
             ] }),
@@ -21864,8 +21863,8 @@ var require_assets = __commonJS({
               "div",
               {
                 className: clsx(
-                  styles$11.messageContents,
-                  indented2 ? styles$11.indented : void 0
+                  styles$12.messageContents,
+                  indented2 ? styles$12.indented : void 0
                 ),
                 children: /* @__PURE__ */ jsxRuntimeExports.jsx(ExpandablePanel, { collapse, lines: 30, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
                   MessageContents,
@@ -21884,7 +21883,7 @@ var require_assets = __commonJS({
     };
     const grid$6 = "_grid_140x5_1";
     const number$1 = "_number_140x5_7";
-    const styles$X = {
+    const styles$Y = {
       grid: grid$6,
       number: number$1
     };
@@ -21896,14 +21895,14 @@ var require_assets = __commonJS({
       indented: indented2
     }) => {
       if (number2) {
-        return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$X.grid, children: [
+        return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$Y.grid, children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx(
             "div",
             {
               className: clsx(
                 "text-size-smaller",
                 "text-style-secondary",
-                styles$X.number
+                styles$Y.number
               ),
               children: number2
             }
@@ -21989,7 +21988,7 @@ var require_assets = __commonJS({
     const compact = "_compact_1memb_15";
     const cellKey = "_cellKey_1memb_19";
     const cellValue = "_cellValue_1memb_31";
-    const styles$W = {
+    const styles$X = {
       table: table$1,
       th,
       cell: cell$2,
@@ -22018,15 +22017,15 @@ var require_assets = __commonJS({
             "td",
             {
               className: clsx(
-                styles$W.cell,
-                styles$W.cellKey,
+                styles$X.cell,
+                styles$X.cellKey,
                 "text-size-small",
                 "text-style-label"
               ),
               children: entry2.name
             }
           ),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("td", { className: clsx(styles$W.cell, styles$W.cellValue, "text-size-small"), children: /* @__PURE__ */ jsxRuntimeExports.jsx(RenderedContent, { id: id2, entry: entry2 }) })
+          /* @__PURE__ */ jsxRuntimeExports.jsx("td", { className: clsx(styles$X.cell, styles$X.cellValue, "text-size-small"), children: /* @__PURE__ */ jsxRuntimeExports.jsx(RenderedContent, { id: id2, entry: entry2 }) })
         ] }, id2);
       });
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(
@@ -22036,8 +22035,8 @@ var require_assets = __commonJS({
           className: clsx(
             "table",
             tblClz,
-            styles$W.table,
-            compact2 ? styles$W.compact : void 0,
+            styles$X.table,
+            compact2 ? styles$X.compact : void 0,
             className2
           ),
           style: style2,
@@ -22143,7 +22142,7 @@ var require_assets = __commonJS({
     const query = "_query_9u9bt_1";
     const summary$3 = "_summary_9u9bt_6";
     const preWrap = "_preWrap_9u9bt_10";
-    const styles$V = {
+    const styles$W = {
       query,
       summary: summary$3,
       preWrap
@@ -22295,7 +22294,7 @@ var require_assets = __commonJS({
         render: (_id, entry2) => {
           const results = [];
           results.push(
-            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$V.query, children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$W.query, children: [
               /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.search }),
               " ",
               entry2.value.query
@@ -22307,7 +22306,7 @@ var require_assets = __commonJS({
                 /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("a", { href: result2.url, children: result2.url }) })
               );
               results.push(
-                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-smaller", styles$V.summary), children: result2.summary })
+                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-smaller", styles$W.summary), children: result2.summary })
               );
             }
           );
@@ -22324,7 +22323,7 @@ var require_assets = __commonJS({
         },
         render: (_id, entry2) => {
           return {
-            rendered: /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: styles$V.preWrap, children: entry2.value })
+            rendered: /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: styles$W.preWrap, children: entry2.value })
           };
         }
       },
@@ -22392,7 +22391,7 @@ var require_assets = __commonJS({
     const green = "_green_1iagp_12";
     const red = "_red_1iagp_18";
     const orange = "_orange_1iagp_24";
-    const styles$U = {
+    const styles$V = {
       circle,
       green,
       red,
@@ -22433,22 +22432,22 @@ var require_assets = __commonJS({
             return /* @__PURE__ */ jsxRuntimeExports.jsx(
               "span",
               {
-                className: clsx("text-size-small", styles$U.circle, styles$U.green),
+                className: clsx("text-size-small", styles$V.circle, styles$V.green),
                 children: "C"
               }
             );
           } else if (score2 === "I") {
-            return /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx("text-size-small", styles$U.circle, styles$U.red), children: "I" });
+            return /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx("text-size-small", styles$V.circle, styles$V.red), children: "I" });
           } else if (score2 === "P") {
             return /* @__PURE__ */ jsxRuntimeExports.jsx(
               "span",
               {
-                className: clsx("text-size-small", styles$U.circle, styles$U.orange),
+                className: clsx("text-size-small", styles$V.circle, styles$V.orange),
                 children: "P"
               }
             );
           } else if (score2 === "N") {
-            return /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx("text-size-small", styles$U.circle, styles$U.red), children: "N" });
+            return /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx("text-size-small", styles$V.circle, styles$V.red), children: "N" });
           } else {
             return String(score2);
           }
@@ -24616,11 +24615,11 @@ var require_assets = __commonJS({
             return (past.length > 20 ? "..." : "") + past.substr(-20).replace(/\n/g, "");
           },
           upcomingInput: function() {
-            var next = this.match;
-            if (next.length < 20) {
-              next += this._input.substr(0, 20 - next.length);
+            var next2 = this.match;
+            if (next2.length < 20) {
+              next2 += this._input.substr(0, 20 - next2.length);
             }
-            return (next.substr(0, 20) + (next.length > 20 ? "..." : "")).replace(
+            return (next2.substr(0, 20) + (next2.length > 20 ? "..." : "")).replace(
               /\n/g,
               ""
             );
@@ -24990,11 +24989,11 @@ var require_assets = __commonJS({
       const stack2 = [...input2];
       const res = [];
       while (stack2.length) {
-        const next = stack2.pop();
-        if (Array.isArray(next)) {
-          stack2.push(...next);
+        const next2 = stack2.pop();
+        if (Array.isArray(next2)) {
+          stack2.push(...next2);
         } else {
-          res.push(next);
+          res.push(next2);
         }
       }
       return res.reverse();
@@ -25403,7 +25402,7 @@ categories: ${categories.join(" ")}`;
     };
     const flex$1 = "_flex_1kye9_1";
     const label$5 = "_label_1kye9_5";
-    const styles$T = {
+    const styles$U = {
       flex: flex$1,
       label: label$5
     };
@@ -25434,7 +25433,7 @@ categories: ${categories.join(" ")}`;
         label: "score desc",
         val: kScoreDescVal
       });
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$T.flex, children: [
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$U.flex, children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx(
           "span",
           {
@@ -25443,7 +25442,7 @@ categories: ${categories.join(" ")}`;
               "text-size-smaller",
               "text-style-label",
               "text-style-secondary",
-              styles$T.label
+              styles$U.label
             ),
             children: "Sort:"
           }
@@ -25590,7 +25589,7 @@ categories: ${categories.join(" ")}`;
       });
     };
     const dirname$1 = "_dirname_16ra5_1";
-    const styles$S = {
+    const styles$T = {
       dirname: dirname$1
     };
     const LogDirectoryTitleView = ({
@@ -25615,7 +25614,7 @@ categories: ${categories.join(" ")}`;
             "span",
             {
               title: displayDir,
-              className: clsx("text-size-base", styles$S.dirname),
+              className: clsx("text-size-base", styles$T.dirname),
               children: offcanvas ? displayDir : ""
             }
           )
@@ -25646,7 +25645,7 @@ categories: ${categories.join(" ")}`;
     const backdrop = "_backdrop_1u82r_55";
     const active = "_active_1u82r_62";
     const item$2 = "_item_1u82r_66";
-    const styles$R = {
+    const styles$S = {
       sidebar,
       sidebarClosed,
       sidebarOpen,
@@ -25661,7 +25660,7 @@ categories: ${categories.join(" ")}`;
     const error = "_error_srruf_1";
     const running = "_running_srruf_6";
     const cancelled = "_cancelled_srruf_13";
-    const styles$Q = {
+    const styles$R = {
       error,
       running,
       cancelled
@@ -25692,7 +25691,7 @@ categories: ${categories.join(" ")}`;
     const metric = "_metric_1frsg_8";
     const metricName$1 = "_metricName_1frsg_17";
     const metricReducer$1 = "_metricReducer_1frsg_21";
-    const styles$P = {
+    const styles$Q = {
       container: container$b,
       metric,
       metricName: metricName$1,
@@ -25700,8 +25699,8 @@ categories: ${categories.join(" ")}`;
     };
     const SidebarScoreView = ({ scorer }) => {
       const showReducer = !!scorer.reducer;
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$P.container, children: Object.keys(scorer.metrics).map((metric2) => {
-        return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$P.metric, children: [
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$Q.container, children: Object.keys(scorer.metrics).map((metric2) => {
+        return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$Q.metric, children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx(
             "div",
             {
@@ -25709,12 +25708,12 @@ categories: ${categories.join(" ")}`;
                 "text-style-secondary",
                 "text-style-label",
                 "text-size-small",
-                styles$P.metricName
+                styles$Q.metricName
               ),
               children: metricDisplayName(scorer.metrics[metric2])
             }
           ),
-          showReducer ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-small", styles$P.metricReducer), children: scorer.reducer || "default" }) : "",
+          showReducer ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-small", styles$Q.metricReducer), children: scorer.reducer || "default" }) : "",
           /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-size-title-secondary", children: formatPrettyDecimal(scorer.metrics[metric2].value) })
         ] }, metric2);
       }) });
@@ -25725,7 +25724,7 @@ categories: ${categories.join(" ")}`;
     const metricReducer = "_metricReducer_5kpg1_22";
     const metricValues = "_metricValues_5kpg1_27";
     const metricValue = "_metricValue_5kpg1_27";
-    const styles$O = {
+    const styles$P = {
       container: container$a,
       scoreWrapper,
       metricName,
@@ -25735,10 +25734,10 @@ categories: ${categories.join(" ")}`;
     };
     const SidebarScoresView = ({ scores: scores2 }) => {
       const showReducer = scores2.findIndex((score2) => !!score2.reducer) !== -1;
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$O.container, children: scores2.map((score2, idx) => {
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$P.container, children: scores2.map((score2, idx) => {
         const name2 = score2.name;
         const reducer = score2.reducer;
-        return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$O.scoreWrapper, children: [
+        return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$P.scoreWrapper, children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx(
             "div",
             {
@@ -25746,7 +25745,7 @@ categories: ${categories.join(" ")}`;
                 "text-style-secondary",
                 "text-style-label",
                 "text-size-small",
-                styles$O.metricName
+                styles$P.metricName
               ),
               children: name2
             }
@@ -25758,16 +25757,16 @@ categories: ${categories.join(" ")}`;
                 "text-size-small",
                 "text-style-label",
                 "text-style-secondary",
-                styles$O.metricReducer
+                styles$P.metricReducer
               ),
               children: reducer || "default"
             }
           ) : "",
-          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-small", styles$O.metricValues), children: Object.keys(score2.metrics).map((key2) => {
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-small", styles$P.metricValues), children: Object.keys(score2.metrics).map((key2) => {
             const metric2 = score2.metrics[key2];
             return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
               /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(), children: metricDisplayName(metric2) }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$O.metricValue, children: formatPrettyDecimal(metric2.value) })
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$P.metricValue, children: formatPrettyDecimal(metric2.value) })
             ] }, key2);
           }) })
         ] }, `scorer-${name2}-${idx}`);
@@ -25802,7 +25801,7 @@ categories: ${categories.join(" ")}`;
             "text-style-secondary",
             "text-style-label",
             "text-size-small",
-            styles$Q.cancelled
+            styles$R.cancelled
           ),
           children: message2
         }
@@ -25816,21 +25815,21 @@ categories: ${categories.join(" ")}`;
             "text-style-secondary",
             "text-style-label",
             "text-size-small",
-            styles$Q.running
+            styles$R.running
           ),
           children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: message2 })
         }
       );
     };
     const StatusError = ({ message: message2 }) => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$Q.error, "text-size-small"), children: message2 });
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$R.error, "text-size-small"), children: message2 });
     };
     const entry = "_entry_12m5n_1";
     const title$3 = "_title_12m5n_7";
     const task = "_task_12m5n_12";
     const params = "_params_12m5n_18";
     const scores = "_scores_12m5n_22";
-    const styles$N = {
+    const styles$O = {
       entry,
       title: title$3,
       task,
@@ -25862,15 +25861,15 @@ categories: ${categories.join(" ")}`;
         minute: "2-digit"
       })}` : "";
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$N.entry, children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$N.title, children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$N.task, "text-size-title-secondary"), children: ((_i = logHeader == null ? void 0 : logHeader.eval) == null ? void 0 : _i.task) || task2 }),
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$O.entry, children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$O.title, children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$O.task, "text-size-title-secondary"), children: ((_i = logHeader == null ? void 0 : logHeader.eval) == null ? void 0 : _i.task) || task2 }),
             /* @__PURE__ */ jsxRuntimeExports.jsx("small", { className: clsx("mb-1", "text-size-small"), children: timeStr }),
             model2 ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("small", { className: clsx("mb-1", "text-size-small"), children: model2 }) }) : ""
           ] }),
           /* @__PURE__ */ jsxRuntimeExports.jsx(EvalStatus, { logHeader })
         ] }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$N.params, "three-line-clamp"), children: /* @__PURE__ */ jsxRuntimeExports.jsx("small", { className: "mb-1", children: Object.keys(hyperparameters).map((key2) => {
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$O.params, "three-line-clamp"), children: /* @__PURE__ */ jsxRuntimeExports.jsx("small", { className: "mb-1", children: Object.keys(hyperparameters).map((key2) => {
           const val = hyperparameters[key2];
           if (Array.isArray(val) || typeof val === "object") {
             return `${key2}: ${JSON.stringify(val)}`;
@@ -25881,13 +25880,13 @@ categories: ${categories.join(" ")}`;
         (((_j = logHeader == null ? void 0 : logHeader.eval) == null ? void 0 : _j.dataset) || ((_k = logHeader == null ? void 0 : logHeader.results) == null ? void 0 : _k.scores)) && (logHeader == null ? void 0 : logHeader.status) === "success" ? /* @__PURE__ */ jsxRuntimeExports.jsxs(
           "div",
           {
-            className: clsx("text-truncate", "text-size-small", styles$N.scores),
+            className: clsx("text-truncate", "text-size-small", styles$O.scores),
             children: [
               /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
                 "dataset: ",
                 datasetName || "(samples)"
               ] }),
-              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("text-truncate", styles$N.scoreInfo), children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("text-truncate", styles$O.scoreInfo), children: [
                 scorerLabel,
                 ": ",
                 scorerNames || "(none)"
@@ -25910,30 +25909,30 @@ categories: ${categories.join(" ")}`;
         setOffcanvas(!offcanvas);
       };
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
-        offcanvas && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$R.backdrop, onClick: handleToggle }),
+        offcanvas && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$S.backdrop, onClick: handleToggle }),
         /* @__PURE__ */ jsxRuntimeExports.jsxs(
           "div",
           {
             className: clsx(
-              styles$R.sidebar,
-              offcanvas ? styles$R.sidebarOpen : styles$R.sidebarClosed
+              styles$S.sidebar,
+              offcanvas ? styles$S.sidebarOpen : styles$S.sidebarClosed
             ),
             children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$R.header, children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$S.header, children: [
                 /* @__PURE__ */ jsxRuntimeExports.jsx(LogDirectoryTitleView, { log_dir: logs.log_dir, offcanvas }),
                 /* @__PURE__ */ jsxRuntimeExports.jsx(
                   "button",
                   {
                     onClick: handleToggle,
-                    className: clsx("btn", styles$R.toggle),
+                    className: clsx("btn", styles$S.toggle),
                     type: "button",
                     "aria-label": "Close sidebar",
                     children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.close })
                   }
                 )
               ] }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$R.progress, children: /* @__PURE__ */ jsxRuntimeExports.jsx(ProgressBar, { animating: loading }) }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx("ul", { className: clsx("list-group", styles$R.list), children: logs.files.map((file, index2) => {
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$S.progress, children: /* @__PURE__ */ jsxRuntimeExports.jsx(ProgressBar, { animating: loading }) }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("ul", { className: clsx("list-group", styles$S.list), children: logs.files.map((file, index2) => {
                 const logHeader = logHeaders[file.name];
                 return /* @__PURE__ */ jsxRuntimeExports.jsx(
                   "li",
@@ -25941,8 +25940,8 @@ categories: ${categories.join(" ")}`;
                     className: clsx(
                       "list-group-item",
                       "list-group-item-action",
-                      styles$R.item,
-                      selectedIndex === index2 ? styles$R.active : void 0
+                      styles$S.item,
+                      selectedIndex === index2 ? styles$S.active : void 0
                     ),
                     onClick: () => onSelectedIndexChanged(index2),
                     children: /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -25973,7 +25972,7 @@ categories: ${categories.join(" ")}`;
     ToolButton.displayName = "ToolButton";
     const container$9 = "_container_15b4r_1";
     const label$4 = "_label_15b4r_5";
-    const styles$M = {
+    const styles$N = {
       container: container$9,
       label: label$4
     };
@@ -25990,7 +25989,7 @@ categories: ${categories.join(" ")}`;
         const sel = e.target;
         setEpoch(sel.value);
       };
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$M.container, children: [
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$N.container, children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx(
           "span",
           {
@@ -25999,7 +25998,7 @@ categories: ${categories.join(" ")}`;
               "text-size-smaller",
               "text-style-label",
               "text-style-secondary",
-              styles$M.label
+              styles$N.label
             ),
             children: "Epochs:"
           }
@@ -26044,14 +26043,14 @@ categories: ${categories.join(" ")}`;
     function nextClusterBreak(str2, pos2, includeExtending) {
       if (pos2 == str2.length) return pos2;
       if (pos2 && surrogateLow$1(str2.charCodeAt(pos2)) && surrogateHigh$1(str2.charCodeAt(pos2 - 1))) pos2--;
-      let prev = codePointAt$1(str2, pos2);
-      pos2 += codePointSize$1(prev);
+      let prev2 = codePointAt$1(str2, pos2);
+      pos2 += codePointSize$1(prev2);
       while (pos2 < str2.length) {
-        let next = codePointAt$1(str2, pos2);
-        if (prev == ZWJ || next == ZWJ || includeExtending && isExtendingChar(next)) {
-          pos2 += codePointSize$1(next);
-          prev = next;
-        } else if (isRegionalIndicator(next)) {
+        let next2 = codePointAt$1(str2, pos2);
+        if (prev2 == ZWJ || next2 == ZWJ || includeExtending && isExtendingChar(next2)) {
+          pos2 += codePointSize$1(next2);
+          prev2 = next2;
+        } else if (isRegionalIndicator(next2)) {
           let countBefore = 0, i2 = pos2 - 2;
           while (i2 >= 0 && isRegionalIndicator(codePointAt$1(str2, i2))) {
             countBefore++;
@@ -26259,13 +26258,13 @@ categories: ${categories.join(" ")}`;
           line2++;
         }
       }
-      decompose(from, to2, target2, open) {
+      decompose(from, to2, target2, open2) {
         let text2 = from <= 0 && to2 >= this.length ? this : new TextLeaf(sliceText(this.text, from, to2), Math.min(to2, this.length) - Math.max(0, from));
-        if (open & 1) {
-          let prev = target2.pop();
-          let joined = appendText(text2.text, prev.text.slice(), 0, text2.length);
+        if (open2 & 1) {
+          let prev2 = target2.pop();
+          let joined = appendText(text2.text, prev2.text.slice(), 0, text2.length);
           if (joined.length <= 32) {
-            target2.push(new TextLeaf(joined, prev.length + text2.length));
+            target2.push(new TextLeaf(joined, prev2.length + text2.length));
           } else {
             let mid = joined.length >> 1;
             target2.push(new TextLeaf(joined.slice(0, mid)), new TextLeaf(joined.slice(mid)));
@@ -26338,11 +26337,11 @@ categories: ${categories.join(" ")}`;
           line2 = endLine + 1;
         }
       }
-      decompose(from, to2, target2, open) {
+      decompose(from, to2, target2, open2) {
         for (let i2 = 0, pos2 = 0; pos2 <= to2 && i2 < this.children.length; i2++) {
           let child = this.children[i2], end = pos2 + child.length;
           if (from <= end && to2 >= pos2) {
-            let childOpen = open & ((pos2 <= from ? 1 : 0) | (end >= to2 ? 2 : 0));
+            let childOpen = open2 & ((pos2 <= from ? 1 : 0) | (end >= to2 ? 2 : 0));
             if (pos2 >= from && end <= to2 && !childOpen)
               target2.push(child);
             else
@@ -26512,23 +26511,23 @@ categories: ${categories.join(" ")}`;
             }
             skip--;
           } else if (top2 instanceof TextLeaf) {
-            let next = top2.text[offset + (dir < 0 ? -1 : 0)];
+            let next2 = top2.text[offset + (dir < 0 ? -1 : 0)];
             this.offsets[last] += dir;
-            if (next.length > Math.max(0, skip)) {
-              this.value = skip == 0 ? next : dir > 0 ? next.slice(skip) : next.slice(0, next.length - skip);
+            if (next2.length > Math.max(0, skip)) {
+              this.value = skip == 0 ? next2 : dir > 0 ? next2.slice(skip) : next2.slice(0, next2.length - skip);
               return this;
             }
-            skip -= next.length;
+            skip -= next2.length;
           } else {
-            let next = top2.children[offset + (dir < 0 ? -1 : 0)];
-            if (skip > next.length) {
-              skip -= next.length;
+            let next2 = top2.children[offset + (dir < 0 ? -1 : 0)];
+            if (skip > next2.length) {
+              skip -= next2.length;
               this.offsets[last] += dir;
             } else {
               if (dir < 0)
                 this.offsets[last]--;
-              this.nodes.push(next);
-              this.offsets.push(dir > 0 ? 1 : (next instanceof TextLeaf ? next.text.length : next.children.length) << 1);
+              this.nodes.push(next2);
+              this.offsets.push(dir > 0 ? 1 : (next2 instanceof TextLeaf ? next2.text.length : next2.children.length) << 1);
             }
           }
         }
@@ -26934,11 +26933,11 @@ categories: ${categories.join(" ")}`;
         let resultSections = [], resultInserted = [], filteredSections = [];
         let iter = new SectionIter(this);
         done: for (let i2 = 0, pos2 = 0; ; ) {
-          let next = i2 == ranges.length ? 1e9 : ranges[i2++];
-          while (pos2 < next || pos2 == next && iter.len == 0) {
+          let next2 = i2 == ranges.length ? 1e9 : ranges[i2++];
+          while (pos2 < next2 || pos2 == next2 && iter.len == 0) {
             if (iter.done)
               break done;
-            let len = Math.min(iter.len, next - pos2);
+            let len = Math.min(iter.len, next2 - pos2);
             addSection(filteredSections, len, -1);
             let ins = iter.ins == -1 ? -1 : iter.off == 0 ? iter.ins : 0;
             addSection(resultSections, len, ins);
@@ -27173,14 +27172,14 @@ categories: ${categories.join(" ")}`;
       let sections = [];
       let insert2 = mkSet ? [] : null;
       let a = new SectionIter(setA), b = new SectionIter(setB);
-      for (let open = false; ; ) {
+      for (let open2 = false; ; ) {
         if (a.done && b.done) {
           return insert2 ? ChangeSet.createSet(sections, insert2) : ChangeDesc.create(sections);
         } else if (a.ins == 0) {
-          addSection(sections, a.len, 0, open);
+          addSection(sections, a.len, 0, open2);
           a.next();
         } else if (b.len == 0 && !b.done) {
-          addSection(sections, 0, b.ins, open);
+          addSection(sections, 0, b.ins, open2);
           if (insert2)
             addInsert(insert2, sections, b.text);
           b.next();
@@ -27190,19 +27189,19 @@ categories: ${categories.join(" ")}`;
           let len = Math.min(a.len2, b.len), sectionLen = sections.length;
           if (a.ins == -1) {
             let insB = b.ins == -1 ? -1 : b.off ? 0 : b.ins;
-            addSection(sections, len, insB, open);
+            addSection(sections, len, insB, open2);
             if (insert2 && insB)
               addInsert(insert2, sections, b.text);
           } else if (b.ins == -1) {
-            addSection(sections, a.off ? 0 : a.len, len, open);
+            addSection(sections, a.off ? 0 : a.len, len, open2);
             if (insert2)
               addInsert(insert2, sections, a.textBit(len));
           } else {
-            addSection(sections, a.off ? 0 : a.len, b.off ? 0 : b.ins, open);
+            addSection(sections, a.off ? 0 : a.len, b.off ? 0 : b.ins, open2);
             if (insert2 && !b.off)
               addInsert(insert2, sections, b.text);
           }
-          open = (a.ins > len || b.ins >= 0 && b.len > len) && (open || sections.length > sectionLen);
+          open2 = (a.ins > len || b.ins >= 0 && b.len > len) && (open2 || sections.length > sectionLen);
           a.forward2(len);
           b.forward(len);
         }
@@ -27478,9 +27477,9 @@ categories: ${categories.join(" ")}`;
         ranges.sort((a, b) => a.from - b.from);
         mainIndex = ranges.indexOf(main);
         for (let i2 = 1; i2 < ranges.length; i2++) {
-          let range = ranges[i2], prev = ranges[i2 - 1];
-          if (range.empty ? range.from <= prev.to : range.from < prev.to) {
-            let from = prev.from, to2 = Math.max(range.to, prev.to);
+          let range = ranges[i2], prev2 = ranges[i2 - 1];
+          if (range.empty ? range.from <= prev2.to : range.from < prev2.to) {
+            let from = prev2.from, to2 = Math.max(range.to, prev2.to);
             if (i2 <= mainIndex)
               mainIndex--;
             ranges.splice(--i2, 2, range.anchor > range.head ? EditorSelection.range(to2, from) : EditorSelection.range(from, to2));
@@ -28585,16 +28584,16 @@ categories: ${categories.join(" ")}`;
         let cat = this.charCategorizer(pos2);
         let start = pos2 - from, end = pos2 - from;
         while (start > 0) {
-          let prev = findClusterBreak(text2, start, false);
-          if (cat(text2.slice(prev, start)) != CharCategory.Word)
+          let prev2 = findClusterBreak(text2, start, false);
+          if (cat(text2.slice(prev2, start)) != CharCategory.Word)
             break;
-          start = prev;
+          start = prev2;
         }
         while (end < length) {
-          let next = findClusterBreak(text2, end);
-          if (cat(text2.slice(end, next)) != CharCategory.Word)
+          let next2 = findClusterBreak(text2, end);
+          if (cat(text2.slice(end, next2)) != CharCategory.Word)
             break;
-          end = next;
+          end = next2;
         }
         return start == end ? null : EditorSelection.range(start + from, end + from);
       }
@@ -28833,8 +28832,8 @@ categories: ${categories.join(" ")}`;
             }
           }
         }
-        let next = this.nextLayer.map(changes);
-        return chunks.length == 0 ? next : new RangeSet(chunkPos, chunks, next || RangeSet.empty, maxPoint);
+        let next2 = this.nextLayer.map(changes);
+        return chunks.length == 0 ? next2 : new RangeSet(chunkPos, chunks, next2 || RangeSet.empty, maxPoint);
       }
       /**
       Iterate over the ranges that touch the region `from` to `to`,
@@ -28967,11 +28966,11 @@ categories: ${categories.join(" ")}`;
     RangeSet.empty = /* @__PURE__ */ new RangeSet([], [], null, -1);
     function lazySort(ranges) {
       if (ranges.length > 1)
-        for (let prev = ranges[0], i2 = 1; i2 < ranges.length; i2++) {
+        for (let prev2 = ranges[0], i2 = 1; i2 < ranges.length; i2++) {
           let cur2 = ranges[i2];
-          if (cmpRange(prev, cur2) > 0)
+          if (cmpRange(prev2, cur2) > 0)
             return ranges.slice().sort(cmpRange);
-          prev = cur2;
+          prev2 = cur2;
         }
       return ranges;
     }
@@ -29064,12 +29063,12 @@ categories: ${categories.join(" ")}`;
       /**
       @internal
       */
-      finishInner(next) {
+      finishInner(next2) {
         if (this.from.length)
           this.finishChunk(false);
         if (this.chunks.length == 0)
-          return next;
-        let result2 = RangeSet.create(this.chunkPos, this.chunks, this.nextLayer ? this.nextLayer.finishInner(next) : next, this.setMaxPoint);
+          return next2;
+        let result2 = RangeSet.create(this.chunkPos, this.chunks, this.nextLayer ? this.nextLayer.finishInner(next2) : next2, this.setMaxPoint);
         this.from = null;
         return result2;
       }
@@ -29109,8 +29108,8 @@ categories: ${categories.join(" ")}`;
       }
       gotoInner(pos2, side, forward) {
         while (this.chunkIndex < this.layer.chunk.length) {
-          let next = this.layer.chunk[this.chunkIndex];
-          if (!(this.skip && this.skip.has(next) || this.layer.chunkEnd(this.chunkIndex) < pos2 || next.maxPoint < this.minPoint))
+          let next2 = this.layer.chunk[this.chunkIndex];
+          if (!(this.skip && this.skip.has(next2) || this.layer.chunkEnd(this.chunkIndex) < pos2 || next2.maxPoint < this.minPoint))
             break;
           this.chunkIndex++;
           forward = false;
@@ -29341,10 +29340,10 @@ categories: ${categories.join(" ")}`;
         return active2.reverse();
       }
       openEnd(to2) {
-        let open = 0;
+        let open2 = 0;
         for (let i2 = this.activeTo.length - 1; i2 >= 0 && this.activeTo[i2] > to2; i2--)
-          open++;
-        return open;
+          open2++;
+        return open2;
       }
     }
     function compare$1(a, startA, b, startB, length, comparator) {
@@ -29949,11 +29948,11 @@ categories: ${categories.join(" ")}`;
         if (offset) {
           if (node2.nodeType != 1)
             return false;
-          let prev = node2.childNodes[offset - 1];
-          if (prev.contentEditable == "false")
+          let prev2 = node2.childNodes[offset - 1];
+          if (prev2.contentEditable == "false")
             offset--;
           else {
-            node2 = prev;
+            node2 = prev2;
             offset = maxOffset(node2);
           }
         } else if (node2 == doc2) {
@@ -30045,33 +30044,33 @@ categories: ${categories.join(" ")}`;
       sync(view, track2) {
         if (this.flags & 2) {
           let parent = this.dom;
-          let prev = null, next;
+          let prev2 = null, next2;
           for (let child of this.children) {
             if (child.flags & 7) {
-              if (!child.dom && (next = prev ? prev.nextSibling : parent.firstChild)) {
-                let contentView = ContentView.get(next);
+              if (!child.dom && (next2 = prev2 ? prev2.nextSibling : parent.firstChild)) {
+                let contentView = ContentView.get(next2);
                 if (!contentView || !contentView.parent && contentView.canReuseDOM(child))
-                  child.reuseDOM(next);
+                  child.reuseDOM(next2);
               }
               child.sync(view, track2);
               child.flags &= -8;
             }
-            next = prev ? prev.nextSibling : parent.firstChild;
-            if (track2 && !track2.written && track2.node == parent && next != child.dom)
+            next2 = prev2 ? prev2.nextSibling : parent.firstChild;
+            if (track2 && !track2.written && track2.node == parent && next2 != child.dom)
               track2.written = true;
             if (child.dom.parentNode == parent) {
-              while (next && next != child.dom)
-                next = rm$1(next);
+              while (next2 && next2 != child.dom)
+                next2 = rm$1(next2);
             } else {
-              parent.insertBefore(child.dom, next);
+              parent.insertBefore(child.dom, next2);
             }
-            prev = child.dom;
+            prev2 = child.dom;
           }
-          next = prev ? prev.nextSibling : parent.firstChild;
-          if (next && track2 && track2.node == parent)
+          next2 = prev2 ? prev2.nextSibling : parent.firstChild;
+          if (next2 && track2 && track2.node == parent)
             track2.written = true;
-          while (next)
-            next = rm$1(next);
+          while (next2)
+            next2 = rm$1(next2);
         } else if (this.flags & 1) {
           for (let child of this.children)
             if (child.flags & 7) {
@@ -30246,9 +30245,9 @@ categories: ${categories.join(" ")}`;
     }
     ContentView.prototype.breakAfter = 0;
     function rm$1(dom) {
-      let next = dom.nextSibling;
+      let next2 = dom.nextSibling;
       dom.parentNode.removeChild(dom);
-      return next;
+      return next2;
     }
     class ChildCursor {
       constructor(children2, pos2, i2) {
@@ -30263,8 +30262,8 @@ categories: ${categories.join(" ")}`;
             this.off = pos2 - this.pos;
             return this;
           }
-          let next = this.children[--this.i];
-          this.pos -= next.length + next.breakAfter;
+          let next2 = this.children[--this.i];
+          this.pos -= next2.length + next2.breakAfter;
         }
       }
     }
@@ -30671,21 +30670,21 @@ categories: ${categories.join(" ")}`;
         off = end;
       }
       for (let j2 = i2; j2 > 0; j2--) {
-        let prev = children2[j2 - 1];
-        if (prev.dom.parentNode == dom)
-          return prev.domAtPos(prev.length);
+        let prev2 = children2[j2 - 1];
+        if (prev2.dom.parentNode == dom)
+          return prev2.domAtPos(prev2.length);
       }
       for (let j2 = i2; j2 < children2.length; j2++) {
-        let next = children2[j2];
-        if (next.dom.parentNode == dom)
-          return next.domAtPos(0);
+        let next2 = children2[j2];
+        if (next2.dom.parentNode == dom)
+          return next2.domAtPos(0);
       }
       return new DOMPos(dom, 0);
     }
-    function joinInlineInto(parent, view, open) {
+    function joinInlineInto(parent, view, open2) {
       let last, { children: children2 } = parent;
-      if (open > 0 && view instanceof MarkView && children2.length && (last = children2[children2.length - 1]) instanceof MarkView && last.mark.eq(view.mark)) {
-        joinInlineInto(last, view.children[0], open - 1);
+      if (open2 > 0 && view instanceof MarkView && children2.length && (last = children2[children2.length - 1]) instanceof MarkView && last.mark.eq(view.mark)) {
+        joinInlineInto(last, view.children[0], open2 - 1);
       } else {
         children2.push(view);
         view.setParent(parent);
@@ -30752,10 +30751,10 @@ categories: ${categories.join(" ")}`;
       }
       return true;
     }
-    function updateAttrs(dom, prev, attrs) {
+    function updateAttrs(dom, prev2, attrs) {
       let changed = false;
-      if (prev) {
-        for (let name2 in prev)
+      if (prev2) {
+        for (let name2 in prev2)
           if (!(attrs && name2 in attrs)) {
             changed = true;
             if (name2 == "style")
@@ -30766,7 +30765,7 @@ categories: ${categories.join(" ")}`;
       }
       if (attrs) {
         for (let name2 in attrs)
-          if (!(prev && prev[name2] == attrs[name2])) {
+          if (!(prev2 && prev2[name2] == attrs[name2])) {
             changed = true;
             if (name2 == "style")
               dom.style.cssText = attrs[name2];
@@ -31560,36 +31559,36 @@ categories: ${categories.join(" ")}`;
       for (let iI = 0; iI <= isolates.length; iI++) {
         let from = iI ? isolates[iI - 1].to : rFrom, to2 = iI < isolates.length ? isolates[iI].from : rTo;
         let prevType = iI ? 256 : outerType;
-        for (let i2 = from, prev = prevType, prevStrong = prevType; i2 < to2; i2++) {
+        for (let i2 = from, prev2 = prevType, prevStrong = prevType; i2 < to2; i2++) {
           let type = charType(line2.charCodeAt(i2));
           if (type == 512)
-            type = prev;
+            type = prev2;
           else if (type == 8 && prevStrong == 4)
             type = 16;
           types[i2] = type == 4 ? 2 : type;
           if (type & 7)
             prevStrong = type;
-          prev = type;
+          prev2 = type;
         }
-        for (let i2 = from, prev = prevType, prevStrong = prevType; i2 < to2; i2++) {
+        for (let i2 = from, prev2 = prevType, prevStrong = prevType; i2 < to2; i2++) {
           let type = types[i2];
           if (type == 128) {
-            if (i2 < to2 - 1 && prev == types[i2 + 1] && prev & 24)
-              type = types[i2] = prev;
+            if (i2 < to2 - 1 && prev2 == types[i2 + 1] && prev2 & 24)
+              type = types[i2] = prev2;
             else
               types[i2] = 256;
           } else if (type == 64) {
             let end = i2 + 1;
             while (end < to2 && types[end] == 64)
               end++;
-            let replace2 = i2 && prev == 8 || end < rTo && types[end] == 8 ? prevStrong == 1 ? 1 : 8 : 256;
+            let replace2 = i2 && prev2 == 8 || end < rTo && types[end] == 8 ? prevStrong == 1 ? 1 : 8 : 256;
             for (let j2 = i2; j2 < end; j2++)
               types[j2] = replace2;
             i2 = end - 1;
           } else if (type == 8 && prevStrong == 1) {
             types[i2] = 1;
           }
-          prev = type;
+          prev2 = type;
           if (type & 7)
             prevStrong = type;
         }
@@ -31639,7 +31638,7 @@ categories: ${categories.join(" ")}`;
       }
     }
     function processNeutrals(rFrom, rTo, isolates, outerType) {
-      for (let iI = 0, prev = outerType; iI <= isolates.length; iI++) {
+      for (let iI = 0, prev2 = outerType; iI <= isolates.length; iI++) {
         let from = iI ? isolates[iI - 1].to : rFrom, to2 = iI < isolates.length ? isolates[iI].from : rTo;
         for (let i2 = from; i2 < to2; ) {
           let type = types[i2];
@@ -31657,7 +31656,7 @@ categories: ${categories.join(" ")}`;
                 break;
               }
             }
-            let beforeL = prev == 1;
+            let beforeL = prev2 == 1;
             let afterL = (end < rTo ? types[end] : outerType) == 1;
             let replace2 = beforeL == afterL ? beforeL ? 1 : 2 : outerType;
             for (let j2 = end, jI = iI, fromJ = jI ? isolates[jI - 1].to : rFrom; j2 > i2; ) {
@@ -31669,7 +31668,7 @@ categories: ${categories.join(" ")}`;
             }
             i2 = end;
           } else {
-            prev = type;
+            prev2 = type;
             i2++;
           }
         }
@@ -31681,10 +31680,10 @@ categories: ${categories.join(" ")}`;
         for (let iCh = from, iI = 0; iCh < to2; ) {
           let sameDir = true, isNum = false;
           if (iI == isolates.length || iCh < isolates[iI].from) {
-            let next = types[iCh];
-            if (next != ourType) {
+            let next2 = types[iCh];
+            if (next2 != ourType) {
               sameDir = false;
-              isNum = next == 16;
+              isNum = next2 == 16;
             }
           }
           let recurse = !sameDir && ourType == 1 ? [] : null;
@@ -31733,10 +31732,10 @@ categories: ${categories.join(" ")}`;
         for (let iCh = to2, iI = isolates.length; iCh > from; ) {
           let sameDir = true, isNum = false;
           if (!iI || iCh > isolates[iI - 1].to) {
-            let next = types[iCh - 1];
-            if (next != ourType) {
+            let next2 = types[iCh - 1];
+            if (next2 != ourType) {
               sameDir = false;
-              isNum = next == 16;
+              isNum = next2 == 16;
             }
           }
           let recurse = !sameDir && ourType == 1 ? [] : null;
@@ -31983,14 +31982,14 @@ categories: ${categories.join(" ")}`;
       RangeSet.spans(sets, line2.from, line2.to, {
         point() {
         },
-        span(fromDoc, toDoc, active2, open) {
+        span(fromDoc, toDoc, active2, open2) {
           let from = fromDoc - line2.from, to2 = toDoc - line2.from;
           let level = result2;
-          for (let i2 = active2.length - 1; i2 >= 0; i2--, open--) {
+          for (let i2 = active2.length - 1; i2 >= 0; i2--, open2--) {
             let direction = active2[i2].spec.bidiIsolate, update;
             if (direction == null)
               direction = autoDirection(line2.text, from, to2);
-            if (open > 0 && level.length && (update = level[level.length - 1]).to == from && update.direction == direction) {
+            if (open2 > 0 && level.length && (update = level[level.length - 1]).to == from && update.direction == direction) {
               update.to = to2;
               level = update.inner;
             } else {
@@ -32051,8 +32050,8 @@ categories: ${categories.join(" ")}`;
           return diff2;
         let result2 = [];
         for (let dI = 0, rI = 0, posA = 0, posB = 0; ; dI++) {
-          let next = dI == diff2.length ? null : diff2[dI], off = posA - posB;
-          let end = next ? next.fromB : 1e9;
+          let next2 = dI == diff2.length ? null : diff2[dI], off = posA - posB;
+          let end = next2 ? next2.fromB : 1e9;
           while (rI < ranges.length && ranges[rI] < end) {
             let from = ranges[rI], to2 = ranges[rI + 1];
             let fromB = Math.max(posB, from), toB = Math.min(end, to2);
@@ -32063,11 +32062,11 @@ categories: ${categories.join(" ")}`;
             else
               rI += 2;
           }
-          if (!next)
+          if (!next2)
             return result2;
-          new ChangedRange(next.fromA, next.toA, next.fromB, next.toB).addToSet(result2);
-          posA = next.toA;
-          posB = next.toB;
+          new ChangedRange(next2.fromA, next2.toA, next2.fromB, next2.toB).addToSet(result2);
+          posA = next2.toA;
+          posB = next2.toB;
         }
       }
     }
@@ -32248,10 +32247,10 @@ categories: ${categories.join(" ")}`;
         let ranges = composition ? composition.range.addToSet(changes.slice()) : changes;
         let cursor = this.childCursor(oldLength);
         for (let i2 = ranges.length - 1; ; i2--) {
-          let next = i2 >= 0 ? ranges[i2] : null;
-          if (!next)
+          let next2 = i2 >= 0 ? ranges[i2] : null;
+          if (!next2)
             break;
-          let { fromA, toA, fromB, toB } = next, content2, breakAtStart, openStart, openEnd;
+          let { fromA, toA, fromB, toB } = next2, content2, breakAtStart, openStart, openEnd;
           if (composition && composition.range.fromB < toB && composition.range.toB > fromB) {
             let before = ContentBuilder.build(this.view.state.doc, fromB, composition.range.fromB, this.decorations, this.dynamicDecorationMap);
             let after = ContentBuilder.build(this.view.state.doc, composition.range.toB, toB, this.decorations, this.dynamicDecorationMap);
@@ -32303,9 +32302,9 @@ categories: ${categories.join(" ")}`;
             /* ViewFlag.Dirty */
           ) ? 1 : 0);
           this.markedForComposition.add(cView2);
-          let prev = ContentView.get(dom);
-          if (prev && prev != cView2)
-            prev.dom = null;
+          let prev2 = ContentView.get(dom);
+          if (prev2 && prev2 != cView2)
+            prev2.dom = null;
           cView2.setDOM(dom);
         };
         let pos2 = this.childPos(composition.range.fromB, 1);
@@ -32571,8 +32570,8 @@ categories: ${categories.join(" ")}`;
       computeBlockGapDeco() {
         let deco = [], vs = this.view.viewState;
         for (let pos2 = 0, i2 = 0; ; i2++) {
-          let next = i2 == vs.viewports.length ? null : vs.viewports[i2];
-          let end = next ? next.from - 1 : this.length;
+          let next2 = i2 == vs.viewports.length ? null : vs.viewports[i2];
+          let end = next2 ? next2.from - 1 : this.length;
           if (end > pos2) {
             let height = (vs.lineBlockAt(end).bottom - vs.lineBlockAt(pos2).top) / this.view.scaleY;
             deco.push(Decoration.replace({
@@ -32582,9 +32581,9 @@ categories: ${categories.join(" ")}`;
               isBlockGap: true
             }).range(pos2, end));
           }
-          if (!next)
+          if (!next2)
             break;
-          pos2 = next.to + 1;
+          pos2 = next2.to + 1;
         }
         return Decoration.set(deco);
       }
@@ -32762,16 +32761,16 @@ categories: ${categories.join(" ")}`;
         to2 = findClusterBreak(line2.text, linePos);
       let cat = categorize(line2.text.slice(from, to2));
       while (from > 0) {
-        let prev = findClusterBreak(line2.text, from, false);
-        if (categorize(line2.text.slice(prev, from)) != cat)
+        let prev2 = findClusterBreak(line2.text, from, false);
+        if (categorize(line2.text.slice(prev2, from)) != cat)
           break;
-        from = prev;
+        from = prev2;
       }
       while (to2 < line2.length) {
-        let next = findClusterBreak(line2.text, to2);
-        if (categorize(line2.text.slice(to2, next)) != cat)
+        let next2 = findClusterBreak(line2.text, to2);
+        if (categorize(line2.text.slice(to2, next2)) != cat)
           break;
-        to2 = next;
+        to2 = next2;
       }
       return EditorSelection.range(from + line2.from, to2 + line2.from);
     }
@@ -32957,8 +32956,8 @@ categories: ${categories.join(" ")}`;
       let len;
       if (node2.nodeType != 3 || offset != (len = node2.nodeValue.length))
         return false;
-      for (let next = node2.nextSibling; next; next = next.nextSibling)
-        if (next.nodeType != 1 || next.nodeName != "BR")
+      for (let next2 = node2.nextSibling; next2; next2 = next2.nextSibling)
+        if (next2.nodeType != 1 || next2.nodeName != "BR")
           return false;
       return textRange(node2, len - 1, len).getBoundingClientRect().left > x2;
     }
@@ -33004,30 +33003,30 @@ categories: ${categories.join(" ")}`;
       let line2 = view.state.doc.lineAt(start.head), spans = view.bidiSpans(line2);
       let direction = view.textDirectionAt(line2.from);
       for (let cur2 = start, check = null; ; ) {
-        let next = moveVisually(line2, spans, direction, cur2, forward), char = movedOver;
-        if (!next) {
+        let next2 = moveVisually(line2, spans, direction, cur2, forward), char = movedOver;
+        if (!next2) {
           if (line2.number == (forward ? view.state.doc.lines : 1))
             return cur2;
           char = "\n";
           line2 = view.state.doc.line(line2.number + (forward ? 1 : -1));
           spans = view.bidiSpans(line2);
-          next = view.visualLineSide(line2, !forward);
+          next2 = view.visualLineSide(line2, !forward);
         }
         if (!check) {
           if (!by)
-            return next;
+            return next2;
           check = by(char);
         } else if (!check(char)) {
           return cur2;
         }
-        cur2 = next;
+        cur2 = next2;
       }
     }
     function byGroup(view, pos2, start) {
       let categorize = view.state.charCategorizer(pos2);
       let cat = categorize(start);
-      return (next) => {
-        let nextCat = categorize(next);
+      return (next2) => {
+        let nextCat = categorize(next2);
         if (cat == CharCategory.Space)
           cat = nextCat;
         return cat == nextCat;
@@ -33103,13 +33102,13 @@ categories: ${categories.join(" ")}`;
           this.findPointBefore(parent, cur2);
           let oldLen = this.text.length;
           this.readNode(cur2);
-          let next = cur2.nextSibling;
-          if (next == end)
+          let next2 = cur2.nextSibling;
+          if (next2 == end)
             break;
-          let view = ContentView.get(cur2), nextView = ContentView.get(next);
-          if (view && nextView ? view.breakAfter : (view ? view.breakAfter : isBlockElement(cur2)) || isBlockElement(next) && (cur2.nodeName != "BR" || cur2.cmIgnore) && this.text.length > oldLen)
+          let view = ContentView.get(cur2), nextView = ContentView.get(next2);
+          if (view && nextView ? view.breakAfter : (view ? view.breakAfter : isBlockElement(cur2)) || isBlockElement(next2) && (cur2.nodeName != "BR" || cur2.cmIgnore) && this.text.length > oldLen)
             this.lineBreak();
-          cur2 = next;
+          cur2 = next2;
         }
         this.findPointBefore(parent, end);
         return this;
@@ -33162,9 +33161,9 @@ categories: ${categories.join(" ")}`;
           this.readRange(node2.firstChild, null);
         }
       }
-      findPointBefore(node2, next) {
+      findPointBefore(node2, next2) {
         for (let point of this.points)
-          if (point.node == node2 && node2.childNodes[point.offset] == next)
+          if (point.node == node2 && node2.childNodes[point.offset] == next2)
             point.pos = this.text.length;
       }
       findPointInside(node2, length) {
@@ -33454,11 +33453,11 @@ categories: ${categories.join(" ")}`;
         }
       }
       ensureHandlers(plugins) {
-        let handlers2 = computeHandlers(plugins), prev = this.handlers, dom = this.view.contentDOM;
+        let handlers2 = computeHandlers(plugins), prev2 = this.handlers, dom = this.view.contentDOM;
         for (let type in handlers2)
           if (type != "scroll") {
             let passive = !handlers2[type].handlers.length;
-            let exists = prev[type];
+            let exists = prev2[type];
             if (exists && passive != !exists.handlers.length) {
               dom.removeEventListener(type, this.handleEvent);
               exists = null;
@@ -33466,7 +33465,7 @@ categories: ${categories.join(" ")}`;
             if (!exists)
               dom.addEventListener(type, this.handleEvent, { passive });
           }
-        for (let type in prev)
+        for (let type in prev2)
           if (type != "scroll" && !handlers2[type])
             dom.removeEventListener(type, this.handleEvent);
         this.handlers = handlers2;
@@ -34396,13 +34395,13 @@ categories: ${categories.join(" ")}`;
               break;
             }
           } else if (before < after) {
-            let next = nodes2[i2++];
-            if (next)
-              before += next.size;
+            let next2 = nodes2[i2++];
+            if (next2)
+              before += next2.size;
           } else {
-            let next = nodes2[--j2];
-            if (next)
-              after += next.size;
+            let next2 = nodes2[--j2];
+            if (next2)
+              after += next2.size;
           }
         }
         let brk = 0;
@@ -36244,11 +36243,11 @@ categories: ${categories.join(" ")}`;
           }
         };
         this.handlers.characterboundsupdate = (e) => {
-          let rects = [], prev = null;
+          let rects = [], prev2 = null;
           for (let i2 = this.toEditorPos(e.rangeStart), end = this.toEditorPos(e.rangeEnd); i2 < end; i2++) {
             let rect = view.coordsForChar(i2);
-            prev = rect && new DOMRect(rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top) || prev || new DOMRect();
-            rects.push(prev);
+            prev2 = rect && new DOMRect(rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top) || prev2 || new DOMRect();
+            rects.push(prev2);
           }
           context.updateCharacterBounds(e.rangeStart, rects);
         };
@@ -37565,8 +37564,8 @@ categories: ${categories.join(" ")}`;
         this.adjust(elt);
         return elt;
       }
-      update(elt, prev) {
-        if (prev.className != this.className)
+      update(elt, prev2) {
+        if (prev2.className != this.className)
           return false;
         this.adjust(elt);
         return true;
@@ -37759,9 +37758,9 @@ categories: ${categories.join(" ")}`;
             }
           }
           while (old) {
-            let next = old.nextSibling;
+            let next2 = old.nextSibling;
             old.remove();
-            old = next;
+            old = next2;
           }
           this.drawn = markers;
         }
@@ -38126,8 +38125,8 @@ categories: ${categories.join(" ")}`;
         this.removeTooltipView = removeTooltipView;
         this.input = view.state.facet(facet);
         this.tooltips = this.input.filter((t2) => t2);
-        let prev = null;
-        this.tooltipViews = this.tooltips.map((t2) => prev = createTooltipView(t2, prev));
+        let prev2 = null;
+        this.tooltipViews = this.tooltips.map((t2) => prev2 = createTooltipView(t2, prev2));
       }
       update(update, above) {
         var _a2;
@@ -38272,9 +38271,9 @@ categories: ${categories.join(" ")}`;
         if (shouldMeasure)
           this.maybeMeasure();
       }
-      createTooltip(tooltip, prev) {
+      createTooltip(tooltip, prev2) {
         let tooltipView = tooltip.create(this.view);
-        let before = prev ? prev.dom : null;
+        let before = prev2 ? prev2.dom : null;
         tooltipView.dom.classList.add("cm-tooltip");
         if (tooltip.arrow && !tooltipView.dom.querySelector(".cm-tooltip > .cm-tooltip-arrow")) {
           let arrow = document.createElement("div");
@@ -38513,10 +38512,10 @@ categories: ${categories.join(" ")}`;
         this.dom.classList.add("cm-tooltip-hover");
         this.manager = new TooltipViewManager(view, showHoverTooltip, (t2, p) => this.createHostedView(t2, p), (t2) => t2.dom.remove());
       }
-      createHostedView(tooltip, prev) {
+      createHostedView(tooltip, prev2) {
         let hostedView = tooltip.create(this.view);
         hostedView.dom.classList.add("cm-tooltip-section");
-        this.dom.insertBefore(hostedView.dom, prev ? prev.dom.nextSibling : this.dom.firstChild);
+        this.dom.insertBefore(hostedView.dom, prev2 ? prev2.dom.nextSibling : this.dom.firstChild);
         if (this.mounted && hostedView.mount)
           hostedView.mount(this.view);
         return hostedView;
@@ -38638,18 +38637,18 @@ categories: ${categories.join(" ")}`;
           let rtl = bidi && bidi.dir == Direction.RTL ? -1 : 1;
           side = lastMove.x < posCoords.left ? -rtl : rtl;
         }
-        let open = this.source(view, pos2, side);
-        if (open === null || open === void 0 ? void 0 : open.then) {
+        let open2 = this.source(view, pos2, side);
+        if (open2 === null || open2 === void 0 ? void 0 : open2.then) {
           let pending = this.pending = { pos: pos2 };
-          open.then((result2) => {
+          open2.then((result2) => {
             if (this.pending == pending) {
               this.pending = null;
               if (result2 && !(Array.isArray(result2) && !result2.length))
                 view.dispatch({ effects: this.setHover.of(Array.isArray(result2) ? result2 : [result2]) });
             }
           }, (e) => logException(view.state, e, "hover tooltip"));
-        } else if (open && !(Array.isArray(open) && !open.length)) {
-          view.dispatch({ effects: this.setHover.of(Array.isArray(open) ? open : [open]) });
+        } else if (open2 && !(Array.isArray(open2) && !open2.length)) {
+          view.dispatch({ effects: this.setHover.of(Array.isArray(open2) ? open2 : [open2]) });
         }
       }
       get tooltip() {
@@ -38917,9 +38916,9 @@ categories: ${categories.join(" ")}`;
       }
     }
     function rm(node2) {
-      let next = node2.nextSibling;
+      let next2 = node2.nextSibling;
       node2.remove();
-      return next;
+      return next2;
     }
     const showPanel = /* @__PURE__ */ Facet.define({
       enables: panelPlugin
@@ -39520,21 +39519,21 @@ categories: ${categories.join(" ")}`;
       nextChild(i2, dir, pos2, side, mode = 0) {
         for (let parent = this; ; ) {
           for (let { children: children2, positions } = parent._tree, e = dir > 0 ? children2.length : -1; i2 != e; i2 += dir) {
-            let next = children2[i2], start = positions[i2] + parent.from;
-            if (!checkSide(side, pos2, start, start + next.length))
+            let next2 = children2[i2], start = positions[i2] + parent.from;
+            if (!checkSide(side, pos2, start, start + next2.length))
               continue;
-            if (next instanceof TreeBuffer) {
+            if (next2 instanceof TreeBuffer) {
               if (mode & IterMode.ExcludeBuffers)
                 continue;
-              let index2 = next.findChild(0, next.buffer.length, dir, pos2 - start, side);
+              let index2 = next2.findChild(0, next2.buffer.length, dir, pos2 - start, side);
               if (index2 > -1)
-                return new BufferNode(new BufferContext(parent, next, i2, start), null, index2);
-            } else if (mode & IterMode.IncludeAnonymous || (!next.type.isAnonymous || hasChild(next))) {
+                return new BufferNode(new BufferContext(parent, next2, i2, start), null, index2);
+            } else if (mode & IterMode.IncludeAnonymous || (!next2.type.isAnonymous || hasChild(next2))) {
               let mounted;
-              if (!(mode & IterMode.IgnoreMounts) && (mounted = MountedTree.get(next)) && !mounted.overlay)
+              if (!(mode & IterMode.IgnoreMounts) && (mounted = MountedTree.get(next2)) && !mounted.overlay)
                 return new TreeNode(mounted.tree, start, i2, parent);
-              let inner = new TreeNode(next, start, i2, parent);
-              return mode & IterMode.IncludeAnonymous || !inner.type.isAnonymous ? inner : inner.nextChild(dir < 0 ? next.children.length - 1 : 0, dir, pos2, side);
+              let inner = new TreeNode(next2, start, i2, parent);
+              return mode & IterMode.IncludeAnonymous || !inner.type.isAnonymous ? inner : inner.nextChild(dir < 0 ? next2.children.length - 1 : 0, dir, pos2, side);
             }
           }
           if (mode & IterMode.IncludeAnonymous || !parent.type.isAnonymous)
@@ -39800,10 +39799,10 @@ categories: ${categories.join(" ")}`;
           pick = i2;
         }
       }
-      let next = picked instanceof TreeNode && picked.index < 0 ? null : picked.parent;
+      let next2 = picked instanceof TreeNode && picked.index < 0 ? null : picked.parent;
       let newHeads = heads.slice();
-      if (next)
-        newHeads[pick] = next;
+      if (next2)
+        newHeads[pick] = next2;
       else
         newHeads.splice(pick, 1);
       return new StackIterator(newHeads, picked);
@@ -40668,12 +40667,12 @@ categories: ${categories.join(" ")}`;
               pos2 += m[0].length;
               if (pos2 == part.length)
                 break;
-              let next = part[pos2++];
-              if (pos2 == part.length && next == "!") {
+              let next2 = part[pos2++];
+              if (pos2 == part.length && next2 == "!") {
                 mode = 0;
                 break;
               }
-              if (next != "/")
+              if (next2 != "/")
                 throw new RangeError("Invalid path: " + part);
               rest = part.slice(pos2);
             }
@@ -40688,11 +40687,11 @@ categories: ${categories.join(" ")}`;
     }
     const ruleNodeProp = new NodeProp();
     class Rule {
-      constructor(tags2, mode, context, next) {
+      constructor(tags2, mode, context, next2) {
         this.tags = tags2;
         this.mode = mode;
         this.context = context;
-        this.next = next;
+        this.next = next2;
       }
       get opaque() {
         return this.mode == 0;
@@ -40798,8 +40797,8 @@ categories: ${categories.join(" ")}`;
           let innerHighlighters = this.highlighters.filter((h) => !h.scope || h.scope(mounted.tree.type));
           let hasChild2 = cursor.firstChild();
           for (let i2 = 0, pos2 = start; ; i2++) {
-            let next = i2 < mounted.overlay.length ? mounted.overlay[i2] : null;
-            let nextPos = next ? next.from + start : end;
+            let next2 = i2 < mounted.overlay.length ? mounted.overlay[i2] : null;
+            let nextPos = next2 ? next2.from + start : end;
             let rangeFrom2 = Math.max(from, pos2), rangeTo2 = Math.min(to2, nextPos);
             if (rangeFrom2 < rangeTo2 && hasChild2) {
               while (cursor.from < rangeTo2) {
@@ -40809,11 +40808,11 @@ categories: ${categories.join(" ")}`;
                   break;
               }
             }
-            if (!next || nextPos > to2)
+            if (!next2 || nextPos > to2)
               break;
-            pos2 = next.to + start;
+            pos2 = next2.to + start;
             if (pos2 > from) {
-              this.highlightRange(inner.cursor(), Math.max(from, next.from + start), Math.min(to2, pos2), "", innerHighlighters);
+              this.highlightRange(inner.cursor(), Math.max(from, next2.from + start), Math.min(to2, pos2), "", innerHighlighters);
               this.startSpan(Math.min(to2, pos2), cls);
             }
           }
@@ -41470,12 +41469,12 @@ categories: ${categories.join(" ")}`;
         }
       }
       withContext(f) {
-        let prev = currentContext;
+        let prev2 = currentContext;
         currentContext = this;
         try {
           return f();
         } finally {
-          currentContext = prev;
+          currentContext = prev2;
         }
       }
       withoutTempSkipped(fragments) {
@@ -41891,8 +41890,8 @@ categories: ${categories.join(" ")}`;
         return strategy;
       let first2 = tree.firstChild, close2;
       if (first2 && (close2 = first2.type.prop(NodeProp.closedBy))) {
-        let last = tree.lastChild, closed = last && close2.indexOf(last.name) > -1;
-        return (cx) => delimitedStrategy(cx, true, 1, void 0, closed && !ignoreClosed(cx) ? last.from : void 0);
+        let last = tree.lastChild, closed2 = last && close2.indexOf(last.name) > -1;
+        return (cx) => delimitedStrategy(cx, true, 1, void 0, closed2 && !ignoreClosed(cx) ? last.from : void 0);
       }
       return tree.parent == null ? topIndent : null;
     }
@@ -41975,25 +41974,25 @@ categories: ${categories.join(" ")}`;
       let openLine = context.state.doc.lineAt(openToken.from);
       let lineEnd = sim == null || sim <= openLine.from ? openLine.to : Math.min(openLine.to, sim);
       for (let pos2 = openToken.to; ; ) {
-        let next = tree.childAfter(pos2);
-        if (!next || next == last)
+        let next2 = tree.childAfter(pos2);
+        if (!next2 || next2 == last)
           return null;
-        if (!next.type.isSkipped) {
-          if (next.from >= lineEnd)
+        if (!next2.type.isSkipped) {
+          if (next2.from >= lineEnd)
             return null;
           let space = /^ */.exec(openLine.text.slice(openToken.to - openLine.from))[0].length;
           return { from: openToken.from, to: openToken.to + space };
         }
-        pos2 = next.to;
+        pos2 = next2.to;
       }
     }
     function delimitedStrategy(context, align, units, closing, closedAt) {
       let after = context.textAfter, space = after.match(/^\s*/)[0].length;
-      let closed = closedAt == context.pos + space;
+      let closed2 = closedAt == context.pos + space;
       let aligned = bracketedAligned(context);
       if (aligned)
-        return closed ? context.column(aligned.from) : context.column(aligned.to);
-      return context.baseIndent + (closed ? 0 : context.unit * units);
+        return closed2 ? context.column(aligned.from) : context.column(aligned.to);
+      return context.baseIndent + (closed2 ? 0 : context.unit * units);
     }
     class HighlightStyle {
       constructor(specs, options2) {
@@ -43043,10 +43042,10 @@ categories: ${categories.join(" ")}`;
         let len = chars.length, anyTo = 0;
         if (direct < 0) {
           for (let i2 = 0, e = Math.min(word.length, 200); i2 < e && anyTo < len; ) {
-            let next = codePointAt(word, i2);
-            if (next == chars[anyTo] || next == folded[anyTo])
+            let next2 = codePointAt(word, i2);
+            if (next2 == chars[anyTo] || next2 == folded[anyTo])
               any[anyTo++] = i2;
-            i2 += codePointSize(next);
+            i2 += codePointSize(next2);
           }
           if (anyTo < len)
             return null;
@@ -43056,12 +43055,12 @@ categories: ${categories.join(" ")}`;
         let adjacentTo = 0, adjacentStart = -1, adjacentEnd = -1;
         let hasLower = /[a-z]/.test(word), wordAdjacent = true;
         for (let i2 = 0, e = Math.min(word.length, 200), prevType = 0; i2 < e && byWordTo < len; ) {
-          let next = codePointAt(word, i2);
+          let next2 = codePointAt(word, i2);
           if (direct < 0) {
-            if (preciseTo < len && next == chars[preciseTo])
+            if (preciseTo < len && next2 == chars[preciseTo])
               precise[preciseTo++] = i2;
             if (adjacentTo < len) {
-              if (next == chars[adjacentTo] || next == folded[adjacentTo]) {
+              if (next2 == chars[adjacentTo] || next2 == folded[adjacentTo]) {
                 if (adjacentTo == 0)
                   adjacentStart = i2;
                 adjacentEnd = i2 + 1;
@@ -43071,15 +43070,15 @@ categories: ${categories.join(" ")}`;
               }
             }
           }
-          let ch3, type = next < 255 ? next >= 48 && next <= 57 || next >= 97 && next <= 122 ? 2 : next >= 65 && next <= 90 ? 1 : 0 : (ch3 = fromCodePoint(next)) != ch3.toLowerCase() ? 1 : ch3 != ch3.toUpperCase() ? 2 : 0;
+          let ch3, type = next2 < 255 ? next2 >= 48 && next2 <= 57 || next2 >= 97 && next2 <= 122 ? 2 : next2 >= 65 && next2 <= 90 ? 1 : 0 : (ch3 = fromCodePoint(next2)) != ch3.toLowerCase() ? 1 : ch3 != ch3.toUpperCase() ? 2 : 0;
           if (!i2 || type == 1 && hasLower || prevType == 0 && type != 0) {
-            if (chars[byWordTo] == next || folded[byWordTo] == next && (byWordFolded = true))
+            if (chars[byWordTo] == next2 || folded[byWordTo] == next2 && (byWordFolded = true))
               byWord[byWordTo++] = i2;
             else if (byWord.length)
               wordAdjacent = false;
           }
           prevType = type;
-          i2 += codePointSize(next);
+          i2 += codePointSize(next2);
         }
         if (byWordTo == len && byWord[0] == 0 && wordAdjacent)
           return this.result(-100 + (byWordFolded ? -200 : 0), byWord, word);
@@ -43340,14 +43339,14 @@ categories: ${categories.join(" ")}`;
           this.view.requestMeasure(this.placeInfoReq);
       }
       updateSel() {
-        let cState = this.view.state.field(this.stateField), open = cState.open;
-        if (open.selected > -1 && open.selected < this.range.from || open.selected >= this.range.to) {
-          this.range = rangeAroundSelected(open.options.length, open.selected, this.view.state.facet(completionConfig).maxRenderedOptions);
-          this.showOptions(open.options, cState.id);
+        let cState = this.view.state.field(this.stateField), open2 = cState.open;
+        if (open2.selected > -1 && open2.selected < this.range.from || open2.selected >= this.range.to) {
+          this.range = rangeAroundSelected(open2.options.length, open2.selected, this.view.state.facet(completionConfig).maxRenderedOptions);
+          this.showOptions(open2.options, cState.id);
         }
-        if (this.updateSelectedOption(open.selected)) {
+        if (this.updateSelectedOption(open2.selected)) {
           this.destroyInfo();
-          let { completion } = open.options[open.selected];
+          let { completion } = open2.options[open2.selected];
           let { info } = completion;
           if (!info)
             return;
@@ -43539,15 +43538,15 @@ categories: ${categories.join(" ")}`;
             option.score += sectionOrder[typeof section2 == "string" ? section2 : section2.name];
         }
       }
-      let result2 = [], prev = null;
+      let result2 = [], prev2 = null;
       let compare2 = conf.compareCompletions;
       for (let opt of options2.sort((a, b) => b.score - a.score || compare2(a.completion, b.completion))) {
         let cur2 = opt.completion;
-        if (!prev || prev.label != cur2.label || prev.detail != cur2.detail || prev.type != null && cur2.type != null && prev.type != cur2.type || prev.apply != cur2.apply || prev.boost != cur2.boost)
+        if (!prev2 || prev2.label != cur2.label || prev2.detail != cur2.detail || prev2.type != null && cur2.type != null && prev2.type != cur2.type || prev2.apply != cur2.apply || prev2.boost != cur2.boost)
           result2.push(opt);
-        else if (score$1(opt.completion) > score$1(prev))
+        else if (score$1(opt.completion) > score$1(prev2))
           result2[result2.length - 1] = opt;
-        prev = opt.completion;
+        prev2 = opt.completion;
       }
       return result2;
     }
@@ -43563,15 +43562,15 @@ categories: ${categories.join(" ")}`;
       setSelected(selected2, id) {
         return selected2 == this.selected || selected2 >= this.options.length ? this : new CompletionDialog(this.options, makeAttrs(id, selected2), this.tooltip, this.timestamp, selected2, this.disabled);
       }
-      static build(active2, state, id, prev, conf, didSetActive) {
-        if (prev && !didSetActive && active2.some((s) => s.isPending))
-          return prev.setDisabled();
+      static build(active2, state, id, prev2, conf, didSetActive) {
+        if (prev2 && !didSetActive && active2.some((s) => s.isPending))
+          return prev2.setDisabled();
         let options2 = sortOptions(active2, state);
         if (!options2.length)
-          return prev && active2.some((a) => a.isPending) ? prev.setDisabled() : null;
+          return prev2 && active2.some((a) => a.isPending) ? prev2.setDisabled() : null;
         let selected2 = state.facet(completionConfig).selectOnOpen ? 0 : -1;
-        if (prev && prev.selected != selected2 && prev.selected != -1) {
-          let selectedValue = prev.options[prev.selected].completion;
+        if (prev2 && prev2.selected != selected2 && prev2.selected != -1) {
+          let selectedValue = prev2.options[prev2.selected].completion;
           for (let i2 = 0; i2 < options2.length; i2++)
             if (options2[i2].completion == selectedValue) {
               selected2 = i2;
@@ -43582,7 +43581,7 @@ categories: ${categories.join(" ")}`;
           pos: active2.reduce((a, b) => b.hasResult() ? Math.min(a, b.from) : a, 1e8),
           create: createTooltip,
           above: conf.aboveCursor
-        }, prev ? prev.timestamp : Date.now(), selected2, false);
+        }, prev2 ? prev2.timestamp : Date.now(), selected2, false);
       }
       map(changes) {
         return new CompletionDialog(this.options, this.attrs, Object.assign(Object.assign({}, this.tooltip), { pos: changes.mapPos(this.tooltip.pos) }), this.timestamp, this.selected, this.disabled);
@@ -43592,10 +43591,10 @@ categories: ${categories.join(" ")}`;
       }
     }
     class CompletionState {
-      constructor(active2, id, open) {
+      constructor(active2, id, open2) {
         this.active = active2;
         this.id = id;
-        this.open = open;
+        this.open = open2;
       }
       static start() {
         return new CompletionState(none$1, "cm-ac-" + Math.floor(Math.random() * 2e6).toString(36), null);
@@ -43616,14 +43615,14 @@ categories: ${categories.join(" ")}`;
         });
         if (active2.length == this.active.length && active2.every((a, i2) => a == this.active[i2]))
           active2 = this.active;
-        let open = this.open, didSet = tr2.effects.some((e) => e.is(setActiveEffect));
-        if (open && tr2.docChanged)
-          open = open.map(tr2.changes);
+        let open2 = this.open, didSet = tr2.effects.some((e) => e.is(setActiveEffect));
+        if (open2 && tr2.docChanged)
+          open2 = open2.map(tr2.changes);
         if (tr2.selection || active2.some((a) => a.hasResult() && tr2.changes.touchesRange(a.from, a.to)) || !sameResults(active2, this.active) || didSet)
-          open = CompletionDialog.build(active2, state, this.id, open, conf, didSet);
-        else if (open && open.disabled && !active2.some((a) => a.isPending))
-          open = null;
-        if (!open && active2.every((a) => !a.isPending) && active2.some((a) => a.hasResult()))
+          open2 = CompletionDialog.build(active2, state, this.id, open2, conf, didSet);
+        else if (open2 && open2.disabled && !active2.some((a) => a.isPending))
+          open2 = null;
+        if (!open2 && active2.every((a) => !a.isPending) && active2.some((a) => a.hasResult()))
           active2 = active2.map((a) => a.hasResult() ? new ActiveSource(
             a.source,
             0
@@ -43631,8 +43630,8 @@ categories: ${categories.join(" ")}`;
           ) : a);
         for (let effect of tr2.effects)
           if (effect.is(setSelectedEffect))
-            open = open && open.setSelected(effect.value, this.id);
-        return active2 == this.active && open == this.open ? this : new CompletionState(active2, this.id, open);
+            open2 = open2 && open2.setSelected(effect.value, this.id);
+        return active2 == this.active && open2 == this.open ? this : new CompletionState(active2, this.id, open2);
       }
       get tooltip() {
         return this.open ? this.open.tooltip : null;
@@ -44185,10 +44184,10 @@ categories: ${categories.join(" ")}`;
     function crelt() {
       var elt = arguments[0];
       if (typeof elt == "string") elt = document.createElement(elt);
-      var i2 = 1, next = arguments[1];
-      if (next && typeof next == "object" && next.nodeType == null && !Array.isArray(next)) {
-        for (var name2 in next) if (Object.prototype.hasOwnProperty.call(next, name2)) {
-          var value2 = next[name2];
+      var i2 = 1, next2 = arguments[1];
+      if (next2 && typeof next2 == "object" && next2.nodeType == null && !Array.isArray(next2)) {
+        for (var name2 in next2) if (Object.prototype.hasOwnProperty.call(next2, name2)) {
+          var value2 = next2[name2];
           if (typeof value2 == "string") elt.setAttribute(name2, value2);
           else if (value2 != null) elt[name2] = value2;
         }
@@ -44230,27 +44229,27 @@ categories: ${categories.join(" ")}`;
         let sorted = diagnostics.slice().sort((a, b) => a.from - b.from || a.to - b.to);
         let deco = new RangeSetBuilder(), active2 = [], pos2 = 0;
         for (let i2 = 0; ; ) {
-          let next = i2 == sorted.length ? null : sorted[i2];
-          if (!next && !active2.length)
+          let next2 = i2 == sorted.length ? null : sorted[i2];
+          if (!next2 && !active2.length)
             break;
           let from, to2;
           if (active2.length) {
             from = pos2;
-            to2 = active2.reduce((p, d) => Math.min(p, d.to), next && next.from > from ? next.from : 1e8);
+            to2 = active2.reduce((p, d) => Math.min(p, d.to), next2 && next2.from > from ? next2.from : 1e8);
           } else {
-            from = next.from;
-            to2 = next.to;
-            active2.push(next);
+            from = next2.from;
+            to2 = next2.to;
+            active2.push(next2);
             i2++;
           }
           while (i2 < sorted.length) {
-            let next2 = sorted[i2];
-            if (next2.from == from && (next2.to > next2.from || next2.to == from)) {
-              active2.push(next2);
+            let next3 = sorted[i2];
+            if (next3.from == from && (next3.to > next3.from || next3.to == from)) {
+              active2.push(next3);
               i2++;
-              to2 = Math.min(next2.to, to2);
+              to2 = Math.min(next3.to, to2);
             } else {
-              to2 = Math.min(next2.from, to2);
+              to2 = Math.min(next3.from, to2);
               break;
             }
           }
@@ -44654,9 +44653,9 @@ categories: ${categories.join(" ")}`;
       sync() {
         let domPos = this.list.firstChild;
         function rm2() {
-          let prev = domPos;
-          domPos = prev.nextSibling;
-          prev.remove();
+          let prev2 = domPos;
+          domPos = prev2.nextSibling;
+          prev2.remove();
         }
         for (let item2 of this.items) {
           if (item2.dom.parentNode == this.list) {
@@ -44844,12 +44843,12 @@ categories: ${categories.join(" ")}`;
       return data.length ? data[0] : {};
     }
     const SearchMargin = 50;
-    function findBlockComment(state, { open, close: close2 }, from, to2) {
+    function findBlockComment(state, { open: open2, close: close2 }, from, to2) {
       let textBefore = state.sliceDoc(from - SearchMargin, from);
       let textAfter = state.sliceDoc(to2, to2 + SearchMargin);
       let spaceBefore = /\s*$/.exec(textBefore)[0].length, spaceAfter = /^\s*/.exec(textAfter)[0].length;
       let beforeOff = textBefore.length - spaceBefore;
-      if (textBefore.slice(beforeOff - open.length, beforeOff) == open && textAfter.slice(spaceAfter, spaceAfter + close2.length) == close2) {
+      if (textBefore.slice(beforeOff - open2.length, beforeOff) == open2 && textAfter.slice(spaceAfter, spaceAfter + close2.length) == close2) {
         return {
           open: { pos: from - spaceBefore, margin: spaceBefore && 1 },
           close: { pos: to2 + spaceAfter, margin: spaceAfter && 1 }
@@ -44864,11 +44863,11 @@ categories: ${categories.join(" ")}`;
       }
       let startSpace = /^\s*/.exec(startText2)[0].length, endSpace = /\s*$/.exec(endText)[0].length;
       let endOff = endText.length - endSpace - close2.length;
-      if (startText2.slice(startSpace, startSpace + open.length) == open && endText.slice(endOff, endOff + close2.length) == close2) {
+      if (startText2.slice(startSpace, startSpace + open2.length) == open2 && endText.slice(endOff, endOff + close2.length) == close2) {
         return {
           open: {
-            pos: from + startSpace + open.length,
-            margin: /\s/.test(startText2.charAt(startSpace + open.length)) ? 1 : 0
+            pos: from + startSpace + open2.length,
+            margin: /\s/.test(startText2.charAt(startSpace + open2.length)) ? 1 : 0
           },
           close: {
             pos: to2 - endSpace - close2.length,
@@ -44908,8 +44907,8 @@ categories: ${categories.join(" ")}`;
         let changes = [];
         for (let i2 = 0, comment2; i2 < comments.length; i2++)
           if (comment2 = comments[i2]) {
-            let token2 = tokens[i2], { open, close: close2 } = comment2;
-            changes.push({ from: open.pos - token2.open.length, to: open.pos + open.margin }, { from: close2.pos - close2.margin, to: close2.pos + token2.close.length });
+            let token2 = tokens[i2], { open: open2, close: close2 } = comment2;
+            changes.push({ from: open2.pos - token2.open.length, to: open2.pos + open2.margin }, { from: close2.pos - close2.margin, to: close2.pos + token2.close.length });
           }
         return { changes };
       }
@@ -45269,13 +45268,13 @@ categories: ${categories.join(" ")}`;
       let pos2 = syntaxTree(state).resolveInner(start.head);
       let bracketProp = forward ? NodeProp.closedBy : NodeProp.openedBy;
       for (let at2 = start.head; ; ) {
-        let next = forward ? pos2.childAfter(at2) : pos2.childBefore(at2);
-        if (!next)
+        let next2 = forward ? pos2.childAfter(at2) : pos2.childBefore(at2);
+        if (!next2)
           break;
-        if (interestingNode(state, next, bracketProp))
-          pos2 = next;
+        if (interestingNode(state, next2, bracketProp))
+          pos2 = next2;
         else
-          at2 = forward ? next.to : next.from;
+          at2 = forward ? next2.to : next2.from;
       }
       let bracket2 = pos2.type.prop(bracketProp), match, newPos;
       if (bracket2 && (match = forward ? matchBrackets(state, pos2.from, 1) : matchBrackets(state, pos2.to, -1)) && match.matched)
@@ -45534,14 +45533,14 @@ categories: ${categories.join(" ")}`;
             pos2 += forward ? 1 : -1;
           break;
         }
-        let next = findClusterBreak(line2.text, pos2 - line2.from, forward) + line2.from;
-        let nextChar = line2.text.slice(Math.min(pos2, next) - line2.from, Math.max(pos2, next) - line2.from);
+        let next2 = findClusterBreak(line2.text, pos2 - line2.from, forward) + line2.from;
+        let nextChar = line2.text.slice(Math.min(pos2, next2) - line2.from, Math.max(pos2, next2) - line2.from);
         let nextCat = categorize(nextChar);
         if (cat != null && nextCat != cat)
           break;
         if (nextChar != " " || pos2 != range.head)
           cat = nextCat;
-        pos2 = next;
+        pos2 = next2;
       }
       return pos2;
     });
@@ -45597,9 +45596,9 @@ categories: ${categories.join(" ")}`;
         if (!range.empty && range.to == endLine.from)
           endLine = state.doc.lineAt(range.to - 1);
         if (upto >= startLine.number) {
-          let prev = blocks[blocks.length - 1];
-          prev.to = endLine.to;
-          prev.ranges.push(range);
+          let prev2 = blocks[blocks.length - 1];
+          prev2.to = endLine.to;
+          prev2.ranges.push(range);
         } else {
           blocks.push({ from: startLine.from, to: endLine.to, ranges: [range] });
         }
@@ -46169,7 +46168,7 @@ categories: ${categories.join(" ")}`;
     const label$3 = "_label_jbrqc_1";
     const input = "_input_jbrqc_7";
     const help = "_help_jbrqc_11";
-    const styles$L = {
+    const styles$M = {
       label: label$3,
       input,
       help
@@ -46371,7 +46370,7 @@ Supported expressions:
               "text-size-smaller",
               "text-style-label",
               "text-style-secondary",
-              styles$L.label
+              styles$M.label
             ),
             children: "Filter:"
           }
@@ -46382,14 +46381,14 @@ Supported expressions:
             ref: editorRef,
             className: clsx(
               (filteringResultInstant == null ? void 0 : filteringResultInstant.error) && "filter-pending",
-              styles$L.input
+              styles$M.input
             )
           }
         ),
         /* @__PURE__ */ jsxRuntimeExports.jsx(
           "span",
           {
-            className: clsx("bi", "bi-question-circle", styles$L.help),
+            className: clsx("bi", "bi-question-circle", styles$M.help),
             "data-tooltip": FILTER_TOOLTIP,
             "data-tooltip-position": "bottom-left"
           }
@@ -46400,7 +46399,7 @@ Supported expressions:
     const label$2 = "_label_anstf_5";
     const secondSel = "_secondSel_anstf_9";
     const secondLabel = "_secondLabel_anstf_13";
-    const styles$K = {
+    const styles$L = {
       flex,
       label: label$2,
       secondSel,
@@ -46420,7 +46419,7 @@ Supported expressions:
         return accum;
       }, []);
       if (scorers.length === 1) {
-        return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$K.flex, children: [
+        return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$L.flex, children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx(
             "span",
             {
@@ -46429,7 +46428,7 @@ Supported expressions:
                 "text-size-smaller",
                 "text-style-label",
                 "text-style-secondary",
-                styles$K.label
+                styles$L.label
               ),
               children: "Score:"
             }
@@ -46449,7 +46448,7 @@ Supported expressions:
         const scorerScores = scores2.filter((sc) => {
           return score2 && sc.scorer === score2.scorer;
         });
-        return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$K.flex, children: [
+        return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$L.flex, children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx(
             "span",
             {
@@ -46458,8 +46457,8 @@ Supported expressions:
                 "text-size-smaller",
                 "text-style-label",
                 "text-style-secondary",
-                styles$K.label,
-                styles$K.secondLabel
+                styles$L.label,
+                styles$L.secondLabel
               ),
               children: "Scorer:"
             }
@@ -46477,7 +46476,7 @@ Supported expressions:
           scorerScores.length > 1 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
             ScoreSelector,
             {
-              className: clsx(styles$K.secondSel),
+              className: clsx(styles$L.secondSel),
               scores: scorerScores,
               selectedIndex: scoreIndex(scorerScores, score2),
               setSelectedIndex: (index2) => {
@@ -49261,7 +49260,7 @@ self.onmessage = function (e) {
       ] }) });
     };
     const jsonTab = "_jsonTab_6pq03_1";
-    const styles$J = {
+    const styles$K = {
       jsonTab
     };
     const kJsonMaxSize = 1e7;
@@ -49272,7 +49271,7 @@ self.onmessage = function (e) {
     }) => {
       if (logFile && json.length > kJsonMaxSize && capabilities2.downloadFiles) {
         const file = `${filename(logFile)}.json`;
-        return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$J.jsonTab, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+        return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$K.jsonTab, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
           DownloadPanel,
           {
             message: "The JSON for this log file is too large to render.",
@@ -49282,7 +49281,7 @@ self.onmessage = function (e) {
           }
         ) });
       } else {
-        return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$J.jsonTab, children: /* @__PURE__ */ jsxRuntimeExports.jsx(JSONPanel, { id: "task-json-contents", json, simple: true }) });
+        return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$K.jsonTab, children: /* @__PURE__ */ jsxRuntimeExports.jsx(JSONPanel, { id: "task-json-contents", json, simple: true }) });
       }
     };
     const EmptyPanel = ({ children: children2 }) => {
@@ -49472,7 +49471,7 @@ self.onmessage = function (e) {
     const grid$5 = "_grid_ktnsp_1";
     const cell$1 = "_cell_ktnsp_8";
     const value = "_value_ktnsp_13";
-    const styles$I = {
+    const styles$J = {
       grid: grid$5,
       cell: cell$1,
       value
@@ -49502,7 +49501,7 @@ self.onmessage = function (e) {
             {
               className: clsx(
                 `${baseId}-key`,
-                styles$I.cell,
+                styles$J.cell,
                 "text-style-label",
                 "text-style-secondary",
                 "text-size-small"
@@ -49513,13 +49512,13 @@ self.onmessage = function (e) {
           /* @__PURE__ */ jsxRuntimeExports.jsx(
             "div",
             {
-              className: clsx(styles$I.value, `${baseId}-value`, "text-size-small"),
+              className: clsx(styles$J.value, `${baseId}-value`, "text-size-small"),
               children: /* @__PURE__ */ jsxRuntimeExports.jsx(RenderedContent, { id: id2, entry: entry2 })
             }
           )
         ] }, `${baseId}-record-${index2}`);
       });
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { id, className: clsx(className2, styles$I.grid), style: style2, children: entryEls });
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { id, className: clsx(className2, styles$J.grid), style: style2, children: entryEls });
     };
     const entryRecords = (entries) => {
       if (!entries) {
@@ -49534,7 +49533,7 @@ self.onmessage = function (e) {
       }
     };
     const grid$4 = "_grid_3umed_1";
-    const styles$H = {
+    const styles$I = {
       grid: grid$4
     };
     const SampleScores = ({
@@ -49552,7 +49551,7 @@ self.onmessage = function (e) {
             /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: score2.rendered() })
           ] });
         });
-        return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$H.grid, children: rows });
+        return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$I.grid, children: rows });
       }
     };
     const container$8 = "_container_1jqar_1";
@@ -49566,7 +49565,7 @@ self.onmessage = function (e) {
     const scoreValue = "_scoreValue_1jqar_42";
     const noLeft$1 = "_noLeft_1jqar_47";
     const noTop$1 = "_noTop_1jqar_51";
-    const styles$G = {
+    const styles$H = {
       container: container$8,
       label: label$1,
       wordBreak,
@@ -49611,7 +49610,7 @@ self.onmessage = function (e) {
             "container-fluid",
             className2,
             "font-size-base",
-            styles$G.container
+            styles$H.container
           ),
           children: [
             /* @__PURE__ */ jsxRuntimeExports.jsxs(Card, { children: [
@@ -49622,7 +49621,7 @@ self.onmessage = function (e) {
                     "div",
                     {
                       className: clsx(
-                        styles$G.label,
+                        styles$H.label,
                         "text-style-label",
                         "text-style-secondary"
                       ),
@@ -49633,17 +49632,17 @@ self.onmessage = function (e) {
                     MarkdownDiv,
                     {
                       markdown: scoreInput.join("\n"),
-                      className: styles$G.wordBreak
+                      className: styles$H.wordBreak
                     }
                   ) })
                 ] }),
-                /* @__PURE__ */ jsxRuntimeExports.jsxs("table", { className: clsx("table", styles$G.scoreTable), children: [
-                  /* @__PURE__ */ jsxRuntimeExports.jsx("thead", { className: styles$G.bottomBorder, children: /* @__PURE__ */ jsxRuntimeExports.jsxs("tr", { children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsxs("table", { className: clsx("table", styles$H.scoreTable), children: [
+                  /* @__PURE__ */ jsxRuntimeExports.jsx("thead", { className: styles$H.bottomBorder, children: /* @__PURE__ */ jsxRuntimeExports.jsxs("tr", { children: [
                     /* @__PURE__ */ jsxRuntimeExports.jsx(
                       "th",
                       {
                         className: clsx(
-                          styles$G.label,
+                          styles$H.label,
                           "text-style-label",
                           "text-style-secondary"
                         ),
@@ -49654,7 +49653,7 @@ self.onmessage = function (e) {
                       "th",
                       {
                         className: clsx(
-                          styles$G.label,
+                          styles$H.label,
                           "text-style-label",
                           "text-style-secondary"
                         ),
@@ -49665,33 +49664,33 @@ self.onmessage = function (e) {
                       "th",
                       {
                         className: clsx(
-                          styles$G.label,
+                          styles$H.label,
                           "text-style-label",
                           "text-style-secondary",
-                          styles$G.headerScore
+                          styles$H.headerScore
                         ),
                         children: "Score"
                       }
                     )
                   ] }) }),
-                  /* @__PURE__ */ jsxRuntimeExports.jsx("tbody", { className: styles$G.bottomBorder, children: /* @__PURE__ */ jsxRuntimeExports.jsxs("tr", { children: [
-                    /* @__PURE__ */ jsxRuntimeExports.jsx("td", { className: styles$G.targetValue, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+                  /* @__PURE__ */ jsxRuntimeExports.jsx("tbody", { className: styles$H.bottomBorder, children: /* @__PURE__ */ jsxRuntimeExports.jsxs("tr", { children: [
+                    /* @__PURE__ */ jsxRuntimeExports.jsx("td", { className: styles$H.targetValue, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
                       MarkdownDiv,
                       {
                         markdown: arrayToString(
                           arrayToString((sample2 == null ? void 0 : sample2.target) || "none")
                         ),
-                        className: clsx("no-last-para-padding", styles$G.noLeft)
+                        className: clsx("no-last-para-padding", styles$H.noLeft)
                       }
                     ) }),
-                    /* @__PURE__ */ jsxRuntimeExports.jsx("td", { className: clsx(styles$G.answerValue), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+                    /* @__PURE__ */ jsxRuntimeExports.jsx("td", { className: clsx(styles$H.answerValue), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
                       MarkdownDiv,
                       {
-                        className: clsx("no-last-para-padding", styles$G.noLeft),
+                        className: clsx("no-last-para-padding", styles$H.noLeft),
                         markdown: answer2
                       }
                     ) }),
-                    /* @__PURE__ */ jsxRuntimeExports.jsx("td", { className: clsx(styles$G.scoreValue), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+                    /* @__PURE__ */ jsxRuntimeExports.jsx("td", { className: clsx(styles$H.scoreValue), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
                       SampleScores,
                       {
                         sample: sample2,
@@ -49709,7 +49708,7 @@ self.onmessage = function (e) {
                 MarkdownDiv,
                 {
                   markdown: arrayToString(explanation2),
-                  className: clsx("no-last-para-padding", styles$G.noLeft)
+                  className: clsx("no-last-para-padding", styles$H.noLeft)
                 }
               ) })
             ] }) : "",
@@ -49719,7 +49718,7 @@ self.onmessage = function (e) {
                 MetaDataGrid,
                 {
                   id: "task-sample-score-metadata",
-                  className: clsx("tab-pane", styles$G.noTop),
+                  className: clsx("tab-pane", styles$H.noTop),
                   entries: metadata2
                 }
               ) })
@@ -49733,7 +49732,7 @@ self.onmessage = function (e) {
     const col1_3 = "_col1_3_b0it4_12";
     const col3 = "_col3_b0it4_16";
     const separator$2 = "_separator_b0it4_20";
-    const styles$F = {
+    const styles$G = {
       wrapper: wrapper$2,
       col2: col2$1,
       col1_3,
@@ -49781,9 +49780,9 @@ self.onmessage = function (e) {
         value: usage.total_tokens,
         secondary: false
       });
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-small", styles$F.wrapper), children: rows.map((row2, idx) => {
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-small", styles$G.wrapper), children: rows.map((row2, idx) => {
         if (row2.label === "---") {
-          return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$F.separator }, `$usage-sep-${idx}`);
+          return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$G.separator }, `$usage-sep-${idx}`);
         } else {
           return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
             /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -49792,12 +49791,12 @@ self.onmessage = function (e) {
                 className: clsx(
                   "text-style-label",
                   "text-style-secondary",
-                  row2.secondary ? styles$F.col2 : styles$F.col1_3
+                  row2.secondary ? styles$G.col2 : styles$G.col1_3
                 ),
                 children: row2.label
               }
             ),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$F.col3, children: row2.value ? formatNumber(row2.value) : "" })
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$G.col3, children: row2.value ? formatNumber(row2.value) : "" })
           ] }, `$usage-row-${idx}`);
         }
       }) });
@@ -49806,7 +49805,7 @@ self.onmessage = function (e) {
     const tableTokens = "_tableTokens_dbhwb_6";
     const tableH = "_tableH_dbhwb_10";
     const model = "_model_dbhwb_15";
-    const styles$E = {
+    const styles$F = {
       table,
       tableTokens,
       tableH,
@@ -49823,7 +49822,7 @@ self.onmessage = function (e) {
             "table",
             "table-sm",
             "text-size-smaller",
-            styles$E.table,
+            styles$F.table,
             className2
           ),
           children: children2
@@ -49840,7 +49839,7 @@ self.onmessage = function (e) {
               colSpan: 3,
               className: clsx(
                 "card-subheading",
-                styles$E.tableTokens,
+                styles$F.tableTokens,
                 "text-size-small",
                 "text-style-label",
                 "text-style-secondary"
@@ -49855,7 +49854,7 @@ self.onmessage = function (e) {
             "th",
             {
               className: clsx(
-                styles$E.tableH,
+                styles$F.tableH,
                 "text-sixe-small",
                 "text-style-label",
                 "text-style-secondary"
@@ -49867,7 +49866,7 @@ self.onmessage = function (e) {
             "th",
             {
               className: clsx(
-                styles$E.tableH,
+                styles$F.tableH,
                 "text-sixe-small",
                 "text-style-label",
                 "text-style-secondary"
@@ -49880,7 +49879,7 @@ self.onmessage = function (e) {
     };
     const TokenRow = ({ model: model2, usage }) => {
       return /* @__PURE__ */ jsxRuntimeExports.jsxs("tr", { children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("td", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$E.model, children: model2 }) }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("td", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$F.model, children: model2 }) }),
         /* @__PURE__ */ jsxRuntimeExports.jsx("td", { children: /* @__PURE__ */ jsxRuntimeExports.jsx(ModelUsagePanel, { usage }) })
       ] });
     };
@@ -52954,7 +52953,7 @@ self.onmessage = function (e) {
       return e !== "normal" && !(e != null && e.endsWith("px")) && n(`${t2} was not resolved to pixel value correctly`, e, ht.WARN), e === "normal" ? 0 : parseInt(e != null ? e : "0", 10);
     }
     const list$1 = "_list_1emnm_1";
-    const styles$D = {
+    const styles$E = {
       list: list$1
     };
     const ChatViewVirtualList = ({
@@ -53000,7 +52999,7 @@ self.onmessage = function (e) {
             setFollowOutput(atBottom);
           },
           skipAnimationFrameInResizeObserver: true,
-          className: clsx(styles$D.list, className2)
+          className: clsx(styles$E.list, className2)
         }
       );
       return result2;
@@ -53012,7 +53011,7 @@ self.onmessage = function (e) {
     const ansi = "_ansi_1isha_23";
     const noTop = "_noTop_1isha_27";
     const timePanel = "_timePanel_1isha_31";
-    const styles$C = {
+    const styles$D = {
       tabPanel,
       fullWidth,
       metadataPanel,
@@ -53024,7 +53023,7 @@ self.onmessage = function (e) {
     const flatBody = "_flatBody_gk2ju_1";
     const iconSmall$1 = "_iconSmall_gk2ju_9";
     const lineBase = "_lineBase_gk2ju_15";
-    const styles$B = {
+    const styles$C = {
       flatBody,
       iconSmall: iconSmall$1,
       lineBase
@@ -53041,9 +53040,9 @@ self.onmessage = function (e) {
     const FlatSampleError = ({
       message: message2
     }) => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$B.flatBody), children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(ApplicationIcons.error, styles$B.iconSmall) }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$B.lineBase), children: errorType(message2) })
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$C.flatBody), children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(ApplicationIcons.error, styles$C.iconSmall) }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$C.lineBase), children: errorType(message2) })
       ] });
     };
     const target = "_target_9qy4e_1";
@@ -53052,7 +53051,7 @@ self.onmessage = function (e) {
     const centerLabel = "_centerLabel_9qy4e_17";
     const wrap = "_wrap_9qy4e_22";
     const titled = "_titled_9qy4e_26";
-    const styles$A = {
+    const styles$B = {
       target,
       answer,
       grid: grid$3,
@@ -53103,7 +53102,7 @@ self.onmessage = function (e) {
             MarkdownDiv,
             {
               markdown: arrayToString(arrayToString((sample2 == null ? void 0 : sample2.target) || "none")),
-              className: clsx("no-last-para-padding", styles$A.target)
+              className: clsx("no-last-para-padding", styles$B.target)
             }
           ),
           size: `${target2}fr`,
@@ -53118,7 +53117,7 @@ self.onmessage = function (e) {
             MarkdownDiv,
             {
               markdown: fullAnswer,
-              className: clsx("no-last-para-padding", styles$A.answer)
+              className: clsx("no-last-para-padding", styles$B.answer)
             }
           ) : "",
           size: `${answer2}fr`,
@@ -53161,7 +53160,7 @@ self.onmessage = function (e) {
         "div",
         {
           id: `sample-heading-${parent_id}`,
-          className: clsx(styles$A.grid, "text-size-base"),
+          className: clsx(styles$B.grid, "text-size-base"),
           style: {
             gridTemplateColumns: `${columns.map((col) => {
               return col.size;
@@ -53176,8 +53175,8 @@ self.onmessage = function (e) {
                     "text-style-label",
                     "text-style-secondary",
                     "text-size-base",
-                    col.title ? styles$A.titled : void 0,
-                    col.center ? styles$A.centerLabel : void 0
+                    col.title ? styles$B.titled : void 0,
+                    col.center ? styles$B.centerLabel : void 0
                   ),
                   title: col.title,
                   children: col.label
@@ -53190,9 +53189,9 @@ self.onmessage = function (e) {
                 "div",
                 {
                   className: clsx(
-                    styles$A.wrap,
+                    styles$B.wrap,
                     col.clamp ? "three-line-clamp" : void 0,
-                    col.center ? styles$A.centerLabel : void 0
+                    col.center ? styles$B.centerLabel : void 0
                   ),
                   children: col.value
                 },
@@ -53205,7 +53204,7 @@ self.onmessage = function (e) {
     };
     const title$2 = "_title_19l1b_1";
     const contents$1 = "_contents_19l1b_8";
-    const styles$z = {
+    const styles$A = {
       title: title$2,
       contents: contents$1
     };
@@ -53215,12 +53214,12 @@ self.onmessage = function (e) {
       className: className2,
       children: children2
     }) => {
-      const contentEl = title2 ? /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("text-size-small", styles$z.title, className2), children: [
+      const contentEl = title2 ? /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("text-size-small", styles$A.title, className2), children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: icon || ApplicationIcons.metadata }),
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-label"), children: title2 }),
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: children2 })
       ] }) : "";
-      const card2 = /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("card", styles$z.contents), children: contentEl });
+      const card2 = /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("card", styles$A.contents), children: contentEl });
       return card2;
     };
     const ApprovalEventView = ({
@@ -53270,7 +53269,7 @@ self.onmessage = function (e) {
       }
     };
     const tab = "_tab_1je38_1";
-    const styles$y = {
+    const styles$z = {
       tab
     };
     const EventNav = ({
@@ -53292,7 +53291,7 @@ self.onmessage = function (e) {
             active2 ? "active " : "",
             "text-style-label",
             "text-size-small",
-            styles$y.tab
+            styles$z.tab
           ),
           onClick: () => {
             setSelectedNav(target2);
@@ -53302,7 +53301,7 @@ self.onmessage = function (e) {
       ) });
     };
     const navs$1 = "_navs_1vm6p_1";
-    const styles$x = {
+    const styles$y = {
       navs: navs$1
     };
     const EventNavs = ({
@@ -53313,7 +53312,7 @@ self.onmessage = function (e) {
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
         "ul",
         {
-          className: clsx("nav", "nav-pills", styles$x.navs),
+          className: clsx("nav", "nav-pills", styles$y.navs),
           role: "tablist",
           "aria-orientation": "horizontal",
           children: navs2.map((nav2) => {
@@ -53336,7 +53335,7 @@ self.onmessage = function (e) {
     const card = "_card_7z797_12";
     const cardContent = "_cardContent_7z797_18";
     const hidden$1 = "_hidden_7z797_23";
-    const styles$w = {
+    const styles$x = {
       label,
       navs,
       card,
@@ -53429,14 +53428,14 @@ self.onmessage = function (e) {
             /* @__PURE__ */ jsxRuntimeExports.jsx(
               "div",
               {
-                className: clsx("text-style-secondary", styles$w.label),
+                className: clsx("text-style-secondary", styles$x.label),
                 onClick: () => {
                   setCollapsed(!isCollapsed);
                 },
                 children: collapsed ? text2 : ""
               }
             ),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$w.navs, children: (!hasCollapse || !isCollapsed) && filteredArrChildren && filteredArrChildren.length > 1 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$x.navs, children: (!hasCollapse || !isCollapsed) && filteredArrChildren && filteredArrChildren.length > 1 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
               EventNavs,
               {
                 navs: filteredArrChildren.map((child, index2) => {
@@ -53455,15 +53454,15 @@ self.onmessage = function (e) {
           ]
         }
       ) : "";
-      const card2 = /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { id, className: clsx(className2, styles$w.card), children: [
+      const card2 = /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { id, className: clsx(className2, styles$x.card), children: [
         titleEl,
         /* @__PURE__ */ jsxRuntimeExports.jsx(
           "div",
           {
             className: clsx(
               "tab-content",
-              styles$w.cardContent,
-              hasCollapse && isCollapsed ? styles$w.hidden : void 0
+              styles$x.cardContent,
+              hasCollapse && isCollapsed ? styles$x.hidden : void 0
             ),
             children: filteredArrChildren == null ? void 0 : filteredArrChildren.map((child, index2) => {
               const id2 = pillId(index2);
@@ -53520,7 +53519,7 @@ self.onmessage = function (e) {
       );
     };
     const panel = "_panel_8zdtn_1";
-    const styles$v = {
+    const styles$w = {
       panel
     };
     const InfoEventView = ({
@@ -53532,9 +53531,9 @@ self.onmessage = function (e) {
     }) => {
       const panels = [];
       if (typeof event.data === "string") {
-        panels.push(/* @__PURE__ */ jsxRuntimeExports.jsx(MarkdownDiv, { markdown: event.data, className: styles$v.panel }));
+        panels.push(/* @__PURE__ */ jsxRuntimeExports.jsx(MarkdownDiv, { markdown: event.data, className: styles$w.panel }));
       } else {
-        panels.push(/* @__PURE__ */ jsxRuntimeExports.jsx(JSONPanel, { data: event.data, className: styles$v.panel }));
+        panels.push(/* @__PURE__ */ jsxRuntimeExports.jsx(JSONPanel, { data: event.data, className: styles$w.panel }));
       }
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
         EventPanel,
@@ -53591,7 +53590,7 @@ self.onmessage = function (e) {
     };
     const grid$2 = "_grid_1eq5o_1";
     const jsonPanel = "_jsonPanel_1eq5o_8";
-    const styles$u = {
+    const styles$v = {
       grid: grid$2,
       jsonPanel
     };
@@ -53606,7 +53605,7 @@ self.onmessage = function (e) {
           className: className2,
           title: event.message.level,
           icon: ApplicationIcons.logging[event.message.level.toLowerCase()],
-          children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("text-size-base", styles$u.grid), children: [
+          children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("text-size-base", styles$v.grid), children: [
             /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-smaller"), children: obj !== void 0 && obj !== null ? /* @__PURE__ */ jsxRuntimeExports.jsx(MetaDataGrid, { entries: obj }) : event.message.message }),
             /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("text-size-smaller", "text-style-secondary"), children: [
               event.message.filename,
@@ -53619,7 +53618,7 @@ self.onmessage = function (e) {
     };
     const container$7 = "_container_1brs9_1";
     const title$1 = "_title_1brs9_5";
-    const styles$t = {
+    const styles$u = {
       container: container$7,
       title: title$1
     };
@@ -53628,11 +53627,11 @@ self.onmessage = function (e) {
       children: children2,
       className: className2
     }) => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$t.container, className2), children: [
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$u.container, className2), children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx(
           "div",
           {
-            className: clsx("text-size-small", "text-style-label", styles$t.title),
+            className: clsx("text-size-small", "text-style-label", styles$u.title),
             children: title2
           }
         ),
@@ -53647,7 +53646,7 @@ self.onmessage = function (e) {
     const codePre = "_codePre_19u93_26";
     const code$1 = "_code_19u93_26";
     const toolConfig = "_toolConfig_19u93_38";
-    const styles$s = {
+    const styles$t = {
       output,
       container: container$6,
       all,
@@ -53706,25 +53705,25 @@ self.onmessage = function (e) {
             setEventState({ ...eventState, collapsed });
           },
           children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { "data-name": "Summary", className: styles$s.container, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { "data-name": "Summary", className: styles$t.container, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
               ChatView,
               {
                 id: `${id}-model-output`,
                 messages: [...userMessages, ...outputMessages || []],
-                className: clsx(styles$s.output),
+                className: clsx(styles$t.output),
                 numbered: false,
                 toolCallStyle: "compact"
               }
             ) }),
-            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { "data-name": "All", className: styles$s.container, children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$s.all, children: [
-                /* @__PURE__ */ jsxRuntimeExports.jsx(EventSection, { title: "Configuration", className: styles$s.tableSelection, children: /* @__PURE__ */ jsxRuntimeExports.jsx(MetaDataGrid, { entries, plain: true }) }),
-                /* @__PURE__ */ jsxRuntimeExports.jsx(EventSection, { title: "Usage", className: styles$s.tableSelection, children: event.output.usage !== null ? /* @__PURE__ */ jsxRuntimeExports.jsx(ModelUsagePanel, { usage: event.output.usage }) : void 0 }),
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { "data-name": "All", className: styles$t.container, children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$t.all, children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsx(EventSection, { title: "Configuration", className: styles$t.tableSelection, children: /* @__PURE__ */ jsxRuntimeExports.jsx(MetaDataGrid, { entries, plain: true }) }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx(EventSection, { title: "Usage", className: styles$t.tableSelection, children: event.output.usage !== null ? /* @__PURE__ */ jsxRuntimeExports.jsx(ModelUsagePanel, { usage: event.output.usage }) : void 0 }),
                 /* @__PURE__ */ jsxRuntimeExports.jsx(
                   EventSection,
                   {
                     title: "Tools",
-                    className: clsx(styles$s.tableSelection, styles$s.tools),
+                    className: clsx(styles$t.tableSelection, styles$t.tools),
                     children: /* @__PURE__ */ jsxRuntimeExports.jsx(ToolsConfig, { tools: event.tools })
                   }
                 )
@@ -53742,7 +53741,7 @@ self.onmessage = function (e) {
               {
                 "data-name": "API",
                 call: event.call,
-                className: styles$s.container
+                className: styles$t.container
               }
             ) : ""
           ]
@@ -53771,12 +53770,12 @@ self.onmessage = function (e) {
           prismExports.highlightElement(codeRef.current);
         }
       }, [codeRef.current, contents2]);
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: styles$s.codePre, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: styles$t.codePre, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
         "code",
         {
           id,
           ref: codeRef,
-          className: clsx("language-json", styles$s.code, "text-size-small"),
+          className: clsx("language-json", styles$t.code, "text-size-small"),
           children: sourceCode
         }
       ) }) });
@@ -53788,14 +53787,14 @@ self.onmessage = function (e) {
           /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: tool2.description })
         ] }, `${tool2.name}-${idx}`);
       });
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$s.toolConfig, children: toolEls });
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$t.toolConfig, children: toolEls });
     };
     const noMargin = "_noMargin_1a3fk_1";
     const code = "_code_1a3fk_5";
     const sample = "_sample_1a3fk_10";
     const section = "_section_1a3fk_14";
     const metadata$1 = "_metadata_1a3fk_21";
-    const styles$r = {
+    const styles$s = {
       noMargin,
       code,
       sample,
@@ -53814,13 +53813,13 @@ self.onmessage = function (e) {
       if (event.sample.files && Object.keys(event.sample.files).length > 0) {
         sections.push(
           /* @__PURE__ */ jsxRuntimeExports.jsx(EventSection, { title: "Files", children: Object.keys(event.sample.files).map((file) => {
-            return /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: styles$r.noMargin, children: file }, `sample-init-file-${file}`);
+            return /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: styles$s.noMargin, children: file }, `sample-init-file-${file}`);
           }) }, `sample-${id}-init-files`)
         );
       }
       if (event.sample.setup) {
         sections.push(
-          /* @__PURE__ */ jsxRuntimeExports.jsx(EventSection, { title: "Setup", children: /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: styles$r.code, children: /* @__PURE__ */ jsxRuntimeExports.jsx("code", { className: "sourceCode", children: event.sample.setup }) }) }, `sample-${id}-init-setup`)
+          /* @__PURE__ */ jsxRuntimeExports.jsx(EventSection, { title: "Setup", children: /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: styles$s.code, children: /* @__PURE__ */ jsxRuntimeExports.jsx("code", { className: "sourceCode", children: event.sample.setup }) }) }, `sample-${id}-init-setup`)
         );
       }
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(
@@ -53840,7 +53839,7 @@ self.onmessage = function (e) {
             setEventState({ ...eventState, collapsed });
           },
           children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { "data-name": "Sample", className: styles$r.sample, children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { "data-name": "Sample", className: styles$s.sample, children: [
               /* @__PURE__ */ jsxRuntimeExports.jsx(ChatView, { messages: stateObj["messages"] }),
               /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
                 event.sample.choices ? event.sample.choices.map((choice, index2) => {
@@ -53850,7 +53849,7 @@ self.onmessage = function (e) {
                     choice
                   ] }, `$choice-{choice}`);
                 }) : "",
-                sections.length > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$r.section, children: sections }) : "",
+                sections.length > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$s.section, children: sections }) : "",
                 /* @__PURE__ */ jsxRuntimeExports.jsx(EventSection, { title: "Target", children: toArray(event.sample.target).map((target2) => {
                   return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: target2 }, target2);
                 }) })
@@ -53860,7 +53859,7 @@ self.onmessage = function (e) {
               MetaDataGrid,
               {
                 "data-name": "Metadata",
-                className: styles$r.metadata,
+                className: styles$s.metadata,
                 entries: event.sample.metadata
               }
             ) : ""
@@ -53931,7 +53930,7 @@ self.onmessage = function (e) {
     const explanation = "_explanation_1ww42_1";
     const separator$1 = "_separator_1ww42_8";
     const metadata = "_metadata_1ww42_13";
-    const styles$q = {
+    const styles$r = {
       explanation,
       separator: separator$1,
       metadata
@@ -53961,28 +53960,28 @@ self.onmessage = function (e) {
             setEventState({ ...eventState, collapsed });
           },
           children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { "data-name": "Explanation", className: clsx(styles$q.explanation), children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { "data-name": "Explanation", className: clsx(styles$r.explanation), children: [
               event.target ? /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
-                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$q.separator) }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$r.separator) }),
                 /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-style-label", children: "Target" }),
                 /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx(MarkdownDiv, { markdown: resolvedTarget || "" }) })
               ] }) : "",
-              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$q.separator) }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$r.separator) }),
               /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-style-label", children: "Answer" }),
               /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx(MarkdownDiv, { markdown: event.score.answer || "" }) }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$q.separator) }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$r.separator) }),
               /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-style-label", children: "Explanation" }),
               /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx(MarkdownDiv, { markdown: event.score.explanation || "" }) }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$q.separator) }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$r.separator) }),
               /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-style-label", children: "Score" }),
               /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: renderScore(event.score.value) }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$q.separator) })
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$r.separator) })
             ] }),
             event.score.metadata ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { "data-name": "Metadata", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
               MetaDataGrid,
               {
                 entries: event.score.metadata,
-                className: styles$q.metadata
+                className: styles$r.metadata
               }
             ) }) : void 0
           ]
@@ -56187,26 +56186,26 @@ self.onmessage = function (e) {
         } else node2[`$$${name2}`] = handler;
       }
     }
-    function style(node2, value2, prev) {
-      if (!value2) return prev ? setAttribute(node2, "style") : value2;
+    function style(node2, value2, prev2) {
+      if (!value2) return prev2 ? setAttribute(node2, "style") : value2;
       const nodeStyle = node2.style;
       if (typeof value2 === "string") return nodeStyle.cssText = value2;
-      typeof prev === "string" && (nodeStyle.cssText = prev = void 0);
-      prev || (prev = {});
+      typeof prev2 === "string" && (nodeStyle.cssText = prev2 = void 0);
+      prev2 || (prev2 = {});
       value2 || (value2 = {});
       let v, s;
-      for (s in prev) {
+      for (s in prev2) {
         value2[s] == null && nodeStyle.removeProperty(s);
-        delete prev[s];
+        delete prev2[s];
       }
       for (s in value2) {
         v = value2[s];
-        if (v !== prev[s]) {
+        if (v !== prev2[s]) {
           nodeStyle.setProperty(s, v);
-          prev[s] = v;
+          prev2[s] = v;
         }
       }
-      return prev;
+      return prev2;
     }
     function use(fn2, element, arg) {
       return untrack(() => fn2(element, arg));
@@ -56322,24 +56321,24 @@ self.onmessage = function (e) {
     function normalizeIncomingArray(normalized, array, current, unwrap2) {
       let dynamic = false;
       for (let i2 = 0, len = array.length; i2 < len; i2++) {
-        let item2 = array[i2], prev = current && current[i2];
+        let item2 = array[i2], prev2 = current && current[i2];
         if (item2 instanceof Node) {
           normalized.push(item2);
         } else if (item2 == null || item2 === true || item2 === false) ;
         else if (Array.isArray(item2)) {
-          dynamic = normalizeIncomingArray(normalized, item2, prev) || dynamic;
+          dynamic = normalizeIncomingArray(normalized, item2, prev2) || dynamic;
         } else if (typeof item2 === "function") {
           if (unwrap2) {
             while (typeof item2 === "function") item2 = item2();
-            dynamic = normalizeIncomingArray(normalized, Array.isArray(item2) ? item2 : [item2], Array.isArray(prev) ? prev : [prev]) || dynamic;
+            dynamic = normalizeIncomingArray(normalized, Array.isArray(item2) ? item2 : [item2], Array.isArray(prev2) ? prev2 : [prev2]) || dynamic;
           } else {
             normalized.push(item2);
             dynamic = true;
           }
         } else {
           const value2 = String(item2);
-          if (prev && prev.nodeType === 3 && prev.data === value2) {
-            normalized.push(prev);
+          if (prev2 && prev2.nodeType === 3 && prev2.data === value2) {
+            normalized.push(prev2);
           } else normalized.push(document.createTextNode(value2));
         }
       }
@@ -57437,11 +57436,11 @@ ${val.stack}`;
     };
     function setProperty(state, property, value2, deleting = false) {
       if (!deleting && state[property] === value2) return;
-      const prev = state[property], len = state.length;
+      const prev2 = state[property], len = state.length;
       if (value2 === void 0) delete state[property];
       else state[property] = value2;
       let nodes2 = getDataNodes(state), node2;
-      if (node2 = getDataNode(nodes2, property, prev)) node2.$(() => value2);
+      if (node2 = getDataNode(nodes2, property, prev2)) node2.$(() => value2);
       if (Array.isArray(state) && state.length !== len) (node2 = getDataNode(nodes2, "length", len)) && node2.$(state.length);
       (node2 = nodes2._) && node2.$();
     }
@@ -57452,21 +57451,21 @@ ${val.stack}`;
         setProperty(state, key2, value2[key2]);
       }
     }
-    function updateArray(current, next) {
-      if (typeof next === "function") next = next(current);
-      next = unwrap(next);
-      if (Array.isArray(next)) {
-        if (current === next) return;
-        let i2 = 0, len = next.length;
+    function updateArray(current, next2) {
+      if (typeof next2 === "function") next2 = next2(current);
+      next2 = unwrap(next2);
+      if (Array.isArray(next2)) {
+        if (current === next2) return;
+        let i2 = 0, len = next2.length;
         for (; i2 < len; i2++) {
-          const value2 = next[i2];
+          const value2 = next2[i2];
           if (current[i2] !== value2) setProperty(current, i2, value2);
         }
         setProperty(current, "length", len);
-      } else mergeStoreNode(current, next);
+      } else mergeStoreNode(current, next2);
     }
     function updatePath(current, path, traversed = []) {
-      let part, prev = current;
+      let part, prev2 = current;
       if (path.length > 1) {
         part = path.shift();
         const partType = typeof part, isArray = Array.isArray(current);
@@ -57494,18 +57493,18 @@ ${val.stack}`;
           updatePath(current[part], path, [part].concat(traversed));
           return;
         }
-        prev = current[part];
+        prev2 = current[part];
         traversed = [part].concat(traversed);
       }
       let value2 = path[0];
       if (typeof value2 === "function") {
-        value2 = value2(prev, traversed);
-        if (value2 === prev) return;
+        value2 = value2(prev2, traversed);
+        if (value2 === prev2) return;
       }
       if (part === void 0 && value2 == void 0) return;
       value2 = unwrap(value2);
-      if (part === void 0 || isWrappable(prev) && isWrappable(value2) && !Array.isArray(value2)) {
-        mergeStoreNode(prev, value2);
+      if (part === void 0 || isWrappable(prev2) && isWrappable(value2) && !Array.isArray(value2)) {
+        mergeStoreNode(prev2, value2);
       } else setProperty(current, part, value2);
     }
     function createStore(...[store, options2]) {
@@ -58677,11 +58676,11 @@ ${val.stack}`;
               v = 0;
             }
             while (values.length === 0) {
-              const next = this.input.next();
-              if (next.done) {
+              const next2 = this.input.next();
+              if (next2.done) {
                 break;
               } else {
-                xf.step(next.value);
+                xf.step(next2.value);
               }
             }
             if (values.length === 0 && !flushed) {
@@ -58748,13 +58747,13 @@ ${val.stack}`;
       };
     }
     function compose(xfs, push2) {
-      return xfs.reverse().reduce((next, curr) => {
-        const xf = toXf(curr(next.step));
+      return xfs.reverse().reduce((next2, curr) => {
+        const xf = toXf(curr(next2.step));
         return {
           step: xf.step,
           flush: () => {
             xf.flush();
-            next.flush();
+            next2.flush();
           }
         };
       }, toXf(push2));
@@ -59714,10 +59713,10 @@ ${events}
       };
     }
     function min(numbers) {
-      return numbers.reduce((prev, cur2) => cur2 < prev ? cur2 : prev);
+      return numbers.reduce((prev2, cur2) => cur2 < prev2 ? cur2 : prev2);
     }
     function max(numbers) {
-      return numbers.reduce((prev, cur2) => cur2 > prev ? cur2 : prev);
+      return numbers.reduce((prev2, cur2) => cur2 > prev2 ? cur2 : prev2);
     }
     function exponentialDelay(attempt) {
       return Math.min(500 * Math.pow(2, attempt), 5e3);
@@ -60312,20 +60311,49 @@ ${events}
         }
       );
     };
+    const carouselThumbs = "_carouselThumbs_1mvg8_1";
+    const carouselThumb = "_carouselThumb_1mvg8_1";
+    const carouselPlayIcon = "_carouselPlayIcon_1mvg8_16";
+    const lightboxOverlay = "_lightboxOverlay_1mvg8_20";
+    const lightboxContent = "_lightboxContent_1mvg8_33";
+    const open = "_open_1mvg8_33";
+    const closed = "_closed_1mvg8_39";
+    const lightboxButtonCloseWrapper = "_lightboxButtonCloseWrapper_1mvg8_45";
+    const lightboxButtonClose = "_lightboxButtonClose_1mvg8_45";
+    const lightboxPreviewButton = "_lightboxPreviewButton_1mvg8_63";
+    const next = "_next_1mvg8_76";
+    const prev = "_prev_1mvg8_80";
+    const styles$q = {
+      carouselThumbs,
+      carouselThumb,
+      carouselPlayIcon,
+      lightboxOverlay,
+      lightboxContent,
+      open,
+      closed,
+      lightboxButtonCloseWrapper,
+      lightboxButtonClose,
+      lightboxPreviewButton,
+      next,
+      prev
+    };
     const LightboxCarousel = ({
       slides
     }) => {
       const [isOpen, setIsOpen] = reactExports.useState(false);
       const [showOverlay, setShowOverlay] = reactExports.useState(false);
       const [currentIndex, setCurrentIndex] = reactExports.useState(0);
-      const openLightbox = (index2) => {
-        setCurrentIndex(index2);
-        setShowOverlay(true);
-        setTimeout(() => setIsOpen(true), 10);
-      };
-      const closeLightbox = () => {
+      const openLightbox = reactExports.useCallback(
+        (index2) => {
+          setCurrentIndex(index2);
+          setShowOverlay(true);
+          setTimeout(() => setIsOpen(true), 10);
+        },
+        [setCurrentIndex, setShowOverlay]
+      );
+      const closeLightbox = reactExports.useCallback(() => {
         setIsOpen(false);
-      };
+      }, [setIsOpen]);
       reactExports.useEffect(() => {
         if (!isOpen && showOverlay) {
           const timer = setTimeout(() => {
@@ -60333,15 +60361,15 @@ ${events}
           }, 300);
           return () => clearTimeout(timer);
         }
-      }, [isOpen, showOverlay]);
+      }, [isOpen, showOverlay, setShowOverlay]);
       const showNext = reactExports.useCallback(() => {
-        setCurrentIndex((prev) => {
-          return (prev + 1) % slides.length;
+        setCurrentIndex((prev2) => {
+          return (prev2 + 1) % slides.length;
         });
-      }, [slides]);
+      }, [slides, setCurrentIndex]);
       const showPrev = reactExports.useCallback(() => {
-        setCurrentIndex((prev) => (prev - 1 + slides.length) % slides.length);
-      }, [slides]);
+        setCurrentIndex((prev2) => (prev2 - 1 + slides.length) % slides.length);
+      }, [slides, setCurrentIndex]);
       reactExports.useEffect(() => {
         if (!isOpen) return;
         const handleKeyUp = (e) => {
@@ -60358,19 +60386,22 @@ ${events}
         window.addEventListener("keyup", handleKeyUp, true);
         return () => window.removeEventListener("keyup", handleKeyUp);
       }, [isOpen, showNext, showPrev]);
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "lightbox-carousel-container", children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "carousel-thumbs", children: slides.map((slide, index2) => {
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("lightbox-carousel-container"), children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$q.carouselThumbs), children: slides.map((slide, index2) => {
           return /* @__PURE__ */ jsxRuntimeExports.jsxs(
             "div",
             {
-              className: "carousel-thumb",
+              className: clsx(styles$q.carouselThumb),
               onClick: () => openLightbox(index2),
               children: [
                 /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: slide.label }),
                 /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx(
                   "i",
                   {
-                    className: clsx(ApplicationIcons.play, "carousel-play-icon")
+                    className: clsx(
+                      ApplicationIcons.play,
+                      styles$q.carouselPlayIcon
+                    )
                   }
                 ) })
               ]
@@ -60378,33 +60409,46 @@ ${events}
             index2
           );
         }) }),
-        showOverlay && /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("lightbox-overlay", isOpen ? "open" : "closed"), children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "lightbox-button-close-wrapper", children: /* @__PURE__ */ jsxRuntimeExports.jsx("button", { className: "lightbox-button-close", onClick: closeLightbox, children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.close }) }) }),
-          slides.length > 1 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
-            "button",
-            {
-              className: "lightbox-preview-button prev",
-              onClick: showPrev,
-              children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.previous })
-            }
-          ) : "",
-          slides.length > 1 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
-            "button",
-            {
-              className: "lightbox-preview-button next",
-              onClick: showNext,
-              children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.next })
-            }
-          ) : "",
-          /* @__PURE__ */ jsxRuntimeExports.jsx(
-            "div",
-            {
-              className: clsx("lightbox-content", isOpen ? "open" : "closed"),
-              children: slides[currentIndex].render()
-            },
-            `carousel-slide-${currentIndex}`
-          )
-        ] })
+        showOverlay && /* @__PURE__ */ jsxRuntimeExports.jsxs(
+          "div",
+          {
+            className: clsx(styles$q.lightboxOverlay, isOpen ? "open" : "closed"),
+            children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$q.lightboxButtonCloseWrapper), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+                "button",
+                {
+                  className: styles$q.lightboxButtonClose,
+                  onClick: closeLightbox,
+                  children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.close })
+                }
+              ) }),
+              slides.length > 1 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+                "button",
+                {
+                  className: clsx(styles$q.lightboxPreviewButton, "prev"),
+                  onClick: showPrev,
+                  children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.previous })
+                }
+              ) : "",
+              slides.length > 1 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+                "button",
+                {
+                  className: clsx(styles$q.lightboxPreviewButton, "next"),
+                  onClick: showNext,
+                  children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.next })
+                }
+              ) : "",
+              /* @__PURE__ */ jsxRuntimeExports.jsx(
+                "div",
+                {
+                  className: clsx(styles$q.lightboxContent, isOpen ? "open" : "closed"),
+                  children: slides[currentIndex].render()
+                },
+                `carousel-slide-${currentIndex}`
+              )
+            ]
+          }
+        )
       ] });
     };
     const HumanBaselineView = ({
@@ -60705,13 +60749,15 @@ ${events}
       isStore = false,
       className: className2
     }) => {
-      const summary2 = summarizeChanges(event.changes);
-      const [before, after] = synthesizeComparable(event.changes);
-      const changePreview = generatePreview(
-        event.changes,
-        structuredClone(after),
-        isStore
-      );
+      const summary2 = reactExports.useMemo(() => {
+        return summarizeChanges(event.changes);
+      }, [event.changes]);
+      const [before, after] = reactExports.useMemo(() => {
+        return synthesizeComparable(event.changes);
+      }, [event.changes]);
+      const changePreview = reactExports.useMemo(() => {
+        return generatePreview(event.changes, structuredClone(after), isStore);
+      }, [event.changes, after, isStore]);
       const title2 = event.event === "state" ? "State Updated" : "Store Updated";
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(
         EventPanel,
@@ -60825,8 +60871,8 @@ ${events}
         }
       }
       const changeList = [];
-      const totalOpCount = Object.keys(changeMap).reduce((prev, current) => {
-        return prev + changeMap[current].length;
+      const totalOpCount = Object.keys(changeMap).reduce((prev2, current) => {
+        return prev2 + changeMap[current].length;
       }, 0);
       if (totalOpCount > 2) {
         Object.keys(changeMap).forEach((key2) => {
@@ -61792,7 +61838,7 @@ ${events}
           {
             id: tabsetId,
             tabControlsClassName: clsx("text-size-base"),
-            tabPanelsClassName: clsx(styles$C.tabPanel),
+            tabPanelsClassName: clsx(styles$D.tabPanel),
             tools: tools2,
             children: [
               sample2.events && sample2.events.length > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -61820,7 +61866,7 @@ ${events}
                 TabPanel,
                 {
                   id: kSampleMessagesTabId,
-                  className: clsx("sample-tab", styles$C.fullWidth),
+                  className: clsx("sample-tab", styles$D.fullWidth),
                   title: "Messages",
                   onSelected: onSelectedTab,
                   selected: selectedTab === kSampleMessagesTabId,
@@ -61887,7 +61933,7 @@ ${events}
                   title: "Metadata",
                   onSelected: onSelectedTab,
                   selected: selectedTab === kSampleMetdataTabId,
-                  children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$C.metadataPanel), children: sampleMetadatas })
+                  children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$D.metadataPanel), children: sampleMetadatas })
                 }
               ) : null,
               sample2.error ? /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -61898,11 +61944,11 @@ ${events}
                   title: "Error",
                   onSelected: onSelectedTab,
                   selected: selectedTab === kSampleErrorTabId,
-                  children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$C.padded), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+                  children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$D.padded), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
                     ANSIDisplay,
                     {
                       output: sample2.error.traceback_ansi,
-                      className: clsx("text-size-small", styles$C.ansi)
+                      className: clsx("text-size-small", styles$D.ansi)
                     }
                   ) })
                 }
@@ -61915,7 +61961,7 @@ ${events}
                   title: "JSON",
                   onSelected: onSelectedTab,
                   selected: selectedTab === kSampleJsonTabId,
-                  children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$C.padded, styles$C.fullWidth), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+                  children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$D.padded, styles$D.fullWidth), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
                     JSONPanel,
                     {
                       data: sample2,
@@ -61940,7 +61986,7 @@ ${events}
               ModelTokenTable,
               {
                 model_usage: sample2.model_usage,
-                className: clsx(styles$C.noTop)
+                className: clsx(styles$D.noTop)
               }
             ) })
           ] }, `sample-usage-${id}`)
@@ -61950,7 +61996,7 @@ ${events}
         sampleMetadatas.push(
           /* @__PURE__ */ jsxRuntimeExports.jsxs(Card, { children: [
             /* @__PURE__ */ jsxRuntimeExports.jsx(CardHeader, { label: "Time" }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx(CardBody, { children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$C.timePanel, "text-size-smaller"), children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx(CardBody, { children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$D.timePanel, "text-size-smaller"), children: [
               /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-label", "text-style-secondary"), children: "Working" }),
               /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: formatTime$1(sample2.working_time) }),
               /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-label", "text-style-secondary"), children: "Total" }),
@@ -61968,7 +62014,7 @@ ${events}
               {
                 id: "task-sample-metadata-${id}",
                 entries: sample2 == null ? void 0 : sample2.metadata,
-                className: clsx("tab-pane", styles$C.noTop)
+                className: clsx("tab-pane", styles$D.noTop)
               }
             ) })
           ] }, `sample-metadata-${id}`)
@@ -61983,7 +62029,7 @@ ${events}
               {
                 id: "task-sample-store-${id}",
                 entries: sample2 == null ? void 0 : sample2.store,
-                className: clsx("tab-pane", styles$C.noTop)
+                className: clsx("tab-pane", styles$D.noTop)
               }
             ) })
           ] }, `sample-store-${id}`)
@@ -62666,11 +62712,11 @@ ${events}
         [selectedIndex]
       );
       const { input: input2, limit, answer: answer2, target: target2 } = gridColumns(sampleDescriptor);
-      const sampleCount = items == null ? void 0 : items.reduce((prev, current) => {
+      const sampleCount = items == null ? void 0 : items.reduce((prev2, current) => {
         if (current.type === "sample") {
-          return prev + 1;
+          return prev2 + 1;
         } else {
-          return prev;
+          return prev2;
         }
       }, 0);
       const errorCount = items == null ? void 0 : items.reduce((previous, item2) => {
@@ -62964,15 +63010,15 @@ ${events}
         return selectedSampleIndex > 0 ? selectedSampleIndex - 1 : -1;
       }, [selectedSampleIndex, items]);
       const nextSample = reactExports.useCallback(() => {
-        const next = nextSampleIndex();
-        if (sampleStatus !== "loading" && next > -1) {
-          setSelectedSampleIndex(next);
+        const next2 = nextSampleIndex();
+        if (sampleStatus !== "loading" && next2 > -1) {
+          setSelectedSampleIndex(next2);
         }
       }, [selectedSampleIndex, samples, sampleStatus, nextSampleIndex]);
       const previousSample = reactExports.useCallback(() => {
-        const prev = previousSampleIndex();
-        if (sampleStatus !== "loading" && prev > -1) {
-          setSelectedSampleIndex(prev);
+        const prev2 = previousSampleIndex();
+        if (sampleStatus !== "loading" && prev2 > -1) {
+          setSelectedSampleIndex(prev2);
         }
       }, [selectedSampleIndex, samples, sampleStatus, previousSampleIndex]);
       const title2 = selectedSampleIndex > -1 && sampleItems.length > selectedSampleIndex ? sampleItems[selectedSampleIndex].label : "";
@@ -65463,13 +65509,13 @@ ${events}
           try {
             for (const fileList of fileLists) {
               const headers = await api2.get_log_headers(fileList);
-              setLogHeaders((prev) => {
+              setLogHeaders((prev2) => {
                 const updatedHeaders = {};
                 headers.forEach((header2, index2) => {
                   const logFile = fileList[index2];
                   updatedHeaders[logFile] = header2;
                 });
-                return { ...prev, ...updatedHeaders };
+                return { ...prev2, ...updatedHeaders };
               });
               if (headers.length === chunkSize) {
                 await sleep$1(5e3);
@@ -65570,8 +65616,8 @@ ${events}
           if (logContents) {
             const log2 = logContents;
             if (log2.status !== "started") {
-              setLogHeaders((prev) => {
-                const updatedState = { ...prev };
+              setLogHeaders((prev2) => {
+                const updatedState = { ...prev2 };
                 const freshHeaders = {
                   eval: log2.eval,
                   plan: log2.plan,
