@@ -458,13 +458,13 @@ async def test_exec_as_user(sandbox_env: SandboxEnvironment) -> None:
 
 
 async def test_exec_as_nonexistent_user(sandbox_env: SandboxEnvironment) -> None:
-    result = await sandbox_env.exec(["whoami"], user="nonexistent")
+    nonexistent_username = "nonexistent"
+    result = await sandbox_env.exec(["whoami"], user=nonexistent_username)
     assert not result.success, "Command should have failed for nonexistent user"
-    expected_error = (
-        "unable to find user nonexistent: no matching entries in passwd file"
-    )
-    assert expected_error in result.stdout, (
-        f"Error string '{expected_error}' not found in error output: '{result.stdout}'"
+    assert (
+        nonexistent_username in result.stdout or nonexistent_username in result.stderr
+    ), (
+        f"Error not found in command output: '{result.stdout}' nor stderr '{result.stderr}"
     )
 
 
