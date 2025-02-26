@@ -13,6 +13,7 @@
 - Inspect View: Improve virtualized rendering of Sample List, Sample Transcript, and Sample Messages.
 - Bugfix: Catch standard `TimeoutError` for running shell commands in the computer tool container.
 - Bugfix: Fix audio and video inputs for new Google GenAI client.
+- Bugfix: Ensure that token limits are not enforced during model graded scoring.
 
 ## v0.3.70 (25 February 2025)
 
