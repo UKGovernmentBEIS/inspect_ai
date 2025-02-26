@@ -100,7 +100,7 @@ export const SampleList: FC<SampleListProps> = (props) => {
           break;
       }
     },
-    [selectedIndex],
+    [selectedIndex, nextSample, prevSample, showSample],
   );
 
   // If there are no samples, just display an empty state

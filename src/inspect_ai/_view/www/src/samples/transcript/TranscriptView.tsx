@@ -84,7 +84,7 @@ export const TranscriptVirtualList: React.FC<TranscriptVirtualListProps> = (
     (state: TranscriptEventState) => {
       setTranscriptState(state);
     },
-    [transcriptState, setTranscriptState],
+    [setTranscriptState],
   );
 
   return (
@@ -116,7 +116,7 @@ export const TranscriptVirtualListComponent: React.FC<
     (eventId: string, state: TranscriptEventState) => {
       setTranscriptState({ ...transcriptState, [eventId]: state });
     },
-    [setTranscriptState],
+    [transcriptState, setTranscriptState],
   );
 
   const [followOutput, setFollowOutput] = useState(false);

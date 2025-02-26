@@ -75,7 +75,7 @@ export const SamplesTab: FC<SamplesTabProps> = ({
       setSelectedSampleIndex(index);
       setShowingSampleDialog(true);
     },
-    [sampleDialogRef],
+    [setSelectedSampleIndex, setShowingSampleDialog],
   );
 
   useEffect(() => {
@@ -129,11 +129,11 @@ export const SamplesTab: FC<SamplesTabProps> = ({
     } else {
       return -1;
     }
-  }, [selectedSampleIndex, items]);
+  }, [selectedSampleIndex, sampleItems.length]);
 
   const previousSampleIndex = useCallback(() => {
     return selectedSampleIndex > 0 ? selectedSampleIndex - 1 : -1;
-  }, [selectedSampleIndex, items]);
+  }, [selectedSampleIndex]);
 
   // Manage the next / previous state the selected sample
   const nextSample = useCallback(() => {
@@ -141,14 +141,14 @@ export const SamplesTab: FC<SamplesTabProps> = ({
     if (sampleStatus !== "loading" && next > -1) {
       setSelectedSampleIndex(next);
     }
-  }, [selectedSampleIndex, samples, sampleStatus, nextSampleIndex]);
+  }, [nextSampleIndex, sampleStatus, setSelectedSampleIndex]);
 
   const previousSample = useCallback(() => {
     const prev = previousSampleIndex();
     if (sampleStatus !== "loading" && prev > -1) {
       setSelectedSampleIndex(prev);
     }
-  }, [selectedSampleIndex, samples, sampleStatus, previousSampleIndex]);
+  }, [previousSampleIndex, sampleStatus, setSelectedSampleIndex]);
 
   const title =
     selectedSampleIndex > -1 && sampleItems.length > selectedSampleIndex

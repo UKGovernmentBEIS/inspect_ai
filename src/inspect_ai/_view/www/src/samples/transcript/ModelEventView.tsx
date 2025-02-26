@@ -182,7 +182,7 @@ export const APICodeCell: FC<APICodeCellProps> = ({ id, contents }) => {
     if (codeRef.current) {
       highlightElement(codeRef.current);
     }
-  }, [codeRef.current, contents]);
+  }, [contents]);
 
   if (!contents) {
     return null;

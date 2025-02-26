@@ -53756,7 +53756,7 @@ self.onmessage = function (e) {
         if (codeRef.current) {
           prismExports.highlightElement(codeRef.current);
         }
-      }, [codeRef.current, contents2]);
+      }, [contents2]);
       if (!contents2) {
         return null;
       }
@@ -60978,7 +60978,7 @@ ${events}
         (state) => {
           setTranscriptState({ ...state });
         },
-        [transcriptState, setTranscriptState]
+        [setTranscriptState]
       );
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
         EventPanel,
@@ -61434,7 +61434,7 @@ ${events}
         (state) => {
           setTranscriptState(state);
         },
-        [transcriptState, setTranscriptState]
+        [setTranscriptState]
       );
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
         TranscriptVirtualListComponent,
@@ -61452,7 +61452,7 @@ ${events}
         (eventId, state) => {
           setTranscriptState({ ...transcriptState, [eventId]: state });
         },
-        [setTranscriptState]
+        [transcriptState, setTranscriptState]
       );
       const [followOutput, setFollowOutput] = reactExports.useState(false);
       const renderRow = (item2, index2) => {
@@ -62303,7 +62303,7 @@ ${events}
               break;
           }
         },
-        [prevSample, nextSample]
+        [prevSample, nextSample, setShowingSampleDialog]
       );
       const onHide = reactExports.useCallback(() => {
         setShowingSampleDialog(false);
@@ -62664,7 +62664,7 @@ ${events}
               break;
           }
         },
-        [selectedIndex]
+        [selectedIndex, nextSample, prevSample, showSample]
       );
       if (items.length === 0) {
         return /* @__PURE__ */ jsxRuntimeExports.jsx(EmptyPanel, { children: "No Samples" });
@@ -62948,7 +62948,7 @@ ${events}
           setSelectedSampleIndex(index2);
           setShowingSampleDialog(true);
         },
-        [sampleDialogRef]
+        [setSelectedSampleIndex, setShowingSampleDialog]
       );
       reactExports.useEffect(() => {
         if (showingSampleDialog) {
@@ -62991,22 +62991,22 @@ ${events}
         } else {
           return -1;
         }
-      }, [selectedSampleIndex, items]);
+      }, [selectedSampleIndex, sampleItems.length]);
       const previousSampleIndex = reactExports.useCallback(() => {
         return selectedSampleIndex > 0 ? selectedSampleIndex - 1 : -1;
-      }, [selectedSampleIndex, items]);
+      }, [selectedSampleIndex]);
       const nextSample = reactExports.useCallback(() => {
         const next2 = nextSampleIndex();
         if (sampleStatus !== "loading" && next2 > -1) {
           setSelectedSampleIndex(next2);
         }
-      }, [selectedSampleIndex, samples, sampleStatus, nextSampleIndex]);
+      }, [nextSampleIndex, sampleStatus, setSelectedSampleIndex]);
       const previousSample = reactExports.useCallback(() => {
         const prev2 = previousSampleIndex();
         if (sampleStatus !== "loading" && prev2 > -1) {
           setSelectedSampleIndex(prev2);
         }
-      }, [selectedSampleIndex, samples, sampleStatus, previousSampleIndex]);
+      }, [previousSampleIndex, sampleStatus, setSelectedSampleIndex]);
       const title2 = selectedSampleIndex > -1 && sampleItems.length > selectedSampleIndex ? sampleItems[selectedSampleIndex].label : "";
       if (!sampleDescriptor) {
         return /* @__PURE__ */ jsxRuntimeExports.jsx(EmptyPanel, {});
@@ -63856,7 +63856,7 @@ ${events}
       const logFileName = file ? filename(file) : "";
       const handleToggle = reactExports.useCallback(() => {
         setOffcanvas(!offcanvas);
-      }, [offcanvas]);
+      }, [setOffcanvas, offcanvas]);
       return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$4.wrapper), children: [
         /* @__PURE__ */ jsxRuntimeExports.jsxs(
           "div",

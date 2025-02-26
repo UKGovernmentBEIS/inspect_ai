@@ -37,7 +37,7 @@ export const StepEventView: FC<StepEventViewProps> = ({
     (state: TranscriptEventState) => {
       setTranscriptState({ ...state });
     },
-    [transcriptState, setTranscriptState],
+    [setTranscriptState],
   );
 
   return (

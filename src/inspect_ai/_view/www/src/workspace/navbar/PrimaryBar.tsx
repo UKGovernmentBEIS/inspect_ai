@@ -34,7 +34,7 @@ export const PrimaryBar: FC<PrimaryBarProps> = ({
 
   const handleToggle = useCallback(() => {
     setOffcanvas(!offcanvas);
-  }, [offcanvas]);
+  }, [setOffcanvas, offcanvas]);
 
   return (
     <div className={clsx(styles.wrapper)}>

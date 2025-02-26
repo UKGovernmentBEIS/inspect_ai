@@ -84,7 +84,7 @@ export const SampleDialog: FC<SampleDialogProps> = ({
           break;
       }
     },
-    [prevSample, nextSample],
+    [prevSample, nextSample, setShowingSampleDialog],
   );
 
   const onHide = useCallback(() => {
