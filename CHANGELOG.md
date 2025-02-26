@@ -4,6 +4,7 @@
 - Reasoning: `ContentReasoning` type for representing model reasoning blocks.
 - Reasoning: `reasoning_tokens` for setting maximum reasoning tokens (currently only supported by Claude Sonnet 3.7)
 - Reasoning: `reasoning_history` can now be specified as "none", "all", "last", or "auto" (which yields a provider specific recommended default).
+- Web Browser: [Various improvements](https://github.com/UKGovernmentBEIS/inspect_ai/pull/1314) to performance and robustness along with several bug fixes.
 - OpenAI: Retry on rate limit requests with "Request too large".
 - OpenAI: Tolerate `None` for assistant content (can happen when there is a refusal).
 - Bugfix: Catch standard `TimeoutError` for running shell commands in the computer tool container.
