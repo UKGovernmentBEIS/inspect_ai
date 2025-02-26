@@ -1,4 +1,4 @@
-import { RefObject } from "react";
+import { FC, RefObject } from "react";
 import { Events } from "../../types/log";
 import { TranscriptVirtualList } from "./TranscriptView";
 
@@ -11,7 +11,7 @@ interface SampleTranscriptProps {
 /**
  * Renders the SampleTranscript component.=
  */
-export const SampleTranscript: React.FC<SampleTranscriptProps> = ({
+export const SampleTranscript: FC<SampleTranscriptProps> = ({
   id,
   evalEvents,
   scrollRef,

@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { ChangeEvent } from "react";
+import { ChangeEvent, FC } from "react";
 import styles from "./EpochFilter.module.css";
 
 interface EpochFilterProps {
@@ -8,7 +8,7 @@ interface EpochFilterProps {
   setEpoch: (n: string) => void;
 }
 
-export const EpochFilter: React.FC<EpochFilterProps> = ({
+export const EpochFilter: FC<EpochFilterProps> = ({
   epochs,
   epoch,
   setEpoch,

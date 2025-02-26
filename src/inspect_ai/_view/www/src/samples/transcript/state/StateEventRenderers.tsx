@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { Fragment, JSX, ReactNode } from "react";
+import { FC, Fragment, JSX, ReactNode } from "react";
 import {
   HumanBaselineView,
   SessionLog,
@@ -246,7 +246,7 @@ interface ToolsProps {
 /**
  * Renders a list of tool components based on the provided tool definitions.
  */
-export const Tools: React.FC<ToolsProps> = ({ toolDefinitions }) => {
+export const Tools: FC<ToolsProps> = ({ toolDefinitions }) => {
   return toolDefinitions.map((toolDefinition, idx) => {
     const toolName = toolDefinition.name;
     const toolArgs = toolDefinition.parameters?.properties
@@ -270,7 +270,7 @@ interface ToolProps {
 /**
  * Renders a single tool component.
  */
-export const Tool: React.FC<ToolProps> = ({ toolName, toolArgs }) => {
+export const Tool: FC<ToolProps> = ({ toolName, toolArgs }) => {
   const functionCall =
     toolArgs && toolArgs.length > 0
       ? `${toolName}(${toolArgs.join(", ")})`

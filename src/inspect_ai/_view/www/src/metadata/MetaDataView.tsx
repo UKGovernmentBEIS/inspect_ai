@@ -1,10 +1,11 @@
 import clsx from "clsx";
+import { CSSProperties, FC } from "react";
 import styles from "./MetaDataView.module.css";
 import { RenderedContent } from "./RenderedContent";
 
 interface MetadataViewProps {
   id?: string;
-  style?: React.CSSProperties;
+  style?: CSSProperties;
   entries: Record<string, unknown>;
   tableOptions?: string;
   compact?: boolean;
@@ -14,7 +15,7 @@ interface MetadataViewProps {
 /**
  * Renders the MetaDataView component.
  */
-export const MetaDataView: React.FC<MetadataViewProps> = ({
+export const MetaDataView: FC<MetadataViewProps> = ({
   id,
   style,
   entries,

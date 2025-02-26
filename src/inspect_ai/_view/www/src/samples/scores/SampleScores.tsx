@@ -1,4 +1,4 @@
-import { Fragment } from "react";
+import { FC, Fragment } from "react";
 import { SampleSummary } from "../../api/types";
 import { SamplesDescriptor } from "../descriptor/samplesDescriptor";
 
@@ -10,7 +10,7 @@ interface SampleScoresProps {
   scorer: string;
 }
 
-export const SampleScores: React.FC<SampleScoresProps> = ({
+export const SampleScores: FC<SampleScoresProps> = ({
   sample,
   sampleDescriptor,
   scorer,

@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { ReactNode } from "react";
+import { FC, ReactNode } from "react";
 import styles from "./EventSection.module.css";
 
 interface EventSectionProps {
@@ -11,7 +11,7 @@ interface EventSectionProps {
 /**
  * Renders the Event Section component.
  */
-export const EventSection: React.FC<EventSectionProps> = ({
+export const EventSection: FC<EventSectionProps> = ({
   title,
   children,
   className,

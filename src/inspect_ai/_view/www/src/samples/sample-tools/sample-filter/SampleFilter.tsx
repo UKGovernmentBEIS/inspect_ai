@@ -14,7 +14,7 @@ import {
 import { tags } from "@lezer/highlight";
 import clsx from "clsx";
 import { EditorView, minimalSetup } from "codemirror";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { FC, useEffect, useMemo, useRef, useState } from "react";
 
 import { ScoreFilter } from "../../../types";
 import { EvalDescriptor } from "../../descriptor/types";
@@ -147,7 +147,7 @@ const getLints = (
 };
 
 // Main component
-export const SampleFilter: React.FC<SampleFilterProps> = ({
+export const SampleFilter: FC<SampleFilterProps> = ({
   evalDescriptor,
   scoreFilter,
   setScoreFilter,

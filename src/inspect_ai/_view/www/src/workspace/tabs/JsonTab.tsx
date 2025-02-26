@@ -1,5 +1,6 @@
 import { filename } from "../../utils/path";
 
+import { FC } from "react";
 import { Capabilities } from "../../api/types";
 import { DownloadPanel } from "../../components/DownloadPanel";
 import { JSONPanel } from "../../components/JsonPanel";
@@ -17,11 +18,7 @@ interface JsonTabProps {
 /**
  * Renders JSON tab
  */
-export const JsonTab: React.FC<JsonTabProps> = ({
-  logFile,
-  capabilities,
-  json,
-}) => {
+export const JsonTab: FC<JsonTabProps> = ({ logFile, capabilities, json }) => {
   if (logFile && json.length > kJsonMaxSize && capabilities.downloadFiles) {
     // This JSON file is so large we can't really productively render it
     // we should instead just provide a DL link

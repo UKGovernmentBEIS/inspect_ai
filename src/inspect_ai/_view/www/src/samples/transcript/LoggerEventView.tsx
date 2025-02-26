@@ -3,6 +3,7 @@ import { ApplicationIcons } from "../../appearance/icons";
 import { LoggerEvent } from "../../types/log";
 import { EventRow } from "./event/EventRow";
 
+import { FC } from "react";
 import { MetaDataGrid } from "../../metadata/MetaDataGrid";
 import { parsedJson as maybeParseJson } from "../../utils/json";
 import styles from "./LoggerEventView.module.css";
@@ -15,7 +16,7 @@ interface LoggerEventViewProps {
 /**
  * Renders the LoggerEventView component.
  */
-export const LoggerEventView: React.FC<LoggerEventViewProps> = ({
+export const LoggerEventView: FC<LoggerEventViewProps> = ({
   event,
   className,
 }) => {

@@ -15897,10 +15897,12 @@ var require_assets = __commonJS({
       pill
     };
     const NavPills = ({ children: children2 }) => {
-      if (!(children2 == null ? void 0 : children2.length)) {
-        return null;
+      const [activeItem, setActiveItem] = reactExports.useState(
+        children2 ? children2[0].props["title"] : null
+      );
+      if (!activeItem || !children2) {
+        return void 0;
       }
-      const [activeItem, setActiveItem] = reactExports.useState(children2[0].props["title"]);
       const navPills = children2.map((nav2, idx) => {
         var _a2;
         const title2 = typeof nav2 === "object" ? ((_a2 = nav2["props"]) == null ? void 0 : _a2.title) || `Tab ${idx}` : `Tab ${idx}`;
@@ -25406,11 +25408,7 @@ categories: ${categories.join(" ")}`;
       flex: flex$1,
       label: label$5
     };
-    const SortFilter = ({
-      sort,
-      setSort,
-      epochs
-    }) => {
+    const SortFilter = ({ sort, setSort, epochs }) => {
       const options2 = [
         { label: "sample asc", val: kSampleAscVal },
         { label: "sample desc", val: kSampleDescVal }
@@ -49264,11 +49262,7 @@ self.onmessage = function (e) {
       jsonTab
     };
     const kJsonMaxSize = 1e7;
-    const JsonTab = ({
-      logFile,
-      capabilities: capabilities2,
-      json
-    }) => {
+    const JsonTab = ({ logFile, capabilities: capabilities2, json }) => {
       if (logFile && json.length > kJsonMaxSize && capabilities2.downloadFiles) {
         const file = `${filename(logFile)}.json`;
         return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$K.jsonTab, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -49381,7 +49375,8 @@ self.onmessage = function (e) {
       children: children2
     }) => {
       const tabContentsId = computeTabContentsId(id);
-      const tabContentsRef = scrollRef || reactExports.useRef(null);
+      const panelRef = reactExports.useRef(null);
+      const tabContentsRef = scrollRef || panelRef;
       reactExports.useEffect(() => {
         if (!selected2 || scrollPosition === void 0 || !tabContentsRef.current)
           return;
@@ -49811,10 +49806,7 @@ self.onmessage = function (e) {
       tableH,
       model
     };
-    const TokenTable = ({
-      className: className2,
-      children: children2
-    }) => {
+    const TokenTable = ({ className: className2, children: children2 }) => {
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
         "table",
         {
@@ -53037,9 +53029,7 @@ self.onmessage = function (e) {
       }
       return "Error";
     };
-    const FlatSampleError = ({
-      message: message2
-    }) => {
+    const FlatSampleError = ({ message: message2 }) => {
       return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$C.flatBody), children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(ApplicationIcons.error, styles$C.iconSmall) }),
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$C.lineBase), children: errorType(message2) })
@@ -53758,9 +53748,6 @@ self.onmessage = function (e) {
       ] });
     };
     const APICodeCell = ({ id, contents: contents2 }) => {
-      if (!contents2) {
-        return null;
-      }
       const codeRef = reactExports.useRef(null);
       const sourceCode = reactExports.useMemo(() => {
         return JSON.stringify(contents2, void 0, 2);
@@ -53769,7 +53756,10 @@ self.onmessage = function (e) {
         if (codeRef.current) {
           prismExports.highlightElement(codeRef.current);
         }
-      }, [codeRef.current, contents2]);
+      }, [contents2]);
+      if (!contents2) {
+        return null;
+      }
       return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: styles$t.codePre, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
         "code",
         {
@@ -60337,9 +60327,7 @@ ${events}
       next,
       prev
     };
-    const LightboxCarousel = ({
-      slides
-    }) => {
+    const LightboxCarousel = ({ slides }) => {
       const [isOpen, setIsOpen] = reactExports.useState(false);
       const [showOverlay, setShowOverlay] = reactExports.useState(false);
       const [currentIndex, setCurrentIndex] = reactExports.useState(0);
@@ -60990,7 +60978,7 @@ ${events}
         (state) => {
           setTranscriptState({ ...state });
         },
-        [transcriptState, setTranscriptState]
+        [setTranscriptState]
       );
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
         EventPanel,
@@ -61183,14 +61171,14 @@ ${events}
       );
     };
     const SubtaskSummary = ({ input: input2, result: result2 }) => {
-      result2 = typeof result2 === "object" ? result2 : { result: result2 };
+      const output2 = typeof result2 === "object" ? result2 : { result: result2 };
       return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$n.subtaskSummary), children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-label"), children: "Input" }),
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-large", styles$n.subtaskLabel) }),
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-label"), children: "Output" }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx(Rendered, { values: input2 }),
+        input2 ? /* @__PURE__ */ jsxRuntimeExports.jsx(Rendered, { values: input2 }) : void 0,
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-title-secondary", styles$n.subtaskLabel), children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.arrows.right }) }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx(Rendered, { values: result2 }) })
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx(Rendered, { values: output2 }) })
       ] });
     };
     const Rendered = ({ values }) => {
@@ -61446,7 +61434,7 @@ ${events}
         (state) => {
           setTranscriptState(state);
         },
-        [transcriptState, setTranscriptState]
+        [setTranscriptState]
       );
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
         TranscriptVirtualListComponent,
@@ -61464,7 +61452,7 @@ ${events}
         (eventId, state) => {
           setTranscriptState({ ...transcriptState, [eventId]: state });
         },
-        [setTranscriptState]
+        [transcriptState, setTranscriptState]
       );
       const [followOutput, setFollowOutput] = reactExports.useState(false);
       const renderRow = (item2, index2) => {
@@ -61512,6 +61500,12 @@ ${events}
       setTranscriptState,
       eventNodes
     }) => {
+      const setEventState = reactExports.useCallback(
+        (state, eventId) => {
+          setTranscriptState({ ...transcriptState, [eventId]: state });
+        },
+        [setTranscriptState, transcriptState]
+      );
       const rows = eventNodes.map((eventNode2, index2) => {
         const clz = [styles$k.eventNode];
         if (eventNode2.depth % 2 == 0) {
@@ -61521,12 +61515,6 @@ ${events}
           clz.push(styles$k.lastNode);
         }
         const eventId = `${id}-event${index2}`;
-        const setEventState = reactExports.useCallback(
-          (state) => {
-            setTranscriptState({ ...transcriptState, [eventId]: state });
-          },
-          [setTranscriptState, transcriptState]
-        );
         const row2 = /* @__PURE__ */ jsxRuntimeExports.jsx(
           "div",
           {
@@ -61541,7 +61529,9 @@ ${events}
                 node: eventNode2,
                 className: clsx(clz),
                 eventState: transcriptState[eventId] || {},
-                setEventState
+                setEventState: (state) => {
+                  setEventState(state, eventId);
+                }
               }
             )
           },
@@ -62160,7 +62150,8 @@ ${events}
       scrollRef
     }) => {
       const modalFooter = footer2 ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "modal-footer", children: footer2 }) : "";
-      scrollRef = scrollRef || reactExports.useRef(null);
+      const modalRef = reactExports.useRef(null);
+      scrollRef = scrollRef || modalRef;
       reactExports.useEffect(() => {
         if (scrollRef.current) {
           setTimeout(() => {
@@ -62241,12 +62232,7 @@ ${events}
       );
     };
     const HtmlEntity = ({ html }) => /* @__PURE__ */ jsxRuntimeExports.jsx("span", { dangerouslySetInnerHTML: { __html: html } });
-    const TitleTool = ({
-      label: label2,
-      icon,
-      enabled,
-      onClick
-    }) => {
+    const TitleTool = ({ label: label2, icon, enabled, onClick }) => {
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
         "button",
         {
@@ -62317,7 +62303,7 @@ ${events}
               break;
           }
         },
-        [prevSample, nextSample]
+        [prevSample, nextSample, setShowingSampleDialog]
       );
       const onHide = reactExports.useCallback(() => {
         setShowingSampleDialog(false);
@@ -62631,9 +62617,6 @@ ${events}
         className: className2,
         listHandle
       } = props;
-      if (items.length === 0) {
-        return /* @__PURE__ */ jsxRuntimeExports.jsx(EmptyPanel, { children: "No Samples" });
-      }
       const [followOutput, setFollowOutput] = reactExports.useState(false);
       const [hidden2, setHidden] = reactExports.useState(false);
       reactExports.useEffect(() => {
@@ -62661,6 +62644,31 @@ ${events}
           });
         }
       }, [selectedIndex, listHandle, itemRowMapping]);
+      const onkeydown = reactExports.useCallback(
+        (e) => {
+          switch (e.key) {
+            case "ArrowUp":
+              prevSample();
+              e.preventDefault();
+              e.stopPropagation();
+              break;
+            case "ArrowDown":
+              nextSample();
+              e.preventDefault();
+              e.stopPropagation();
+              break;
+            case "Enter":
+              showSample(selectedIndex);
+              e.preventDefault();
+              e.stopPropagation();
+              break;
+          }
+        },
+        [selectedIndex, nextSample, prevSample, showSample]
+      );
+      if (items.length === 0) {
+        return /* @__PURE__ */ jsxRuntimeExports.jsx(EmptyPanel, { children: "No Samples" });
+      }
       const renderRow = (item2) => {
         if (item2.type === "sample") {
           return /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -62689,28 +62697,6 @@ ${events}
           return null;
         }
       };
-      const onkeydown = reactExports.useCallback(
-        (e) => {
-          switch (e.key) {
-            case "ArrowUp":
-              prevSample();
-              e.preventDefault();
-              e.stopPropagation();
-              break;
-            case "ArrowDown":
-              nextSample();
-              e.preventDefault();
-              e.stopPropagation();
-              break;
-            case "Enter":
-              showSample(selectedIndex);
-              e.preventDefault();
-              e.stopPropagation();
-              break;
-          }
-        },
-        [selectedIndex]
-      );
       const { input: input2, limit, answer: answer2, target: target2 } = gridColumns(sampleDescriptor);
       const sampleCount = items == null ? void 0 : items.reduce((prev2, current) => {
         if (current.type === "sample") {
@@ -62962,7 +62948,7 @@ ${events}
           setSelectedSampleIndex(index2);
           setShowingSampleDialog(true);
         },
-        [sampleDialogRef]
+        [setSelectedSampleIndex, setShowingSampleDialog]
       );
       reactExports.useEffect(() => {
         if (showingSampleDialog) {
@@ -63005,22 +62991,22 @@ ${events}
         } else {
           return -1;
         }
-      }, [selectedSampleIndex, items]);
+      }, [selectedSampleIndex, sampleItems.length]);
       const previousSampleIndex = reactExports.useCallback(() => {
         return selectedSampleIndex > 0 ? selectedSampleIndex - 1 : -1;
-      }, [selectedSampleIndex, items]);
+      }, [selectedSampleIndex]);
       const nextSample = reactExports.useCallback(() => {
         const next2 = nextSampleIndex();
         if (sampleStatus !== "loading" && next2 > -1) {
           setSelectedSampleIndex(next2);
         }
-      }, [selectedSampleIndex, samples, sampleStatus, nextSampleIndex]);
+      }, [nextSampleIndex, sampleStatus, setSelectedSampleIndex]);
       const previousSample = reactExports.useCallback(() => {
         const prev2 = previousSampleIndex();
         if (sampleStatus !== "loading" && prev2 > -1) {
           setSelectedSampleIndex(prev2);
         }
-      }, [selectedSampleIndex, samples, sampleStatus, previousSampleIndex]);
+      }, [previousSampleIndex, sampleStatus, setSelectedSampleIndex]);
       const title2 = selectedSampleIndex > -1 && sampleItems.length > selectedSampleIndex ? sampleItems[selectedSampleIndex].label : "";
       if (!sampleDescriptor) {
         return /* @__PURE__ */ jsxRuntimeExports.jsx(EmptyPanel, {});
@@ -63420,11 +63406,7 @@ ${events}
       }
       return count;
     };
-    const PlanColumn = ({
-      title: title2,
-      className: className2,
-      children: children2
-    }) => {
+    const PlanColumn = ({ title: title2, className: className2, children: children2 }) => {
       return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(className2), children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx(
           "div",
@@ -63442,11 +63424,7 @@ ${events}
         children2
       ] });
     };
-    const PlanCard = ({
-      evalSpec,
-      evalPlan,
-      scores: scores2
-    }) => {
+    const PlanCard = ({ evalSpec, evalPlan, scores: scores2 }) => {
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(Card, { children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx(CardHeader, { icon: ApplicationIcons.config, label: "Config" }),
         /* @__PURE__ */ jsxRuntimeExports.jsx(CardBody, { id: "task-plan-card-body", children: /* @__PURE__ */ jsxRuntimeExports.jsx(PlanDetailView, { evaluation: evalSpec, plan: evalPlan, scores: scores2 }) })
@@ -63850,11 +63828,7 @@ ${events}
         }
       );
     };
-    const StatusPanel = ({
-      icon,
-      status,
-      sampleCount
-    }) => {
+    const StatusPanel = ({ icon, status, sampleCount }) => {
       return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$2.statusPanel, children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(icon, styles$2.statusIcon), style: {} }),
         /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
@@ -63882,7 +63856,7 @@ ${events}
       const logFileName = file ? filename(file) : "";
       const handleToggle = reactExports.useCallback(() => {
         setOffcanvas(!offcanvas);
-      }, [offcanvas]);
+      }, [setOffcanvas, offcanvas]);
       return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$4.wrapper), children: [
         /* @__PURE__ */ jsxRuntimeExports.jsxs(
           "div",
@@ -64331,9 +64305,6 @@ ${events}
         workspaceTabScrollPositionRef,
         setWorkspaceTabScrollPosition
       } = props;
-      if (!evalSpec) {
-        return null;
-      }
       const divRef = reactExports.useRef(null);
       reactExports.useEffect(() => {
         if (divRef.current) {
@@ -64341,6 +64312,9 @@ ${events}
         }
       }, [task_id]);
       const resolvedTabs = useResolvedTabs(props);
+      if (!evalSpec) {
+        return void 0;
+      }
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
         WorkSpaceView,
         {

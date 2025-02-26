@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { Fragment } from "react";
+import { FC, Fragment } from "react";
 import styles from "./ToolTitle.module.css";
 interface ToolTitleProps {
   title: string;
@@ -8,7 +8,7 @@ interface ToolTitleProps {
 /**
  * Renders the ToolCallView component.
  */
-export const ToolTitle: React.FC<ToolTitleProps> = ({ title }) => {
+export const ToolTitle: FC<ToolTitleProps> = ({ title }) => {
   return (
     <Fragment>
       <i className={clsx("bi", "bi-tools", styles.styles)} />

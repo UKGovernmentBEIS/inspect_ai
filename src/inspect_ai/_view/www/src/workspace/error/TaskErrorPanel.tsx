@@ -1,3 +1,4 @@
+import { FC } from "react";
 import { ApplicationIcons } from "../../appearance/icons";
 
 import { ANSIDisplay } from "../../components/AnsiDisplay";
@@ -10,7 +11,7 @@ interface TaskErrorProps {
   error: EvalError;
 }
 
-export const TaskErrorCard: React.FC<TaskErrorProps> = ({ error }) => {
+export const TaskErrorCard: FC<TaskErrorProps> = ({ error }) => {
   return (
     <Card>
       <CardHeader

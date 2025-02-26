@@ -1,10 +1,11 @@
+import { FC } from "react";
 import styles from "./ProgressBar.module.css";
 
 interface ProgressBarProps {
   animating: boolean;
 }
 
-export const ProgressBar: React.FC<ProgressBarProps> = ({ animating }) => {
+export const ProgressBar: FC<ProgressBarProps> = ({ animating }) => {
   return (
     <div className={styles.wrapper}>
       <div

@@ -1,15 +1,16 @@
 import clsx from "clsx";
+import { CSSProperties, FC, ReactNode } from "react";
 
 interface LabeledValueProps {
   label: string;
-  style?: React.CSSProperties;
-  valueStyle?: React.CSSProperties;
+  style?: CSSProperties;
+  valueStyle?: CSSProperties;
   layout?: "column" | "row";
-  children: React.ReactNode;
+  children: ReactNode;
   className?: string | string[];
 }
 
-export const LabeledValue: React.FC<LabeledValueProps> = ({
+export const LabeledValue: FC<LabeledValueProps> = ({
   layout = "column",
   style,
   label,

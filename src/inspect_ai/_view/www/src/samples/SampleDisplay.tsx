@@ -10,7 +10,7 @@ import { ToolButton } from "../components/ToolButton";
 import { SampleScoreView } from "./scores/SampleScoreView";
 
 import clsx from "clsx";
-import { Fragment, MouseEvent, RefObject } from "react";
+import { FC, Fragment, MouseEvent, RefObject } from "react";
 import { Card, CardBody, CardHeader } from "../components/Card";
 import { EmptyPanel } from "../components/EmptyPanel";
 import { JSONPanel } from "../components/JsonPanel";
@@ -44,7 +44,7 @@ interface SampleDisplayProps {
 /**
  * Component to display a sample with relevant context and visibility control.
  */
-export const SampleDisplay: React.FC<SampleDisplayProps> = ({
+export const SampleDisplay: FC<SampleDisplayProps> = ({
   id,
   sample,
   sampleDescriptor,

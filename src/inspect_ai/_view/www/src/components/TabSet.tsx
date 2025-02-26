@@ -1,10 +1,15 @@
 import clsx from "clsx";
 import {
   Children,
+  CSSProperties,
+  FC,
   Fragment,
   isValidElement,
   MouseEvent,
   ReactElement,
+  ReactNode,
+  RefObject,
+  UIEvent,
   useCallback,
   useEffect,
   useRef,
@@ -17,7 +22,7 @@ interface TabSetProps {
   className?: string | string[];
   tabPanelsClassName?: string | string[];
   tabControlsClassName?: string | string;
-  tools?: React.ReactNode;
+  tools?: ReactNode;
   children:
     | ReactElement<TabPanelProps>
     | (ReactElement<TabPanelProps> | null | undefined)[];
@@ -27,19 +32,19 @@ interface TabPanelProps {
   id: string;
   index?: number;
   selected?: boolean;
-  style?: React.CSSProperties;
+  style?: CSSProperties;
   scrollable?: boolean;
-  scrollRef?: React.RefObject<HTMLDivElement | null>;
+  scrollRef?: RefObject<HTMLDivElement | null>;
   className?: string | string[];
   scrollPosition?: number;
   setScrollPosition?: (position: number) => void;
-  children?: React.ReactNode;
+  children?: ReactNode;
   title: string;
   icon?: string;
   onSelected: (e: MouseEvent<HTMLElement>) => void;
 }
 
-export const TabSet: React.FC<TabSetProps> = ({
+export const TabSet: FC<TabSetProps> = ({
   id,
   type = "tabs",
   className,
@@ -76,9 +81,9 @@ export const TabSet: React.FC<TabSetProps> = ({
 };
 
 // Individual Tab Component
-const Tab: React.FC<{
+const Tab: FC<{
   type?: "tabs" | "pills";
-  tab: React.ReactElement<TabPanelProps>;
+  tab: ReactElement<TabPanelProps>;
   index: number;
   className?: string | string[];
 }> = ({ type = "tabs", tab, index, className }) => {
@@ -114,9 +119,9 @@ const Tab: React.FC<{
 };
 
 // Tab Panels Container
-const TabPanels: React.FC<{
+const TabPanels: FC<{
   id: string;
-  tabs: React.ReactElement<TabPanelProps>[];
+  tabs: ReactElement<TabPanelProps>[];
   className?: string | string[];
 }> = ({ id, tabs, className }) => (
   <div className={clsx("tab-content", className)} id={`${id}-content`}>
@@ -127,7 +132,7 @@ const TabPanels: React.FC<{
 );
 
 // Individual Tab Panel
-export const TabPanel: React.FC<TabPanelProps> = ({
+export const TabPanel: FC<TabPanelProps> = ({
   id,
   selected,
   style,
@@ -139,7 +144,8 @@ export const TabPanel: React.FC<TabPanelProps> = ({
   children,
 }) => {
   const tabContentsId = computeTabContentsId(id);
-  const tabContentsRef = scrollRef || useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const tabContentsRef = scrollRef || panelRef;
 
   useEffect(() => {
     if (!selected || scrollPosition === undefined || !tabContentsRef.current)
@@ -162,7 +168,7 @@ export const TabPanel: React.FC<TabPanelProps> = ({
 
   // Handle scrolling
   const onScroll = useCallback(
-    (e: React.UIEvent<HTMLDivElement>) => {
+    (e: UIEvent<HTMLDivElement>) => {
       if (setScrollPosition) {
         setScrollPosition(e.currentTarget.scrollTop);
       }
@@ -190,7 +196,7 @@ export const TabPanel: React.FC<TabPanelProps> = ({
 };
 
 // Tab Tools Component
-const TabTools: React.FC<{ tools?: React.ReactNode }> = ({ tools }) => (
+const TabTools: FC<{ tools?: ReactNode }> = ({ tools }) => (
   <div className={clsx("tab-tools", moduleStyles.tabTools)}>{tools}</div>
 );
 
@@ -199,11 +205,11 @@ const computeTabId = (id: string, index: number) => `${id}-${index}`;
 const computeTabContentsId = (id: string) => `${id}-contents`;
 
 const flattenChildren = (
-  children: React.ReactNode,
+  children: ReactNode,
 ): ReactElement<TabPanelProps>[] => {
   return Children.toArray(children).flatMap((child) => {
     if (isValidElement(child)) {
-      const element = child as React.ReactElement<any>;
+      const element = child as ReactElement<any>;
 
       if (element.type === Fragment) {
         return flattenChildren(element.props.children);

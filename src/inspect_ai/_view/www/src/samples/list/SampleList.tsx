@@ -1,4 +1,5 @@
 import {
+  FC,
   KeyboardEvent,
   RefObject,
   useCallback,
@@ -35,7 +36,7 @@ interface SampleListProps {
   listHandle: RefObject<VirtuosoHandle | null>;
 }
 
-export const SampleList: React.FC<SampleListProps> = (props) => {
+export const SampleList: FC<SampleListProps> = (props) => {
   const {
     items,
     sampleDescriptor,
@@ -47,10 +48,6 @@ export const SampleList: React.FC<SampleListProps> = (props) => {
     listHandle,
   } = props;
 
-  // If there are no samples, just display an empty state
-  if (items.length === 0) {
-    return <EmptyPanel>No Samples</EmptyPanel>;
-  }
   const [followOutput, setFollowOutput] = useState(false);
 
   const [hidden, setHidden] = useState(false);
@@ -83,6 +80,34 @@ export const SampleList: React.FC<SampleListProps> = (props) => {
     }
   }, [selectedIndex, listHandle, itemRowMapping]);
 
+  const onkeydown = useCallback(
+    (e: KeyboardEvent<HTMLDivElement>) => {
+      switch (e.key) {
+        case "ArrowUp":
+          prevSample();
+          e.preventDefault();
+          e.stopPropagation();
+          break;
+        case "ArrowDown":
+          nextSample();
+          e.preventDefault();
+          e.stopPropagation();
+          break;
+        case "Enter":
+          showSample(selectedIndex);
+          e.preventDefault();
+          e.stopPropagation();
+          break;
+      }
+    },
+    [selectedIndex, nextSample, prevSample, showSample],
+  );
+
+  // If there are no samples, just display an empty state
+  if (items.length === 0) {
+    return <EmptyPanel>No Samples</EmptyPanel>;
+  }
+
   const renderRow = (item: ListItem) => {
     if (item.type === "sample") {
       return (
@@ -109,29 +134,6 @@ export const SampleList: React.FC<SampleListProps> = (props) => {
       return null;
     }
   };
-
-  const onkeydown = useCallback(
-    (e: KeyboardEvent<HTMLDivElement>) => {
-      switch (e.key) {
-        case "ArrowUp":
-          prevSample();
-          e.preventDefault();
-          e.stopPropagation();
-          break;
-        case "ArrowDown":
-          nextSample();
-          e.preventDefault();
-          e.stopPropagation();
-          break;
-        case "Enter":
-          showSample(selectedIndex);
-          e.preventDefault();
-          e.stopPropagation();
-          break;
-      }
-    },
-    [selectedIndex],
-  );
 
   const { input, limit, answer, target } = gridColumns(sampleDescriptor);
 

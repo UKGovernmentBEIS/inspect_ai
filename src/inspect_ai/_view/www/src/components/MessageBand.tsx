@@ -1,5 +1,6 @@
 import { clsx } from "clsx";
 
+import { FC } from "react";
 import { ApplicationIcons } from "../appearance/icons";
 import "./MessageBand.css";
 
@@ -10,7 +11,7 @@ interface MessageBandProps {
   type: "info" | "warning" | "error";
 }
 
-export const MessageBand: React.FC<MessageBandProps> = ({
+export const MessageBand: FC<MessageBandProps> = ({
   message,
   hidden,
   setHidden,

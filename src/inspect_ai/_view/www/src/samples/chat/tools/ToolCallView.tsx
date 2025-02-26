@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { FC, useMemo } from "react";
 import ExpandablePanel from "../../../components/ExpandablePanel";
 import { ContentTool } from "../../../types";
 import {
@@ -42,7 +42,7 @@ interface ToolCallViewProps {
 /**
  * Renders the ToolCallView component.
  */
-export const ToolCallView: React.FC<ToolCallViewProps> = ({
+export const ToolCallView: FC<ToolCallViewProps> = ({
   functionCall,
   input,
   highlightLanguage,

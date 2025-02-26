@@ -1,4 +1,4 @@
-import { Fragment } from "react";
+import { FC, Fragment } from "react";
 import { ApplicationIcons } from "../../appearance/icons";
 import { MarkdownDiv } from "../../components/MarkdownDiv";
 import { MetaDataGrid } from "../../metadata/MetaDataGrid";
@@ -21,7 +21,7 @@ interface ScoreEventViewProps {
 /**
  * Renders the ScoreEventView component.
  */
-export const ScoreEventView: React.FC<ScoreEventViewProps> = ({
+export const ScoreEventView: FC<ScoreEventViewProps> = ({
   id,
   event,
   eventState,
