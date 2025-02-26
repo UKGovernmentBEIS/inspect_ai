@@ -253,7 +253,10 @@ class GoogleGenAIAPI(ModelAPI):
 
     @override
     def is_rate_limit(self, ex: BaseException) -> bool:
-        return isinstance(ex, APIError) and ex.code in (429, 500, 503, 504)
+        # see https://cloud.google.com/storage/docs/retry-strategy
+        return isinstance(ex, APIError) and (
+            ex.code in (408, 429, 429) or ex.code >= 500
+        )
 
     @override
     def connection_key(self) -> str:
