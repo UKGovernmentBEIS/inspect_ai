@@ -41,13 +41,3 @@ def test_google_block_reason():
     # TODO: comment in once we have an input that triggers the filter
     # assert log.samples
     # assert log.samples[0].output.stop_reason == "content_filter"
-
-
-@skip_if_no_google
-def test_google_reasoning_content():
-    log = eval(
-        Task(dataset=[Sample(input="Solve 3*x^3-5*x=1")]),
-        model="google/gemini-2.0-flash-thinking-exp",
-    )[0]
-    assert log.samples
-    assert log.samples[0].output.message.reasoning

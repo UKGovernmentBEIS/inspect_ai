@@ -14,6 +14,7 @@ from typing import (
 from inspect_ai._util.content import (
     ContentAudio,
     ContentImage,
+    ContentReasoning,
     ContentText,
     ContentVideo,
 )
@@ -35,10 +36,11 @@ ToolResult = (
     | float
     | bool
     | ContentText
+    | ContentReasoning
     | ContentImage
     | ContentAudio
     | ContentVideo
-    | list[ContentText | ContentImage | ContentAudio | ContentVideo]
+    | list[ContentText | ContentReasoning | ContentImage | ContentAudio | ContentVideo]
 )
 """Valid types for results from tool calls."""
 

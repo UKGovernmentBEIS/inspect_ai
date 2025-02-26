@@ -1,7 +1,6 @@
 ## Headless Browser Tool
 
-This directory contains an implementation for the Headless Browser Tool which can be used to test web browsing agents. 
-
+This directory contains an implementation for the Headless Browser Tool which can be used to test web browsing agents.
 
 ### Usage
 
@@ -37,27 +36,27 @@ The result will be printed out in _stdout_ in the following format:
 
 ```
 # Inside the Docker container
-error: <an ERROR message if one occured>
+error: <an ERROR message if one occurred>
 info: <general info about the container>
 web_url: <the URL of the page the browser is currently at>
 web_at: <accessibility tree of the visible elements of the page>
-```   
-
+```
 
 ### Design
 
 The following diagram describes the design and the intended usage of the tool:
 
-![diagram](images/usage_diagram.png)
+![diagram](images/usage_diagram.svg)
 
 The tool consists of the following components:
 
-* [WebServer](web_server.py) - a server which launches a stateful session with the headless chromium browser and interracts with it through the [Playwright API](https://playwright.dev/python/docs/intro) upon receiving client commands. The server components are: 
-  * _dm_env_servicer.py_ - an implementation for the gRPC Service based on [dm_env_rpc protocol](https://github.com/google-deepmind/dm_env_rpc).
-  * _web_environment.py_ - an environment which gets instantiated by the servicer and which launches the browser, stores its state and maps client commands to Playwright API. 
-  * _playwright_crawler.py_ - a wrapper over the sync Playwright API. 
+- [WebServer](web_server.py) - a server which launches a stateful session with the headless chromium browser and interacts with it through the [Playwright API](https://playwright.dev/python/docs/intro) upon receiving client commands. The server components are:
 
-* [WebClient](web_client.py) - a simple stateless client to interact with the server. When launched, the client:
+  - _dm_env_servicer.py_ - an implementation for the gRPC Service based on [dm_env_rpc protocol](https://github.com/google-deepmind/dm_env_rpc).
+  - _web_environment.py_ - an environment which gets instantiated by the servicer and which launches the browser, stores its state and maps client commands to Playwright API.
+  - _playwright_crawler.py_ - a wrapper over the sync Playwright API.
+
+- [WebClient](web_client.py) - a simple stateless client to interact with the server. When launched, the client:
   1. creates a connection with the server;
   2. sends user command to the server;
   3. receives the response in the form of observations and prints them to stdout;

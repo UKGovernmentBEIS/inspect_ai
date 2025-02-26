@@ -1,5 +1,20 @@
 ## Unreleased
 
+- Anthropic: Support for [extended thinking](https://inspect.ai-safety-institute.org.uk/reasoning.html#claude-3.7-sonnet) features of Claude Sonnet 3.7 (minimum version of `anthropic` package bumped to 0.47.1).
+- Reasoning: `ContentReasoning` type for representing model reasoning blocks.
+- Reasoning: `reasoning_tokens` for setting maximum reasoning tokens (currently only supported by Claude Sonnet 3.7)
+- Reasoning: `reasoning_history` can now be specified as "none", "all", "last", or "auto" (which yields a provider specific recommended default).
+- Web Browser: [Various improvements](https://github.com/UKGovernmentBEIS/inspect_ai/pull/1314) to performance and robustness along with several bug fixes.
+- OpenAI: Capture `reasoning_tokens` when reported.
+- OpenAI: Retry on rate limit requests with "Request too large".
+- OpenAI: Tolerate `None` for assistant content (can happen when there is a refusal).
+- Google: Retry requests on more HTTP status codes (selected 400 errors and all 500 errors). 
+- Bugfix: Catch standard `TimeoutError` for running shell commands in the computer tool container.
+- Inspect View: Improve rendering of JSON within logging events.
+- Inspect View: Improve virtualized rendering of Sample List, Sample Transcript, and Sample Messages.
+
+## v0.3.70 (25 February 2025)
+
 - [working_limit](https://inspect.ai-safety-institute.org.uk/errors_and_limits.html#working-limit) option for specifying a maximum working time (e.g. model generation, tool calls, etc.) for samples.
 - Added `SandboxEvent` to transcript for recording sandbox execution and I/O.
 - Sandboxes: `as_type()` function for checked downcasting of `SandboxEnvironment`
@@ -13,6 +28,7 @@
 - Compatiblity with textual version 2.0 (remove upper bound).
 - Align with HF datasets `fsspec` version contraints to avoid pip errors when installing alongside `datasets`.
 - Bugfix: Fix issue with tools that had an ordinary `dict` as a parameter.
+- Bugfix: Print the correct container `sample_id` for `--no-sandbox-cleanup`.
 
 ## v0.3.69 (20 February 2025)
 

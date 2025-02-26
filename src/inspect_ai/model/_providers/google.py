@@ -38,10 +38,13 @@ from pydantic import JsonValue
 from typing_extensions import override
 
 from inspect_ai._util.constants import BASE_64_DATA_REMOVED, NO_CONTENT
-from inspect_ai._util.content import Content as InspectContent
+from inspect_ai._util.content import (
+    Content as InspectContent,
+)
 from inspect_ai._util.content import (
     ContentAudio,
     ContentImage,
+    ContentReasoning,
     ContentText,
     ContentVideo,
 )
@@ -250,7 +253,10 @@ class GoogleGenAIAPI(ModelAPI):
 
     @override
     def is_rate_limit(self, ex: BaseException) -> bool:
-        return isinstance(ex, APIError) and ex.code in (429, 500, 503, 504)
+        # see https://cloud.google.com/storage/docs/retry-strategy
+        return isinstance(ex, APIError) and (
+            ex.code in (408, 429, 429) or ex.code >= 500
+        )
 
     @override
     def connection_key(self) -> str:
@@ -405,6 +411,8 @@ async def content_part(client: Client, content: InspectContent | str) -> Part:
         return Part.from_text(text=content or NO_CONTENT)
     elif isinstance(content, ContentText):
         return Part.from_text(text=content.text or NO_CONTENT)
+    elif isinstance(content, ContentReasoning):
+        return Part.from_text(text=content.reasoning or NO_CONTENT)
     else:
         return await chat_content_to_part(client, content)
 
@@ -552,11 +560,19 @@ def completion_choice_from_candidate(candidate: Candidate) -> ChatCompletionChoi
     # stop reason
     stop_reason = finish_reason_to_stop_reason(candidate.finish_reason)
 
+    # choice content may include reasoning
+    if reasoning:
+        choice_content: str | list[Content] = [
+            ContentReasoning(reasoning=reasoning),
+            ContentText(text=content),
+        ]
+    else:
+        choice_content = content
+
     # build choice
     choice = ChatCompletionChoice(
         message=ChatMessageAssistant(
-            content=content,
-            reasoning=reasoning,
+            content=choice_content,
             tool_calls=tool_calls if len(tool_calls) > 0 else None,
             source="generate",
         ),

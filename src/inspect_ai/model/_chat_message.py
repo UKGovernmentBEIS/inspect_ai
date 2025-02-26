@@ -3,7 +3,7 @@ from typing import Any, Literal, Type, Union
 
 from pydantic import BaseModel, Field, model_validator
 
-from inspect_ai._util.content import Content, ContentText
+from inspect_ai._util.content import Content, ContentReasoning, ContentText
 from inspect_ai.tool import ToolCall
 from inspect_ai.tool._tool_call import ToolCallError
 
@@ -64,7 +64,7 @@ class ChatMessageBase(BaseModel):
             self.content = text
         else:
             all_other = [content for content in self.content if content.type != "text"]
-            self.content = [ContentText(text=text)] + all_other
+            self.content = all_other + [ContentText(text=text)]
 
 
 class ChatMessageSystem(ChatMessageBase):
@@ -93,9 +93,6 @@ class ChatMessageAssistant(ChatMessageBase):
     tool_calls: list[ToolCall] | None = Field(default=None)
     """Tool calls made by the model."""
 
-    reasoning: str | None = Field(default=None)
-    """Reasoning content."""
-
     # Some OpenAI compatible REST endpoints include reasoning as a field alongside
     # content, however since this field doesn't exist in the OpenAI interface,
     # hosting providers (so far we've seen this with Together and Groq) may
@@ -110,12 +107,30 @@ class ChatMessageAssistant(ChatMessageBase):
     @classmethod
     def extract_reasoning(cls, data: Any) -> Any:
         if isinstance(data, dict):
+            # cleave apart <think> blocks
             content = data.get("content", None)
             if isinstance(content, str):
                 parsed = parse_content_with_reasoning(content)
                 if parsed:
-                    data["reasoning"] = parsed.reasoning
-                    data["content"] = parsed.content
+                    data["content"] = [
+                        ContentReasoning(reasoning=parsed.reasoning),
+                        ContentText(text=parsed.content),
+                    ]
+            # migrate messages that has explicit 'reasoning' field
+            # (which was our original representation of reasoning)
+            reasoning = data.get("reasoning", None)
+            if isinstance(reasoning, str):
+                # ensure that content is a list
+                content = data.get("content", None)
+                if content is None:
+                    data["content"] = []
+                elif isinstance(content, str):
+                    data["content"] = [ContentText(text=content)]
+                elif not isinstance(content, list):
+                    data["content"] = []
+                data["content"].insert(0, ContentReasoning(reasoning=reasoning))
+
+                del data["reasoning"]
         return data
 
 
