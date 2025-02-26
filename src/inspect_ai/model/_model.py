@@ -39,7 +39,7 @@ from inspect_ai._util.registry import (
 )
 from inspect_ai._util.retry import log_rate_limit_retry
 from inspect_ai._util.trace import trace_action
-from inspect_ai._util.working import report_sample_waiting_time
+from inspect_ai._util.working import report_sample_waiting_time, sample_working_time
 from inspect_ai.tool import Tool, ToolChoice, ToolFunction, ToolInfo
 from inspect_ai.tool._tool_def import ToolDef, tool_defs
 from inspect_ai.util import concurrency
@@ -329,6 +329,7 @@ class Model:
 
         # enforce concurrency limits
         start_time = datetime.now()
+        working_start = sample_working_time()
         async with self._connection_concurrency(config):
             # generate
             output = await self._generate(
@@ -349,6 +350,7 @@ class Model:
             last_model_event = transcript().find_last_event(ModelEvent)
             if last_model_event:
                 last_model_event.timestamp = start_time
+                last_model_event.working_start = working_start
                 completed = datetime.now()
                 last_model_event.completed = completed
                 last_model_event.working = (
