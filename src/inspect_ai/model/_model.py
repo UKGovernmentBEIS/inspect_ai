@@ -353,7 +353,7 @@ class Model:
                 last_model_event.working_start = working_start
                 completed = datetime.now()
                 last_model_event.completed = completed
-                last_model_event.working = (
+                last_model_event.working_time = (
                     output.time
                     if output.time is not None
                     else (completed - start_time).total_seconds()

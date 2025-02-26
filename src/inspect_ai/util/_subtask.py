@@ -146,7 +146,7 @@ def subtask(
             completed = datetime.now()
             waiting_time_end = sample_waiting_time()
             event.completed = completed
-            event.working = (completed - event.timestamp).total_seconds() - (
+            event.working_time = (completed - event.timestamp).total_seconds() - (
                 waiting_time_end - waiting_time_start
             )
 

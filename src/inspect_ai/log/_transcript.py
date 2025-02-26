@@ -142,7 +142,7 @@ class ModelEvent(BaseEvent):
     completed: datetime | None = Field(default=None)
     """Time that model call completed (see `timestamp` for started)"""
 
-    working: float | None = Field(default=None)
+    working_time: float | None = Field(default=None)
     """working time for model call that succeeded (i.e. was not retried)."""
 
     @field_serializer("completed")
@@ -186,7 +186,7 @@ class ToolEvent(BaseEvent):
     completed: datetime | None = Field(default=None)
     """Time that tool call completed (see `timestamp` for started)"""
 
-    working: float | None = Field(default=None)
+    working_time: float | None = Field(default=None)
     """Working time for tool call (i.e. time not spent waiting on semaphores)."""
 
     def _set_result(
@@ -204,7 +204,7 @@ class ToolEvent(BaseEvent):
         self.pending = None
         completed = datetime.now()
         self.completed = completed
-        self.working = (completed - self.timestamp).total_seconds() - waiting_time
+        self.working_time = (completed - self.timestamp).total_seconds() - waiting_time
 
     # mechanism for operator to cancel the tool call
 
@@ -406,7 +406,7 @@ class SubtaskEvent(BaseEvent):
     completed: datetime | None = Field(default=None)
     """Time that subtask completed (see `timestamp` for started)"""
 
-    working: float | None = Field(default=None)
+    working_time: float | None = Field(default=None)
     """Working time for subtask (i.e. time not spent waiting on semaphores or model retries)."""
 
     @field_serializer("completed")
