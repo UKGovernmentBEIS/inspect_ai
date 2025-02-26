@@ -9,9 +9,12 @@
 - OpenAI: Retry on rate limit requests with "Request too large".
 - OpenAI: Tolerate `None` for assistant content (can happen when there is a refusal).
 - Google: Retry requests on more HTTP status codes (selected 400 errors and all 500 errors). 
-- Bugfix: Catch standard `TimeoutError` for running shell commands in the computer tool container.
+- Human Agent: Don't emit sandbox events for human agent
 - Inspect View: Improve rendering of JSON within logging events.
 - Inspect View: Improve virtualized rendering of Sample List, Sample Transcript, and Sample Messages.
+- Bugfix: Catch standard `TimeoutError` for running shell commands in the computer tool container.
+- Bugfix: Fix audio and video inputs for new Google GenAI client.
+- Bugfix: Ensure that token limits are not enforced during model graded scoring.
 
 ## v0.3.70 (25 February 2025)
 

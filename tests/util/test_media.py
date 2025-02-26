@@ -24,7 +24,8 @@ def audio():
 
 
 def check_audio(model):
-    eval(audio(), model)
+    log = eval(audio(), model)[0]
+    assert log.status == "success"
 
 
 @task
@@ -39,7 +40,8 @@ def video():
 
 
 def check_video(model):
-    eval(video(), model)
+    log = eval(video(), model)[0]
+    assert log.status == "success"
 
 
 @skip_if_no_google
