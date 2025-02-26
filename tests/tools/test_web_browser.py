@@ -74,13 +74,13 @@ def test_web_browser_navigation():
 
     def is_inspect_website(page: str) -> bool:
         return (
-            'RootWebArea "Inspect" [focused: True, url: https://inspect.ai-safety-institute.org.uk/]'
+            'link "Anchor"  [url: https://inspect.ai-safety-institute.org.uk/#welcome]'
             in page
         )
 
     def is_inspect_repo(page: str) -> bool:
         return (
-            'RootWebArea "GitHub - UKGovernmentBEIS/inspect_ai: Inspect: A framework for large language model evaluations" [focused: True, url: https://github.com/UKGovernmentBEIS/inspect_ai]'
+            'link "Skip to content"  [url: https://github.com/UKGovernmentBEIS/inspect_ai#start-of-content]'
             in page
         )
 
@@ -126,7 +126,7 @@ def test_web_browser_type_submit():
                 ModelOutput.for_tool_call(
                     model="mockllm/model",
                     tool_name="web_browser_type_submit",
-                    tool_arguments={"element_id": 286, "text": "A submission"},
+                    tool_arguments={"element_id": 295, "text": "A submission"},
                 ),
                 ModelOutput.from_content(
                     model="mockllm/model", content="We are all done here."
@@ -164,7 +164,7 @@ def test_web_browser_open_new_page():
                 ModelOutput.for_tool_call(
                     model="mockllm/model",
                     tool_name="web_browser_click",
-                    tool_arguments={"element_id": 9},
+                    tool_arguments={"element_id": 10},
                 ),
                 ModelOutput.from_content(
                     model="mockllm/model", content="We are all done here."
