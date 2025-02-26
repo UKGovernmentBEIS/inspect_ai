@@ -9,10 +9,12 @@ from .config import task_dict
 
 
 @throttle(1)
-def task_footer(style: str = "") -> tuple[RenderableType, RenderableType]:
+def task_footer(
+    statuses: dict[str, str], style: str = ""
+) -> tuple[RenderableType, RenderableType]:
     return (
         Text.from_markup(task_resources(), style=style),
-        Text.from_markup(task_http_rate_limits(), style=style),
+        Text.from_markup(task_statuses(statuses), style=style),
     )
 
 
@@ -23,5 +25,13 @@ def task_resources() -> str:
     return task_dict(resources)
 
 
-def task_http_rate_limits() -> str:
+def task_statuses(statuses: dict[str, str]) -> str:
+    return task_dict(statuses | task_http_rate_limits())
+
+
+def task_http_rate_limits() -> dict[str, str]:
+    return {"HTTP rate limits": f"{http_rate_limit_count():,}"}
+
+
+def task_http_rate_limits_str() -> str:
     return f"HTTP rate limits: {http_rate_limit_count():,}"

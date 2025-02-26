@@ -54,3 +54,15 @@ def display_type() -> DisplayType:
 def display_type_initialized() -> bool:
     global _display_type
     return _display_type is not None
+
+
+def status(caption: str, value: str) -> None:
+    """Display a status message (e.g. a counter).
+
+    Args:
+        caption (str): Status message caption e.g. "HTTP rate limits".
+        value (str): Status message value e.g. "42".
+    """
+    from inspect_ai._display.core.active import display
+
+    display().set_status(caption, value)

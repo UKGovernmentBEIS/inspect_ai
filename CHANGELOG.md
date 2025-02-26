@@ -12,6 +12,7 @@
 - Human Agent: Don't emit sandbox events for human agent
 - Inspect View: Improve rendering of JSON within logging events.
 - Inspect View: Improve virtualized rendering of Sample List, Sample Transcript, and Sample Messages.
+- Task Display: Let plugins display status messages.
 - Bugfix: Catch standard `TimeoutError` for running shell commands in the computer tool container.
 - Bugfix: Fix audio and video inputs for new Google GenAI client.
 - Bugfix: Ensure that token limits are not enforced during model graded scoring.

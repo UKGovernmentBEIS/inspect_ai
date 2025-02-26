@@ -143,3 +143,7 @@ class Display(Protocol):
 
     @contextlib.contextmanager
     def task(self, profile: TaskProfile) -> Iterator[TaskDisplay]: ...
+
+    def set_status(self, caption: str, value: str) -> None:
+        """Display a status message."""
+        ...

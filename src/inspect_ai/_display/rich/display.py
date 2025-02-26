@@ -60,6 +60,7 @@ class RichDisplay(Display):
         self.parallel = False
         self.live: Live | None = None
         self.timer_handle: asyncio.TimerHandle | None = None
+        self.statuses: dict[str, str] = {}
         rich_initialise()
 
     @override
@@ -153,12 +154,18 @@ class RichDisplay(Display):
             and self.live.is_started
         ):
             if self.parallel:
-                r = tasks_live_status(self.total_tasks, self.tasks, self.progress_ui)
+                r = tasks_live_status(
+                    self.total_tasks, self.tasks, self.progress_ui, self.statuses
+                )
             else:
-                r = task_live_status(self.tasks, self.progress_ui)
+                r = task_live_status(self.tasks, self.progress_ui, self.statuses)
             self.live.update(r, refresh=True)
 
         self.timer_handle = asyncio.get_event_loop().call_later(1, self._update_display)
+
+    @override
+    def set_status(self, caption: str, value: str) -> None:
+        self.statuses[caption] = value
 
 
 class RichTaskScreen(TaskScreen):
@@ -286,7 +293,9 @@ class RichTaskDisplay(TaskDisplay):
         self.p.complete()
 
 
-def task_live_status(tasks: list[TaskStatus], progress: RProgress) -> RenderableType:
+def task_live_status(
+    tasks: list[TaskStatus], progress: RProgress, statuses: dict[str, str]
+) -> RenderableType:
     theme = rich_theme()
 
     # the panel contents
@@ -300,13 +309,16 @@ def task_live_status(tasks: list[TaskStatus], progress: RProgress) -> Renderable
         show_model=len(tasks) == 1,
         body=Group("", progress),
         subtitle=subtitle,
-        footer=task_footer(theme.light),
+        footer=task_footer(statuses, theme.light),
         log_location=None,
     )
 
 
 def tasks_live_status(
-    total_tasks: int, tasks: list[TaskStatus], progress: RProgress
+    total_tasks: int,
+    tasks: list[TaskStatus],
+    progress: RProgress,
+    statuses: dict[str, str],
 ) -> RenderableType:
     # rendering context
     theme = rich_theme()
@@ -325,7 +337,7 @@ def tasks_live_status(
     footer_table = Table.grid(expand=True)
     footer_table.add_column()
     footer_table.add_column(justify="right")
-    footer = task_footer(theme.light)
+    footer = task_footer(statuses, theme.light)
     footer_table.add_row()
     footer_table.add_row(footer[0], footer[1])
 
