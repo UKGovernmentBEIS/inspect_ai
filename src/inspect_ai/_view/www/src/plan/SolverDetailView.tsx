@@ -5,11 +5,13 @@ import { Steps } from "../types/log";
 import { DetailStep } from "./DetailStep";
 import styles from "./SolverDetailView.module.css";
 
-interface SolversDetailView {
+interface SolversDetailViewProps {
   steps: Steps;
 }
 
-export const SolversDetailView: React.FC<SolversDetailView> = ({ steps }) => {
+export const SolversDetailView: React.FC<SolversDetailViewProps> = ({
+  steps,
+}) => {
   const separator = (
     <div className={clsx(styles.items, "text-size-small", styles.separator)}>
       <i className={ApplicationIcons.arrows.right} />

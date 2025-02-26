@@ -63147,7 +63147,9 @@ ${events}
       item,
       separator
     };
-    const SolversDetailView = ({ steps }) => {
+    const SolversDetailView = ({
+      steps
+    }) => {
       const separator2 = /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$a.items, "text-size-small", styles$a.separator), children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.arrows.right }) });
       const details = steps == null ? void 0 : steps.map((step, index2) => {
         return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
