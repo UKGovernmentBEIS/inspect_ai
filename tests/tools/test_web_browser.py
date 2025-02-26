@@ -74,13 +74,13 @@ def test_web_browser_navigation():
 
     def is_inspect_website(page: str) -> bool:
         return (
-            'RootWebArea "Inspect" [focused: True, url: https://inspect.ai-safety-institute.org.uk/]'
+            'link "Anchor"  [url: https://inspect.ai-safety-institute.org.uk/#welcome]'
             in page
         )
 
     def is_inspect_repo(page: str) -> bool:
         return (
-            'RootWebArea "GitHub - UKGovernmentBEIS/inspect_ai: Inspect: A framework for large language model evaluations" [focused: True, url: https://github.com/UKGovernmentBEIS/inspect_ai]'
+            'link "Skip to content"  [url: https://github.com/UKGovernmentBEIS/inspect_ai#start-of-content]'
             in page
         )
 
@@ -100,6 +100,83 @@ def test_web_browser_navigation():
     check_tool_call_page("web_browser_back", "repo")
     check_tool_call_page("web_browser_forward", "website")
     check_tool_call_page("web_browser_refresh", "website")
+
+
+@skip_if_no_docker
+@pytest.mark.slow
+def test_web_browser_type_submit():
+    task = Task(
+        dataset=[Sample(input="Please use the web_browser tool")],
+        solver=[use_tools(web_browser()), generate()],
+        sandbox=web_browser_sandbox(),
+    )
+
+    log = eval(
+        task,
+        model=get_model(
+            "mockllm/model",
+            custom_outputs=[
+                ModelOutput.for_tool_call(
+                    model="mockllm/model",
+                    tool_name="web_browser_go",
+                    tool_arguments={
+                        "url": "https://www.selenium.dev/selenium/web/web-form.html"
+                    },
+                ),
+                ModelOutput.for_tool_call(
+                    model="mockllm/model",
+                    tool_name="web_browser_type_submit",
+                    tool_arguments={"element_id": 295, "text": "A submission"},
+                ),
+                ModelOutput.from_content(
+                    model="mockllm/model", content="We are all done here."
+                ),
+            ],
+        ),
+    )[0]
+
+    assert log.samples
+
+    assert "Form submitted" in log.samples[0].messages[4].text
+
+
+@skip_if_no_docker
+@pytest.mark.slow
+def test_web_browser_open_new_page():
+    task = Task(
+        dataset=[Sample(input="Please use the web_browser tool")],
+        solver=[use_tools(web_browser()), generate()],
+        sandbox=web_browser_sandbox(),
+    )
+
+    log = eval(
+        task,
+        model=get_model(
+            "mockllm/model",
+            custom_outputs=[
+                ModelOutput.for_tool_call(
+                    model="mockllm/model",
+                    tool_name="web_browser_go",
+                    tool_arguments={
+                        "url": "https://www.selenium.dev/selenium/web/window_switching_tests/page_with_frame.html"
+                    },
+                ),
+                ModelOutput.for_tool_call(
+                    model="mockllm/model",
+                    tool_name="web_browser_click",
+                    tool_arguments={"element_id": 10},
+                ),
+                ModelOutput.from_content(
+                    model="mockllm/model", content="We are all done here."
+                ),
+            ],
+        ),
+    )[0]
+
+    assert log.samples
+
+    assert "Simple page with simple test." in log.samples[0].messages[4].text
+    assert "Open new window" not in log.samples[0].messages[4].text
 
 
 @skip_if_no_docker
