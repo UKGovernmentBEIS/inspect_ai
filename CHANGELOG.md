@@ -14,10 +14,10 @@
 - Inspect View: Improve rendering of JSON within logging events.
 - Inspect View: Improve virtualized rendering of Sample List, Sample Transcript, and Sample Messages.
 - Bugfix: Catch standard `TimeoutError` for running shell commands in the computer tool container.
-- Bugfix: Fix audio and video inputs for new Google GenAI client.
-- Bugfix: Ensure that token limits are not enforced during model graded scoring.
 - Inspect View: Fix layout issues with human agent terminal session playback.
 - Inspect View: Improve tool input / output appearance when rendered in VSCode.
+- Bugfix: Fix audio and video inputs for new Google GenAI client.
+- Bugfix: Ensure that token limits are not enforced during model graded scoring.
 
 ## v0.3.70 (25 February 2025)
 
