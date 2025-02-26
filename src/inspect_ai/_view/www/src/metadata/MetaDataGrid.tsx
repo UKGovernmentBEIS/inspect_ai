@@ -27,12 +27,14 @@ export const MetaDataGrid: React.FC<MetadataGridProps> = ({
     const id = `${baseId}-value-${index}`;
     return (
       <Fragment key={`${baseId}-record-${index}`}>
-        <div
-          style={{
-            gridColumn: "1 / -1",
-            borderBottom: `${!plain ? "solid 1px var(--bs-light-border-subtle" : ""}`,
-          }}
-        ></div>
+        {index !== 0 ? (
+          <div
+            style={{
+              gridColumn: "1 / -1",
+              borderBottom: `${!plain ? "solid 1px var(--bs-light-border-subtle" : ""}`,
+            }}
+          ></div>
+        ) : undefined}
         <div
           className={clsx(
             `${baseId}-key`,

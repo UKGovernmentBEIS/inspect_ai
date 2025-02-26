@@ -26,6 +26,9 @@ class ModelUsage(BaseModel):
     input_tokens_cache_read: int | None = Field(default=None)
     """Number of tokens retrieved from the cache."""
 
+    reasoning_tokens: int | None = Field(default=None)
+    """Number of tokens used for reasoning."""
+
 
 StopReason = Literal[
     "stop",
