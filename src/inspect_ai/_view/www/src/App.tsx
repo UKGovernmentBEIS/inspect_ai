@@ -40,7 +40,6 @@ import {
   EvalLogHeader,
   EvalSummary,
   HostMessage,
-  LogFiles,
   PendingSamples,
   SampleSummary,
 } from "./api/types.ts";
@@ -846,23 +845,6 @@ export const App: FC<AppProps> = ({
     appContext.dispatch,
   ]);
 
-  // Load the list of logs
-  const loadLogs = async (): Promise<LogFiles> => {
-    try {
-      const result = await api.get_log_paths();
-
-      return result;
-    } catch (e) {
-      // Show an error
-      console.log(e);
-      appContext.dispatch({
-        type: "SET_STATUS",
-        payload: { loading: false, error: e as Error },
-      });
-      return { log_dir: "", files: [] };
-    }
-  };
-
   const refreshLog = useCallback(async () => {
     try {
       appContext.dispatch({
@@ -918,70 +900,13 @@ export const App: FC<AppProps> = ({
     logsContext.dispatch,
   ]);
 
-  const showLogFile = useCallback(
-    async (logUrl: string) => {
-      const index = logsContext.state.logs.files.findIndex((val) => {
-        return logUrl.endsWith(val.name);
-      });
-      if (index > -1) {
-        logsContext.dispatch({
-          type: "SET_SELECTED_LOG_INDEX",
-          payload: index,
-        });
-      } else {
-        const result = await loadLogs();
-        const idx = result?.files.findIndex((file) => {
-          return logUrl.endsWith(file.name);
-        });
-        logsContext.dispatch({
-          type: "SET_LOGS",
-          payload: result || { log_dir: "", files: [] },
-        });
-        logsContext.dispatch({
-          type: "SET_SELECTED_LOG_INDEX",
-          payload: idx && idx > -1 ? idx : 0,
-        });
-      }
-    },
-    [logsContext.state.logs, logsContext.dispatch],
-  );
-
-  // TODO: Remove this to context
-  const refreshLogList = useCallback(async () => {
-    const currentLog =
-      logsContext.state.logs.files[
-        logsContext.state.selectedLogIndex > -1
-          ? logsContext.state.selectedLogIndex
-          : 0
-      ];
-    const refreshedLogs = await loadLogs();
-    logsContext.dispatch({
-      type: "SET_LOGS",
-      payload: refreshedLogs || { log_dir: "", files: [] },
-    });
-
-    const newIndex = refreshedLogs?.files.findIndex((file) => {
-      return currentLog.name.endsWith(file.name);
-    });
-    if (newIndex !== undefined) {
-      logsContext.dispatch({
-        type: "SET_SELECTED_LOG_INDEX",
-        payload: newIndex,
-      });
-    }
-  }, [
-    logsContext.state.logs,
-    logsContext.state.selectedLogIndex,
-    logsContext.dispatch,
-  ]);
-
   const onMessage = useCallback(
     async (e: HostMessage) => {
       switch (e.data.type) {
         case "updateState": {
           if (e.data.url) {
             const decodedUrl = decodeURIComponent(e.data.url);
-            showLogFile(decodedUrl);
+            logsContext.selectLogFile(decodedUrl);
           }
           break;
         }
@@ -991,18 +916,22 @@ export const App: FC<AppProps> = ({
           const isFocused = document.hasFocus();
           if (!isFocused) {
             if (log_dir === logsContext.state.logs.log_dir) {
-              showLogFile(decodedUrl);
+              logsContext.selectLogFile(decodedUrl);
             } else {
               api.open_log_file(e.data.url, e.data.log_dir);
             }
           } else {
-            refreshLogList();
+            logsContext.refreshLogs();
           }
           break;
         }
       }
     },
-    [logsContext.state.logs, showLogFile, refreshLogList],
+    [
+      logsContext.state.logs,
+      logsContext.selectLogFile,
+      logsContext.refreshLogs,
+    ],
   );
 
   // listen for updateState messages from vscode
@@ -1015,51 +944,39 @@ export const App: FC<AppProps> = ({
 
   useEffect(() => {
     const loadLogsAndState = async () => {
-      // See whether a specific task_file has been passed.
-      const urlParams = new URLSearchParams(window.location.search);
-
-      // If the URL provides a task file, load that
-      const logPath = urlParams.get("task_file");
-
-      // Replace spaces with a '+' sign:
-      const resolvedLogPath = logPath ? logPath.replace(" ", "+") : logPath;
-      const load = resolvedLogPath
-        ? async (): Promise<LogFiles> => {
-            return {
-              log_dir: "",
-              files: [{ name: resolvedLogPath }],
-            };
-          }
-        : loadLogs;
-
+      // First see if there is embedded state and if so, use that
       const embeddedState = document.getElementById("logview-state");
       if (embeddedState) {
         const state = JSON.parse(embeddedState.textContent || "");
         onMessage({ data: state });
       } else {
-        const result = await load();
-        logsContext.dispatch({
-          type: "SET_LOGS",
-          payload: result,
-        });
+        // See whether a specific task_file has been passed.
+        const urlParams = new URLSearchParams(window.location.search);
 
-        // If a log file was passed, select it
-        const log_file = urlParams.get("log_file");
-        if (log_file) {
-          const index = result.files.findIndex((val) => {
-            return log_file.endsWith(val.name);
-          });
-          if (index > -1) {
-            logsContext.dispatch({
-              type: "SET_SELECTED_LOG_INDEX",
-              payload: index,
-            });
-          }
-        } else if (logsContext.state.selectedLogIndex === -1) {
+        // If the URL provides a task file, load that
+        const logPath = urlParams.get("task_file");
+
+        // Replace spaces with a '+' sign:
+        const resolvedLogPath = logPath ? logPath.replace(" ", "+") : logPath;
+
+        if (resolvedLogPath) {
+          // Load only this file
           logsContext.dispatch({
-            type: "SET_SELECTED_LOG_INDEX",
-            payload: 0,
+            type: "SET_LOGS",
+            payload: {
+              log_dir: "",
+              files: [{ name: resolvedLogPath }],
+            },
           });
+        } else {
+          // If a log file was passed, select it
+          const log_file = urlParams.get("log_file");
+          if (log_file) {
+            await logsContext.selectLogFile(log_file);
+          } else {
+            // Load all logs
+            await logsContext.refreshLogs();
+          }
         }
       }
 
@@ -1067,7 +984,7 @@ export const App: FC<AppProps> = ({
     };
 
     loadLogsAndState();
-  }, [logsContext.dispatch, logsContext.state.selectedLogIndex]);
+  }, [logsContext.dispatch]);
 
   // Configure an app envelope specific to the current state
   // if there are no log files, then don't show sidebar
