@@ -65164,6 +65164,15 @@ ${events}
           return { ...state, headersLoading: action.payload };
         case "SET_SELECTED_LOG_INDEX":
           return { ...state, selectedLogIndex: action.payload };
+        case "SET_SELECTED_LOG_FILE":
+          const index2 = state.logs.files.findIndex((val) => {
+            return action.payload.endsWith(val.name);
+          });
+          if (index2 > -1) {
+            return { ...state, selectedLogIndex: index2 };
+          } else {
+            return state;
+          }
         case "UPDATE_LOG_HEADERS":
           return {
             ...state,
@@ -65183,21 +65192,74 @@ ${events}
         logsReducer,
         initialState2 ? { ...initialLogsState, ...initialState2.logs } : initialLogsState
       );
+      const appContext = useAppContext();
       const getState = () => {
         return { logs: state };
       };
-      const refreshLogs = reactExports.useCallback(async () => {
-        dispatch({ type: "SET_HEADERS_LOADING", payload: true });
+      const loadLogs = async () => {
         try {
-          const newLogs = { log_dir: "updated_dir", files: [] };
-          dispatch({ type: "SET_LOGS", payload: newLogs });
-        } catch (error2) {
-          console.error("Error refreshing logs:", error2);
-        } finally {
-          dispatch({ type: "SET_HEADERS_LOADING", payload: false });
+          const result2 = await api2.get_log_paths();
+          return result2;
+        } catch (e) {
+          console.log(e);
+          appContext.dispatch({
+            type: "SET_STATUS",
+            payload: { loading: false, error: e }
+          });
+          return { log_dir: "", files: [] };
         }
-      }, []);
-      return /* @__PURE__ */ jsxRuntimeExports.jsx(LogsContext.Provider, { value: { state, dispatch, refreshLogs, getState }, children: children2 });
+      };
+      const refreshLogs = reactExports.useCallback(async () => {
+        const refreshedLogs = await loadLogs();
+        dispatch({
+          type: "SET_LOGS",
+          payload: refreshedLogs || { log_dir: "", files: [] }
+        });
+        const currentLog = refreshedLogs.files[state.selectedLogIndex > -1 ? state.selectedLogIndex : 0];
+        const newIndex = refreshedLogs == null ? void 0 : refreshedLogs.files.findIndex((file) => {
+          return currentLog.name.endsWith(file.name);
+        });
+        if (newIndex !== void 0) {
+          dispatch({
+            type: "SET_SELECTED_LOG_INDEX",
+            payload: newIndex
+          });
+        }
+      }, [state.logs, state.selectedLogIndex, dispatch]);
+      const selectLogFile = reactExports.useCallback(
+        async (logUrl) => {
+          const index2 = state.logs.files.findIndex((val) => {
+            return val.name.endsWith(logUrl);
+          });
+          if (index2 > -1) {
+            dispatch({
+              type: "SET_SELECTED_LOG_INDEX",
+              payload: index2
+            });
+          } else {
+            const result2 = await loadLogs();
+            const idx = result2 == null ? void 0 : result2.files.findIndex((file) => {
+              return logUrl.endsWith(file.name);
+            });
+            dispatch({
+              type: "SET_LOGS",
+              payload: result2 || { log_dir: "", files: [] }
+            });
+            dispatch({
+              type: "SET_SELECTED_LOG_INDEX",
+              payload: idx && idx > -1 ? idx : 0
+            });
+          }
+        },
+        [state.logs, dispatch]
+      );
+      return /* @__PURE__ */ jsxRuntimeExports.jsx(
+        LogsContext.Provider,
+        {
+          value: { state, dispatch, refreshLogs, getState, selectLogFile },
+          children: children2
+        }
+      );
     };
     const useLogsContext = () => {
       const context = reactExports.useContext(LogsContext);
@@ -66427,19 +66489,6 @@ ${events}
         setSelectedLogSummary,
         appContext.dispatch
       ]);
-      const loadLogs = async () => {
-        try {
-          const result2 = await api2.get_log_paths();
-          return result2;
-        } catch (e) {
-          console.log(e);
-          appContext.dispatch({
-            type: "SET_STATUS",
-            payload: { loading: false, error: e }
-          });
-          return { log_dir: "", files: [] };
-        }
-      };
       const refreshLog = reactExports.useCallback(async () => {
         try {
           appContext.dispatch({
@@ -66486,61 +66535,13 @@ ${events}
         appContext.dispatch,
         logsContext.dispatch
       ]);
-      const showLogFile = reactExports.useCallback(
-        async (logUrl) => {
-          const index2 = logsContext.state.logs.files.findIndex((val) => {
-            return logUrl.endsWith(val.name);
-          });
-          if (index2 > -1) {
-            logsContext.dispatch({
-              type: "SET_SELECTED_LOG_INDEX",
-              payload: index2
-            });
-          } else {
-            const result2 = await loadLogs();
-            const idx = result2 == null ? void 0 : result2.files.findIndex((file) => {
-              return logUrl.endsWith(file.name);
-            });
-            logsContext.dispatch({
-              type: "SET_LOGS",
-              payload: result2 || { log_dir: "", files: [] }
-            });
-            logsContext.dispatch({
-              type: "SET_SELECTED_LOG_INDEX",
-              payload: idx && idx > -1 ? idx : 0
-            });
-          }
-        },
-        [logsContext.state.logs, logsContext.dispatch]
-      );
-      const refreshLogList = reactExports.useCallback(async () => {
-        const currentLog = logsContext.state.logs.files[logsContext.state.selectedLogIndex > -1 ? logsContext.state.selectedLogIndex : 0];
-        const refreshedLogs = await loadLogs();
-        logsContext.dispatch({
-          type: "SET_LOGS",
-          payload: refreshedLogs || { log_dir: "", files: [] }
-        });
-        const newIndex = refreshedLogs == null ? void 0 : refreshedLogs.files.findIndex((file) => {
-          return currentLog.name.endsWith(file.name);
-        });
-        if (newIndex !== void 0) {
-          logsContext.dispatch({
-            type: "SET_SELECTED_LOG_INDEX",
-            payload: newIndex
-          });
-        }
-      }, [
-        logsContext.state.logs,
-        logsContext.state.selectedLogIndex,
-        logsContext.dispatch
-      ]);
       const onMessage = reactExports.useCallback(
         async (e) => {
           switch (e.data.type) {
             case "updateState": {
               if (e.data.url) {
                 const decodedUrl = decodeURIComponent(e.data.url);
-                showLogFile(decodedUrl);
+                logsContext.selectLogFile(decodedUrl);
               }
               break;
             }
@@ -66550,18 +66551,22 @@ ${events}
               const isFocused = document.hasFocus();
               if (!isFocused) {
                 if (log_dir === logsContext.state.logs.log_dir) {
-                  showLogFile(decodedUrl);
+                  logsContext.selectLogFile(decodedUrl);
                 } else {
                   api2.open_log_file(e.data.url, e.data.log_dir);
                 }
               } else {
-                refreshLogList();
+                logsContext.refreshLogs();
               }
               break;
             }
           }
         },
-        [logsContext.state.logs, showLogFile, refreshLogList]
+        [
+          logsContext.state.logs,
+          logsContext.selectLogFile,
+          logsContext.refreshLogs
+        ]
       );
       reactExports.useEffect(() => {
         window.addEventListener("message", onMessage);
@@ -66571,47 +66576,35 @@ ${events}
       }, [onMessage]);
       reactExports.useEffect(() => {
         const loadLogsAndState = async () => {
-          const urlParams = new URLSearchParams(window.location.search);
-          const logPath = urlParams.get("task_file");
-          const resolvedLogPath = logPath ? logPath.replace(" ", "+") : logPath;
-          const load = resolvedLogPath ? async () => {
-            return {
-              log_dir: "",
-              files: [{ name: resolvedLogPath }]
-            };
-          } : loadLogs;
           const embeddedState = document.getElementById("logview-state");
           if (embeddedState) {
             const state = JSON.parse(embeddedState.textContent || "");
             onMessage({ data: state });
           } else {
-            const result2 = await load();
-            logsContext.dispatch({
-              type: "SET_LOGS",
-              payload: result2
-            });
-            const log_file = urlParams.get("log_file");
-            if (log_file) {
-              const index2 = result2.files.findIndex((val) => {
-                return log_file.endsWith(val.name);
-              });
-              if (index2 > -1) {
-                logsContext.dispatch({
-                  type: "SET_SELECTED_LOG_INDEX",
-                  payload: index2
-                });
-              }
-            } else if (logsContext.state.selectedLogIndex === -1) {
+            const urlParams = new URLSearchParams(window.location.search);
+            const logPath = urlParams.get("task_file");
+            const resolvedLogPath = logPath ? logPath.replace(" ", "+") : logPath;
+            if (resolvedLogPath) {
               logsContext.dispatch({
-                type: "SET_SELECTED_LOG_INDEX",
-                payload: 0
+                type: "SET_LOGS",
+                payload: {
+                  log_dir: "",
+                  files: [{ name: resolvedLogPath }]
+                }
               });
+            } else {
+              const log_file = urlParams.get("log_file");
+              if (log_file) {
+                await logsContext.selectLogFile(log_file);
+              } else {
+                await logsContext.refreshLogs();
+              }
             }
           }
           new ClipboardJS(".clipboard-button,.copy-button");
         };
         loadLogsAndState();
-      }, [logsContext.dispatch, logsContext.state.selectedLogIndex]);
+      }, [logsContext.dispatch]);
       const fullScreen = logsContext.state.logs.files.length === 1 && !logsContext.state.logs.log_dir;
       const showToggle = logsContext.state.logs.files.length > 1 || !!logsContext.state.logs.log_dir || false;
       const sampleMode = reactExports.useMemo(() => {
