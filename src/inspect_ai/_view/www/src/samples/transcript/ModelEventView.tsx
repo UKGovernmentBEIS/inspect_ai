@@ -189,8 +189,8 @@ export const APICodeCell: FC<APICodeCellProps> = ({ id, contents }) => {
   }
 
   return (
-    <div>
-      <pre className={styles.codePre}>
+    <div className={clsx("model-call")}>
+      <pre className={clsx(styles.codePre)}>
         <code
           id={id}
           ref={codeRef}
