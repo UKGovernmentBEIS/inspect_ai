@@ -65090,6 +65090,13 @@ ${events}
           return { ...state, logHeaders: action.payload };
         case "SET_HEADERS_LOADING":
           return { ...state, headersLoading: action.payload };
+        case "SET_SELECTED_LOG_INDEX":
+          return { ...state, selectedLogIndex: action.payload };
+        case "UPDATE_LOG_HEADERS":
+          return {
+            ...state,
+            logHeaders: { ...state.logHeaders, ...action.payload }
+          };
         default:
           return state;
       }
@@ -65097,7 +65104,8 @@ ${events}
     const LogsContext = reactExports.createContext(void 0);
     const LogsProvider = ({
       children: children2,
-      initialState: initialState2
+      initialState: initialState2,
+      api: api2
     }) => {
       const [state, dispatch] = reactExports.useReducer(
         logsReducer,
@@ -65761,16 +65769,10 @@ ${events}
       applicationState,
       saveApplicationState
     }) => {
-      var _a2, _b2, _c, _d, _e2, _f;
+      var _a2, _b2, _c, _d;
       const appContext = useAppContext();
       const logsContext = useLogsContext();
       const mainAppRef = reactExports.useRef(null);
-      const [logHeaders, setLogHeaders] = reactExports.useState(
-        ((_a2 = applicationState == null ? void 0 : applicationState.logs) == null ? void 0 : _a2.logHeaders) || {}
-      );
-      const [headersLoading, setHeadersLoading] = reactExports.useState(
-        ((_b2 = applicationState == null ? void 0 : applicationState.logs) == null ? void 0 : _b2.headersLoading) || false
-      );
       const [selectedLogIndex, setSelectedLogIndex] = reactExports.useState(
         (applicationState == null ? void 0 : applicationState.selectedLogIndex) !== void 0 ? applicationState.selectedLogIndex : -1
       );
@@ -65819,8 +65821,6 @@ ${events}
       const saveState = reactExports.useCallback(() => {
         const state = {
           selectedLogIndex,
-          logHeaders,
-          headersLoading,
           selectedLogSummary,
           selectedSampleIndex,
           selectedWorkspaceTab,
@@ -65844,8 +65844,6 @@ ${events}
         }
       }, [
         selectedLogIndex,
-        logHeaders,
-        headersLoading,
         selectedLogSummary,
         selectedSampleIndex,
         selectedWorkspaceTab,
@@ -65889,8 +65887,6 @@ ${events}
         saveStateRef.current();
       }, [
         selectedLogIndex,
-        logHeaders,
-        headersLoading,
         selectedLogSummary,
         selectedSampleIndex,
         selectedWorkspaceTab,
@@ -66240,7 +66236,10 @@ ${events}
       ]);
       reactExports.useEffect(() => {
         const loadHeaders = async () => {
-          setHeadersLoading(true);
+          logsContext.dispatch({
+            type: "SET_HEADERS_LOADING",
+            payload: true
+          });
           const chunkSize = 8;
           const fileLists = [];
           for (let i2 = 0; i2 < logsContext.state.logs.files.length; i2 += chunkSize) {
@@ -66250,13 +66249,14 @@ ${events}
           try {
             for (const fileList of fileLists) {
               const headers = await api2.get_log_headers(fileList);
-              setLogHeaders((prev2) => {
-                const updatedHeaders = {};
-                headers.forEach((header2, index2) => {
-                  const logFile = fileList[index2];
-                  updatedHeaders[logFile] = header2;
-                });
-                return { ...prev2, ...updatedHeaders };
+              const updatedHeaders = {};
+              headers.forEach((header2, index2) => {
+                const logFile = fileList[index2];
+                updatedHeaders[logFile] = header2;
+              });
+              logsContext.dispatch({
+                type: "UPDATE_LOG_HEADERS",
+                payload: updatedHeaders
               });
               if (headers.length === chunkSize) {
                 await sleep$1(5e3);
@@ -66276,15 +66276,13 @@ ${events}
               });
             }
           }
-          setHeadersLoading(false);
+          logsContext.dispatch({
+            type: "SET_HEADERS_LOADING",
+            payload: false
+          });
         };
         loadHeaders();
-      }, [
-        logsContext.state.logs,
-        appContext.dispatch,
-        setLogHeaders,
-        setHeadersLoading
-      ]);
+      }, [logsContext.state.logs, appContext.dispatch, logsContext.dispatch]);
       const resetWorkspace = reactExports.useCallback(
         (log2, sampleSummaries2) => {
           const hasSamples = sampleSummaries2.length > 0;
@@ -66383,18 +66381,18 @@ ${events}
           if (logContents) {
             const log2 = logContents;
             if (log2.status !== "started") {
-              setLogHeaders((prev2) => {
-                const updatedState = { ...prev2 };
-                const freshHeaders = {
-                  eval: log2.eval,
-                  plan: log2.plan,
-                  results: log2.results !== null ? log2.results : void 0,
-                  stats: log2.stats,
-                  status: log2.status,
-                  version: log2.version
-                };
-                updatedState[targetLog.name] = freshHeaders;
-                return updatedState;
+              const headers = {};
+              headers[targetLog.name] = {
+                eval: log2.eval,
+                plan: log2.plan,
+                results: log2.results !== null ? log2.results : void 0,
+                stats: log2.stats,
+                status: log2.status,
+                version: log2.version
+              };
+              logsContext.dispatch({
+                type: "UPDATE_LOG_HEADERS",
+                payload: headers
               });
             }
             setSelectedLogSummary(log2);
@@ -66416,7 +66414,7 @@ ${events}
         selectedLogIndex,
         sampleSummaries,
         appContext.dispatch,
-        setLogHeaders
+        logsContext.dispatch
       ]);
       const showLogFile = reactExports.useCallback(
         async (logUrl) => {
@@ -66541,8 +66539,8 @@ ${events}
           Sidebar,
           {
             logs: logsContext.state.logs,
-            logHeaders,
-            loading: headersLoading,
+            logHeaders: logsContext.state.logHeaders,
+            loading: logsContext.state.headersLoading,
             selectedIndex: selectedLogIndex,
             onSelectedIndexChanged: (index2) => {
               setSelectedLogIndex(index2);
@@ -66582,8 +66580,8 @@ ${events}
               ) : /* @__PURE__ */ jsxRuntimeExports.jsx(
                 WorkSpace,
                 {
-                  task_id: (_c = selectedLogSummary == null ? void 0 : selectedLogSummary.eval) == null ? void 0 : _c.task_id,
-                  logFileName: (_d = logsContext.state.logs.files[selectedLogIndex]) == null ? void 0 : _d.name,
+                  task_id: (_a2 = selectedLogSummary == null ? void 0 : selectedLogSummary.eval) == null ? void 0 : _a2.task_id,
+                  logFileName: (_b2 = logsContext.state.logs.files[selectedLogIndex]) == null ? void 0 : _b2.name,
                   evalStatus: selectedLogSummary == null ? void 0 : selectedLogSummary.status,
                   evalError: filterNull(selectedLogSummary == null ? void 0 : selectedLogSummary.error),
                   evalVersion: selectedLogSummary == null ? void 0 : selectedLogSummary.version,
@@ -66613,7 +66611,7 @@ ${events}
                   setSelectedSampleTab,
                   sort,
                   setSort,
-                  epochs: (_f = (_e2 = selectedLogSummary == null ? void 0 : selectedLogSummary.eval) == null ? void 0 : _e2.config) == null ? void 0 : _f.epochs,
+                  epochs: (_d = (_c = selectedLogSummary == null ? void 0 : selectedLogSummary.eval) == null ? void 0 : _c.config) == null ? void 0 : _d.epochs,
                   epoch,
                   setEpoch,
                   filter,
@@ -66698,7 +66696,7 @@ ${events}
     }
     const root = clientExports.createRoot(container);
     root.render(
-      /* @__PURE__ */ jsxRuntimeExports.jsx(AppErrorBoundary, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(AppProvider, { capabilities, initialState, children: /* @__PURE__ */ jsxRuntimeExports.jsx(LogsProvider, { initialState, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+      /* @__PURE__ */ jsxRuntimeExports.jsx(AppErrorBoundary, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(AppProvider, { capabilities, initialState, children: /* @__PURE__ */ jsxRuntimeExports.jsx(LogsProvider, { initialState, api, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
         App,
         {
           api: resolvedApi,

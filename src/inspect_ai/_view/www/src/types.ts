@@ -1,4 +1,5 @@
 import { EvalSummary, SampleSummary } from "./api/types";
+import { LogsState } from "./LogsContext";
 import { ContentImage, ContentText, EvalSample, Events } from "./types/log";
 
 // Define the state interface
@@ -9,7 +10,7 @@ export interface AppState {
 }
 
 export interface ApplicationState {
-  logs: LogState;
+  logs: LogsState;
 
   // Log Context
   selectedLogIndex?: number;
