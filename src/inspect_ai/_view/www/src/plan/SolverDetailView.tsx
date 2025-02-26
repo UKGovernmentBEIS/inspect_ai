@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { Fragment } from "react";
+import { FC, Fragment } from "react";
 import { ApplicationIcons } from "../appearance/icons";
 import { Steps } from "../types/log";
 import { DetailStep } from "./DetailStep";
@@ -9,9 +9,7 @@ interface SolversDetailViewProps {
   steps: Steps;
 }
 
-export const SolversDetailView: React.FC<SolversDetailViewProps> = ({
-  steps,
-}) => {
+export const SolversDetailView: FC<SolversDetailViewProps> = ({ steps }) => {
   const separator = (
     <div className={clsx(styles.items, "text-size-small", styles.separator)}>
       <i className={ApplicationIcons.arrows.right} />

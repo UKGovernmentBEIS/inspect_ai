@@ -1,5 +1,6 @@
 import clsx from "clsx";
 
+import { FC } from "react";
 import styles from "./EventNav.module.css";
 
 interface EventNavProps {
@@ -11,7 +12,7 @@ interface EventNavProps {
 /**
  * Component to render a single navigation item.
  */
-export const EventNav: React.FC<EventNavProps> = ({
+export const EventNav: FC<EventNavProps> = ({
   target,
   title,
   selectedNav,

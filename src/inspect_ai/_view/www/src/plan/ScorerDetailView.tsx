@@ -1,4 +1,5 @@
 import clsx from "clsx";
+import { FC } from "react";
 import { ApplicationIcons } from "../appearance/icons";
 import styles from "./DatasetDetailView.module.css";
 import { DetailStep } from "./DetailStep";
@@ -9,7 +10,7 @@ interface ScorerDetailViewProps {
   params: Record<string, unknown>;
 }
 
-export const ScorerDetailView: React.FC<ScorerDetailViewProps> = ({
+export const ScorerDetailView: FC<ScorerDetailViewProps> = ({
   name,
   scores,
   params,

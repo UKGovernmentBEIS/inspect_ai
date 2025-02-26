@@ -8,7 +8,7 @@ import { EventPanel } from "./event/EventPanel";
 import { TranscriptView } from "./TranscriptView";
 import { TranscriptEventState } from "./types";
 
-import { useMemo } from "react";
+import { FC, useMemo } from "react";
 import styles from "./ToolEventView.module.css";
 
 interface ToolEventViewProps {
@@ -23,7 +23,7 @@ interface ToolEventViewProps {
 /**
  * Renders the ToolEventView component.
  */
-export const ToolEventView: React.FC<ToolEventViewProps> = ({
+export const ToolEventView: FC<ToolEventViewProps> = ({
   id,
   event,
   eventState,

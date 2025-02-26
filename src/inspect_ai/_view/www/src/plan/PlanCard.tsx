@@ -1,3 +1,4 @@
+import { FC } from "react";
 import { ApplicationIcons } from "../appearance/icons";
 import { Card, CardBody, CardHeader } from "../components/Card";
 import { EvalPlan, EvalScore, EvalSpec } from "../types/log";
@@ -12,11 +13,7 @@ interface PlanCardProps {
 /**
  * Renders the plan card
  */
-export const PlanCard: React.FC<PlanCardProps> = ({
-  evalSpec,
-  evalPlan,
-  scores,
-}) => {
+export const PlanCard: FC<PlanCardProps> = ({ evalSpec, evalPlan, scores }) => {
   return (
     <Card>
       <CardHeader icon={ApplicationIcons.config} label="Config" />

@@ -1,4 +1,5 @@
 import {
+  FC,
   KeyboardEvent,
   RefObject,
   useCallback,
@@ -35,7 +36,7 @@ interface SampleListProps {
   listHandle: RefObject<VirtuosoHandle | null>;
 }
 
-export const SampleList: React.FC<SampleListProps> = (props) => {
+export const SampleList: FC<SampleListProps> = (props) => {
   const {
     items,
     sampleDescriptor,

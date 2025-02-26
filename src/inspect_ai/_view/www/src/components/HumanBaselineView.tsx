@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { FC, useEffect } from "react";
 import { formatDateTime, formatTime } from "../utils/format";
 import { AsciinemaPlayer } from "./AsciinemaPlayer";
 import "./HumanBaselineView.css";
@@ -24,7 +24,7 @@ interface HumanBaselineViewProps {
 /**
  * Renders the HumanBaselineView component.
  */
-export const HumanBaselineView: React.FC<HumanBaselineViewProps> = ({
+export const HumanBaselineView: FC<HumanBaselineViewProps> = ({
   started,
   runtime,
   answer,
@@ -92,7 +92,7 @@ export const HumanBaselineView: React.FC<HumanBaselineViewProps> = ({
     answer?: string;
   }
 
-  const StatusMessage: React.FC<StatusMessageProps> = ({
+  const StatusMessage: FC<StatusMessageProps> = ({
     completed,
     running,
     answer,

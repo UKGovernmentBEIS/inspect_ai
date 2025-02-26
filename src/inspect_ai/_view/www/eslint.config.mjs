@@ -35,7 +35,6 @@ export default [
 
       // These are disabled because we didn't have time to fix them, not because they are bad rules
       "no-unused-vars": "off",
-      "no-undef": "off",
       "prefer-const": "off",
     },
   },

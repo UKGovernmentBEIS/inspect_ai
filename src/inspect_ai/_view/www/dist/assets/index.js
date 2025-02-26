@@ -25408,11 +25408,7 @@ categories: ${categories.join(" ")}`;
       flex: flex$1,
       label: label$5
     };
-    const SortFilter = ({
-      sort,
-      setSort,
-      epochs
-    }) => {
+    const SortFilter = ({ sort, setSort, epochs }) => {
       const options2 = [
         { label: "sample asc", val: kSampleAscVal },
         { label: "sample desc", val: kSampleDescVal }
@@ -49266,11 +49262,7 @@ self.onmessage = function (e) {
       jsonTab
     };
     const kJsonMaxSize = 1e7;
-    const JsonTab = ({
-      logFile,
-      capabilities: capabilities2,
-      json
-    }) => {
+    const JsonTab = ({ logFile, capabilities: capabilities2, json }) => {
       if (logFile && json.length > kJsonMaxSize && capabilities2.downloadFiles) {
         const file = `${filename(logFile)}.json`;
         return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$K.jsonTab, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -49814,10 +49806,7 @@ self.onmessage = function (e) {
       tableH,
       model
     };
-    const TokenTable = ({
-      className: className2,
-      children: children2
-    }) => {
+    const TokenTable = ({ className: className2, children: children2 }) => {
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
         "table",
         {
@@ -53040,9 +53029,7 @@ self.onmessage = function (e) {
       }
       return "Error";
     };
-    const FlatSampleError = ({
-      message: message2
-    }) => {
+    const FlatSampleError = ({ message: message2 }) => {
       return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$C.flatBody), children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(ApplicationIcons.error, styles$C.iconSmall) }),
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$C.lineBase), children: errorType(message2) })
@@ -60340,9 +60327,7 @@ ${events}
       next,
       prev
     };
-    const LightboxCarousel = ({
-      slides
-    }) => {
+    const LightboxCarousel = ({ slides }) => {
       const [isOpen, setIsOpen] = reactExports.useState(false);
       const [showOverlay, setShowOverlay] = reactExports.useState(false);
       const [currentIndex, setCurrentIndex] = reactExports.useState(0);
@@ -61186,14 +61171,14 @@ ${events}
       );
     };
     const SubtaskSummary = ({ input: input2, result: result2 }) => {
-      result2 = typeof result2 === "object" ? result2 : { result: result2 };
+      const output2 = typeof result2 === "object" ? result2 : { result: result2 };
       return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$n.subtaskSummary), children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-label"), children: "Input" }),
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-large", styles$n.subtaskLabel) }),
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-label"), children: "Output" }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx(Rendered, { values: input2 }),
+        input2 ? /* @__PURE__ */ jsxRuntimeExports.jsx(Rendered, { values: input2 }) : void 0,
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-title-secondary", styles$n.subtaskLabel), children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.arrows.right }) }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx(Rendered, { values: result2 }) })
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx(Rendered, { values: output2 }) })
       ] });
     };
     const Rendered = ({ values }) => {
@@ -62247,12 +62232,7 @@ ${events}
       );
     };
     const HtmlEntity = ({ html }) => /* @__PURE__ */ jsxRuntimeExports.jsx("span", { dangerouslySetInnerHTML: { __html: html } });
-    const TitleTool = ({
-      label: label2,
-      icon,
-      enabled,
-      onClick
-    }) => {
+    const TitleTool = ({ label: label2, icon, enabled, onClick }) => {
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
         "button",
         {
@@ -63147,9 +63127,7 @@ ${events}
       item,
       separator
     };
-    const SolversDetailView = ({
-      steps
-    }) => {
+    const SolversDetailView = ({ steps }) => {
       const separator2 = /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$a.items, "text-size-small", styles$a.separator), children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.arrows.right }) });
       const details = steps == null ? void 0 : steps.map((step, index2) => {
         return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
@@ -63428,11 +63406,7 @@ ${events}
       }
       return count;
     };
-    const PlanColumn = ({
-      title: title2,
-      className: className2,
-      children: children2
-    }) => {
+    const PlanColumn = ({ title: title2, className: className2, children: children2 }) => {
       return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(className2), children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx(
           "div",
@@ -63450,11 +63424,7 @@ ${events}
         children2
       ] });
     };
-    const PlanCard = ({
-      evalSpec,
-      evalPlan,
-      scores: scores2
-    }) => {
+    const PlanCard = ({ evalSpec, evalPlan, scores: scores2 }) => {
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(Card, { children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx(CardHeader, { icon: ApplicationIcons.config, label: "Config" }),
         /* @__PURE__ */ jsxRuntimeExports.jsx(CardBody, { id: "task-plan-card-body", children: /* @__PURE__ */ jsxRuntimeExports.jsx(PlanDetailView, { evaluation: evalSpec, plan: evalPlan, scores: scores2 }) })
@@ -63858,11 +63828,7 @@ ${events}
         }
       );
     };
-    const StatusPanel = ({
-      icon,
-      status,
-      sampleCount
-    }) => {
+    const StatusPanel = ({ icon, status, sampleCount }) => {
       return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$2.statusPanel, children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(icon, styles$2.statusIcon), style: {} }),
         /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [

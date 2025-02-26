@@ -1,14 +1,15 @@
 import { ANSIColor, ANSIOutput, ANSIOutputRun, ANSIStyle } from "ansi-output";
 import clsx from "clsx";
+import { CSSProperties, FC } from "react";
 import "./AnsiDisplay.css";
 
 interface ANSIDisplayProps {
   output: string;
-  style?: React.CSSProperties;
+  style?: CSSProperties;
   className?: string[] | string;
 }
 
-export const ANSIDisplay: React.FC<ANSIDisplayProps> = ({
+export const ANSIDisplay: FC<ANSIDisplayProps> = ({
   output,
   style,
   className,
@@ -46,7 +47,7 @@ interface OutputRunProps {
   run: ANSIOutputRun;
 }
 
-const OutputRun: React.FC<OutputRunProps> = ({ run }) => {
+const OutputRun: FC<OutputRunProps> = ({ run }) => {
   // Render.
   return <span style={computeCSSProperties(run)}>{run.text}</span>;
 };

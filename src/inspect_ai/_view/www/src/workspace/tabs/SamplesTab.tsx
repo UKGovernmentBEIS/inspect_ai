@@ -1,4 +1,5 @@
 import {
+  FC,
   Fragment,
   RefObject,
   useCallback,
@@ -43,7 +44,7 @@ interface SamplesTabProps {
   sampleTabScrollRef: RefObject<HTMLDivElement | null>;
 }
 
-export const SamplesTab: React.FC<SamplesTabProps> = ({
+export const SamplesTab: FC<SamplesTabProps> = ({
   sample,
   samples,
   sampleMode,

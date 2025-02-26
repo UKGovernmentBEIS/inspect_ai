@@ -1,17 +1,15 @@
 import clsx from "clsx";
+import { FC, ReactNode } from "react";
 import { ModelUsage1 } from "../types/log";
 import { ModelUsagePanel } from "./ModelUsagePanel";
 import styles from "./TokenTable.module.css";
 
 interface TokenTableProps {
   className?: string | string[];
-  children?: React.ReactNode;
+  children?: ReactNode;
 }
 
-export const TokenTable: React.FC<TokenTableProps> = ({
-  className,
-  children,
-}) => {
+export const TokenTable: FC<TokenTableProps> = ({ className, children }) => {
   return (
     <table
       className={clsx(
@@ -77,7 +75,7 @@ interface TokenRowProps {
   usage: ModelUsage1;
 }
 
-export const TokenRow: React.FC<TokenRowProps> = ({ model, usage }) => {
+export const TokenRow: FC<TokenRowProps> = ({ model, usage }) => {
   return (
     <tr>
       <td>

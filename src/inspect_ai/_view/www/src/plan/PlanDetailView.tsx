@@ -7,6 +7,7 @@ import { ScorerDetailView } from "./ScorerDetailView";
 import { SolversDetailView } from "./SolverDetailView";
 
 import clsx from "clsx";
+import { FC, ReactNode } from "react";
 import styles from "./PlanDetailView.module.css";
 
 interface PlanDetailViewProps {
@@ -15,7 +16,7 @@ interface PlanDetailViewProps {
   scores?: EvalScore[];
 }
 
-export const PlanDetailView: React.FC<PlanDetailViewProps> = ({
+export const PlanDetailView: FC<PlanDetailViewProps> = ({
   evaluation,
   plan,
   scores,
@@ -88,7 +89,7 @@ export const PlanDetailView: React.FC<PlanDetailViewProps> = ({
   const taskColumns: {
     title: string;
     className: string | string[];
-    contents: React.ReactNode;
+    contents: ReactNode;
   }[] = [];
   taskColumns.push({
     title: "Dataset",
@@ -145,7 +146,7 @@ export const PlanDetailView: React.FC<PlanDetailViewProps> = ({
   const metadataColumns: {
     title: string;
     className: string;
-    contents: React.ReactNode;
+    contents: ReactNode;
   }[] = [];
   const cols = colCount(
     metadataColumns,
@@ -297,14 +298,10 @@ const colCount = (...other: unknown[]) => {
 interface PlanColumnProps {
   title: string;
   className: string | string[];
-  children: React.ReactNode;
+  children: ReactNode;
 }
 
-const PlanColumn: React.FC<PlanColumnProps> = ({
-  title,
-  className,
-  children,
-}) => {
+const PlanColumn: FC<PlanColumnProps> = ({ title, className, children }) => {
   return (
     <div className={clsx(className)}>
       <div

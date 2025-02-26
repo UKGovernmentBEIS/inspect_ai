@@ -1,4 +1,5 @@
 import clsx from "clsx";
+import { FC } from "react";
 import styles from "./LogDirectoryTitleView.module.css";
 
 interface LogDirectoryTitleViewProps {
@@ -6,7 +7,7 @@ interface LogDirectoryTitleViewProps {
   offcanvas: boolean;
 }
 
-export const LogDirectoryTitleView: React.FC<LogDirectoryTitleViewProps> = ({
+export const LogDirectoryTitleView: FC<LogDirectoryTitleViewProps> = ({
   log_dir,
   offcanvas,
 }) => {

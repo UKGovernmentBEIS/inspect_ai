@@ -1,5 +1,12 @@
 import clsx from "clsx";
-import { Fragment, MouseEvent, RefObject, useCallback, useMemo } from "react";
+import {
+  FC,
+  Fragment,
+  MouseEvent,
+  RefObject,
+  useCallback,
+  useMemo,
+} from "react";
 import { SampleSummary } from "../api/types";
 import { EmptyPanel } from "../components/EmptyPanel";
 import { TabPanel, TabSet } from "../components/TabSet";
@@ -37,7 +44,7 @@ interface WorkSpaceViewProps {
   setWorkspaceTabScrollPosition: (tab: string, pos: number) => void;
 }
 
-export const WorkSpaceView: React.FC<WorkSpaceViewProps> = ({
+export const WorkSpaceView: FC<WorkSpaceViewProps> = ({
   logFileName,
   evalSpec,
   evalPlan,

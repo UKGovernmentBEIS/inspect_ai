@@ -1,3 +1,4 @@
+import { FC } from "react";
 import { TokenHeader, TokenRow, TokenTable } from "./TokenTable";
 
 interface ModelTokenTableProps {
@@ -5,7 +6,7 @@ interface ModelTokenTableProps {
   className?: string | string[];
 }
 
-export const ModelTokenTable: React.FC<ModelTokenTableProps> = ({
+export const ModelTokenTable: FC<ModelTokenTableProps> = ({
   model_usage,
   className,
 }) => {

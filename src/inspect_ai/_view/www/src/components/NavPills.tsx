@@ -1,5 +1,5 @@
 import { clsx } from "clsx";
-import { ReactElement, useState } from "react";
+import { FC, ReactElement, ReactNode, useState } from "react";
 import styles from "./NavPills.module.css";
 
 interface NavPillChildProps {
@@ -11,7 +11,7 @@ interface NavPillsProps {
   children?: ReactElement<NavPillChildProps>[];
 }
 
-export const NavPills: React.FC<NavPillsProps> = ({ children }) => {
+export const NavPills: FC<NavPillsProps> = ({ children }) => {
   const [activeItem, setActiveItem] = useState(
     children ? children[0].props["title"] : null,
   );
@@ -67,10 +67,10 @@ interface NavPillProps {
   title: string;
   activeItem: string;
   setActiveItem: (item: string) => void;
-  children?: React.ReactNode;
+  children?: ReactNode;
 }
 
-const NavPill: React.FC<NavPillProps> = ({
+const NavPill: FC<NavPillProps> = ({
   title,
   activeItem,
   setActiveItem,

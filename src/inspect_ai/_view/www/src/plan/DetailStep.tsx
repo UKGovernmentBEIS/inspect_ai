@@ -1,4 +1,5 @@
 import clsx from "clsx";
+import { FC } from "react";
 import { MetaDataView } from "../metadata/MetaDataView";
 import styles from "./DatasetDetailView.module.css";
 
@@ -9,7 +10,7 @@ interface DetailStepProps {
   className?: string | string[];
 }
 
-export const DetailStep: React.FC<DetailStepProps> = ({
+export const DetailStep: FC<DetailStepProps> = ({
   icon,
   name,
   params,

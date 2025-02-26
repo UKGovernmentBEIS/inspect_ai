@@ -1,4 +1,5 @@
 import clsx from "clsx";
+import { FC } from "react";
 import { EvalLogHeader } from "../../api/types";
 import styles from "./EvalStatus.module.css";
 import { SidebarScoreView } from "./SidebarScoreView";
@@ -8,7 +9,7 @@ interface EvalStatusProps {
   logHeader?: EvalLogHeader;
 }
 
-export const EvalStatus: React.FC<EvalStatusProps> = ({ logHeader }) => {
+export const EvalStatus: FC<EvalStatusProps> = ({ logHeader }) => {
   switch (logHeader?.status) {
     case "error":
       return <StatusError message="Error" />;
@@ -36,7 +37,7 @@ interface StatusProps {
   message: string;
 }
 
-const StatusCancelled: React.FC<StatusProps> = ({ message }) => {
+const StatusCancelled: FC<StatusProps> = ({ message }) => {
   return (
     <div
       className={clsx(
@@ -51,7 +52,7 @@ const StatusCancelled: React.FC<StatusProps> = ({ message }) => {
   );
 };
 
-const StatusRunning: React.FC<StatusProps> = ({ message }) => {
+const StatusRunning: FC<StatusProps> = ({ message }) => {
   return (
     <div
       className={clsx(
@@ -66,6 +67,6 @@ const StatusRunning: React.FC<StatusProps> = ({ message }) => {
   );
 };
 
-const StatusError: React.FC<StatusProps> = ({ message }) => {
+const StatusError: FC<StatusProps> = ({ message }) => {
   return <div className={clsx(styles.error, "text-size-small")}>{message}</div>;
 };

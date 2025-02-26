@@ -1,3 +1,4 @@
+import { FC } from "react";
 import { NavPills } from "../../components/NavPills.tsx";
 import { Buckets, ContentRenderer } from "../../metadata/types.ts";
 import {
@@ -37,7 +38,7 @@ export const ChatMessageRenderer: ContentRenderer = {
 /**
  * Represents a chat summary component that renders a list of chat messages.
  */
-export const ChatSummary: React.FC<{
+export const ChatSummary: FC<{
   id: string;
   title?: string;
   messages: (

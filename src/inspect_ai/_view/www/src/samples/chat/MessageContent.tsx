@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { Fragment } from "react";
+import { FC, Fragment, ReactNode } from "react";
 import ExpandablePanel from "../../components/ExpandablePanel";
 import { MarkdownDiv } from "../../components/MarkdownDiv";
 import { ContentTool } from "../../types";
@@ -43,7 +43,7 @@ interface MessageContentProps {
  * Renders message content based on its type.
  * Supports rendering strings, images, and tools using specific renderers.
  */
-export const MessageContent: React.FC<MessageContentProps> = ({ contents }) => {
+export const MessageContent: FC<MessageContentProps> = ({ contents }) => {
   if (Array.isArray(contents)) {
     return contents.map((content, index) => {
       if (typeof content === "string") {
@@ -85,11 +85,7 @@ export const MessageContent: React.FC<MessageContentProps> = ({ contents }) => {
 };
 
 interface MessageRenderer {
-  render: (
-    key: string,
-    content: ContentType,
-    isLast: boolean,
-  ) => React.ReactNode;
+  render: (key: string, content: ContentType, isLast: boolean) => ReactNode;
 }
 
 const messageRenderers: Record<string, MessageRenderer> = {

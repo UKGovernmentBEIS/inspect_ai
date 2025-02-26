@@ -7,6 +7,7 @@ import { arrayToString, inputString } from "../../utils/format";
 import { SamplesDescriptor } from "../descriptor/samplesDescriptor";
 import { SampleScores } from "./SampleScores";
 
+import { FC } from "react";
 import { SampleSummary } from "../../api/types";
 import styles from "./SampleScoreView.module.css";
 
@@ -17,7 +18,7 @@ interface SampleScoreViewProps {
   className?: string | string[];
 }
 
-export const SampleScoreView: React.FC<SampleScoreViewProps> = ({
+export const SampleScoreView: FC<SampleScoreViewProps> = ({
   sample,
   sampleDescriptor,
   className,

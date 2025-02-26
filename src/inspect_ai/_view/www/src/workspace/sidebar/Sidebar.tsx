@@ -1,4 +1,5 @@
 import clsx from "clsx";
+import { FC } from "react";
 import { Fragment } from "react/jsx-runtime";
 import { EvalLogHeader, LogFiles } from "../../api/types";
 import { ApplicationIcons } from "../../appearance/icons";
@@ -17,7 +18,7 @@ interface SidebarProps {
   onSelectedIndexChanged: (index: number) => void;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({
+export const Sidebar: FC<SidebarProps> = ({
   logs,
   logHeaders,
   offcanvas,

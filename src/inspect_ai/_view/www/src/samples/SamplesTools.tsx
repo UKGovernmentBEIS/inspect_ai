@@ -1,3 +1,4 @@
+import { FC } from "react";
 import { Fragment } from "react/jsx-runtime";
 import { ScoreFilter, ScoreLabel } from "../types";
 import { SamplesDescriptor } from "./descriptor/samplesDescriptor";
@@ -20,7 +21,7 @@ interface SampleToolsProps {
   sampleDescriptor: SamplesDescriptor;
 }
 
-export const SampleTools: React.FC<SampleToolsProps> = ({
+export const SampleTools: FC<SampleToolsProps> = ({
   epoch,
   setEpoch,
   epochs,

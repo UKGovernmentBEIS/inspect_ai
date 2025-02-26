@@ -1,4 +1,5 @@
 import clsx from "clsx";
+import { FC } from "react";
 import styles from "./SampleSeparator.module.css";
 
 interface SampleSeparatorProps {
@@ -7,7 +8,7 @@ interface SampleSeparatorProps {
   height: number;
 }
 
-export const SampleSeparator: React.FC<SampleSeparatorProps> = ({
+export const SampleSeparator: FC<SampleSeparatorProps> = ({
   id,
   title,
   height,
