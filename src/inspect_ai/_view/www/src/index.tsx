@@ -50,7 +50,7 @@ const root = createRoot(container as HTMLElement);
 root.render(
   <AppErrorBoundary>
     <AppProvider capabilities={capabilities} initialState={initialState}>
-      <LogsProvider initialState={initialState}>
+      <LogsProvider initialState={initialState} api={api}>
         <App
           api={resolvedApi}
           applicationState={initialState}

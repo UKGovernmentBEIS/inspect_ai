@@ -88,13 +88,6 @@ export const App: FC<AppProps> = ({
   // The main application reference
   const mainAppRef = useRef<HTMLDivElement>(null);
 
-  const [logHeaders, setLogHeaders] = useState<Record<string, EvalLogHeader>>(
-    applicationState?.logs?.logHeaders || {},
-  );
-  const [headersLoading, setHeadersLoading] = useState<boolean>(
-    applicationState?.logs?.headersLoading || false,
-  );
-
   const [selectedLogIndex, setSelectedLogIndex] = useState<number>(
     applicationState?.selectedLogIndex !== undefined
       ? applicationState.selectedLogIndex
@@ -169,8 +162,6 @@ export const App: FC<AppProps> = ({
   const saveState = useCallback(() => {
     const state = {
       selectedLogIndex,
-      logHeaders,
-      headersLoading,
       selectedLogSummary,
       selectedSampleIndex,
       selectedWorkspaceTab,
@@ -194,8 +185,6 @@ export const App: FC<AppProps> = ({
     }
   }, [
     selectedLogIndex,
-    logHeaders,
-    headersLoading,
     selectedLogSummary,
     selectedSampleIndex,
     selectedWorkspaceTab,
@@ -246,8 +235,6 @@ export const App: FC<AppProps> = ({
     saveStateRef.current();
   }, [
     selectedLogIndex,
-    logHeaders,
-    headersLoading,
     selectedLogSummary,
     selectedSampleIndex,
     selectedWorkspaceTab,
@@ -692,7 +679,10 @@ export const App: FC<AppProps> = ({
   // and then update
   useEffect(() => {
     const loadHeaders = async () => {
-      setHeadersLoading(true);
+      logsContext.dispatch({
+        type: "SET_HEADERS_LOADING",
+        payload: true,
+      });
 
       // Group into chunks
       const chunkSize = 8;
@@ -708,13 +698,14 @@ export const App: FC<AppProps> = ({
       try {
         for (const fileList of fileLists) {
           const headers = await api.get_log_headers(fileList);
-          setLogHeaders((prev) => {
-            const updatedHeaders: Record<string, EvalLogHeader> = {};
-            headers.forEach((header, index) => {
-              const logFile = fileList[index];
-              updatedHeaders[logFile] = header as EvalLogHeader;
-            });
-            return { ...prev, ...updatedHeaders };
+          const updatedHeaders: Record<string, EvalLogHeader> = {};
+          headers.forEach((header, index) => {
+            const logFile = fileList[index];
+            updatedHeaders[logFile] = header as EvalLogHeader;
+          });
+          logsContext.dispatch({
+            type: "UPDATE_LOG_HEADERS",
+            payload: updatedHeaders,
           });
 
           if (headers.length === chunkSize) {
@@ -739,16 +730,14 @@ export const App: FC<AppProps> = ({
           });
         }
       }
-      setHeadersLoading(false);
+      logsContext.dispatch({
+        type: "SET_HEADERS_LOADING",
+        payload: false,
+      });
     };
 
     loadHeaders();
-  }, [
-    logsContext.state.logs,
-    appContext.dispatch,
-    setLogHeaders,
-    setHeadersLoading,
-  ]);
+  }, [logsContext.state.logs, appContext.dispatch, logsContext.dispatch]);
 
   /**
    * Resets the workspace tab based on the provided log's state.
@@ -887,18 +876,19 @@ export const App: FC<AppProps> = ({
       if (logContents) {
         const log = logContents;
         if (log.status !== "started") {
-          setLogHeaders((prev) => {
-            const updatedState = { ...prev };
-            const freshHeaders: EvalLogHeader = {
-              eval: log.eval,
-              plan: log.plan,
-              results: log.results !== null ? log.results : undefined,
-              stats: log.stats,
-              status: log.status,
-              version: log.version,
-            };
-            updatedState[targetLog.name] = freshHeaders;
-            return updatedState;
+          const headers: Record<string, EvalLogHeader> = {};
+          headers[targetLog.name] = {
+            eval: log.eval,
+            plan: log.plan,
+            results: log.results !== null ? log.results : undefined,
+            stats: log.stats,
+            status: log.status,
+            version: log.version,
+          };
+
+          logsContext.dispatch({
+            type: "UPDATE_LOG_HEADERS",
+            payload: headers,
           });
         }
 
@@ -925,7 +915,7 @@ export const App: FC<AppProps> = ({
     selectedLogIndex,
     sampleSummaries,
     appContext.dispatch,
-    setLogHeaders,
+    logsContext.dispatch,
   ]);
 
   const showLogFile = useCallback(
@@ -1093,8 +1083,8 @@ export const App: FC<AppProps> = ({
       {!fullScreen && selectedLogSummary ? (
         <Sidebar
           logs={logsContext.state.logs}
-          logHeaders={logHeaders}
-          loading={headersLoading}
+          logHeaders={logsContext.state.logHeaders}
+          loading={logsContext.state.headersLoading}
           selectedIndex={selectedLogIndex}
           onSelectedIndexChanged={(index) => {
             setSelectedLogIndex(index);
