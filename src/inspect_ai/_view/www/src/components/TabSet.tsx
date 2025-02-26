@@ -139,7 +139,8 @@ export const TabPanel: React.FC<TabPanelProps> = ({
   children,
 }) => {
   const tabContentsId = computeTabContentsId(id);
-  const tabContentsRef = scrollRef || useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const tabContentsRef = scrollRef || panelRef;
 
   useEffect(() => {
     if (!selected || scrollPosition === undefined || !tabContentsRef.current)

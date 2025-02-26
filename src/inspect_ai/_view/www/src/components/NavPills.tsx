@@ -12,11 +12,12 @@ interface NavPillsProps {
 }
 
 export const NavPills: React.FC<NavPillsProps> = ({ children }) => {
-  if (!children?.length) {
-    return null;
+  const [activeItem, setActiveItem] = useState(
+    children ? children[0].props["title"] : null,
+  );
+  if (!activeItem || !children) {
+    return undefined;
   }
-
-  const [activeItem, setActiveItem] = useState(children[0].props["title"]);
 
   // Create Nav Pills for each child
   const navPills = children.map((nav, idx) => {

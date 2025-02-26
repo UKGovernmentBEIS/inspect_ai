@@ -74,7 +74,7 @@ function filterLargeSample(state: ApplicationState) {
 
   const estimatedTotalSize = estimateSize(state.selectedSample.messages);
   if (estimatedTotalSize > 400000) {
-    const { selectedSample, ...filteredState } = state; // eslint-disable-line
+    const { selectedSample, ...filteredState } = state;
     return filteredState;
   } else {
     return state;
@@ -91,7 +91,7 @@ function filterLargeSelectedLog(state: ApplicationState) {
     state.selectedLog.contents.sampleSummaries,
   );
   if (estimatedSize > 400000) {
-    const { selectedLog, ...filteredState } = state; // eslint-disable-line
+    const { selectedLog, ...filteredState } = state;
     return filteredState;
   } else {
     return state;

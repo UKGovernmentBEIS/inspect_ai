@@ -15897,10 +15897,12 @@ var require_assets = __commonJS({
       pill
     };
     const NavPills = ({ children: children2 }) => {
-      if (!(children2 == null ? void 0 : children2.length)) {
-        return null;
+      const [activeItem, setActiveItem] = reactExports.useState(
+        children2 ? children2[0].props["title"] : null
+      );
+      if (!activeItem || !children2) {
+        return void 0;
       }
-      const [activeItem, setActiveItem] = reactExports.useState(children2[0].props["title"]);
       const navPills = children2.map((nav2, idx) => {
         var _a2;
         const title2 = typeof nav2 === "object" ? ((_a2 = nav2["props"]) == null ? void 0 : _a2.title) || `Tab ${idx}` : `Tab ${idx}`;
@@ -49381,7 +49383,8 @@ self.onmessage = function (e) {
       children: children2
     }) => {
       const tabContentsId = computeTabContentsId(id);
-      const tabContentsRef = scrollRef || reactExports.useRef(null);
+      const panelRef = reactExports.useRef(null);
+      const tabContentsRef = scrollRef || panelRef;
       reactExports.useEffect(() => {
         if (!selected2 || scrollPosition === void 0 || !tabContentsRef.current)
           return;
@@ -53758,9 +53761,6 @@ self.onmessage = function (e) {
       ] });
     };
     const APICodeCell = ({ id, contents: contents2 }) => {
-      if (!contents2) {
-        return null;
-      }
       const codeRef = reactExports.useRef(null);
       const sourceCode = reactExports.useMemo(() => {
         return JSON.stringify(contents2, void 0, 2);
@@ -53770,6 +53770,9 @@ self.onmessage = function (e) {
           prismExports.highlightElement(codeRef.current);
         }
       }, [codeRef.current, contents2]);
+      if (!contents2) {
+        return null;
+      }
       return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: styles$t.codePre, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
         "code",
         {
@@ -61512,6 +61515,12 @@ ${events}
       setTranscriptState,
       eventNodes
     }) => {
+      const setEventState = reactExports.useCallback(
+        (state, eventId) => {
+          setTranscriptState({ ...transcriptState, [eventId]: state });
+        },
+        [setTranscriptState, transcriptState]
+      );
       const rows = eventNodes.map((eventNode2, index2) => {
         const clz = [styles$k.eventNode];
         if (eventNode2.depth % 2 == 0) {
@@ -61521,12 +61530,6 @@ ${events}
           clz.push(styles$k.lastNode);
         }
         const eventId = `${id}-event${index2}`;
-        const setEventState = reactExports.useCallback(
-          (state) => {
-            setTranscriptState({ ...transcriptState, [eventId]: state });
-          },
-          [setTranscriptState, transcriptState]
-        );
         const row2 = /* @__PURE__ */ jsxRuntimeExports.jsx(
           "div",
           {
@@ -61541,7 +61544,9 @@ ${events}
                 node: eventNode2,
                 className: clsx(clz),
                 eventState: transcriptState[eventId] || {},
-                setEventState
+                setEventState: (state) => {
+                  setEventState(state, eventId);
+                }
               }
             )
           },
@@ -62160,7 +62165,8 @@ ${events}
       scrollRef
     }) => {
       const modalFooter = footer2 ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "modal-footer", children: footer2 }) : "";
-      scrollRef = scrollRef || reactExports.useRef(null);
+      const modalRef = reactExports.useRef(null);
+      scrollRef = scrollRef || modalRef;
       reactExports.useEffect(() => {
         if (scrollRef.current) {
           setTimeout(() => {
@@ -62631,9 +62637,6 @@ ${events}
         className: className2,
         listHandle
       } = props;
-      if (items.length === 0) {
-        return /* @__PURE__ */ jsxRuntimeExports.jsx(EmptyPanel, { children: "No Samples" });
-      }
       const [followOutput, setFollowOutput] = reactExports.useState(false);
       const [hidden2, setHidden] = reactExports.useState(false);
       reactExports.useEffect(() => {
@@ -62661,6 +62664,31 @@ ${events}
           });
         }
       }, [selectedIndex, listHandle, itemRowMapping]);
+      const onkeydown = reactExports.useCallback(
+        (e) => {
+          switch (e.key) {
+            case "ArrowUp":
+              prevSample();
+              e.preventDefault();
+              e.stopPropagation();
+              break;
+            case "ArrowDown":
+              nextSample();
+              e.preventDefault();
+              e.stopPropagation();
+              break;
+            case "Enter":
+              showSample(selectedIndex);
+              e.preventDefault();
+              e.stopPropagation();
+              break;
+          }
+        },
+        [selectedIndex]
+      );
+      if (items.length === 0) {
+        return /* @__PURE__ */ jsxRuntimeExports.jsx(EmptyPanel, { children: "No Samples" });
+      }
       const renderRow = (item2) => {
         if (item2.type === "sample") {
           return /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -62689,28 +62717,6 @@ ${events}
           return null;
         }
       };
-      const onkeydown = reactExports.useCallback(
-        (e) => {
-          switch (e.key) {
-            case "ArrowUp":
-              prevSample();
-              e.preventDefault();
-              e.stopPropagation();
-              break;
-            case "ArrowDown":
-              nextSample();
-              e.preventDefault();
-              e.stopPropagation();
-              break;
-            case "Enter":
-              showSample(selectedIndex);
-              e.preventDefault();
-              e.stopPropagation();
-              break;
-          }
-        },
-        [selectedIndex]
-      );
       const { input: input2, limit, answer: answer2, target: target2 } = gridColumns(sampleDescriptor);
       const sampleCount = items == null ? void 0 : items.reduce((prev2, current) => {
         if (current.type === "sample") {
@@ -64331,9 +64337,6 @@ ${events}
         workspaceTabScrollPositionRef,
         setWorkspaceTabScrollPosition
       } = props;
-      if (!evalSpec) {
-        return null;
-      }
       const divRef = reactExports.useRef(null);
       reactExports.useEffect(() => {
         if (divRef.current) {
@@ -64341,6 +64344,9 @@ ${events}
         }
       }, [task_id]);
       const resolvedTabs = useResolvedTabs(props);
+      if (!evalSpec) {
+        return void 0;
+      }
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
         WorkSpaceView,
         {

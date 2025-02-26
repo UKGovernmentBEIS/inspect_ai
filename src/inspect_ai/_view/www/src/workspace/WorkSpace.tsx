@@ -103,9 +103,6 @@ export const WorkSpace: React.FC<WorkSpaceProps> = (props) => {
     workspaceTabScrollPositionRef,
     setWorkspaceTabScrollPosition,
   } = props;
-  if (!evalSpec) {
-    return null;
-  }
 
   const divRef = useRef<HTMLDivElement>(null);
 
@@ -117,6 +114,10 @@ export const WorkSpace: React.FC<WorkSpaceProps> = (props) => {
   }, [task_id]);
 
   const resolvedTabs = useResolvedTabs(props);
+
+  if (!evalSpec) {
+    return undefined;
+  }
 
   return (
     <WorkSpaceView

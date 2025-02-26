@@ -173,10 +173,6 @@ interface APICodeCellProps {
 }
 
 export const APICodeCell: React.FC<APICodeCellProps> = ({ id, contents }) => {
-  if (!contents) {
-    return null;
-  }
-
   const codeRef = useRef<HTMLElement>(null);
   const sourceCode = useMemo(() => {
     return JSON.stringify(contents, undefined, 2);
@@ -187,6 +183,10 @@ export const APICodeCell: React.FC<APICodeCellProps> = ({ id, contents }) => {
       highlightElement(codeRef.current);
     }
   }, [codeRef.current, contents]);
+
+  if (!contents) {
+    return null;
+  }
 
   return (
     <div>
