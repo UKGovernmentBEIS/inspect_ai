@@ -15078,15 +15078,19 @@ table.table.table-sm td {
   overflow: unset;
 }
 
+.markdown-content pre[class*="language-"],
 pre[class*="language-"].tool-output,
 .tool-output {
   background-color: #f8f8f8;
 }
+
+.vscode-dark .markdown-content pre[class*="language-"],
 .vscode-dark pre[class*="language-"].tool-output,
 .vscode-dark .tool-output {
   background-color: #333333;
 }
 
+.markdown-content pre[class*="language-"],
 pre[class*="language-"].tool-output {
   border: none !important;
   box-shadow: none !important;
@@ -15689,23 +15693,23 @@ ul.jsondiffpatch-textdiff {
   max-width: 800px;
   border: solid var(--bs-border-color) 1px;
 }
-._toolImage_hw4du_1 {
+._toolImage_1j5uu_1 {
   max-width: 800px;
   border: solid var(--bs-border-color) 1px;
 }
 
-._output_hw4du_6 {
+._output_1j5uu_6 {
   display: grid;
 }
 
-._textOutput_hw4du_10 {
-  margin-left: 2px;
+._textOutput_1j5uu_10 {
+  padding-left: 2px;
   padding: 0.5em 0.5em 0.5em 0.5em;
   white-space: pre-wrap;
   margin-bottom: 0;
 }
 
-._textCode_hw4du_17 {
+._textCode_1j5uu_17 {
   word-wrap: anywhere;
 }
 ._outputPre_1h1fn_1 {

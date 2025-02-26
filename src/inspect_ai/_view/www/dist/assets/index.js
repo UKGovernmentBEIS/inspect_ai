@@ -21335,10 +21335,10 @@ var require_assets = __commonJS({
     const styles$11 = {
       contentImage
     };
-    const toolImage = "_toolImage_hw4du_1";
-    const output$1 = "_output_hw4du_6";
-    const textOutput = "_textOutput_hw4du_10";
-    const textCode = "_textCode_hw4du_17";
+    const toolImage = "_toolImage_1j5uu_1";
+    const output$1 = "_output_1j5uu_6";
+    const textOutput = "_textOutput_1j5uu_10";
+    const textCode = "_textCode_1j5uu_17";
     const styles$10 = {
       toolImage,
       output: output$1,
@@ -21380,7 +21380,7 @@ var require_assets = __commonJS({
       return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$10.output), children: outputs });
     };
     const ToolTextOutput = ({ text: text2 }) => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: clsx(styles$10.textOutput), children: /* @__PURE__ */ jsxRuntimeExports.jsx("code", { className: clsx("sourceCode", styles$10.textCode), children: text2.trim() }) });
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: clsx(styles$10.textOutput, "tool-output"), children: /* @__PURE__ */ jsxRuntimeExports.jsx("code", { className: clsx("sourceCode", styles$10.textCode), children: text2.trim() }) });
     };
     const MessageContent = ({ contents: contents2 }) => {
       if (Array.isArray(contents2)) {
@@ -21600,7 +21600,7 @@ var require_assets = __commonJS({
           {
             markdown: toolCallView.content,
             ref: toolViewRef,
-            className: clsx(styles$$.bottomPadding, "text-size-small")
+            className: clsx("text-size-small", "tool-output")
           }
         );
       }
