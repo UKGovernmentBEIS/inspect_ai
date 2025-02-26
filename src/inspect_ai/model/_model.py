@@ -7,6 +7,7 @@ import os
 import time
 from contextvars import ContextVar
 from copy import deepcopy
+from datetime import datetime
 from types import TracebackType
 from typing import Any, AsyncIterator, Callable, Literal, Type, cast
 
@@ -327,14 +328,37 @@ class Model:
             input = [ChatMessageSystem(content=config.system_message)] + input
 
         # enforce concurrency limits
+        start_time = datetime.now()
         async with self._connection_concurrency(config):
-            return await self._generate(
+            # generate
+            output = await self._generate(
                 input=input,
                 tools=tools,
                 tool_choice=tool_choice,
                 config=config,
                 cache=cache,
             )
+
+            # update the most recent ModelEvent with the actual start/completed
+            # times as well as a computation of working time (events are
+            # created _after_ the call to _generate, potentially in response
+            # to retries, so they need their timestamp updated so it accurately
+            # reflects the full start/end time which we know here)
+            from inspect_ai.log._transcript import ModelEvent, transcript
+
+            last_model_event = transcript().find_last_event(ModelEvent)
+            if last_model_event:
+                last_model_event.timestamp = start_time
+                completed = datetime.now()
+                last_model_event.completed = completed
+                last_model_event.working = (
+                    output.time
+                    if output.time is not None
+                    else (completed - start_time).total_seconds()
+                )
+
+            # return output
+            return output
 
     async def _generate(
         self,

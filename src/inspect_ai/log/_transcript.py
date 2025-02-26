@@ -8,7 +8,9 @@ from typing import (
     Iterator,
     Literal,
     Sequence,
+    Type,
     TypeAlias,
+    TypeVar,
     Union,
 )
 
@@ -133,6 +135,12 @@ class ModelEvent(BaseEvent):
     call: ModelCall | None = Field(default=None)
     """Raw call made to model API."""
 
+    completed: datetime | None = Field(default=None)
+    """Time that model call completed (see `timestamp` for started)"""
+
+    working: float | None = Field(default=None)
+    """working time for model call that succeeded (i.e. was not retried)."""
+
 
 class ToolEvent(BaseEvent):
     """Call to a tool."""
@@ -167,18 +175,28 @@ class ToolEvent(BaseEvent):
     events: list["Event"] = Field(default_factory=list)
     """Transcript of events for tool."""
 
+    completed: datetime | None = Field(default=None)
+    """Time that tool call completed (see `timestamp` for started)"""
+
+    working: float | None = Field(default=None)
+    """Working time for tool call (i.e. time not spent waiting on semaphores)."""
+
     def _set_result(
         self,
         result: ToolResult,
         truncated: tuple[int, int] | None,
         error: ToolCallError | None,
         events: list["Event"],
+        waiting_time: float,
     ) -> None:
         self.result = result
         self.truncated = truncated
         self.error = error
         self.events = events
         self.pending = None
+        completed = datetime.now()
+        self.completed = completed
+        self.working = (completed - self.timestamp).total_seconds() - waiting_time
 
     # mechanism for operator to cancel the tool call
 
@@ -387,6 +405,8 @@ Event: TypeAlias = Union[
 ]
 """Event in a transcript."""
 
+ET = TypeVar("ET", bound=BaseEvent)
+
 
 class Transcript:
     """Transcript of events."""
@@ -425,6 +445,12 @@ class Transcript:
     @property
     def events(self) -> Sequence[Event]:
         return self._events
+
+    def find_last_event(self, event_cls: Type[ET]) -> ET | None:
+        for event in reversed(self.events):
+            if isinstance(event, event_cls):
+                return event
+        return None
 
     def _event(self, event: Event) -> None:
         self._events.append(event)
