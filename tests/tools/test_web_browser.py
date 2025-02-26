@@ -137,7 +137,7 @@ def test_web_browser_type_submit():
 
     assert log.samples
 
-    assert "Form submitted" in log.samples[0].messages[4].content
+    assert "Form submitted" in log.samples[0].messages[4].text
 
 
 @skip_if_no_docker
@@ -175,8 +175,8 @@ def test_web_browser_open_new_page():
 
     assert log.samples
 
-    assert "Simple page with simple test." in log.samples[0].messages[4].content
-    assert "Open new window" not in log.samples[0].messages[4].content
+    assert "Simple page with simple test." in log.samples[0].messages[4].text
+    assert "Open new window" not in log.samples[0].messages[4].text
 
 
 @skip_if_no_docker
