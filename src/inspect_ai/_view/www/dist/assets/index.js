@@ -65822,6 +65822,11 @@ ${events}
       reactExports.useEffect(() => {
         refreshSelectedSample(selectedSampleIndex);
       }, [selectedSampleIndex, refreshSelectedSample]);
+      reactExports.useEffect(() => {
+        if (sampleSummaries.length === 1) {
+          setSelectedSampleIndex(0);
+        }
+      }, [sampleSummaries]);
       const loadLog = reactExports.useCallback(
         async (logFileName) => {
           try {
