@@ -1,5 +1,6 @@
+import contextlib
 import shlex
-from typing import Literal, Type, Union, overload
+from typing import Iterator, Literal, Type, Union, overload
 
 from pydantic import JsonValue
 from pydantic_core import to_jsonable_python
@@ -19,6 +20,7 @@ from .environment import (
 class SandboxEnvironmentProxy(SandboxEnvironment):
     def __init__(self, sandbox: SandboxEnvironment) -> None:
         self._sandbox = sandbox
+        self._events = True
 
     @override
     async def exec(
@@ -50,20 +52,22 @@ class SandboxEnvironmentProxy(SandboxEnvironment):
             options["timeout"] = timeout
         if timeout_retry is not True:
             options["timeout_retry"] = timeout_retry
-        transcript()._event(
-            SandboxEvent(
-                action="exec",
-                cmd=" ".join([shlex.quote(c) for c in cmd]),
-                input=content_display(input) if input is not None else None,
-                options=options,
-                result=result.returncode,
-                output=content_display(
-                    f"{result.stderr}\n\n{result.stdout}"
-                    if result.stderr
-                    else result.stdout
-                ),
+
+        if self._events:
+            transcript()._event(
+                SandboxEvent(
+                    action="exec",
+                    cmd=" ".join([shlex.quote(c) for c in cmd]),
+                    input=content_display(input) if input is not None else None,
+                    options=options,
+                    result=result.returncode,
+                    output=content_display(
+                        f"{result.stderr}\n\n{result.stdout}"
+                        if result.stderr
+                        else result.stdout
+                    ),
+                )
             )
-        )
 
         # return result
         return result
@@ -76,11 +80,12 @@ class SandboxEnvironmentProxy(SandboxEnvironment):
         await self._sandbox.write_file(file, contents)
 
         # yield event
-        transcript()._event(
-            SandboxEvent(
-                action="write_file", file=file, input=content_display(contents)
+        if self._events:
+            transcript()._event(
+                SandboxEvent(
+                    action="write_file", file=file, input=content_display(contents)
+                )
             )
-        )
 
     @overload
     async def read_file(self, file: str, text: Literal[True] = True) -> str: ...
@@ -99,9 +104,12 @@ class SandboxEnvironmentProxy(SandboxEnvironment):
             output = await self._sandbox.read_file(file, False)
 
         # yield event
-        transcript()._event(
-            SandboxEvent(action="read_file", file=file, output=content_display(output))
-        )
+        if self._events:
+            transcript()._event(
+                SandboxEvent(
+                    action="read_file", file=file, output=content_display(output)
+                )
+            )
 
         # return result
         return output
@@ -118,6 +126,14 @@ class SandboxEnvironmentProxy(SandboxEnvironment):
             raise TypeError(
                 f"Expected instance of {sandbox_cls.__name__}, got {type(self._sandbox).__name__}"
             )
+
+    @contextlib.contextmanager
+    def no_events(self) -> Iterator[None]:
+        self._events = False
+        try:
+            yield
+        finally:
+            self._events = True
 
     @classmethod
     async def sample_cleanup(
