@@ -3200,6 +3200,18 @@
           ],
           "default": null,
           "title": "Input Tokens Cache Read"
+        },
+        "reasoning_tokens": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reasoning Tokens"
         }
       },
       "title": "ModelUsage",
@@ -3209,7 +3221,8 @@
         "output_tokens",
         "total_tokens",
         "input_tokens_cache_write",
-        "input_tokens_cache_read"
+        "input_tokens_cache_read",
+        "reasoning_tokens"
       ],
       "additionalProperties": false
     },
