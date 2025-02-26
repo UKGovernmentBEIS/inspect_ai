@@ -1,6 +1,6 @@
 ## Unreleased
 
-- Anthropic: Support for [extended thinking](https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking) features of Claude Sonnet 3.7 (minimum version of `anthropic` package bumped to 0.47.1).
+- Anthropic: Support for [extended thinking](https://inspect.ai-safety-institute.org.uk/reasoning.html#claude-3.7-sonnet) features of Claude Sonnet 3.7 (minimum version of `anthropic` package bumped to 0.47.1).
 - Reasoning: `ContentReasoning` type for representing model reasoning blocks.
 - Reasoning: `reasoning_tokens` for setting maximum reasoning tokens (currently only supported by Claude Sonnet 3.7)
 - Reasoning: `reasoning_history` can now be specified as "none", "all", "last", or "auto" (which yields a provider specific recommended default).
