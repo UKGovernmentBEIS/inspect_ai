@@ -39,6 +39,8 @@
 
 ### ContentText
 
+### ContentReasoning
+
 ### ContentImage
 
 ### ContentAudio

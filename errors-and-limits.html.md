@@ -172,16 +172,6 @@ please view the above as examples only rather than recommend values.
 
 ### Working Limit
 
-> [!NOTE]
->
-> The working limit feature described below is currently available only
-> in the development version of Inspect. To install the development
-> version from GitHub:
->
-> ``` bash
-> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-> ```
-
 The `working_limit` differs from the `time_limit` in that it measures
 only the time spent working (as opposed to retrying in response to rate
 limits or waiting on other shared resources). Here we set an

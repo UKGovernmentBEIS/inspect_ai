@@ -631,7 +631,15 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </tr>
 <tr class="even">
 <td><code>--reasoning-effort</code></td>
-<td>Values: <code>low</code>, <code>medium</code>, or <code>high</code>. Constrains effort on reasoning for reasoning models. Open AI o1 models only.</td>
+<td>Values: <code>low</code>, <code>medium</code>, or <code>high</code>. Constrains effort on reasoning for reasoning models. Open AI o-series models only.</td>
+</tr>
+<tr class="odd">
+<td><code>--reasoning-tokens</code></td>
+<td>Maximum number of tokens to use for reasoning. Anthropic Claude models only.</td>
+</tr>
+<tr class="even">
+<td><code>--reasoning-history</code></td>
+<td>Values: <code>none</code>, <code>all</code>, <code>last</code>, or <code>auto</code>. Include reasoning in chat message history sent to generate (defaults to “auto”, which uses the recommended default for each provider)</td>
 </tr>
 <tr class="odd">
 <td><code>--parallel-tool-calls</code></td>

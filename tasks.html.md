@@ -263,16 +263,6 @@ def ctf(solver: Solver | None = None):
 
 ## Task Cleanup
 
-> [!NOTE]
->
-> The task cleanup feature described below is currently available only
-> in the development version of Inspect. To install the development
-> version from GitHub:
->
-> ``` bash
-> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-> ```
-
 You can use the `cleanup` parameter for executing code at the end of
 each sample run. The `cleanup` function is passed the `TaskState` and is
 called for both successful runs and runs where are exception is thrown.

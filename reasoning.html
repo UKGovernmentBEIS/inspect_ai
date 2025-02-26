@@ -20,6 +20,40 @@ ul.task-list li input[type="checkbox"] {
   margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
   vertical-align: middle;
 }
+/* CSS for syntax highlighting */
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { display: inline-block; text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
 </style>
 
 
@@ -386,9 +420,12 @@ ul.task-list li input[type="checkbox"] {
    
   <ul>
   <li><a href="#overview" id="toc-overview" class="nav-link active" data-scroll-target="#overview">Overview</a></li>
-  <li><a href="#reasoning-effort" id="toc-reasoning-effort" class="nav-link" data-scroll-target="#reasoning-effort">Reasoning Effort</a></li>
-  <li><a href="#reasoning-traces" id="toc-reasoning-traces" class="nav-link" data-scroll-target="#reasoning-traces">Reasoning Traces</a></li>
-  <li><a href="#reasoning-history" id="toc-reasoning-history" class="nav-link" data-scroll-target="#reasoning-history">Reasoning History</a></li>
+  <li><a href="#reasoning-content" id="toc-reasoning-content" class="nav-link" data-scroll-target="#reasoning-content">Reasoning Content</a></li>
+  <li><a href="#reasoning-options" id="toc-reasoning-options" class="nav-link" data-scroll-target="#reasoning-options">Reasoning Options</a></li>
+  <li><a href="#openai-o1o3" id="toc-openai-o1o3" class="nav-link" data-scroll-target="#openai-o1o3">OpenAI o1/o3</a></li>
+  <li><a href="#claude-3.7-sonnet" id="toc-claude-3.7-sonnet" class="nav-link" data-scroll-target="#claude-3.7-sonnet">Claude 3.7 Sonnet</a></li>
+  <li><a href="#google-flash-thinking" id="toc-google-flash-thinking" class="nav-link" data-scroll-target="#google-flash-thinking">Google Flash Thinking</a></li>
+  <li><a href="#deepseek-r1" id="toc-deepseek-r1" class="nav-link" data-scroll-target="#deepseek-r1">DeepSeek-R1</a></li>
   </ul>
 <div class="toc-actions"><ul><li><a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div></nav>
     </div>
@@ -414,43 +451,136 @@ ul.task-list li input[type="checkbox"] {
 </header>
 
 
-<section id="overview" class="level2">
-<h2 class="anchored" data-anchor-id="overview">Overview</h2>
-<p>Reasoning models like OpenAI o1 and o3, Google’s Gemini 2.0 Flash Thinking, and DeepSeek’s r1 have some additional options that can be used to tailor their behaviour. They also in some cases make available full or partial reasoning traces for the chains of thought that led to their response.</p>
-<p>This article covers using these models with Inspect—note that the state of support for reasoning models is very early and uneven across providers. As such we’ll note below which providers are known to support various options and behaviours.</p>
-</section>
-<section id="reasoning-effort" class="level2">
-<h2 class="anchored" data-anchor-id="reasoning-effort">Reasoning Effort</h2>
-<p>OpenAI o1 and o3 models support a <a href="https://platform.openai.com/docs/api-reference/chat/create#chat-create-reasoning_effort"><code>reasoning_effort</code></a> field that can be set to <code>low</code>, <code>medium</code> or <code>high</code>.</p>
-<p>Gemini 2.0 Flash Thinking does not yet support an option to configure reasoning effort.</p>
-<p>Deepseek has also indicated that support for the <code>reasoning_effort</code> option will be <a href="https://api-docs.deepseek.com/guides/reasoning_model">available soon</a>. Presumably this will option will also be available from other services hosting r1 models over time.</p>
-<p>To support OpenAI today and other provides in the future, Inspect now includes the <code>reasoning_effort</code> field when using the OpenAI provider (as many services including Deepseek and Together AI are accessed using the OpenAI provider).</p>
-<div class="callout callout-style-simple callout-none no-icon">
+<div class="callout callout-style-simple callout-note">
 <div class="callout-body d-flex">
 <div class="callout-icon-container">
-<i class="callout-icon no-icon"></i>
+<i class="callout-icon"></i>
 </div>
 <div class="callout-body-container">
-<p>If you are aware of other providers adding support for <code>reasoning_effort</code> please <a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues">file an issue</a> and we will test and update the provider accordingly.</p>
+<p>The reasoning features described below are currently available only in the development version of Inspect. To install the development version from GitHub:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install git+https://github.com/UKGovernmentBEIS/inspect_ai</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 </div>
 </div>
+<section id="overview" class="level2">
+<h2 class="anchored" data-anchor-id="overview">Overview</h2>
+<p>Reasoning models like OpenAI o1 and o3, Anthropic’s Claude Sonnet 3.7, Google’s Gemini 2.0 Flash Thinking, and DeepSeek’s r1 have some additional options that can be used to tailor their behaviour. They also in some cases make available full or partial reasoning traces for the chains of thought that led to their response.</p>
+<p>In this article we’ll first cover the basics of <a href="#reasoning-content">Reasoning Content</a> and <a href="#reasoning-options">Reasoning Options</a>, then cover the usage and options supported by various reasoning models.</p>
 </section>
-<section id="reasoning-traces" class="level2">
-<h2 class="anchored" data-anchor-id="reasoning-traces">Reasoning Traces</h2>
-<p>In some cases reasoning models provide traces of their chain of thought as part of assistant responses. When available, these traces are provided by Inspect in a new <code>reasoning</code> field of <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#chatmessageassistant">ChatMessageAssistant</a></span>.</p>
-<p>Reasoning traces are currently captured in two ways:</p>
-<ol type="1">
-<li><p>From OpenAI compatible provider responses that include a <code>reasoning</code> or <code>reasoning_content</code> field in the assistant message (the latter is currently <a href="https://api-docs.deepseek.com/guides/reasoning_model">provided</a> by DeepSeek).</p></li>
-<li><p>From <code>&lt;think&gt;&lt;/think&gt;</code> tags included in the main assistant <code>content</code> (this is how Together, Groq, and Ollama currently present reasoning traces).</p></li>
-<li><p>Using the <code>Final Answer:</code> delimiter currently used by Gemini 2.0 Flash Thinking (the API has a separate field for <code>thinking</code> but it is not currently used in responses).</p></li>
-</ol>
-<p>We would like to confirm this for other providers (e.g.&nbsp;<code>bedrock</code> and <code>azureai</code>) but as of yet have not been able to access reasoning models on those services (we’d very much welcome others contributing here, either to confirm that things work or to provide PRs which make the required changes).</p>
+<section id="reasoning-content" class="level2">
+<h2 class="anchored" data-anchor-id="reasoning-content">Reasoning Content</h2>
+<p>Many reasoning models allow you to see their underlying chain of thought in a special “thinking” or reasoning block. While reasoning is presented in different ways depending on the model, in the Inspect API it is normalised into <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#contentreasoning">ContentReasoning</a></span> blocks which are parallel to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#contenttext">ContentText</a></span>, <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#contentimage">ContentImage</a></span>, etc.</p>
+<p>Reasoning blocks are presented in their own region in both Inspect View and in terminal conversation views.</p>
+<p>While reasoning content isn’t made available in a standard fashion across models, Inspect does attempt to capture it using several heuristics, including responses that include a <code>reasoning</code> or <code>reasoning_content</code> field in the assistant message, assistant content that includes <code>&lt;think&gt;&lt;/think&gt;</code> tags, as well as using explicit APIs for models that support them (e.g.&nbsp;Claude 3.7).</p>
 </section>
-<section id="reasoning-history" class="level2">
-<h2 class="anchored" data-anchor-id="reasoning-history">Reasoning History</h2>
-<p>Model APIs do not yet have fields representing reasoning content, so it isn’t possible to replay previous reasoning traces in a structured way. Nevertheless, it is likely useful to replay this content (e.g.&nbsp;the Gemini Flash Thinking docs encourage reply of reasoning history).</p>
-<p>To enable models to see their previous reasoning traces, Inspect will by default include reasoning in <code>&lt;think&gt;&lt;/think&gt;</code> tags when replaying chat history to models. This behavior can be disabled by a new <code>reasoning_history</code> option on <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#generateconfig">GenerateConfig</a></span>.</p>
+<section id="reasoning-options" class="level2">
+<h2 class="anchored" data-anchor-id="reasoning-options">Reasoning Options</h2>
+<p>The following reasoning options are available from the CLI and within <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#generateconfig">GenerateConfig</a></span>:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 24%">
+<col style="width: 27%">
+<col style="width: 24%">
+<col style="width: 24%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Option</th>
+<th>Description</th>
+<th>Default</th>
+<th>Models</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>reasoning_effort</code></td>
+<td>Constrains effort on reasoning for reasoning models (<code>low</code>, <code>medium</code>, or <code>high</code>)</td>
+<td><code>medium</code></td>
+<td>OpenAI o1/o3</td>
+</tr>
+<tr class="even">
+<td><code>reasoning_tokens</code></td>
+<td>Maximum number of tokens to use for reasoning.</td>
+<td>(none)</td>
+<td>Claude 3.7</td>
+</tr>
+<tr class="odd">
+<td><code>reasoning_history</code></td>
+<td>Include reasoning in message history sent to model (<code>none</code>, <code>all</code>, <code>last</code>, or <code>auto</code>)</td>
+<td><code>auto</code></td>
+<td>All models</td>
+</tr>
+</tbody>
+</table>
+<p>As you can see from above, models have different means of specifying the tokens to allocate for reasoning (<code>reasoning_effort</code> and <code>reasoning_tokens</code>). The two options don’t map precisely into each other, so if you are doing an evaluation with multiple reasoning models you should specify both. For example:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a> <span class="bu">eval</span>(</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>    task,</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>    model<span class="op">=</span>[<span class="st">"openai/o3-mini"</span>,<span class="st">"anthropic/anthropic/claude-3-7-sonnet-20250219"</span>],</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>    reasoning_effort<span class="op">=</span><span class="st">"medium"</span>,</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>    reasoning_tokens<span class="op">=</span><span class="dv">4096</span></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a> )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>The <code>reasoning_history</code> option lets you control how much of the model’s previous reasoning is presented in the message history sent to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#generate">generate()</a></span>. The default is <code>auto</code>, which uses a provider-specific recommended default (normally <code>all</code>). Use <code>last</code> to not let the reasoning overwhelm the context window.</p>
+</section>
+<section id="openai-o1o3" class="level2">
+<h2 class="anchored" data-anchor-id="openai-o1o3">OpenAI o1/o3</h2>
+<p>OpenAI has several reasoning models available including the o1 and o3 series (<code>openai/o1</code>, <code>openai/o1-mini</code>, and <code>openai/o3-mini</code>). Learn more about the specific models available in the <a href="https://platform.openai.com/docs/models">OpenAI Models</a> documentation.</p>
+<p>You can condition the amount of reasoning done via the <a href="https://platform.openai.com/docs/guides/reasoning#reasoning-effort"><code>reasoning_effort</code></a> option, which can be set to <code>low</code>, <code>medium</code>, or <code>high</code> (the default is <code>medium</code> if not specified).</p>
+<p>OpenAI models currently do not have provision for displaying reasoning content or replaying it to the model.</p>
+</section>
+<section id="claude-3.7-sonnet" class="level2">
+<h2 class="anchored" data-anchor-id="claude-3.7-sonnet">Claude 3.7 Sonnet</h2>
+<p>Anthropic’s Claude 3.7 Sonnet model includes optional support for <a href="https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking">extended thinking</a>. Unlike other reasoning models 3.7 Sonnet is a hybrid model that supports both normal and reasoning modes. This means that you need to explicitly request reasoning by specifying the <code>reasoning_tokens</code> option, for example:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval math.py <span class="dt">\</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">--model</span> anthropic/claude-3-7-sonnet-latest <span class="dt">\</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">--reasoning-tokens</span> 4096</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<section id="tokens" class="level4">
+<h4 class="anchored" data-anchor-id="tokens">Tokens</h4>
+<p>You should limit the total output tokens (<code>max_tokens</code> + <code>reasoning_tokens</code>) to no more than 21,333 tokens (as the streaming API is required above that—this will soon be supported in Inspect but is not currently). Even with streaming, a maximum of 32,000 is recommended (above that they advise using batch mode).</p>
+<p>Inspect’s default <code>max_tokens</code> for Anthropic is 4096, so with that default you would want to keep <code>reasoning_tokens</code> to no more than 17,237.</p>
+</section>
+<section id="history" class="level4">
+<h4 class="anchored" data-anchor-id="history">History</h4>
+<p>Note that Anthropic requests that all reasoning blocks and played back to the model in chat conversations (although they will only use the last reasoning block and will not bill for tokens on previous ones). Consquently, the <code>reasoning_history</code> option has no effect for Claude 3.7 models (it effectively always uses <code>last</code>).</p>
+</section>
+<section id="tools" class="level4">
+<h4 class="anchored" data-anchor-id="tools">Tools</h4>
+<p>When using tools, you should read Anthropic’s documentation on <a href="https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking#extended-thinking-with-tool-use">extended thinking with tool use</a>. In short, thinking occurs on the first assistant turn and then the normal tool loop is run without additional thinking. Thinking is re-triggered when the tool loop is exited (i.e.&nbsp;a user message without a tool result is received).</p>
+</section>
+</section>
+<section id="google-flash-thinking" class="level2">
+<h2 class="anchored" data-anchor-id="google-flash-thinking">Google Flash Thinking</h2>
+<p>Google currently makes available a single experimental reasoning model (<a href="https://deepmind.google/technologies/gemini/flash-thinking/">Gemini Flash Thinking</a>) which you can access using the model name <code>google/gemini-2.0-flash-thinking-exp</code>.</p>
+<p>There aren’t currently options for reasoning effort or reasoning tokens. By default Gemini currently includes all reasoning in the model history and recommends that it all be included in subsequent requests in a conversation.</p>
+<p>Inspect captures reasoning blocks from Gemini using the “Final Answer:” delimiter currently used by Gemini 2.0 Flash Thinking (the API has a separate field for `thinking` but it is not currently used in responses).</p>
+</section>
+<section id="deepseek-r1" class="level2">
+<h2 class="anchored" data-anchor-id="deepseek-r1">DeepSeek-R1</h2>
+<p><a href="https://github.com/deepseek-ai/DeepSeek-R1">DeepSeek-R1</a> is an open-weights reasoning model from DeepSeek. It is generally available either in its original form or as a distillation of R1 based on another open weights model (e.g.&nbsp;Qwen or Llama-based models).</p>
+<p>DeepSeek models can be accessed directly using their <a href="https://api-docs.deepseek.com/">OpenAI interface</a>. Further, a number of model hosting providers supported by Inspect make DeepSeek available, for example:</p>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Provider</th>
+<th>Model</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><a href="./providers.html#together-ai">Together AI</a></td>
+<td><code>together/deepseek-ai/DeepSeek-R1</code> (<a href="https://www.together.ai/models/deepseek-r1">docs</a>)</td>
+</tr>
+<tr class="even">
+<td><a href="./providers.html#groq">Groq</a></td>
+<td><code>groq/deepseek-r1-distill-llama-70b</code> (<a href="https://console.groq.com/docs/reasoning">docs</a>)</td>
+</tr>
+<tr class="odd">
+<td><a href="./providers.html#ollama">Ollama</a></td>
+<td><code>ollama/deepseek-r1:&lt;tag&gt;</code> (<a href="https://ollama.com/library/deepseek-r1">docs</a>)</td>
+</tr>
+</tbody>
+</table>
+<p>There isn’t currently a way to customise the <code>reasoning_effort</code> of DeepSeek models, although they have indicated that this will be <a href="https://api-docs.deepseek.com/guides/reasoning_model">available soon</a>.</p>
+<p>Reasoning content from DeepSeek models is captured using either the <code>reasoning_content</code> field made available by the hosted DeepSeek API or the <code>&lt;think&gt;</code> tags used by various hosting providers.</p>
 
 
 </section>
