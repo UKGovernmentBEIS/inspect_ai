@@ -154,7 +154,14 @@ class ModelAPI(abc.ABC):
         return None
 
     def max_tokens_for_config(self, config: GenerateConfig) -> int | None:
-        """Default max_tokens for a given config."""
+        """Default max_tokens for a given config.
+
+        Args:
+           config: Generation config.
+
+        Returns:
+           Default maximum tokens for specified configuration.
+        """
         return None
 
     def max_connections(self) -> int:
