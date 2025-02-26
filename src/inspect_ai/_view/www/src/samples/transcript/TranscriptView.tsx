@@ -16,8 +16,8 @@ import { ToolEventView } from "./ToolEventView";
 import { EventNode, EventType, TranscriptEventState } from "./types";
 
 import clsx from "clsx";
-import { SandboxEventView } from "./SandboxEventView";
 import { Virtuoso } from "react-virtuoso";
+import { SandboxEventView } from "./SandboxEventView";
 import styles from "./TranscriptView.module.css";
 
 interface TranscriptViewProps {
@@ -84,7 +84,7 @@ export const TranscriptVirtualList: React.FC<TranscriptVirtualListProps> = (
     (state: TranscriptEventState) => {
       setTranscriptState(state);
     },
-    [transcriptState, setTranscriptState],
+    [setTranscriptState],
   );
 
   return (
@@ -116,7 +116,7 @@ export const TranscriptVirtualListComponent: React.FC<
     (eventId: string, state: TranscriptEventState) => {
       setTranscriptState({ ...transcriptState, [eventId]: state });
     },
-    [setTranscriptState],
+    [transcriptState, setTranscriptState],
   );
 
   const [followOutput, setFollowOutput] = useState(false);
@@ -179,6 +179,13 @@ export const TranscriptComponent: React.FC<TranscriptComponentProps> = ({
   setTranscriptState,
   eventNodes,
 }) => {
+  const setEventState = useCallback(
+    (state: TranscriptEventState, eventId: string) => {
+      setTranscriptState({ ...transcriptState, [eventId]: state });
+    },
+    [setTranscriptState, transcriptState],
+  );
+
   const rows = eventNodes.map((eventNode, index) => {
     const clz = [styles.eventNode];
     if (eventNode.depth % 2 == 0) {
@@ -189,12 +196,6 @@ export const TranscriptComponent: React.FC<TranscriptComponentProps> = ({
     }
 
     const eventId = `${id}-event${index}`;
-    const setEventState = useCallback(
-      (state: TranscriptEventState) => {
-        setTranscriptState({ ...transcriptState, [eventId]: state });
-      },
-      [setTranscriptState, transcriptState],
-    );
 
     const row = (
       <div
@@ -209,7 +210,9 @@ export const TranscriptComponent: React.FC<TranscriptComponentProps> = ({
           node={eventNode}
           className={clsx(clz)}
           eventState={transcriptState[eventId] || {}}
-          setEventState={setEventState}
+          setEventState={(state: TranscriptEventState) => {
+            setEventState(state, eventId);
+          }}
         />
       </div>
     );

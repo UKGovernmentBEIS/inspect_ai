@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { Fragment } from "react";
+import { FC, Fragment } from "react";
 import { ModelUsage1 } from "../types/log";
 import { formatNumber } from "../utils/format";
 import styles from "./ModelUsagePanel.module.css";
@@ -18,7 +18,7 @@ interface ModelUsageRow {
 /**
  * Renders the ModelUsagePanel component.
  */
-export const ModelUsagePanel: React.FC<ModelUsageProps> = ({ usage }) => {
+export const ModelUsagePanel: FC<ModelUsageProps> = ({ usage }) => {
   if (!usage) {
     return null;
   }

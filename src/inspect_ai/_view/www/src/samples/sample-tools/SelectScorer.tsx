@@ -1,6 +1,7 @@
 import clsx from "clsx";
 import { ScoreLabel } from "../../types";
 
+import { FC } from "react";
 import styles from "./SelectScorer.module.css";
 
 interface SelectScorerProps {
@@ -9,7 +10,7 @@ interface SelectScorerProps {
   setScore: (score: ScoreLabel) => void;
 }
 
-export const SelectScorer: React.FC<SelectScorerProps> = ({
+export const SelectScorer: FC<SelectScorerProps> = ({
   scores,
   score,
   setScore,
@@ -100,7 +101,7 @@ interface ScoreSelectorProps {
   className?: string | string[];
 }
 
-const ScoreSelector: React.FC<ScoreSelectorProps> = ({
+const ScoreSelector: FC<ScoreSelectorProps> = ({
   scores,
   selectedIndex,
   setSelectedIndex,
@@ -138,7 +139,7 @@ interface ScorerSelectorProps {
   setSelectedIndex: (index: number) => void;
 }
 
-const ScorerSelector: React.FC<ScorerSelectorProps> = ({
+const ScorerSelector: FC<ScorerSelectorProps> = ({
   scorers,
   selectedIndex,
   setSelectedIndex,

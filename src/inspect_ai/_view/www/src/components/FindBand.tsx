@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from "react";
+import { FC, KeyboardEvent, useCallback, useEffect, useRef } from "react";
 import { ApplicationIcons } from "../appearance/icons";
 import "./FindBand.css";
 
@@ -6,7 +6,7 @@ interface FindBandProps {
   hideBand: () => void;
 }
 
-export const FindBand: React.FC<FindBandProps> = ({ hideBand }) => {
+export const FindBand: FC<FindBandProps> = ({ hideBand }) => {
   const searchBoxRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -82,7 +82,7 @@ export const FindBand: React.FC<FindBandProps> = ({ hideBand }) => {
   );
 
   const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent<HTMLInputElement>) => {
+    (e: KeyboardEvent<HTMLInputElement>) => {
       if (e.key === "Escape") {
         hideBand();
       } else if (e.key === "Enter") {

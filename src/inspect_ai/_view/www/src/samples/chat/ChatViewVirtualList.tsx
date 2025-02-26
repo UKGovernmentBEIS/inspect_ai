@@ -1,4 +1,4 @@
-import { RefObject, useState } from "react";
+import { FC, RefObject, useState } from "react";
 import { Messages } from "../../types/log";
 
 import clsx from "clsx";
@@ -21,7 +21,7 @@ interface ChatViewVirtualListProps {
 /**
  * Renders the ChatViewVirtualList component.
  */
-export const ChatViewVirtualList: React.FC<ChatViewVirtualListProps> = ({
+export const ChatViewVirtualList: FC<ChatViewVirtualListProps> = ({
   id,
   messages,
   toolCallStyle,

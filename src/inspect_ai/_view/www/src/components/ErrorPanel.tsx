@@ -1,3 +1,4 @@
+import { FC } from "react";
 import { ApplicationIcons } from "../appearance/icons";
 import "./ErrorPanel.css";
 
@@ -12,7 +13,7 @@ interface ErrorPanelProps {
   error: DisplayError;
 }
 
-export const ErrorPanel: React.FC<ErrorPanelProps> = ({ title, error }) => {
+export const ErrorPanel: FC<ErrorPanelProps> = ({ title, error }) => {
   const message = error.message;
   const stack = error.stack;
 

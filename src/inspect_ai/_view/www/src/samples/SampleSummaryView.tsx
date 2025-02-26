@@ -5,7 +5,7 @@ import { arrayToString, formatTime, inputString } from "../utils/format";
 import { SamplesDescriptor } from "./descriptor/samplesDescriptor";
 import { FlatSampleError } from "./error/FlatSampleErrorView";
 
-import { ReactNode } from "react";
+import { FC, ReactNode } from "react";
 import styles from "./SampleSummaryView.module.css";
 
 interface SampleSummaryViewProps {
@@ -26,7 +26,7 @@ interface SummaryColumn {
 /**
  * Component to display a sample with relevant context and visibility control.
  */
-export const SampleSummaryView: React.FC<SampleSummaryViewProps> = ({
+export const SampleSummaryView: FC<SampleSummaryViewProps> = ({
   parent_id,
   sample,
   sampleDescriptor,

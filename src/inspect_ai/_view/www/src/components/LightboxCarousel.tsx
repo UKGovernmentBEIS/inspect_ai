@@ -1,11 +1,11 @@
 import clsx from "clsx";
-import { useCallback, useEffect, useState } from "react";
+import { FC, ReactNode, useCallback, useEffect, useState } from "react";
 import { ApplicationIcons } from "../appearance/icons";
 import styles from "./LightboxCarousel.module.css";
 
 interface Slide {
   label: string;
-  render: () => React.ReactNode;
+  render: () => ReactNode;
 }
 
 interface LightboxCarouselProps {
@@ -15,9 +15,7 @@ interface LightboxCarouselProps {
 /**
  * LightboxCarousel component provides a carousel with lightbox functionality.
  */
-export const LightboxCarousel: React.FC<LightboxCarouselProps> = ({
-  slides,
-}) => {
+export const LightboxCarousel: FC<LightboxCarouselProps> = ({ slides }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [showOverlay, setShowOverlay] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);

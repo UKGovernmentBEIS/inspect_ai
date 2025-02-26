@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { Fragment } from "react";
+import { FC, Fragment } from "react";
 import { ApplicationIcons } from "../../appearance/icons";
 import { MetaDataView } from "../../metadata/MetaDataView";
 import { Input2, Input4, Result1, SubtaskEvent } from "../../types/log";
@@ -21,7 +21,7 @@ interface SubtaskEventViewProps {
 /**
  * Renders the StateEventView component.
  */
-export const SubtaskEventView: React.FC<SubtaskEventViewProps> = ({
+export const SubtaskEventView: FC<SubtaskEventViewProps> = ({
   id,
   event,
   eventState,
@@ -97,19 +97,19 @@ interface SubtaskSummaryProps {
 /**
  * Renders the StateEventView component.
  */
-const SubtaskSummary: React.FC<SubtaskSummaryProps> = ({ input, result }) => {
-  result = typeof result === "object" ? result : { result };
+const SubtaskSummary: FC<SubtaskSummaryProps> = ({ input, result }) => {
+  const output = typeof result === "object" ? result : { result };
   return (
     <div className={clsx(styles.subtaskSummary)}>
       <div className={clsx("text-style-label")}>Input</div>
       <div className={clsx("text-size-large", styles.subtaskLabel)}></div>
       <div className={clsx("text-style-label")}>Output</div>
-      <Rendered values={input} />
+      {input ? <Rendered values={input} /> : undefined}
       <div className={clsx("text-size-title-secondary", styles.subtaskLabel)}>
         <i className={ApplicationIcons.arrows.right} />
       </div>
       <div>
-        <Rendered values={result} />
+        <Rendered values={output} />
       </div>
     </div>
   );
@@ -123,7 +123,7 @@ interface RenderedProps {
  * Recursively renders content based on the type of `values`.
 value.
  */
-const Rendered: React.FC<RenderedProps> = ({ values }) => {
+const Rendered: FC<RenderedProps> = ({ values }) => {
   if (Array.isArray(values)) {
     return values.map((val) => {
       return <Rendered values={val} />;
@@ -139,7 +139,7 @@ const Rendered: React.FC<RenderedProps> = ({ values }) => {
   }
 };
 
-const None: React.FC = () => {
+const None: FC = () => {
   return (
     <span className={clsx("text-size-small", "text-style-secondary")}>
       [None]

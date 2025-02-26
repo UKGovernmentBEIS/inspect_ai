@@ -1,5 +1,13 @@
 import clsx from "clsx";
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  CSSProperties,
+  FC,
+  ReactNode,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { ApplicationIcons } from "../appearance/icons";
 import { useResizeObserver } from "../utils/dom";
 import "./ExpandablePanel.css";
@@ -8,11 +16,11 @@ interface ExpandablePanelProps {
   collapse: boolean;
   border?: boolean;
   lines?: number;
-  children?: React.ReactNode;
+  children?: ReactNode;
   className?: string | string[];
 }
 
-export const ExpandablePanel: React.FC<ExpandablePanelProps> = ({
+export const ExpandablePanel: FC<ExpandablePanelProps> = ({
   collapse,
   border,
   lines = 15,
@@ -83,10 +91,10 @@ interface MoreToggleProps {
   collapsed: boolean;
   border: boolean;
   setCollapsed: (collapsed: boolean) => void;
-  style?: React.CSSProperties;
+  style?: CSSProperties;
 }
 
-const MoreToggle: React.FC<MoreToggleProps> = ({
+const MoreToggle: FC<MoreToggleProps> = ({
   collapsed,
   border,
   setCollapsed,

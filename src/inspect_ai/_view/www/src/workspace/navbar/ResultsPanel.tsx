@@ -1,4 +1,5 @@
 import clsx from "clsx";
+import { FC } from "react";
 import { EvalMetric, EvalResults, EvalScore, Reducer } from "../../types/log";
 import { formatPrettyDecimal } from "../../utils/format";
 import { metricDisplayName } from "../utils";
@@ -13,7 +14,7 @@ interface MetricSummary {
   metric: EvalMetric;
 }
 
-export const ResultsPanel: React.FC<ResultsPanelProps> = ({ results }) => {
+export const ResultsPanel: FC<ResultsPanelProps> = ({ results }) => {
   // Map the scores into a list of key/values
   if (results?.scores?.length === 1) {
     const scorers: Record<string, MetricSummary[]> = {};
@@ -75,7 +76,7 @@ interface VerticalMetricProps {
 
 /** Renders a Vertical Metric
  */
-const VerticalMetric: React.FC<VerticalMetricProps> = ({
+const VerticalMetric: FC<VerticalMetricProps> = ({
   metricSummary,
   isFirst,
   showReducer,
@@ -123,7 +124,7 @@ interface MultiScorerMetricProps {
   showReducer: boolean;
 }
 
-const MultiScorerMetric: React.FC<MultiScorerMetricProps> = ({
+const MultiScorerMetric: FC<MultiScorerMetricProps> = ({
   scorer,
   isFirst,
   showReducer,

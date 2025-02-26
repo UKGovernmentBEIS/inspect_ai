@@ -1,7 +1,7 @@
 import { ApplicationIcons } from "../appearance/icons";
 import { LargeModal, ModalTool, ModalTools } from "../components/LargeModal";
 
-import { Ref, RefObject, useCallback, useMemo, useRef } from "react";
+import { FC, Ref, RefObject, useCallback, useMemo, useRef } from "react";
 import { ErrorPanel } from "../components/ErrorPanel";
 import { EvalSample } from "../types/log";
 import { SampleDisplay } from "./SampleDisplay";
@@ -27,7 +27,7 @@ interface SampleDialogProps {
 /**
  * Inline Sample Display
  */
-export const SampleDialog: React.FC<SampleDialogProps> = ({
+export const SampleDialog: FC<SampleDialogProps> = ({
   id,
   title,
   sample,
@@ -84,7 +84,7 @@ export const SampleDialog: React.FC<SampleDialogProps> = ({
           break;
       }
     },
-    [prevSample, nextSample],
+    [prevSample, nextSample, setShowingSampleDialog],
   );
 
   const onHide = useCallback(() => {

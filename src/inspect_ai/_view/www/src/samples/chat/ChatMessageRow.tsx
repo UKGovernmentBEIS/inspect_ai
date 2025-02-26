@@ -1,6 +1,7 @@
 import clsx from "clsx";
 import { ChatMessage } from "./ChatMessage";
 
+import { FC } from "react";
 import styles from "./ChatMessageRow.module.css";
 import { ResolvedMessage } from "./messages";
 
@@ -15,7 +16,7 @@ interface ChatMessageRowProps {
 /**
  * Renders the ChatMessage component.
  */
-export const ChatMessageRow: React.FC<ChatMessageRowProps> = ({
+export const ChatMessageRow: FC<ChatMessageRowProps> = ({
   parentName,
   number,
   resolvedMessage,

@@ -8,7 +8,7 @@ import { MessageContent } from "./MessageContent";
 import { resolveToolInput } from "./tools/tool";
 import { ToolCallView } from "./tools/ToolCallView";
 
-import { Fragment } from "react";
+import { FC, Fragment } from "react";
 import { ContentTool } from "../../types";
 import styles from "./MessageContents.module.css";
 
@@ -18,7 +18,7 @@ interface MessageContentsProps {
   toolCallStyle: "compact" | "complete";
 }
 
-export const MessageContents: React.FC<MessageContentsProps> = ({
+export const MessageContents: FC<MessageContentsProps> = ({
   message,
   toolMessages,
   toolCallStyle,

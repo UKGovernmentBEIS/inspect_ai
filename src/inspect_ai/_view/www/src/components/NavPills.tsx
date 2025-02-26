@@ -1,5 +1,5 @@
 import { clsx } from "clsx";
-import { ReactElement, useState } from "react";
+import { FC, ReactElement, ReactNode, useState } from "react";
 import styles from "./NavPills.module.css";
 
 interface NavPillChildProps {
@@ -11,12 +11,13 @@ interface NavPillsProps {
   children?: ReactElement<NavPillChildProps>[];
 }
 
-export const NavPills: React.FC<NavPillsProps> = ({ children }) => {
-  if (!children?.length) {
-    return null;
+export const NavPills: FC<NavPillsProps> = ({ children }) => {
+  const [activeItem, setActiveItem] = useState(
+    children ? children[0].props["title"] : null,
+  );
+  if (!activeItem || !children) {
+    return undefined;
   }
-
-  const [activeItem, setActiveItem] = useState(children[0].props["title"]);
 
   // Create Nav Pills for each child
   const navPills = children.map((nav, idx) => {
@@ -66,10 +67,10 @@ interface NavPillProps {
   title: string;
   activeItem: string;
   setActiveItem: (item: string) => void;
-  children?: React.ReactNode;
+  children?: ReactNode;
 }
 
-const NavPill: React.FC<NavPillProps> = ({
+const NavPill: FC<NavPillProps> = ({
   title,
   activeItem,
   setActiveItem,

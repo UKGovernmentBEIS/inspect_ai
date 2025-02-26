@@ -1,6 +1,6 @@
 import clsx from "clsx";
 import { highlightElement } from "prismjs";
-import { memo, useEffect, useRef } from "react";
+import { FC, memo, useEffect, useRef } from "react";
 import { MarkdownDiv } from "../../../components/MarkdownDiv";
 
 import styles from "./ToolInput.module.css";
@@ -22,7 +22,7 @@ interface ToolInputProps {
   contents?: string | object;
   toolCallView?: { content: string };
 }
-export const ToolInput: React.FC<ToolInputProps> = memo((props) => {
+export const ToolInput: FC<ToolInputProps> = memo((props) => {
   const { highlightLanguage, contents, toolCallView } = props;
 
   const codeRef = useCodeHighlight(highlightLanguage);

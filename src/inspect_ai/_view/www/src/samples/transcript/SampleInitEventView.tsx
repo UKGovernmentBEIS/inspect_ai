@@ -9,6 +9,7 @@ import { EventPanel } from "./event/EventPanel";
 import { EventSection } from "./event/EventSection";
 import { TranscriptEventState } from "./types";
 
+import { FC } from "react";
 import styles from "./SampleInitEventView.module.css";
 
 interface SampleInitEventViewProps {
@@ -22,7 +23,7 @@ interface SampleInitEventViewProps {
 /**
  * Renders the SampleInitEventView component.
  */
-export const SampleInitEventView: React.FC<SampleInitEventViewProps> = ({
+export const SampleInitEventView: FC<SampleInitEventViewProps> = ({
   id,
   event,
   eventState,

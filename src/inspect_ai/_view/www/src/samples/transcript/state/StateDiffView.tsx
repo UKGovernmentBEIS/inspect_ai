@@ -1,6 +1,7 @@
 import clsx from "clsx";
 import { diff } from "jsondiffpatch";
 import { format } from "jsondiffpatch/formatters/html";
+import { FC } from "react";
 
 interface StateDiffViewProps {
   before: Object;
@@ -11,7 +12,7 @@ interface StateDiffViewProps {
 /**
  * Renders a view displaying a list of state changes.
  */
-export const StateDiffView: React.FC<StateDiffViewProps> = ({
+export const StateDiffView: FC<StateDiffViewProps> = ({
   before,
   after,
   className,

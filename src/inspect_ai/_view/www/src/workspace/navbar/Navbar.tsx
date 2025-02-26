@@ -1,4 +1,5 @@
 import clsx from "clsx";
+import { FC } from "react";
 import { SampleSummary } from "../../api/types";
 import { EvalDescriptor } from "../../samples/descriptor/types";
 import {
@@ -29,7 +30,7 @@ interface NavBarProps {
 /**
  * Renders the Navbar
  */
-export const Navbar: React.FC<NavBarProps> = ({
+export const Navbar: FC<NavBarProps> = ({
   file,
   evalSpec,
   evalPlan,

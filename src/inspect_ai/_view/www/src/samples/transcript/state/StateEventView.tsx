@@ -17,7 +17,7 @@ import {
   StoreSpecificRenderableTypes,
 } from "./StateEventRenderers";
 
-import { useMemo } from "react";
+import { useMemo, FC } from "react";
 import styles from "./StateEventView.module.css";
 
 interface StateEventViewProps {
@@ -32,7 +32,7 @@ interface StateEventViewProps {
 /**
  * Renders the StateEventView component.
  */
-export const StateEventView: React.FC<StateEventViewProps> = ({
+export const StateEventView: FC<StateEventViewProps> = ({
   id,
   event,
   eventState,

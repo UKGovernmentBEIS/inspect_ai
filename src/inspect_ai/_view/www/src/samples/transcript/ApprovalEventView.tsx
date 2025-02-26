@@ -1,3 +1,4 @@
+import { FC } from "react";
 import { ApplicationIcons } from "../../appearance/icons";
 import { ApprovalEvent } from "../../types/log";
 import { EventRow } from "./event/EventRow";
@@ -10,7 +11,7 @@ interface ApprovalEventViewProps {
 /**
  * Renders the ApprovalEventView component.
  */
-export const ApprovalEventView: React.FC<ApprovalEventViewProps> = ({
+export const ApprovalEventView: FC<ApprovalEventViewProps> = ({
   event,
   className,
 }) => {

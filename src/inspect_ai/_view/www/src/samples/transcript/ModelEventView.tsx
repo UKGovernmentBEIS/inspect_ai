@@ -3,7 +3,7 @@ import "prismjs/components/prism-json";
 import "prismjs/components/prism-python";
 
 import clsx from "clsx";
-import { Fragment, useEffect, useMemo, useRef } from "react";
+import { FC, Fragment, useEffect, useMemo, useRef } from "react";
 import { ApplicationIcons } from "../../appearance/icons";
 import { MetaDataGrid } from "../../metadata/MetaDataGrid";
 import {
@@ -38,7 +38,7 @@ interface ModelEventViewProps {
 /**
  * Renders the StateEventView component.
  */
-export const ModelEventView: React.FC<ModelEventViewProps> = ({
+export const ModelEventView: FC<ModelEventViewProps> = ({
   id,
   event,
   eventState,
@@ -150,7 +150,7 @@ interface APIViewProps {
   className?: string | string[];
 }
 
-export const APIView: React.FC<APIViewProps> = ({ call, className }) => {
+export const APIView: FC<APIViewProps> = ({ call, className }) => {
   if (!call) {
     return null;
   }
@@ -172,11 +172,7 @@ interface APICodeCellProps {
   contents: Request | Response;
 }
 
-export const APICodeCell: React.FC<APICodeCellProps> = ({ id, contents }) => {
-  if (!contents) {
-    return null;
-  }
-
+export const APICodeCell: FC<APICodeCellProps> = ({ id, contents }) => {
   const codeRef = useRef<HTMLElement>(null);
   const sourceCode = useMemo(() => {
     return JSON.stringify(contents, undefined, 2);
@@ -186,7 +182,11 @@ export const APICodeCell: React.FC<APICodeCellProps> = ({ id, contents }) => {
     if (codeRef.current) {
       highlightElement(codeRef.current);
     }
-  }, [codeRef.current, contents]);
+  }, [contents]);
+
+  if (!contents) {
+    return null;
+  }
 
   return (
     <div>
@@ -207,7 +207,7 @@ interface ToolConfigProps {
   tools: Tools1;
 }
 
-const ToolsConfig: React.FC<ToolConfigProps> = ({ tools }) => {
+const ToolsConfig: FC<ToolConfigProps> = ({ tools }) => {
   const toolEls = tools.map((tool, idx) => {
     return (
       <Fragment key={`${tool.name}-${idx}`}>

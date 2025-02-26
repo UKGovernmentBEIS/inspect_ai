@@ -7,9 +7,10 @@ interface SampleHeaderProps {
   gridColumnsTemplate: string;
 }
 import clsx from "clsx";
+import { FC } from "react";
 import styles from "./SampleHeader.module.css";
 
-export const SampleHeader: React.FC<SampleHeaderProps> = ({
+export const SampleHeader: FC<SampleHeaderProps> = ({
   input = true,
   target = true,
   answer = true,
