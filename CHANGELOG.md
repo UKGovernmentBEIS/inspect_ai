@@ -10,6 +10,7 @@
 - OpenAI: Retry on rate limit requests with "Request too large".
 - OpenAI: Tolerate `None` for assistant content (can happen when there is a refusal).
 - Google: Retry requests on more HTTP status codes (selected 400 errors and all 500 errors). 
+- Event Log: Add `working_start` attribute to events and `completed` and `working_time` to model, tool, and subtask events.
 - Human Agent: Don't emit sandbox events for human agent
 - Inspect View: Improve rendering of JSON within logging events.
 - Inspect View: Improve virtualized rendering of Sample List, Sample Transcript, and Sample Messages.
