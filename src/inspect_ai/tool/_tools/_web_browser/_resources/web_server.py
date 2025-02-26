@@ -64,7 +64,7 @@ async def new_session(**kwargs: Unpack[NewSessionArgs]) -> NewSessionResponse:
 @method
 async def web_go(**kwargs: Unpack[GoArgs]) -> Result:
     async def handler(crawler: PlaywrightCrawler):
-        await crawler.current_page.go_to_url(kwargs["url"])
+        await (await crawler.current_page).go_to_url(kwargs["url"])
 
     return await _execute_crawler_command(kwargs["session_name"], handler)
 
@@ -72,7 +72,7 @@ async def web_go(**kwargs: Unpack[GoArgs]) -> Result:
 @method
 async def web_click(**kwargs: Unpack[ClickArgs]) -> Result:
     async def handler(crawler: PlaywrightCrawler):
-        await crawler.current_page.click(kwargs["element_id"])
+        await (await crawler.current_page).click(kwargs["element_id"])
 
     return await _execute_crawler_command(kwargs["session_name"], handler)
 
@@ -80,7 +80,7 @@ async def web_click(**kwargs: Unpack[ClickArgs]) -> Result:
 @method
 async def web_scroll(**kwargs: Unpack[ScrollArgs]) -> Result:
     async def handler(crawler: PlaywrightCrawler):
-        await crawler.current_page.scroll(kwargs["direction"])
+        await (await crawler.current_page).scroll(kwargs["direction"])
 
     return await _execute_crawler_command(kwargs["session_name"], handler)
 
@@ -88,7 +88,7 @@ async def web_scroll(**kwargs: Unpack[ScrollArgs]) -> Result:
 @method
 async def web_forward(**kwargs: Unpack[CrawlerBaseArgs]) -> Result:
     async def handler(crawler: PlaywrightCrawler):
-        await crawler.current_page.forward()
+        await (await crawler.current_page).forward()
 
     return await _execute_crawler_command(kwargs["session_name"], handler)
 
@@ -96,7 +96,7 @@ async def web_forward(**kwargs: Unpack[CrawlerBaseArgs]) -> Result:
 @method
 async def web_back(**kwargs: Unpack[CrawlerBaseArgs]) -> Result:
     async def handler(crawler: PlaywrightCrawler):
-        await crawler.current_page.back()
+        await (await crawler.current_page).back()
 
     return await _execute_crawler_command(kwargs["session_name"], handler)
 
@@ -104,7 +104,7 @@ async def web_back(**kwargs: Unpack[CrawlerBaseArgs]) -> Result:
 @method
 async def web_refresh(**kwargs: Unpack[CrawlerBaseArgs]) -> Result:
     async def handler(crawler: PlaywrightCrawler):
-        await crawler.current_page.refresh()
+        await (await crawler.current_page).refresh()
 
     return await _execute_crawler_command(kwargs["session_name"], handler)
 
@@ -112,7 +112,7 @@ async def web_refresh(**kwargs: Unpack[CrawlerBaseArgs]) -> Result:
 @method
 async def web_type(**kwargs: Unpack[TypeOrSubmitArgs]) -> Result:
     async def handler(crawler: PlaywrightCrawler):
-        await crawler.current_page.type(
+        await (await crawler.current_page).type(
             kwargs["element_id"], _str_from_str_or_list(kwargs["text"])
         )
 
@@ -122,8 +122,8 @@ async def web_type(**kwargs: Unpack[TypeOrSubmitArgs]) -> Result:
 @method
 async def web_type_submit(**kwargs: Unpack[TypeOrSubmitArgs]) -> Result:
     async def handler(crawler: PlaywrightCrawler):
-        await crawler.current_page.clear(kwargs["element_id"])
-        await crawler.current_page.type(
+        await (await crawler.current_page).clear(kwargs["element_id"])
+        await (await crawler.current_page).type(
             kwargs["element_id"], _str_from_str_or_list(kwargs["text"]) + "\n"
         )
 
@@ -138,23 +138,23 @@ async def _execute_crawler_command(
     try:
         crawler = await sessions.get_crawler_for_session(session_name)
         await handler(crawler)
-        await crawler.current_page.update()
+        await (await crawler.current_page).update()
 
         # If there's a cookies message click to sort it out.
         await _auto_click_cookies(crawler)
 
         return Success(
             CrawlerResponse(
-                web_url=crawler.current_page.url.split("?")[0],
-                main_content=crawler.current_page.render_main_content(),
-                web_at=crawler.current_page.render_at(),
+                web_url=(await crawler.current_page).url.split("?")[0],
+                main_content=(await crawler.current_page).render_main_content(),
+                web_at=(await crawler.current_page).render_at(),
                 error=None,
             ).model_dump()
         )
     except Exception as e:  # pylint: disable=broad-exception-caught
         return Success(
             CrawlerResponse(
-                web_url=crawler.current_page.url.split("?")[0],
+                web_url=(await crawler.current_page).url.split("?")[0],
                 web_at="encountered error",
                 error=str(e),
             ).model_dump()
@@ -168,11 +168,11 @@ def _str_from_str_or_list(str_or_list: str | list[str]) -> str:
 async def _auto_click_cookies(crawler: PlaywrightCrawler):
     """Autoclick any cookies popup."""
     try:
-        accept_node = crawler.current_page.lookup_node("<Accept all>")
+        accept_node = (await crawler.current_page).lookup_node("<Accept all>")
     except LookupError:
         return
-    await crawler.current_page.click(accept_node.node_id)
-    await crawler.current_page.update()
+    await (await crawler.current_page).click(accept_node.node_id)
+    await (await crawler.current_page).update()
 
 
 def main():
