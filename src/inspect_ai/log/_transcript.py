@@ -145,6 +145,10 @@ class ModelEvent(BaseEvent):
     working: float | None = Field(default=None)
     """working time for model call that succeeded (i.e. was not retried)."""
 
+    @field_serializer("completed")
+    def serialize_completed(self, dt: datetime) -> str:
+        return dt.astimezone().isoformat()
+
 
 class ToolEvent(BaseEvent):
     """Call to a tool."""
@@ -228,6 +232,10 @@ class ToolEvent(BaseEvent):
     model_config = ConfigDict(arbitrary_types_allowed=True)
     """Required so that we can include '_task' as a member."""
 
+    @field_serializer("completed")
+    def serialize_completed(self, dt: datetime) -> str:
+        return dt.astimezone().isoformat()
+
 
 class SandboxEvent(BaseEvent):
     """Sandbox execution or I/O"""
@@ -258,6 +266,10 @@ class SandboxEvent(BaseEvent):
 
     completed: datetime | None = Field(default=None)
     """Time that sandbox action completed (see `timestamp` for started)"""
+
+    @field_serializer("completed")
+    def serialize_completed(self, dt: datetime) -> str:
+        return dt.astimezone().isoformat()
 
 
 class ApprovalEvent(BaseEvent):
@@ -396,6 +408,10 @@ class SubtaskEvent(BaseEvent):
 
     working: float | None = Field(default=None)
     """Working time for subtask (i.e. time not spent waiting on semaphores or model retries)."""
+
+    @field_serializer("completed")
+    def serialize_completed(self, dt: datetime) -> str:
+        return dt.astimezone().isoformat()
 
 
 Event: TypeAlias = Union[
