@@ -22,3 +22,7 @@
   height: 1px;
   background-color: var(--bs-light-border-subtle);
 }
+
+.padded {
+  margin-bottom: 1em;
+}
