@@ -83,6 +83,8 @@ export const ToolCallView: FC<ToolCallViewProps> = ({
     : !isContentImage(output);
   const normalizedContent = useMemo(() => normalizeContent(output), [output]);
 
+  const contents = mode !== "compact" ? input : input || functionCall;
+
   return (
     <div>
       {mode !== "compact" && (!view || view.title) ? (
@@ -94,7 +96,7 @@ export const ToolCallView: FC<ToolCallViewProps> = ({
         <div>
           <ToolInput
             highlightLanguage={highlightLanguage}
-            contents={input}
+            contents={contents}
             toolCallView={view}
           />
           <ExpandablePanel collapse={collapse} border={true} lines={15}>

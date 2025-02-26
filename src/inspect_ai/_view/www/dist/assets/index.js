@@ -21653,6 +21653,7 @@ var require_assets = __commonJS({
       }
       const collapse = Array.isArray(output2) ? output2.every((item2) => !isContentImage(item2)) : !isContentImage(output2);
       const normalizedContent = reactExports.useMemo(() => normalizeContent$1(output2), [output2]);
+      const contents2 = mode !== "compact" ? input2 : input2 || functionCall;
       return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
         mode !== "compact" && (!view || view.title) ? /* @__PURE__ */ jsxRuntimeExports.jsx(ToolTitle, { title: (view == null ? void 0 : view.title) || functionCall }) : "",
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
@@ -21660,7 +21661,7 @@ var require_assets = __commonJS({
             ToolInput,
             {
               highlightLanguage,
-              contents: input2,
+              contents: contents2,
               toolCallView: view
             }
           ),
