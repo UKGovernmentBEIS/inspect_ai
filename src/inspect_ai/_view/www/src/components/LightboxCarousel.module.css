@@ -1,9 +1,9 @@
-.carousel-thumbs {
+.carouselThumbs {
   display: grid;
   grid-template-columns: auto auto auto auto;
 }
 
-.carousel-thumb {
+.carouselThumb {
   background: black;
   color: white;
   padding: 4em 0;
@@ -13,11 +13,11 @@
   text-align: center;
 }
 
-.carousel-play-icon {
+.carouselPlayIcon {
   font-size: 4em;
 }
 
-.lightbox-overlay {
+.lightboxOverlay {
   position: fixed;
   top: 0;
   left: 0;
@@ -30,25 +30,25 @@
   z-index: 9998;
 }
 
-.lightbox-content.open,
-.lightbox-overlay.open {
+.lightboxContent.open,
+.lightboxOverlay.open {
   opacity: 1;
   visibility: visible;
 }
 
-.lightbox-content.closed,
-.lightbox-overlay.closed {
+.lightboxContent.closed,
+.lightboxOverlay.closed {
   opacity: 0;
   visibility: hidden;
 }
 
-.lightbox-button-close-wrapper {
+.lightboxButtonCloseWrapper {
   position: absolute;
   top: 10px;
   right: 10px;
 }
 
-.lightbox-button-close {
+.lightboxButtonClose {
   border: none;
   background: none;
   color: #fff;
@@ -60,7 +60,7 @@
   z-index: 10000;
 }
 
-.lightbox-preview-button {
+.lightboxPreviewButton {
   position: absolute;
   top: 50%;
   transform: translateY(-50%);
@@ -73,23 +73,27 @@
   z-index: 9999;
 }
 
-.lightbox-preview-button.next {
+.lightboxPreviewButton.next {
   left: 10px;
 }
 
-.lightbox-preview-button.prev {
+.lightboxPreviewButton.prev {
   right: 10px;
 }
 
-.lightbox-content {
-  max-width: 90%;
-  max-height: 90%;
+.lightboxContent {
+  max-width: 90vw !important;
+  max-height: 90vh !important;
   display: flex;
-  align-items: center;
-  justify-content: center;
   position: relative;
   transition:
     opacity 0.3s ease,
     visibility 0.3s ease;
   z-index: 9999;
+  overflow: hidden;
+}
+
+.lightboxContent > * {
+  max-height: 90vh !important;
+  max-width: 90vw !important;
 }
