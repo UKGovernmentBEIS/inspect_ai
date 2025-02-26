@@ -7,25 +7,6 @@ var __commonJS = (cb, mod) => function __require() {
 var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
 var require_assets = __commonJS({
   "assets/index.js"(exports) {
-    function _mergeNamespaces(n, m) {
-      for (var i2 = 0; i2 < m.length; i2++) {
-        const e = m[i2];
-        if (typeof e !== "string" && !Array.isArray(e)) {
-          for (const k in e) {
-            if (k !== "default" && !(k in n)) {
-              const d = Object.getOwnPropertyDescriptor(e, k);
-              if (d) {
-                Object.defineProperty(n, k, d.get ? d : {
-                  enumerable: true,
-                  get: () => e[k]
-                });
-              }
-            }
-          }
-        }
-      }
-      return Object.freeze(Object.defineProperty(n, Symbol.toStringTag, { value: "Module" }));
-    }
     (function polyfill() {
       const relList = document.createElement("link").relList;
       if (relList && relList.supports && relList.supports("modulepreload")) {
@@ -66,30 +47,6 @@ var require_assets = __commonJS({
     var commonjsGlobal = typeof globalThis !== "undefined" ? globalThis : typeof window !== "undefined" ? window : typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : {};
     function getDefaultExportFromCjs(x2) {
       return x2 && x2.__esModule && Object.prototype.hasOwnProperty.call(x2, "default") ? x2["default"] : x2;
-    }
-    function getAugmentedNamespace(n) {
-      if (n.__esModule) return n;
-      var f = n.default;
-      if (typeof f == "function") {
-        var a = function a2() {
-          if (this instanceof a2) {
-            return Reflect.construct(f, arguments, this.constructor);
-          }
-          return f.apply(this, arguments);
-        };
-        a.prototype = f.prototype;
-      } else a = {};
-      Object.defineProperty(a, "__esModule", { value: true });
-      Object.keys(n).forEach(function(k) {
-        var d = Object.getOwnPropertyDescriptor(n, k);
-        Object.defineProperty(a, k, d.get ? d : {
-          enumerable: true,
-          get: function() {
-            return n[k];
-          }
-        });
-      });
-      return a;
     }
     var jsxRuntime = { exports: {} };
     var reactJsxRuntime_production = {};
@@ -403,7 +360,7 @@ var require_assets = __commonJS({
       scheduler.exports = scheduler_production;
     }
     var schedulerExports = scheduler.exports;
-    var react$1 = { exports: {} };
+    var react = { exports: {} };
     var react_production = {};
     /**
      * @license React
@@ -831,15 +788,10 @@ var require_assets = __commonJS({
     };
     react_production.version = "19.0.0";
     {
-      react$1.exports = react_production;
+      react.exports = react_production;
     }
-    var reactExports = react$1.exports;
+    var reactExports = react.exports;
     const React$2 = /* @__PURE__ */ getDefaultExportFromCjs(reactExports);
-    const react = /* @__PURE__ */ _mergeNamespaces({
-      __proto__: null,
-      default: React$2
-    }, [reactExports]);
-    const require$$1 = /* @__PURE__ */ getAugmentedNamespace(react);
     var reactDom = { exports: {} };
     var reactDom_production = {};
     /**
@@ -851,7 +803,7 @@ var require_assets = __commonJS({
      * This source code is licensed under the MIT license found in the
      * LICENSE file in the root directory of this source tree.
      */
-    var React$1 = require$$1;
+    var React$1 = reactExports;
     function formatProdErrorMessage$1(code2) {
       var url = "https://react.dev/errors/" + code2;
       if (1 < arguments.length) {
@@ -1017,7 +969,7 @@ var require_assets = __commonJS({
      * This source code is licensed under the MIT license found in the
      * LICENSE file in the root directory of this source tree.
      */
-    var Scheduler = schedulerExports, React = require$$1, ReactDOM = reactDomExports;
+    var Scheduler = schedulerExports, React = reactExports, ReactDOM = reactDomExports;
     function formatProdErrorMessage(code2) {
       var url = "https://react.dev/errors/" + code2;
       if (1 < arguments.length) {
@@ -64759,6 +64711,13 @@ ${events}
           return { ...state, logHeaders: action.payload };
         case "SET_HEADERS_LOADING":
           return { ...state, headersLoading: action.payload };
+        case "SET_SELECTED_LOG_INDEX":
+          return { ...state, selectedLogIndex: action.payload };
+        case "UPDATE_LOG_HEADERS":
+          return {
+            ...state,
+            logHeaders: { ...state.logHeaders, ...action.payload }
+          };
         default:
           return state;
       }
@@ -64766,7 +64725,8 @@ ${events}
     const LogsContext = reactExports.createContext(void 0);
     const LogsProvider = ({
       children: children2,
-      initialState: initialState2
+      initialState: initialState2,
+      api: api2
     }) => {
       const [state, dispatch] = reactExports.useReducer(
         logsReducer,
@@ -65430,16 +65390,10 @@ ${events}
       applicationState,
       saveApplicationState
     }) => {
-      var _a2, _b2, _c, _d, _e2, _f;
+      var _a2, _b2, _c, _d;
       const appContext = useAppContext();
       const logsContext = useLogsContext();
       const mainAppRef = reactExports.useRef(null);
-      const [logHeaders, setLogHeaders] = reactExports.useState(
-        ((_a2 = applicationState == null ? void 0 : applicationState.logs) == null ? void 0 : _a2.logHeaders) || {}
-      );
-      const [headersLoading, setHeadersLoading] = reactExports.useState(
-        ((_b2 = applicationState == null ? void 0 : applicationState.logs) == null ? void 0 : _b2.headersLoading) || false
-      );
       const [selectedLogIndex, setSelectedLogIndex] = reactExports.useState(
         (applicationState == null ? void 0 : applicationState.selectedLogIndex) !== void 0 ? applicationState.selectedLogIndex : -1
       );
@@ -65488,8 +65442,6 @@ ${events}
       const saveState = reactExports.useCallback(() => {
         const state = {
           selectedLogIndex,
-          logHeaders,
-          headersLoading,
           selectedLogSummary,
           selectedSampleIndex,
           selectedWorkspaceTab,
@@ -65513,8 +65465,6 @@ ${events}
         }
       }, [
         selectedLogIndex,
-        logHeaders,
-        headersLoading,
         selectedLogSummary,
         selectedSampleIndex,
         selectedWorkspaceTab,
@@ -65558,8 +65508,6 @@ ${events}
         saveStateRef.current();
       }, [
         selectedLogIndex,
-        logHeaders,
-        headersLoading,
         selectedLogSummary,
         selectedSampleIndex,
         selectedWorkspaceTab,
@@ -65909,7 +65857,10 @@ ${events}
       ]);
       reactExports.useEffect(() => {
         const loadHeaders = async () => {
-          setHeadersLoading(true);
+          logsContext.dispatch({
+            type: "SET_HEADERS_LOADING",
+            payload: true
+          });
           const chunkSize = 8;
           const fileLists = [];
           for (let i2 = 0; i2 < logsContext.state.logs.files.length; i2 += chunkSize) {
@@ -65919,13 +65870,14 @@ ${events}
           try {
             for (const fileList of fileLists) {
               const headers = await api2.get_log_headers(fileList);
-              setLogHeaders((prev) => {
-                const updatedHeaders = {};
-                headers.forEach((header2, index2) => {
-                  const logFile = fileList[index2];
-                  updatedHeaders[logFile] = header2;
-                });
-                return { ...prev, ...updatedHeaders };
+              const updatedHeaders = {};
+              headers.forEach((header2, index2) => {
+                const logFile = fileList[index2];
+                updatedHeaders[logFile] = header2;
+              });
+              logsContext.dispatch({
+                type: "UPDATE_LOG_HEADERS",
+                payload: updatedHeaders
               });
               if (headers.length === chunkSize) {
                 await sleep$1(5e3);
@@ -65945,15 +65897,13 @@ ${events}
               });
             }
           }
-          setHeadersLoading(false);
+          logsContext.dispatch({
+            type: "SET_HEADERS_LOADING",
+            payload: false
+          });
         };
         loadHeaders();
-      }, [
-        logsContext.state.logs,
-        appContext.dispatch,
-        setLogHeaders,
-        setHeadersLoading
-      ]);
+      }, [logsContext.state.logs, appContext.dispatch, logsContext.dispatch]);
       const resetWorkspace = reactExports.useCallback(
         (log2, sampleSummaries2) => {
           const hasSamples = sampleSummaries2.length > 0;
@@ -66052,18 +66002,18 @@ ${events}
           if (logContents) {
             const log2 = logContents;
             if (log2.status !== "started") {
-              setLogHeaders((prev) => {
-                const updatedState = { ...prev };
-                const freshHeaders = {
-                  eval: log2.eval,
-                  plan: log2.plan,
-                  results: log2.results !== null ? log2.results : void 0,
-                  stats: log2.stats,
-                  status: log2.status,
-                  version: log2.version
-                };
-                updatedState[targetLog.name] = freshHeaders;
-                return updatedState;
+              const headers = {};
+              headers[targetLog.name] = {
+                eval: log2.eval,
+                plan: log2.plan,
+                results: log2.results !== null ? log2.results : void 0,
+                stats: log2.stats,
+                status: log2.status,
+                version: log2.version
+              };
+              logsContext.dispatch({
+                type: "UPDATE_LOG_HEADERS",
+                payload: headers
               });
             }
             setSelectedLogSummary(log2);
@@ -66085,7 +66035,7 @@ ${events}
         selectedLogIndex,
         sampleSummaries,
         appContext.dispatch,
-        setLogHeaders
+        logsContext.dispatch
       ]);
       const showLogFile = reactExports.useCallback(
         async (logUrl) => {
@@ -66210,8 +66160,8 @@ ${events}
           Sidebar,
           {
             logs: logsContext.state.logs,
-            logHeaders,
-            loading: headersLoading,
+            logHeaders: logsContext.state.logHeaders,
+            loading: logsContext.state.headersLoading,
             selectedIndex: selectedLogIndex,
             onSelectedIndexChanged: (index2) => {
               setSelectedLogIndex(index2);
@@ -66251,8 +66201,8 @@ ${events}
               ) : /* @__PURE__ */ jsxRuntimeExports.jsx(
                 WorkSpace,
                 {
-                  task_id: (_c = selectedLogSummary == null ? void 0 : selectedLogSummary.eval) == null ? void 0 : _c.task_id,
-                  logFileName: (_d = logsContext.state.logs.files[selectedLogIndex]) == null ? void 0 : _d.name,
+                  task_id: (_a2 = selectedLogSummary == null ? void 0 : selectedLogSummary.eval) == null ? void 0 : _a2.task_id,
+                  logFileName: (_b2 = logsContext.state.logs.files[selectedLogIndex]) == null ? void 0 : _b2.name,
                   evalStatus: selectedLogSummary == null ? void 0 : selectedLogSummary.status,
                   evalError: filterNull(selectedLogSummary == null ? void 0 : selectedLogSummary.error),
                   evalVersion: selectedLogSummary == null ? void 0 : selectedLogSummary.version,
@@ -66282,7 +66232,7 @@ ${events}
                   setSelectedSampleTab,
                   sort,
                   setSort,
-                  epochs: (_f = (_e2 = selectedLogSummary == null ? void 0 : selectedLogSummary.eval) == null ? void 0 : _e2.config) == null ? void 0 : _f.epochs,
+                  epochs: (_d = (_c = selectedLogSummary == null ? void 0 : selectedLogSummary.eval) == null ? void 0 : _c.config) == null ? void 0 : _d.epochs,
                   epoch,
                   setEpoch,
                   filter,
@@ -66367,7 +66317,7 @@ ${events}
     }
     const root = clientExports.createRoot(container);
     root.render(
-      /* @__PURE__ */ jsxRuntimeExports.jsx(AppErrorBoundary, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(AppProvider, { capabilities, initialState, children: /* @__PURE__ */ jsxRuntimeExports.jsx(LogsProvider, { initialState, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+      /* @__PURE__ */ jsxRuntimeExports.jsx(AppErrorBoundary, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(AppProvider, { capabilities, initialState, children: /* @__PURE__ */ jsxRuntimeExports.jsx(LogsProvider, { initialState, api, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
         App,
         {
           api: resolvedApi,

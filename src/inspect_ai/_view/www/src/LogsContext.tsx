@@ -1,18 +1,20 @@
 import { createContext, useCallback, useContext, useReducer } from "react";
-import { EvalLogHeader, LogFiles } from "./api/types";
-import { AppState } from "./types";
+import { ClientAPI, EvalLogHeader, LogFiles } from "./api/types";
 
 // Define action types
 type LogsAction =
   | { type: "SET_LOGS"; payload: LogFiles }
   | { type: "SET_LOG_HEADERS"; payload: Record<string, EvalLogHeader> }
-  | { type: "SET_HEADERS_LOADING"; payload: boolean };
+  | { type: "SET_HEADERS_LOADING"; payload: boolean }
+  | { type: "SET_SELECTED_LOG_INDEX"; payload: number }
+  | { type: "UPDATE_LOG_HEADERS"; payload: Record<string, EvalLogHeader> };
 
 // Define the state shape
 export interface LogsState {
   logs: LogFiles;
   logHeaders: Record<string, EvalLogHeader>;
   headersLoading: boolean;
+  selectedLogIndex?: number;
 }
 
 // Initial state
@@ -31,6 +33,14 @@ const logsReducer = (state: LogsState, action: LogsAction): LogsState => {
       return { ...state, logHeaders: action.payload };
     case "SET_HEADERS_LOADING":
       return { ...state, headersLoading: action.payload };
+    case "SET_SELECTED_LOG_INDEX":
+      return { ...state, selectedLogIndex: action.payload };
+    case "UPDATE_LOG_HEADERS":
+      return {
+        ...state,
+        logHeaders: { ...state.logHeaders, ...action.payload },
+      };
+
     default:
       return state;
   }
@@ -46,13 +56,15 @@ export interface LogsContextType {
 const LogsContext = createContext<LogsContextType | undefined>(undefined);
 
 interface LogsProviderProps {
-  initialState?: { logs?: Partial<AppState> };
+  initialState?: { logs?: LogsState };
   children: React.ReactNode;
+  api: ClientAPI;
 }
 
 export const LogsProvider: React.FC<LogsProviderProps> = ({
   children,
   initialState,
+  api,
 }) => {
   const [state, dispatch] = useReducer(
     logsReducer,
