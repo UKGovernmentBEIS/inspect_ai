@@ -555,6 +555,12 @@ export const App: FC<AppProps> = ({
     refreshSelectedSample(selectedSampleIndex);
   }, [selectedSampleIndex, refreshSelectedSample]);
 
+  useEffect(() => {
+    if (sampleSummaries.length === 1) {
+      setSelectedSampleIndex(0);
+    }
+  }, [sampleSummaries]);
+
   // Load a specific log file
   const loadLog = useCallback(
     async (logFileName: string) => {
