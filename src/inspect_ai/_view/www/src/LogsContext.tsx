@@ -14,7 +14,7 @@ export interface LogsState {
   logs: LogFiles;
   logHeaders: Record<string, EvalLogHeader>;
   headersLoading: boolean;
-  selectedLogIndex?: number;
+  selectedLogIndex: number;
 }
 
 // Initial state
@@ -22,6 +22,7 @@ const initialLogsState: LogsState = {
   logs: { log_dir: "", files: [] },
   logHeaders: {},
   headersLoading: false,
+  selectedLogIndex: -1,
 };
 
 // Reducer function
