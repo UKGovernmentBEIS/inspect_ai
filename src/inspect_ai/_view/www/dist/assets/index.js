@@ -13941,9 +13941,8 @@ var require_assets = __commonJS({
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "error-panel-body", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
           "Error: ",
           message2 || "",
-          "$",
           stack2 && error2.displayStack !== false && /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: "error-panel-stack", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("code", { children: [
-            "at $",
+            "at ",
             stack2
           ] }) })
         ] }) })
