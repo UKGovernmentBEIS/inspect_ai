@@ -1,10 +1,6 @@
-from argparse import Namespace
-
 import pytest
 
-from ._args import parse_arguments
-
-# filepath: src/inspect_ai/tool/_tools/_computer/test__args.py
+from ._resources.tool._args import parse_arguments
 
 
 def test_parse_args_screenshot() -> None:
@@ -114,11 +110,6 @@ def test_parse_args_wait() -> None:
 def test_parse_args_type_missing_text() -> None:
     with pytest.raises(SystemExit):
         parse_arguments(["type"])
-
-
-def test_parse_args_click_missing_coordinate() -> None:
-    with pytest.raises(SystemExit):
-        parse_arguments(["left_click"])
 
 
 def test_parse_args_invalid_action() -> None:

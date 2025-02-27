@@ -225,8 +225,7 @@ class AnthropicAPI(ModelAPI):
             # extra headers (for time tracker and computer use)
             extra_headers = headers | {HttpxTimeTracker.REQUEST_ID_HEADER: request_id}
             if computer_use:
-                if self.is_claude_3_7():
-                    betas.append("computer-use-2025-01-24")
+                betas.append("computer-use-2025-01-24")
             if len(betas) > 0:
                 extra_headers["anthropic-beta"] = ",".join(betas)
 
