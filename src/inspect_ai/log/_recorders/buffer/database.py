@@ -234,6 +234,7 @@ class SampleBufferDatabase(SampleBuffer):
     def running_tasks(cls, log_dir: str) -> list[str] | None:
         log_subdir = log_dir_hash(log_dir)
         db_dir = resolve_db_dir() / log_subdir
+
         if db_dir.exists():
             logs = [log.name.rsplit(".", 2)[0] for log in db_dir.glob("*.*.db")]
             return logs

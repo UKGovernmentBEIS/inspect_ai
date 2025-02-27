@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import tempfile
 from contextlib import contextmanager
 from pathlib import Path
@@ -40,7 +41,7 @@ def get_samples(db: SampleBufferDatabase) -> Samples:
 def test_database_initialization(db: SampleBufferDatabase) -> None:
     """Test that the database is properly initialized."""
     assert os.path.exists(db.db_path)
-    assert db.location == "test_location"
+    assert bool(re.search(r"test_location\.\d+\.db$", db.db_path.as_posix()))
 
 
 def test_start_sample(db: SampleBufferDatabase, sample: SampleSummary) -> None:
@@ -507,5 +508,6 @@ def test_running_tasks():
                 test_fs.cleanup()
 
         with test_sample_buffers("test1"), test_sample_buffers("test2"):
-            assert len(SampleBufferDatabase.running_tasks(log_dir)) == 2
+            log_uri = Path(log_dir).absolute().as_uri()
+            assert len(SampleBufferDatabase.running_tasks(log_uri)) == 2
             assert len(SampleBufferFilestore.running_tasks(log_dir)) == 2
