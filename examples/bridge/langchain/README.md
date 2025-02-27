@@ -15,7 +15,7 @@ To run the example, first, be sure you have a [Tavili](https://tavily.com/) acco
 Then, install the following LangChain packages:
 
 ``` python
-pip install langchain-core langchain-openai langchain-community langgraph
+pip install langchain-core langchain-openai langchain-community langgraph langgraph-prebuilt
 ```
 
 Now you should be able to run the example as follows against various models:
