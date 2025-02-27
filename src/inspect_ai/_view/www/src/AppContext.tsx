@@ -1,4 +1,11 @@
-import React, { createContext, ReactNode, useContext, useReducer } from "react";
+import {
+  createContext,
+  Dispatch,
+  FC,
+  ReactNode,
+  useContext,
+  useReducer,
+} from "react";
 import { Capabilities } from "./api/types";
 import { AppState, AppStatus } from "./types";
 import { clearDocumentSelection } from "./utils/browser";
@@ -37,7 +44,7 @@ function appReducer(state: AppState, action: AppAction): AppState {
 // Create the context
 interface AppContextType {
   state: AppState;
-  dispatch: React.Dispatch<AppAction>;
+  dispatch: Dispatch<AppAction>;
   capabilities: Capabilities;
   getState: () => { app: AppState };
 }
@@ -51,7 +58,7 @@ interface AppProviderProps {
   initialState?: { app?: Partial<AppState> };
 }
 
-export const AppProvider: React.FC<AppProviderProps> = ({
+export const AppProvider: FC<AppProviderProps> = ({
   children,
   capabilities,
   initialState,
