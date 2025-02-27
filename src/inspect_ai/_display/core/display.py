@@ -6,7 +6,6 @@ from typing import (
     AsyncIterator,
     Coroutine,
     Iterator,
-    Optional,
     Protocol,
     Type,
     TypeVar,
