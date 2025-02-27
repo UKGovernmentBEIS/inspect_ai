@@ -5,10 +5,13 @@ import {
   ReactNode,
   useCallback,
   useContext,
+  useEffect,
+  useMemo,
   useReducer,
 } from "react";
 import { ClientAPI, EvalLogHeader, LogFiles } from "./api/types";
 import { useAppContext } from "./AppContext";
+import { sleep } from "./utils/sync";
 
 // Define action types
 type LogsAction =
@@ -72,6 +75,7 @@ export interface LogsContextType {
   dispatch: Dispatch<LogsAction>;
   refreshLogs: () => Promise<void>;
   selectLogFile: (logUrl: string) => Promise<void>;
+  selectedLogFile?: string;
   getState: () => { logs: LogsState };
 }
 
@@ -174,9 +178,89 @@ export const LogsProvider: FC<LogsProviderProps> = ({
     [state.logs, dispatch],
   );
 
+  const selectedLogFile = useMemo(() => {
+    const file = state.logs.files[state.selectedLogIndex];
+    if (file !== undefined) {
+      return file.name;
+    } else {
+      return undefined;
+    }
+  }, [state.logs, state.selectedLogIndex]);
+
+  // Read header information for the logs
+  // and then update
+  useEffect(() => {
+    const loadHeaders = async () => {
+      dispatch({
+        type: "SET_HEADERS_LOADING",
+        payload: true,
+      });
+
+      // Group into chunks
+      const chunkSize = 8;
+      const fileLists = [];
+      for (let i = 0; i < state.logs.files.length; i += chunkSize) {
+        let chunk = state.logs.files
+          .slice(i, i + chunkSize)
+          .map((log) => log.name);
+        fileLists.push(chunk);
+      }
+
+      // Chunk by chunk, read the header information
+      try {
+        for (const fileList of fileLists) {
+          const headers = await api.get_log_headers(fileList);
+          const updatedHeaders: Record<string, EvalLogHeader> = {};
+          headers.forEach((header, index) => {
+            const logFile = fileList[index];
+            updatedHeaders[logFile] = header as EvalLogHeader;
+          });
+          dispatch({
+            type: "UPDATE_LOG_HEADERS",
+            payload: updatedHeaders,
+          });
+
+          if (headers.length === chunkSize) {
+            await sleep(5000); // Pause between chunks
+          }
+        }
+      } catch (e: unknown) {
+        if (
+          e instanceof Error &&
+          (e.message === "Load failed" || e.message === "Failed to fetch")
+        ) {
+          // This will happen if the server disappears (e.g. inspect view is terminated)
+          appContext.dispatch({
+            type: "SET_STATUS",
+            payload: { loading: false },
+          });
+        } else {
+          console.log(e);
+          appContext.dispatch({
+            type: "SET_STATUS",
+            payload: { loading: false, error: e as Error },
+          });
+        }
+      }
+      dispatch({
+        type: "SET_HEADERS_LOADING",
+        payload: false,
+      });
+    };
+
+    loadHeaders();
+  }, [state.logs, appContext.dispatch, dispatch]);
+
   return (
     <LogsContext.Provider
-      value={{ state, dispatch, refreshLogs, getState, selectLogFile }}
+      value={{
+        state,
+        dispatch,
+        refreshLogs,
+        getState,
+        selectLogFile,
+        selectedLogFile,
+      }}
     >
       {children}
     </LogsContext.Provider>

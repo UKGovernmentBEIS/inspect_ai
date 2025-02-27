@@ -1,4 +1,5 @@
 import { EvalSummary, SampleSummary } from "./api/types";
+import { LogState } from "./LogContext";
 import { LogsState } from "./LogsContext";
 import { ContentImage, ContentText, EvalSample, Events } from "./types/log";
 
@@ -11,19 +12,8 @@ export interface AppState {
 
 export interface ApplicationState {
   logs: LogsState;
+  log: LogState;
 
-  // Log Context
-  selectedLogIndex?: number;
-  selectedLogFile?: string;
-  selectedLogSummary?: EvalSummary;
-  filteredSamples?: SampleSummary[];
-  filter?: ScoreFilter;
-  epoch?: string;
-  sort?: string;
-  scores?: ScoreLabel[];
-  score?: ScoreLabel;
-  groupBy?: "none" | "epoch" | "sample";
-  groupByOrder?: "asc" | "desc";
   selectedWorkspaceTab?: string;
   workspaceTabScrollPosition?: Record<string, number>;
 
