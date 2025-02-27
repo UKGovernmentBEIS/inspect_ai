@@ -123,6 +123,7 @@ export type OutputTokens = number;
 export type TotalTokens = number;
 export type InputTokensCacheWrite = number | null;
 export type InputTokensCacheRead = number | null;
+export type ReasoningTokens1 = number | null;
 export type Message = string;
 export type Traceback = string;
 export type TracebackAnsi = string;
@@ -736,6 +737,7 @@ export interface ModelUsage1 {
   total_tokens: TotalTokens;
   input_tokens_cache_write: InputTokensCacheWrite;
   input_tokens_cache_read: InputTokensCacheRead;
+  reasoning_tokens: ReasoningTokens1;
 }
 /**
  * Eval error details.

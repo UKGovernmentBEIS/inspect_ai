@@ -811,12 +811,14 @@ pre[class*="language-"].tool-output,
   background-color: #f8f8f8;
 }
 
+.vscode-dark .model-call pre[class*="language-"],
 .vscode-dark .markdown-content pre[class*="language-"],
 .vscode-dark pre[class*="language-"].tool-output,
 .vscode-dark .tool-output {
   background-color: #333333;
 }
 
+.model-call pre[class*="language-"],
 .markdown-content pre[class*="language-"],
 pre[class*="language-"].tool-output {
   border: none !important;

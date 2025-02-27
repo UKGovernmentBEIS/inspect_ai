@@ -16,6 +16,9 @@
 - Bugfix: Catch standard `TimeoutError` for running shell commands in the computer tool container.
 - Inspect View: Fix layout issues with human agent terminal session playback.
 - Inspect View: Improve tool input / output appearance when rendered in VSCode.
+- Inspect View: Display reasoning tokens in model usage for the samples and for the complete eval.
+- Inspect View: Improve model api request / response output when rendere in VSCode.
+- Inspect View: Improve rendering of some tool calls in the transcript.
 - Bugfix: Fix audio and video inputs for new Google GenAI client.
 - Bugfix: Ensure that token limits are not enforced during model graded scoring.
 
