@@ -54,3 +54,15 @@ def display_type() -> DisplayType:
 def display_type_initialized() -> bool:
     global _display_type
     return _display_type is not None
+
+
+def display_counter(caption: str, value: str) -> None:
+    """Display a counter in the UI.
+
+    Args:
+        caption (str): The counter's caption e.g. "HTTP rate limits".
+        value (str): The counter's value e.g. "42".
+    """
+    from inspect_ai._display.core.active import display
+
+    display().display_counter(caption, value)

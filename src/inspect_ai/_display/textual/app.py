@@ -89,6 +89,7 @@ class TaskScreenApp(App[TR]):
         self._total_tasks = 0
         self._parallel = False
         self._tasks: list[TaskWithResult] = []
+        self._counters: dict[str, str] = {}
 
         # all tasks processed by app
         self._app_tasks: list[TaskWithResult] = []
@@ -302,7 +303,7 @@ class TaskScreenApp(App[TR]):
         samples_view.set_samples(active_and_started_samples)
 
     def update_footer(self) -> None:
-        left, right = task_footer()
+        left, right = task_footer(self._counters)
         footer = self.query_one(AppFooter)
         footer.left = left
         footer.right = right
@@ -376,6 +377,10 @@ class TaskScreenApp(App[TR]):
                 return None
         except NoMatches:
             return None
+
+    def display_counter(self, caption: str, value: str) -> None:
+        self._counters[caption] = value
+        self.update_footer()
 
     class InputPanelHost(InputPanel.Host):
         def __init__(self, app: "TaskScreenApp[TR]", tab_id: str) -> None:

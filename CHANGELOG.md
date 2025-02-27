@@ -14,6 +14,7 @@
 - Human Agent: Don't emit sandbox events for human agent
 - Inspect View: Improve rendering of JSON within logging events.
 - Inspect View: Improve virtualized rendering of Sample List, Sample Transcript, and Sample Messages.
+- Task Display: Let plugins display counters ('rich' and 'full' display modes only).
 - Inspect View: Fix layout issues with human agent terminal session playback.
 - Inspect View: Improve tool input / output appearance when rendered in VSCode.
 - Inspect View: Display reasoning tokens in model usage for the samples and for the complete eval.

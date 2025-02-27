@@ -22,7 +22,7 @@ from ..core.display import (
     TaskSpec,
     TaskWithResult,
 )
-from ..core.footer import task_http_rate_limits
+from ..core.footer import task_http_rate_limits_str
 from ..core.panel import task_panel, task_targets
 from ..core.results import task_metric, tasks_results
 
@@ -88,6 +88,10 @@ class PlainDisplay(Display):
             show_task_names=self.multiple_task_names,
             show_model_names=self.multiple_model_names,
         )
+
+    def display_counter(self, caption: str, value: str) -> None:
+        # Not supported for plain display as counters are only shown for tasks.
+        pass
 
     def _print_results(self) -> None:
         """Print final results using rich panels"""
@@ -178,7 +182,7 @@ class PlainTaskDisplay(TaskDisplay):
             status_parts.append(resources)
 
             # Add rate limits
-            rate_limits = task_http_rate_limits()
+            rate_limits = task_http_rate_limits_str()
             if rate_limits:
                 status_parts.append(rate_limits)
 

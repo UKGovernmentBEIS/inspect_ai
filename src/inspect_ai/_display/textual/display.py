@@ -72,3 +72,7 @@ class TextualDisplay(Display):
     def task(self, profile: TaskProfile) -> Iterator[TaskDisplay]:
         with self.app.task_display(profile) as task_display:
             yield task_display
+
+    @override
+    def display_counter(self, caption: str, value: str) -> None:
+        self.app.display_counter(caption, value)
