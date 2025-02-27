@@ -22,6 +22,7 @@ import { TranscriptEventState } from "./types";
 
 import { highlightElement } from "prismjs";
 import styles from "./ModelEventView.module.css";
+import { EventTimingPanel } from "./event/EventTimingPanel";
 import { formatTiming } from "./event/utils";
 
 interface ModelEventViewProps {
@@ -111,6 +112,15 @@ export const ModelEventView: FC<ModelEventViewProps> = ({
             {event.output.usage !== null ? (
               <ModelUsagePanel usage={event.output.usage} />
             ) : undefined}
+          </EventSection>
+
+          <EventSection title="Timing" className={styles.tableSelection}>
+            <EventTimingPanel
+              timestamp={event.timestamp}
+              completed={event.completed}
+              working_start={event.working_start}
+              working_time={event.working_time}
+            />
           </EventSection>
 
           <EventSection
