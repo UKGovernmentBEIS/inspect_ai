@@ -118,7 +118,7 @@ def transcript_reasoning(reasoning: ContentReasoning) -> list[RenderableType]:
     text = (
         reasoning.reasoning
         if not reasoning.redacted
-        else "Reasoning encrypted for safety reasons."
+        else "Reasoning encrypted by model provider."
     )
 
     content.append(

@@ -21455,7 +21455,7 @@ var require_assets = __commonJS({
             /* @__PURE__ */ jsxRuntimeExports.jsx(ExpandablePanel, { collapse: true, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
               MarkdownDiv,
               {
-                markdown: r2.redacted ? "Reasoning encrypted for safety reasons." : r2.reasoning
+                markdown: r2.redacted ? "Reasoning encrypted by model provider." : r2.reasoning
               }
             ) })
           ] }, key2);
