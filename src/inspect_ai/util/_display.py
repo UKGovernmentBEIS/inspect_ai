@@ -59,9 +59,17 @@ def display_type_initialized() -> bool:
 def display_counter(caption: str, value: str) -> None:
     """Display a counter in the UI.
 
+    ::: {.callout-note appearance="simple"}
+    The `display_counter()` function is currently available only in the development version of Inspect. To install the development version from GitHub:
+
+    ``` bash
+    pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+    ```
+    :::
+
     Args:
-        caption (str): The counter's caption e.g. "HTTP rate limits".
-        value (str): The counter's value e.g. "42".
+        caption: The counter's caption e.g. "HTTP rate limits".
+        value: The counter's value e.g. "42".
     """
     from inspect_ai._display.core.active import display
 

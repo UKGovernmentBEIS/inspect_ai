@@ -393,6 +393,8 @@ website:
           href: reference/inspect_ai.util.qmd#subprocess
         - text: ExecResult
           href: reference/inspect_ai.util.qmd#execresult
+        - text: display_counter
+          href: reference/inspect_ai.util.qmd#display_counter
         - text: display_type
           href: reference/inspect_ai.util.qmd#display_type
         - text: DisplayType
