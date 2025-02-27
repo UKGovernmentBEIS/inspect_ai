@@ -252,7 +252,7 @@ class GoogleGenAIAPI(ModelAPI):
         return output, model_call()
 
     @override
-    def shoudl_retry(self, ex: BaseException) -> bool:
+    def should_retry(self, ex: BaseException) -> bool:
         # see https://cloud.google.com/storage/docs/retry-strategy
         return isinstance(ex, APIError) and (
             ex.code in (408, 429, 429) or ex.code >= 500
