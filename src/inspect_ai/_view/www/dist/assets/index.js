@@ -14273,7 +14273,7 @@ var require_assets = __commonJS({
       if (seconds < 60) {
         return `${formatPrettyDecimal(seconds, 1)} sec`;
       } else if (seconds < 60 * 60) {
-        return `${Math.floor(seconds / 60)} min ${seconds % 60} sec`;
+        return `${Math.floor(seconds / 60)} min ${Math.floor(seconds % 60)} sec`;
       } else if (seconds < 60 * 60 * 24) {
         const hours = Math.floor(seconds / (60 * 60));
         const minutes = Math.floor(seconds % (60 * 60) / 60);
@@ -14428,12 +14428,12 @@ var require_assets = __commonJS({
       }
     };
     const container$c = "_container_w37fs_1";
-    const padded$1 = "_padded_w37fs_8";
+    const padded$2 = "_padded_w37fs_8";
     const key$1 = "_key_w37fs_12";
     const value$1 = "_value_w37fs_16";
     const styles$15 = {
       container: container$c,
-      padded: padded$1,
+      padded: padded$2,
       key: key$1,
       value: value$1
     };
@@ -21653,6 +21653,7 @@ var require_assets = __commonJS({
       }
       const collapse = Array.isArray(output2) ? output2.every((item2) => !isContentImage(item2)) : !isContentImage(output2);
       const normalizedContent = reactExports.useMemo(() => normalizeContent$1(output2), [output2]);
+      const contents2 = mode !== "compact" ? input2 : input2 || functionCall;
       return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
         mode !== "compact" && (!view || view.title) ? /* @__PURE__ */ jsxRuntimeExports.jsx(ToolTitle, { title: (view == null ? void 0 : view.title) || functionCall }) : "",
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
@@ -21660,7 +21661,7 @@ var require_assets = __commonJS({
             ToolInput,
             {
               highlightLanguage,
-              contents: input2,
+              contents: contents2,
               toolCallView: view
             }
           ),
@@ -49722,29 +49723,44 @@ self.onmessage = function (e) {
         }
       );
     };
-    const wrapper$3 = "_wrapper_b0it4_1";
-    const col2$2 = "_col2_b0it4_8";
-    const col1_3$1 = "_col1_3_b0it4_12";
-    const col3$1 = "_col3_b0it4_16";
-    const separator$3 = "_separator_b0it4_20";
+    const wrapper$3 = "_wrapper_sq96g_1";
+    const col2$2 = "_col2_sq96g_8";
+    const col1_3$1 = "_col1_3_sq96g_12";
+    const col3$1 = "_col3_sq96g_16";
+    const separator$3 = "_separator_sq96g_20";
+    const padded$1 = "_padded_sq96g_26";
     const styles$H = {
       wrapper: wrapper$3,
       col2: col2$2,
       col1_3: col1_3$1,
       col3: col3$1,
-      separator: separator$3
+      separator: separator$3,
+      padded: padded$1
     };
     const ModelUsagePanel = ({ usage }) => {
       if (!usage) {
         return null;
       }
-      const rows = [
-        {
-          label: "input",
-          value: usage.input_tokens,
-          secondary: false
-        }
-      ];
+      const rows = [];
+      if (usage.reasoning_tokens) {
+        rows.push({
+          label: "Reasoning",
+          value: usage.reasoning_tokens,
+          secondary: false,
+          bordered: true
+        });
+        rows.push({
+          label: "---",
+          value: void 0,
+          secondary: false,
+          padded: true
+        });
+      }
+      rows.push({
+        label: "input",
+        value: usage.input_tokens,
+        secondary: false
+      });
       if (usage.input_tokens_cache_read) {
         rows.push({
           label: "cache_read",
@@ -49777,7 +49793,16 @@ self.onmessage = function (e) {
       });
       return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-small", styles$H.wrapper), children: rows.map((row2, idx) => {
         if (row2.label === "---") {
-          return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$H.separator }, `$usage-sep-${idx}`);
+          return /* @__PURE__ */ jsxRuntimeExports.jsx(
+            "div",
+            {
+              className: clsx(
+                styles$H.separator,
+                row2.padded ? styles$H.padded : void 0
+              )
+            },
+            `$usage-sep-${idx}`
+          );
         } else {
           return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
             /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -49882,14 +49907,7 @@ self.onmessage = function (e) {
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(TokenTable, { className: className2, children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx(TokenHeader, {}),
         /* @__PURE__ */ jsxRuntimeExports.jsx("tbody", { children: Object.keys(model_usage).map((key2) => {
-          return /* @__PURE__ */ jsxRuntimeExports.jsx(
-            TokenRow,
-            {
-              model: `${key2}-token-row`,
-              usage: model_usage[key2]
-            },
-            key2
-          );
+          return /* @__PURE__ */ jsxRuntimeExports.jsx(TokenRow, { model: key2, usage: model_usage[key2] }, key2);
         }) })
       ] });
     };
@@ -53876,7 +53894,7 @@ At working time: ${formatTime$1(working_start)}`;
       if (!contents2) {
         return null;
       }
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: styles$u.codePre, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("model-call"), children: /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: clsx(styles$u.codePre), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
         "code",
         {
           id,

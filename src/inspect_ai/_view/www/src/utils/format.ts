@@ -79,7 +79,7 @@ export const formatTime = (seconds: number): string => {
   if (seconds < 60) {
     return `${formatPrettyDecimal(seconds, 1)} sec`;
   } else if (seconds < 60 * 60) {
-    return `${Math.floor(seconds / 60)} min ${seconds % 60} sec`;
+    return `${Math.floor(seconds / 60)} min ${Math.floor(seconds % 60)} sec`;
   } else if (seconds < 60 * 60 * 24) {
     const hours = Math.floor(seconds / (60 * 60));
     const minutes = Math.floor((seconds % (60 * 60)) / 60);
