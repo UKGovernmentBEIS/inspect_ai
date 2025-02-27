@@ -535,8 +535,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">--reasoning-tokens</span> 4096</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section id="tokens" class="level4">
 <h4 class="anchored" data-anchor-id="tokens">Tokens</h4>
-<p>You should limit the total output tokens (<code>max_tokens</code> + <code>reasoning_tokens</code>) to no more than 21,333 tokens (as the streaming API is required above that—this will soon be supported in Inspect but is not currently). Even with streaming, a maximum of 32,000 is recommended (above that they advise using batch mode).</p>
-<p>Inspect’s default <code>max_tokens</code> for Anthropic is 4096, so with that default you would want to keep <code>reasoning_tokens</code> to no more than 17,237.</p>
+<p>The <code>max_tokens</code> for any given request is determined as follows:</p>
+<ol type="1">
+<li>If you only specify <code>reasoning_tokens</code>, then the <code>max_tokens</code> will be set to <code>4096 + reasoning_tokens</code> (as 4096 is the standard Inspect default for Anthropic max tokens).</li>
+<li>If you explicitly specify a <code>max_tokens</code>, that value will be used as the max tokens without modification (so should accomodate sufficient space for both your <code>reasoning_tokens</code> and normal output).</li>
+</ol>
+<p>Inspect will automatically use <a href="https://docs.anthropic.com/en/api/messages-streaming">response streaming</a> whenever extended thinking is enabled to mitigate against networking issue that can occur for long running requests.</p>
 </section>
 <section id="history" class="level4">
 <h4 class="anchored" data-anchor-id="history">History</h4>

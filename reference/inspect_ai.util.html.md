@@ -21,6 +21,8 @@
 
 ## Display
 
+### display_counter
+
 ### display_type
 
 ### DisplayType
