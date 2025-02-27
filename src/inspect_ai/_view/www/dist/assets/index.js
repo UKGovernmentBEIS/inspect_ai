@@ -53750,6 +53750,17 @@ At working time: ${formatTime$1(working_start)}`;
         return formatDateTime(new Date(timestamp));
       }
     };
+    const formatTitle = (title2, total_tokens, working_start) => {
+      const subItems = [];
+      if (total_tokens) {
+        subItems.push(`${formatNumber(total_tokens)} tokens`);
+      }
+      if (working_start) {
+        subItems.push(`${formatTime$1(working_start)}`);
+      }
+      const subtitle = subItems.length > 0 ? ` (${subItems.join(", ")})` : "";
+      return `${title2}${subtitle}`;
+    };
     const ModelEventView = ({
       id,
       event,
@@ -53760,14 +53771,6 @@ At working time: ${formatTime$1(working_start)}`;
       var _a2, _b2;
       const totalUsage = (_a2 = event.output.usage) == null ? void 0 : _a2.total_tokens;
       const callTime = event.output.time;
-      const subItems = [];
-      if (totalUsage) {
-        subItems.push(`${formatNumber(totalUsage)} tokens`);
-      }
-      if (callTime) {
-        subItems.push(`${formatPrettyDecimal(callTime)} sec`);
-      }
-      const subtitle = subItems.length > 0 ? `(${subItems.join(", ")})` : "";
       const outputMessages = (_b2 = event.output.choices) == null ? void 0 : _b2.map((choice) => {
         return choice.message;
       });
@@ -53787,7 +53790,7 @@ At working time: ${formatTime$1(working_start)}`;
         {
           id,
           className: className2,
-          title: `Model Call: ${event.model} ${subtitle}`,
+          title: formatTitle(`Model Call: ${event.model}`, totalUsage, callTime),
           subTitle: formatTiming(event.timestamp, event.working_start),
           icon: ApplicationIcons.model,
           selectedNav: eventState.selectedNav || "",
@@ -61268,7 +61271,11 @@ ${events}
         {
           id,
           className: className2,
-          title: `${type}: ${event.name}`,
+          title: formatTitle(
+            `${type}: ${event.name}`,
+            void 0,
+            event.working_time
+          ),
           subTitle: formatTiming(event.timestamp, event.working_start),
           collapse: false,
           selectedNav: eventState.selectedNav || "",
@@ -61339,7 +61346,7 @@ ${events}
         EventPanel,
         {
           id,
-          title: title2,
+          title: formatTitle(title2, void 0, event.working_time),
           className: className2,
           subTitle: formatTiming(event.timestamp, event.working_start),
           icon: ApplicationIcons.solvers.use_tools,
