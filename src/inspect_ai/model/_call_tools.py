@@ -36,6 +36,7 @@ from inspect_ai._util.content import (
 from inspect_ai._util.format import format_function_call
 from inspect_ai._util.text import truncate_string_to_bytes
 from inspect_ai._util.trace import trace_action
+from inspect_ai._util.working import sample_waiting_time
 from inspect_ai.model._conversation import conversation_tool_mesage
 from inspect_ai.tool import Tool, ToolCall, ToolError, ToolInfo
 from inspect_ai.tool._tool import ToolApprovalError, ToolParsingError
@@ -180,6 +181,10 @@ async def call_tools(
             task = asyncio.create_task(call_tool_task(call))
 
             # create pending tool event and add it to the transcript
+            # (record the waiting time for the sample so we can compare
+            # it at the end to deduce total waiting time inside the tool
+            # call (in turn used to calculate working time)
+            waiting_time_start = sample_waiting_time()
             event = ToolEvent(
                 id=call.id,
                 function=call.function,
@@ -227,11 +232,13 @@ async def call_tools(
             conversation_tool_mesage(tool_message)
 
             # update the event with the results
+            waiting_time_end = sample_waiting_time()
             event._set_result(
                 result=result_event.result,
                 truncated=result_event.truncated,
                 error=result_event.error,
                 events=result_event.events,
+                waiting_time=waiting_time_end - waiting_time_start,
             )
 
         # return tool messages

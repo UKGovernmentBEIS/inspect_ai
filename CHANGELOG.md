@@ -10,15 +10,20 @@
 - OpenAI: Retry on rate limit requests with "Request too large".
 - OpenAI: Tolerate `None` for assistant content (can happen when there is a refusal).
 - Google: Retry requests on more HTTP status codes (selected 400 errors and all 500 errors). 
+- Event Log: Add `working_start` attribute to events and `completed` and `working_time` to model, tool, and subtask events.
 - Human Agent: Don't emit sandbox events for human agent
 - Inspect View: Improve rendering of JSON within logging events.
 - Inspect View: Improve virtualized rendering of Sample List, Sample Transcript, and Sample Messages.
-- Task Display: Let plugins display status counters ('rich' and 'full' display modes only).
-- Bugfix: Catch standard `TimeoutError` for running shell commands in the computer tool container.
+- Task Display: Let plugins display counters ('rich' and 'full' display modes only).
 - Inspect View: Fix layout issues with human agent terminal session playback.
 - Inspect View: Improve tool input / output appearance when rendered in VSCode.
+- Inspect View: Display reasoning tokens in model usage for the samples and for the complete eval.
+- Inspect View: Improve model api request / response output when rendere in VSCode.
+- Inspect View: Improve rendering of some tool calls in the transcript.
 - Bugfix: Fix audio and video inputs for new Google GenAI client.
 - Bugfix: Ensure that token limits are not enforced during model graded scoring.
+- Bugfix: Catch standard `TimeoutError` for running shell commands in the computer tool container.
+- Bugfix: Correct combination of consecutive string based user messages for Anthropic provider.
 
 ## v0.3.70 (25 February 2025)
 

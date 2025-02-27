@@ -13,6 +13,7 @@ interface ModelUsageRow {
   value?: number;
   secondary?: boolean;
   bordered?: boolean;
+  padded?: boolean;
 }
 
 /**
@@ -23,13 +24,29 @@ export const ModelUsagePanel: FC<ModelUsageProps> = ({ usage }) => {
     return null;
   }
 
-  const rows: ModelUsageRow[] = [
-    {
-      label: "input",
-      value: usage.input_tokens,
+  const rows: ModelUsageRow[] = [];
+
+  if (usage.reasoning_tokens) {
+    rows.push({
+      label: "Reasoning",
+      value: usage.reasoning_tokens,
       secondary: false,
-    },
-  ];
+      bordered: true,
+    });
+
+    rows.push({
+      label: "---",
+      value: undefined,
+      secondary: false,
+      padded: true,
+    });
+  }
+
+  rows.push({
+    label: "input",
+    value: usage.input_tokens,
+    secondary: false,
+  });
 
   if (usage.input_tokens_cache_read) {
     rows.push({
@@ -71,7 +88,13 @@ export const ModelUsagePanel: FC<ModelUsageProps> = ({ usage }) => {
       {rows.map((row, idx) => {
         if (row.label === "---") {
           return (
-            <div key={`$usage-sep-${idx}`} className={styles.separator}></div>
+            <div
+              key={`$usage-sep-${idx}`}
+              className={clsx(
+                styles.separator,
+                row.padded ? styles.padded : undefined,
+              )}
+            ></div>
           );
         } else {
           return (

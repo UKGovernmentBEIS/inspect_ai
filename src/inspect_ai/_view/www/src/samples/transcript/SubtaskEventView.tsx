@@ -2,9 +2,9 @@ import clsx from "clsx";
 import { FC, Fragment } from "react";
 import { ApplicationIcons } from "../../appearance/icons";
 import { MetaDataView } from "../../metadata/MetaDataView";
-import { Input2, Input4, Result1, SubtaskEvent } from "../../types/log";
-import { formatDateTime } from "../../utils/format";
+import { Input2, Input5, Result2, SubtaskEvent } from "../../types/log";
 import { EventPanel } from "./event/EventPanel";
+import { formatTiming, formatTitle } from "./event/utils";
 import styles from "./SubtaskEventView.module.css";
 import { TranscriptView } from "./TranscriptView";
 import { TranscriptEventState } from "./types";
@@ -73,8 +73,12 @@ export const SubtaskEventView: FC<SubtaskEventViewProps> = ({
     <EventPanel
       id={id}
       className={className}
-      title={`${type}: ${event.name}`}
-      subTitle={formatDateTime(new Date(event.timestamp))}
+      title={formatTitle(
+        `${type}: ${event.name}`,
+        undefined,
+        event.working_time,
+      )}
+      subTitle={formatTiming(event.timestamp, event.working_start)}
       collapse={false}
       selectedNav={eventState.selectedNav || ""}
       setSelectedNav={(selectedNav) => {
@@ -91,8 +95,8 @@ export const SubtaskEventView: FC<SubtaskEventViewProps> = ({
 };
 
 interface SubtaskSummaryProps {
-  input: Input2 | Input4;
-  result: Result1;
+  input: Input2 | Input5;
+  result: Result2;
 }
 /**
  * Renders the StateEventView component.

@@ -119,7 +119,7 @@ const messageRenderers: Record<string, MessageRenderer> = {
             <MarkdownDiv
               markdown={
                 r.redacted
-                  ? "Reasoning encrypted for safety reasons."
+                  ? "Reasoning encrypted by model provider."
                   : r.reasoning
               }
             />

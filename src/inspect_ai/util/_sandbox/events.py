@@ -1,5 +1,6 @@
 import contextlib
 import shlex
+from datetime import datetime
 from typing import Iterator, Literal, Type, Union, overload
 
 from pydantic import JsonValue
@@ -35,6 +36,9 @@ class SandboxEnvironmentProxy(SandboxEnvironment):
     ) -> ExecResult[str]:
         from inspect_ai.log._transcript import SandboxEvent, transcript
 
+        # started
+        timestamp = datetime.now()
+
         # make call
         result = await self._sandbox.exec(
             cmd, input, cwd, env, user, timeout, timeout_retry
@@ -56,6 +60,7 @@ class SandboxEnvironmentProxy(SandboxEnvironment):
         if self._events:
             transcript()._event(
                 SandboxEvent(
+                    timestamp=timestamp,
                     action="exec",
                     cmd=" ".join([shlex.quote(c) for c in cmd]),
                     input=content_display(input) if input is not None else None,
@@ -66,6 +71,7 @@ class SandboxEnvironmentProxy(SandboxEnvironment):
                         if result.stderr
                         else result.stdout
                     ),
+                    completed=datetime.now(),
                 )
             )
 
@@ -76,6 +82,8 @@ class SandboxEnvironmentProxy(SandboxEnvironment):
     async def write_file(self, file: str, contents: str | bytes) -> None:
         from inspect_ai.log._transcript import SandboxEvent, transcript
 
+        timestamp = datetime.now()
+
         # make call
         await self._sandbox.write_file(file, contents)
 
@@ -83,7 +91,11 @@ class SandboxEnvironmentProxy(SandboxEnvironment):
         if self._events:
             transcript()._event(
                 SandboxEvent(
-                    action="write_file", file=file, input=content_display(contents)
+                    timestamp=timestamp,
+                    action="write_file",
+                    file=file,
+                    input=content_display(contents),
+                    completed=datetime.now(),
                 )
             )
 
@@ -97,6 +109,8 @@ class SandboxEnvironmentProxy(SandboxEnvironment):
     async def read_file(self, file: str, text: bool = True) -> Union[str | bytes]:
         from inspect_ai.log._transcript import SandboxEvent, transcript
 
+        timestamp = datetime.now()
+
         # make call
         if text is True:
             output: str | bytes = await self._sandbox.read_file(file, True)
@@ -107,7 +121,11 @@ class SandboxEnvironmentProxy(SandboxEnvironment):
         if self._events:
             transcript()._event(
                 SandboxEvent(
-                    action="read_file", file=file, output=content_display(output)
+                    timestamp=timestamp,
+                    action="read_file",
+                    file=file,
+                    output=content_display(output),
+                    completed=datetime.now(),
                 )
             )
 

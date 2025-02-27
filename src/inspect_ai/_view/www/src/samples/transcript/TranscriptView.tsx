@@ -434,6 +434,7 @@ const fixupEventStream = (events: Events) => {
       type: null,
       name: "sample_init",
       pending: false,
+      working_start: 0,
     });
 
     fixedUp.splice(initEventIndex + 2, 0, {
@@ -443,6 +444,7 @@ const fixupEventStream = (events: Events) => {
       type: null,
       name: "sample_init",
       pending: false,
+      working_start: 0,
     });
   }
 

@@ -23,6 +23,6 @@
   background-color: var(--bs-light-border-subtle);
 }
 
-.padded {
-  margin-bottom: 1em;
+.topMargin {
+  margin-top: 1em;
 }
