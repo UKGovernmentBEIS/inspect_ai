@@ -53763,7 +53763,7 @@ self.onmessage = function (e) {
     const formatTiming = (timestamp, working_start) => {
       if (working_start) {
         return `${formatDateTime(new Date(timestamp))}
-At working time: ${formatTime$1(working_start)}`;
+@ working time: ${formatTime$1(working_start)}`;
       } else {
         return formatDateTime(new Date(timestamp));
       }
