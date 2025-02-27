@@ -1,6 +1,5 @@
 import { ApplicationIcons } from "../../appearance/icons";
 import { ToolEvent } from "../../types/log";
-import { formatDateTime } from "../../utils/format";
 import { resolveToolInput } from "../chat/tools/tool";
 import { ToolCallView } from "../chat/tools/ToolCallView";
 import { ApprovalEventView } from "./ApprovalEventView";
@@ -9,6 +8,7 @@ import { TranscriptView } from "./TranscriptView";
 import { TranscriptEventState } from "./types";
 
 import { FC, useMemo } from "react";
+import { formatTiming, formatTitle } from "./event/utils";
 import styles from "./ToolEventView.module.css";
 
 interface ToolEventViewProps {
@@ -46,9 +46,9 @@ export const ToolEventView: FC<ToolEventViewProps> = ({
   return (
     <EventPanel
       id={id}
-      title={title}
+      title={formatTitle(title, undefined, event.working_time)}
       className={className}
-      subTitle={formatDateTime(new Date(event.timestamp))}
+      subTitle={formatTiming(event.timestamp, event.working_start)}
       icon={ApplicationIcons.solvers.use_tools}
       selectedNav={eventState.selectedNav || ""}
       setSelectedNav={(selectedNav) => {

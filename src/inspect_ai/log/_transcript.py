@@ -8,7 +8,9 @@ from typing import (
     Iterator,
     Literal,
     Sequence,
+    Type,
     TypeAlias,
+    TypeVar,
     Union,
 )
 
@@ -17,6 +19,7 @@ from pydantic import BaseModel, ConfigDict, Field, JsonValue, field_serializer
 from inspect_ai._util.constants import SAMPLE_SUBTASK
 from inspect_ai._util.error import EvalError
 from inspect_ai._util.json import JsonChange, json_changes
+from inspect_ai._util.working import sample_working_time
 from inspect_ai.dataset._dataset import Sample
 from inspect_ai.log._message import LoggingMessage
 from inspect_ai.model._chat_message import ChatMessage
@@ -41,7 +44,10 @@ logger = getLogger(__name__)
 
 class BaseEvent(BaseModel):
     timestamp: datetime = Field(default_factory=datetime.now)
-    """Time at which event occurred."""
+    """Clock time at which event occurred."""
+
+    working_start: float = Field(default_factory=sample_working_time)
+    """Working time (within sample) at which the event occurred."""
 
     pending: bool | None = Field(default=None)
     """Is this event pending?"""
@@ -133,6 +139,18 @@ class ModelEvent(BaseEvent):
     call: ModelCall | None = Field(default=None)
     """Raw call made to model API."""
 
+    completed: datetime | None = Field(default=None)
+    """Time that model call completed (see `timestamp` for started)"""
+
+    working_time: float | None = Field(default=None)
+    """working time for model call that succeeded (i.e. was not retried)."""
+
+    @field_serializer("completed")
+    def serialize_completed(self, dt: datetime) -> str:
+        if dt is None:
+            return None
+        return dt.astimezone().isoformat()
+
 
 class ToolEvent(BaseEvent):
     """Call to a tool."""
@@ -167,18 +185,28 @@ class ToolEvent(BaseEvent):
     events: list["Event"] = Field(default_factory=list)
     """Transcript of events for tool."""
 
+    completed: datetime | None = Field(default=None)
+    """Time that tool call completed (see `timestamp` for started)"""
+
+    working_time: float | None = Field(default=None)
+    """Working time for tool call (i.e. time not spent waiting on semaphores)."""
+
     def _set_result(
         self,
         result: ToolResult,
         truncated: tuple[int, int] | None,
         error: ToolCallError | None,
         events: list["Event"],
+        waiting_time: float,
     ) -> None:
         self.result = result
         self.truncated = truncated
         self.error = error
         self.events = events
         self.pending = None
+        completed = datetime.now()
+        self.completed = completed
+        self.working_time = (completed - self.timestamp).total_seconds() - waiting_time
 
     # mechanism for operator to cancel the tool call
 
@@ -205,6 +233,10 @@ class ToolEvent(BaseEvent):
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
     """Required so that we can include '_task' as a member."""
+
+    @field_serializer("completed")
+    def serialize_completed(self, dt: datetime) -> str:
+        return dt.astimezone().isoformat()
 
 
 class SandboxEvent(BaseEvent):
@@ -233,6 +265,13 @@ class SandboxEvent(BaseEvent):
 
     output: str | None = Field(default=None)
     """Output (for exec and read_file). Truncated to 100 lines."""
+
+    completed: datetime | None = Field(default=None)
+    """Time that sandbox action completed (see `timestamp` for started)"""
+
+    @field_serializer("completed")
+    def serialize_completed(self, dt: datetime) -> str:
+        return dt.astimezone().isoformat()
 
 
 class ApprovalEvent(BaseEvent):
@@ -366,6 +405,16 @@ class SubtaskEvent(BaseEvent):
     events: list["Event"] = Field(default_factory=list)
     """Transcript of events for subtask."""
 
+    completed: datetime | None = Field(default=None)
+    """Time that subtask completed (see `timestamp` for started)"""
+
+    working_time: float | None = Field(default=None)
+    """Working time for subtask (i.e. time not spent waiting on semaphores or model retries)."""
+
+    @field_serializer("completed")
+    def serialize_completed(self, dt: datetime) -> str:
+        return dt.astimezone().isoformat()
+
 
 Event: TypeAlias = Union[
     SampleInitEvent
@@ -386,6 +435,8 @@ Event: TypeAlias = Union[
     | SubtaskEvent,
 ]
 """Event in a transcript."""
+
+ET = TypeVar("ET", bound=BaseEvent)
 
 
 class Transcript:
@@ -425,6 +476,12 @@ class Transcript:
     @property
     def events(self) -> Sequence[Event]:
         return self._events
+
+    def find_last_event(self, event_cls: Type[ET]) -> ET | None:
+        for event in reversed(self.events):
+            if isinstance(event, event_cls):
+                return event
+        return None
 
     def _event(self, event: Event) -> None:
         self._events.append(event)

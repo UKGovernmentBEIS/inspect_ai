@@ -8,6 +8,10 @@
           "title": "Timestamp",
           "type": "string"
         },
+        "working_start": {
+          "title": "Working Start",
+          "type": "number"
+        },
         "pending": {
           "anyOf": [
             {
@@ -85,6 +89,7 @@
       },
       "required": [
         "timestamp",
+        "working_start",
         "pending",
         "event",
         "message",
@@ -693,6 +698,10 @@
           "title": "Timestamp",
           "type": "string"
         },
+        "working_start": {
+          "title": "Working Start",
+          "type": "number"
+        },
         "pending": {
           "anyOf": [
             {
@@ -717,6 +726,7 @@
       },
       "required": [
         "timestamp",
+        "working_start",
         "pending",
         "event",
         "error"
@@ -2589,6 +2599,10 @@
           "title": "Timestamp",
           "type": "string"
         },
+        "working_start": {
+          "title": "Working Start",
+          "type": "number"
+        },
         "pending": {
           "anyOf": [
             {
@@ -2625,6 +2639,7 @@
       },
       "required": [
         "timestamp",
+        "working_start",
         "pending",
         "event",
         "source",
@@ -2641,6 +2656,10 @@
           "format": "date-time",
           "title": "Timestamp",
           "type": "string"
+        },
+        "working_start": {
+          "title": "Working Start",
+          "type": "number"
         },
         "pending": {
           "anyOf": [
@@ -2671,6 +2690,7 @@
       },
       "required": [
         "timestamp",
+        "working_start",
         "pending",
         "event",
         "input",
@@ -2740,6 +2760,10 @@
           "title": "Timestamp",
           "type": "string"
         },
+        "working_start": {
+          "title": "Working Start",
+          "type": "number"
+        },
         "pending": {
           "anyOf": [
             {
@@ -2764,6 +2788,7 @@
       },
       "required": [
         "timestamp",
+        "working_start",
         "pending",
         "event",
         "message"
@@ -2955,6 +2980,10 @@
           "title": "Timestamp",
           "type": "string"
         },
+        "working_start": {
+          "title": "Working Start",
+          "type": "number"
+        },
         "pending": {
           "anyOf": [
             {
@@ -3064,10 +3093,36 @@
             }
           ],
           "default": null
+        },
+        "completed": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Completed"
+        },
+        "working_time": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Working Time"
         }
       },
       "required": [
         "timestamp",
+        "working_start",
         "pending",
         "event",
         "model",
@@ -3078,7 +3133,9 @@
         "output",
         "error",
         "cache",
-        "call"
+        "call",
+        "completed",
+        "working_time"
       ],
       "title": "ModelEvent",
       "type": "object",
@@ -3373,6 +3430,10 @@
           "title": "Timestamp",
           "type": "string"
         },
+        "working_start": {
+          "title": "Working Start",
+          "type": "number"
+        },
         "pending": {
           "anyOf": [
             {
@@ -3400,6 +3461,7 @@
       },
       "required": [
         "timestamp",
+        "working_start",
         "pending",
         "event",
         "sample",
@@ -3416,6 +3478,10 @@
           "format": "date-time",
           "title": "Timestamp",
           "type": "string"
+        },
+        "working_start": {
+          "title": "Working Start",
+          "type": "number"
         },
         "pending": {
           "anyOf": [
@@ -3466,6 +3532,7 @@
       },
       "required": [
         "timestamp",
+        "working_start",
         "pending",
         "event",
         "type",
@@ -3509,6 +3576,10 @@
           "format": "date-time",
           "title": "Timestamp",
           "type": "string"
+        },
+        "working_start": {
+          "title": "Working Start",
+          "type": "number"
         },
         "pending": {
           "anyOf": [
@@ -3611,10 +3682,24 @@
           ],
           "default": null,
           "title": "Output"
+        },
+        "completed": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Completed"
         }
       },
       "required": [
         "timestamp",
+        "working_start",
         "pending",
         "event",
         "action",
@@ -3623,7 +3708,8 @@
         "file",
         "input",
         "result",
-        "output"
+        "output",
+        "completed"
       ],
       "title": "SandboxEvent",
       "type": "object",
@@ -3745,6 +3831,10 @@
           "title": "Timestamp",
           "type": "string"
         },
+        "working_start": {
+          "title": "Working Start",
+          "type": "number"
+        },
         "pending": {
           "anyOf": [
             {
@@ -3792,6 +3882,7 @@
       },
       "required": [
         "timestamp",
+        "working_start",
         "pending",
         "event",
         "score",
@@ -3809,6 +3900,10 @@
           "format": "date-time",
           "title": "Timestamp",
           "type": "string"
+        },
+        "working_start": {
+          "title": "Working Start",
+          "type": "number"
         },
         "pending": {
           "anyOf": [
@@ -3838,6 +3933,7 @@
       },
       "required": [
         "timestamp",
+        "working_start",
         "pending",
         "event",
         "changes"
@@ -3853,6 +3949,10 @@
           "format": "date-time",
           "title": "Timestamp",
           "type": "string"
+        },
+        "working_start": {
+          "title": "Working Start",
+          "type": "number"
         },
         "pending": {
           "anyOf": [
@@ -3899,6 +3999,7 @@
       },
       "required": [
         "timestamp",
+        "working_start",
         "pending",
         "event",
         "action",
@@ -3916,6 +4017,10 @@
           "format": "date-time",
           "title": "Timestamp",
           "type": "string"
+        },
+        "working_start": {
+          "title": "Working Start",
+          "type": "number"
         },
         "pending": {
           "anyOf": [
@@ -3945,6 +4050,7 @@
       },
       "required": [
         "timestamp",
+        "working_start",
         "pending",
         "event",
         "changes"
@@ -3960,6 +4066,10 @@
           "format": "date-time",
           "title": "Timestamp",
           "type": "string"
+        },
+        "working_start": {
+          "title": "Working Start",
+          "type": "number"
         },
         "pending": {
           "anyOf": [
@@ -4055,17 +4165,45 @@
           },
           "title": "Events",
           "type": "array"
+        },
+        "completed": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Completed"
+        },
+        "working_time": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Working Time"
         }
       },
       "required": [
         "timestamp",
+        "working_start",
         "pending",
         "event",
         "name",
         "type",
         "input",
         "result",
-        "events"
+        "events",
+        "completed",
+        "working_time"
       ],
       "title": "SubtaskEvent",
       "type": "object",
@@ -4234,6 +4372,10 @@
           "format": "date-time",
           "title": "Timestamp",
           "type": "string"
+        },
+        "working_start": {
+          "title": "Working Start",
+          "type": "number"
         },
         "pending": {
           "anyOf": [
@@ -4424,10 +4566,36 @@
           },
           "title": "Events",
           "type": "array"
+        },
+        "completed": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Completed"
+        },
+        "working_time": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Working Time"
         }
       },
       "required": [
         "timestamp",
+        "working_start",
         "pending",
         "event",
         "type",
@@ -4438,7 +4606,9 @@
         "result",
         "truncated",
         "error",
-        "events"
+        "events",
+        "completed",
+        "working_time"
       ],
       "title": "ToolEvent",
       "type": "object",

@@ -14,11 +14,6 @@ import {
   Tools1,
 } from "../../types/log";
 import { ModelUsagePanel } from "../../usage/ModelUsagePanel";
-import {
-  formatDateTime,
-  formatNumber,
-  formatPrettyDecimal,
-} from "../../utils/format";
 import { ChatView } from "../chat/ChatView";
 import { EventPanel } from "./event/EventPanel";
 import { EventSection } from "./event/EventSection";
@@ -26,6 +21,8 @@ import { TranscriptEventState } from "./types";
 
 import { highlightElement } from "prismjs";
 import styles from "./ModelEventView.module.css";
+import { EventTimingPanel } from "./event/EventTimingPanel";
+import { formatTiming, formatTitle } from "./event/utils";
 
 interface ModelEventViewProps {
   id: string;
@@ -47,15 +44,6 @@ export const ModelEventView: FC<ModelEventViewProps> = ({
 }) => {
   const totalUsage = event.output.usage?.total_tokens;
   const callTime = event.output.time;
-
-  const subItems = [];
-  if (totalUsage) {
-    subItems.push(`${formatNumber(totalUsage)} tokens`);
-  }
-  if (callTime) {
-    subItems.push(`${formatPrettyDecimal(callTime)} sec`);
-  }
-  const subtitle = subItems.length > 0 ? `(${subItems.join(", ")})` : "";
 
   // Note: despite the type system saying otherwise, this has appeared empircally
   // to sometimes be undefined
@@ -83,8 +71,8 @@ export const ModelEventView: FC<ModelEventViewProps> = ({
     <EventPanel
       id={id}
       className={className}
-      title={`Model Call: ${event.model} ${subtitle}`}
-      subTitle={formatDateTime(new Date(event.timestamp))}
+      title={formatTitle(`Model Call: ${event.model}`, totalUsage, callTime)}
+      subTitle={formatTiming(event.timestamp, event.working_start)}
       icon={ApplicationIcons.model}
       selectedNav={eventState.selectedNav || ""}
       setSelectedNav={(selectedNav) => {
@@ -114,6 +102,15 @@ export const ModelEventView: FC<ModelEventViewProps> = ({
             {event.output.usage !== null ? (
               <ModelUsagePanel usage={event.output.usage} />
             ) : undefined}
+          </EventSection>
+
+          <EventSection title="Timing" className={styles.tableSelection}>
+            <EventTimingPanel
+              timestamp={event.timestamp}
+              completed={event.completed}
+              working_start={event.working_start}
+              working_time={event.working_time}
+            />
           </EventSection>
 
           <EventSection
