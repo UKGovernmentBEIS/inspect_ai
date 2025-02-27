@@ -18,6 +18,7 @@ title: "inspect_ai.util"
 
 ## Display
 
+### display_counter
 ### display_type
 ### DisplayType
 ### input_screen
