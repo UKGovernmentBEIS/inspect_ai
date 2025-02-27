@@ -67,9 +67,13 @@ inspect eval math.py \
 
 #### Tokens
 
-You should limit the total output tokens (`max_tokens` + `reasoning_tokens`) to no more than 21,333 tokens (as the streaming API is required above that—this will soon be supported in Inspect but is not currently). Even with streaming, a maximum of 32,000 is recommended (above that they advise using batch mode).
+The `max_tokens` for any given request is determined as follows:
 
-Inspect's default `max_tokens` for Anthropic is 4096, so with that default you would want to keep `reasoning_tokens` to no more than 17,237.
+1. If you only specify `reasoning_tokens`, then the `max_tokens` will be set to `4096 + reasoning_tokens` (as 4096 is the standard Inspect default for Anthropic max tokens).
+2. If you explicitly specify a `max_tokens`, that value will be used as the max tokens without modification (so should accomodate sufficient space for both your `reasoning_tokens` and normal output).
+
+Inspect will automatically use [response streaming](https://docs.anthropic.com/en/api/messages-streaming) whenever extended thinking is enabled to mitigate against networking issue that can occur for long running requests.
+
 
 #### History
 

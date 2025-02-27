@@ -44,13 +44,23 @@ def check_max_tokens(max_tokens: int | None, reasoning_tokens: int, check_tokens
     )[0]
     log_json = log.model_dump_json(indent=2)
     assert f'"max_tokens": {check_tokens}' in log_json
+    assert log.status == "success"
+
+
+DEFAULT_MAX_TOKENS = 4096
 
 
 @skip_if_no_anthropic
 def test_reasoning_claude_max_tokens():
-    check_max_tokens(None, 1024, 4096 + 1024)
+    check_max_tokens(None, 1024, DEFAULT_MAX_TOKENS + 1024)
     check_max_tokens(5000, 2000, 5000)
-    check_max_tokens(None, 8096, 4096 + 8096)
+    check_max_tokens(None, 8096, DEFAULT_MAX_TOKENS + 8096)
+
+
+@skip_if_no_anthropic
+def test_reasoning_claude_streaming():
+    reasoning_tokens = 32 * 1024
+    check_max_tokens(None, reasoning_tokens, DEFAULT_MAX_TOKENS + reasoning_tokens)
 
 
 @skip_if_no_anthropic
