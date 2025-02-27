@@ -14,7 +14,6 @@
 - Human Agent: Don't emit sandbox events for human agent
 - Inspect View: Improve rendering of JSON within logging events.
 - Inspect View: Improve virtualized rendering of Sample List, Sample Transcript, and Sample Messages.
-- Bugfix: Catch standard `TimeoutError` for running shell commands in the computer tool container.
 - Inspect View: Fix layout issues with human agent terminal session playback.
 - Inspect View: Improve tool input / output appearance when rendered in VSCode.
 - Inspect View: Display reasoning tokens in model usage for the samples and for the complete eval.
@@ -22,6 +21,8 @@
 - Inspect View: Improve rendering of some tool calls in the transcript.
 - Bugfix: Fix audio and video inputs for new Google GenAI client.
 - Bugfix: Ensure that token limits are not enforced during model graded scoring.
+- Bugfix: Catch standard `TimeoutError` for running shell commands in the computer tool container.
+- Bugfix: Correct combination of consecutive string based user messages for Anthropic provider.
 
 ## v0.3.70 (25 February 2025)
 

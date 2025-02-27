@@ -562,7 +562,7 @@ def combine_messages(a: MessageParam, b: MessageParam) -> MessageParam:
     role = a["role"]
     a_content = a["content"]
     b_content = b["content"]
-    if isinstance(a_content, str) and isinstance(a_content, str):
+    if isinstance(a_content, str) and isinstance(b_content, str):
         return MessageParam(role=role, content=f"{a_content}\n{b_content}")
     elif isinstance(a_content, list) and isinstance(b_content, list):
         return MessageParam(role=role, content=a_content + b_content)
