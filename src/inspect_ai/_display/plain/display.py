@@ -89,8 +89,8 @@ class PlainDisplay(Display):
             show_model_names=self.multiple_model_names,
         )
 
-    def set_status(self, caption: str, value: str) -> None:
-        # Not supported for plain display as statuses are only shown for tasks.
+    def display_counter(self, caption: str, value: str) -> None:
+        # Not supported for plain display as counters are only shown for tasks.
         pass
 
     def _print_results(self) -> None:

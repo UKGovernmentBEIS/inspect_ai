@@ -74,5 +74,5 @@ class TextualDisplay(Display):
             yield task_display
 
     @override
-    def set_status(self, caption: str, value: str) -> None:
-        self.app.set_status(caption, value)
+    def display_counter(self, caption: str, value: str) -> None:
+        self.app.display_counter(caption, value)

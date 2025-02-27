@@ -10,11 +10,11 @@ from .config import task_dict
 
 @throttle(1)
 def task_footer(
-    statuses: dict[str, str], style: str = ""
+    counters: dict[str, str], style: str = ""
 ) -> tuple[RenderableType, RenderableType]:
     return (
         Text.from_markup(task_resources(), style=style),
-        Text.from_markup(task_statuses(statuses), style=style),
+        Text.from_markup(task_counters(counters), style=style),
     )
 
 
@@ -25,8 +25,8 @@ def task_resources() -> str:
     return task_dict(resources)
 
 
-def task_statuses(statuses: dict[str, str]) -> str:
-    return task_dict(statuses | task_http_rate_limits())
+def task_counters(counters: dict[str, str]) -> str:
+    return task_dict(counters | task_http_rate_limits())
 
 
 def task_http_rate_limits() -> dict[str, str]:

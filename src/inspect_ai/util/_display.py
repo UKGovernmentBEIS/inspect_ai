@@ -56,13 +56,13 @@ def display_type_initialized() -> bool:
     return _display_type is not None
 
 
-def status_counter(caption: str, value: str) -> None:
-    """Display a status counter.
+def display_counter(caption: str, value: str) -> None:
+    """Display a counter in the UI.
 
     Args:
-        caption (str): Status counter caption e.g. "HTTP rate limits".
-        value (str): Status counter value e.g. "42".
+        caption (str): The counter's caption e.g. "HTTP rate limits".
+        value (str): The counter's value e.g. "42".
     """
     from inspect_ai._display.core.active import display
 
-    display().set_status(caption, value)
+    display().display_counter(caption, value)
