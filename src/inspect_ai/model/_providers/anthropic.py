@@ -331,7 +331,7 @@ class AnthropicAPI(ModelAPI):
         return str(self.api_key)
 
     @override
-    def is_rate_limit(self, ex: BaseException) -> bool:
+    def should_retry(self, ex: BaseException) -> bool:
         # We have observed that anthropic will frequently return InternalServerError
         # seemingly in place of RateLimitError (at the very least the errors seem to
         # always be transient). Equating this to rate limit errors may occasionally

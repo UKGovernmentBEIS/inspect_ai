@@ -16,7 +16,7 @@ from .util import (
     chat_api_input,
     chat_api_request,
     environment_prerequisite_error,
-    is_chat_api_rate_limit,
+    should_retry_chat_api_error,
     model_base_url,
 )
 from .util.tracker import HttpxTimeTracker
@@ -127,8 +127,8 @@ class CloudFlareAPI(ModelAPI):
             raise RuntimeError(f"Error calling {self.model_name}: {error}")
 
     @override
-    def is_rate_limit(self, ex: BaseException) -> bool:
-        return is_chat_api_rate_limit(ex)
+    def should_retry(self, ex: BaseException) -> bool:
+        return should_retry_chat_api_error(ex)
 
     # cloudflare enforces rate limits by model for each account
     @override

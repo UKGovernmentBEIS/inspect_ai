@@ -169,7 +169,7 @@ class VertexAPI(ModelAPI):
         return output, call
 
     @override
-    def is_rate_limit(self, ex: BaseException) -> bool:
+    def should_retry(self, ex: BaseException) -> bool:
         return isinstance(ex, TooManyRequests)
 
     @override

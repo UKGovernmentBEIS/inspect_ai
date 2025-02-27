@@ -232,7 +232,7 @@ class AzureAIAPI(ModelAPI):
             return DEFAULT_MAX_TOKENS
 
     @override
-    def is_rate_limit(self, ex: BaseException) -> bool:
+    def should_retry(self, ex: BaseException) -> bool:
         if isinstance(ex, HttpResponseError):
             return (
                 ex.status_code == 408

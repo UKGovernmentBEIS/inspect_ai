@@ -30,6 +30,7 @@ from inspect_ai._util.content import (
 )
 from inspect_ai._util.hooks import init_hooks, override_api_key, send_telemetry
 from inspect_ai._util.interrupt import check_sample_interrupt
+from inspect_ai._util.logger import warn_once
 from inspect_ai._util.platform import platform_init
 from inspect_ai._util.registry import (
     RegistryInfo,
@@ -173,11 +174,11 @@ class ModelAPI(abc.ABC):
         """Scope for enforcement of max_connections."""
         return "default"
 
-    def is_rate_limit(self, ex: BaseException) -> bool:
-        """Is this exception a rate limit error.
+    def should_retry(self, ex: BaseException) -> bool:
+        """Should this exception be retried?
 
         Args:
-           ex: Exception to check for rate limit.
+           ex: Exception to check for retry
         """
         return False
 
@@ -421,7 +422,7 @@ class Model:
         # retry for rate limit errors (max of 30 minutes)
         @retry(
             wait=wait_exponential_jitter(max=(30 * 60), jitter=5),
-            retry=retry_if_exception(self.api.is_rate_limit),
+            retry=retry_if_exception(self.should_retry),
             stop=(
                 (
                     stop_after_delay(config.timeout)
@@ -554,6 +555,25 @@ class Model:
 
         # return results
         return model_output
+
+    def should_retry(self, ex: BaseException) -> bool:
+        # check standard should_retry() method
+        retry = self.api.should_retry(ex)
+        if retry:
+            return True
+
+        # see if the API implements legacy is_rate_limit() method
+        is_rate_limit = getattr(self.api, "is_rate_limit", None)
+        if is_rate_limit:
+            warn_once(
+                logger,
+                f"provider '{self.name}' implements deprecated is_rate_limit() method, "
+                + "please change to should_retry()",
+            )
+            return cast(bool, is_rate_limit(ex))
+
+        # no retry
+        return False
 
     # function to verify that its okay to call model apis
     def verify_model_apis(self) -> None:

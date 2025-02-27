@@ -288,7 +288,7 @@ class BedrockAPI(ModelAPI):
             return DEFAULT_MAX_TOKENS
 
     @override
-    def is_rate_limit(self, ex: BaseException) -> bool:
+    def should_retry(self, ex: BaseException) -> bool:
         from botocore.exceptions import ClientError
 
         # Look for an explicit throttle exception
@@ -296,7 +296,7 @@ class BedrockAPI(ModelAPI):
             if ex.response["Error"]["Code"] == "ThrottlingException":
                 return True
 
-        return super().is_rate_limit(ex)
+        return False
 
     @override
     def collapse_user_messages(self) -> bool:
