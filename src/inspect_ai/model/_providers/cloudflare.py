@@ -16,8 +16,8 @@ from .util import (
     chat_api_input,
     chat_api_request,
     environment_prerequisite_error,
-    should_retry_chat_api_error,
     model_base_url,
+    should_retry_chat_api_error,
 )
 from .util.tracker import HttpxTimeTracker
 

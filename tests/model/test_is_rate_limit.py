@@ -1,5 +1,3 @@
-import logging
-import pytest
 from inspect_ai.model._chat_message import ChatMessage
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model import Model, ModelAPI
