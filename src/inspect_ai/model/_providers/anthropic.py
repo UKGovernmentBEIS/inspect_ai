@@ -235,8 +235,12 @@ class AnthropicAPI(ModelAPI):
             if self.extra_body is not None:
                 request["extra_body"] = self.extra_body
 
-            # make request
-            message = await self.client.messages.create(**request, stream=False)
+            # make request (stream if we are using reasoning)
+            if self.is_using_thinking(config):
+                async with self.client.messages.stream(**request) as stream:
+                    message = await stream.get_final_message()
+            else:
+                message = await self.client.messages.create(**request, stream=False)
 
             # set response for ModelCall
             response = message.model_dump()
