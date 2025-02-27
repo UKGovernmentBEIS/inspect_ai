@@ -61842,7 +61842,8 @@ ${events}
           action: "begin",
           type: null,
           name: "sample_init",
-          pending: false
+          pending: false,
+          working_start: 0
         });
         fixedUp.splice(initEventIndex + 2, 0, {
           timestamp: initEvent.timestamp,
@@ -61850,7 +61851,8 @@ ${events}
           action: "end",
           type: null,
           name: "sample_init",
-          pending: false
+          pending: false,
+          working_start: 0
         });
       }
       return fixedUp;

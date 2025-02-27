@@ -2,7 +2,7 @@ import clsx from "clsx";
 import { FC, Fragment } from "react";
 import { ApplicationIcons } from "../../appearance/icons";
 import { MetaDataView } from "../../metadata/MetaDataView";
-import { Input2, Input4, Result1, SubtaskEvent } from "../../types/log";
+import { Input2, Input5, Result2, SubtaskEvent } from "../../types/log";
 import { EventPanel } from "./event/EventPanel";
 import { formatTiming } from "./event/utils";
 import styles from "./SubtaskEventView.module.css";
@@ -91,8 +91,8 @@ export const SubtaskEventView: FC<SubtaskEventViewProps> = ({
 };
 
 interface SubtaskSummaryProps {
-  input: Input2 | Input4;
-  result: Result1;
+  input: Input2 | Input5;
+  result: Result2;
 }
 /**
  * Renders the StateEventView component.
