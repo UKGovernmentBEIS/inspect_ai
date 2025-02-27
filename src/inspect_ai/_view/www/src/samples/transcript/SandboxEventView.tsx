@@ -3,7 +3,6 @@ import ExpandablePanel from "../../components/ExpandablePanel";
 import { MarkdownDiv } from "../../components/MarkdownDiv";
 import { MetaDataGrid } from "../../metadata/MetaDataGrid";
 import { SandboxEvent } from "../../types/log";
-import { formatDateTime } from "../../utils/format";
 import { EventPanel } from "./event/EventPanel";
 import { EventSection } from "./event/EventSection";
 import { TranscriptEventState } from "./types";
@@ -11,6 +10,7 @@ import { TranscriptEventState } from "./types";
 import clsx from "clsx";
 import { FC } from "react";
 import styles from "./SandboxEventView.module.css";
+import { formatTiming } from "./event/utils";
 
 interface SandboxEventViewProps {
   id: string;
@@ -36,7 +36,7 @@ export const SandboxEventView: FC<SandboxEventViewProps> = ({
       className={className}
       title={`Sandbox: ${event.action}`}
       icon={ApplicationIcons.sandbox}
-      subTitle={formatDateTime(new Date(event.timestamp))}
+      subTitle={formatTiming(event.timestamp, event.working_start)}
       selectedNav={eventState.selectedNav || ""}
       setSelectedNav={(selectedNav) => {
         setEventState({ ...eventState, selectedNav });

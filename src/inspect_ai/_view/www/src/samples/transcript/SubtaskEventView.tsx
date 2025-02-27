@@ -3,8 +3,8 @@ import { FC, Fragment } from "react";
 import { ApplicationIcons } from "../../appearance/icons";
 import { MetaDataView } from "../../metadata/MetaDataView";
 import { Input2, Input4, Result1, SubtaskEvent } from "../../types/log";
-import { formatDateTime } from "../../utils/format";
 import { EventPanel } from "./event/EventPanel";
+import { formatTiming } from "./event/utils";
 import styles from "./SubtaskEventView.module.css";
 import { TranscriptView } from "./TranscriptView";
 import { TranscriptEventState } from "./types";
@@ -74,7 +74,7 @@ export const SubtaskEventView: FC<SubtaskEventViewProps> = ({
       id={id}
       className={className}
       title={`${type}: ${event.name}`}
-      subTitle={formatDateTime(new Date(event.timestamp))}
+      subTitle={formatTiming(event.timestamp, event.working_start)}
       collapse={false}
       selectedNav={eventState.selectedNav || ""}
       setSelectedNav={(selectedNav) => {

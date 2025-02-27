@@ -14,11 +14,7 @@ import {
   Tools1,
 } from "../../types/log";
 import { ModelUsagePanel } from "../../usage/ModelUsagePanel";
-import {
-  formatDateTime,
-  formatNumber,
-  formatPrettyDecimal,
-} from "../../utils/format";
+import { formatNumber, formatPrettyDecimal } from "../../utils/format";
 import { ChatView } from "../chat/ChatView";
 import { EventPanel } from "./event/EventPanel";
 import { EventSection } from "./event/EventSection";
@@ -26,6 +22,7 @@ import { TranscriptEventState } from "./types";
 
 import { highlightElement } from "prismjs";
 import styles from "./ModelEventView.module.css";
+import { formatTiming } from "./event/utils";
 
 interface ModelEventViewProps {
   id: string;
@@ -84,7 +81,7 @@ export const ModelEventView: FC<ModelEventViewProps> = ({
       id={id}
       className={className}
       title={`Model Call: ${event.model} ${subtitle}`}
-      subTitle={formatDateTime(new Date(event.timestamp))}
+      subTitle={formatTiming(event.timestamp, event.working_start)}
       icon={ApplicationIcons.model}
       selectedNav={eventState.selectedNav || ""}
       setSelectedNav={(selectedNav) => {
