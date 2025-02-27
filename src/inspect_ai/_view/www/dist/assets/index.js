@@ -62458,9 +62458,6 @@ ${events}
       const gridColumnsTemplate = reactExports.useMemo(() => {
         return gridColumnsValue(sampleDescriptor);
       }, [sampleDescriptor]);
-      if (items.length === 0) {
-        return /* @__PURE__ */ jsxRuntimeExports.jsx(EmptyPanel, { children: "No Samples" });
-      }
       const renderRow = reactExports.useCallback(
         (item2) => {
           if (item2.type === "sample") {
