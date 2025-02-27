@@ -147,6 +147,8 @@ class ModelEvent(BaseEvent):
 
     @field_serializer("completed")
     def serialize_completed(self, dt: datetime) -> str:
+        if dt is None:
+            return None
         return dt.astimezone().isoformat()
 
 
