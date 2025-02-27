@@ -15516,15 +15516,6 @@ ul.jsondiffpatch-textdiff {
   margin-top: -0.1rem;
   margin-bottom: -0.1rem;
 }
-._flex_1kye9_1 {
-  display: flex;
-}
-
-._label_1kye9_5 {
-  align-self: center;
-  margin-right: 0.3em;
-  margin-left: 0.2em;
-}
 ._dirname_16ra5_1 {
   overflow: hidden;
   white-space: nowrap;
@@ -15741,6 +15732,15 @@ ul.jsondiffpatch-textdiff {
 }
 
 ._secondLabel_anstf_13 {
+  margin-right: 0.3em;
+  margin-left: 0.2em;
+}
+._flex_1kye9_1 {
+  display: flex;
+}
+
+._label_1kye9_5 {
+  align-self: center;
   margin-right: 0.3em;
   margin-left: 0.2em;
 }

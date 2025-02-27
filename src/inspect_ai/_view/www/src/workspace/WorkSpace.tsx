@@ -54,7 +54,7 @@ interface WorkSpaceProps {
   sampleStatus: string;
   sampleError?: Error;
   showToggle: boolean;
-  refreshLog: () => Promise<void>;
+  refreshLog: () => void;
   selectedSampleIndex: number;
   runningSampleData?: RunningSampleData;
   samplesDescriptor?: SamplesDescriptor;
