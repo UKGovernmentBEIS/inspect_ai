@@ -1,4 +1,12 @@
-import { createContext, useCallback, useContext, useReducer } from "react";
+import {
+  createContext,
+  Dispatch,
+  FC,
+  ReactNode,
+  useCallback,
+  useContext,
+  useReducer,
+} from "react";
 import { ClientAPI, EvalLogHeader, LogFiles } from "./api/types";
 import { useAppContext } from "./AppContext";
 
@@ -38,7 +46,7 @@ const logsReducer = (state: LogsState, action: LogsAction): LogsState => {
       return { ...state, headersLoading: action.payload };
     case "SET_SELECTED_LOG_INDEX":
       return { ...state, selectedLogIndex: action.payload };
-    case "SET_SELECTED_LOG_FILE":
+    case "SET_SELECTED_LOG_FILE": {
       const index = state.logs.files.findIndex((val) => {
         return action.payload.endsWith(val.name);
       });
@@ -47,6 +55,7 @@ const logsReducer = (state: LogsState, action: LogsAction): LogsState => {
       } else {
         return state;
       }
+    }
     case "UPDATE_LOG_HEADERS":
       return {
         ...state,
@@ -60,7 +69,7 @@ const logsReducer = (state: LogsState, action: LogsAction): LogsState => {
 
 export interface LogsContextType {
   state: LogsState;
-  dispatch: React.Dispatch<LogsAction>;
+  dispatch: Dispatch<LogsAction>;
   refreshLogs: () => Promise<void>;
   selectLogFile: (logUrl: string) => Promise<void>;
   getState: () => { logs: LogsState };
@@ -70,11 +79,11 @@ const LogsContext = createContext<LogsContextType | undefined>(undefined);
 
 interface LogsProviderProps {
   initialState?: { logs?: LogsState };
-  children: React.ReactNode;
+  children: ReactNode;
   api: ClientAPI;
 }
 
-export const LogsProvider: React.FC<LogsProviderProps> = ({
+export const LogsProvider: FC<LogsProviderProps> = ({
   children,
   initialState,
   api,
