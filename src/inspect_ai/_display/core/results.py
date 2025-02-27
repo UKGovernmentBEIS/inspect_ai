@@ -175,7 +175,7 @@ def task_metric(metrics: list[TaskDisplayMetric], width: int | None = None) -> s
     )
 
     metric = metrics[0]
-    if np.isnan(metric.value):
+    if metric.value is None or np.isnan(metric.value):
         value = " n/a"
     else:
         value = f"{metric.value:.2f}"

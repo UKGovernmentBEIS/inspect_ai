@@ -7,7 +7,6 @@ from typing import (
     Callable,
     Coroutine,
     Iterator,
-    Optional,
     Protocol,
     Type,
     TypeVar,
