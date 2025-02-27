@@ -4,7 +4,7 @@ import os
 import urllib.parse
 from logging import LogRecord, getLogger
 from pathlib import Path
-from typing import Any, Awaitable, Callable, Type, TypeVar
+from typing import Any, Awaitable, Callable, TypeVar
 
 import fsspec  # type: ignore
 from aiohttp import web
@@ -13,7 +13,7 @@ from fsspec.core import split_protocol  # type: ignore
 from pydantic_core import to_jsonable_python
 
 from inspect_ai._display import display
-from inspect_ai._util.constants import DEFAULT_SERVER_HOST, DEFAULT_VIEW_PORT, HTTP
+from inspect_ai._util.constants import DEFAULT_SERVER_HOST, DEFAULT_VIEW_PORT
 from inspect_ai._util.file import filesystem, size_in_mb
 from inspect_ai.log._file import (
     EvalLogInfo,
