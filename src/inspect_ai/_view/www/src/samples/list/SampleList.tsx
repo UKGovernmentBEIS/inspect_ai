@@ -9,7 +9,6 @@ import {
   useState,
 } from "react";
 import { Virtuoso, VirtuosoHandle } from "react-virtuoso";
-import { EmptyPanel } from "../../components/EmptyPanel";
 import { MessageBand } from "../../components/MessageBand";
 import { formatNoDecimal } from "../../utils/format";
 import { ListItem } from "../../workspace/tabs/types";
@@ -113,11 +112,6 @@ export const SampleList: FC<SampleListProps> = (props) => {
   const gridColumnsTemplate = useMemo(() => {
     return gridColumnsValue(sampleDescriptor);
   }, [sampleDescriptor]);
-
-  // If there are no samples, just display an empty state
-  if (items.length === 0) {
-    return <EmptyPanel>No Samples</EmptyPanel>;
-  }
 
   const renderRow = useCallback(
     (item: ListItem) => {
