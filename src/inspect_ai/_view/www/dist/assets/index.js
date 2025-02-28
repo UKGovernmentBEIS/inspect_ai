@@ -66472,7 +66472,6 @@ ${events}
           selectedWorkspaceTab,
           selectedSampleTab,
           showingSampleDialog,
-          status,
           sampleScrollPosition: sampleScrollPosition.current,
           workspaceTabScrollPosition: workspaceTabScrollPosition.current,
           ...appContext.getState(),
@@ -66487,7 +66486,6 @@ ${events}
         selectedWorkspaceTab,
         selectedSampleTab,
         showingSampleDialog,
-        status,
         appContext.getState,
         logsContext.getState,
         logContext.getState
@@ -66530,18 +66528,21 @@ ${events}
       const handleSampleShowingDialog = reactExports.useCallback(
         (show) => {
           setShowingSampleDialog(show);
-          if (!show) {
-            sampleContext.dispatch({ type: "CLEAR_SELECTED_SAMPLE" });
-            setSelectedSampleTab(void 0);
-          }
         },
-        [setShowingSampleDialog, sampleContext.dispatch, setSelectedSampleTab]
+        [setShowingSampleDialog]
       );
+      reactExports.useEffect(() => {
+        if (!showingSampleDialog) {
+          sampleContext.dispatch({ type: "CLEAR_SELECTED_SAMPLE" });
+          setSelectedSampleTab(void 0);
+        }
+      }, [showingSampleDialog, sampleContext.dispatch, setSelectedSampleTab]);
       reactExports.useEffect(() => {
         var _a3;
         const selectedSample = sampleContext.state.selectedSample;
-        const newTab = ((_a3 = selectedSample == null ? void 0 : selectedSample.events) == null ? void 0 : _a3.length) || 0 > 0 ? kSampleTranscriptTabId : kSampleMessagesTabId;
-        if (selectedSampleTab === void 0 && selectedSample) {
+        if (!selectedSample) return;
+        const newTab = (((_a3 = selectedSample.events) == null ? void 0 : _a3.length) || 0) > 0 ? kSampleTranscriptTabId : kSampleMessagesTabId;
+        if (selectedSampleTab === void 0) {
           setSelectedSampleTab(newTab);
         }
       }, [sampleContext.state.selectedSample, selectedSampleTab]);
@@ -66556,10 +66557,8 @@ ${events}
         sampleContext.dispatch
       ]);
       reactExports.useEffect(() => {
-        if (logContext.totalSampleCount) {
-          logContext.dispatch({ type: "SELECT_SAMPLE", payload: 0 });
-        }
-      }, [logContext.totalSampleCount]);
+        logContext.dispatch({ type: "SELECT_SAMPLE", payload: 0 });
+      }, [logsContext.selectedLogFile, logContext.dispatch]);
       reactExports.useEffect(() => {
         const loadSpecificLog = async () => {
           if (logsContext.selectedLogFile) {
@@ -66583,7 +66582,7 @@ ${events}
           }
         };
         loadSpecificLog();
-      }, [logsContext.selectedLogFile, logContext.dispatch, appContext.dispatch]);
+      }, [logsContext.selectedLogFile, logContext.loadLog, appContext.dispatch]);
       reactExports.useEffect(() => {
         setSelectedWorkspaceTab(kEvalWorkspaceTabId);
         setSelectedSampleTab(void 0);
@@ -66627,13 +66626,7 @@ ${events}
             payload: { loading: false, error: e }
           });
         }
-      }, [
-        logsContext.state.logs,
-        logsContext.state.selectedLogIndex,
-        logContext.refreshLog,
-        logContext.dispatch,
-        appContext.dispatch
-      ]);
+      }, [logContext.refreshLog, logContext.dispatch, appContext.dispatch]);
       const onMessage = reactExports.useCallback(
         async (e) => {
           switch (e.data.type) {
