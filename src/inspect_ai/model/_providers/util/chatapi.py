@@ -12,6 +12,7 @@ from tenacity import (
 )
 
 from inspect_ai._util.constants import DEFAULT_MAX_RETRIES
+from inspect_ai._util.http import is_retryable_http_status
 from inspect_ai._util.retry import httpx_should_retry, log_retry_attempt
 from inspect_ai.model._chat_message import ChatMessageAssistant, ChatMessageTool
 from inspect_ai.tool._tool_info import ToolInfo
@@ -108,10 +109,7 @@ def should_retry_chat_api_error(ex: BaseException) -> bool:
     return isinstance(ex, RetryError) and (
         (
             isinstance(ex.__cause__, httpx.HTTPStatusError)
-            and (
-                ex.__cause__.response.status_code == 429
-                or ex.__cause__.response.status_code == 500
-            )
+            and is_retryable_http_status(ex.__cause__.response.status_code)
         )
         or isinstance(ex.__cause__, httpx.ReadTimeout)
     )
