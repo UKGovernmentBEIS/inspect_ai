@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { FC, Fragment } from "react";
+import { FC, ReactNode } from "react";
 import { ApplicationIcons } from "../../appearance/icons";
 import { MetaDataView } from "../../metadata/MetaDataView";
 import { Input2, Input5, Result2, SubtaskEvent } from "../../types/log";
@@ -29,9 +29,9 @@ export const SubtaskEventView: FC<SubtaskEventViewProps> = ({
   depth,
   className,
 }) => {
-  // Render Forks specially
-  const body =
-    event.type === "fork" ? (
+  const body: ReactNode[] = [];
+  if (event.type === "fork") {
+    body.push(
       <div title="Summary" className={clsx(styles.summary)}>
         <div className={clsx("text-style-label")}>Inputs</div>
         <div className={clsx(styles.summaryRendered)}>
@@ -48,24 +48,27 @@ export const SubtaskEventView: FC<SubtaskEventViewProps> = ({
         ) : (
           <None />
         )}
-      </div>
-    ) : (
-      <Fragment>
-        <SubtaskSummary
-          data-name="Summary"
-          input={event.input}
-          result={event.result}
-        />
-        {event.events.length > 0 ? (
-          <TranscriptView
-            id={`${id}-subtask`}
-            data-name="Transcript"
-            events={event.events}
-            depth={depth + 1}
-          />
-        ) : undefined}
-      </Fragment>
+      </div>,
     );
+  } else {
+    body.push(
+      <SubtaskSummary
+        data-name="Summary"
+        input={event.input}
+        result={event.result}
+      />,
+    );
+    if (event.events.length > 0) {
+      body.push(
+        <TranscriptView
+          id={`${id}-subtask`}
+          data-name="Transcript"
+          events={event.events}
+          depth={depth + 1}
+        />,
+      );
+    }
+  }
 
   // Is this a traditional subtask or a fork?
   const type = event.type === "fork" ? "Fork" : "Subtask";
