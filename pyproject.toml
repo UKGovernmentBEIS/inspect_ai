@@ -49,7 +49,7 @@ asyncio_default_fixture_loop_scope = "function"
 log_level = "warning"
 
 [tool.mypy]
-exclude = ["tests/test_package", "build", "(?:^|/)_resources/", "examples/bridge"]
+exclude = ["tests/test_package", "build", "(?:^|/)_resources/", "examples/bridge", "src/inspect_tool_support"]
 warn_unused_ignores = true
 no_implicit_reexport = true
 strict_equality = true
@@ -120,11 +120,13 @@ dev = [
     "griffe",
     "groq", 
     "ipython",
+    "markdown",
     "mistralai",
     "moto[server]",
     "mypy",
     "nbformat",
     "openai",
+    "panflute",
     "pip",
     "pre-commit",
     "pylint",

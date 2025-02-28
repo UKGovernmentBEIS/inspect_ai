@@ -48,10 +48,7 @@ from anthropic.types import (
 from pydantic import JsonValue
 from typing_extensions import override
 
-from inspect_ai._util.constants import (
-    BASE_64_DATA_REMOVED,
-    NO_CONTENT,
-)
+from inspect_ai._util.constants import BASE_64_DATA_REMOVED, NO_CONTENT
 from inspect_ai._util.content import (
     Content,
     ContentImage,
@@ -75,6 +72,21 @@ logger = getLogger(__name__)
 
 ANTHROPIC_API_KEY = "ANTHROPIC_API_KEY"
 
+NATIVE_COMPUTER_TOOL_NAME = "computer"
+_native_tool_name_mappings = {
+    NATIVE_COMPUTER_TOOL_NAME: "computer",
+    "str_replace_editor": "text_editor",
+    "bash": "bash_session",
+}
+"""
+A dictionary mapping native tool names from Anthropic to Inspect tool names.
+
+Anthropic prescribes names for their native tools - `computer`, `bash`, and
+`str_replace_editor`. For a variety of reasons, Inspect's tool names to not
+necessarily conform to native names. This table enables us to map from
+Anthropic names back to Inspect names.
+"""
+
 
 class AnthropicAPI(ModelAPI):
     def __init__(
@@ -93,7 +105,7 @@ class AnthropicAPI(ModelAPI):
         else:
             self.service = None
 
-        # collect gemerate model_args (then delete them so we can pass the rest on)
+        # collect generate model_args (then delete them so we can pass the rest on)
         def collect_model_arg(name: str) -> Any | None:
             nonlocal model_args
             value = model_args.get(name, None)
@@ -193,14 +205,11 @@ class AnthropicAPI(ModelAPI):
 
         # generate
         try:
-            (
-                system_param,
-                tools_param,
-                messages,
-                computer_use,
-            ) = await self.resolve_chat_input(input, tools, config)
+            system_param, tools_param, messages = await self.resolve_chat_input(
+                input, tools, config
+            )
 
-            # prepare request params (assembed this way so we can log the raw model call)
+            # prepare request params (assembled this way so we can log the raw model call)
             request = dict(messages=messages)
 
             # system messages and tools
@@ -218,7 +227,13 @@ class AnthropicAPI(ModelAPI):
 
             # extra headers (for time tracker and computer use)
             extra_headers = headers | {HttpxHooks.REQUEST_ID_HEADER: request_id}
-            if computer_use:
+            if any(
+                tool.get("type", None) == "computer_20250124" for tool in tools_param
+            ):
+                # From: https://docs.anthropic.com/en/docs/agents-and-tools/computer-use#claude-3-7-sonnet-beta-flag
+                # Note: The Bash (bash_20250124) and Text Editor (text_editor_20250124)
+                # tools are generally available for Claude 3.5 Sonnet (new) as well and
+                # can be used without the computer use beta header.
                 betas.append("computer-use-2025-01-24")
             if len(betas) > 0:
                 extra_headers["anthropic-beta"] = ",".join(betas)
@@ -405,9 +420,7 @@ class AnthropicAPI(ModelAPI):
         input: list[ChatMessage],
         tools: list[ToolInfo],
         config: GenerateConfig,
-    ) -> Tuple[
-        list[TextBlockParam] | None, list["ToolParamDef"], list[MessageParam], bool
-    ]:
+    ) -> Tuple[list[TextBlockParam] | None, list["ToolParamDef"], list[MessageParam]]:
         # extract system message
         system_messages, messages = split_system_messages(input, config)
 
@@ -420,7 +433,7 @@ class AnthropicAPI(ModelAPI):
         )
 
         # tools
-        tools_params, computer_use = self.tool_params_for_tools(tools, config)
+        tools_params = [self.tool_param_for_tool_info(tool, config) for tool in tools]
 
         # system messages
         if len(system_messages) > 0:
@@ -470,36 +483,31 @@ class AnthropicAPI(ModelAPI):
                     add_cache_control(cast(dict[str, Any], content[-1]))
 
         # return chat input
-        return system_param, tools_params, message_params, computer_use
+        return system_param, tools_params, message_params
 
-    def tool_params_for_tools(
-        self, tools: list[ToolInfo], config: GenerateConfig
-    ) -> tuple[list["ToolParamDef"], bool]:
-        # tool params and computer_use bit to return
-        tool_params: list["ToolParamDef"] = []
-        computer_use = False
+    def tool_param_for_tool_info(
+        self, tool: ToolInfo, config: GenerateConfig
+    ) -> "ToolParamDef":
+        # Use a native tool implementation when available. Otherwise, use the
+        # standard tool implementation
+        return self.maybe_native_tool_param(tool, config) or ToolParam(
+            name=tool.name,
+            description=tool.description,
+            input_schema=tool.parameters.model_dump(exclude_none=True),
+        )
 
-        # for each tool, check if it has a native computer use implementation and use that
-        # when available (noting that we need to set the computer use request header)
-        for tool in tools:
-            computer_use_tool = (
+    def maybe_native_tool_param(
+        self, tool: ToolInfo, config: GenerateConfig
+    ) -> Optional["ToolParamDef"]:
+        return (
+            (
                 self.computer_use_tool_param(tool)
-                if config.internal_tools is not False
-                else None
+                or self.text_editor_tool_param(tool)
+                or self.bash_tool_param(tool)
             )
-            if computer_use_tool:
-                tool_params.append(computer_use_tool)
-                computer_use = True
-            else:
-                tool_params.append(
-                    ToolParam(
-                        name=tool.name,
-                        description=tool.description,
-                        input_schema=tool.parameters.model_dump(exclude_none=True),
-                    )
-                )
-
-        return tool_params, computer_use
+            if config.internal_tools is not False
+            else None
+        )
 
     def computer_use_tool_param(
         self, tool: ToolInfo
@@ -542,23 +550,71 @@ class AnthropicAPI(ModelAPI):
         else:
             return None
 
+    def text_editor_tool_param(self, tool: ToolInfo) -> Optional["TextEditorToolParam"]:
+        # check for compatible 'text editor' tool
+        if tool.name == "text_editor" and (
+            sorted(tool.parameters.properties.keys())
+            == sorted(
+                [
+                    "command",
+                    "file_text",
+                    "insert_line",
+                    "new_str",
+                    "old_str",
+                    "path",
+                    "view_range",
+                ]
+            )
+        ):
+            return TextEditorToolParam(
+                type="text_editor_20250124", name="str_replace_editor"
+            )
+        # not a text_editor tool
+        else:
+            return None
+
+    def bash_tool_param(self, tool: ToolInfo) -> Optional["BashToolParam"]:
+        # check for compatible 'bash' tool
+        if tool.name == "bash_session" and (
+            sorted(tool.parameters.properties.keys()) == sorted(["command", "restart"])
+        ):
+            return BashToolParam(type="bash_20250124", name="bash")
+        # not a bash tool
+        else:
+            return None
+
 
 # native anthropic tool definitions for computer use beta
 # https://docs.anthropic.com/en/docs/build-with-claude/computer-use
 class ComputerUseToolParam(TypedDict):
-    type: str
-    name: str
+    type: Literal["computer_20250124"]
+    name: Literal["computer"]
     display_width_px: NotRequired[int]
     display_height_px: NotRequired[int]
     display_number: NotRequired[int]
 
 
-# tools can be either a stock tool param or a special computer use tool param
-ToolParamDef = ToolParam | ComputerUseToolParam
+class TextEditorToolParam(TypedDict):
+    type: Literal["text_editor_20250124"]
+    name: Literal["str_replace_editor"]
+
+
+class BashToolParam(TypedDict):
+    type: Literal["bash_20250124"]
+    name: Literal["bash"]
+
+
+# tools can be either a stock tool param or a special Anthropic native use tool param
+ToolParamDef = ToolParam | ComputerUseToolParam | TextEditorToolParam | BashToolParam
 
 
 def add_cache_control(
-    param: TextBlockParam | ToolParam | ComputerUseToolParam | dict[str, Any],
+    param: TextBlockParam
+    | ToolParam
+    | ComputerUseToolParam
+    | TextEditorToolParam
+    | BashToolParam
+    | dict[str, Any],
 ) -> None:
     cast(dict[str, Any], param)["cache_control"] = {"type": "ephemeral"}
 
@@ -567,10 +623,10 @@ def consecutive_user_message_reducer(
     messages: list[MessageParam],
     message: MessageParam,
 ) -> list[MessageParam]:
-    return consective_message_reducer(messages, message, "user")
+    return consecutive_message_reducer(messages, message, "user")
 
 
-def consective_message_reducer(
+def consecutive_message_reducer(
     messages: list[MessageParam],
     message: MessageParam,
     role: Literal["user", "assistant"],
@@ -753,7 +809,9 @@ async def model_output_from_message(
                 ToolCall(
                     type="function",
                     id=content_block.id,
-                    function=content_block.name,
+                    function=_native_tool_name_mappings.get(
+                        content_block.name, content_block.name
+                    ),
                     arguments=content_block.model_dump().get("input", {}),
                 )
             )

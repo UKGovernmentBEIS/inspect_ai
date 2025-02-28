@@ -70,6 +70,12 @@ website:
                - tools.qmd
                - scorers.qmd
 
+         - section: "Tools"
+           contents:
+               - tools.qmd
+               - tools-custom.qmd
+               - tools-standard.qmd
+
          - section: "Models"
            contents:
                - models.qmd

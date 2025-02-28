@@ -79,12 +79,16 @@ website:
           href: reference/inspect_ai.tool.qmd#bash
         - text: python
           href: reference/inspect_ai.tool.qmd#python
-        - text: web_search
-          href: reference/inspect_ai.tool.qmd#web_search
+        - text: bash_session
+          href: reference/inspect_ai.tool.qmd#bash_session
+        - text: text_editor
+          href: reference/inspect_ai.tool.qmd#text_editor
         - text: web_browser
           href: reference/inspect_ai.tool.qmd#web_browser
         - text: computer
           href: reference/inspect_ai.tool.qmd#computer
+        - text: web_search
+          href: reference/inspect_ai.tool.qmd#web_search
         - text: tool_with
           href: reference/inspect_ai.tool.qmd#tool_with
         - text: ToolDef

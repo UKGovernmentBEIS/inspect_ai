@@ -195,9 +195,16 @@ These sections provide a more in depth treatment of the various components used 
 
 -   [Solvers](solvers.qmd) are the heart of Inspect, and encompass prompt engineering and various other elicitation strategies (the `plan` in the example above). Here we cover using the built-in solvers and creating your own more sophisticated ones.
 
--   [Tools](tools.qmd) provide a means of extending the capabilities of models by registering Python functions for them to call. This section describes how to create custom tools and use them in evaluations.
-
 -   [Scorers](scorers.qmd) evaluate the work of solvers and aggregate scores into metrics. Sophisticated evals often require custom scorers that use models to evaluate output. This section covers how to create them.
+
+These sections cover defining custom tools as well as Inspect's standard built-in tools:
+
+- [Tool Basics](tools.qmd): Tools provide a means of extending the capabilities of models by registering Python functions for them to call. This section describes how to create custom tools and use them in evaluations.
+
+- [Custom Tools](tools-custom.qmd) provides details on more advanced custom tool features including sandboxing, error handling, and dynamic tool definitions. 
+
+- [Standard Tools](tools-standard.qmd) describes Inspect's built-in tools for code execution, text editing, computer use, web search, and web browsing.
+
 
 These sections cover how to use varoius language models with Inspect:
 
