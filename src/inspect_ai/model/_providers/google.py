@@ -8,6 +8,8 @@ from io import BytesIO
 from logging import getLogger
 from typing import Any
 
+import requests
+
 # SDK Docs: https://googleapis.github.io/python-genai/
 from google.genai import Client  # type: ignore
 from google.genai.errors import APIError, ClientError  # type: ignore
@@ -49,6 +51,7 @@ from inspect_ai._util.content import (
     ContentVideo,
 )
 from inspect_ai._util.error import PrerequisiteError
+from inspect_ai._util.http import is_retryable_http_status
 from inspect_ai._util.images import file_as_data
 from inspect_ai._util.kvstore import inspect_kvstore
 from inspect_ai._util.trace import trace_message
@@ -232,8 +235,6 @@ class GoogleGenAIAPI(ModelAPI):
                 response=response,
             )
 
-        # TODO: would need to monkey patch AuthorizedSession.request
-
         try:
             response = await self.client.aio.models.generate_content(
                 model=self.model_name,
@@ -253,8 +254,20 @@ class GoogleGenAIAPI(ModelAPI):
 
     @override
     def should_retry(self, ex: BaseException) -> bool:
-        # see https://cloud.google.com/storage/docs/retry-strategy
-        return isinstance(ex, APIError) and (ex.code in (408, 429) or ex.code >= 500)
+        # standard http errors
+        if isinstance(ex, APIError):
+            return is_retryable_http_status(ex.status)
+
+        # low-level requests exceptions
+        elif isinstance(ex, requests.exceptions.RequestException):
+            return isinstance(
+                ex,
+                requests.exceptions.ConnectionError
+                | requests.exceptions.ConnectTimeout
+                | requests.exceptions.ChunkedEncodingError,
+            )
+        else:
+            return False
 
     @override
     def connection_key(self) -> str:
