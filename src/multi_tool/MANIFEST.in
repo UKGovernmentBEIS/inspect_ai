@@ -1,0 +1,13 @@
+include multi-tool-server.service
+include install_script.py
+include install_service.py
+include __init__.py
+include _constants.py
+include _load_tools.py
+include multi_tool_v1.py
+include server.py
+recursive-include _in_process_tools *
+recursive-include _remote_tools *
+recursive-include _util *
+recursive-include back_compat *
+recursive-include images *

@@ -1,0 +1,56 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "inspect-multi-tool"
+version = "0.1.0"
+description = "Multi-tool container for inspect_ai"
+readme = "README.md"
+requires-python = ">=3.8"
+license = { text = "MIT License" }
+authors = [
+    { name = "UK AI Security Institute" }
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+]
+dependencies = [
+    "aiohttp",
+    "httpx",
+    "jsonrpcserver",
+    "pydantic",
+    "returns",
+    "tenacity",
+    "playwright",
+]
+
+[project.scripts]
+multi-tool = "inspect_multi_tool.multi_tool_v1:run"
+multi-tool-server = "inspect_multi_tool.server:main"
+
+[tool.setuptools]
+include-package-data = true
+script-files = [
+    "install_script.py",
+    "install_service.py"
+]
+
+[tool.setuptools.packages.find]
+include = ["inspect_multi_tool*"]
+exclude = ["tests*"]
+
+[tool.setuptools.package-data]
+inspect_multi_tool = [
+    "*.service",
+    "_in_process_tools/**/*",
+    "_remote_tools/**/*",
+    "_util/**/*",
+    "back_compat/**/*",
+    "images/**/*"
+]
