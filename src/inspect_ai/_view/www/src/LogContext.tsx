@@ -131,11 +131,10 @@ export const LogProvider: FC<LogProviderProps> = ({
   initialState,
   api,
 }) => {
-  // Create memoized logger instances
+  const logsContext = useLogsContext();
   const log = useMemo(() => {
     return createLogger("LogContext");
   }, []);
-  const logsContext = useLogsContext();
 
   const [state, dispatch] = useReducer(
     logsReducer,
