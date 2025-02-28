@@ -289,14 +289,31 @@ class BedrockAPI(ModelAPI):
 
     @override
     def should_retry(self, ex: BaseException) -> bool:
-        from botocore.exceptions import ClientError
+        from botocore.exceptions import (
+            ClientError,
+            ConnectionError,
+            HTTPClientError,
+            ReadTimeoutError,
+        )
 
         # Look for an explicit throttle exception
         if isinstance(ex, ClientError):
-            if ex.response["Error"]["Code"] == "ThrottlingException":
-                return True
-
-        return False
+            error_code = ex.response.get("Error", {}).get("Code", "")
+            return error_code in [
+                "ThrottlingException",
+                "RequestLimitExceeded",
+                "Throttling",
+                "RequestThrottled",
+                "TooManyRequestsException",
+                "ProvisionedThroughputExceededException",
+                "TransactionInProgressException",
+                "RequestTimeout",
+                "ServiceUnavailable",
+            ]
+        elif isinstance(ex, ConnectionError | HTTPClientError | ReadTimeoutError):
+            return True
+        else:
+            return False
 
     @override
     def collapse_user_messages(self) -> bool:
