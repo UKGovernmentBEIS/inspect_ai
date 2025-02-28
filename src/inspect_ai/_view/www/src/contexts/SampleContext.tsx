@@ -75,8 +75,6 @@ const initialSampleState: SampleState = {
 interface SampleContextType {
   state: SampleState;
   dispatch: Dispatch<SampleAction>;
-  loadSample: (summary: SampleSummary) => Promise<void>;
-  refreshSelectedSample: (selectedSampleIdx: number) => void;
   getState: () => { sample: SampleState };
 }
 
@@ -104,9 +102,8 @@ export const SampleProvider: FC<SampleProviderProps> = ({
   );
 
   // Refs
-  const loadingSampleIndexRef = useRef<number | null>(null);
   const samplePollingRef = useRef<Timeout | null>(null);
-  const samplePollInterval = 2; // in seconds
+  const samplePollInterval = 2;
 
   // Context hooks
   const logsContext = useLogsContext();
@@ -183,19 +180,10 @@ export const SampleProvider: FC<SampleProviderProps> = ({
   // Load a specific sample
   const loadSample = useCallback(
     async (summary: SampleSummary) => {
-      if (
-        loadingSampleIndexRef.current === logContext.state.selectedSampleIndex
-      ) {
+      if (!logsContext.selectedLogFile) {
         return;
       }
 
-      const logFile =
-        logsContext.state.logs.files[logsContext.state.selectedLogIndex];
-      if (!logFile) {
-        return;
-      }
-
-      loadingSampleIndexRef.current = logContext.state.selectedSampleIndex;
       dispatch({ type: "SET_LOADING", payload: true });
 
       try {
@@ -205,7 +193,7 @@ export const SampleProvider: FC<SampleProviderProps> = ({
         if (summary.completed !== false && !samplePollingRef.current) {
           log.debug(`LOADING COMPLETED SAMPLE: ${summary.id}-${summary.epoch}`);
           const sample = await api.get_log_sample(
-            logFile.name,
+            logsContext.selectedLogFile,
             summary.id,
             summary.epoch,
           );
@@ -219,18 +207,16 @@ export const SampleProvider: FC<SampleProviderProps> = ({
           }
         } else {
           log.debug(`POLLING RUNNING SAMPLE: ${summary.id}-${summary.epoch}`);
-          pollForSampleData(logFile.name, summary);
+          pollForSampleData(logsContext.selectedLogFile, summary);
         }
 
         dispatch({ type: "SET_LOADING", payload: false });
       } catch (e) {
         dispatch({ type: "SET_ERROR", payload: e as Error });
-      } finally {
-        loadingSampleIndexRef.current = null;
       }
     },
     [
-      logsContext.state.logs,
+      logsContext.selectedLogFile,
       logsContext.state.selectedLogIndex,
       pollForSampleData,
     ],
@@ -260,23 +246,18 @@ export const SampleProvider: FC<SampleProviderProps> = ({
     logsContext.state.logs,
   ]);
 
-  // Refresh selected sample
-  const refreshSelectedSample = useCallback(
-    (selectedSampleIdx: number) => {
-      const sampleSummary = logContext.sampleSummaries[selectedSampleIdx];
-      if (sampleSummary) {
-        loadSample(sampleSummary);
-      } else {
-        dispatch({ type: "RESET_SAMPLE" });
-      }
-    },
-    [logContext.sampleSummaries, loadSample, dispatch],
-  );
-
   // Load selected sample when index changes
+  const selectedSampleSummary = useMemo(() => {
+    return logContext.sampleSummaries[logContext.state.selectedSampleIndex];
+  }, [logContext.state.selectedSampleIndex, logContext.sampleSummaries]);
+
   useEffect(() => {
-    refreshSelectedSample(logContext.state.selectedSampleIndex);
-  }, [logContext.state.selectedSampleIndex, refreshSelectedSample]);
+    if (selectedSampleSummary) {
+      loadSample(selectedSampleSummary);
+    } else {
+      dispatch({ type: "RESET_SAMPLE" });
+    }
+  }, [selectedSampleSummary]);
 
   const getState = () => {
     return { sample: state };
@@ -286,8 +267,6 @@ export const SampleProvider: FC<SampleProviderProps> = ({
   const contextValue = {
     state,
     dispatch,
-    loadSample,
-    refreshSelectedSample,
     getState,
   };
 
