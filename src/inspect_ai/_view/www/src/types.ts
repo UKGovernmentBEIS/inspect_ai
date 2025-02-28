@@ -1,18 +1,46 @@
-import { EvalSummary, SampleSummary } from "./api/types";
-import { LogState } from "./contexts/LogContext";
-import { LogsState } from "./contexts/LogsContext";
+import {
+  EvalLogHeader,
+  EvalSummary,
+  LogFiles,
+  PendingSamples,
+  SampleSummary,
+} from "./api/types";
 import { ContentImage, ContentText, EvalSample, Events } from "./types/log";
 
-// Define the state interface
 export interface AppState {
   status: AppStatus;
   offcanvas: boolean;
   showFind: boolean;
 }
 
+export interface LogsState {
+  logs: LogFiles;
+  logHeaders: Record<string, EvalLogHeader>;
+  headersLoading: boolean;
+  selectedLogIndex: number;
+}
+
+export interface LogState {
+  selectedLogSummary?: EvalSummary;
+  pendingSampleSummaries?: PendingSamples;
+  selectedSampleIndex: number;
+  filter: ScoreFilter;
+  epoch: string;
+  sort: string;
+  score?: ScoreLabel;
+}
+
+export interface SampleState {
+  selectedSample: EvalSample | undefined;
+  sampleStatus: "loading" | "ok" | "error";
+  sampleError: Error | undefined;
+  runningSampleData: RunningSampleData | undefined;
+}
+
 export interface ApplicationState {
   logs: LogsState;
   log: LogState;
+  sample: SampleState;
 
   selectedWorkspaceTab?: string;
   workspaceTabScrollPosition?: Record<string, number>;
