@@ -60,8 +60,6 @@ class SampleBufferDatabase(SampleBuffer):
         last_updated DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
-    INSERT INTO task_database (version) VALUES (1);
-
     CREATE TABLE samples (
         id TEXT,
         epoch INTEGER,
@@ -74,8 +72,7 @@ class SampleBufferDatabase(SampleBuffer):
         event_id TEXT,
         sample_id TEXT,
         sample_epoch INTEGER,
-        data TEXT, -- JSON containing full event
-        FOREIGN KEY (sample_id, sample_epoch) REFERENCES samples(id, epoch)
+        data TEXT -- JSON containing full event
     );
 
     CREATE TABLE attachments (
@@ -89,6 +86,9 @@ class SampleBufferDatabase(SampleBuffer):
     -- Indices for foreign keys and common queries
     CREATE INDEX IF NOT EXISTS idx_events_sample ON events(sample_id, sample_epoch);
     CREATE INDEX IF NOT EXISTS idx_attachments_hash ON attachments(hash);
+
+    -- Note the version
+    INSERT INTO task_database (version) VALUES (1);
     """
 
     def __init__(
