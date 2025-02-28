@@ -43,6 +43,7 @@ from inspect_ai._util.constants import (
     NO_CONTENT,
 )
 from inspect_ai._util.content import Content, ContentImage, ContentText
+from inspect_ai._util.http import is_retryable_http_status
 from inspect_ai._util.images import file_as_data_uri
 from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
 
@@ -206,11 +207,12 @@ class MistralAPI(ModelAPI):
 
     @override
     def should_retry(self, ex: BaseException) -> bool:
-        return (
-            isinstance(ex, SDKError)
-            and ex.status_code == 429
-            or isinstance(ex, ReadTimeout | AsyncReadTimeout)
-        )
+        if isinstance(ex, SDKError):
+            return is_retryable_http_status(ex.status_code)
+        elif isinstance(ex, ReadTimeout | AsyncReadTimeout):
+            return True
+        else:
+            return False
 
     @override
     def connection_key(self) -> str:
