@@ -5,7 +5,6 @@ from typing import Any, Dict, Iterable, List, Optional
 
 import httpx
 from groq import (
-    APIConnectionError,
     APIStatusError,
     APITimeoutError,
     AsyncGroq,
@@ -214,7 +213,7 @@ class GroqAPI(ModelAPI):
     def should_retry(self, ex: BaseException) -> bool:
         if isinstance(ex, APIStatusError):
             return is_retryable_http_status(ex.status_code)
-        elif isinstance(ex, APIConnectionError | APITimeoutError):
+        elif isinstance(ex, APITimeoutError):
             return True
         else:
             return False

@@ -16,7 +16,6 @@ else:
     from typing_extensions import NotRequired
 
 from anthropic import (
-    APIConnectionError,
     APIStatusError,
     APITimeoutError,
     AsyncAnthropic,
@@ -323,7 +322,7 @@ class AnthropicAPI(ModelAPI):
     def should_retry(self, ex: BaseException) -> bool:
         if isinstance(ex, APIStatusError):
             return is_retryable_http_status(ex.status_code)
-        elif isinstance(ex, APIConnectionError | APITimeoutError):
+        elif isinstance(ex, APITimeoutError):
             return True
         else:
             return False

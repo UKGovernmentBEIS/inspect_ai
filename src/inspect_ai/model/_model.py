@@ -20,6 +20,7 @@ from tenacity import (
     stop_never,
     wait_exponential_jitter,
 )
+from tenacity.stop import StopBaseT
 
 from inspect_ai._util.constants import DEFAULT_MAX_CONNECTIONS
 from inspect_ai._util.content import (
@@ -419,26 +420,26 @@ class Model:
         if self.api.collapse_assistant_messages():
             input = collapse_consecutive_assistant_messages(input)
 
-        # retry for rate limit errors (max of 30 minutes)
+        # retry for transient http errors:
+        # - no default timeout or max_retries (try forever)
+        # - exponential backoff starting at 3 seconds (will wait 25 minutes
+        #   on the 10th retry,then will wait no longer than 30 minutes on
+        #   subsequent retries)
+        if config.max_retries is not None and config.timeout is not None:
+            stop: StopBaseT = stop_after_attempt(config.max_retries) | stop_after_delay(
+                config.timeout
+            )
+        elif config.max_retries is not None:
+            stop = stop_after_attempt(config.max_retries)
+        elif config.timeout is not None:
+            stop = stop_after_delay(config.timeout)
+        else:
+            stop = stop_never
+
         @retry(
-            wait=wait_exponential_jitter(max=(30 * 60), jitter=5),
+            wait=wait_exponential_jitter(initial=3, max=(30 * 60), jitter=3),
             retry=retry_if_exception(self.should_retry),
-            stop=(
-                (
-                    stop_after_delay(config.timeout)
-                    | stop_after_attempt(config.max_retries)
-                )
-                if config.timeout and config.max_retries
-                else (
-                    stop_after_delay(config.timeout)
-                    if config.timeout
-                    else (
-                        stop_after_attempt(config.max_retries)
-                        if config.max_retries
-                        else stop_never
-                    )
-                )
-            ),
+            stop=stop,
             before_sleep=functools.partial(log_rate_limit_retry, self.api.model_name),
         )
         async def generate() -> ModelOutput:

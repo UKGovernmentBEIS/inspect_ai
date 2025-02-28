@@ -30,7 +30,6 @@ from azure.core.credentials import AzureKeyCredential
 from azure.core.exceptions import (
     AzureError,
     HttpResponseError,
-    ServiceRequestTimeoutError,
     ServiceResponseError,
 )
 from typing_extensions import override
@@ -241,7 +240,7 @@ class AzureAIAPI(ModelAPI):
     def should_retry(self, ex: BaseException) -> bool:
         if isinstance(ex, HttpResponseError) and ex.status_code is not None:
             return is_retryable_http_status(ex.status_code)
-        elif isinstance(ex, ServiceRequestTimeoutError | ServiceResponseError):
+        elif isinstance(ex, ServiceResponseError):
             return True
         else:
             return False

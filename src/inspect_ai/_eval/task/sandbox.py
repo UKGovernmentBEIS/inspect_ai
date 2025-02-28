@@ -15,7 +15,6 @@ from tenacity import (
 
 from inspect_ai._eval.task.task import Task
 from inspect_ai._eval.task.util import task_run_dir
-from inspect_ai._util.constants import DEFAULT_MAX_RETRIES, DEFAULT_TIMEOUT
 from inspect_ai._util.file import file, filesystem
 from inspect_ai._util.registry import registry_unqualified_name
 from inspect_ai._util.retry import httpx_should_retry, log_retry_attempt
@@ -186,8 +185,8 @@ async def _retrying_httpx_get(
     url: str,
     client: httpx.AsyncClient = httpx.AsyncClient(),
     timeout: int = 30,  # per-attempt timeout
-    max_retries: int = DEFAULT_MAX_RETRIES,
-    total_timeout: int = DEFAULT_TIMEOUT,  #  timeout for the whole retry loop. not for an individual attempt
+    max_retries: int = 10,
+    total_timeout: int = 120,  #  timeout for the whole retry loop. not for an individual attempt
 ) -> bytes:
     @retry(
         wait=wait_exponential_jitter(),

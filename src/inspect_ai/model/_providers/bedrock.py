@@ -285,12 +285,7 @@ class BedrockAPI(ModelAPI):
 
     @override
     def should_retry(self, ex: BaseException) -> bool:
-        from botocore.exceptions import (
-            ClientError,
-            ConnectionError,
-            HTTPClientError,
-            ReadTimeoutError,
-        )
+        from botocore.exceptions import ClientError
 
         # Look for an explicit throttle exception
         if isinstance(ex, ClientError):
@@ -306,8 +301,6 @@ class BedrockAPI(ModelAPI):
                 "RequestTimeout",
                 "ServiceUnavailable",
             ]
-        elif isinstance(ex, ConnectionError | HTTPClientError | ReadTimeoutError):
-            return True
         else:
             return False
 

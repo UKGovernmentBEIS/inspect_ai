@@ -7,7 +7,6 @@ import httpx
 from openai import (
     DEFAULT_CONNECTION_LIMITS,
     DEFAULT_TIMEOUT,
-    APIConnectionError,
     APIStatusError,
     APITimeoutError,
     AsyncAzureOpenAI,
@@ -271,7 +270,7 @@ class OpenAIAPI(ModelAPI):
                 return True
         elif isinstance(ex, APIStatusError):
             return is_retryable_http_status(ex.status_code)
-        elif isinstance(ex, APIConnectionError | APITimeoutError):
+        elif isinstance(ex, APITimeoutError):
             return True
         else:
             return False
