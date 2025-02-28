@@ -365,15 +365,6 @@ export const App: FC<AppProps> = ({
   }, [logContext.state.selectedSampleIndex, refreshSelectedSample]);
 
   useEffect(() => {
-    const loadSelectedLog = async () => {
-      if (logsContext.selectedLogFile) {
-        await logContext.loadLog(logsContext.selectedLogFile);
-      }
-    };
-    loadSelectedLog();
-  }, [logsContext.selectedLogFile]);
-
-  useEffect(() => {
     if (logContext.totalSampleCount) {
       logContext.dispatch({ type: "SELECT_SAMPLE", payload: 0 });
     }
