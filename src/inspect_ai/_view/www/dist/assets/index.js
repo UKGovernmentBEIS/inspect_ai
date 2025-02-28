@@ -26317,13 +26317,13 @@ categories: ${categories.join(" ")}`;
             }
             if (!api2.get_log_pending_samples) return;
             try {
-              log2.debug(`POLL PENDING SAMPLES: ${logFile}`);
+              log2.debug(`POLL RUNNING SAMPLES: ${logFile}`);
               const pendingSamples = await api2.get_log_pending_samples(
                 logFile,
                 polling.currentEtag
               );
               if (!polling.isActive) {
-                log2.debug(`POLL PENDING CANCELED: ${logFile}`);
+                log2.debug(`POLL RUNNING SAMPLES CANCELED: ${logFile}`);
                 return;
               }
               if (pendingSamples.status === "OK" && pendingSamples.pendingSamples) {
@@ -26336,7 +26336,7 @@ categories: ${categories.join(" ")}`;
                 refreshLog();
                 polling.hadPending = true;
               } else if (pendingSamples.status === "NotFound") {
-                log2.debug(`STOP PENDING SAMPLES: ${logFile}`);
+                log2.debug(`STOP POLLING RUNNING SAMPLES: ${logFile}`);
                 if (polling.hadPending) {
                   refreshLog();
                 }
@@ -26353,7 +26353,7 @@ categories: ${categories.join(" ")}`;
                 );
               }
             } catch (error2) {
-              log2.debug(`ERROR PENDING SAMPLES: ${logFile}`);
+              log2.debug(`ERROR PENDING RUNNING SAMPLES: ${logFile}`);
               log2.error("Error polling pending samples:", error2);
               if (polling.isActive) {
                 polling.timeout = setTimeout(
