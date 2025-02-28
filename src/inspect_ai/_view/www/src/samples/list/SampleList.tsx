@@ -17,6 +17,7 @@ import { SampleRow } from "./SampleRow";
 import { SampleSeparator } from "./SampleSeparator";
 
 import clsx from "clsx";
+import { useLogContext } from "../../LogContext";
 import { SampleFooter } from "./SampleFooter";
 import { SampleHeader } from "./SampleHeader";
 import styles from "./SampleList.module.css";
@@ -27,8 +28,6 @@ const kSeparatorHeight = 24;
 interface SampleListProps {
   items: ListItem[];
   running: boolean;
-  sampleDescriptor: SamplesDescriptor;
-  selectedIndex: number;
   nextSample: () => void;
   prevSample: () => void;
   showSample: (index: number) => void;
@@ -40,14 +39,14 @@ export const SampleList: FC<SampleListProps> = (props) => {
   const {
     items,
     running,
-    sampleDescriptor,
-    selectedIndex,
     nextSample,
     prevSample,
     showSample,
     className,
     listHandle,
   } = props;
+
+  const logContext = useLogContext();
 
   const [followOutput, setFollowOutput] = useState(false);
 
@@ -70,21 +69,26 @@ export const SampleList: FC<SampleListProps> = (props) => {
   const prevSelectedIndexRef = useRef<number>(null);
   useEffect(() => {
     const listEl = listHandle.current;
-    if (listEl && itemRowMapping.length > selectedIndex) {
-      const actualRowIndex = itemRowMapping[selectedIndex];
+    if (
+      listEl &&
+      itemRowMapping.length > logContext.state.selectedSampleIndex
+    ) {
+      const actualRowIndex =
+        itemRowMapping[logContext.state.selectedSampleIndex];
 
       requestAnimationFrame(() => {
         setTimeout(() => {
           try {
-            // TODO: Improve our behavior with regards to scrolling
-            // Theory: calling this while following the bottom of the list isn't great
             listEl.scrollToIndex(actualRowIndex);
             prevSelectedIndexRef.current = actualRowIndex;
-          } catch {}
+          } catch {
+            // TODO: Improve our behavior with regards to scrolling
+            // Theory: calling this while following the bottom of the list isn't great
+          }
         }, 25);
       });
     }
-  }, [selectedIndex, listHandle, itemRowMapping]);
+  }, [logContext.state.selectedSampleIndex, listHandle, itemRowMapping]);
 
   const onkeydown = useCallback(
     (e: KeyboardEvent<HTMLDivElement>) => {
@@ -100,18 +104,18 @@ export const SampleList: FC<SampleListProps> = (props) => {
           e.stopPropagation();
           break;
         case "Enter":
-          showSample(selectedIndex);
+          showSample(logContext.state.selectedSampleIndex);
           e.preventDefault();
           e.stopPropagation();
           break;
       }
     },
-    [selectedIndex, nextSample, prevSample, showSample],
+    [logContext.state.selectedSampleIndex, nextSample, prevSample, showSample],
   );
 
   const gridColumnsTemplate = useMemo(() => {
-    return gridColumnsValue(sampleDescriptor);
-  }, [sampleDescriptor]);
+    return gridColumnsValue(logContext.samplesDescriptor);
+  }, [logContext.samplesDescriptor]);
 
   const renderRow = useCallback(
     (item: ListItem) => {
@@ -126,7 +130,6 @@ export const SampleList: FC<SampleListProps> = (props) => {
             completed={item.completed}
             scoreRendered={item.scoreRendered}
             gridColumnsTemplate={gridColumnsTemplate}
-            selected={selectedIndex === item.index}
             showSample={showSample}
           />
         );
@@ -142,10 +145,12 @@ export const SampleList: FC<SampleListProps> = (props) => {
         return null;
       }
     },
-    [selectedIndex, showSample],
+    [showSample],
   );
 
-  const { input, limit, answer, target } = gridColumns(sampleDescriptor);
+  const { input, limit, answer, target } = gridColumns(
+    logContext.samplesDescriptor,
+  );
 
   const sampleCount = items?.reduce((prev, current) => {
     if (current.type === "sample") {
@@ -226,33 +231,36 @@ export const SampleList: FC<SampleListProps> = (props) => {
   );
 };
 
-const gridColumnsValue = (sampleDescriptor: SamplesDescriptor) => {
+const gridColumnsValue = (sampleDescriptor?: SamplesDescriptor) => {
   const { input, target, answer, limit, id, score } =
     gridColumns(sampleDescriptor);
   return `${id} ${input} ${target} ${answer} ${limit} ${score}`;
 };
 
-const gridColumns = (sampleDescriptor: SamplesDescriptor) => {
+const gridColumns = (sampleDescriptor?: SamplesDescriptor) => {
   const input =
-    sampleDescriptor?.messageShape.normalized.input > 0
+    sampleDescriptor && sampleDescriptor.messageShape.normalized.input > 0
       ? Math.max(0.15, sampleDescriptor.messageShape.normalized.input)
       : 0;
   const target =
-    sampleDescriptor?.messageShape.normalized.target > 0
+    sampleDescriptor && sampleDescriptor.messageShape.normalized.target > 0
       ? Math.max(0.15, sampleDescriptor.messageShape.normalized.target)
       : 0;
   const answer =
-    sampleDescriptor?.messageShape.normalized.answer > 0
+    sampleDescriptor && sampleDescriptor.messageShape.normalized.answer > 0
       ? Math.max(0.15, sampleDescriptor.messageShape.normalized.answer)
       : 0;
   const limit =
-    sampleDescriptor?.messageShape.normalized.limit > 0
+    sampleDescriptor && sampleDescriptor.messageShape.normalized.limit > 0
       ? Math.max(0.15, sampleDescriptor.messageShape.normalized.limit)
       : 0;
-  const id = Math.max(2, Math.min(10, sampleDescriptor?.messageShape.raw.id));
+  const id = Math.max(
+    2,
+    Math.min(10, sampleDescriptor?.messageShape.raw.id || 0),
+  );
   const score = Math.max(
     3,
-    Math.min(10, sampleDescriptor?.messageShape.raw.score),
+    Math.min(10, sampleDescriptor?.messageShape.raw.score || 0),
   );
 
   const frSize = (val: number) => {

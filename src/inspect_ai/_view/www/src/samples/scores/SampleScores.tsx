@@ -1,25 +1,21 @@
 import { FC, Fragment } from "react";
 import { SampleSummary } from "../../api/types";
-import { SamplesDescriptor } from "../descriptor/samplesDescriptor";
 
+import { useLogContext } from "../../LogContext";
 import styles from "./SampleScores.module.css";
 
 interface SampleScoresProps {
   sample: SampleSummary;
-  sampleDescriptor: SamplesDescriptor;
   scorer: string;
 }
 
-export const SampleScores: FC<SampleScoresProps> = ({
-  sample,
-  sampleDescriptor,
-  scorer,
-}) => {
+export const SampleScores: FC<SampleScoresProps> = ({ sample, scorer }) => {
+  const logContext = useLogContext();
   const scores = scorer
-    ? sampleDescriptor.evalDescriptor
+    ? logContext.samplesDescriptor?.evalDescriptor
         .scorerDescriptor(sample, { scorer, name: scorer })
         .scores()
-    : sampleDescriptor.selectedScorerDescriptor(sample)?.scores();
+    : logContext.samplesDescriptor?.selectedScorerDescriptor(sample)?.scores();
 
   if (scores?.length === 1) {
     return scores[0].rendered();

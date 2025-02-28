@@ -2,18 +2,15 @@ import clsx from "clsx";
 import { MarkdownDiv } from "../components/MarkdownDiv";
 import { EvalSample, WorkingTime } from "../types/log";
 import { arrayToString, formatTime, inputString } from "../utils/format";
-import { SamplesDescriptor } from "./descriptor/samplesDescriptor";
 import { FlatSampleError } from "./error/FlatSampleErrorView";
 
 import { FC, ReactNode } from "react";
-import { ScoreLabel } from "../types";
+import { useLogContext } from "../LogContext";
 import styles from "./SampleSummaryView.module.css";
 
 interface SampleSummaryViewProps {
   parent_id: string;
   sample: EvalSample;
-  sampleDescriptor: SamplesDescriptor;
-  score?: ScoreLabel;
 }
 
 interface SummaryColumn {
@@ -31,9 +28,13 @@ interface SummaryColumn {
 export const SampleSummaryView: FC<SampleSummaryViewProps> = ({
   parent_id,
   sample,
-  sampleDescriptor,
-  score,
 }) => {
+  const logContext = useLogContext();
+  const sampleDescriptor = logContext.samplesDescriptor;
+  if (!sampleDescriptor) {
+    return undefined;
+  }
+
   const input =
     sampleDescriptor?.messageShape.normalized.input > 0
       ? Math.max(0.15, sampleDescriptor.messageShape.normalized.input)
@@ -146,7 +147,9 @@ export const SampleSummaryView: FC<SampleSummaryViewProps> = ({
     value: sample.error ? (
       <FlatSampleError message={sample.error.message} />
     ) : (
-      sampleDescriptor?.evalDescriptor.score(sample, score)?.render() || ""
+      sampleDescriptor?.evalDescriptor
+        .score(sample, logContext.state.score)
+        ?.render() || ""
     ),
     size: "minmax(2em, 30em)",
     center: true,
