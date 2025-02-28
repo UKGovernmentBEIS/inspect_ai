@@ -11,6 +11,7 @@ import {
 } from "react";
 import { ClientAPI, EvalLogHeader, LogFiles } from "./api/types";
 import { useAppContext } from "./AppContext";
+import { createLogger } from "./utils/logger";
 import { sleep } from "./utils/sync";
 
 // Define action types
@@ -92,6 +93,9 @@ export const LogsProvider: FC<LogsProviderProps> = ({
   initialState,
   api,
 }) => {
+  const log = useMemo(() => {
+    return createLogger("LogsContext");
+  }, []);
   const [state, dispatch] = useReducer(
     logsReducer,
     initialState
@@ -107,6 +111,7 @@ export const LogsProvider: FC<LogsProviderProps> = ({
   // Load the list of logs
   const loadLogs = async (): Promise<LogFiles> => {
     try {
+      log.debug("LOADING LOG FILES");
       const result = await api.get_log_paths();
       return result;
     } catch (e) {
@@ -121,6 +126,7 @@ export const LogsProvider: FC<LogsProviderProps> = ({
   };
 
   const refreshLogs = useCallback(async () => {
+    log.debug("REFRESH LOGS");
     const refreshedLogs = await loadLogs();
     dispatch({
       type: "SET_LOGS",
@@ -191,6 +197,7 @@ export const LogsProvider: FC<LogsProviderProps> = ({
   // and then update
   useEffect(() => {
     const loadHeaders = async () => {
+      log.debug("LOADING HEADERS");
       dispatch({
         type: "SET_HEADERS_LOADING",
         payload: true,
@@ -208,7 +215,10 @@ export const LogsProvider: FC<LogsProviderProps> = ({
 
       // Chunk by chunk, read the header information
       try {
+        let counter = 0;
         for (const fileList of fileLists) {
+          counter++;
+          log.debug(`LOADING ${counter} of ${fileLists.length} CHUNKS`);
           const headers = await api.get_log_headers(fileList);
           const updatedHeaders: Record<string, EvalLogHeader> = {};
           headers.forEach((header, index) => {
@@ -221,7 +231,7 @@ export const LogsProvider: FC<LogsProviderProps> = ({
           });
 
           if (headers.length === chunkSize) {
-            await sleep(5000); // Pause between chunks
+            await sleep(5000);
           }
         }
       } catch (e: unknown) {
