@@ -21,13 +21,12 @@ import {
   kSampleScoringTabId,
   kSampleTranscriptTabId,
 } from "../constants";
-import { RunningSampleData, ScoreLabel } from "../types";
+import { RunningSampleData } from "../types";
 import { EvalSample } from "../types/log";
 import { ModelTokenTable } from "../usage/ModelTokenTable";
 import { formatTime } from "../utils/format";
 import { printHeadingHtml, printHtml } from "../utils/print";
 import { ChatViewVirtualList } from "./chat/ChatViewVirtualList";
-import { SamplesDescriptor } from "./descriptor/samplesDescriptor";
 import styles from "./SampleDisplay.module.css";
 import { SampleSummaryView } from "./SampleSummaryView";
 import { SampleTranscript } from "./transcript/SampleTranscript";
@@ -35,8 +34,6 @@ import { SampleTranscript } from "./transcript/SampleTranscript";
 interface SampleDisplayProps {
   id: string;
   sample?: EvalSample;
-  score?: ScoreLabel;
-  sampleDescriptor: SamplesDescriptor;
   selectedTab?: string;
   setSelectedTab: (tab: string) => void;
   scrollRef: RefObject<HTMLDivElement | null>;
@@ -49,8 +46,6 @@ interface SampleDisplayProps {
 export const SampleDisplay: FC<SampleDisplayProps> = ({
   id,
   sample,
-  score,
-  sampleDescriptor,
   selectedTab,
   setSelectedTab,
   scrollRef,
@@ -92,12 +87,7 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
   return (
     <Fragment>
       {sample ? (
-        <SampleSummaryView
-          score={score}
-          parent_id={id}
-          sample={sample}
-          sampleDescriptor={sampleDescriptor}
-        />
+        <SampleSummaryView parent_id={id} sample={sample} />
       ) : undefined}
       <TabSet
         id={tabsetId}
@@ -155,11 +145,7 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
             onSelected={onSelectedTab}
             selected={selectedTab === kSampleScoringTabId}
           >
-            <SampleScoreView
-              sample={sample}
-              sampleDescriptor={sampleDescriptor}
-              scorer={scorerNames[0]}
-            />
+            <SampleScoreView sample={sample} scorer={scorerNames[0]} />
           </TabPanel>
         ) : (
           <>
@@ -175,11 +161,7 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
                       onSelected={onSelectedTab}
                       selected={selectedTab === tabId}
                     >
-                      <SampleScoreView
-                        sample={sample}
-                        sampleDescriptor={sampleDescriptor}
-                        scorer={scorer}
-                      />
+                      <SampleScoreView sample={sample} scorer={scorer} />
                     </TabPanel>
                   );
                 })

@@ -10,7 +10,6 @@ import {
 import { RunningMetric, SampleSummary } from "../api/types";
 import { EmptyPanel } from "../components/EmptyPanel";
 import { TabPanel, TabSet } from "../components/TabSet";
-import { EvalDescriptor } from "../samples/descriptor/types";
 import {
   EvalPlan,
   EvalResults,
@@ -32,7 +31,6 @@ interface WorkSpaceViewProps {
   runningMetrics?: RunningMetric[];
   evalStats?: EvalStats;
   samples?: SampleSummary[];
-  evalDescriptor?: EvalDescriptor;
   status?: Status;
   showToggle: boolean;
   tabs: Record<string, TabDescriptor>;
@@ -51,7 +49,6 @@ export const WorkSpaceView: FC<WorkSpaceViewProps> = ({
   runningMetrics,
   evalStats,
   samples,
-  evalDescriptor,
   status,
   showToggle,
   selectedTab,
@@ -120,7 +117,6 @@ export const WorkSpaceView: FC<WorkSpaceViewProps> = ({
           runningMetrics={runningMetrics}
           evalStats={evalStats}
           samples={samples}
-          evalDescriptor={evalDescriptor}
           status={status}
           file={logFileName}
           showToggle={showToggle}

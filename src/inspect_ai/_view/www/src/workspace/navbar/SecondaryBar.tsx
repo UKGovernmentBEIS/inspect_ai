@@ -3,6 +3,7 @@ import { FC } from "react";
 import { SampleSummary } from "../../api/types";
 import { ExpandablePanel } from "../../components/ExpandablePanel";
 import { LabeledValue } from "../../components/LabeledValue";
+import { useLogContext } from "../../LogContext";
 import { EvalDescriptor } from "../../samples/descriptor/types";
 import { scoreFilterItems } from "../../samples/sample-tools/filters";
 import {
@@ -20,7 +21,6 @@ interface SecondaryBarProps {
   evalPlan?: EvalPlan;
   evalResults?: EvalResults;
   evalStats?: EvalStats;
-  evalDescriptor?: EvalDescriptor;
   samples?: SampleSummary[];
   status?: string;
 }
@@ -34,9 +34,10 @@ export const SecondaryBar: FC<SecondaryBarProps> = ({
   evalResults,
   evalStats,
   samples,
-  evalDescriptor,
   status,
 }) => {
+  const logContext = useLogContext();
+
   if (!evalSpec || status !== "success") {
     return null;
   }
@@ -81,7 +82,7 @@ export const SecondaryBar: FC<SecondaryBarProps> = ({
           "text-size-small",
         )}
       >
-        <ScorerSummary evalDescriptor={evalDescriptor} />
+        <ScorerSummary evalDescriptor={logContext.evalDescriptor} />
       </LabeledValue>
     ),
   });

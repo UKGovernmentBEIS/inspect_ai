@@ -1,7 +1,6 @@
 import clsx from "clsx";
 import { FC } from "react";
 import { RunningMetric, SampleSummary } from "../../api/types";
-import { EvalDescriptor } from "../../samples/descriptor/types";
 import {
   EvalPlan,
   EvalResults,
@@ -20,7 +19,6 @@ interface NavBarProps {
   runningMetrics?: RunningMetric[];
   evalPlan?: EvalPlan;
   evalStats?: EvalStats;
-  evalDescriptor?: EvalDescriptor;
   samples?: SampleSummary[];
   status?: Status;
   showToggle: boolean;
@@ -36,7 +34,6 @@ export const Navbar: FC<NavBarProps> = ({
   evalResults,
   evalStats,
   samples,
-  evalDescriptor,
   showToggle,
   status,
   runningMetrics,
@@ -58,7 +55,6 @@ export const Navbar: FC<NavBarProps> = ({
         evalResults={evalResults}
         evalStats={evalStats}
         samples={samples}
-        evalDescriptor={evalDescriptor}
         status={status}
       />
     </nav>
