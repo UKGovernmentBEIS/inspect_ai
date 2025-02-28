@@ -26191,6 +26191,24 @@ categories: ${categories.join(" ")}`;
         return void 0;
       }
     };
+    const createLogger = (namespace) => {
+      const logger = {
+        debug: (message2, ...args) => {
+        },
+        info: (message2, ...args) => {
+        },
+        warn: (message2, ...args) => {
+        },
+        // Always log errors, even in production
+        error: (message2, ...args) => {
+          console.error(`[${namespace}] ${message2}`, ...args);
+        },
+        // Lazy evaluation for expensive logs
+        debugIf: (fn2) => {
+        }
+      };
+      return logger;
+    };
     const initialLogState = {
       selectedSampleIndex: -1,
       filter: {},
@@ -26231,8 +26249,10 @@ categories: ${categories.join(" ")}`;
       initialState: initialState2,
       api: api2
     }) => {
-      var _a2, _b2, _c, _d, _e2, _f;
-      const appContext = useAppContext();
+      var _a2, _b2, _c, _d;
+      const log2 = reactExports.useMemo(() => {
+        return createLogger("LogContext");
+      }, []);
       const logsContext = useLogsContext();
       const [state, dispatch] = reactExports.useReducer(
         logsReducer,
@@ -26243,96 +26263,124 @@ categories: ${categories.join(" ")}`;
       };
       const loadLog = reactExports.useCallback(
         async (logFileName) => {
+          log2.debug(`LOAD LOG: ${logFileName}`);
           const logContents = await api2.get_log_summary(logFileName);
           dispatch({ type: "SET_SELECTED_LOG_SUMMARY", payload: logContents });
           dispatch({ type: "RESET_FILTERING" });
         },
-        [api2, appContext.dispatch]
+        [api2, dispatch, log2]
       );
       const refreshLog = reactExports.useCallback(async () => {
+        log2.debug(`REFRESH: ${logsContext.selectedLogFile}`);
         const file = logsContext.selectedLogFile;
         if (file) {
           const logContents = await api2.get_log_summary(file);
           dispatch({ type: "SET_SELECTED_LOG_SUMMARY", payload: logContents });
         }
-      }, [api2]);
-      reactExports.useEffect(() => {
-        if (!state.selectedLogSummary) return;
-        let isActive = true;
-        let pollTimeout = null;
-        let hadPending = false;
-        const clearPendingSummaries = () => {
+      }, [api2, dispatch, logsContext.selectedLogFile, log2]);
+      const clearPendingSummaries = reactExports.useCallback(() => {
+        var _a3, _b3;
+        if ((((_a3 = state.pendingSampleSummaries) == null ? void 0 : _a3.samples.length) || 0) > 0) {
+          log2.debug(`CLEAR PENDING: ${logsContext.selectedLogFile}`);
+          dispatch({
+            type: "SET_PENDING_SAMPLE_SUMMARIES",
+            payload: {
+              samples: [],
+              refresh: ((_b3 = state.pendingSampleSummaries) == null ? void 0 : _b3.refresh) || 2
+            }
+          });
+          refreshLog();
+        }
+      }, [dispatch, state.pendingSampleSummaries, log2]);
+      const pollPendingSummaries = reactExports.useCallback(
+        (logFile) => {
           var _a3, _b3;
-          if ((((_a3 = state.pendingSampleSummaries) == null ? void 0 : _a3.samples.length) || 0) > 0) {
-            dispatch({
-              type: "SET_PENDING_SAMPLE_SUMMARIES",
-              payload: {
-                samples: [],
-                refresh: ((_b3 = state.pendingSampleSummaries) == null ? void 0 : _b3.refresh) || 2
+          const polling = {
+            isActive: true,
+            hadPending: false,
+            currentEtag: (_a3 = state.pendingSampleSummaries) == null ? void 0 : _a3.etag,
+            currentRefresh: ((_b3 = state.pendingSampleSummaries) == null ? void 0 : _b3.refresh) || 2,
+            timeout: null
+          };
+          const poll = async () => {
+            if (!polling.isActive) {
+              return;
+            }
+            if (!api2.get_log_pending_samples) return;
+            try {
+              log2.debug(`POLL PENDING SAMPLES: ${logFile}`);
+              const pendingSamples = await api2.get_log_pending_samples(
+                logFile,
+                polling.currentEtag
+              );
+              if (!polling.isActive) {
+                log2.debug(`POLL PENDING CANCELED: ${logFile}`);
+                return;
               }
-            });
-            refreshLog();
-          }
-        };
-        const pollPendingSamples = async () => {
-          var _a3, _b3, _c2;
-          if (!api2.get_log_pending_samples) return;
-          try {
-            const logFile = logsContext.selectedLogFile;
-            if (!logFile) return;
-            const pendingSamples = await api2.get_log_pending_samples(
-              logFile,
-              (_a3 = state.pendingSampleSummaries) == null ? void 0 : _a3.etag
-            );
-            if (!isActive) return;
-            if (pendingSamples.status === "OK" && pendingSamples.pendingSamples) {
-              dispatch({
-                type: "SET_PENDING_SAMPLE_SUMMARIES",
-                payload: pendingSamples.pendingSamples
-              });
-              refreshLog();
-              hadPending = true;
-            } else if (pendingSamples.status === "NotFound") {
-              if (hadPending) {
+              if (pendingSamples.status === "OK" && pendingSamples.pendingSamples) {
+                polling.currentEtag = pendingSamples.pendingSamples.etag;
+                polling.currentRefresh = pendingSamples.pendingSamples.refresh || polling.currentRefresh;
+                dispatch({
+                  type: "SET_PENDING_SAMPLE_SUMMARIES",
+                  payload: pendingSamples.pendingSamples
+                });
                 refreshLog();
+                polling.hadPending = true;
+              } else if (pendingSamples.status === "NotFound") {
+                log2.debug(`STOP PENDING SAMPLES: ${logFile}`);
+                if (polling.hadPending) {
+                  refreshLog();
+                }
+                clearPendingSummaries();
+                polling.isActive = false;
+                return;
               }
-              clearPendingSummaries();
-              isActive = false;
+              if (polling.isActive) {
+                polling.timeout = setTimeout(
+                  poll,
+                  // Call the inner function rather than the outer one
+                  polling.currentRefresh * 1e3
+                  // Use the closure variable
+                );
+              }
+            } catch (error2) {
+              log2.debug(`ERROR PENDING SAMPLES: ${logFile}`);
+              log2.error("Error polling pending samples:", error2);
+              if (polling.isActive) {
+                polling.timeout = setTimeout(
+                  poll,
+                  // Call the inner function
+                  Math.min(polling.currentRefresh * 2 * 1e3, 6e4)
+                );
+              }
             }
-            if (isActive) {
-              pollTimeout = setTimeout(
-                pollPendingSamples,
-                (((_b3 = state.pendingSampleSummaries) == null ? void 0 : _b3.refresh) || 2) * 1e3
-              );
+          };
+          poll();
+          return () => {
+            polling.isActive = false;
+            if (polling.timeout) {
+              clearTimeout(polling.timeout);
+              polling.timeout = null;
             }
-          } catch (error2) {
-            console.error("Error polling pending samples:", error2);
-            if (isActive) {
-              pollTimeout = setTimeout(
-                pollPendingSamples,
-                Math.min(
-                  (((_c2 = state.pendingSampleSummaries) == null ? void 0 : _c2.refresh) || 2) * 2 * 1e3,
-                  6e4
-                )
-              );
-            }
-          }
-        };
-        pollPendingSamples();
-        return () => {
-          isActive = false;
-          if (pollTimeout) {
-            clearTimeout(pollTimeout);
-          }
-        };
-      }, [
-        // These dependencies will trigger the effect to restart
-        state.selectedLogSummary,
-        (_a2 = state.pendingSampleSummaries) == null ? void 0 : _a2.etag,
-        (_b2 = state.pendingSampleSummaries) == null ? void 0 : _b2.refresh,
-        api2.get_log_pending_samples,
-        logsContext.selectedLogFile
-      ]);
+          };
+        },
+        [
+          api2.get_log_pending_samples,
+          dispatch,
+          refreshLog,
+          clearPendingSummaries,
+          log2
+        ]
+      );
+      reactExports.useEffect(() => {
+        if (!logsContext.selectedLogFile) {
+          return;
+        }
+        const logFile = logsContext.selectedLogFile;
+        if (!logFile) return;
+        const stopPolling = pollPendingSummaries(logFile);
+        return stopPolling;
+      }, [pollPendingSummaries, logsContext.selectedLogFile]);
       const sampleSummaries = reactExports.useMemo(() => {
         var _a3, _b3;
         const logSamples = ((_a3 = state.selectedLogSummary) == null ? void 0 : _a3.sampleSummaries) || [];
@@ -26340,8 +26388,8 @@ categories: ${categories.join(" ")}`;
         const result2 = mergeSampleSummaries(logSamples, pendingSamples);
         return result2;
       }, [
-        (_c = state.selectedLogSummary) == null ? void 0 : _c.sampleSummaries,
-        (_d = state.pendingSampleSummaries) == null ? void 0 : _d.samples
+        (_a2 = state.selectedLogSummary) == null ? void 0 : _a2.sampleSummaries,
+        (_b2 = state.pendingSampleSummaries) == null ? void 0 : _b2.samples
       ]);
       const currentScore = reactExports.useMemo(() => {
         if (state.score) {
@@ -26399,9 +26447,9 @@ categories: ${categories.join(" ")}`;
         currentScore
       ]);
       const groupBy = reactExports.useMemo(() => {
-        var _a3, _b3, _c2, _d2, _e3, _f2;
+        var _a3, _b3, _c2, _d2, _e2, _f;
         let grouping = "none";
-        if (((_c2 = (_b3 = (_a3 = state.selectedLogSummary) == null ? void 0 : _a3.eval) == null ? void 0 : _b3.config) == null ? void 0 : _c2.epochs) && (((_f2 = (_e3 = (_d2 = state.selectedLogSummary) == null ? void 0 : _d2.eval) == null ? void 0 : _e3.config) == null ? void 0 : _f2.epochs) || 1) > 1) {
+        if (((_c2 = (_b3 = (_a3 = state.selectedLogSummary) == null ? void 0 : _a3.eval) == null ? void 0 : _b3.config) == null ? void 0 : _c2.epochs) && (((_f = (_e2 = (_d2 = state.selectedLogSummary) == null ? void 0 : _d2.eval) == null ? void 0 : _e2.config) == null ? void 0 : _f.epochs) || 1) > 1) {
           if (byEpoch(state.sort) || state.epoch !== "all") {
             grouping = "epoch";
           } else if (bySample(state.sort)) {
@@ -26417,8 +26465,8 @@ categories: ${categories.join(" ")}`;
         var _a3, _b3;
         return (((_a3 = state.pendingSampleSummaries) == null ? void 0 : _a3.samples.length) || 0) + (((_b3 = state.selectedLogSummary) == null ? void 0 : _b3.sampleSummaries.length) || 0);
       }, [
-        (_e2 = state.pendingSampleSummaries) == null ? void 0 : _e2.samples,
-        (_f = state.selectedLogSummary) == null ? void 0 : _f.sampleSummaries
+        (_c = state.pendingSampleSummaries) == null ? void 0 : _c.samples,
+        (_d = state.selectedLogSummary) == null ? void 0 : _d.sampleSummaries
       ]);
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
         LogContext.Provider,
@@ -62006,38 +62054,49 @@ ${events}
       depth,
       className: className2
     }) => {
-      const body2 = event.type === "fork" ? /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { title: "Summary", className: clsx(styles$n.summary), children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-label"), children: "Inputs" }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$n.summaryRendered), children: /* @__PURE__ */ jsxRuntimeExports.jsx(Rendered, { values: event.input }) }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-label"), children: "Transcript" }),
-        event.events.length > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
-          TranscriptView,
-          {
-            id: `${id}-subtask`,
-            "data-name": "Transcript",
-            events: event.events,
-            depth: depth + 1
-          }
-        ) : /* @__PURE__ */ jsxRuntimeExports.jsx(None, {})
-      ] }) : /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx(
-          SubtaskSummary,
-          {
-            "data-name": "Summary",
-            input: event.input,
-            result: event.result
-          }
-        ),
-        event.events.length > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
-          TranscriptView,
-          {
-            id: `${id}-subtask`,
-            "data-name": "Transcript",
-            events: event.events,
-            depth: depth + 1
-          }
-        ) : void 0
-      ] });
+      const body2 = [];
+      if (event.type === "fork") {
+        body2.push(
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { title: "Summary", className: clsx(styles$n.summary), children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-label"), children: "Inputs" }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$n.summaryRendered), children: /* @__PURE__ */ jsxRuntimeExports.jsx(Rendered, { values: event.input }) }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-label"), children: "Transcript" }),
+            event.events.length > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+              TranscriptView,
+              {
+                id: `${id}-subtask`,
+                "data-name": "Transcript",
+                events: event.events,
+                depth: depth + 1
+              }
+            ) : /* @__PURE__ */ jsxRuntimeExports.jsx(None, {})
+          ] })
+        );
+      } else {
+        body2.push(
+          /* @__PURE__ */ jsxRuntimeExports.jsx(
+            SubtaskSummary,
+            {
+              "data-name": "Summary",
+              input: event.input,
+              result: event.result
+            }
+          )
+        );
+        if (event.events.length > 0) {
+          body2.push(
+            /* @__PURE__ */ jsxRuntimeExports.jsx(
+              TranscriptView,
+              {
+                id: `${id}-subtask`,
+                "data-name": "Transcript",
+                events: event.events,
+                depth: depth + 1
+              }
+            )
+          );
+        }
+      }
       const type = event.type === "fork" ? "Fork" : "Subtask";
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
         EventPanel,
@@ -66364,14 +66423,6 @@ ${events}
       reactExports.useEffect(() => {
         refreshSelectedSample(logContext.state.selectedSampleIndex);
       }, [logContext.state.selectedSampleIndex, refreshSelectedSample]);
-      reactExports.useEffect(() => {
-        const loadSelectedLog = async () => {
-          if (logsContext.selectedLogFile) {
-            await logContext.loadLog(logsContext.selectedLogFile);
-          }
-        };
-        loadSelectedLog();
-      }, [logsContext.selectedLogFile]);
       reactExports.useEffect(() => {
         if (logContext.totalSampleCount) {
           logContext.dispatch({ type: "SELECT_SAMPLE", payload: 0 });
