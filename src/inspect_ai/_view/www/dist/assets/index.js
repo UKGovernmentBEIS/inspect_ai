@@ -35453,6 +35453,28 @@ categories: ${categories.join(" ")}`;
         return void 0;
       }
     };
+    const createLogger = (namespace) => {
+      const logger = {
+        debug: (message2, ...args) => {
+          console.debug(`[${namespace}] ${message2}`, ...args);
+        },
+        info: (message2, ...args) => {
+          console.info(`[${namespace}] ${message2}`, ...args);
+        },
+        warn: (message2, ...args) => {
+          console.warn(`[${namespace}] ${message2}`, ...args);
+        },
+        // Always log errors, even in production
+        error: (message2, ...args) => {
+          console.error(`[${namespace}] ${message2}`, ...args);
+        },
+        // Lazy evaluation for expensive logs
+        debugIf: (fn2) => {
+          console.debug(`[${namespace}] ${fn2()}`);
+        }
+      };
+      return logger;
+    };
     const initialLogState = {
       selectedSampleIndex: -1,
       filter: {},
@@ -35493,8 +35515,10 @@ categories: ${categories.join(" ")}`;
       initialState: initialState2,
       api: api2
     }) => {
-      var _a2, _b2, _c, _d, _e2, _f;
-      const appContext = useAppContext();
+      var _a2, _b2, _c, _d;
+      const log = reactExports.useMemo(() => {
+        return createLogger("LogContext");
+      }, []);
       const logsContext = useLogsContext();
       const [state, dispatch] = reactExports.useReducer(
         logsReducer,
@@ -35505,96 +35529,124 @@ categories: ${categories.join(" ")}`;
       };
       const loadLog = reactExports.useCallback(
         async (logFileName) => {
+          log.debug(`LOAD LOG: ${logFileName}`);
           const logContents = await api2.get_log_summary(logFileName);
           dispatch({ type: "SET_SELECTED_LOG_SUMMARY", payload: logContents });
           dispatch({ type: "RESET_FILTERING" });
         },
-        [api2, appContext.dispatch]
+        [api2, dispatch, log]
       );
       const refreshLog = reactExports.useCallback(async () => {
+        log.debug(`REFRESH: ${logsContext.selectedLogFile}`);
         const file = logsContext.selectedLogFile;
         if (file) {
           const logContents = await api2.get_log_summary(file);
           dispatch({ type: "SET_SELECTED_LOG_SUMMARY", payload: logContents });
         }
-      }, [api2]);
-      reactExports.useEffect(() => {
-        if (!state.selectedLogSummary) return;
-        let isActive = true;
-        let pollTimeout = null;
-        let hadPending = false;
-        const clearPendingSummaries = () => {
+      }, [api2, dispatch, logsContext.selectedLogFile, log]);
+      const clearPendingSummaries = reactExports.useCallback(() => {
+        var _a3, _b3;
+        if ((((_a3 = state.pendingSampleSummaries) == null ? void 0 : _a3.samples.length) || 0) > 0) {
+          log.debug(`CLEAR PENDING: ${logsContext.selectedLogFile}`);
+          dispatch({
+            type: "SET_PENDING_SAMPLE_SUMMARIES",
+            payload: {
+              samples: [],
+              refresh: ((_b3 = state.pendingSampleSummaries) == null ? void 0 : _b3.refresh) || 2
+            }
+          });
+          refreshLog();
+        }
+      }, [dispatch, state.pendingSampleSummaries, log]);
+      const pollPendingSummaries = reactExports.useCallback(
+        (logFile) => {
           var _a3, _b3;
-          if ((((_a3 = state.pendingSampleSummaries) == null ? void 0 : _a3.samples.length) || 0) > 0) {
-            dispatch({
-              type: "SET_PENDING_SAMPLE_SUMMARIES",
-              payload: {
-                samples: [],
-                refresh: ((_b3 = state.pendingSampleSummaries) == null ? void 0 : _b3.refresh) || 2
+          const polling = {
+            isActive: true,
+            hadPending: false,
+            currentEtag: (_a3 = state.pendingSampleSummaries) == null ? void 0 : _a3.etag,
+            currentRefresh: ((_b3 = state.pendingSampleSummaries) == null ? void 0 : _b3.refresh) || 2,
+            timeout: null
+          };
+          const poll = async () => {
+            if (!polling.isActive) {
+              return;
+            }
+            if (!api2.get_log_pending_samples) return;
+            try {
+              log.debug(`POLL PENDING SAMPLES: ${logFile}`);
+              const pendingSamples = await api2.get_log_pending_samples(
+                logFile,
+                polling.currentEtag
+              );
+              if (!polling.isActive) {
+                log.debug(`POLL PENDING CANCELED: ${logFile}`);
+                return;
               }
-            });
-            refreshLog();
-          }
-        };
-        const pollPendingSamples = async () => {
-          var _a3, _b3, _c2;
-          if (!api2.get_log_pending_samples) return;
-          try {
-            const logFile = logsContext.selectedLogFile;
-            if (!logFile) return;
-            const pendingSamples = await api2.get_log_pending_samples(
-              logFile,
-              (_a3 = state.pendingSampleSummaries) == null ? void 0 : _a3.etag
-            );
-            if (!isActive) return;
-            if (pendingSamples.status === "OK" && pendingSamples.pendingSamples) {
-              dispatch({
-                type: "SET_PENDING_SAMPLE_SUMMARIES",
-                payload: pendingSamples.pendingSamples
-              });
-              refreshLog();
-              hadPending = true;
-            } else if (pendingSamples.status === "NotFound") {
-              if (hadPending) {
+              if (pendingSamples.status === "OK" && pendingSamples.pendingSamples) {
+                polling.currentEtag = pendingSamples.pendingSamples.etag;
+                polling.currentRefresh = pendingSamples.pendingSamples.refresh || polling.currentRefresh;
+                dispatch({
+                  type: "SET_PENDING_SAMPLE_SUMMARIES",
+                  payload: pendingSamples.pendingSamples
+                });
                 refreshLog();
+                polling.hadPending = true;
+              } else if (pendingSamples.status === "NotFound") {
+                log.debug(`STOP PENDING SAMPLES: ${logFile}`);
+                if (polling.hadPending) {
+                  refreshLog();
+                }
+                clearPendingSummaries();
+                polling.isActive = false;
+                return;
               }
-              clearPendingSummaries();
-              isActive = false;
+              if (polling.isActive) {
+                polling.timeout = setTimeout(
+                  poll,
+                  // Call the inner function rather than the outer one
+                  polling.currentRefresh * 1e3
+                  // Use the closure variable
+                );
+              }
+            } catch (error2) {
+              log.debug(`ERROR PENDING SAMPLES: ${logFile}`);
+              log.error("Error polling pending samples:", error2);
+              if (polling.isActive) {
+                polling.timeout = setTimeout(
+                  poll,
+                  // Call the inner function
+                  Math.min(polling.currentRefresh * 2 * 1e3, 6e4)
+                );
+              }
             }
-            if (isActive) {
-              pollTimeout = setTimeout(
-                pollPendingSamples,
-                (((_b3 = state.pendingSampleSummaries) == null ? void 0 : _b3.refresh) || 2) * 1e3
-              );
+          };
+          poll();
+          return () => {
+            polling.isActive = false;
+            if (polling.timeout) {
+              clearTimeout(polling.timeout);
+              polling.timeout = null;
             }
-          } catch (error2) {
-            console.error("Error polling pending samples:", error2);
-            if (isActive) {
-              pollTimeout = setTimeout(
-                pollPendingSamples,
-                Math.min(
-                  (((_c2 = state.pendingSampleSummaries) == null ? void 0 : _c2.refresh) || 2) * 2 * 1e3,
-                  6e4
-                )
-              );
-            }
-          }
-        };
-        pollPendingSamples();
-        return () => {
-          isActive = false;
-          if (pollTimeout) {
-            clearTimeout(pollTimeout);
-          }
-        };
-      }, [
-        // These dependencies will trigger the effect to restart
-        state.selectedLogSummary,
-        (_a2 = state.pendingSampleSummaries) == null ? void 0 : _a2.etag,
-        (_b2 = state.pendingSampleSummaries) == null ? void 0 : _b2.refresh,
-        api2.get_log_pending_samples,
-        logsContext.selectedLogFile
-      ]);
+          };
+        },
+        [
+          api2.get_log_pending_samples,
+          dispatch,
+          refreshLog,
+          clearPendingSummaries,
+          log
+        ]
+      );
+      reactExports.useEffect(() => {
+        if (!logsContext.selectedLogFile) {
+          return;
+        }
+        const logFile = logsContext.selectedLogFile;
+        if (!logFile) return;
+        const stopPolling = pollPendingSummaries(logFile);
+        return stopPolling;
+      }, [pollPendingSummaries, logsContext.selectedLogFile]);
       const sampleSummaries = reactExports.useMemo(() => {
         var _a3, _b3;
         const logSamples = ((_a3 = state.selectedLogSummary) == null ? void 0 : _a3.sampleSummaries) || [];
@@ -35602,8 +35654,8 @@ categories: ${categories.join(" ")}`;
         const result2 = mergeSampleSummaries(logSamples, pendingSamples);
         return result2;
       }, [
-        (_c = state.selectedLogSummary) == null ? void 0 : _c.sampleSummaries,
-        (_d = state.pendingSampleSummaries) == null ? void 0 : _d.samples
+        (_a2 = state.selectedLogSummary) == null ? void 0 : _a2.sampleSummaries,
+        (_b2 = state.pendingSampleSummaries) == null ? void 0 : _b2.samples
       ]);
       const currentScore = reactExports.useMemo(() => {
         if (state.score) {
@@ -35661,9 +35713,9 @@ categories: ${categories.join(" ")}`;
         currentScore
       ]);
       const groupBy = reactExports.useMemo(() => {
-        var _a3, _b3, _c2, _d2, _e3, _f2;
+        var _a3, _b3, _c2, _d2, _e2, _f;
         let grouping = "none";
-        if (((_c2 = (_b3 = (_a3 = state.selectedLogSummary) == null ? void 0 : _a3.eval) == null ? void 0 : _b3.config) == null ? void 0 : _c2.epochs) && (((_f2 = (_e3 = (_d2 = state.selectedLogSummary) == null ? void 0 : _d2.eval) == null ? void 0 : _e3.config) == null ? void 0 : _f2.epochs) || 1) > 1) {
+        if (((_c2 = (_b3 = (_a3 = state.selectedLogSummary) == null ? void 0 : _a3.eval) == null ? void 0 : _b3.config) == null ? void 0 : _c2.epochs) && (((_f = (_e2 = (_d2 = state.selectedLogSummary) == null ? void 0 : _d2.eval) == null ? void 0 : _e2.config) == null ? void 0 : _f.epochs) || 1) > 1) {
           if (byEpoch(state.sort) || state.epoch !== "all") {
             grouping = "epoch";
           } else if (bySample(state.sort)) {
@@ -35679,8 +35731,8 @@ categories: ${categories.join(" ")}`;
         var _a3, _b3;
         return (((_a3 = state.pendingSampleSummaries) == null ? void 0 : _a3.samples.length) || 0) + (((_b3 = state.selectedLogSummary) == null ? void 0 : _b3.sampleSummaries.length) || 0);
       }, [
-        (_e2 = state.pendingSampleSummaries) == null ? void 0 : _e2.samples,
-        (_f = state.selectedLogSummary) == null ? void 0 : _f.sampleSummaries
+        (_c = state.pendingSampleSummaries) == null ? void 0 : _c.samples,
+        (_d = state.selectedLogSummary) == null ? void 0 : _d.sampleSummaries
       ]);
       return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
         LogContext.Provider,
@@ -35705,7 +35757,7 @@ categories: ${categories.join(" ")}`;
         false,
         {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/LogContext.tsx",
-          lineNumber: 372,
+          lineNumber: 413,
           columnNumber: 5
         },
         void 0
@@ -72890,90 +72942,97 @@ ${events}
       depth,
       className: className2
     }) => {
-      const body2 = event.type === "fork" ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { title: "Summary", className: clsx(styles$n.summary), children: [
-        /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: clsx("text-style-label"), children: "Inputs" }, void 0, false, {
-          fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/SubtaskEventView.tsx",
-          lineNumber: 36,
-          columnNumber: 9
-        }, void 0),
-        /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: clsx(styles$n.summaryRendered), children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(Rendered, { values: event.input }, void 0, false, {
-          fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/SubtaskEventView.tsx",
-          lineNumber: 38,
-          columnNumber: 11
-        }, void 0) }, void 0, false, {
-          fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/SubtaskEventView.tsx",
-          lineNumber: 37,
-          columnNumber: 9
-        }, void 0),
-        /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: clsx("text-style-label"), children: "Transcript" }, void 0, false, {
-          fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/SubtaskEventView.tsx",
-          lineNumber: 40,
-          columnNumber: 9
-        }, void 0),
-        event.events.length > 0 ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
-          TranscriptView,
-          {
-            id: `${id}-subtask`,
-            "data-name": "Transcript",
-            events: event.events,
-            depth: depth + 1
-          },
-          void 0,
-          false,
-          {
+      const body2 = [];
+      if (event.type === "fork") {
+        body2.push(
+          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { title: "Summary", className: clsx(styles$n.summary), children: [
+            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: clsx("text-style-label"), children: "Inputs" }, void 0, false, {
+              fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/SubtaskEventView.tsx",
+              lineNumber: 36,
+              columnNumber: 9
+            }, void 0),
+            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: clsx(styles$n.summaryRendered), children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(Rendered, { values: event.input }, void 0, false, {
+              fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/SubtaskEventView.tsx",
+              lineNumber: 38,
+              columnNumber: 11
+            }, void 0) }, void 0, false, {
+              fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/SubtaskEventView.tsx",
+              lineNumber: 37,
+              columnNumber: 9
+            }, void 0),
+            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: clsx("text-style-label"), children: "Transcript" }, void 0, false, {
+              fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/SubtaskEventView.tsx",
+              lineNumber: 40,
+              columnNumber: 9
+            }, void 0),
+            event.events.length > 0 ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+              TranscriptView,
+              {
+                id: `${id}-subtask`,
+                "data-name": "Transcript",
+                events: event.events,
+                depth: depth + 1
+              },
+              void 0,
+              false,
+              {
+                fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/SubtaskEventView.tsx",
+                lineNumber: 42,
+                columnNumber: 11
+              },
+              void 0
+            ) : /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(None, {}, void 0, false, {
+              fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/SubtaskEventView.tsx",
+              lineNumber: 49,
+              columnNumber: 11
+            }, void 0)
+          ] }, void 0, true, {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/SubtaskEventView.tsx",
-            lineNumber: 42,
-            columnNumber: 11
-          },
-          void 0
-        ) : /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(None, {}, void 0, false, {
-          fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/SubtaskEventView.tsx",
-          lineNumber: 49,
-          columnNumber: 11
-        }, void 0)
-      ] }, void 0, true, {
-        fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/SubtaskEventView.tsx",
-        lineNumber: 35,
-        columnNumber: 7
-      }, void 0) : /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(reactExports.Fragment, { children: [
-        /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
-          SubtaskSummary,
-          {
-            "data-name": "Summary",
-            input: event.input,
-            result: event.result
-          },
-          void 0,
-          false,
-          {
-            fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/SubtaskEventView.tsx",
-            lineNumber: 54,
-            columnNumber: 9
-          },
-          void 0
-        ),
-        event.events.length > 0 ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
-          TranscriptView,
-          {
-            id: `${id}-subtask`,
-            "data-name": "Transcript",
-            events: event.events,
-            depth: depth + 1
-          },
-          void 0,
-          false,
-          {
-            fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/SubtaskEventView.tsx",
-            lineNumber: 60,
-            columnNumber: 11
-          },
-          void 0
-        ) : void 0
-      ] }, void 0, true, {
-        fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/SubtaskEventView.tsx",
-        lineNumber: 53,
-        columnNumber: 7
-      }, void 0);
+            lineNumber: 35,
+            columnNumber: 7
+          }, void 0)
+        );
+      } else {
+        body2.push(
+          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+            SubtaskSummary,
+            {
+              "data-name": "Summary",
+              input: event.input,
+              result: event.result
+            },
+            void 0,
+            false,
+            {
+              fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/SubtaskEventView.tsx",
+              lineNumber: 55,
+              columnNumber: 7
+            },
+            void 0
+          )
+        );
+        if (event.events.length > 0) {
+          body2.push(
+            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+              TranscriptView,
+              {
+                id: `${id}-subtask`,
+                "data-name": "Transcript",
+                events: event.events,
+                depth: depth + 1
+              },
+              void 0,
+              false,
+              {
+                fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/SubtaskEventView.tsx",
+                lineNumber: 63,
+                columnNumber: 9
+              },
+              void 0
+            )
+          );
+        }
+      }
       const type = event.type === "fork" ? "Fork" : "Subtask";
       return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
         EventPanel,
@@ -73001,7 +73060,7 @@ ${events}
         false,
         {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/SubtaskEventView.tsx",
-          lineNumber: 73,
+          lineNumber: 76,
           columnNumber: 5
         },
         void 0
@@ -73012,34 +73071,25 @@ ${events}
       return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: clsx(styles$n.subtaskSummary), children: [
         /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: clsx("text-style-label"), children: "Input" }, void 0, false, {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/SubtaskEventView.tsx",
-          lineNumber: 108,
+          lineNumber: 111,
           columnNumber: 7
         }, void 0),
         /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: clsx("text-size-large", styles$n.subtaskLabel) }, void 0, false, {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/SubtaskEventView.tsx",
-          lineNumber: 109,
+          lineNumber: 112,
           columnNumber: 7
         }, void 0),
         /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: clsx("text-style-label"), children: "Output" }, void 0, false, {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/SubtaskEventView.tsx",
-          lineNumber: 110,
+          lineNumber: 113,
           columnNumber: 7
         }, void 0),
         input2 ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(Rendered, { values: input2 }, void 0, false, {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/SubtaskEventView.tsx",
-          lineNumber: 111,
+          lineNumber: 114,
           columnNumber: 16
         }, void 0) : void 0,
         /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: clsx("text-size-title-secondary", styles$n.subtaskLabel), children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("i", { className: ApplicationIcons.arrows.right }, void 0, false, {
-          fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/SubtaskEventView.tsx",
-          lineNumber: 113,
-          columnNumber: 9
-        }, void 0) }, void 0, false, {
-          fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/SubtaskEventView.tsx",
-          lineNumber: 112,
-          columnNumber: 7
-        }, void 0),
-        /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(Rendered, { values: output2 }, void 0, false, {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/SubtaskEventView.tsx",
           lineNumber: 116,
           columnNumber: 9
@@ -73047,10 +73097,19 @@ ${events}
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/SubtaskEventView.tsx",
           lineNumber: 115,
           columnNumber: 7
+        }, void 0),
+        /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(Rendered, { values: output2 }, void 0, false, {
+          fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/SubtaskEventView.tsx",
+          lineNumber: 119,
+          columnNumber: 9
+        }, void 0) }, void 0, false, {
+          fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/SubtaskEventView.tsx",
+          lineNumber: 118,
+          columnNumber: 7
         }, void 0)
       ] }, void 0, true, {
         fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/SubtaskEventView.tsx",
-        lineNumber: 107,
+        lineNumber: 110,
         columnNumber: 5
       }, void 0);
     };
@@ -73059,7 +73118,7 @@ ${events}
         return values.map((val) => {
           return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(Rendered, { values: val }, void 0, false, {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/SubtaskEventView.tsx",
-            lineNumber: 133,
+            lineNumber: 136,
             columnNumber: 14
           }, void 0);
         });
@@ -73067,13 +73126,13 @@ ${events}
         if (Object.keys(values).length === 0) {
           return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(None, {}, void 0, false, {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/SubtaskEventView.tsx",
-            lineNumber: 137,
+            lineNumber: 140,
             columnNumber: 14
           }, void 0);
         } else {
           return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(MetaDataView, { entries: values }, void 0, false, {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/SubtaskEventView.tsx",
-            lineNumber: 139,
+            lineNumber: 142,
             columnNumber: 14
           }, void 0);
         }
@@ -73084,7 +73143,7 @@ ${events}
     const None = () => {
       return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("span", { className: clsx("text-size-small", "text-style-secondary"), children: "[None]" }, void 0, false, {
         fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/SubtaskEventView.tsx",
-        lineNumber: 148,
+        lineNumber: 151,
         columnNumber: 5
       }, void 0);
     };
@@ -78926,14 +78985,6 @@ ${events}
         refreshSelectedSample(logContext.state.selectedSampleIndex);
       }, [logContext.state.selectedSampleIndex, refreshSelectedSample]);
       reactExports.useEffect(() => {
-        const loadSelectedLog = async () => {
-          if (logsContext.selectedLogFile) {
-            await logContext.loadLog(logsContext.selectedLogFile);
-          }
-        };
-        loadSelectedLog();
-      }, [logsContext.selectedLogFile]);
-      reactExports.useEffect(() => {
         if (logContext.totalSampleCount) {
           logContext.dispatch({ type: "SELECT_SAMPLE", payload: 0 });
         }
@@ -79105,7 +79156,7 @@ ${events}
           false,
           {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/App.tsx",
-            lineNumber: 581,
+            lineNumber: 572,
             columnNumber: 9
           },
           void 0
@@ -79133,12 +79184,12 @@ ${events}
             children: [
               !appContext.capabilities.nativeFind && appContext.state.showFind ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(FindBand, {}, void 0, false, {
                 fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/App.tsx",
-                lineNumber: 617,
+                lineNumber: 608,
                 columnNumber: 11
               }, void 0) : "",
               /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(ProgressBar, { animating: appContext.state.status.loading }, void 0, false, {
                 fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/App.tsx",
-                lineNumber: 621,
+                lineNumber: 612,
                 columnNumber: 9
               }, void 0),
               appContext.state.status.error ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
@@ -79151,7 +79202,7 @@ ${events}
                 false,
                 {
                   fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/App.tsx",
-                  lineNumber: 623,
+                  lineNumber: 614,
                   columnNumber: 11
                 },
                 void 0
@@ -79193,7 +79244,7 @@ ${events}
                 false,
                 {
                   fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/App.tsx",
-                  lineNumber: 628,
+                  lineNumber: 619,
                   columnNumber: 11
                 },
                 void 0
@@ -79204,14 +79255,14 @@ ${events}
           true,
           {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/App.tsx",
-            lineNumber: 595,
+            lineNumber: 586,
             columnNumber: 7
           },
           void 0
         )
       ] }, void 0, true, {
         fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/App.tsx",
-        lineNumber: 579,
+        lineNumber: 570,
         columnNumber: 5
       }, void 0);
     };

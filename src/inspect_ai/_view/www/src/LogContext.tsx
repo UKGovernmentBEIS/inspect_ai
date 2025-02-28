@@ -15,7 +15,6 @@ import {
   PendingSamples,
   SampleSummary,
 } from "./api/types";
-import { useAppContext } from "./AppContext";
 import {
   kDefaultSort,
   kEpochAscVal,
@@ -42,6 +41,7 @@ import {
 } from "./scoring/utils";
 import { ScoreFilter, ScoreLabel } from "./types";
 import { Timeout } from "./types/log";
+import { createLogger } from "./utils/logger";
 
 // Define action types
 type LogAction =
@@ -131,7 +131,10 @@ export const LogProvider: FC<LogProviderProps> = ({
   initialState,
   api,
 }) => {
-  const appContext = useAppContext();
+  // Create memoized logger instances
+  const log = useMemo(() => {
+    return createLogger("LogContext");
+  }, []);
   const logsContext = useLogsContext();
 
   const [state, dispatch] = useReducer(
@@ -148,112 +151,150 @@ export const LogProvider: FC<LogProviderProps> = ({
   // Load a specific log file
   const loadLog = useCallback(
     async (logFileName: string) => {
+      log.debug(`LOAD LOG: ${logFileName}`);
       const logContents = await api.get_log_summary(logFileName);
       dispatch({ type: "SET_SELECTED_LOG_SUMMARY", payload: logContents });
       dispatch({ type: "RESET_FILTERING" });
     },
-    [api, appContext.dispatch],
+    [api, dispatch, log],
   );
 
   const refreshLog = useCallback(async () => {
+    log.debug(`REFRESH: ${logsContext.selectedLogFile}`);
     const file = logsContext.selectedLogFile;
     if (file) {
       const logContents = await api.get_log_summary(file);
       dispatch({ type: "SET_SELECTED_LOG_SUMMARY", payload: logContents });
     }
-  }, [api]);
+  }, [api, dispatch, logsContext.selectedLogFile, log]);
 
-  useEffect(() => {
-    // Only start polling if we have a selected log summary
-    if (!state.selectedLogSummary) return;
+  const clearPendingSummaries = useCallback(() => {
+    if ((state.pendingSampleSummaries?.samples.length || 0) > 0) {
+      log.debug(`CLEAR PENDING: ${logsContext.selectedLogFile}`);
+      dispatch({
+        type: "SET_PENDING_SAMPLE_SUMMARIES",
+        payload: {
+          samples: [],
+          refresh: state.pendingSampleSummaries?.refresh || 2,
+        },
+      });
+      refreshLog();
+    }
+  }, [dispatch, state.pendingSampleSummaries, log]);
 
-    let isActive = true;
-    let pollTimeout: Timeout | null = null;
-    let hadPending = false;
+  const pollPendingSummaries = useCallback(
+    (logFile: string) => {
+      // Track whether polling is active
+      const polling = {
+        isActive: true,
+        hadPending: false,
+        currentEtag: state.pendingSampleSummaries?.etag,
+        currentRefresh: state.pendingSampleSummaries?.refresh || 2,
+        timeout: null as Timeout | null,
+      };
 
-    const clearPendingSummaries = () => {
-      if ((state.pendingSampleSummaries?.samples.length || 0) > 0) {
-        dispatch({
-          type: "SET_PENDING_SAMPLE_SUMMARIES",
-          payload: {
-            samples: [],
-            refresh: state.pendingSampleSummaries?.refresh || 2,
-          },
-        });
-        refreshLog();
-      }
-    };
+      // Define the poll function within the closure to maintain state
+      const poll = async () => {
+        // Don't proceed if polling has been canceled
+        if (!polling.isActive) {
+          return;
+        }
 
-    const pollPendingSamples = async () => {
-      // Don't bother polling if the API doesn't support it
-      if (!api.get_log_pending_samples) return;
+        // Don't bother polling if the API doesn't support it
+        if (!api.get_log_pending_samples) return;
 
-      try {
-        // We need the log file name from somewhere - either pass it to context or get from logsContext
-        const logFile = logsContext.selectedLogFile;
-        if (!logFile) return;
+        try {
+          log.debug(`POLL PENDING SAMPLES: ${logFile}`);
+          const pendingSamples = await api.get_log_pending_samples(
+            logFile,
+            polling.currentEtag,
+          );
 
-        const pendingSamples = await api.get_log_pending_samples(
-          logFile,
-          state.pendingSampleSummaries?.etag,
-        );
-
-        if (!isActive) return;
-
-        if (pendingSamples.status === "OK" && pendingSamples.pendingSamples) {
-          dispatch({
-            type: "SET_PENDING_SAMPLE_SUMMARIES",
-            payload: pendingSamples.pendingSamples,
-          });
-          refreshLog();
-          hadPending = true;
-        } else if (pendingSamples.status === "NotFound") {
-          if (hadPending) {
-            refreshLog();
+          // Check if we've been canceled during the API call
+          if (!polling.isActive) {
+            log.debug(`POLL PENDING CANCELED: ${logFile}`);
+            return;
           }
-          clearPendingSummaries();
-          // stop polling
-          isActive = false;
-        }
 
-        if (isActive) {
-          pollTimeout = setTimeout(
-            pollPendingSamples,
-            (state.pendingSampleSummaries?.refresh || 2) * 1000,
-          );
-        }
-      } catch (error) {
-        console.error("Error polling pending samples:", error);
-        if (isActive) {
-          pollTimeout = setTimeout(
-            pollPendingSamples,
-            Math.min(
-              (state.pendingSampleSummaries?.refresh || 2) * 2 * 1000,
-              60000,
-            ),
-          );
-        }
-      }
-    };
+          if (pendingSamples.status === "OK" && pendingSamples.pendingSamples) {
+            // Update the closure variables with new values
+            polling.currentEtag = pendingSamples.pendingSamples.etag;
+            polling.currentRefresh =
+              pendingSamples.pendingSamples.refresh || polling.currentRefresh;
 
-    // Start polling when effect runs
-    pollPendingSamples();
+            dispatch({
+              type: "SET_PENDING_SAMPLE_SUMMARIES",
+              payload: pendingSamples.pendingSamples,
+            });
+            refreshLog();
+            polling.hadPending = true;
+          } else if (pendingSamples.status === "NotFound") {
+            log.debug(`STOP PENDING SAMPLES: ${logFile}`);
+            if (polling.hadPending) {
+              refreshLog();
+            }
+            clearPendingSummaries();
+            // stop polling
+            polling.isActive = false;
+            return;
+          }
 
-    // Clean up when effect is done
-    return () => {
-      isActive = false;
-      if (pollTimeout) {
-        clearTimeout(pollTimeout);
-      }
-    };
-  }, [
-    // These dependencies will trigger the effect to restart
-    state.selectedLogSummary,
-    state.pendingSampleSummaries?.etag,
-    state.pendingSampleSummaries?.refresh,
-    api.get_log_pending_samples,
-    logsContext.selectedLogFile,
-  ]);
+          // Schedule next poll if we haven't been canceled
+          if (polling.isActive) {
+            polling.timeout = setTimeout(
+              poll, // Call the inner function rather than the outer one
+              polling.currentRefresh * 1000, // Use the closure variable
+            );
+          }
+        } catch (error) {
+          log.debug(`ERROR PENDING SAMPLES: ${logFile}`);
+          log.error("Error polling pending samples:", error);
+          // Schedule next poll with backoff if we haven't been canceled
+          if (polling.isActive) {
+            polling.timeout = setTimeout(
+              poll, // Call the inner function
+              Math.min(polling.currentRefresh * 2 * 1000, 60000),
+            );
+          }
+        }
+      };
+
+      // Begin polling
+      poll();
+
+      // Return a function to cancel the polling
+      return () => {
+        polling.isActive = false;
+        if (polling.timeout) {
+          clearTimeout(polling.timeout);
+          polling.timeout = null;
+        }
+      };
+    },
+    [
+      api.get_log_pending_samples,
+      dispatch,
+      refreshLog,
+      clearPendingSummaries,
+      log,
+    ],
+  );
+  useEffect(() => {
+    // Only start polling if we have a log file
+    if (!logsContext.selectedLogFile) {
+      return;
+    }
+
+    // Get the logFile from context
+    const logFile = logsContext.selectedLogFile;
+    if (!logFile) return;
+
+    // Start polling with the logFile and get the cleanup function
+    const stopPolling = pollPendingSummaries(logFile);
+
+    // Return the cleanup function
+    return stopPolling;
+  }, [pollPendingSummaries, logsContext.selectedLogFile]);
 
   const sampleSummaries = useMemo(() => {
     const logSamples = state.selectedLogSummary?.sampleSummaries || [];
