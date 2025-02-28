@@ -7,18 +7,15 @@ from tenacity import (
     retry,
     retry_if_exception,
     stop_after_attempt,
-    stop_after_delay,
     wait_exponential_jitter,
 )
 
-from inspect_ai._util.constants import DEFAULT_MAX_RETRIES
 from inspect_ai._util.http import is_retryable_http_status
 from inspect_ai._util.retry import httpx_should_retry, log_retry_attempt
 from inspect_ai.model._chat_message import ChatMessageAssistant, ChatMessageTool
 from inspect_ai.tool._tool_info import ToolInfo
 
 from ..._chat_message import ChatMessage
-from ..._generate_config import GenerateConfig
 
 logger = getLogger(__name__)
 
@@ -76,19 +73,11 @@ async def chat_api_request(
     url: str,
     headers: dict[str, Any],
     json: Any,
-    config: GenerateConfig,
 ) -> Any:
-    # provide default max_retries
-    max_retries = config.max_retries if config.max_retries else DEFAULT_MAX_RETRIES
-
     # define call w/ retry policy
     @retry(
         wait=wait_exponential_jitter(),
-        stop=(
-            (stop_after_attempt(max_retries) | stop_after_delay(config.timeout))
-            if config.timeout
-            else stop_after_attempt(max_retries)
-        ),
+        stop=(stop_after_attempt(2)),
         retry=retry_if_exception(httpx_should_retry),
         before_sleep=log_retry_attempt(model_name),
     )

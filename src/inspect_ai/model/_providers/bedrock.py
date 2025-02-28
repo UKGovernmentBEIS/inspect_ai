@@ -4,11 +4,7 @@ from typing import Any, Literal, Tuple, Union, cast
 from pydantic import BaseModel, Field
 from typing_extensions import override
 
-from inspect_ai._util.constants import (
-    DEFAULT_MAX_RETRIES,
-    DEFAULT_MAX_TOKENS,
-    DEFAULT_TIMEOUT,
-)
+from inspect_ai._util.constants import DEFAULT_MAX_TOKENS
 from inspect_ai._util.content import Content, ContentImage, ContentText
 from inspect_ai._util.error import pip_dependency_error
 from inspect_ai._util.images import file_as_data
@@ -339,14 +335,7 @@ class BedrockAPI(ModelAPI):
             service_name="bedrock-runtime",
             endpoint_url=self.base_url,
             config=Config(
-                connect_timeout=config.timeout if config.timeout else DEFAULT_TIMEOUT,
-                read_timeout=config.timeout if config.timeout else DEFAULT_TIMEOUT,
-                retries=dict(
-                    max_attempts=config.max_retries
-                    if config.max_retries
-                    else DEFAULT_MAX_RETRIES,
-                    mode="adaptive",
-                ),
+                retries=dict(mode="adaptive"),
                 user_agent_extra=self._time_tracker.user_agent_extra(request_id),
             ),
             **self.model_args,

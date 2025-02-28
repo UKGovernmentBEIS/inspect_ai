@@ -27,7 +27,6 @@ from typing_extensions import override
 
 from inspect_ai._util.constants import (
     BASE_64_DATA_REMOVED,
-    DEFAULT_MAX_RETRIES,
     DEFAULT_MAX_TOKENS,
 )
 from inspect_ai._util.content import Content, ContentReasoning, ContentText
@@ -87,12 +86,6 @@ class GroqAPI(ModelAPI):
         self.client = AsyncGroq(
             api_key=self.api_key,
             base_url=model_base_url(base_url, "GROQ_BASE_URL"),
-            max_retries=(
-                config.max_retries
-                if config.max_retries is not None
-                else DEFAULT_MAX_RETRIES
-            ),
-            timeout=config.timeout if config.timeout is not None else 60.0,
             **model_args,
             http_client=httpx.AsyncClient(limits=httpx.Limits(max_connections=None)),
         )

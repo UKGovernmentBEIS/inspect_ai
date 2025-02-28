@@ -21,7 +21,6 @@ from openai.types.chat import (
 )
 from typing_extensions import override
 
-from inspect_ai._util.constants import DEFAULT_MAX_RETRIES
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.http import is_retryable_http_status
 from inspect_ai._util.logger import warn_once
@@ -131,9 +130,6 @@ class OpenAIAPI(ModelAPI):
                 api_key=self.api_key,
                 azure_endpoint=base_url,
                 azure_deployment=model_name,
-                max_retries=(
-                    config.max_retries if config.max_retries else DEFAULT_MAX_RETRIES
-                ),
                 http_client=http_client,
                 **model_args,
             )
@@ -141,9 +137,6 @@ class OpenAIAPI(ModelAPI):
             self.client = AsyncOpenAI(
                 api_key=self.api_key,
                 base_url=model_base_url(base_url, "OPENAI_BASE_URL"),
-                max_retries=(
-                    config.max_retries if config.max_retries else DEFAULT_MAX_RETRIES
-                ),
                 http_client=http_client,
                 **model_args,
             )
@@ -320,8 +313,6 @@ class OpenAIAPI(ModelAPI):
             params["temperature"] = 1
         if config.top_p is not None:
             params["top_p"] = config.top_p
-        if config.timeout is not None:
-            params["timeout"] = float(config.timeout)
         if config.num_choices is not None:
             params["n"] = config.num_choices
         if config.logprobs is not None:

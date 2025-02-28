@@ -8,8 +8,6 @@ from io import BytesIO
 from logging import getLogger
 from typing import Any
 
-import requests
-
 # SDK Docs: https://googleapis.github.io/python-genai/
 from google.genai import Client  # type: ignore
 from google.genai.errors import APIError, ClientError  # type: ignore
@@ -254,6 +252,8 @@ class GoogleGenAIAPI(ModelAPI):
 
     @override
     def should_retry(self, ex: BaseException) -> bool:
+        import requests  # type: ignore
+
         # standard http errors
         if isinstance(ex, APIError):
             return is_retryable_http_status(ex.status)

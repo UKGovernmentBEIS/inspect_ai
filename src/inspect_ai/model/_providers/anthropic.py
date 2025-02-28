@@ -47,7 +47,6 @@ from typing_extensions import override
 
 from inspect_ai._util.constants import (
     BASE_64_DATA_REMOVED,
-    DEFAULT_MAX_RETRIES,
     NO_CONTENT,
 )
 from inspect_ai._util.content import (
@@ -126,9 +125,6 @@ class AnthropicAPI(ModelAPI):
                 AsyncAnthropic | AsyncAnthropicBedrock | AsyncAnthropicVertex
             ) = AsyncAnthropicBedrock(
                 base_url=base_url,
-                max_retries=(
-                    config.max_retries if config.max_retries else DEFAULT_MAX_RETRIES
-                ),
                 aws_region=aws_region,
                 **model_args,
             )
@@ -142,9 +138,6 @@ class AnthropicAPI(ModelAPI):
                 region=region,
                 project_id=project_id,
                 base_url=base_url,
-                max_retries=(
-                    config.max_retries if config.max_retries else DEFAULT_MAX_RETRIES
-                ),
                 **model_args,
             )
         else:
@@ -157,9 +150,6 @@ class AnthropicAPI(ModelAPI):
             self.client = AsyncAnthropic(
                 base_url=base_url,
                 api_key=self.api_key,
-                max_retries=(
-                    config.max_retries if config.max_retries else DEFAULT_MAX_RETRIES
-                ),
                 **model_args,
             )
 
@@ -292,8 +282,6 @@ class AnthropicAPI(ModelAPI):
                 betas.append("output-128k-2025-02-19")
 
         # config that applies to all models
-        if config.timeout is not None:
-            params["timeout"] = float(config.timeout)
         if config.stop_seqs is not None:
             params["stop_sequences"] = config.stop_seqs
 

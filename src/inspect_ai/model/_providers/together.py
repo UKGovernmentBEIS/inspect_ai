@@ -186,7 +186,6 @@ class TogetherRESTAPI(ModelAPI):
             url=f"{chat_url}",
             headers={"Authorization": f"Bearer {self.api_key}"},
             json=json,
-            config=config,
         )
 
         if "error" in response:

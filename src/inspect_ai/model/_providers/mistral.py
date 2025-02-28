@@ -38,10 +38,7 @@ from typing_extensions import override
 
 # TODO: Migration guide:
 # https://github.com/mistralai/client-python/blob/main/MIGRATION.md
-from inspect_ai._util.constants import (
-    DEFAULT_TIMEOUT,
-    NO_CONTENT,
-)
+from inspect_ai._util.constants import NO_CONTENT
 from inspect_ai._util.content import Content, ContentImage, ContentText
 from inspect_ai._util.http import is_retryable_http_status
 from inspect_ai._util.images import file_as_data_uri
@@ -128,11 +125,7 @@ class MistralAPI(ModelAPI):
         config: GenerateConfig,
     ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
         # create client
-        with Mistral(
-            api_key=self.api_key,
-            timeout_ms=(config.timeout if config.timeout else DEFAULT_TIMEOUT) * 1000,
-            **self.model_args,
-        ) as client:
+        with Mistral(api_key=self.api_key, **self.model_args) as client:
             # create time tracker
             time_tracker = HttpxTimeTracker(client.sdk_configuration.async_client)
 

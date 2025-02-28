@@ -101,7 +101,6 @@ class CloudFlareAPI(ModelAPI):
                 HttpxTimeTracker.REQUEST_ID_HEADER: request_id,
             },
             json=json,
-            config=config,
         )
 
         # handle response
