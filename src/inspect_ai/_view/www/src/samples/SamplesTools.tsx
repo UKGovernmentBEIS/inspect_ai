@@ -1,7 +1,7 @@
 import { FC } from "react";
 import { Fragment } from "react/jsx-runtime";
 import { SampleSummary } from "../api/types";
-import { useLogContext } from "../LogContext";
+import { useLogContext } from "../contexts/LogContext";
 import { ScoreFilter, ScoreLabel } from "../types";
 import { EpochFilter } from "./sample-tools/EpochFilter";
 import { SampleFilter } from "./sample-tools/sample-filter/SampleFilter";

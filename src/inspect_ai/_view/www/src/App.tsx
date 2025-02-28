@@ -16,7 +16,6 @@ import { ProgressBar } from "./components/ProgressBar";
 import { debounce } from "./utils/sync";
 
 import { FindBand } from "./components/FindBand";
-import { getVscodeApi } from "./utils/vscode";
 import { Sidebar } from "./workspace/sidebar/Sidebar.tsx";
 import { WorkSpace } from "./workspace/WorkSpace";
 
@@ -24,15 +23,15 @@ import ClipboardJS from "clipboard";
 import clsx from "clsx";
 import { FC, useCallback, useEffect, useRef, useState } from "react";
 import { ClientAPI, HostMessage, SampleSummary } from "./api/types.ts";
-import { useAppContext } from "./AppContext.tsx";
 import {
   kEvalWorkspaceTabId,
   kInfoWorkspaceTabId,
   kSampleMessagesTabId,
   kSampleTranscriptTabId,
 } from "./constants";
-import { useLogContext } from "./LogContext.tsx";
-import { useLogsContext } from "./LogsContext.tsx";
+import { useAppContext } from "./contexts/AppContext.tsx";
+import { useLogContext } from "./contexts/LogContext.tsx";
+import { useLogsContext } from "./contexts/LogsContext.tsx";
 import { sampleDataAdapter } from "./samples/sampleDataAdapter.ts";
 import { ApplicationState, RunningSampleData } from "./types.ts";
 import { EvalSample, Timeout } from "./types/log";
@@ -592,8 +591,11 @@ export const App: FC<AppProps> = ({
         )}
         tabIndex={0}
         onKeyDown={(e) => {
-          // regular browsers user their own find
-          if (!getVscodeApi()) {
+          // Add keyboard shortcuts for find, if needed
+          if (
+            appContext.capabilities.nativeFind ||
+            !appContext.state.showFind
+          ) {
             return;
           }
 
@@ -618,10 +620,7 @@ export const App: FC<AppProps> = ({
         ) : (
           <WorkSpace
             task_id={logContext.state.selectedLogSummary?.eval?.task_id}
-            logFileName={
-              logsContext.state.logs.files[logsContext.state.selectedLogIndex]
-                ?.name
-            }
+            logFileName={logsContext.selectedLogFile}
             evalStatus={logContext.state.selectedLogSummary?.status}
             evalError={filterNull(logContext.state.selectedLogSummary?.error)}
             evalVersion={logContext.state.selectedLogSummary?.version}

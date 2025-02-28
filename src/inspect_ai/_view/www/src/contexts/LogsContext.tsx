@@ -9,10 +9,10 @@ import {
   useMemo,
   useReducer,
 } from "react";
-import { ClientAPI, EvalLogHeader, LogFiles } from "./api/types";
-import { useAppContext } from "./AppContext";
-import { createLogger } from "./utils/logger";
-import { sleep } from "./utils/sync";
+import { ClientAPI, EvalLogHeader, LogFiles } from "../api/types";
+import { useAppContext } from "../contexts/AppContext";
+import { createLogger } from "../utils/logger";
+import { sleep } from "../utils/sync";
 
 // Define action types
 type LogsAction =

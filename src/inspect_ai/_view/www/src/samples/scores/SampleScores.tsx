@@ -1,7 +1,7 @@
 import { FC, Fragment } from "react";
 import { SampleSummary } from "../../api/types";
 
-import { useLogContext } from "../../LogContext";
+import { useLogContext } from "../../contexts/LogContext";
 import styles from "./SampleScores.module.css";
 
 interface SampleScoresProps {

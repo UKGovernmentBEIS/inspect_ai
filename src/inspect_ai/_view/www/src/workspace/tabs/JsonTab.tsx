@@ -1,9 +1,9 @@
 import { filename } from "../../utils/path";
 
 import { FC } from "react";
-import { useAppContext } from "../../AppContext";
 import { DownloadPanel } from "../../components/DownloadPanel";
 import { JSONPanel } from "../../components/JsonPanel";
+import { useAppContext } from "../../contexts/AppContext";
 import styles from "./JsonTab.module.css";
 
 const kJsonMaxSize = 10000000;
