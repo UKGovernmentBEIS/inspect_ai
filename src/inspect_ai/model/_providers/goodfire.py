@@ -167,7 +167,7 @@ class GoodfireAPI(ModelAPI):
         return ex
 
     @override
-    def should_retry(self, ex: BaseException) -> bool:
+    def should_retry(self, ex: Exception) -> bool:
         """Check if exception is due to rate limiting."""
         return isinstance(ex, RateLimitException | ServerErrorException)
 

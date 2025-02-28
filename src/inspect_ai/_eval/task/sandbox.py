@@ -16,8 +16,8 @@ from tenacity import (
 from inspect_ai._eval.task.task import Task
 from inspect_ai._eval.task.util import task_run_dir
 from inspect_ai._util.file import file, filesystem
+from inspect_ai._util.httpx import httpx_should_retry, log_httpx_retry_attempt
 from inspect_ai._util.registry import registry_unqualified_name
-from inspect_ai._util.retry import httpx_should_retry, log_retry_attempt
 from inspect_ai._util.url import data_uri_to_base64, is_data_uri, is_http_url
 from inspect_ai.dataset import Sample
 from inspect_ai.util._concurrency import concurrency
@@ -192,7 +192,7 @@ async def _retrying_httpx_get(
         wait=wait_exponential_jitter(),
         stop=(stop_after_attempt(max_retries) | stop_after_delay(total_timeout)),
         retry=retry_if_exception(httpx_should_retry),
-        before_sleep=log_retry_attempt(url),
+        before_sleep=log_httpx_retry_attempt(url),
     )
     async def do_get() -> bytes:
         response = await client.get(

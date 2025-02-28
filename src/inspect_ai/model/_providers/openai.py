@@ -259,7 +259,7 @@ class OpenAIAPI(ModelAPI):
         return chat_choices_from_openai(response, tools)
 
     @override
-    def should_retry(self, ex: BaseException) -> bool:
+    def should_retry(self, ex: Exception) -> bool:
         if isinstance(ex, RateLimitError):
             # Do not retry on these rate limit errors
             # The quota exceeded one is related to monthly account quotas.

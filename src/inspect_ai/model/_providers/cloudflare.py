@@ -126,7 +126,7 @@ class CloudFlareAPI(ModelAPI):
             raise RuntimeError(f"Error calling {self.model_name}: {error}")
 
     @override
-    def should_retry(self, ex: BaseException) -> bool:
+    def should_retry(self, ex: Exception) -> bool:
         return should_retry_chat_api_error(ex)
 
     # cloudflare enforces rate limits by model for each account

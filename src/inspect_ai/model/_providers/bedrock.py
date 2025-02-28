@@ -284,7 +284,7 @@ class BedrockAPI(ModelAPI):
             return DEFAULT_MAX_TOKENS
 
     @override
-    def should_retry(self, ex: BaseException) -> bool:
+    def should_retry(self, ex: Exception) -> bool:
         from botocore.exceptions import ClientError
 
         # Look for an explicit throttle exception

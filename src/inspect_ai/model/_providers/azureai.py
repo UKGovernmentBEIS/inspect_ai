@@ -237,7 +237,7 @@ class AzureAIAPI(ModelAPI):
             return DEFAULT_MAX_TOKENS
 
     @override
-    def should_retry(self, ex: BaseException) -> bool:
+    def should_retry(self, ex: Exception) -> bool:
         if isinstance(ex, HttpResponseError) and ex.status_code is not None:
             return is_retryable_http_status(ex.status_code)
         elif isinstance(ex, ServiceResponseError):

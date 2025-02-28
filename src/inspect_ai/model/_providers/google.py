@@ -251,7 +251,7 @@ class GoogleGenAIAPI(ModelAPI):
         return output, model_call()
 
     @override
-    def should_retry(self, ex: BaseException) -> bool:
+    def should_retry(self, ex: Exception) -> bool:
         import requests  # type: ignore
 
         # standard http errors

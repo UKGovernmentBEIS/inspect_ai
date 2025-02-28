@@ -175,7 +175,7 @@ class ModelAPI(abc.ABC):
         """Scope for enforcement of max_connections."""
         return "default"
 
-    def should_retry(self, ex: BaseException) -> bool:
+    def should_retry(self, ex: Exception) -> bool:
         """Should this exception be retried?
 
         Args:
@@ -558,20 +558,21 @@ class Model:
         return model_output
 
     def should_retry(self, ex: BaseException) -> bool:
-        # check standard should_retry() method
-        retry = self.api.should_retry(ex)
-        if retry:
-            return True
+        if isinstance(ex, Exception):
+            # check standard should_retry() method
+            retry = self.api.should_retry(ex)
+            if retry:
+                return True
 
-        # see if the API implements legacy is_rate_limit() method
-        is_rate_limit = getattr(self.api, "is_rate_limit", None)
-        if is_rate_limit:
-            warn_once(
-                logger,
-                f"provider '{self.name}' implements deprecated is_rate_limit() method, "
-                + "please change to should_retry()",
-            )
-            return cast(bool, is_rate_limit(ex))
+            # see if the API implements legacy is_rate_limit() method
+            is_rate_limit = getattr(self.api, "is_rate_limit", None)
+            if is_rate_limit:
+                warn_once(
+                    logger,
+                    f"provider '{self.name}' implements deprecated is_rate_limit() method, "
+                    + "please change to should_retry()",
+                )
+                return cast(bool, is_rate_limit(ex))
 
         # no retry
         return False

@@ -199,7 +199,7 @@ class MistralAPI(ModelAPI):
             ), model_call()
 
     @override
-    def should_retry(self, ex: BaseException) -> bool:
+    def should_retry(self, ex: Exception) -> bool:
         if isinstance(ex, SDKError):
             return is_retryable_http_status(ex.status_code)
         elif isinstance(ex, ReadTimeout | AsyncReadTimeout):

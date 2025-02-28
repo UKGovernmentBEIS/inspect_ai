@@ -176,7 +176,7 @@ class VertexAPI(ModelAPI):
         return output, call
 
     @override
-    def should_retry(self, ex: BaseException) -> bool:
+    def should_retry(self, ex: Exception) -> bool:
         # google API-specific errors
         if isinstance(ex, Aborted | DeadlineExceeded | ServiceUnavailable):
             return True

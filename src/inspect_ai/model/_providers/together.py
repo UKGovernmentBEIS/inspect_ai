@@ -214,7 +214,7 @@ class TogetherRESTAPI(ModelAPI):
             return ModelOutput(model=model, choices=choices, usage=usage)
 
     @override
-    def should_retry(self, ex: BaseException) -> bool:
+    def should_retry(self, ex: Exception) -> bool:
         return should_retry_chat_api_error(ex)
 
     # cloudflare enforces rate limits by model for each account

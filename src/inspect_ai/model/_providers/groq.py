@@ -210,7 +210,7 @@ class GroqAPI(ModelAPI):
         ]
 
     @override
-    def should_retry(self, ex: BaseException) -> bool:
+    def should_retry(self, ex: Exception) -> bool:
         if isinstance(ex, APIStatusError):
             return is_retryable_http_status(ex.status_code)
         elif isinstance(ex, APITimeoutError):

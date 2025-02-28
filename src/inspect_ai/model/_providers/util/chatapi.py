@@ -11,7 +11,7 @@ from tenacity import (
 )
 
 from inspect_ai._util.http import is_retryable_http_status
-from inspect_ai._util.retry import httpx_should_retry, log_retry_attempt
+from inspect_ai._util.httpx import httpx_should_retry, log_httpx_retry_attempt
 from inspect_ai.model._chat_message import ChatMessageAssistant, ChatMessageTool
 from inspect_ai.tool._tool_info import ToolInfo
 
@@ -79,7 +79,7 @@ async def chat_api_request(
         wait=wait_exponential_jitter(),
         stop=(stop_after_attempt(2)),
         retry=retry_if_exception(httpx_should_retry),
-        before_sleep=log_retry_attempt(model_name),
+        before_sleep=log_httpx_retry_attempt(model_name),
     )
     async def call_api() -> Any:
         response = await client.post(url=url, headers=headers, json=json)
