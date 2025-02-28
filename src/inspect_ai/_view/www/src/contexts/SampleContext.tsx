@@ -132,6 +132,12 @@ export const SampleProvider: FC<SampleProviderProps> = ({
         samplePollingRef.current = null;
       }
 
+      // Track polling state
+      const pollingState = {
+        retryCount: 0,
+        maxRetries: 10,
+      };
+
       const poll = async () => {
         if (!api.get_log_sample_data) {
           return;
@@ -147,6 +153,9 @@ export const SampleProvider: FC<SampleProviderProps> = ({
             sampleDataResponse?.status === "OK" &&
             sampleDataResponse.sampleData
           ) {
+            // Reset retry count on success
+            pollingState.retryCount = 0;
+
             const adapter = sampleDataAdapter();
             adapter.addData(sampleDataResponse.sampleData);
             const runningData = { events: adapter.resolvedEvents(), summary };
@@ -163,18 +172,45 @@ export const SampleProvider: FC<SampleProviderProps> = ({
             samplePollInterval * 1000,
           );
         } catch (e) {
-          // TODO: Backoff
-          console.error("Error polling pending samples:", e);
-          samplePollingRef.current = setTimeout(
-            poll,
-            Math.min(samplePollInterval * 2 * 1000, 60000),
+          // Increment retry count
+          pollingState.retryCount += 1;
+
+          // Check if we've reached the maximum retries
+          if (pollingState.retryCount >= pollingState.maxRetries) {
+            log.error(
+              `Giving up after ${pollingState.maxRetries} failed attempts to poll sample data`,
+            );
+            if (samplePollingRef.current) {
+              clearTimeout(samplePollingRef.current);
+              samplePollingRef.current = null;
+            }
+            return;
+          }
+
+          // Calculate backoff time with exponential increase, capped at 60 seconds
+          const backoffTime = Math.min(
+            samplePollInterval * Math.pow(2, pollingState.retryCount) * 1000,
+            60000,
           );
+
+          log.debug(
+            `Retry ${pollingState.retryCount}/${pollingState.maxRetries}, backoff time: ${backoffTime / 1000}s`,
+          );
+          console.error("Error polling sample data:", e);
+
+          samplePollingRef.current = setTimeout(poll, backoffTime);
         }
       };
 
       poll();
     },
-    [api.get_log_sample_data],
+    [
+      api.get_log_sample_data,
+      dispatch,
+      log,
+      sampleDataAdapter,
+      samplePollInterval,
+    ],
   );
 
   // Load a specific sample

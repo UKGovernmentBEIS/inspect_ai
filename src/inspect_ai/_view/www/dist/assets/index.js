@@ -38371,7 +38371,11 @@ categories: ${categories.join(" ")}`;
             hadPending: false,
             currentEtag: (_a3 = state.pendingSampleSummaries) == null ? void 0 : _a3.etag,
             currentRefresh: ((_b3 = state.pendingSampleSummaries) == null ? void 0 : _b3.refresh) || 2,
-            timeout: null
+            timeout: null,
+            retryCount: 0,
+            // Track retry attempts
+            maxRetries: 10
+            // Maximum number of retries before giving up
           };
           const poll = async () => {
             if (!polling.isActive) {
@@ -38389,6 +38393,7 @@ categories: ${categories.join(" ")}`;
                 return;
               }
               if (pendingSamples.status === "OK" && pendingSamples.pendingSamples) {
+                polling.retryCount = 0;
                 polling.currentEtag = pendingSamples.pendingSamples.etag;
                 polling.currentRefresh = pendingSamples.pendingSamples.refresh || polling.currentRefresh;
                 dispatch({
@@ -38417,12 +38422,24 @@ categories: ${categories.join(" ")}`;
             } catch (error2) {
               log.debug(`ERROR PENDING RUNNING SAMPLES: ${logFile}`);
               log.error("Error polling pending samples:", error2);
-              if (polling.isActive) {
-                polling.timeout = setTimeout(
-                  poll,
-                  // Call the inner function
-                  Math.min(polling.currentRefresh * 2 * 1e3, 6e4)
+              polling.retryCount += 1;
+              if (polling.retryCount >= polling.maxRetries) {
+                log.error(
+                  `Giving up after ${polling.maxRetries} failed attempts to poll pending samples`
                 );
+                polling.isActive = false;
+                clearPendingSummaries();
+                return;
+              }
+              if (polling.isActive) {
+                const backoffTime = Math.min(
+                  polling.currentRefresh * Math.pow(2, polling.retryCount) * 1e3,
+                  6e4
+                );
+                log.debug(
+                  `Retry ${polling.retryCount}/${polling.maxRetries}, backoff time: ${backoffTime / 1e3}s`
+                );
+                polling.timeout = setTimeout(poll, backoffTime);
               }
             }
           };
@@ -38562,7 +38579,7 @@ categories: ${categories.join(" ")}`;
         false,
         {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/contexts/LogContext.tsx",
-          lineNumber: 401,
+          lineNumber: 428,
           columnNumber: 5
         },
         void 0
@@ -78809,6 +78826,10 @@ ${events}
             clearTimeout(samplePollingRef.current);
             samplePollingRef.current = null;
           }
+          const pollingState = {
+            retryCount: 0,
+            maxRetries: 10
+          };
           const poll = async () => {
             if (!api2.get_log_sample_data) {
               return;
@@ -78821,6 +78842,7 @@ ${events}
                 summary2.epoch
               );
               if ((sampleDataResponse == null ? void 0 : sampleDataResponse.status) === "OK" && sampleDataResponse.sampleData) {
+                pollingState.retryCount = 0;
                 const adapter = sampleDataAdapter();
                 adapter.addData(sampleDataResponse.sampleData);
                 const runningData = { events: adapter.resolvedEvents(), summary: summary2 };
@@ -78837,16 +78859,37 @@ ${events}
                 samplePollInterval * 1e3
               );
             } catch (e) {
-              console.error("Error polling pending samples:", e);
-              samplePollingRef.current = setTimeout(
-                poll,
-                Math.min(samplePollInterval * 2 * 1e3, 6e4)
+              pollingState.retryCount += 1;
+              if (pollingState.retryCount >= pollingState.maxRetries) {
+                log.error(
+                  `Giving up after ${pollingState.maxRetries} failed attempts to poll sample data`
+                );
+                if (samplePollingRef.current) {
+                  clearTimeout(samplePollingRef.current);
+                  samplePollingRef.current = null;
+                }
+                return;
+              }
+              const backoffTime = Math.min(
+                samplePollInterval * Math.pow(2, pollingState.retryCount) * 1e3,
+                6e4
               );
+              log.debug(
+                `Retry ${pollingState.retryCount}/${pollingState.maxRetries}, backoff time: ${backoffTime / 1e3}s`
+              );
+              console.error("Error polling sample data:", e);
+              samplePollingRef.current = setTimeout(poll, backoffTime);
             }
           };
           poll();
         },
-        [api2.get_log_sample_data]
+        [
+          api2.get_log_sample_data,
+          dispatch,
+          log,
+          sampleDataAdapter,
+          samplePollInterval
+        ]
       );
       const loadSample = reactExports.useCallback(
         async (summary2) => {
@@ -78922,7 +78965,7 @@ ${events}
       };
       return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(SampleContext.Provider, { value: contextValue, children: children2 }, void 0, false, {
         fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/contexts/SampleContext.tsx",
-        lineNumber: 274,
+        lineNumber: 310,
         columnNumber: 5
       }, void 0);
     };

@@ -179,11 +179,13 @@ export const LogProvider: FC<LogProviderProps> = ({
         currentEtag: state.pendingSampleSummaries?.etag,
         currentRefresh: state.pendingSampleSummaries?.refresh || 2,
         timeout: null as Timeout | null,
+        retryCount: 0, // Track retry attempts
+        maxRetries: 10, // Maximum number of retries before giving up
       };
 
       // Define the poll function within the closure to maintain state
       const poll = async () => {
-        // Don't proceed if polling has been canceled
+        // Don't proceed if polling has been canceled or max retries reached
         if (!polling.isActive) {
           return;
         }
@@ -205,6 +207,9 @@ export const LogProvider: FC<LogProviderProps> = ({
           }
 
           if (pendingSamples.status === "OK" && pendingSamples.pendingSamples) {
+            // Reset retry count on successful poll
+            polling.retryCount = 0;
+
             // Update the closure variables with new values
             polling.currentEtag = pendingSamples.pendingSamples.etag;
             polling.currentRefresh =
@@ -237,12 +242,33 @@ export const LogProvider: FC<LogProviderProps> = ({
         } catch (error) {
           log.debug(`ERROR PENDING RUNNING SAMPLES: ${logFile}`);
           log.error("Error polling pending samples:", error);
-          // Schedule next poll with backoff if we haven't been canceled
-          if (polling.isActive) {
-            polling.timeout = setTimeout(
-              poll, // Call the inner function
-              Math.min(polling.currentRefresh * 2 * 1000, 60000),
+
+          // Increment retry count
+          polling.retryCount += 1;
+
+          // Check if we've reached the maximum retries
+          if (polling.retryCount >= polling.maxRetries) {
+            log.error(
+              `Giving up after ${polling.maxRetries} failed attempts to poll pending samples`,
             );
+            polling.isActive = false;
+            clearPendingSummaries();
+            return;
+          }
+
+          // Schedule next poll with exponential backoff if we haven't been canceled
+          if (polling.isActive) {
+            // Calculate backoff time with exponential increase, capped at 60 seconds
+            const backoffTime = Math.min(
+              polling.currentRefresh * Math.pow(2, polling.retryCount) * 1000,
+              60000,
+            );
+
+            log.debug(
+              `Retry ${polling.retryCount}/${polling.maxRetries}, backoff time: ${backoffTime / 1000}s`,
+            );
+
+            polling.timeout = setTimeout(poll, backoffTime);
           }
         }
       };
@@ -267,6 +293,7 @@ export const LogProvider: FC<LogProviderProps> = ({
       log,
     ],
   );
+
   useEffect(() => {
     // Only start polling if we have a log file
     if (!logsContext.selectedLogFile) {
