@@ -66497,7 +66497,6 @@ ${events}
         sampleReducer,
         (initialState2 == null ? void 0 : initialState2.sample) || initialSampleState
       );
-      const loadingSampleIndexRef = reactExports.useRef(null);
       const samplePollingRef = reactExports.useRef(null);
       const samplePollInterval = 2;
       const logsContext = useLogsContext();
@@ -66561,20 +66560,15 @@ ${events}
       );
       const loadSample = reactExports.useCallback(
         async (summary2) => {
-          if (loadingSampleIndexRef.current === logContext.state.selectedSampleIndex) {
+          if (!logsContext.selectedLogFile) {
             return;
           }
-          const logFile = logsContext.state.logs.files[logsContext.state.selectedLogIndex];
-          if (!logFile) {
-            return;
-          }
-          loadingSampleIndexRef.current = logContext.state.selectedSampleIndex;
           dispatch({ type: "SET_LOADING", payload: true });
           try {
             if (summary2.completed !== false && !samplePollingRef.current) {
               log2.debug(`LOADING COMPLETED SAMPLE: ${summary2.id}-${summary2.epoch}`);
               const sample2 = await api2.get_log_sample(
-                logFile.name,
+                logsContext.selectedLogFile,
                 summary2.id,
                 summary2.epoch
               );
@@ -66588,17 +66582,15 @@ ${events}
               }
             } else {
               log2.debug(`POLLING RUNNING SAMPLE: ${summary2.id}-${summary2.epoch}`);
-              pollForSampleData(logFile.name, summary2);
+              pollForSampleData(logsContext.selectedLogFile, summary2);
             }
             dispatch({ type: "SET_LOADING", payload: false });
           } catch (e) {
             dispatch({ type: "SET_ERROR", payload: e });
-          } finally {
-            loadingSampleIndexRef.current = null;
           }
         },
         [
-          logsContext.state.logs,
+          logsContext.selectedLogFile,
           logsContext.state.selectedLogIndex,
           pollForSampleData
         ]
@@ -66620,28 +66612,22 @@ ${events}
         logsContext.state.selectedLogIndex,
         logsContext.state.logs
       ]);
-      const refreshSelectedSample = reactExports.useCallback(
-        (selectedSampleIdx) => {
-          const sampleSummary = logContext.sampleSummaries[selectedSampleIdx];
-          if (sampleSummary) {
-            loadSample(sampleSummary);
-          } else {
-            dispatch({ type: "RESET_SAMPLE" });
-          }
-        },
-        [logContext.sampleSummaries, loadSample, dispatch]
-      );
+      const selectedSampleSummary = reactExports.useMemo(() => {
+        return logContext.sampleSummaries[logContext.state.selectedSampleIndex];
+      }, [logContext.state.selectedSampleIndex, logContext.sampleSummaries]);
       reactExports.useEffect(() => {
-        refreshSelectedSample(logContext.state.selectedSampleIndex);
-      }, [logContext.state.selectedSampleIndex, refreshSelectedSample]);
+        if (selectedSampleSummary) {
+          loadSample(selectedSampleSummary);
+        } else {
+          dispatch({ type: "RESET_SAMPLE" });
+        }
+      }, [selectedSampleSummary]);
       const getState = () => {
         return { sample: state };
       };
       const contextValue = {
         state,
         dispatch,
-        loadSample,
-        refreshSelectedSample,
         getState
       };
       return /* @__PURE__ */ jsxRuntimeExports.jsx(SampleContext.Provider, { value: contextValue, children: children2 });
