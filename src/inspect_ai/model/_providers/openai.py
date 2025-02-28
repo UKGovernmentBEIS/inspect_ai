@@ -23,6 +23,7 @@ from typing_extensions import override
 
 from inspect_ai._util.constants import DEFAULT_MAX_RETRIES
 from inspect_ai._util.error import PrerequisiteError
+from inspect_ai._util.http import is_retryable_http_status
 from inspect_ai._util.logger import warn_once
 from inspect_ai.model._openai import chat_choices_from_openai
 from inspect_ai.model._providers.util.tracker import HttpxTimeTracker
@@ -276,8 +277,8 @@ class OpenAIAPI(ModelAPI):
             else:
                 return True
         elif isinstance(ex, APIStatusError):
-            return ex.status_code in [408, 429] or (500 <= ex.status_code < 600)
-        elif isinstance(ex, (APIConnectionError | APITimeoutError)):
+            return is_retryable_http_status(ex.status_code)
+        elif isinstance(ex, APIConnectionError | APITimeoutError):
             return True
         else:
             return False

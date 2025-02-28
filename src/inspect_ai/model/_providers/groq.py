@@ -9,7 +9,6 @@ from groq import (
     APIStatusError,
     APITimeoutError,
     AsyncGroq,
-    RateLimitError,
 )
 from groq.types.chat import (
     ChatCompletion,
@@ -32,6 +31,7 @@ from inspect_ai._util.constants import (
     DEFAULT_MAX_TOKENS,
 )
 from inspect_ai._util.content import Content, ContentReasoning, ContentText
+from inspect_ai._util.http import is_retryable_http_status
 from inspect_ai._util.images import file_as_data_uri
 from inspect_ai._util.url import is_http_url
 from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
@@ -220,8 +220,8 @@ class GroqAPI(ModelAPI):
     @override
     def should_retry(self, ex: BaseException) -> bool:
         if isinstance(ex, APIStatusError):
-            return ex.status_code in [408, 429] or (500 <= ex.status_code < 600)
-        elif isinstance(ex, (APIConnectionError | APITimeoutError)):
+            return is_retryable_http_status(ex.status_code)
+        elif isinstance(ex, APIConnectionError | APITimeoutError):
             return True
         else:
             return False

@@ -6,6 +6,8 @@ from copy import copy
 from logging import getLogger
 from typing import Any, Literal, Tuple, TypedDict, cast
 
+from inspect_ai._util.http import is_retryable_http_status
+
 from .util.tracker import HttpxTimeTracker
 
 if sys.version_info >= (3, 11):
@@ -332,8 +334,8 @@ class AnthropicAPI(ModelAPI):
     @override
     def should_retry(self, ex: BaseException) -> bool:
         if isinstance(ex, APIStatusError):
-            return ex.status_code in [408, 429] or (500 <= ex.status_code < 600)
-        elif isinstance(ex, (APIConnectionError | APITimeoutError)):
+            return is_retryable_http_status(ex.status_code)
+        elif isinstance(ex, APIConnectionError | APITimeoutError):
             return True
         else:
             return False
