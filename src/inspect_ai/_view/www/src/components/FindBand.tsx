@@ -1,6 +1,6 @@
 import { FC, KeyboardEvent, useCallback, useEffect, useRef } from "react";
-import { useAppContext } from "../AppContext";
 import { ApplicationIcons } from "../appearance/icons";
+import { useAppContext } from "../contexts/AppContext";
 import "./FindBand.css";
 
 interface FindBandProps {}

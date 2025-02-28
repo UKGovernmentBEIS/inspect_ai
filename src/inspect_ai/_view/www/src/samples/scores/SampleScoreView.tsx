@@ -8,7 +8,7 @@ import { SampleScores } from "./SampleScores";
 
 import { FC } from "react";
 import { SampleSummary } from "../../api/types";
-import { useLogContext } from "../../LogContext";
+import { useLogContext } from "../../contexts/LogContext";
 import styles from "./SampleScoreView.module.css";
 
 interface SampleScoreViewProps {

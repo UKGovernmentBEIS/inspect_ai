@@ -1,9 +1,9 @@
 import clsx from "clsx";
 import { FC, ReactNode, useCallback } from "react";
 import { SampleSummary } from "../../api/types";
-import { useAppContext } from "../../AppContext";
 import { MarkdownDiv } from "../../components/MarkdownDiv";
-import { useLogContext } from "../../LogContext";
+import { useAppContext } from "../../contexts/AppContext";
+import { useLogContext } from "../../contexts/LogContext";
 import { arrayToString, inputString } from "../../utils/format";
 import { SampleErrorView } from "../error/SampleErrorView";
 import styles from "./SampleRow.module.css";

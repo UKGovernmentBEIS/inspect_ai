@@ -1,11 +1,11 @@
 import { createRoot } from "react-dom/client";
-import { App } from "./App";
-import { AppProvider } from "./AppContext";
-import { AppErrorBoundary } from "./AppErrorBoundary";
-import { LogProvider } from "./LogContext";
-import { LogsProvider } from "./LogsContext";
 import api from "./api/index";
 import { Capabilities } from "./api/types";
+import { App } from "./App";
+import { AppErrorBoundary } from "./AppErrorBoundary";
+import { AppProvider } from "./contexts/AppContext";
+import { LogProvider } from "./contexts/LogContext";
+import { LogsProvider } from "./contexts/LogsContext";
 import { ApplicationState } from "./types";
 import { throttle } from "./utils/sync";
 import { getVscodeApi } from "./utils/vscode";

@@ -7,13 +7,13 @@ import { SamplesTab } from "./tabs/SamplesTab";
 import clsx from "clsx";
 import { FC, MouseEvent, RefObject, useEffect, useMemo, useRef } from "react";
 import { RunningMetric, SampleSummary } from "../api/types.ts";
-import { useAppContext } from "../AppContext.tsx";
 import {
   kEvalWorkspaceTabId,
   kInfoWorkspaceTabId,
   kJsonWorkspaceTabId,
 } from "../constants";
-import { useLogContext } from "../LogContext.tsx";
+import { useAppContext } from "../contexts/AppContext.tsx";
+import { useLogContext } from "../contexts/LogContext.tsx";
 import { CurrentLog, RunningSampleData, SampleMode } from "../types.ts";
 import {
   EvalError,
