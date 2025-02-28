@@ -83,7 +83,6 @@ export const App: FC<AppProps> = ({
       selectedWorkspaceTab,
       selectedSampleTab,
       showingSampleDialog,
-      status,
       sampleScrollPosition: sampleScrollPosition.current,
       workspaceTabScrollPosition: workspaceTabScrollPosition.current,
       ...appContext.getState(),
@@ -98,7 +97,6 @@ export const App: FC<AppProps> = ({
     selectedWorkspaceTab,
     selectedSampleTab,
     showingSampleDialog,
-    status,
     appContext.getState,
     logsContext.getState,
     logContext.getState,
@@ -149,21 +147,27 @@ export const App: FC<AppProps> = ({
   const handleSampleShowingDialog = useCallback(
     (show: boolean) => {
       setShowingSampleDialog(show);
-      if (!show) {
-        sampleContext.dispatch({ type: "CLEAR_SELECTED_SAMPLE" });
-        setSelectedSampleTab(undefined);
-      }
     },
-    [setShowingSampleDialog, sampleContext.dispatch, setSelectedSampleTab],
+    [setShowingSampleDialog],
   );
 
   useEffect(() => {
+    if (!showingSampleDialog) {
+      sampleContext.dispatch({ type: "CLEAR_SELECTED_SAMPLE" });
+      setSelectedSampleTab(undefined);
+    }
+  }, [showingSampleDialog, sampleContext.dispatch, setSelectedSampleTab]);
+
+  useEffect(() => {
     const selectedSample = sampleContext.state.selectedSample;
+    if (!selectedSample) return;
+
     const newTab =
-      selectedSample?.events?.length || 0 > 0
+      (selectedSample.events?.length || 0) > 0
         ? kSampleTranscriptTabId
         : kSampleMessagesTabId;
-    if (selectedSampleTab === undefined && selectedSample) {
+
+    if (selectedSampleTab === undefined) {
       setSelectedSampleTab(newTab);
     }
   }, [sampleContext.state.selectedSample, selectedSampleTab]);
@@ -184,21 +188,24 @@ export const App: FC<AppProps> = ({
   ]);
 
   useEffect(() => {
-    if (logContext.totalSampleCount) {
-      logContext.dispatch({ type: "SELECT_SAMPLE", payload: 0 });
-    }
-  }, [logContext.totalSampleCount]);
+    logContext.dispatch({ type: "SELECT_SAMPLE", payload: 0 });
+  }, [logsContext.selectedLogFile, logContext.dispatch]);
 
   // Load a specific log
   useEffect(() => {
     const loadSpecificLog = async () => {
       if (logsContext.selectedLogFile) {
         try {
+          // Set loading first and wait for it to update
           appContext.dispatch({
             type: "SET_STATUS",
             payload: { loading: true, error: undefined },
           });
+
+          // Then load the log
           await logContext.loadLog(logsContext.selectedLogFile);
+
+          // Finally set loading to false
           appContext.dispatch({
             type: "SET_STATUS",
             payload: { loading: false, error: undefined },
@@ -213,7 +220,7 @@ export const App: FC<AppProps> = ({
       }
     };
     loadSpecificLog();
-  }, [logsContext.selectedLogFile, logContext.dispatch, appContext.dispatch]);
+  }, [logsContext.selectedLogFile, logContext.loadLog, appContext.dispatch]);
 
   useEffect(() => {
     // Reset the workspace
@@ -270,13 +277,7 @@ export const App: FC<AppProps> = ({
         payload: { loading: false, error: e as Error },
       });
     }
-  }, [
-    logsContext.state.logs,
-    logsContext.state.selectedLogIndex,
-    logContext.refreshLog,
-    logContext.dispatch,
-    appContext.dispatch,
-  ]);
+  }, [logContext.refreshLog, logContext.dispatch, appContext.dispatch]);
 
   const onMessage = useCallback(
     async (e: HostMessage) => {
