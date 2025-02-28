@@ -2,22 +2,14 @@ import threading
 from typing import Awaitable, Callable, Unpack
 
 from aiohttp.web import Application, Request, Response, run_app
-from jsonrpcserver import Result, Success, async_dispatch, method
-
 from constants import DEFAULT_SESSION_NAME, SERVER_PORT
+from jsonrpcserver import Result, Success, async_dispatch, method
 from playwright_browser import PlaywrightBrowser
 from playwright_crawler import PlaywrightCrawler
 from scale_factor import get_screen_scale_factor
-from web_browser_rpc_types import (
-    ClickArgs,
-    CrawlerBaseArgs,
-    CrawlerResponse,
-    GoArgs,
-    NewSessionArgs,
-    NewSessionResponse,
-    ScrollArgs,
-    TypeOrSubmitArgs,
-)
+from web_browser_rpc_types import (ClickArgs, CrawlerBaseArgs, CrawlerResponse,
+                                   GoArgs, NewSessionArgs, NewSessionResponse,
+                                   ScrollArgs, TypeOrSubmitArgs)
 
 
 class Sessions:

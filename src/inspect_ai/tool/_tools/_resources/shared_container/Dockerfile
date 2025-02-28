@@ -2,9 +2,7 @@
 
 FROM python:3.12-bookworm
 
-WORKDIR /app/web_browser
-
-RUN apt-get update
+WORKDIR /opt/inspect
 
 RUN pip install --upgrade pip
 
@@ -15,8 +13,8 @@ RUN playwright install
 RUN playwright install-deps 
 
 # Copy Python files alongside the Dockerfile
-COPY . .
+COPY ./container .
 
 # Run the server
-CMD ["python3", "/app/web_browser/web_server.py"]
+CMD ["python3", "/opt/inspect/server.py"]
 # CMD ["tail", "-f", "/dev/null"]
