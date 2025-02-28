@@ -6,7 +6,7 @@ from .instructions import InstructionsCommand
 from .note import NoteCommand
 from .score import ScoreCommand
 from .status import StatusCommand
-from .submit import SubmitCommand, ValidateCommand
+from .submit import QuitCommand, SubmitCommand, ValidateCommand
 
 
 def human_agent_commands(
@@ -15,8 +15,12 @@ def human_agent_commands(
     intermediate_scoring: bool,
     record_session: bool,
 ) -> list[HumanAgentCommand]:
-    # base submit and validate
-    commands = [SubmitCommand(record_session), ValidateCommand(answer)]
+    # base submit, validate, and quit
+    commands = [
+        SubmitCommand(record_session),
+        ValidateCommand(answer),
+        QuitCommand(record_session),
+    ]
 
     # optional intermediate scoring
     if intermediate_scoring:
