@@ -79076,14 +79076,14 @@ ${events}
       reactExports.useEffect(() => {
         setSelectedWorkspaceTab(kEvalWorkspaceTabId);
         setSelectedSampleTab(void 0);
-        sampleContext.dispatch({ type: "CLEAR_SELECTED_SAMPLE" });
         workspaceTabScrollPosition.current = {};
+        sampleContext.dispatch({ type: "CLEAR_SELECTED_SAMPLE" });
       }, [(_a2 = logContext.state.selectedLogSummary) == null ? void 0 : _a2.eval.task_id]);
       reactExports.useEffect(() => {
         if (logContext.totalSampleCount === 0) {
           setSelectedWorkspaceTab(kInfoWorkspaceTabId);
         }
-      }, [logContext.totalSampleCount]);
+      }, [logContext.state.selectedLogSummary]);
       reactExports.useEffect(() => {
         if (logsContext.state.logs.log_dir && logsContext.state.logs.files.length === 0) {
           appContext.dispatch({
@@ -79210,7 +79210,7 @@ ${events}
           false,
           {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/App.tsx",
-            lineNumber: 392,
+            lineNumber: 394,
             columnNumber: 9
           },
           void 0
@@ -79238,12 +79238,12 @@ ${events}
             children: [
               !appContext.capabilities.nativeFind && appContext.state.showFind ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(FindBand, {}, void 0, false, {
                 fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/App.tsx",
-                lineNumber: 431,
+                lineNumber: 433,
                 columnNumber: 11
               }, void 0) : "",
               /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(ProgressBar, { animating: appContext.state.status.loading }, void 0, false, {
                 fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/App.tsx",
-                lineNumber: 435,
+                lineNumber: 437,
                 columnNumber: 9
               }, void 0),
               appContext.state.status.error ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
@@ -79256,7 +79256,7 @@ ${events}
                 false,
                 {
                   fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/App.tsx",
-                  lineNumber: 437,
+                  lineNumber: 439,
                   columnNumber: 11
                 },
                 void 0
@@ -79298,7 +79298,7 @@ ${events}
                 false,
                 {
                   fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/App.tsx",
-                  lineNumber: 442,
+                  lineNumber: 444,
                   columnNumber: 11
                 },
                 void 0
@@ -79309,14 +79309,14 @@ ${events}
           true,
           {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/App.tsx",
-            lineNumber: 406,
+            lineNumber: 408,
             columnNumber: 7
           },
           void 0
         )
       ] }, void 0, true, {
         fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/App.tsx",
-        lineNumber: 390,
+        lineNumber: 392,
         columnNumber: 5
       }, void 0);
     };

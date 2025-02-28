@@ -228,15 +228,17 @@ export const App: FC<AppProps> = ({
 
     // Reset the sample tab
     setSelectedSampleTab(undefined);
-    sampleContext.dispatch({ type: "CLEAR_SELECTED_SAMPLE" });
+
     workspaceTabScrollPosition.current = {};
+
+    sampleContext.dispatch({ type: "CLEAR_SELECTED_SAMPLE" });
   }, [logContext.state.selectedLogSummary?.eval.task_id]);
 
   useEffect(() => {
     if (logContext.totalSampleCount === 0) {
       setSelectedWorkspaceTab(kInfoWorkspaceTabId);
     }
-  }, [logContext.totalSampleCount]);
+  }, [logContext.state.selectedLogSummary]);
 
   useEffect(() => {
     if (
