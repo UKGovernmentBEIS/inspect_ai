@@ -5,7 +5,7 @@ import { arrayToString, formatTime, inputString } from "../utils/format";
 import { FlatSampleError } from "./error/FlatSampleErrorView";
 
 import { FC, ReactNode } from "react";
-import { useLogContext } from "../LogContext";
+import { useLogContext } from "../contexts/LogContext";
 import styles from "./SampleSummaryView.module.css";
 
 interface SampleSummaryViewProps {

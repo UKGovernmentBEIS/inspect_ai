@@ -3,7 +3,7 @@ import { FC } from "react";
 import { SampleSummary } from "../../api/types";
 import { ExpandablePanel } from "../../components/ExpandablePanel";
 import { LabeledValue } from "../../components/LabeledValue";
-import { useLogContext } from "../../LogContext";
+import { useLogContext } from "../../contexts/LogContext";
 import { EvalDescriptor } from "../../samples/descriptor/types";
 import { scoreFilterItems } from "../../samples/sample-tools/filters";
 import {

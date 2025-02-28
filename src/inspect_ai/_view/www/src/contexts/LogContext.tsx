@@ -14,34 +14,34 @@ import {
   EvalSummary,
   PendingSamples,
   SampleSummary,
-} from "./api/types";
+} from "../api/types";
 import {
   kDefaultSort,
   kEpochAscVal,
   kSampleAscVal,
   kScoreAscVal,
-} from "./constants";
-import { useLogsContext } from "./LogsContext";
+} from "../constants";
 import {
   createEvalDescriptor,
   createSamplesDescriptor,
   SamplesDescriptor,
-} from "./samples/descriptor/samplesDescriptor";
-import { EvalDescriptor } from "./samples/descriptor/types";
-import { filterSamples } from "./samples/sample-tools/filters";
+} from "../samples/descriptor/samplesDescriptor";
+import { EvalDescriptor } from "../samples/descriptor/types";
+import { filterSamples } from "../samples/sample-tools/filters";
 import {
   byEpoch,
   bySample,
   sortSamples,
-} from "./samples/sample-tools/SortFilter";
+} from "../samples/sample-tools/SortFilter";
 import {
   getAvailableScorers,
   getDefaultScorer,
   ScorerInfo,
-} from "./scoring/utils";
-import { ScoreFilter, ScoreLabel } from "./types";
-import { Timeout } from "./types/log";
-import { createLogger } from "./utils/logger";
+} from "../scoring/utils";
+import { ScoreFilter, ScoreLabel } from "../types";
+import { Timeout } from "../types/log";
+import { createLogger } from "../utils/logger";
+import { useLogsContext } from "./LogsContext";
 
 // Define action types
 type LogAction =
