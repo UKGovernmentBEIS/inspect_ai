@@ -8,11 +8,11 @@ from openai import (
     DEFAULT_CONNECTION_LIMITS,
     DEFAULT_TIMEOUT,
     APIConnectionError,
+    APIStatusError,
     APITimeoutError,
     AsyncAzureOpenAI,
     AsyncOpenAI,
     BadRequestError,
-    InternalServerError,
     RateLimitError,
 )
 from openai._types import NOT_GIVEN
@@ -270,13 +270,17 @@ class OpenAIAPI(ModelAPI):
         if isinstance(ex, RateLimitError):
             # Do not retry on these rate limit errors
             # The quota exceeded one is related to monthly account quotas.
-            if "You exceeded your current quota" not in ex.message:
+            if "You exceeded your current quota" in ex.message:
+                warn_once(logger, f"OpenAI quota exceeded, not retrying: {ex.message}")
+                return False
+            else:
                 return True
-        elif isinstance(
-            ex, (APIConnectionError | APITimeoutError | InternalServerError)
-        ):
+        elif isinstance(ex, APIStatusError):
+            return ex.status_code in [408, 429] or (500 <= ex.status_code < 600)
+        elif isinstance(ex, (APIConnectionError | APITimeoutError)):
             return True
-        return False
+        else:
+            return False
 
     @override
     def connection_key(self) -> str:

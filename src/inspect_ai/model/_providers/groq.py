@@ -5,6 +5,9 @@ from typing import Any, Dict, Iterable, List, Optional
 
 import httpx
 from groq import (
+    APIConnectionError,
+    APIStatusError,
+    APITimeoutError,
     AsyncGroq,
     RateLimitError,
 )
@@ -216,7 +219,12 @@ class GroqAPI(ModelAPI):
 
     @override
     def should_retry(self, ex: BaseException) -> bool:
-        return isinstance(ex, RateLimitError)
+        if isinstance(ex, APIStatusError):
+            return ex.status_code in [408, 429] or (500 <= ex.status_code < 600)
+        elif isinstance(ex, (APIConnectionError | APITimeoutError)):
+            return True
+        else:
+            return False
 
     @override
     def connection_key(self) -> str:

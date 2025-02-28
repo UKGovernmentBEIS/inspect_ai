@@ -16,13 +16,12 @@ else:
 from anthropic import (
     APIConnectionError,
     APIStatusError,
+    APITimeoutError,
     AsyncAnthropic,
     AsyncAnthropicBedrock,
     AsyncAnthropicVertex,
     BadRequestError,
-    InternalServerError,
     NotGiven,
-    RateLimitError,
 )
 from anthropic._types import Body
 from anthropic.types import (
@@ -332,12 +331,12 @@ class AnthropicAPI(ModelAPI):
 
     @override
     def should_retry(self, ex: BaseException) -> bool:
-        # We have observed that anthropic will frequently return InternalServerError
-        # seemingly in place of RateLimitError (at the very least the errors seem to
-        # always be transient). Equating this to rate limit errors may occasionally
-        # result in retrying too many times, but much more often will avert a failed
-        # eval that just needed to survive a transient error
-        return isinstance(ex, RateLimitError | InternalServerError | APIConnectionError)
+        if isinstance(ex, APIStatusError):
+            return ex.status_code in [408, 429] or (500 <= ex.status_code < 600)
+        elif isinstance(ex, (APIConnectionError | APITimeoutError)):
+            return True
+        else:
+            return False
 
     @override
     def collapse_user_messages(self) -> bool:
