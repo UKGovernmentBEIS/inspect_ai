@@ -38,7 +38,7 @@ import {
   getDefaultScorer,
   ScorerInfo,
 } from "../scoring/utils";
-import { ScoreFilter, ScoreLabel } from "../types";
+import { LogState, ScoreFilter, ScoreLabel } from "../types";
 import { Timeout } from "../types/log";
 import { createLogger } from "../utils/logger";
 import { useLogsContext } from "./LogsContext";
@@ -53,17 +53,6 @@ type LogAction =
   | { type: "SET_SELECTED_LOG_SUMMARY"; payload: EvalSummary }
   | { type: "RESET_FILTERING" }
   | { type: "SET_PENDING_SAMPLE_SUMMARIES"; payload: PendingSamples };
-
-// Define the state shape
-export interface LogState {
-  selectedLogSummary?: EvalSummary;
-  pendingSampleSummaries?: PendingSamples;
-  selectedSampleIndex: number;
-  filter: ScoreFilter;
-  epoch: string;
-  sort: string;
-  score?: ScoreLabel;
-}
 
 // Initial state
 const initialLogState: LogState = {

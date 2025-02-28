@@ -11,6 +11,7 @@ import {
 } from "react";
 import { ClientAPI, EvalLogHeader, LogFiles } from "../api/types";
 import { useAppContext } from "../contexts/AppContext";
+import { LogsState } from "../types";
 import { createLogger } from "../utils/logger";
 import { sleep } from "../utils/sync";
 
@@ -22,14 +23,6 @@ type LogsAction =
   | { type: "SET_SELECTED_LOG_INDEX"; payload: number }
   | { type: "SET_SELECTED_LOG_FILE"; payload: string }
   | { type: "UPDATE_LOG_HEADERS"; payload: Record<string, EvalLogHeader> };
-
-// Define the state shape
-export interface LogsState {
-  logs: LogFiles;
-  logHeaders: Record<string, EvalLogHeader>;
-  headersLoading: boolean;
-  selectedLogIndex: number;
-}
 
 // Initial state
 const initialLogsState: LogsState = {

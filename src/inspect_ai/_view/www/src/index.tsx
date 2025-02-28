@@ -6,6 +6,7 @@ import { AppErrorBoundary } from "./AppErrorBoundary";
 import { AppProvider } from "./contexts/AppContext";
 import { LogProvider } from "./contexts/LogContext";
 import { LogsProvider } from "./contexts/LogsContext";
+import { SampleProvider } from "./contexts/SampleContext";
 import { ApplicationState } from "./types";
 import { throttle } from "./utils/sync";
 import { getVscodeApi } from "./utils/vscode";
@@ -53,16 +54,18 @@ root.render(
     <AppProvider capabilities={capabilities} initialState={initialState}>
       <LogsProvider initialState={initialState} api={api}>
         <LogProvider initialState={initialState} api={api}>
-          <App
-            api={resolvedApi}
-            applicationState={initialState}
-            saveApplicationState={throttle((state) => {
-              const vscode = getVscodeApi();
-              if (vscode) {
-                vscode.setState(filterState(state));
-              }
-            }, 1000)}
-          />
+          <SampleProvider initialState={initialState} api={api}>
+            <App
+              api={resolvedApi}
+              applicationState={initialState}
+              saveApplicationState={throttle((state) => {
+                const vscode = getVscodeApi();
+                if (vscode) {
+                  vscode.setState(filterState(state));
+                }
+              }, 1000)}
+            />
+          </SampleProvider>
         </LogProvider>
       </LogsProvider>
     </AppProvider>

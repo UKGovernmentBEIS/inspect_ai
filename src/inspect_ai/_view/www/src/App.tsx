@@ -22,7 +22,7 @@ import { WorkSpace } from "./workspace/WorkSpace";
 import ClipboardJS from "clipboard";
 import clsx from "clsx";
 import { FC, useCallback, useEffect, useRef, useState } from "react";
-import { ClientAPI, HostMessage, SampleSummary } from "./api/types.ts";
+import { ClientAPI, HostMessage } from "./api/types.ts";
 import {
   kEvalWorkspaceTabId,
   kInfoWorkspaceTabId,
@@ -32,10 +32,8 @@ import {
 import { useAppContext } from "./contexts/AppContext.tsx";
 import { useLogContext } from "./contexts/LogContext.tsx";
 import { useLogsContext } from "./contexts/LogsContext.tsx";
-import { sampleDataAdapter } from "./samples/sampleDataAdapter.ts";
-import { ApplicationState, RunningSampleData } from "./types.ts";
-import { EvalSample, Timeout } from "./types/log";
-import { resolveAttachments } from "./utils/attachments.ts";
+import { useSampleContext } from "./contexts/SampleContext.tsx";
+import { ApplicationState } from "./types.ts";
 
 interface AppProps {
   api: ClientAPI;
@@ -55,6 +53,7 @@ export const App: FC<AppProps> = ({
   const appContext = useAppContext();
   const logsContext = useLogsContext();
   const logContext = useLogContext();
+  const sampleContext = useSampleContext();
 
   // The main application reference
   const mainAppRef = useRef<HTMLDivElement>(null);
@@ -64,29 +63,12 @@ export const App: FC<AppProps> = ({
     applicationState?.selectedWorkspaceTab || kEvalWorkspaceTabId,
   );
 
-  const [selectedSample, setSelectedSample] = useState<EvalSample | undefined>(
-    applicationState?.selectedSample,
-  );
-  const [sampleStatus, setSampleStatus] = useState<"loading" | "ok" | "error">(
-    applicationState?.sampleStatus || "loading",
-  );
-  const [sampleError, setSampleError] = useState<Error | undefined>(
-    applicationState?.sampleError,
-  );
-
-  const [runningSampleData, setRunningSampleData] = useState<
-    RunningSampleData | undefined
-  >();
-
   const [selectedSampleTab, setSelectedSampleTab] = useState<
     string | undefined
   >(applicationState?.selectedSampleTab);
   const sampleScrollPosition = useRef<number>(
     applicationState?.sampleScrollPosition || 0,
   );
-
-  // Tracks the currently loading sample index (so we can ignore subsequent requests)
-  const loadingSampleIndexRef = useRef<number | null>(null);
 
   const workspaceTabScrollPosition = useRef<Record<string, number>>(
     applicationState?.workspaceTabScrollPosition || {},
@@ -99,9 +81,6 @@ export const App: FC<AppProps> = ({
   const saveState = useCallback(() => {
     const state = {
       selectedWorkspaceTab,
-      selectedSample,
-      sampleStatus,
-      sampleError,
       selectedSampleTab,
       showingSampleDialog,
       status,
@@ -110,15 +89,13 @@ export const App: FC<AppProps> = ({
       ...appContext.getState(),
       ...logsContext.getState(),
       ...logContext.getState(),
+      ...sampleContext.getState(),
     };
     if (saveApplicationState) {
       saveApplicationState(state);
     }
   }, [
     selectedWorkspaceTab,
-    selectedSample,
-    sampleStatus,
-    sampleError,
     selectedSampleTab,
     showingSampleDialog,
     status,
@@ -160,34 +137,28 @@ export const App: FC<AppProps> = ({
     saveStateRef.current();
   }, [
     selectedWorkspaceTab,
-    selectedSample,
-    sampleStatus,
-    sampleError,
     selectedSampleTab,
     showingSampleDialog,
     status,
     appContext.getState,
     logsContext.getState,
     logContext.getState,
+    sampleContext.getState,
   ]);
 
   const handleSampleShowingDialog = useCallback(
     (show: boolean) => {
       setShowingSampleDialog(show);
       if (!show) {
-        setSelectedSample(undefined);
+        sampleContext.dispatch({ type: "CLEAR_SELECTED_SAMPLE" });
         setSelectedSampleTab(undefined);
       }
     },
-    [
-      setShowingSampleDialog,
-      setSelectedSample,
-      setSelectedSampleTab,
-      selectedSample,
-    ],
+    [setShowingSampleDialog, sampleContext.dispatch, setSelectedSampleTab],
   );
 
   useEffect(() => {
+    const selectedSample = sampleContext.state.selectedSample;
     const newTab =
       selectedSample?.events?.length || 0 > 0
         ? kSampleTranscriptTabId
@@ -195,145 +166,7 @@ export const App: FC<AppProps> = ({
     if (selectedSampleTab === undefined && selectedSample) {
       setSelectedSampleTab(newTab);
     }
-  }, [selectedSample, selectedSampleTab]);
-
-  const loadSample = useCallback(
-    async (summary: SampleSummary) => {
-      if (
-        loadingSampleIndexRef.current === logContext.state.selectedSampleIndex
-      ) {
-        return;
-      }
-
-      const logFile =
-        logsContext.state.logs.files[logsContext.state.selectedLogIndex];
-      if (!logFile) {
-        return;
-      }
-
-      loadingSampleIndexRef.current = logContext.state.selectedSampleIndex;
-      setSampleStatus("loading");
-      setSampleError(undefined);
-
-      try {
-        // If a sample is completed, but we're still polling,
-        // this means that the sample hasn't been flushed, so we should
-        // continue to show the live view until the sample is flushed
-        if (summary.completed !== false && !samplePollingRef.current) {
-          const sample = await api.get_log_sample(
-            logFile.name,
-            summary.id,
-            summary.epoch,
-          );
-          if (sample) {
-            const migratedSample = migrateOldSample(sample);
-            sampleScrollPosition.current = 0;
-            setSelectedSample(migratedSample);
-          } else {
-            throw new Error(
-              "Unable to load sample - an unknown error occurred.",
-            );
-          }
-        } else {
-          pollForSampleData(logFile.name, summary);
-        }
-
-        setSampleStatus("ok");
-      } catch (e) {
-        handleSampleLoadError(e);
-      } finally {
-        loadingSampleIndexRef.current = null;
-      }
-    },
-    [logsContext.state.logs, logsContext.state.selectedLogIndex],
-  );
-
-  const samplePollingRef = useRef<Timeout | null>(null);
-  const samplePollInterval = 2;
-
-  useEffect(() => {
-    return () => {
-      if (samplePollingRef.current) {
-        clearTimeout(samplePollingRef.current);
-        samplePollingRef.current = null;
-      }
-    };
-  }, [logContext.state.selectedSampleIndex]);
-
-  const pollForSampleData = useCallback(
-    (logFile: string, summary: SampleSummary) => {
-      // Ensure any existing polling instance is cleared before starting a new one
-      if (samplePollingRef.current) {
-        clearTimeout(samplePollingRef.current);
-        samplePollingRef.current = null;
-      }
-
-      const poll = async () => {
-        if (!api.get_log_sample_data) {
-          return;
-        }
-        try {
-          const sampleDataResponse = await api.get_log_sample_data(
-            logFile,
-            summary.id,
-            summary.epoch,
-          );
-          if (
-            sampleDataResponse?.status === "OK" &&
-            sampleDataResponse.sampleData
-          ) {
-            sampleScrollPosition.current = 0;
-            const adapter = sampleDataAdapter();
-            adapter.addData(sampleDataResponse.sampleData);
-            const runningData = { events: adapter.resolvedEvents(), summary };
-            setRunningSampleData(runningData);
-          } else if (sampleDataResponse?.status === "NotFound") {
-            if (samplePollingRef.current) {
-              clearTimeout(samplePollingRef.current);
-              samplePollingRef.current = null;
-            }
-            return;
-          }
-          samplePollingRef.current = setTimeout(
-            poll,
-            samplePollInterval * 1000,
-          );
-        } catch (e) {
-          // TODO: Backoff
-          console.error("Error polling pending samples:", e);
-          samplePollingRef.current = setTimeout(
-            poll,
-            Math.min(samplePollInterval * 2 * 1000, 60000),
-          );
-        }
-      };
-
-      poll();
-    },
-    [api.get_log_sample_data, setRunningSampleData],
-  );
-
-  // Helper function for old sample migration
-  const migrateOldSample = (sample: any) => {
-    if (sample.transcript) {
-      sample.events = sample.transcript.events;
-      sample.attachments = sample.transcript.content;
-    }
-    sample.attachments = sample.attachments || {};
-    sample.input = resolveAttachments(sample.input, sample.attachments);
-    sample.messages = resolveAttachments(sample.messages, sample.attachments);
-    sample.events = resolveAttachments(sample.events, sample.attachments);
-    sample.attachments = {};
-    return sample;
-  };
-
-  // Generic error handler
-  const handleSampleLoadError = (error: unknown) => {
-    setSampleStatus("error");
-    setSampleError(error as Error);
-    sampleScrollPosition.current = 0;
-    setSelectedSample(undefined);
-  };
+  }, [sampleContext.state.selectedSample, selectedSampleTab]);
 
   // Clear the selected sample when log file changes
   useEffect(() => {
@@ -341,27 +174,14 @@ export const App: FC<AppProps> = ({
       !logsContext.state.logs.files[logsContext.state.selectedLogIndex] ||
       logContext.state.selectedSampleIndex === -1
     ) {
-      setSelectedSample(undefined);
+      sampleContext.dispatch({ type: "CLEAR_SELECTED_SAMPLE" });
     }
   }, [
     logContext.state.selectedSampleIndex,
     logsContext.state.selectedLogIndex,
     logsContext.state.logs,
+    sampleContext.dispatch,
   ]);
-
-  // Refresh selected sample
-  const refreshSelectedSample = useCallback(
-    (selectedSampleIdx: number) => {
-      const sampleSummary = logContext.sampleSummaries[selectedSampleIdx];
-      sampleSummary ? loadSample(sampleSummary) : setSelectedSample(undefined);
-    },
-    [logContext.sampleSummaries, loadSample],
-  );
-
-  // Load selected sample when index changes
-  useEffect(() => {
-    refreshSelectedSample(logContext.state.selectedSampleIndex);
-  }, [logContext.state.selectedSampleIndex, refreshSelectedSample]);
 
   useEffect(() => {
     if (logContext.totalSampleCount) {
@@ -401,7 +221,7 @@ export const App: FC<AppProps> = ({
 
     // Reset the sample tab
     setSelectedSampleTab(undefined);
-    setSelectedSample(undefined);
+    sampleContext.dispatch({ type: "CLEAR_SELECTED_SAMPLE" });
     workspaceTabScrollPosition.current = {};
   }, [logContext.state.selectedLogSummary?.eval.task_id]);
 
@@ -634,11 +454,11 @@ export const App: FC<AppProps> = ({
             showToggle={showToggle}
             samples={logContext.sampleSummaries}
             sampleMode={sampleMode}
-            sampleStatus={sampleStatus}
-            sampleError={sampleError}
+            sampleStatus={sampleContext.state.sampleStatus}
+            sampleError={sampleContext.state.sampleError}
             refreshLog={refreshLog}
-            selectedSample={selectedSample}
-            runningSampleData={runningSampleData}
+            selectedSample={sampleContext.state.selectedSample}
+            runningSampleData={sampleContext.state.runningSampleData}
             showingSampleDialog={showingSampleDialog}
             setShowingSampleDialog={handleSampleShowingDialog}
             selectedTab={selectedWorkspaceTab}

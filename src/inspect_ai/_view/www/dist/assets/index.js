@@ -38267,7 +38267,7 @@ categories: ${categories.join(" ")}`;
         false,
         {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/contexts/LogsContext.tsx",
-          lineNumber: 265,
+          lineNumber: 258,
           columnNumber: 5
         },
         void 0
@@ -38562,7 +38562,7 @@ categories: ${categories.join(" ")}`;
         false,
         {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/contexts/LogContext.tsx",
-          lineNumber: 412,
+          lineNumber: 401,
           columnNumber: 5
         },
         void 0
@@ -78738,6 +78738,215 @@ ${events}
         }
       };
     };
+    const sampleReducer = (state, action) => {
+      switch (action.type) {
+        case "SET_SELECTED_SAMPLE":
+          return { ...state, selectedSample: action.payload };
+        case "CLEAR_SELECTED_SAMPLE":
+          return { ...state, selectedSample: void 0 };
+        case "SET_RUNNING_SAMPLE_DATA":
+          return { ...state, runningSampleData: action.payload };
+        case "SET_LOADING": {
+          const status2 = action.payload ? "loading" : "ok";
+          return { ...state, sampleStatus: status2, sampleError: void 0 };
+        }
+        case "SET_ERROR":
+          return {
+            ...state,
+            sampleStatus: "error",
+            sampleError: action.payload,
+            selectedSample: void 0
+          };
+        case "RESET_SAMPLE":
+          return {
+            selectedSample: void 0,
+            sampleStatus: "loading",
+            sampleError: void 0,
+            runningSampleData: void 0
+          };
+        default:
+          return state;
+      }
+    };
+    const initialSampleState = {
+      selectedSample: void 0,
+      sampleStatus: "loading",
+      sampleError: void 0,
+      runningSampleData: void 0
+    };
+    const SampleContext = reactExports.createContext(void 0);
+    const SampleProvider = ({
+      children: children2,
+      api: api2,
+      initialState: initialState2
+    }) => {
+      const log = reactExports.useMemo(() => {
+        return createLogger("SampleContext");
+      }, []);
+      const [state, dispatch] = reactExports.useReducer(
+        sampleReducer,
+        (initialState2 == null ? void 0 : initialState2.sample) || initialSampleState
+      );
+      const loadingSampleIndexRef = reactExports.useRef(null);
+      const samplePollingRef = reactExports.useRef(null);
+      const samplePollInterval = 2;
+      const logsContext = useLogsContext();
+      const logContext = useLogContext();
+      const migrateOldSample = (sample2) => {
+        if (sample2.transcript) {
+          sample2.events = sample2.transcript.events;
+          sample2.attachments = sample2.transcript.content;
+        }
+        sample2.attachments = sample2.attachments || {};
+        sample2.input = resolveAttachments(sample2.input, sample2.attachments);
+        sample2.messages = resolveAttachments(sample2.messages, sample2.attachments);
+        sample2.events = resolveAttachments(sample2.events, sample2.attachments);
+        sample2.attachments = {};
+        return sample2;
+      };
+      const pollForSampleData = reactExports.useCallback(
+        (logFile, summary2) => {
+          if (samplePollingRef.current) {
+            clearTimeout(samplePollingRef.current);
+            samplePollingRef.current = null;
+          }
+          const poll = async () => {
+            if (!api2.get_log_sample_data) {
+              return;
+            }
+            try {
+              log.debug(`GET RUNNING SAMPLE: ${summary2.id}-${summary2.epoch}`);
+              const sampleDataResponse = await api2.get_log_sample_data(
+                logFile,
+                summary2.id,
+                summary2.epoch
+              );
+              if ((sampleDataResponse == null ? void 0 : sampleDataResponse.status) === "OK" && sampleDataResponse.sampleData) {
+                const adapter = sampleDataAdapter();
+                adapter.addData(sampleDataResponse.sampleData);
+                const runningData = { events: adapter.resolvedEvents(), summary: summary2 };
+                dispatch({ type: "SET_RUNNING_SAMPLE_DATA", payload: runningData });
+              } else if ((sampleDataResponse == null ? void 0 : sampleDataResponse.status) === "NotFound") {
+                if (samplePollingRef.current) {
+                  clearTimeout(samplePollingRef.current);
+                  samplePollingRef.current = null;
+                }
+                return;
+              }
+              samplePollingRef.current = setTimeout(
+                poll,
+                samplePollInterval * 1e3
+              );
+            } catch (e) {
+              console.error("Error polling pending samples:", e);
+              samplePollingRef.current = setTimeout(
+                poll,
+                Math.min(samplePollInterval * 2 * 1e3, 6e4)
+              );
+            }
+          };
+          poll();
+        },
+        [api2.get_log_sample_data]
+      );
+      const loadSample = reactExports.useCallback(
+        async (summary2) => {
+          if (loadingSampleIndexRef.current === logContext.state.selectedSampleIndex) {
+            return;
+          }
+          const logFile = logsContext.state.logs.files[logsContext.state.selectedLogIndex];
+          if (!logFile) {
+            return;
+          }
+          loadingSampleIndexRef.current = logContext.state.selectedSampleIndex;
+          dispatch({ type: "SET_LOADING", payload: true });
+          try {
+            if (summary2.completed !== false && !samplePollingRef.current) {
+              log.debug(`LOADING COMPLETED SAMPLE: ${summary2.id}-${summary2.epoch}`);
+              const sample2 = await api2.get_log_sample(
+                logFile.name,
+                summary2.id,
+                summary2.epoch
+              );
+              if (sample2) {
+                const migratedSample = migrateOldSample(sample2);
+                dispatch({ type: "SET_SELECTED_SAMPLE", payload: migratedSample });
+              } else {
+                throw new Error(
+                  "Unable to load sample - an unknown error occurred."
+                );
+              }
+            } else {
+              log.debug(`POLLING RUNNING SAMPLE: ${summary2.id}-${summary2.epoch}`);
+              pollForSampleData(logFile.name, summary2);
+            }
+            dispatch({ type: "SET_LOADING", payload: false });
+          } catch (e) {
+            dispatch({ type: "SET_ERROR", payload: e });
+          } finally {
+            loadingSampleIndexRef.current = null;
+          }
+        },
+        [
+          logsContext.state.logs,
+          logsContext.state.selectedLogIndex,
+          pollForSampleData
+        ]
+      );
+      reactExports.useEffect(() => {
+        return () => {
+          if (samplePollingRef.current) {
+            clearTimeout(samplePollingRef.current);
+            samplePollingRef.current = null;
+          }
+        };
+      }, [logContext.state.selectedSampleIndex]);
+      reactExports.useEffect(() => {
+        if (!logsContext.state.logs.files[logsContext.state.selectedLogIndex] || logContext.state.selectedSampleIndex === -1) {
+          dispatch({ type: "SET_SELECTED_SAMPLE", payload: void 0 });
+        }
+      }, [
+        logContext.state.selectedSampleIndex,
+        logsContext.state.selectedLogIndex,
+        logsContext.state.logs
+      ]);
+      const refreshSelectedSample = reactExports.useCallback(
+        (selectedSampleIdx) => {
+          const sampleSummary = logContext.sampleSummaries[selectedSampleIdx];
+          if (sampleSummary) {
+            loadSample(sampleSummary);
+          } else {
+            dispatch({ type: "RESET_SAMPLE" });
+          }
+        },
+        [logContext.sampleSummaries, loadSample, dispatch]
+      );
+      reactExports.useEffect(() => {
+        refreshSelectedSample(logContext.state.selectedSampleIndex);
+      }, [logContext.state.selectedSampleIndex, refreshSelectedSample]);
+      const getState = () => {
+        return { sample: state };
+      };
+      const contextValue = {
+        state,
+        dispatch,
+        loadSample,
+        refreshSelectedSample,
+        getState
+      };
+      return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(SampleContext.Provider, { value: contextValue, children: children2 }, void 0, false, {
+        fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/contexts/SampleContext.tsx",
+        lineNumber: 295,
+        columnNumber: 5
+      }, void 0);
+    };
+    const useSampleContext = () => {
+      const context = reactExports.useContext(SampleContext);
+      if (context === void 0) {
+        throw new Error("useSampleContext must be used within a SampleProvider");
+      }
+      return context;
+    };
     const App = ({
       api: api2,
       applicationState,
@@ -78747,25 +78956,15 @@ ${events}
       const appContext = useAppContext();
       const logsContext = useLogsContext();
       const logContext = useLogContext();
+      const sampleContext = useSampleContext();
       const mainAppRef = reactExports.useRef(null);
       const [selectedWorkspaceTab, setSelectedWorkspaceTab] = reactExports.useState(
         (applicationState == null ? void 0 : applicationState.selectedWorkspaceTab) || kEvalWorkspaceTabId
       );
-      const [selectedSample, setSelectedSample] = reactExports.useState(
-        applicationState == null ? void 0 : applicationState.selectedSample
-      );
-      const [sampleStatus, setSampleStatus] = reactExports.useState(
-        (applicationState == null ? void 0 : applicationState.sampleStatus) || "loading"
-      );
-      const [sampleError, setSampleError] = reactExports.useState(
-        applicationState == null ? void 0 : applicationState.sampleError
-      );
-      const [runningSampleData, setRunningSampleData] = reactExports.useState();
       const [selectedSampleTab, setSelectedSampleTab] = reactExports.useState(applicationState == null ? void 0 : applicationState.selectedSampleTab);
       const sampleScrollPosition = reactExports.useRef(
         (applicationState == null ? void 0 : applicationState.sampleScrollPosition) || 0
       );
-      const loadingSampleIndexRef = reactExports.useRef(null);
       const workspaceTabScrollPosition = reactExports.useRef(
         (applicationState == null ? void 0 : applicationState.workspaceTabScrollPosition) || {}
       );
@@ -78775,9 +78974,6 @@ ${events}
       const saveState = reactExports.useCallback(() => {
         const state = {
           selectedWorkspaceTab,
-          selectedSample,
-          sampleStatus,
-          sampleError,
           selectedSampleTab,
           showingSampleDialog,
           status,
@@ -78785,16 +78981,14 @@ ${events}
           workspaceTabScrollPosition: workspaceTabScrollPosition.current,
           ...appContext.getState(),
           ...logsContext.getState(),
-          ...logContext.getState()
+          ...logContext.getState(),
+          ...sampleContext.getState()
         };
         if (saveApplicationState) {
           saveApplicationState(state);
         }
       }, [
         selectedWorkspaceTab,
-        selectedSample,
-        sampleStatus,
-        sampleError,
         selectedSampleTab,
         showingSampleDialog,
         status,
@@ -78829,170 +79023,42 @@ ${events}
         saveStateRef.current();
       }, [
         selectedWorkspaceTab,
-        selectedSample,
-        sampleStatus,
-        sampleError,
         selectedSampleTab,
         showingSampleDialog,
         status,
         appContext.getState,
         logsContext.getState,
-        logContext.getState
+        logContext.getState,
+        sampleContext.getState
       ]);
       const handleSampleShowingDialog = reactExports.useCallback(
         (show) => {
           setShowingSampleDialog(show);
           if (!show) {
-            setSelectedSample(void 0);
+            sampleContext.dispatch({ type: "CLEAR_SELECTED_SAMPLE" });
             setSelectedSampleTab(void 0);
           }
         },
-        [
-          setShowingSampleDialog,
-          setSelectedSample,
-          setSelectedSampleTab,
-          selectedSample
-        ]
+        [setShowingSampleDialog, sampleContext.dispatch, setSelectedSampleTab]
       );
       reactExports.useEffect(() => {
         var _a3;
+        const selectedSample = sampleContext.state.selectedSample;
         const newTab = ((_a3 = selectedSample == null ? void 0 : selectedSample.events) == null ? void 0 : _a3.length) || 0 > 0 ? kSampleTranscriptTabId : kSampleMessagesTabId;
         if (selectedSampleTab === void 0 && selectedSample) {
           setSelectedSampleTab(newTab);
         }
-      }, [selectedSample, selectedSampleTab]);
-      const loadSample = reactExports.useCallback(
-        async (summary2) => {
-          if (loadingSampleIndexRef.current === logContext.state.selectedSampleIndex) {
-            return;
-          }
-          const logFile = logsContext.state.logs.files[logsContext.state.selectedLogIndex];
-          if (!logFile) {
-            return;
-          }
-          loadingSampleIndexRef.current = logContext.state.selectedSampleIndex;
-          setSampleStatus("loading");
-          setSampleError(void 0);
-          try {
-            if (summary2.completed !== false && !samplePollingRef.current) {
-              const sample2 = await api2.get_log_sample(
-                logFile.name,
-                summary2.id,
-                summary2.epoch
-              );
-              if (sample2) {
-                const migratedSample = migrateOldSample(sample2);
-                sampleScrollPosition.current = 0;
-                setSelectedSample(migratedSample);
-              } else {
-                throw new Error(
-                  "Unable to load sample - an unknown error occurred."
-                );
-              }
-            } else {
-              pollForSampleData(logFile.name, summary2);
-            }
-            setSampleStatus("ok");
-          } catch (e) {
-            handleSampleLoadError(e);
-          } finally {
-            loadingSampleIndexRef.current = null;
-          }
-        },
-        [logsContext.state.logs, logsContext.state.selectedLogIndex]
-      );
-      const samplePollingRef = reactExports.useRef(null);
-      const samplePollInterval = 2;
-      reactExports.useEffect(() => {
-        return () => {
-          if (samplePollingRef.current) {
-            clearTimeout(samplePollingRef.current);
-            samplePollingRef.current = null;
-          }
-        };
-      }, [logContext.state.selectedSampleIndex]);
-      const pollForSampleData = reactExports.useCallback(
-        (logFile, summary2) => {
-          if (samplePollingRef.current) {
-            clearTimeout(samplePollingRef.current);
-            samplePollingRef.current = null;
-          }
-          const poll = async () => {
-            if (!api2.get_log_sample_data) {
-              return;
-            }
-            try {
-              const sampleDataResponse = await api2.get_log_sample_data(
-                logFile,
-                summary2.id,
-                summary2.epoch
-              );
-              if ((sampleDataResponse == null ? void 0 : sampleDataResponse.status) === "OK" && sampleDataResponse.sampleData) {
-                sampleScrollPosition.current = 0;
-                const adapter = sampleDataAdapter();
-                adapter.addData(sampleDataResponse.sampleData);
-                const runningData = { events: adapter.resolvedEvents(), summary: summary2 };
-                setRunningSampleData(runningData);
-              } else if ((sampleDataResponse == null ? void 0 : sampleDataResponse.status) === "NotFound") {
-                if (samplePollingRef.current) {
-                  clearTimeout(samplePollingRef.current);
-                  samplePollingRef.current = null;
-                }
-                return;
-              }
-              samplePollingRef.current = setTimeout(
-                poll,
-                samplePollInterval * 1e3
-              );
-            } catch (e) {
-              console.error("Error polling pending samples:", e);
-              samplePollingRef.current = setTimeout(
-                poll,
-                Math.min(samplePollInterval * 2 * 1e3, 6e4)
-              );
-            }
-          };
-          poll();
-        },
-        [api2.get_log_sample_data, setRunningSampleData]
-      );
-      const migrateOldSample = (sample2) => {
-        if (sample2.transcript) {
-          sample2.events = sample2.transcript.events;
-          sample2.attachments = sample2.transcript.content;
-        }
-        sample2.attachments = sample2.attachments || {};
-        sample2.input = resolveAttachments(sample2.input, sample2.attachments);
-        sample2.messages = resolveAttachments(sample2.messages, sample2.attachments);
-        sample2.events = resolveAttachments(sample2.events, sample2.attachments);
-        sample2.attachments = {};
-        return sample2;
-      };
-      const handleSampleLoadError = (error2) => {
-        setSampleStatus("error");
-        setSampleError(error2);
-        sampleScrollPosition.current = 0;
-        setSelectedSample(void 0);
-      };
+      }, [sampleContext.state.selectedSample, selectedSampleTab]);
       reactExports.useEffect(() => {
         if (!logsContext.state.logs.files[logsContext.state.selectedLogIndex] || logContext.state.selectedSampleIndex === -1) {
-          setSelectedSample(void 0);
+          sampleContext.dispatch({ type: "CLEAR_SELECTED_SAMPLE" });
         }
       }, [
         logContext.state.selectedSampleIndex,
         logsContext.state.selectedLogIndex,
-        logsContext.state.logs
+        logsContext.state.logs,
+        sampleContext.dispatch
       ]);
-      const refreshSelectedSample = reactExports.useCallback(
-        (selectedSampleIdx) => {
-          const sampleSummary = logContext.sampleSummaries[selectedSampleIdx];
-          sampleSummary ? loadSample(sampleSummary) : setSelectedSample(void 0);
-        },
-        [logContext.sampleSummaries, loadSample]
-      );
-      reactExports.useEffect(() => {
-        refreshSelectedSample(logContext.state.selectedSampleIndex);
-      }, [logContext.state.selectedSampleIndex, refreshSelectedSample]);
       reactExports.useEffect(() => {
         if (logContext.totalSampleCount) {
           logContext.dispatch({ type: "SELECT_SAMPLE", payload: 0 });
@@ -79025,7 +79091,7 @@ ${events}
       reactExports.useEffect(() => {
         setSelectedWorkspaceTab(kEvalWorkspaceTabId);
         setSelectedSampleTab(void 0);
-        setSelectedSample(void 0);
+        sampleContext.dispatch({ type: "CLEAR_SELECTED_SAMPLE" });
         workspaceTabScrollPosition.current = {};
       }, [(_a2 = logContext.state.selectedLogSummary) == null ? void 0 : _a2.eval.task_id]);
       reactExports.useEffect(() => {
@@ -79165,7 +79231,7 @@ ${events}
           false,
           {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/App.tsx",
-            lineNumber: 571,
+            lineNumber: 391,
             columnNumber: 9
           },
           void 0
@@ -79193,12 +79259,12 @@ ${events}
             children: [
               !appContext.capabilities.nativeFind && appContext.state.showFind ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(FindBand, {}, void 0, false, {
                 fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/App.tsx",
-                lineNumber: 610,
+                lineNumber: 430,
                 columnNumber: 11
               }, void 0) : "",
               /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(ProgressBar, { animating: appContext.state.status.loading }, void 0, false, {
                 fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/App.tsx",
-                lineNumber: 614,
+                lineNumber: 434,
                 columnNumber: 9
               }, void 0),
               appContext.state.status.error ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
@@ -79211,7 +79277,7 @@ ${events}
                 false,
                 {
                   fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/App.tsx",
-                  lineNumber: 616,
+                  lineNumber: 436,
                   columnNumber: 11
                 },
                 void 0
@@ -79233,11 +79299,11 @@ ${events}
                   showToggle,
                   samples: logContext.sampleSummaries,
                   sampleMode,
-                  sampleStatus,
-                  sampleError,
+                  sampleStatus: sampleContext.state.sampleStatus,
+                  sampleError: sampleContext.state.sampleError,
                   refreshLog,
-                  selectedSample,
-                  runningSampleData,
+                  selectedSample: sampleContext.state.selectedSample,
+                  runningSampleData: sampleContext.state.runningSampleData,
                   showingSampleDialog,
                   setShowingSampleDialog: handleSampleShowingDialog,
                   selectedTab: selectedWorkspaceTab,
@@ -79253,7 +79319,7 @@ ${events}
                 false,
                 {
                   fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/App.tsx",
-                  lineNumber: 621,
+                  lineNumber: 441,
                   columnNumber: 11
                 },
                 void 0
@@ -79264,14 +79330,14 @@ ${events}
           true,
           {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/App.tsx",
-            lineNumber: 585,
+            lineNumber: 405,
             columnNumber: 7
           },
           void 0
         )
       ] }, void 0, true, {
         fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/App.tsx",
-        lineNumber: 569,
+        lineNumber: 389,
         columnNumber: 5
       }, void 0);
     };
@@ -79353,7 +79419,7 @@ ${events}
     }
     const root = clientExports.createRoot(container);
     root.render(
-      /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(AppErrorBoundary, { children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(AppProvider, { capabilities, initialState, children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(LogsProvider, { initialState, api, children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(LogProvider, { initialState, api, children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+      /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(AppErrorBoundary, { children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(AppProvider, { capabilities, initialState, children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(LogsProvider, { initialState, api, children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(LogProvider, { initialState, api, children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(SampleProvider, { initialState, api, children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
         App,
         {
           api: resolvedApi,
@@ -79369,25 +79435,29 @@ ${events}
         false,
         {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/index.tsx",
-          lineNumber: 56,
-          columnNumber: 11
+          lineNumber: 58,
+          columnNumber: 13
         },
         void 0
       ) }, void 0, false, {
         fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/index.tsx",
-        lineNumber: 55,
+        lineNumber: 57,
+        columnNumber: 11
+      }, void 0) }, void 0, false, {
+        fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/index.tsx",
+        lineNumber: 56,
         columnNumber: 9
       }, void 0) }, void 0, false, {
         fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/index.tsx",
-        lineNumber: 54,
+        lineNumber: 55,
         columnNumber: 7
       }, void 0) }, void 0, false, {
         fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/index.tsx",
-        lineNumber: 53,
+        lineNumber: 54,
         columnNumber: 5
       }, void 0) }, void 0, false, {
         fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/index.tsx",
-        lineNumber: 52,
+        lineNumber: 53,
         columnNumber: 3
       }, void 0)
     );
