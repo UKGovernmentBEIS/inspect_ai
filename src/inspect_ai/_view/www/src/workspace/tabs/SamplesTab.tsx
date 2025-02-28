@@ -8,19 +8,15 @@ import {
   useState,
 } from "react";
 import { VirtuosoHandle } from "react-virtuoso";
+import { useLogContext } from "../../LogContext.tsx";
 import { SampleSummary } from "../../api/types.ts";
 import { EmptyPanel } from "../../components/EmptyPanel.tsx";
 import { InlineSampleDisplay } from "../../samples/InlineSampleDisplay";
 import { SampleDialog } from "../../samples/SampleDialog";
 import { SamplesDescriptor } from "../../samples/descriptor/samplesDescriptor.tsx";
 import { SampleList } from "../../samples/list/SampleList";
-import {
-  RunningSampleData,
-  SampleMode,
-  ScoreFilter,
-  ScoreLabel,
-} from "../../types.ts";
-import { Epochs, EvalSample } from "../../types/log";
+import { RunningSampleData, SampleMode } from "../../types.ts";
+import { EvalSample } from "../../types/log";
 import { getSampleProcessor } from "./grouping.ts";
 import { ListItem } from "./types.ts";
 
@@ -34,20 +30,12 @@ interface SamplesTabProps {
   // Required props
   running: boolean;
   sampleMode: SampleMode;
-  groupBy: "epoch" | "sample" | "none";
-  groupByOrder: "asc" | "desc";
   sampleStatus: string;
-  selectedSampleIndex: number;
-  setSelectedSampleIndex: (index: number) => void;
   showingSampleDialog: boolean;
   setShowingSampleDialog: (showing: boolean) => void;
   selectedSampleTab?: string;
   setSelectedSampleTab: (tab: string) => void;
   runningSampleData?: RunningSampleData;
-  epoch: string;
-  epochs: Epochs;
-  score?: ScoreLabel;
-  filter: ScoreFilter;
   sampleScrollPositionRef: RefObject<number>;
   setSampleScrollPosition: (position: number) => void;
   sampleTabScrollRef: RefObject<HTMLDivElement | null>;
@@ -58,13 +46,8 @@ export const SamplesTab: FC<SamplesTabProps> = ({
   samples,
   sampleMode,
   running,
-  groupBy,
-  groupByOrder,
-  sampleDescriptor,
   sampleStatus,
   sampleError,
-  selectedSampleIndex,
-  setSelectedSampleIndex,
   showingSampleDialog,
   setShowingSampleDialog,
   runningSampleData,
@@ -73,9 +56,8 @@ export const SamplesTab: FC<SamplesTabProps> = ({
   sampleScrollPositionRef,
   setSampleScrollPosition,
   sampleTabScrollRef,
-  epochs,
-  score,
 }) => {
+  const logContext = useLogContext();
   const [items, setItems] = useState<ListItem[]>([]);
   const [sampleItems, setSampleItems] = useState<ListItem[]>([]);
 
@@ -85,10 +67,10 @@ export const SamplesTab: FC<SamplesTabProps> = ({
   // Shows the sample dialog
   const showSample = useCallback(
     (index: number) => {
-      setSelectedSampleIndex(index);
+      logContext.dispatch({ type: "SELECT_SAMPLE", payload: index });
       setShowingSampleDialog(true);
     },
-    [setSelectedSampleIndex, setShowingSampleDialog],
+    [logContext.dispatch, setShowingSampleDialog],
   );
 
   useEffect(() => {
@@ -106,14 +88,14 @@ export const SamplesTab: FC<SamplesTabProps> = ({
   }, [showingSampleDialog]);
 
   useEffect(() => {
-    const sampleProcessor = sampleDescriptor
+    const sampleProcessor = logContext.samplesDescriptor
       ? getSampleProcessor(
           samples || [],
-          epochs,
-          groupBy,
-          groupByOrder,
-          sampleDescriptor,
-          score,
+          logContext.state.selectedLogSummary?.eval?.config?.epochs || 1,
+          logContext.groupBy,
+          logContext.groupByOrder,
+          logContext.samplesDescriptor,
+          logContext.state.score,
         )
       : undefined;
 
@@ -137,65 +119,72 @@ export const SamplesTab: FC<SamplesTabProps> = ({
           })
         : [],
     );
-  }, [samples, epochs, score, groupBy, groupByOrder, sampleDescriptor]);
+  }, [
+    samples,
+    logContext.state.selectedLogSummary?.eval?.config?.epochs,
+    logContext.state.score,
+    logContext.groupBy,
+    logContext.groupByOrder,
+    logContext.samplesDescriptor,
+  ]);
 
   const nextSampleIndex = useCallback(() => {
-    if (selectedSampleIndex < sampleItems.length - 1) {
-      return selectedSampleIndex + 1;
+    if (logContext.state.selectedSampleIndex < sampleItems.length - 1) {
+      return logContext.state.selectedSampleIndex + 1;
     } else {
       return -1;
     }
-  }, [selectedSampleIndex, sampleItems.length]);
+  }, [logContext.state.selectedSampleIndex, sampleItems.length]);
 
   const previousSampleIndex = useCallback(() => {
-    return selectedSampleIndex > 0 ? selectedSampleIndex - 1 : -1;
-  }, [selectedSampleIndex]);
+    return logContext.state.selectedSampleIndex > 0
+      ? logContext.state.selectedSampleIndex - 1
+      : -1;
+  }, [logContext.state.selectedSampleIndex]);
 
   // Manage the next / previous state the selected sample
   const nextSample = useCallback(() => {
     const next = nextSampleIndex();
     if (sampleStatus !== "loading" && next > -1) {
-      setSelectedSampleIndex(next);
+      logContext.dispatch({ type: "SELECT_SAMPLE", payload: next });
     }
-  }, [nextSampleIndex, sampleStatus, setSelectedSampleIndex]);
+  }, [nextSampleIndex, sampleStatus, logContext.dispatch]);
 
   const previousSample = useCallback(() => {
     const prev = previousSampleIndex();
     if (sampleStatus !== "loading" && prev > -1) {
-      setSelectedSampleIndex(prev);
+      logContext.dispatch({ type: "SELECT_SAMPLE", payload: prev });
     }
-  }, [previousSampleIndex, sampleStatus, setSelectedSampleIndex]);
+  }, [previousSampleIndex, sampleStatus, logContext.dispatch]);
 
   const title =
-    selectedSampleIndex > -1 && sampleItems.length > selectedSampleIndex
-      ? sampleItems[selectedSampleIndex].label
+    logContext.state.selectedSampleIndex > -1 &&
+    sampleItems.length > logContext.state.selectedSampleIndex
+      ? sampleItems[logContext.state.selectedSampleIndex].label
       : "";
 
-  if (!sampleDescriptor) {
+  if (!logContext.samplesDescriptor) {
     return <EmptyPanel />;
   } else {
     return (
       <Fragment>
-        {sampleDescriptor && sampleMode === "single" ? (
+        {logContext.samplesDescriptor && sampleMode === "single" ? (
           <InlineSampleDisplay
             id="sample-display"
             sample={sample}
             runningSampleData={runningSampleData}
             sampleStatus={sampleStatus}
             sampleError={sampleError}
-            sampleDescriptor={sampleDescriptor}
             selectedTab={selectedSampleTab}
             setSelectedTab={setSelectedSampleTab}
             scrollRef={sampleTabScrollRef}
           />
         ) : undefined}
-        {sampleDescriptor && sampleMode === "many" ? (
+        {logContext.samplesDescriptor && sampleMode === "many" ? (
           <SampleList
             listHandle={sampleListHandle}
             items={items}
             running={running}
-            sampleDescriptor={sampleDescriptor}
-            selectedIndex={selectedSampleIndex}
             nextSample={nextSample}
             prevSample={previousSample}
             showSample={showSample}
@@ -208,7 +197,6 @@ export const SamplesTab: FC<SamplesTabProps> = ({
           sampleStatus={sampleStatus}
           sampleError={sampleError}
           runningSampleData={runningSampleData}
-          sampleDescriptor={sampleDescriptor}
           showingSampleDialog={showingSampleDialog}
           setShowingSampleDialog={setShowingSampleDialog}
           selectedTab={selectedSampleTab}

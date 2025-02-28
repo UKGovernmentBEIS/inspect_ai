@@ -34,12 +34,7 @@ import {
 import { useLogContext } from "./LogContext.tsx";
 import { useLogsContext } from "./LogsContext.tsx";
 import { sampleDataAdapter } from "./samples/sampleDataAdapter.ts";
-import {
-  ApplicationState,
-  RunningSampleData,
-  ScoreFilter,
-  ScoreLabel,
-} from "./types.ts";
+import { ApplicationState, RunningSampleData } from "./types.ts";
 import { EvalSample, Timeout } from "./types/log";
 import { resolveAttachments } from "./utils/attachments.ts";
 
@@ -471,7 +466,6 @@ export const App: FC<AppProps> = ({
     logContext.refreshLog,
     logContext.dispatch,
     appContext.dispatch,
-    ,
   ]);
 
   const onMessage = useCallback(
@@ -650,42 +644,17 @@ export const App: FC<AppProps> = ({
             showToggle={showToggle}
             samples={logContext.sampleSummaries}
             sampleMode={sampleMode}
-            groupBy={logContext.groupBy}
-            groupByOrder={logContext.groupByOrder}
             sampleStatus={sampleStatus}
             sampleError={sampleError}
-            samplesDescriptor={logContext.samplesDescriptor}
             refreshLog={refreshLog}
             selectedSample={selectedSample}
-            selectedSampleIndex={logContext.state.selectedSampleIndex}
             runningSampleData={runningSampleData}
-            setSelectedSampleIndex={(index: number) => {
-              logContext.dispatch({ type: "SELECT_SAMPLE", payload: index });
-            }}
             showingSampleDialog={showingSampleDialog}
             setShowingSampleDialog={handleSampleShowingDialog}
             selectedTab={selectedWorkspaceTab}
             setSelectedTab={setSelectedWorkspaceTab}
             selectedSampleTab={selectedSampleTab}
             setSelectedSampleTab={setSelectedSampleTab}
-            sort={logContext.state.sort}
-            setSort={(sort: string) => {
-              logContext.dispatch({ type: "SET_SORT", payload: sort });
-            }}
-            epochs={logContext.state.selectedLogSummary?.eval?.config?.epochs}
-            epoch={logContext.state.epoch}
-            setEpoch={(epoch: string) => {
-              logContext.dispatch({ type: "SET_EPOCH", payload: epoch });
-            }}
-            filter={logContext.state.filter}
-            setFilter={(filter: ScoreFilter) => {
-              logContext.dispatch({ type: "SET_FILTER", payload: filter });
-            }}
-            score={logContext.state.score}
-            setScore={(score: ScoreLabel) => {
-              logContext.dispatch({ type: "SET_SCORE", payload: score });
-            }}
-            scores={logContext.scores || []}
             sampleScrollPositionRef={sampleScrollPosition}
             setSampleScrollPosition={setSampleScrollPosition}
             workspaceTabScrollPositionRef={workspaceTabScrollPosition}

@@ -13,16 +13,9 @@ import {
   kInfoWorkspaceTabId,
   kJsonWorkspaceTabId,
 } from "../constants";
-import { SamplesDescriptor } from "../samples/descriptor/samplesDescriptor";
+import { useLogContext } from "../LogContext.tsx";
+import { CurrentLog, RunningSampleData, SampleMode } from "../types.ts";
 import {
-  CurrentLog,
-  RunningSampleData,
-  SampleMode,
-  ScoreFilter,
-  ScoreLabel,
-} from "../types.ts";
-import {
-  Epochs,
   EvalError,
   EvalPlan,
   EvalResults,
@@ -48,31 +41,16 @@ interface WorkSpaceProps {
   log?: CurrentLog;
   samples?: SampleSummary[];
   sampleMode: SampleMode;
-  groupBy: "none" | "epoch" | "sample";
-  groupByOrder: "asc" | "desc";
   selectedSample?: EvalSample;
   sampleStatus: string;
   sampleError?: Error;
   showToggle: boolean;
   refreshLog: () => void;
-  selectedSampleIndex: number;
   runningSampleData?: RunningSampleData;
-  samplesDescriptor?: SamplesDescriptor;
-  setSelectedSampleIndex: (index: number) => void;
   selectedSampleTab?: string;
   setSelectedSampleTab: (tab: string) => void;
-  sort: string;
-  setSort: (sort: string) => void;
-  epochs?: Epochs;
-  epoch: string;
   showingSampleDialog: boolean;
   setShowingSampleDialog: (showing: boolean) => void;
-  setEpoch: (epoch: string) => void;
-  filter: ScoreFilter;
-  setFilter: (filter: ScoreFilter) => void;
-  score?: ScoreLabel;
-  setScore: (score: ScoreLabel) => void;
-  scores: ScoreLabel[];
   selectedTab: string;
   setSelectedTab: (id: string) => void;
   sampleScrollPositionRef: RefObject<number>;
@@ -96,7 +74,6 @@ export const WorkSpace: FC<WorkSpaceProps> = (props) => {
     runningMetrics,
     samples,
     showToggle,
-    samplesDescriptor,
     selectedTab,
     setSelectedTab,
     workspaceTabScrollPositionRef,
@@ -128,7 +105,6 @@ export const WorkSpace: FC<WorkSpaceProps> = (props) => {
       runningMetrics={runningMetrics}
       evalStats={evalStats}
       samples={samples}
-      evalDescriptor={samplesDescriptor?.evalDescriptor}
       status={evalStatus}
       tabs={resolvedTabs}
       selectedTab={selectedTab}
@@ -170,26 +146,11 @@ const useResolvedTabs = ({
   sampleError,
   showingSampleDialog,
   setShowingSampleDialog,
-  groupBy,
-  groupByOrder,
-  selectedSampleIndex,
-  setSelectedSampleIndex,
   runningSampleData,
-  samplesDescriptor,
   selectedSampleTab,
   setSelectedSampleTab,
-  filter,
-  sort,
-  epoch,
   sampleScrollPositionRef,
   setSampleScrollPosition,
-  epochs,
-  setEpoch,
-  setFilter,
-  setSort,
-  score,
-  setScore,
-  scores,
   evalSpec,
   evalPlan,
   evalResults,
@@ -201,6 +162,7 @@ const useResolvedTabs = ({
 }: WorkSpaceProps) => {
   const sampleTabScrollRef = useRef<HTMLDivElement>(null);
   const appContext = useAppContext();
+  const logContext = useLogContext();
 
   const samplesTab =
     sampleMode !== "none"
@@ -220,41 +182,18 @@ const useResolvedTabs = ({
               setShowingSampleDialog={setShowingSampleDialog}
               samples={samples}
               sampleMode={sampleMode}
-              epochs={epochs || 1}
-              score={score}
-              groupBy={groupBy}
-              groupByOrder={groupByOrder}
-              selectedSampleIndex={selectedSampleIndex}
-              setSelectedSampleIndex={setSelectedSampleIndex}
-              sampleDescriptor={samplesDescriptor}
               selectedSampleTab={selectedSampleTab}
               setSelectedSampleTab={setSelectedSampleTab}
-              filter={filter}
-              epoch={epoch}
               sampleScrollPositionRef={sampleScrollPositionRef}
               setSampleScrollPosition={setSampleScrollPosition}
               sampleTabScrollRef={sampleTabScrollRef}
             />
           ),
           tools: () =>
-            sampleMode === "single" || !samplesDescriptor
+            sampleMode === "single" || !logContext.samplesDescriptor
               ? undefined
               : [
-                  <SampleTools
-                    samples={samples || []}
-                    key="sample-tools"
-                    epoch={epoch}
-                    epochs={epochs || 1}
-                    setEpoch={setEpoch}
-                    scoreFilter={filter}
-                    setScoreFilter={setFilter}
-                    sort={sort}
-                    setSort={setSort}
-                    score={score}
-                    setScore={setScore}
-                    scores={scores}
-                    sampleDescriptor={samplesDescriptor}
-                  />,
+                  <SampleTools samples={samples || []} key="sample-tools" />,
                   evalStatus === "started" &&
                     !appContext.capabilities.streamSamples && (
                       <ToolButton

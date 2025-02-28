@@ -3,6 +3,7 @@ import { FC, ReactNode, useCallback } from "react";
 import { SampleSummary } from "../../api/types";
 import { useAppContext } from "../../AppContext";
 import { MarkdownDiv } from "../../components/MarkdownDiv";
+import { useLogContext } from "../../LogContext";
 import { arrayToString, inputString } from "../../utils/format";
 import { SampleErrorView } from "../error/SampleErrorView";
 import styles from "./SampleRow.module.css";
@@ -16,7 +17,6 @@ interface SampleRowProps {
   scoreRendered: ReactNode;
   gridColumnsTemplate: string;
   height: number;
-  selected: boolean;
   showSample: (index: number) => void;
 }
 
@@ -29,10 +29,11 @@ export const SampleRow: FC<SampleRowProps> = ({
   scoreRendered,
   gridColumnsTemplate,
   height,
-  selected,
   showSample,
 }) => {
   const appContext = useAppContext();
+  const logContext = useLogContext();
+
   const handleClick = useCallback(() => {
     if (completed || appContext.capabilities.streamSampleData) {
       showSample(index);
@@ -46,7 +47,9 @@ export const SampleRow: FC<SampleRowProps> = ({
       className={clsx(
         styles.grid,
         "text-size-base",
-        selected ? styles.selected : undefined,
+        logContext.state.selectedSampleIndex === index
+          ? styles.selected
+          : undefined,
       )}
       style={{
         height: `${height}px`,
@@ -107,7 +110,7 @@ export const SampleRow: FC<SampleRowProps> = ({
   );
 };
 
-const Spinner: React.FC = () => {
+const Spinner: FC = () => {
   return (
     <div className={clsx("spinner-border", styles.spinner)} role="status">
       <span className={clsx("visually-hidden")}>Running...</span>

@@ -6,7 +6,6 @@ import { ErrorPanel } from "../components/ErrorPanel";
 import { RunningSampleData, ScoreLabel } from "../types";
 import { EvalSample } from "../types/log";
 import { SampleDisplay } from "./SampleDisplay";
-import { SamplesDescriptor } from "./descriptor/samplesDescriptor";
 
 interface SampleDialogProps {
   id: string;
@@ -15,7 +14,6 @@ interface SampleDialogProps {
   sampleError?: Error;
   sample?: EvalSample;
   score?: ScoreLabel;
-  sampleDescriptor: SamplesDescriptor;
   selectedTab?: string;
   setSelectedTab: (tab: string) => void;
   showingSampleDialog: boolean;
@@ -35,7 +33,6 @@ export const SampleDialog: FC<SampleDialogProps> = ({
   title,
   sample,
   score,
-  sampleDescriptor,
   nextSample,
   prevSample,
   sampleStatus,
@@ -116,8 +113,6 @@ export const SampleDialog: FC<SampleDialogProps> = ({
         <SampleDisplay
           id={id}
           sample={sample}
-          score={score}
-          sampleDescriptor={sampleDescriptor}
           selectedTab={selectedTab}
           setSelectedTab={setSelectedTab}
           scrollRef={scrollRef}

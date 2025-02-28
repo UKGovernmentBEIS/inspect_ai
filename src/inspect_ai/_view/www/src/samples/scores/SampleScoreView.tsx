@@ -4,27 +4,26 @@ import { MarkdownDiv } from "../../components/MarkdownDiv";
 import { MetaDataGrid } from "../../metadata/MetaDataGrid";
 import { EvalSample } from "../../types/log";
 import { arrayToString, inputString } from "../../utils/format";
-import { SamplesDescriptor } from "../descriptor/samplesDescriptor";
 import { SampleScores } from "./SampleScores";
 
 import { FC } from "react";
 import { SampleSummary } from "../../api/types";
+import { useLogContext } from "../../LogContext";
 import styles from "./SampleScoreView.module.css";
 
 interface SampleScoreViewProps {
   sample: EvalSample;
-  sampleDescriptor: SamplesDescriptor;
   scorer: string;
   className?: string | string[];
 }
 
 export const SampleScoreView: FC<SampleScoreViewProps> = ({
   sample,
-  sampleDescriptor,
   className,
   scorer,
 }) => {
-  if (!sampleDescriptor) {
+  const logContext = useLogContext();
+  if (!logContext.samplesDescriptor) {
     return null;
   }
 
@@ -38,10 +37,11 @@ export const SampleScoreView: FC<SampleScoreViewProps> = ({
     );
   }
 
-  const scorerDescriptor = sampleDescriptor.evalDescriptor.scorerDescriptor(
-    sample,
-    { scorer, name: scorer },
-  );
+  const scorerDescriptor =
+    logContext.samplesDescriptor.evalDescriptor.scorerDescriptor(sample, {
+      scorer,
+      name: scorer,
+    });
   const explanation = scorerDescriptor.explanation() || "(No Explanation)";
   const answer = scorerDescriptor.answer();
   const metadata = scorerDescriptor.metadata();
@@ -128,7 +128,6 @@ export const SampleScoreView: FC<SampleScoreViewProps> = ({
                 <td className={clsx(styles.scoreValue)}>
                   <SampleScores
                     sample={sample as any as SampleSummary}
-                    sampleDescriptor={sampleDescriptor}
                     scorer={scorer}
                   />
                 </td>
