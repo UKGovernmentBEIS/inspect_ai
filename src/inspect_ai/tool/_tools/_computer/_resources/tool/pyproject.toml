@@ -1,0 +1,65 @@
+[build-system]
+requires = ["setuptools>=64", "setuptools_scm[toml]>=8"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools_scm]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["inspect_ai*"]
+
+[tool.ruff]
+src = ["."]
+
+[tool.ruff.lint]
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # flake8
+    "D",      # pydocstyle
+    "I",      # isort
+    "SIM101", # duplicate isinstance
+    "UP038",  # non-pep604-isinstance
+    # "RET", # flake8-return
+    # "RUF", # ruff rules
+]
+ignore = ["E203", "E501", "D10", "D212", "D415"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+addopts = "-rA --doctest-modules --color=yes"
+doctest_optionflags = ["NORMALIZE_WHITESPACE", "IGNORE_EXCEPTION_DETAIL"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+log_level = "warning"
+
+[tool.mypy]
+warn_unused_ignores = true
+no_implicit_reexport = true
+strict_equality = true
+warn_redundant_casts = true
+warn_unused_configs = true
+disallow_any_explicit = true
+disallow_any_generics = true
+disallow_subclassing_any = true
+plugins=["pydantic.mypy"]
+
+
+[tool.pydantic-mypy]
+init_forbid_extra = true
+init_typed = true
+
+[tool.check-wheel-contents]
+ignore = ["W002", "W009"]
+
+[project]
+name = "web_browser_tool_container"
+requires-python = ">=3.10"
+dynamic = ["version", "dependencies"]
+
+
+[project.optional-dependencies]
+dev = ["pytest"]
