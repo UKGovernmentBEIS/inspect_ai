@@ -203,7 +203,7 @@ export const LogProvider: FC<LogProviderProps> = ({
         if (!api.get_log_pending_samples) return;
 
         try {
-          log.debug(`POLL PENDING SAMPLES: ${logFile}`);
+          log.debug(`POLL RUNNING SAMPLES: ${logFile}`);
           const pendingSamples = await api.get_log_pending_samples(
             logFile,
             polling.currentEtag,
@@ -211,7 +211,7 @@ export const LogProvider: FC<LogProviderProps> = ({
 
           // Check if we've been canceled during the API call
           if (!polling.isActive) {
-            log.debug(`POLL PENDING CANCELED: ${logFile}`);
+            log.debug(`POLL RUNNING SAMPLES CANCELED: ${logFile}`);
             return;
           }
 
@@ -228,7 +228,7 @@ export const LogProvider: FC<LogProviderProps> = ({
             refreshLog();
             polling.hadPending = true;
           } else if (pendingSamples.status === "NotFound") {
-            log.debug(`STOP PENDING SAMPLES: ${logFile}`);
+            log.debug(`STOP POLLING RUNNING SAMPLES: ${logFile}`);
             if (polling.hadPending) {
               refreshLog();
             }
@@ -246,7 +246,7 @@ export const LogProvider: FC<LogProviderProps> = ({
             );
           }
         } catch (error) {
-          log.debug(`ERROR PENDING SAMPLES: ${logFile}`);
+          log.debug(`ERROR PENDING RUNNING SAMPLES: ${logFile}`);
           log.error("Error polling pending samples:", error);
           // Schedule next poll with backoff if we haven't been canceled
           if (polling.isActive) {

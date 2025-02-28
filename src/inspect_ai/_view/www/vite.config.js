@@ -25,6 +25,6 @@ export default defineConfig({
     dedupe: ["react", "react-dom"],
   },
   define: {
-    __DEV_WATCH__: JSON.stringify(process.env.NODE_ENV === "development"),
+    __DEV_WATCH__: JSON.stringify(process.env.DEV_LOGGING === "true"),
   },
 });
