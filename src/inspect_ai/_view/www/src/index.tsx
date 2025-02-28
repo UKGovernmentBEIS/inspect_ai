@@ -99,14 +99,21 @@ function filterLargeSample(state: ApplicationState) {
 
 // Filters the selectedlog if it is too large
 function filterLargeLogSummary(state: ApplicationState) {
-  if (!state || !state.selectedLogSummary) {
+  if (!state || !state.log.selectedLogSummary) {
     return state;
   }
 
-  const estimatedSize = estimateSize(state.selectedLogSummary.sampleSummaries);
+  const estimatedSize = estimateSize(
+    state.log.selectedLogSummary.sampleSummaries,
+  );
   if (estimatedSize > 400000) {
-    const { selectedLogSummary, ...filteredState } = state;
-    return filteredState;
+    return {
+      ...state,
+      log: {
+        ...state.log,
+        selectedLogSummary: undefined,
+      },
+    };
   } else {
     return state;
   }
