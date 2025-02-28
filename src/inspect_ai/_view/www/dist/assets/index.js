@@ -66586,14 +66586,14 @@ ${events}
       reactExports.useEffect(() => {
         setSelectedWorkspaceTab(kEvalWorkspaceTabId);
         setSelectedSampleTab(void 0);
-        sampleContext.dispatch({ type: "CLEAR_SELECTED_SAMPLE" });
         workspaceTabScrollPosition.current = {};
+        sampleContext.dispatch({ type: "CLEAR_SELECTED_SAMPLE" });
       }, [(_a2 = logContext.state.selectedLogSummary) == null ? void 0 : _a2.eval.task_id]);
       reactExports.useEffect(() => {
         if (logContext.totalSampleCount === 0) {
           setSelectedWorkspaceTab(kInfoWorkspaceTabId);
         }
-      }, [logContext.totalSampleCount]);
+      }, [logContext.state.selectedLogSummary]);
       reactExports.useEffect(() => {
         if (logsContext.state.logs.log_dir && logsContext.state.logs.files.length === 0) {
           appContext.dispatch({
