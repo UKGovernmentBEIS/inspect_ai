@@ -14780,6 +14780,28 @@ var require_assets = __commonJS({
       }
     );
     ToolButton.displayName = "ToolButton";
+    const createLogger = (namespace) => {
+      const logger = {
+        debug: (message2, ...args) => {
+          if (__DEV_WATCH__) console.debug(`[${namespace}] ${message2}`, ...args);
+        },
+        info: (message2, ...args) => {
+          if (__DEV_WATCH__) console.info(`[${namespace}] ${message2}`, ...args);
+        },
+        warn: (message2, ...args) => {
+          if (__DEV_WATCH__) console.warn(`[${namespace}] ${message2}`, ...args);
+        },
+        // Always log errors, even in production
+        error: (message2, ...args) => {
+          console.error(`[${namespace}] ${message2}`, ...args);
+        },
+        // Lazy evaluation for expensive logs
+        debugIf: (fn2) => {
+          if (__DEV_WATCH__) console.debug(`[${namespace}] ${fn2()}`);
+        }
+      };
+      return logger;
+    };
     const initialLogsState = {
       logs: { log_dir: "", files: [] },
       logHeaders: {},
@@ -14821,6 +14843,9 @@ var require_assets = __commonJS({
       initialState: initialState2,
       api: api2
     }) => {
+      const log2 = reactExports.useMemo(() => {
+        return createLogger("LogsContext");
+      }, []);
       const [state, dispatch] = reactExports.useReducer(
         logsReducer$1,
         initialState2 ? { ...initialLogsState, ...initialState2.logs } : initialLogsState
@@ -14831,6 +14856,7 @@ var require_assets = __commonJS({
       };
       const loadLogs = async () => {
         try {
+          log2.debug("LOADING LOG FILES");
           const result2 = await api2.get_log_paths();
           return result2;
         } catch (e) {
@@ -14843,6 +14869,7 @@ var require_assets = __commonJS({
         }
       };
       const refreshLogs = reactExports.useCallback(async () => {
+        log2.debug("REFRESH LOGS");
         const refreshedLogs = await loadLogs();
         dispatch({
           type: "SET_LOGS",
@@ -14896,6 +14923,7 @@ var require_assets = __commonJS({
       }, [state.logs, state.selectedLogIndex]);
       reactExports.useEffect(() => {
         const loadHeaders = async () => {
+          log2.debug("LOADING HEADERS");
           dispatch({
             type: "SET_HEADERS_LOADING",
             payload: true
@@ -14903,11 +14931,14 @@ var require_assets = __commonJS({
           const chunkSize = 8;
           const fileLists = [];
           for (let i2 = 0; i2 < state.logs.files.length; i2 += chunkSize) {
-            let chunk = state.logs.files.slice(i2, i2 + chunkSize).map((log2) => log2.name);
+            let chunk = state.logs.files.slice(i2, i2 + chunkSize).map((log22) => log22.name);
             fileLists.push(chunk);
           }
           try {
+            let counter = 0;
             for (const fileList of fileLists) {
+              counter++;
+              log2.debug(`LOADING ${counter} of ${fileLists.length} CHUNKS`);
               const headers = await api2.get_log_headers(fileList);
               const updatedHeaders = {};
               headers.forEach((header2, index2) => {
@@ -26192,24 +26223,6 @@ categories: ${categories.join(" ")}`;
         return void 0;
       }
     };
-    const createLogger = (namespace) => {
-      const logger = {
-        debug: (message2, ...args) => {
-        },
-        info: (message2, ...args) => {
-        },
-        warn: (message2, ...args) => {
-        },
-        // Always log errors, even in production
-        error: (message2, ...args) => {
-          console.error(`[${namespace}] ${message2}`, ...args);
-        },
-        // Lazy evaluation for expensive logs
-        debugIf: (fn2) => {
-        }
-      };
-      return logger;
-    };
     const initialLogState = {
       selectedSampleIndex: -1,
       filter: {},
@@ -26251,10 +26264,10 @@ categories: ${categories.join(" ")}`;
       api: api2
     }) => {
       var _a2, _b2, _c, _d;
+      const logsContext = useLogsContext();
       const log2 = reactExports.useMemo(() => {
         return createLogger("LogContext");
       }, []);
-      const logsContext = useLogsContext();
       const [state, dispatch] = reactExports.useReducer(
         logsReducer,
         initialState2 ? { ...initialLogState, ...initialState2.log } : initialLogState
