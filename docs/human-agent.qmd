@@ -78,14 +78,15 @@ Alternatively, if the human agent is working within VS Code then two links are p
 
 The Human agent solver installs agent task tools in the default sandbox and presents the user with both task instructions and documentation for the various tools (e.g. `task submit`, `task start`, `task stop`, `task instructions`, etc.). By default, the following command are available:
 
-| Command             | Description                               |
-|---------------------|-------------------------------------------|
-| `task submit`       | Submit your final answer for the task.    |
-| `task note`         | Record a note in the task transcript.     |
-| `task status`       | Print task status (clock, scoring , etc.) |
-| `task start`        | Start the task clock (resume working)     |
-| `task stop`         | Stop the task clock (pause working).      |
-| `task instructions` | Display task command and instructions.    |
+| Command             | Description                                 |
+|---------------------|---------------------------------------------|
+| `task submit`       | Submit your final answer for the task.      |
+| `task quit`         | Quit the task without submitting an answer. |
+| `task note`         | Record a note in the task transcript.       |
+| `task status`       | Print task status (clock, scoring , etc.)   |
+| `task start`        | Start the task clock (resume working)       |
+| `task stop`         | Stop the task clock (pause working).        |
+| `task instructions` | Display task command and instructions.      |
 
 : {tbl-colwidths=\[40,60\]}
 
@@ -95,7 +96,7 @@ Note that the instructions are also copied to an `instructions.txt` file in the 
 
 When the human agent has completed the task, they submit their answer using the `task submit`command. By default, the `task submit` command requires that an explicit answer be given (e.g. `task submit picoCTF{73bfc85c1ba7}`).
 
-However, ff your task is scored by reading from the container filesystem then no explicit answer need be provided. Indicate this by passing `answer=False` to the `human_agent()`:
+However, if your task is scored by reading from the container filesystem then no explicit answer need be provided. Indicate this by passing `answer=False` to the `human_agent()`:
 
 ``` python
 solver=human_agent(answer=False)
@@ -112,6 +113,18 @@ You can also specify a regex to match the answer against for validation, for exa
 ``` python
 solver=human_agent(answer=r"picoCTF{\w+}")
 ```
+
+### Quitting
+
+::: {.callout-note appearance="simple"}
+The `task quit` command described below is currently available only in the development version of Inspect. To install the development version from GitHub:
+
+``` bash
+pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+```
+:::
+
+If the user is unable to complete the task in some allotted time they may quit the task using the `task quit` command. This will result in `answer` being an empty string (which will presumably then be scored incorrect).
 
 ### Intermediate Scoring
 
