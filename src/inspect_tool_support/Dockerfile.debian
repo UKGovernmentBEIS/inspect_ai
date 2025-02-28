@@ -1,0 +1,6 @@
+FROM python:3.12-bookworm
+
+RUN pip install inspect-tool-support
+RUN inspect-tool-support post-install
+
+CMD ["tail", "-f", "/dev/null"]

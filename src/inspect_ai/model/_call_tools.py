@@ -25,7 +25,6 @@ from typing import (
 if sys.version_info < (3, 11):
     from exceptiongroup import ExceptionGroup
 
-
 import anyio
 import yaml
 from anyio.streams.memory import MemoryObjectSendStream
