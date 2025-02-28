@@ -8,9 +8,9 @@ import {
   useState,
 } from "react";
 import { VirtuosoHandle } from "react-virtuoso";
-import { useLogContext } from "../../LogContext.tsx";
 import { SampleSummary } from "../../api/types.ts";
 import { EmptyPanel } from "../../components/EmptyPanel.tsx";
+import { useLogContext } from "../../contexts/LogContext.tsx";
 import { InlineSampleDisplay } from "../../samples/InlineSampleDisplay";
 import { SampleDialog } from "../../samples/SampleDialog";
 import { SamplesDescriptor } from "../../samples/descriptor/samplesDescriptor.tsx";

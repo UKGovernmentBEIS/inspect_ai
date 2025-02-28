@@ -1,6 +1,6 @@
 import { EvalSummary, SampleSummary } from "./api/types";
-import { LogState } from "./LogContext";
-import { LogsState } from "./LogsContext";
+import { LogState } from "./contexts/LogContext";
+import { LogsState } from "./contexts/LogsContext";
 import { ContentImage, ContentText, EvalSample, Events } from "./types/log";
 
 // Define the state interface

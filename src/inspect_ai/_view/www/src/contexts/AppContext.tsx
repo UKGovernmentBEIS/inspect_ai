@@ -6,9 +6,9 @@ import {
   useContext,
   useReducer,
 } from "react";
-import { Capabilities } from "./api/types";
-import { AppState, AppStatus } from "./types";
-import { clearDocumentSelection } from "./utils/browser";
+import { Capabilities } from "../api/types";
+import { AppState, AppStatus } from "../types";
+import { clearDocumentSelection } from "../utils/browser";
 
 // Define the initial state
 const initialAppState: AppState = {
