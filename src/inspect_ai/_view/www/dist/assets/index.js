@@ -66848,13 +66848,20 @@ ${events}
       }
     }
     function filterLargeLogSummary(state) {
-      if (!state || !state.selectedLogSummary) {
+      if (!state || !state.log.selectedLogSummary) {
         return state;
       }
-      const estimatedSize = estimateSize(state.selectedLogSummary.sampleSummaries);
+      const estimatedSize = estimateSize(
+        state.log.selectedLogSummary.sampleSummaries
+      );
       if (estimatedSize > 4e5) {
-        const { selectedLogSummary, ...filteredState } = state;
-        return filteredState;
+        return {
+          ...state,
+          log: {
+            ...state.log,
+            selectedLogSummary: void 0
+          }
+        };
       } else {
         return state;
       }
