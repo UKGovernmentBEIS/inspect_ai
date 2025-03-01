@@ -58,13 +58,28 @@ You can put a limit onthe total time for retries using the `--timeout` option:
 inspect eval --model openai/gpt-4 --timeout 600 
 ```
 
+### Debugging Retries
+
 If you want more insight into Model API connections and retries, specify `log_level=http`. For example:
 
 ``` bash
-$ inspect eval --model openai/gpt-4 --log-level=http
+inspect eval --model openai/gpt-4 --log-level=http
 ```
 
+You can also view all of the HTTP requests for the current (or most recent) evaluation run using the `inspect trace http` command. For example:
 
+``` bash
+inspect trace http           # show all http requests
+inspect trace http --failed  # show only failed requests
+```
+
+::: {.callout-note appearance="simple"}
+Note that the `inspect trace http` command is currently available only in the development version of Inspect. To install the development version from GitHub:
+
+``` bash
+pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+```
+:::
 
 ## Multiple Models {#sec-multiple-models}
 
