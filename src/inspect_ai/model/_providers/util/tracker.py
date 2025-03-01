@@ -1,37 +1,49 @@
 import re
 import time
-from typing import Any, cast
+from typing import Any, NamedTuple, cast
 
 import httpx
 from shortuuid import uuid
+
+from inspect_ai._util.retry import trace_http_retry
+
+
+class RequestInfo(NamedTuple):
+    attempts: int
+    last_request: float
 
 
 class HttpTimeTracker:
     def __init__(self) -> None:
         # track request start times
-        self._requests: dict[str, float] = {}
+        self._requests: dict[str, RequestInfo] = {}
 
     def start_request(self) -> str:
         request_id = uuid()
-        self._requests[request_id] = time.monotonic()
+        self._requests[request_id] = RequestInfo(0, time.monotonic())
         return request_id
 
     def end_request(self, request_id: str) -> float:
-        # read the request time if (if available) and purge from dict
-        request_time = self._requests.pop(request_id, None)
-        if request_time is None:
+        # read the request info (if available) and purge from dict
+        request_info = self._requests.pop(request_id, None)
+        if request_info is None:
             raise RuntimeError(f"request_id not registered: {request_id}")
 
         # return elapsed time
-        return time.monotonic() - request_time
+        return time.monotonic() - request_info.last_request
 
     def update_request_time(self, request_id: str) -> None:
-        request_time = self._requests.get(request_id, None)
-        if not request_time:
+        request_info = self._requests.get(request_id, None)
+        if not request_info:
             raise RuntimeError(f"No request registered for request_id: {request_id}")
 
-        # update the request time
-        self._requests[request_id] = time.monotonic()
+        # update the attempts and last request time
+        request_info = RequestInfo(request_info.attempts + 1, time.monotonic())
+        self._requests[request_id] = request_info
+
+        # trace a retry if this is attempt > 1
+        if request_info.attempts > 1:
+            trace_http_retry()
 
 
 class BotoTimeTracker(HttpTimeTracker):

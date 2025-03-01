@@ -39,7 +39,7 @@ from inspect_ai._util.registry import (
     registry_info,
     registry_unqualified_name,
 )
-from inspect_ai._util.retry import log_rate_limit_retry
+from inspect_ai._util.retry import log_rate_limit_retry, trace_http_retry
 from inspect_ai._util.trace import trace_action
 from inspect_ai._util.working import report_sample_waiting_time, sample_working_time
 from inspect_ai.tool import Tool, ToolChoice, ToolFunction, ToolInfo
@@ -559,14 +559,10 @@ class Model:
 
     def should_retry(self, ex: BaseException) -> bool:
         if isinstance(ex, Exception):
-
-            def trace_retry() -> None:
-                pass
-
             # check standard should_retry() method
             retry = self.api.should_retry(ex)
             if retry:
-                trace_retry()
+                trace_http_retry(ex)
                 return True
 
             # see if the API implements legacy is_rate_limit() method
@@ -579,7 +575,7 @@ class Model:
                 )
                 retry = cast(bool, is_rate_limit(ex))
                 if retry:
-                    trace_retry()
+                    trace_http_retry(ex)
                     return True
 
         # no retry

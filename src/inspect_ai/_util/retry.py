@@ -10,7 +10,7 @@ logger = getLogger(__name__)
 _http_retries_count: int = 0
 
 
-def trace_http_retry(count: int, ex: Exception | None = None) -> None:
+def trace_http_retry(ex: Exception | None = None) -> None:
     # bump counter
     global _http_retries_count
     _http_retries_count = _http_retries_count + 1
