@@ -42,7 +42,7 @@
     "@codemirror/autocomplete": "^6.18.4",
     "@codemirror/language": "^6.10.8",
     "@codemirror/lint": "^6.8.4",
-    "@codemirror/state": "^6.5.1",
+    "@codemirror/state": "^6.5.2",
     "@lezer/highlight": "^1.2.1",
     "@popperjs/core": "^2.11.8",
     "ansi-output": "^0.0.9",
