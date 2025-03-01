@@ -11,7 +11,7 @@ T = TypeVar("T", bound=BaseModel)
 
 def validate_params(
     params: Mapping[str, object], cls: Type[T]
-) -> Either[ValidationError, T]:
+) -> Either[T, ValidationError]:  # NOTE: oslash reverses these params!?!
     try:
         return Right(cls(**params))
     except ValidationError as e:

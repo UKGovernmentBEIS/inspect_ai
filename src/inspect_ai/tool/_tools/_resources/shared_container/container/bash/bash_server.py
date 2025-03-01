@@ -16,19 +16,18 @@ from validation import return_validation_error, validate_params
 bash_subprocess = BashSubprocess()
 
 
-# curl -X POST http://localhost:5556/ -H "Content-Type: application/json" -d '{"jsonrpc": "2.0", "method": "bash", "params": { {"command": "echo foo"}, "id": 1}'
+# curl -X POST http://localhost:5556/ -H "Content-Type: application/json" -d '{"jsonrpc": "2.0", "method": "bash", "params": {"params": {"command": "pwd"}}, "id": 1}'
 
 
 @method
 async def bash(params):
-    print(f"XXXX is bash method with {params=}")
     match validate_params(params, BashParams):
-        case Left(e):
+        case Left(_error=e):
             return return_validation_error(e)
-        case Right(BashParams(root=CommandParams(command=command))):
-            return Success(bash_subprocess.execute_cmd(command))
-        case Right(BashParams(root=RestartParams())):
-            return Success(bash_subprocess.restart())
+        case Right(_value=BashParams(root=CommandParams(command=command))):
+            return Success((await bash_subprocess.execute_cmd(command)).model_dump())
+        case Right(_value=BashParams(root=RestartParams())):
+            return Success((await bash_subprocess.restart()).model_dump())
         case _:
             return return_validation_error(ValidationError("unhandled command", params))
 

@@ -22,12 +22,20 @@ class BashSubprocess:
         return self.__process
 
     async def execute_cmd(self, command: str) -> BashResponse:
-        process = await self._process
-        assert process.stdin
-        process.stdin.write(command.encode())
-        await process.stdin.drain()
-        assert process.stdout
-        return await process.stdout.readline()
+        print(f"XXXX execute_cmd called with {command=}")
+        # for now, we'll just simulate a response
+        return BashResponse(status=0, stdout="asdf", stderr="")
+        # process = await self._process
+        # assert process.stdin
+        # print(f"XXXX about to write {command.encode()} to stdin")
+        # process.stdin.write(command.encode())
+        # await process.stdin.drain()
+        # assert process.stdout
+
+        # print(f"XXXX about to read from stdout")
+        # result = await process.stdout.readline()
+        # print(f"XXXX read {result} from stdout")
+        # return result
 
     async def restart(self, command: str) -> BashResponse:
         process = await self._process
