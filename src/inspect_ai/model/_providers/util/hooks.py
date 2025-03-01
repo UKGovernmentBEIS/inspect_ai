@@ -117,7 +117,7 @@ class HttpxHooks(HttpHooks):
             self.update_request_time(request_id)
 
     async def response_hook(self, response: httpx.Response) -> None:
-        message = f'HTTP Request: {response.request.method} {response.request.url} "{response.http_version} {response.status_code} {response.reason_phrase}" '
+        message = f'{response.request.method} {response.request.url} "{response.http_version} {response.status_code} {response.reason_phrase}" '
         logger.log(HTTP, message)
 
 
@@ -133,8 +133,10 @@ def urllib3_hooks() -> HttpHooks:
             if request_id:
                 self.update_request_time(request_id)
 
-        def response_hook(self, response: BaseHTTPResponse) -> None:
-            message = f'HTTP Request: POST {response.url} "{response.version_string} {response.status} {response.reason}" '
+        def response_hook(
+            self, method: str, url: str, response: BaseHTTPResponse
+        ) -> None:
+            message = f'{method} {url} "{response.version_string} {response.status} {response.reason}" '
             logger.log(HTTP, message)
 
     global _urlilb3_hooks
@@ -144,12 +146,12 @@ def urllib3_hooks() -> HttpHooks:
         original_urlopen = urllib3.connectionpool.HTTPConnectionPool.urlopen
 
         def patched_urlopen(
-            self: HTTPConnectionPool, **kwargs: Any
+            self: HTTPConnectionPool, method: str, url: str, **kwargs: Any
         ) -> BaseHTTPResponse:
             headers = kwargs.get("headers", {})
             urlilb3_hooks.request_hook(headers)
-            response = original_urlopen(self, **kwargs)
-            urlilb3_hooks.response_hook(response)
+            response = original_urlopen(self, method, url, **kwargs)
+            urlilb3_hooks.response_hook(method, f"{self.host}{url}", response)
             return response
 
         urllib3.connectionpool.HTTPConnectionPool.urlopen = patched_urlopen  # type: ignore[assignment,method-assign]

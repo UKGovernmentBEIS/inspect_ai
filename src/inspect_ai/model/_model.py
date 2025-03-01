@@ -1216,7 +1216,7 @@ def combine_messages(
 def log_model_retry(model_name: str, retry_state: RetryCallState) -> None:
     logger.log(
         HTTP,
-        f"{model_name} retry {retry_state.attempt_number} after waiting for {retry_state.idle_for}",
+        f"-> {model_name} retry {retry_state.attempt_number} after waiting for {retry_state.idle_for}",
     )
 
 
