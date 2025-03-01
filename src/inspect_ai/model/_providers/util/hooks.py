@@ -18,6 +18,22 @@ class RequestInfo(NamedTuple):
 
 
 class HttpHooks:
+    """Class which hooks various HTTP clients for improved tracking/logging.
+
+    A special header is injected into requests which is then read from
+    a request event hook -- this creates a record of when the request
+    started. Note that with retries a single request_id could be started
+    several times; our request hook makes sure we always track the time of
+    the last request.
+
+    There is an 'end_request()' method which gets the total requeset time
+    for a request_id and then purges the request_id from our tracking (so
+    the dict doesn't grow unbounded)
+
+    Additionally, an http response hook is installed and used for the
+    HTTP log-level.
+    """
+
     REQUEST_ID_HEADER = "x-irid"
 
     def __init__(self) -> None:
@@ -60,11 +76,9 @@ class ConverseHooks(HttpHooks):
 
         # register hooks
         session = cast(AioSession, session._session)
-
         session.register(
             "before-send.bedrock-runtime.Converse", self.converse_before_send
         )
-
         session.register(
             "after-call.bedrock-runtime.Converse", self.converse_after_call
         )
@@ -89,30 +103,11 @@ class ConverseHooks(HttpHooks):
 
 
 class HttpxHooks(HttpHooks):
-    """Class which tracks the duration of successful (200 status) http requests.
-
-    A special header is injected into requests which is then read from
-    an httpx 'request' event hook -- this creates a record of when the request
-    started. Note that with retries a single request id could be started
-    several times; our request hook makes sure we always track the time of
-    the last request.
-
-    To determine the total time, we also install an httpx response hook. In
-    this hook we look for 200 responses which have a registered request id.
-    When we find one, we update the end time of the request.
-
-    There is an 'end_request()' method which gets the total requeset time
-    for a request_id and then purges the request_id from our tracking (so
-    the dict doesn't grow unbounded)
-    """
-
     def __init__(self, client: httpx.AsyncClient):
         super().__init__()
 
-        # install httpx request hook
+        # install hooks
         client.event_hooks["request"].append(self.request_hook)
-
-        # install httpx response hook (for logging)
         client.event_hooks["response"].append(self.response_hook)
 
     async def request_hook(self, request: httpx.Request) -> None:
@@ -124,9 +119,6 @@ class HttpxHooks(HttpHooks):
     async def response_hook(self, response: httpx.Response) -> None:
         message = f'HTTP Request: {response.request.method} {response.request.url} "{response.http_version} {response.status_code} {response.reason_phrase}" '
         logger.log(HTTP, message)
-
-
-_urlilb3_hooks: HttpHooks | None = None
 
 
 def urllib3_hooks() -> HttpHooks:
@@ -166,3 +158,6 @@ def urllib3_hooks() -> HttpHooks:
         _urlilb3_hooks = urlilb3_hooks
 
     return _urlilb3_hooks
+
+
+_urlilb3_hooks: HttpHooks | None = None
