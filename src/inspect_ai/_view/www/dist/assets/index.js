@@ -75762,10 +75762,14 @@ ${events}
       }, [previousSampleIndex, sampleStatus, logContext.dispatch]);
       const title2 = logContext.state.selectedSampleIndex > -1 && sampleItems.length > logContext.state.selectedSampleIndex ? sampleItems[logContext.state.selectedSampleIndex].label : "";
       if (!logContext.samplesDescriptor) {
-        return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(EmptyPanel, {}, void 0, false, {
+        return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(EmptyPanel, { children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { children: "No samples" }, void 0, false, {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/tabs/SamplesTab.tsx",
-          lineNumber: 167,
-          columnNumber: 12
+          lineNumber: 169,
+          columnNumber: 9
+        }, void 0) }, void 0, false, {
+          fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/tabs/SamplesTab.tsx",
+          lineNumber: 168,
+          columnNumber: 7
         }, void 0);
       } else {
         return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(reactExports.Fragment, { children: [
@@ -75785,7 +75789,7 @@ ${events}
             false,
             {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/tabs/SamplesTab.tsx",
-              lineNumber: 172,
+              lineNumber: 176,
               columnNumber: 11
             },
             void 0
@@ -75804,7 +75808,7 @@ ${events}
             false,
             {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/tabs/SamplesTab.tsx",
-              lineNumber: 184,
+              lineNumber: 188,
               columnNumber: 11
             },
             void 0
@@ -75831,14 +75835,14 @@ ${events}
             false,
             {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/tabs/SamplesTab.tsx",
-              lineNumber: 193,
+              lineNumber: 197,
               columnNumber: 9
             },
             void 0
           )
         ] }, void 0, true, {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/tabs/SamplesTab.tsx",
-          lineNumber: 170,
+          lineNumber: 174,
           columnNumber: 7
         }, void 0);
       }
