@@ -559,9 +559,14 @@ class Model:
 
     def should_retry(self, ex: BaseException) -> bool:
         if isinstance(ex, Exception):
+
+            def trace_retry() -> None:
+                pass
+
             # check standard should_retry() method
             retry = self.api.should_retry(ex)
             if retry:
+                trace_retry()
                 return True
 
             # see if the API implements legacy is_rate_limit() method
@@ -572,7 +577,10 @@ class Model:
                     f"provider '{self.name}' implements deprecated is_rate_limit() method, "
                     + "please change to should_retry()",
                 )
-                return cast(bool, is_rate_limit(ex))
+                retry = cast(bool, is_rate_limit(ex))
+                if retry:
+                    trace_retry()
+                    return True
 
         # no retry
         return False
