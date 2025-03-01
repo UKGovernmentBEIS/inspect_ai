@@ -109,10 +109,9 @@ class LogHandler(RichHandler):
         if self.trace_logger and record.levelno >= self.trace_logger_level:
             self.trace_logger.emit(record)
 
-        # eval log always gets info level and higher records
-        # eval log only gets debug or http if we opt-in
-        write = record.levelno >= self.transcript_levelno
-        notify_logger_record(record, write)
+        # eval log gets transcript level or higher
+        if record.levelno >= self.transcript_levelno:
+            log_to_transcript(record)
 
     @override
     def render_message(self, record: LogRecord, message: str) -> ConsoleRenderable:
@@ -197,14 +196,11 @@ def remove_non_pytest_root_logger_handlers() -> bool:
     return len(non_pytest_handlers) > 0
 
 
-def notify_logger_record(record: LogRecord, write: bool) -> None:
+def log_to_transcript(record: LogRecord) -> None:
     from inspect_ai.log._message import LoggingMessage
     from inspect_ai.log._transcript import LoggerEvent, transcript
 
-    if write:
-        transcript()._event(
-            LoggerEvent(message=LoggingMessage._from_log_record(record))
-        )
+    transcript()._event(LoggerEvent(message=LoggingMessage._from_log_record(record)))
 
 
 def warn_once(logger: Logger, message: str) -> None:
