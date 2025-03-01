@@ -17,7 +17,7 @@ class RequestInfo(NamedTuple):
     last_request: float
 
 
-class HttpTimeTracker:
+class HttpHooks:
     def __init__(self) -> None:
         # track request start times
         self._requests: dict[str, RequestInfo] = {}
@@ -50,16 +50,21 @@ class HttpTimeTracker:
             report_http_retry()
 
 
-class BotoTimeTracker(HttpTimeTracker):
+class ConverseHooks(HttpHooks):
     def __init__(self, session: Any) -> None:
         from aiobotocore.session import AioSession
 
         super().__init__()
 
-        # register hook
+        # register hooks
         session = cast(AioSession, session._session)
+
         session.register(
             "before-send.bedrock-runtime.Converse", self.converse_before_send
+        )
+
+        session.register(
+            "after-call.bedrock-runtime.Converse", self.converse_after_call
         )
 
     def converse_before_send(self, **kwargs: Any) -> None:
@@ -69,13 +74,19 @@ class BotoTimeTracker(HttpTimeTracker):
             request_id = match.group(1)
             self.update_request_time(request_id)
 
+    def converse_after_call(self, http_response: Any, **kwargs: Any) -> None:
+        from botocore.awsrequest import AWSResponse
+
+        response = cast(AWSResponse, http_response)
+        logger.log(HTTP, f"POST {response.url} - {response.status_code}")
+
     def user_agent_extra(self, request_id: str) -> str:
         return f"{self.USER_AGENT_PREFIX}{request_id}"
 
     USER_AGENT_PREFIX = "ins/rid#"
 
 
-class HttpxTimeTracker(HttpTimeTracker):
+class HttpxHooks(HttpHooks):
     """Class which tracks the duration of successful (200 status) http requests.
 
     A special header is injected into requests which is then read from

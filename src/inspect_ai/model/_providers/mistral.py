@@ -59,7 +59,7 @@ from .._model_output import (
     StopReason,
 )
 from .util import environment_prerequisite_error, model_base_url
-from .util.tracker import HttpxTimeTracker
+from .util.hooks import HttpxHooks
 
 AZURE_MISTRAL_API_KEY = "AZURE_MISTRAL_API_KEY"
 AZUREAI_MISTRAL_API_KEY = "AZUREAI_MISTRAL_API_KEY"
@@ -127,7 +127,7 @@ class MistralAPI(ModelAPI):
         # create client
         with Mistral(api_key=self.api_key, **self.model_args) as client:
             # create time tracker
-            time_tracker = HttpxTimeTracker(client.sdk_configuration.async_client)
+            time_tracker = HttpxHooks(client.sdk_configuration.async_client)
 
             # build request
             request_id = time_tracker.start_request()
@@ -138,7 +138,7 @@ class MistralAPI(ModelAPI):
                 tool_choice=(
                     mistral_chat_tool_choice(tool_choice) if len(tools) > 0 else None
                 ),
-                http_headers={HttpxTimeTracker.REQUEST_ID_HEADER: request_id},
+                http_headers={HttpxHooks.REQUEST_ID_HEADER: request_id},
             )
             if config.temperature is not None:
                 request["temperature"] = config.temperature

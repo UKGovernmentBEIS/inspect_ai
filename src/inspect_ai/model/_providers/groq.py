@@ -55,7 +55,7 @@ from .util import (
     environment_prerequisite_error,
     model_base_url,
 )
-from .util.tracker import HttpxTimeTracker
+from .util.hooks import HttpxHooks
 
 GROQ_API_KEY = "GROQ_API_KEY"
 
@@ -90,7 +90,7 @@ class GroqAPI(ModelAPI):
         )
 
         # create time tracker
-        self._time_tracker = HttpxTimeTracker(self.client._client)
+        self._http_hooks = HttpxHooks(self.client._client)
 
     @override
     async def close(self) -> None:
@@ -104,7 +104,7 @@ class GroqAPI(ModelAPI):
         config: GenerateConfig,
     ) -> tuple[ModelOutput, ModelCall]:
         # allocate request_id (so we can see it from ModelCall)
-        request_id = self._time_tracker.start_request()
+        request_id = self._http_hooks.start_request()
 
         # setup request and response for ModelCall
         request: dict[str, Any] = {}
@@ -115,7 +115,7 @@ class GroqAPI(ModelAPI):
                 request=request,
                 response=response,
                 filter=model_call_filter,
-                time=self._time_tracker.end_request(request_id),
+                time=self._http_hooks.end_request(request_id),
             )
 
         messages = await as_groq_chat_messages(input)
@@ -132,7 +132,7 @@ class GroqAPI(ModelAPI):
         request = dict(
             messages=messages,
             model=self.model_name,
-            extra_headers={HttpxTimeTracker.REQUEST_ID_HEADER: request_id},
+            extra_headers={HttpxHooks.REQUEST_ID_HEADER: request_id},
             **params,
         )
 

@@ -28,7 +28,7 @@ from .._model_output import ChatCompletionChoice, ModelOutput, ModelUsage
 from .util import (
     model_base_url,
 )
-from .util.tracker import BotoTimeTracker
+from .util.hooks import ConverseHooks
 
 logger = getLogger(__name__)
 
@@ -250,20 +250,14 @@ class BedrockAPI(ModelAPI):
         # import aioboto3 on demand
         try:
             import aioboto3
-            from aiobotocore.session import AioSession
 
             verify_required_version("Bedrock API", "aioboto3", "13.0.0")
 
             # Create a shared session to be used when generating
             self.session = aioboto3.Session()
 
-            # register a hook to log http requests
-            cast(AioSession, self.session._session).register(
-                "after-call.bedrock-runtime.Converse", log_http_response
-            )
-
             # create time tracker
-            self._time_tracker = BotoTimeTracker(self.session)
+            self._http_hooks = ConverseHooks(self.session)
 
         except ImportError:
             raise pip_dependency_error("Bedrock API", ["aioboto3"])
@@ -332,13 +326,13 @@ class BedrockAPI(ModelAPI):
         from botocore.exceptions import ClientError
 
         # The bedrock client
-        request_id = self._time_tracker.start_request()
+        request_id = self._http_hooks.start_request()
         async with self.session.client(  # type: ignore[call-overload]
             service_name="bedrock-runtime",
             endpoint_url=self.base_url,
             config=Config(
                 retries=dict(mode="adaptive"),
-                user_agent_extra=self._time_tracker.user_agent_extra(request_id),
+                user_agent_extra=self._http_hooks.user_agent_extra(request_id),
             ),
             **self.model_args,
         ) as client:
@@ -378,7 +372,7 @@ class BedrockAPI(ModelAPI):
                         request.model_dump(exclude_none=True)
                     ),
                     response=response,
-                    time=self._time_tracker.end_request(request_id),
+                    time=self._http_hooks.end_request(request_id),
                 )
 
             try:
@@ -744,10 +738,3 @@ def replace_bytes_with_placeholder(data: Any, placeholder: Any = "<bytes>") -> A
     elif isinstance(data, tuple):
         return tuple(replace_bytes_with_placeholder(item, placeholder) for item in data)
     return data
-
-
-def log_http_response(http_response: Any, **kwargs: Any) -> None:
-    from botocore.awsrequest import AWSResponse
-
-    response = cast(AWSResponse, http_response)
-    logger.log(HTTP, f"POST {response.url} - {response.status_code}")

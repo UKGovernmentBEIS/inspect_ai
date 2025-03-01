@@ -8,7 +8,7 @@ from typing import Any, Literal, Tuple, TypedDict, cast
 
 from inspect_ai._util.http import is_retryable_http_status
 
-from .util.tracker import HttpxTimeTracker
+from .util.hooks import HttpxHooks
 
 if sys.version_info >= (3, 11):
     from typing import NotRequired
@@ -153,7 +153,7 @@ class AnthropicAPI(ModelAPI):
             )
 
         # create time tracker
-        self._time_tracker = HttpxTimeTracker(self.client._client)
+        self._http_hooks = HttpxHooks(self.client._client)
 
     @override
     async def close(self) -> None:
@@ -173,7 +173,7 @@ class AnthropicAPI(ModelAPI):
         config: GenerateConfig,
     ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
         # allocate request_id (so we can see it from ModelCall)
-        request_id = self._time_tracker.start_request()
+        request_id = self._http_hooks.start_request()
 
         # setup request and response for ModelCall
         request: dict[str, Any] = {}
@@ -184,7 +184,7 @@ class AnthropicAPI(ModelAPI):
                 request=request,
                 response=response,
                 filter=model_call_filter,
-                time=self._time_tracker.end_request(request_id),
+                time=self._http_hooks.end_request(request_id),
             )
 
         # generate
@@ -213,7 +213,7 @@ class AnthropicAPI(ModelAPI):
             request = request | req
 
             # extra headers (for time tracker and computer use)
-            extra_headers = headers | {HttpxTimeTracker.REQUEST_ID_HEADER: request_id}
+            extra_headers = headers | {HttpxHooks.REQUEST_ID_HEADER: request_id}
             if computer_use:
                 betas.append("computer-use-2024-10-22")
             if len(betas) > 0:
