@@ -1,11 +1,15 @@
 import re
 import time
+from logging import getLogger
 from typing import Any, NamedTuple, cast
 
 import httpx
 from shortuuid import uuid
 
+from inspect_ai._util.constants import HTTP
 from inspect_ai._util.retry import report_http_retry
+
+logger = getLogger(__name__)
 
 
 class RequestInfo(NamedTuple):
@@ -97,8 +101,15 @@ class HttpxTimeTracker(HttpTimeTracker):
         # install httpx request hook
         client.event_hooks["request"].append(self.request_hook)
 
+        # install httpx response hook (for logging)
+        client.event_hooks["response"].append(self.response_hook)
+
     async def request_hook(self, request: httpx.Request) -> None:
         # update the last request time for this request id (as there could be retries)
         request_id = request.headers.get(self.REQUEST_ID_HEADER, None)
         if request_id:
             self.update_request_time(request_id)
+
+    async def response_hook(self, response: httpx.Response) -> None:
+        message = f'HTTP Request: {response.request.method} {response.request.url} "{response.http_version} {response.status_code} {response.reason_phrase}" '
+        logger.log(HTTP, message)

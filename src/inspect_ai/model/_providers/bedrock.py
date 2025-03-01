@@ -1,10 +1,11 @@
 import base64
+from logging import getLogger
 from typing import Any, Literal, Tuple, Union, cast
 
 from pydantic import BaseModel, Field
 from typing_extensions import override
 
-from inspect_ai._util.constants import DEFAULT_MAX_TOKENS
+from inspect_ai._util.constants import DEFAULT_MAX_TOKENS, HTTP
 from inspect_ai._util.content import Content, ContentImage, ContentText
 from inspect_ai._util.error import pip_dependency_error
 from inspect_ai._util.images import file_as_data
@@ -28,6 +29,8 @@ from .util import (
     model_base_url,
 )
 from .util.tracker import BotoTimeTracker
+
+logger = getLogger(__name__)
 
 # Model for Bedrock Converse API (Response)
 # generated from: https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/bedrock-runtime/client/converse.html#converse
@@ -247,11 +250,17 @@ class BedrockAPI(ModelAPI):
         # import aioboto3 on demand
         try:
             import aioboto3
+            from aiobotocore.session import AioSession
 
             verify_required_version("Bedrock API", "aioboto3", "13.0.0")
 
             # Create a shared session to be used when generating
             self.session = aioboto3.Session()
+
+            # register a hook to log http requests
+            cast(AioSession, self.session._session).register(
+                "after-call.bedrock-runtime.Converse", log_http_response
+            )
 
             # create time tracker
             self._time_tracker = BotoTimeTracker(self.session)
@@ -735,3 +744,10 @@ def replace_bytes_with_placeholder(data: Any, placeholder: Any = "<bytes>") -> A
     elif isinstance(data, tuple):
         return tuple(replace_bytes_with_placeholder(item, placeholder) for item in data)
     return data
+
+
+def log_http_response(http_response: Any, **kwargs: Any) -> None:
+    from botocore.awsrequest import AWSResponse
+
+    response = cast(AWSResponse, http_response)
+    logger.log(HTTP, f"POST {response.url} - {response.status_code}")

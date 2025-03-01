@@ -1,9 +1,7 @@
 import atexit
 import os
 from logging import (
-    DEBUG,
     INFO,
-    WARNING,
     FileHandler,
     Formatter,
     Logger,
@@ -43,10 +41,12 @@ TRACE_FILE_NAME = "trace.log"
 
 # log handler that filters messages to stderr and the log file
 class LogHandler(RichHandler):
-    def __init__(self, levelno: int, transcript_levelno: int) -> None:
-        super().__init__(levelno, console=rich.get_console())
+    def __init__(
+        self, capture_levelno: int, display_levelno: int, transcript_levelno: int
+    ) -> None:
+        super().__init__(capture_levelno, console=rich.get_console())
         self.transcript_levelno = transcript_levelno
-        self.display_level = WARNING
+        self.display_level = display_levelno
         # log into an external file if requested via env var
         file_logger = os.environ.get("INSPECT_PY_LOGGER_FILE", None)
         self.file_logger = FileHandler(file_logger) if file_logger else None
@@ -76,23 +76,6 @@ class LogHandler(RichHandler):
 
     @override
     def emit(self, record: LogRecord) -> None:
-        # demote httpx and return notifications to log_level http
-        if (
-            record.name == "httpx"
-            or "http" in record.name
-            or "Retrying request" in record.getMessage()
-        ):
-            record.levelno = HTTP
-            record.levelname = HTTP_LOG_LEVEL
-
-        # skip httpx event loop is closed errors
-        if "Event loop is closed" in record.getMessage():
-            return
-
-        # skip google-genai AFC message
-        if "AFC is enabled with max remote calls" in record.getMessage():
-            return
-
         # write to stderr if we are at or above the threshold
         if record.levelno >= self.display_level:
             super().emit(record)
@@ -120,9 +103,7 @@ class LogHandler(RichHandler):
 
 # initialize logging -- this function can be called multiple times
 # in the lifetime of the process (the levelno will update globally)
-def init_logger(
-    log_level: str | None = None, log_level_transcript: str | None = None
-) -> None:
+def init_logger(log_level: str | None, log_level_transcript: str | None = None) -> None:
     # backwards compatibility for 'tools'
     if log_level == "sandbox" or log_level == "tools":
         log_level = "trace"
@@ -144,7 +125,7 @@ def init_logger(
     ).upper()
     validate_level("log level", log_level)
 
-    # reolve log file level
+    # reolve transcript log level
     log_level_transcript = (
         log_level_transcript
         if log_level_transcript
@@ -156,44 +137,26 @@ def init_logger(
     levelno = getLevelName(log_level)
     transcript_levelno = getLevelName(log_level_transcript)
 
-    # init logging handler on demand
-    global _logHandler
-    removed_root_handlers = False
-    if not _logHandler:
-        removed_root_handlers = remove_non_pytest_root_logger_handlers()
-        _logHandler = LogHandler(min(DEBUG, levelno), transcript_levelno)
-        getLogger().addHandler(_logHandler)
-
-    # establish default capture level
+    # set capture level for our logs (we won't actually display/write all of them)
     capture_level = min(TRACE, levelno, transcript_levelno)
 
-    # see all the messages (we won't actually display/write all of them)
-    getLogger().setLevel(capture_level)
-    getLogger(PKG_NAME).setLevel(capture_level)
-    getLogger("httpx").setLevel(capture_level)
-
-    if removed_root_handlers:
-        getLogger(PKG_NAME).warning(
-            "Inspect removed pre-existing root logger handlers and replaced them with its own handler."
+    # init logging handler on demand
+    global _logHandler
+    if not _logHandler:
+        _logHandler = LogHandler(
+            capture_levelno=capture_level,
+            display_levelno=levelno,
+            transcript_levelno=transcript_levelno,
         )
 
-    # set the levelno on the global handler
-    _logHandler.display_level = levelno
+        # set the log level for our package
+        getLogger(PKG_NAME).setLevel(capture_level)
+
+        # add our logger to the global handlers
+        getLogger().addHandler(_logHandler)
 
 
 _logHandler: LogHandler | None = None
-
-
-def remove_non_pytest_root_logger_handlers() -> bool:
-    root_logger = getLogger()
-    non_pytest_handlers = [
-        handler
-        for handler in root_logger.handlers
-        if handler.__module__ != "_pytest.logging"
-    ]
-    for handler in non_pytest_handlers:
-        root_logger.removeHandler(handler)
-    return len(non_pytest_handlers) > 0
 
 
 def log_to_transcript(record: LogRecord) -> None:
