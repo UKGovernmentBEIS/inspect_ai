@@ -26,6 +26,7 @@ from google.genai.types import (  # type: ignore
     GenerationConfig,
     HarmBlockThreshold,
     HarmCategory,
+    HttpOptions,
     Part,
     SafetySetting,
     SafetySettingDict,
@@ -70,6 +71,7 @@ from inspect_ai.model import (
 )
 from inspect_ai.model._model_call import ModelCall
 from inspect_ai.model._providers.util import model_base_url
+from inspect_ai.model._providers.util.hooks import HttpHooks, urllib3_hooks
 from inspect_ai.tool import (
     ToolCall,
     ToolChoice,
@@ -200,11 +202,15 @@ class GoogleGenAIAPI(ModelAPI):
         tool_choice: ToolChoice,
         config: GenerateConfig,
     ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
+        # generate request_id
+        request_id = urllib3_hooks().start_request()
+
         # Create google-genai types.
         gemini_contents = await as_chat_messages(self.client, input)
         gemini_tools = chat_tools(tools) if len(tools) > 0 else None
         gemini_tool_config = chat_tool_config(tool_choice) if len(tools) > 0 else None
         parameters = GenerateContentConfig(
+            http_options=HttpOptions(headers={HttpHooks.REQUEST_ID_HEADER: request_id}),
             temperature=config.temperature,
             top_p=config.top_p,
             top_k=config.top_k,
@@ -231,6 +237,7 @@ class GoogleGenAIAPI(ModelAPI):
                 tools=gemini_tools,
                 tool_config=gemini_tool_config,
                 response=response,
+                time=urllib3_hooks().end_request(request_id),
             )
 
         try:
@@ -308,6 +315,7 @@ def build_model_call(
     tools: list[Tool] | None,
     tool_config: ToolConfig | None,
     response: GenerateContentResponse | None,
+    time: float | None,
 ) -> ModelCall:
     return ModelCall.create(
         request=dict(
@@ -319,6 +327,7 @@ def build_model_call(
         ),
         response=response if response is not None else {},
         filter=model_call_filter,
+        time=time,
     )
 
 

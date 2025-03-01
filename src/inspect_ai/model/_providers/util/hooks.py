@@ -1,7 +1,7 @@
 import re
 import time
 from logging import getLogger
-from typing import Any, NamedTuple, cast
+from typing import Any, Mapping, NamedTuple, cast
 
 import httpx
 from shortuuid import uuid
@@ -18,6 +18,8 @@ class RequestInfo(NamedTuple):
 
 
 class HttpHooks:
+    REQUEST_ID_HEADER = "x-irid"
+
     def __init__(self) -> None:
         # track request start times
         self._requests: dict[str, RequestInfo] = {}
@@ -104,8 +106,6 @@ class HttpxHooks(HttpHooks):
     the dict doesn't grow unbounded)
     """
 
-    REQUEST_ID_HEADER = "x-irid"
-
     def __init__(self, client: httpx.AsyncClient):
         super().__init__()
 
@@ -124,3 +124,45 @@ class HttpxHooks(HttpHooks):
     async def response_hook(self, response: httpx.Response) -> None:
         message = f'HTTP Request: {response.request.method} {response.request.url} "{response.http_version} {response.status_code} {response.reason_phrase}" '
         logger.log(HTTP, message)
+
+
+_urlilb3_hooks: HttpHooks | None = None
+
+
+def urllib3_hooks() -> HttpHooks:
+    import urllib3
+    from urllib3.connectionpool import HTTPConnectionPool
+    from urllib3.response import BaseHTTPResponse
+
+    class Urllib3Hooks(HttpHooks):
+        def request_hook(self, headers: Mapping[str, str]) -> None:
+            # update the last request time for this request id (as there could be retries)
+            request_id = headers.get(self.REQUEST_ID_HEADER, None)
+            if request_id:
+                self.update_request_time(request_id)
+
+        def response_hook(self, response: BaseHTTPResponse) -> None:
+            message = f'HTTP Request: POST {response.url} "{response.version_string} {response.status} {response.reason}" '
+            logger.log(HTTP, message)
+
+    global _urlilb3_hooks
+    if _urlilb3_hooks is None:
+        # one time patch of urlopen
+        urlilb3_hooks = Urllib3Hooks()
+        original_urlopen = urllib3.connectionpool.HTTPConnectionPool.urlopen
+
+        def patched_urlopen(
+            self: HTTPConnectionPool, **kwargs: Any
+        ) -> BaseHTTPResponse:
+            headers = kwargs.get("headers", {})
+            urlilb3_hooks.request_hook(headers)
+            response = original_urlopen(self, **kwargs)
+            urlilb3_hooks.response_hook(response)
+            return response
+
+        urllib3.connectionpool.HTTPConnectionPool.urlopen = patched_urlopen  # type: ignore[assignment,method-assign]
+
+        # assign to global hooks instance
+        _urlilb3_hooks = urlilb3_hooks
+
+    return _urlilb3_hooks
