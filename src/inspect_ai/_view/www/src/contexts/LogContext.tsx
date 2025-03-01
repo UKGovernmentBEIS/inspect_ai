@@ -468,9 +468,13 @@ const mergeSampleSummaries = (
   );
 
   // Filter out any pending samples that already exist in the log
-  const uniquePendingSamples = pendingSamples.filter(
-    (sample) => !existingSampleIds.has(`${sample.id}-${sample.epoch}`),
-  );
+  const uniquePendingSamples = pendingSamples
+    .filter((sample) => !existingSampleIds.has(`${sample.id}-${sample.epoch}`))
+    .map((sample) => {
+      // Always mark pending items as incomplete to be sure we trigger polling
+      sample.completed = false;
+      return sample;
+    });
 
   // Combine and return all samples
   return [...logSamples, ...uniquePendingSamples];

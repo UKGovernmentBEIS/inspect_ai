@@ -29393,9 +29393,10 @@ categories: ${categories.join(" ")}`;
       const existingSampleIds = new Set(
         logSamples.map((sample2) => `${sample2.id}-${sample2.epoch}`)
       );
-      const uniquePendingSamples = pendingSamples.filter(
-        (sample2) => !existingSampleIds.has(`${sample2.id}-${sample2.epoch}`)
-      );
+      const uniquePendingSamples = pendingSamples.filter((sample2) => !existingSampleIds.has(`${sample2.id}-${sample2.epoch}`)).map((sample2) => {
+        sample2.completed = false;
+        return sample2;
+      });
       return [...logSamples, ...uniquePendingSamples];
     };
     const container$9 = "_container_15b4r_1";
