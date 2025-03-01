@@ -77896,133 +77896,104 @@ ${events}
         }, 1250);
       }
     };
-    const useResolvedTabs = ({
-      evalVersion,
-      evalStatus,
-      sampleMode,
-      samples,
-      selectedSample,
-      sampleStatus,
-      sampleError,
-      showingSampleDialog,
-      setShowingSampleDialog,
-      runningSampleData,
-      selectedSampleTab,
-      setSelectedSampleTab,
-      sampleScrollPositionRef,
-      setSampleScrollPosition,
-      evalSpec,
-      evalPlan,
-      evalResults,
-      evalStats,
-      evalError,
-      logFileName,
-      selectedTab,
-      refreshLog
-    }) => {
-      const sampleTabScrollRef = reactExports.useRef(null);
+    const useSamplesTabConfig = (sampleMode, samples, selectedSample, sampleStatus, sampleError, evalStatus, showingSampleDialog, setShowingSampleDialog, runningSampleData, selectedSampleTab, setSelectedSampleTab, sampleScrollPositionRef, setSampleScrollPosition, refreshLog, sampleTabScrollRef) => {
       const appContext = useAppContext();
       const logContext = useLogContext();
-      const samplesTab = sampleMode !== "none" ? {
-        id: kEvalWorkspaceTabId,
-        scrollable: (samples == null ? void 0 : samples.length) === 1,
-        scrollRef: sampleTabScrollRef,
-        label: (samples || []).length > 1 ? "Samples" : "Sample",
-        content: () => /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
-          SamplesTab,
-          {
-            sample: selectedSample,
-            runningSampleData,
-            sampleStatus,
-            sampleError,
-            running: evalStatus === "started",
-            showingSampleDialog,
-            setShowingSampleDialog,
-            samples,
-            sampleMode,
-            selectedSampleTab,
-            setSelectedSampleTab,
-            sampleScrollPositionRef,
-            setSampleScrollPosition,
-            sampleTabScrollRef
-          },
-          void 0,
-          false,
-          {
-            fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/WorkSpace.tsx",
-            lineNumber: 175,
-            columnNumber: 13
-          },
-          void 0
-        ),
-        tools: () => sampleMode === "single" || !logContext.samplesDescriptor ? void 0 : [
-          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(SampleTools, { samples: samples || [] }, "sample-tools", false, {
-            fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/WorkSpace.tsx",
-            lineNumber: 196,
-            columnNumber: 19
-          }, void 0),
-          evalStatus === "started" && !appContext.capabilities.streamSamples && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
-            ToolButton,
+      return reactExports.useMemo(() => {
+        if (sampleMode === "none") {
+          return null;
+        }
+        return {
+          id: kEvalWorkspaceTabId,
+          scrollable: (samples == null ? void 0 : samples.length) === 1,
+          scrollRef: sampleTabScrollRef,
+          label: (samples || []).length > 1 ? "Samples" : "Sample",
+          content: () => /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+            SamplesTab,
             {
-              label: "Refresh",
-              icon: ApplicationIcons.refresh,
-              onClick: refreshLog
+              sample: selectedSample,
+              runningSampleData,
+              sampleStatus,
+              sampleError,
+              running: evalStatus === "started",
+              showingSampleDialog,
+              setShowingSampleDialog,
+              samples,
+              sampleMode,
+              selectedSampleTab,
+              setSelectedSampleTab,
+              sampleScrollPositionRef,
+              setSampleScrollPosition,
+              sampleTabScrollRef
             },
-            "refresh",
+            void 0,
             false,
             {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/WorkSpace.tsx",
-              lineNumber: 199,
-              columnNumber: 23
+              lineNumber: 172,
+              columnNumber: 9
             },
             void 0
-          )
-        ].filter(Boolean)
-      } : null;
-      const configTab = {
-        id: kInfoWorkspaceTabId,
-        label: "Info",
-        scrollable: true,
-        content: () => /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
-          InfoTab,
-          {
-            evalSpec,
-            evalPlan,
-            evalError,
-            evalResults,
-            evalStats,
-            samples
-          },
-          void 0,
-          false,
-          {
-            fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/WorkSpace.tsx",
-            lineNumber: 215,
-            columnNumber: 7
-          },
-          void 0
-        )
-      };
-      const jsonTab2 = {
-        id: kJsonWorkspaceTabId,
-        label: "JSON",
-        scrollable: true,
-        content: () => {
-          const evalHeader = {
-            version: evalVersion,
-            status: evalStatus,
-            eval: evalSpec,
-            plan: evalPlan,
-            error: evalError,
-            results: evalResults,
-            stats: evalStats
-          };
-          return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
-            JsonTab,
+          ),
+          tools: () => sampleMode === "single" || !logContext.samplesDescriptor ? void 0 : [
+            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(SampleTools, { samples: samples || [] }, "sample-tools", false, {
+              fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/WorkSpace.tsx",
+              lineNumber: 193,
+              columnNumber: 15
+            }, void 0),
+            evalStatus === "started" && !appContext.capabilities.streamSamples && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+              ToolButton,
+              {
+                label: "Refresh",
+                icon: ApplicationIcons.refresh,
+                onClick: refreshLog
+              },
+              "refresh",
+              false,
+              {
+                fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/WorkSpace.tsx",
+                lineNumber: 196,
+                columnNumber: 19
+              },
+              void 0
+            )
+          ].filter(Boolean)
+        };
+      }, [
+        sampleMode,
+        samples,
+        selectedSample,
+        sampleStatus,
+        sampleError,
+        evalStatus,
+        showingSampleDialog,
+        setShowingSampleDialog,
+        runningSampleData,
+        selectedSampleTab,
+        setSelectedSampleTab,
+        sampleScrollPositionRef,
+        setSampleScrollPosition,
+        refreshLog,
+        sampleTabScrollRef,
+        appContext.capabilities.streamSamples,
+        logContext.samplesDescriptor
+      ]);
+    };
+    const useInfoTabConfig = (evalSpec, evalPlan, evalError, evalResults, evalStats, samples) => {
+      return reactExports.useMemo(() => {
+        return {
+          id: kInfoWorkspaceTabId,
+          label: "Info",
+          scrollable: true,
+          content: () => /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+            InfoTab,
             {
-              logFile: logFileName,
-              json: JSON.stringify(evalHeader, null, 2),
-              selected: selectedTab === kJsonWorkspaceTabId
+              evalSpec,
+              evalPlan,
+              evalError,
+              evalResults,
+              evalStats,
+              samples
             },
             void 0,
             false,
@@ -78032,36 +78003,145 @@ ${events}
               columnNumber: 9
             },
             void 0
-          );
-        },
-        tools: () => [
-          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
-            ToolButton,
-            {
-              label: "Copy JSON",
-              icon: ApplicationIcons.copy,
-              className: clsx("task-btn-json-copy", "clipboard-button"),
-              "data-clipboard-target": "#task-json-contents",
-              onClick: copyFeedback
-            },
-            "copy-json",
-            false,
-            {
-              fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/WorkSpace.tsx",
-              lineNumber: 249,
-              columnNumber: 7
-            },
-            void 0
           )
-        ]
-      };
+        };
+      }, [evalSpec, evalPlan, evalError, evalResults, evalStats, samples]);
+    };
+    const useJsonTabConfig = (logFileName, evalVersion, evalStatus, evalSpec, evalPlan, evalError, evalResults, evalStats, selectedTab) => {
+      return reactExports.useMemo(() => {
+        return {
+          id: kJsonWorkspaceTabId,
+          label: "JSON",
+          scrollable: true,
+          content: () => {
+            const evalHeader = {
+              version: evalVersion,
+              status: evalStatus,
+              eval: evalSpec,
+              plan: evalPlan,
+              error: evalError,
+              results: evalResults,
+              stats: evalStats
+            };
+            return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+              JsonTab,
+              {
+                logFile: logFileName,
+                json: JSON.stringify(evalHeader, null, 2),
+                selected: selectedTab === kJsonWorkspaceTabId
+              },
+              void 0,
+              false,
+              {
+                fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/WorkSpace.tsx",
+                lineNumber: 282,
+                columnNumber: 11
+              },
+              void 0
+            );
+          },
+          tools: () => [
+            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+              ToolButton,
+              {
+                label: "Copy JSON",
+                icon: ApplicationIcons.copy,
+                className: clsx("task-btn-json-copy", "clipboard-button"),
+                "data-clipboard-target": "#task-json-contents",
+                onClick: copyFeedback
+              },
+              "copy-json",
+              false,
+              {
+                fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/WorkSpace.tsx",
+                lineNumber: 290,
+                columnNumber: 9
+              },
+              void 0
+            )
+          ]
+        };
+      }, [
+        logFileName,
+        evalVersion,
+        evalStatus,
+        evalSpec,
+        evalPlan,
+        evalError,
+        evalResults,
+        evalStats,
+        selectedTab
+      ]);
+    };
+    const useResolvedTabs = (props) => {
+      const {
+        evalVersion,
+        evalStatus,
+        sampleMode,
+        samples,
+        selectedSample,
+        sampleStatus,
+        sampleError,
+        showingSampleDialog,
+        setShowingSampleDialog,
+        runningSampleData,
+        selectedSampleTab,
+        setSelectedSampleTab,
+        sampleScrollPositionRef,
+        setSampleScrollPosition,
+        evalSpec,
+        evalPlan,
+        evalResults,
+        evalStats,
+        evalError,
+        logFileName,
+        selectedTab,
+        refreshLog
+      } = props;
+      const sampleTabScrollRef = reactExports.useRef(null);
+      const samplesTabConfig = useSamplesTabConfig(
+        sampleMode,
+        samples,
+        selectedSample,
+        sampleStatus,
+        sampleError,
+        evalStatus,
+        showingSampleDialog,
+        setShowingSampleDialog,
+        runningSampleData,
+        selectedSampleTab,
+        setSelectedSampleTab,
+        sampleScrollPositionRef,
+        setSampleScrollPosition,
+        refreshLog,
+        sampleTabScrollRef
+      );
+      const configTabConfig = useInfoTabConfig(
+        evalSpec,
+        evalPlan,
+        evalError,
+        evalResults,
+        evalStats,
+        samples
+      );
+      const jsonTabConfig = useJsonTabConfig(
+        logFileName,
+        evalVersion,
+        evalStatus,
+        evalSpec,
+        evalPlan,
+        evalError,
+        evalResults,
+        evalStats,
+        selectedTab
+      );
       return reactExports.useMemo(
         () => ({
-          ...samplesTab ? { samples: samplesTab } : {},
-          config: configTab,
-          json: jsonTab2
+          ...samplesTabConfig ? { samples: samplesTabConfig } : {},
+          config: configTabConfig,
+          json: jsonTabConfig
         }),
-        [samplesTab, configTab, jsonTab2]
+        [samplesTabConfig, configTabConfig, jsonTabConfig]
       );
     };
     var clipboard = { exports: {} };
