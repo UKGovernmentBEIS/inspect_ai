@@ -164,7 +164,11 @@ export const SamplesTab: FC<SamplesTabProps> = ({
       : "";
 
   if (!logContext.samplesDescriptor) {
-    return <EmptyPanel />;
+    return (
+      <EmptyPanel>
+        <div>No samples</div>
+      </EmptyPanel>
+    );
   } else {
     return (
       <Fragment>

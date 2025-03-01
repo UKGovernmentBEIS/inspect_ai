@@ -64045,7 +64045,7 @@ ${events}
       }, [previousSampleIndex, sampleStatus, logContext.dispatch]);
       const title2 = logContext.state.selectedSampleIndex > -1 && sampleItems.length > logContext.state.selectedSampleIndex ? sampleItems[logContext.state.selectedSampleIndex].label : "";
       if (!logContext.samplesDescriptor) {
-        return /* @__PURE__ */ jsxRuntimeExports.jsx(EmptyPanel, {});
+        return /* @__PURE__ */ jsxRuntimeExports.jsx(EmptyPanel, { children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: "No samples" }) });
       } else {
         return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
           logContext.samplesDescriptor && sampleMode === "single" ? /* @__PURE__ */ jsxRuntimeExports.jsx(
