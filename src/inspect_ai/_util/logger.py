@@ -2,6 +2,7 @@ import atexit
 import os
 from logging import (
     INFO,
+    WARNING,
     FileHandler,
     Formatter,
     Logger,
@@ -151,9 +152,16 @@ def init_logger(log_level: str | None, log_level_transcript: str | None = None) 
 
         # set the log level for our package
         getLogger(PKG_NAME).setLevel(capture_level)
+        getLogger(PKG_NAME).addHandler(_logHandler)
+        getLogger(PKG_NAME).propagate = False
 
         # add our logger to the global handlers
         getLogger().addHandler(_logHandler)
+
+        # httpx currently logs all requests at the INFO level
+        # this is a bit aggressive and we already do this at
+        # our own HTTP level
+        getLogger("httpx").setLevel(WARNING)
 
 
 _logHandler: LogHandler | None = None
