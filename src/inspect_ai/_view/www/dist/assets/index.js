@@ -66547,6 +66547,60 @@ ${events}
         }
       };
     };
+    const createPolling = (name2, callback, options2) => {
+      const log2 = createLogger(`Polling ${name2}`);
+      const { maxRetries, interval } = options2;
+      let timeoutId = null;
+      let retryCount = 0;
+      let isPolling = false;
+      const calculateBackoff = (retryCount2) => {
+        return Math.min(interval * Math.pow(2, retryCount2) * 1e3, 6e4);
+      };
+      const stop = () => {
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+          timeoutId = null;
+        }
+        log2.debug("Stop Polling");
+        isPolling = false;
+      };
+      const poll = async () => {
+        if (!isPolling) {
+          return;
+        }
+        try {
+          log2.debug("Poll");
+          const shouldContinue = await callback();
+          if (shouldContinue === false) {
+            stop();
+            return;
+          }
+          retryCount = 0;
+          timeoutId = setTimeout(poll, interval * 1e3);
+        } catch (e) {
+          retryCount += 1;
+          if (retryCount >= maxRetries) {
+            log2.error(`Polling stopped after ${maxRetries} failed attempts`);
+            stop();
+            return;
+          }
+          const backoffTime = calculateBackoff(retryCount);
+          log2.debug(
+            `Retry ${retryCount}/${maxRetries}, backoff: ${backoffTime / 1e3}s`
+          );
+          timeoutId = setTimeout(poll, backoffTime);
+        }
+      };
+      const start = () => {
+        if (isPolling) {
+          return;
+        }
+        log2.debug("Start Polling");
+        isPolling = true;
+        poll();
+      };
+      return { start, stop };
+    };
     const sampleReducer = (state, action) => {
       switch (action.type) {
         case "SET_SELECTED_SAMPLE":
@@ -66596,8 +66650,7 @@ ${events}
         sampleReducer,
         (initialState2 == null ? void 0 : initialState2.sample) || initialSampleState
       );
-      const samplePollingRef = reactExports.useRef(null);
-      const samplePollInterval = 2;
+      const pollingRef = reactExports.useRef(null);
       const logContext = useLogContext();
       const migrateOldSample = (sample2) => {
         if (sample2.transcript) {
@@ -66613,75 +66666,60 @@ ${events}
       };
       const pollForSampleData = reactExports.useCallback(
         (logFile, summary2) => {
-          if (samplePollingRef.current) {
-            clearTimeout(samplePollingRef.current);
-            samplePollingRef.current = null;
+          if (pollingRef.current) {
+            pollingRef.current.stop();
           }
-          const pollingState = {
-            retryCount: 0,
-            maxRetries: 10
-          };
-          const poll = async () => {
+          const pollCallback = async () => {
             if (!api2.get_log_sample_data) {
-              return;
+              return false;
             }
-            try {
-              log2.debug(`GET RUNNING SAMPLE: ${summary2.id}-${summary2.epoch}`);
-              const sampleDataResponse = await api2.get_log_sample_data(
-                logFile,
-                summary2.id,
-                summary2.epoch
-              );
-              if ((sampleDataResponse == null ? void 0 : sampleDataResponse.status) === "OK" && sampleDataResponse.sampleData) {
-                pollingState.retryCount = 0;
-                const adapter = sampleDataAdapter();
-                adapter.addData(sampleDataResponse.sampleData);
-                const runningData = { events: adapter.resolvedEvents(), summary: summary2 };
-                dispatch({ type: "SET_RUNNING_SAMPLE_DATA", payload: runningData });
-              } else if ((sampleDataResponse == null ? void 0 : sampleDataResponse.status) === "NotFound") {
-                if (samplePollingRef.current) {
-                  clearTimeout(samplePollingRef.current);
-                  samplePollingRef.current = null;
-                }
-                return;
-              }
-              samplePollingRef.current = setTimeout(
-                poll,
-                samplePollInterval * 1e3
-              );
-            } catch (e) {
-              pollingState.retryCount += 1;
-              if (pollingState.retryCount >= pollingState.maxRetries) {
-                log2.error(
-                  `Giving up after ${pollingState.maxRetries} failed attempts to poll sample data`
-                );
-                if (samplePollingRef.current) {
-                  clearTimeout(samplePollingRef.current);
-                  samplePollingRef.current = null;
-                }
-                return;
-              }
-              const backoffTime = Math.min(
-                samplePollInterval * Math.pow(2, pollingState.retryCount) * 1e3,
-                6e4
-              );
-              log2.debug(
-                `Retry ${pollingState.retryCount}/${pollingState.maxRetries}, backoff time: ${backoffTime / 1e3}s`
-              );
-              console.error("Error polling sample data:", e);
-              samplePollingRef.current = setTimeout(poll, backoffTime);
+            log2.debug(`GET RUNNING SAMPLE: ${summary2.id}-${summary2.epoch}`);
+            const sampleDataResponse = await api2.get_log_sample_data(
+              logFile,
+              summary2.id,
+              summary2.epoch
+            );
+            if ((sampleDataResponse == null ? void 0 : sampleDataResponse.status) === "NotFound") {
+              return false;
             }
+            if ((sampleDataResponse == null ? void 0 : sampleDataResponse.status) === "OK" && sampleDataResponse.sampleData) {
+              const adapter = sampleDataAdapter();
+              adapter.addData(sampleDataResponse.sampleData);
+              const runningData = { events: adapter.resolvedEvents(), summary: summary2 };
+              dispatch({ type: "SET_RUNNING_SAMPLE_DATA", payload: runningData });
+            }
+            return true;
           };
-          poll();
+          const name2 = `${logFile}:${summary2.id}-${summary2.epoch}`;
+          pollingRef.current = createPolling(name2, pollCallback, {
+            maxRetries: 10,
+            interval: 2
+          });
+          pollingRef.current.start();
         },
-        [
-          api2.get_log_sample_data,
-          dispatch,
-          log2,
-          sampleDataAdapter,
-          samplePollInterval
-        ]
+        [api2.get_log_sample_data, dispatch, log2]
       );
+      reactExports.useEffect(() => {
+        return () => {
+          if (pollingRef.current) {
+            pollingRef.current.stop();
+          }
+        };
+      }, []);
+      reactExports.useEffect(() => {
+        return () => {
+          if (pollingRef.current) {
+            pollingRef.current.stop();
+          }
+        };
+      }, [logContext.selectedLogFile]);
+      reactExports.useEffect(() => {
+        return () => {
+          if (pollingRef.current) {
+            pollingRef.current.stop();
+          }
+        };
+      }, [logContext.state.selectedSampleIndex]);
       const loadSample = reactExports.useCallback(
         async (summary2) => {
           if (!logContext.selectedLogFile) {
@@ -66689,7 +66727,7 @@ ${events}
           }
           dispatch({ type: "SET_LOADING", payload: true });
           try {
-            if (summary2.completed !== false && !samplePollingRef.current) {
+            if (summary2.completed !== false) {
               log2.debug(`LOADING COMPLETED SAMPLE: ${summary2.id}-${summary2.epoch}`);
               const sample2 = await api2.get_log_sample(
                 logContext.selectedLogFile,
@@ -66715,14 +66753,6 @@ ${events}
         },
         [logContext.selectedLogFile, pollForSampleData]
       );
-      reactExports.useEffect(() => {
-        return () => {
-          if (samplePollingRef.current) {
-            clearTimeout(samplePollingRef.current);
-            samplePollingRef.current = null;
-          }
-        };
-      }, [logContext.state.selectedSampleIndex]);
       reactExports.useEffect(() => {
         if (!logContext.selectedLogFile || logContext.state.selectedSampleIndex === -1) {
           dispatch({ type: "SET_SELECTED_SAMPLE", payload: void 0 });
