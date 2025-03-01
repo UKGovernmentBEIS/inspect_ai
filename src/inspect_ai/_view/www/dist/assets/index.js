@@ -38338,6 +38338,21 @@ categories: ${categories.join(" ")}`;
           const logContents = await api2.get_log_summary(logFileName);
           dispatch({ type: "SET_SELECTED_LOG_SUMMARY", payload: logContents });
           dispatch({ type: "RESET_FILTERING" });
+          const header2 = {
+            [logFileName]: {
+              version: logContents.version,
+              status: logContents.status,
+              eval: logContents.eval,
+              plan: logContents.plan,
+              results: logContents.results !== null ? logContents.results : void 0,
+              stats: logContents.stats,
+              error: logContents.error !== null ? logContents.error : void 0
+            }
+          };
+          logsContext.dispatch({
+            type: "UPDATE_LOG_HEADERS",
+            payload: header2
+          });
         },
         [api2, dispatch, log]
       );
@@ -38580,7 +38595,7 @@ categories: ${categories.join(" ")}`;
         false,
         {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/contexts/LogContext.tsx",
-          lineNumber: 429,
+          lineNumber: 448,
           columnNumber: 5
         },
         void 0

@@ -11,6 +11,7 @@ import {
 } from "react";
 import {
   ClientAPI,
+  EvalLogHeader,
   EvalSummary,
   PendingSamples,
   SampleSummary,
@@ -144,6 +145,24 @@ export const LogProvider: FC<LogProviderProps> = ({
       const logContents = await api.get_log_summary(logFileName);
       dispatch({ type: "SET_SELECTED_LOG_SUMMARY", payload: logContents });
       dispatch({ type: "RESET_FILTERING" });
+
+      // Push the updated header information up
+      const header: Record<string, EvalLogHeader> = {
+        [logFileName]: {
+          version: logContents.version,
+          status: logContents.status,
+          eval: logContents.eval,
+          plan: logContents.plan,
+          results:
+            logContents.results !== null ? logContents.results : undefined,
+          stats: logContents.stats,
+          error: logContents.error !== null ? logContents.error : undefined,
+        },
+      };
+      logsContext.dispatch({
+        type: "UPDATE_LOG_HEADERS",
+        payload: header,
+      });
     },
     [api, dispatch, log],
   );
