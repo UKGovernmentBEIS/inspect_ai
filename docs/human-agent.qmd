@@ -116,14 +116,6 @@ solver=human_agent(answer=r"picoCTF{\w+}")
 
 ### Quitting
 
-::: {.callout-note appearance="simple"}
-The `task quit` command described below is currently available only in the development version of Inspect. To install the development version from GitHub:
-
-``` bash
-pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-```
-:::
-
 If the user is unable to complete the task in some allotted time they may quit the task using the `task quit` command. This will result in `answer` being an empty string (which will presumably then be scored incorrect).
 
 ### Intermediate Scoring
