@@ -8,7 +8,7 @@ from typing import Literal, NewType, TypedDict
 
 from pydantic import BaseModel
 
-from cdp.dom import DOMBackendNodeId
+from web_browser.cdp.dom import DOMBackendNodeId
 
 StringIndex = NewType("StringIndex", int)
 Rectangle = tuple[float, ...]

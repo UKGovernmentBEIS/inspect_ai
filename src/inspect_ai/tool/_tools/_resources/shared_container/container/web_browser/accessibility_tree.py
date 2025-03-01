@@ -1,10 +1,10 @@
 from functools import reduce
 from typing import Iterable, TypedDict
 
-from accessibility_tree_node import AccessibilityTreeNode
-from cdp.a11y import AXNode, AXNodeId
-from cdp.dom_snapshot import DOMSnapshot, create_snapshot_context
-from rectangle import Rectangle
+from web_browser.accessibility_tree_node import AccessibilityTreeNode
+from web_browser.cdp.a11y import AXNode, AXNodeId
+from web_browser.cdp.dom_snapshot import DOMSnapshot, create_snapshot_context
+from web_browser.rectangle import Rectangle
 
 _AccType = tuple[
     AXNode | None,

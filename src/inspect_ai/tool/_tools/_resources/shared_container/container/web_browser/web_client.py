@@ -2,9 +2,9 @@ import argparse
 import sys
 from typing import Literal
 
-from constants import DEFAULT_SESSION_NAME, SERVER_PORT
 from rpc_client_helpers import RPCError, rpc_call
-from web_browser_rpc_types import (
+from web_browser.constants import DEFAULT_SESSION_NAME, SERVER_PORT
+from web_browser.web_browser_rpc_types import (
     ClickArgs,
     CrawlerBaseArgs,
     CrawlerResponse,
@@ -28,12 +28,14 @@ def main() -> None:
 
 def _execute_command(
     command: str,
-    params: NewSessionArgs
-    | GoArgs
-    | ClickArgs
-    | TypeOrSubmitArgs
-    | ScrollArgs
-    | CrawlerBaseArgs,
+    params: (
+        NewSessionArgs
+        | GoArgs
+        | ClickArgs
+        | TypeOrSubmitArgs
+        | ScrollArgs
+        | CrawlerBaseArgs
+    ),
 ) -> None:
     try:
         if command == "new_session":

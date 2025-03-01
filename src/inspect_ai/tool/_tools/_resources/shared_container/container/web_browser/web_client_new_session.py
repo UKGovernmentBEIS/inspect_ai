@@ -1,9 +1,9 @@
 import argparse
 import sys
 
-from constants import SERVER_PORT
 from rpc_client_helpers import RPCError, rpc_call
-from web_browser_rpc_types import NewSessionArgs, NewSessionResponse
+from web_browser.constants import SERVER_PORT
+from web_browser.web_browser_rpc_types import NewSessionArgs, NewSessionResponse
 
 
 def main() -> None:

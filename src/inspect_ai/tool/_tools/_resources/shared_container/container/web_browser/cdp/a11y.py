@@ -8,7 +8,7 @@ from typing import Literal, NewType, Optional
 
 from pydantic import BaseModel
 
-from cdp.dom import DOMBackendNodeId
+from web_browser.cdp.dom import DOMBackendNodeId
 
 # brand these str's so that we don't confuse them with other str's
 PageFrameId = NewType("PageFrameId", str)

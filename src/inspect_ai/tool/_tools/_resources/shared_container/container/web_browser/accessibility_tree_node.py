@@ -1,7 +1,7 @@
 from functools import reduce
 from typing import Optional
 
-from cdp.a11y import (
+from web_browser.cdp.a11y import (
     AXNode,
     AXNodeId,
     AXProperty,
@@ -9,14 +9,14 @@ from cdp.a11y import (
     node_has_property,
     string_from_ax_value,
 )
-from cdp.dom_snapshot import (
+from web_browser.cdp.dom_snapshot import (
     DOMSnapshotContext,
     bounds_for_node_index,
     current_url_src_for_node_index,
     index_for_node_id,
     text_value_for_node_index,
 )
-from rectangle import Rectangle
+from web_browser.rectangle import Rectangle
 
 # Properties to ignore when printing out the accessibility tree.
 _IGNORED_AT_PROPERTIES: set[AXPropertyName] = {
@@ -98,9 +98,11 @@ class AccessibilityTreeNode:
             self._input = (
                 string_from_ax_value(ax_node.value)
                 if ax_node.value
-                else text_value_for_node_index(dom_node_index, snapshot_context)
-                if dom_node_index is not None
-                else None
+                else (
+                    text_value_for_node_index(dom_node_index, snapshot_context)
+                    if dom_node_index is not None
+                    else None
+                )
             )
 
         # this is a little awkward, but the old code ensured that menuitems were visible in given the following condition
@@ -201,9 +203,11 @@ class AccessibilityTreeNode:
             self.__closest_non_ignored_parent = (
                 None
                 if not self._parent
-                else self._parent
-                if not self._parent.is_ignored
-                else self._parent._closest_non_ignored_parent  # pylint: disable=protected-access
+                else (
+                    self._parent
+                    if not self._parent.is_ignored
+                    else self._parent._closest_non_ignored_parent
+                )  # pylint: disable=protected-access
             )
         return self.__closest_non_ignored_parent
 
@@ -260,7 +264,9 @@ class AccessibilityTreeNode:
             (
                 result
                 for child in self.children or []
-                if (result := child._get_main_content_node())  # pylint: disable=protected-access
+                if (
+                    result := child._get_main_content_node()
+                )  # pylint: disable=protected-access
             ),
             None,
         )
@@ -296,9 +302,11 @@ class AccessibilityTreeNode:
 
     def _property_string(self) -> str:
         properties = [
-            _prop_name_value_str(node_property)
-            if node_property.value.value
-            else f"{node_property.name}"
+            (
+                _prop_name_value_str(node_property)
+                if node_property.value.value
+                else f"{node_property.name}"
+            )
             for node_property in self._ax_node.properties or ()
             if node_property.name not in _IGNORED_AT_PROPERTIES
         ]

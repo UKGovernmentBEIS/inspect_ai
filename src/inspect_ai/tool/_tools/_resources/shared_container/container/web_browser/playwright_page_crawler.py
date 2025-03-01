@@ -11,11 +11,11 @@ from typing import Literal
 
 from playwright.async_api import CDPSession, Page
 
-from accessibility_tree import AccessibilityTree, create_accessibility_tree
-from accessibility_tree_node import AccessibilityTreeNode
-from cdp.a11y import AXNodeId, AXTree
-from cdp.dom_snapshot import DOMSnapshot
-from rectangle import Rectangle
+from web_browser.accessibility_tree import AccessibilityTree, create_accessibility_tree
+from web_browser.accessibility_tree_node import AccessibilityTreeNode
+from web_browser.cdp.a11y import AXNodeId, AXTree
+from web_browser.cdp.dom_snapshot import DOMSnapshot
+from web_browser.rectangle import Rectangle
 
 # Number of seconds to wait for possible click induced navigation before proceeding
 _WAIT_FOR_NAVIGATION_TIME = 2.0
