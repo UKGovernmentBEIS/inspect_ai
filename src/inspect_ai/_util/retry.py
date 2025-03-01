@@ -2,16 +2,22 @@ from logging import getLogger
 
 from tenacity import RetryCallState
 
-from inspect_ai._util.constants import HTTP
+from .constants import HTTP
 
 logger = getLogger(__name__)
 
 
-_http_retries = 0
+_http_retries_count: int = 0
 
 
-def report_http_retry(ex: Exception | None = None) -> None:
-    pass
+def trace_http_retry(count: int, ex: Exception | None = None) -> None:
+    # bump counter
+    global _http_retries_count
+    _http_retries_count = _http_retries_count + 1
+
+
+def http_retries_count() -> int:
+    return _http_retries_count
 
 
 def log_rate_limit_retry(context: str, retry_state: RetryCallState) -> None:
