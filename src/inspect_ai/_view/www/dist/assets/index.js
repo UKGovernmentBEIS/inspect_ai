@@ -38571,7 +38571,8 @@ categories: ${categories.join(" ")}`;
             groupByOrder,
             refreshLog,
             loadLog,
-            totalSampleCount
+            totalSampleCount,
+            selectedLogFile: logsContext.selectedLogFile
           },
           children: children2
         },
@@ -38579,7 +38580,7 @@ categories: ${categories.join(" ")}`;
         false,
         {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/contexts/LogContext.tsx",
-          lineNumber: 428,
+          lineNumber: 429,
           columnNumber: 5
         },
         void 0
@@ -78806,7 +78807,6 @@ ${events}
       );
       const samplePollingRef = reactExports.useRef(null);
       const samplePollInterval = 2;
-      const logsContext = useLogsContext();
       const logContext = useLogContext();
       const migrateOldSample = (sample2) => {
         if (sample2.transcript) {
@@ -78893,7 +78893,7 @@ ${events}
       );
       const loadSample = reactExports.useCallback(
         async (summary2) => {
-          if (!logsContext.selectedLogFile) {
+          if (!logContext.selectedLogFile) {
             return;
           }
           dispatch({ type: "SET_LOADING", payload: true });
@@ -78901,7 +78901,7 @@ ${events}
             if (summary2.completed !== false && !samplePollingRef.current) {
               log.debug(`LOADING COMPLETED SAMPLE: ${summary2.id}-${summary2.epoch}`);
               const sample2 = await api2.get_log_sample(
-                logsContext.selectedLogFile,
+                logContext.selectedLogFile,
                 summary2.id,
                 summary2.epoch
               );
@@ -78915,18 +78915,14 @@ ${events}
               }
             } else {
               log.debug(`POLLING RUNNING SAMPLE: ${summary2.id}-${summary2.epoch}`);
-              pollForSampleData(logsContext.selectedLogFile, summary2);
+              pollForSampleData(logContext.selectedLogFile, summary2);
             }
             dispatch({ type: "SET_LOADING", payload: false });
           } catch (e) {
             dispatch({ type: "SET_ERROR", payload: e });
           }
         },
-        [
-          logsContext.selectedLogFile,
-          logsContext.state.selectedLogIndex,
-          pollForSampleData
-        ]
+        [logContext.selectedLogFile, pollForSampleData]
       );
       reactExports.useEffect(() => {
         return () => {
@@ -78937,14 +78933,10 @@ ${events}
         };
       }, [logContext.state.selectedSampleIndex]);
       reactExports.useEffect(() => {
-        if (!logsContext.state.logs.files[logsContext.state.selectedLogIndex] || logContext.state.selectedSampleIndex === -1) {
+        if (!logContext.selectedLogFile || logContext.state.selectedSampleIndex === -1) {
           dispatch({ type: "SET_SELECTED_SAMPLE", payload: void 0 });
         }
-      }, [
-        logContext.state.selectedSampleIndex,
-        logsContext.state.selectedLogIndex,
-        logsContext.state.logs
-      ]);
+      }, [logContext.state.selectedSampleIndex, logContext.selectedLogFile]);
       const selectedSampleSummary = reactExports.useMemo(() => {
         return logContext.sampleSummaries[logContext.state.selectedSampleIndex];
       }, [logContext.state.selectedSampleIndex, logContext.sampleSummaries]);
@@ -78965,7 +78957,7 @@ ${events}
       };
       return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(SampleContext.Provider, { value: contextValue, children: children2 }, void 0, false, {
         fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/contexts/SampleContext.tsx",
-        lineNumber: 310,
+        lineNumber: 300,
         columnNumber: 5
       }, void 0);
     };

@@ -17,7 +17,6 @@ import { EvalSample, Timeout } from "../types/log";
 import { resolveAttachments } from "../utils/attachments";
 import { createLogger } from "../utils/logger";
 import { useLogContext } from "./LogContext";
-import { useLogsContext } from "./LogsContext";
 
 // Define action types
 type SampleAction =
@@ -106,7 +105,6 @@ export const SampleProvider: FC<SampleProviderProps> = ({
   const samplePollInterval = 2;
 
   // Context hooks
-  const logsContext = useLogsContext();
   const logContext = useLogContext();
 
   // Helper function for old sample migration
@@ -216,7 +214,7 @@ export const SampleProvider: FC<SampleProviderProps> = ({
   // Load a specific sample
   const loadSample = useCallback(
     async (summary: SampleSummary) => {
-      if (!logsContext.selectedLogFile) {
+      if (!logContext.selectedLogFile) {
         return;
       }
 
@@ -229,7 +227,7 @@ export const SampleProvider: FC<SampleProviderProps> = ({
         if (summary.completed !== false && !samplePollingRef.current) {
           log.debug(`LOADING COMPLETED SAMPLE: ${summary.id}-${summary.epoch}`);
           const sample = await api.get_log_sample(
-            logsContext.selectedLogFile,
+            logContext.selectedLogFile,
             summary.id,
             summary.epoch,
           );
@@ -243,7 +241,7 @@ export const SampleProvider: FC<SampleProviderProps> = ({
           }
         } else {
           log.debug(`POLLING RUNNING SAMPLE: ${summary.id}-${summary.epoch}`);
-          pollForSampleData(logsContext.selectedLogFile, summary);
+          pollForSampleData(logContext.selectedLogFile, summary);
         }
 
         dispatch({ type: "SET_LOADING", payload: false });
@@ -251,11 +249,7 @@ export const SampleProvider: FC<SampleProviderProps> = ({
         dispatch({ type: "SET_ERROR", payload: e as Error });
       }
     },
-    [
-      logsContext.selectedLogFile,
-      logsContext.state.selectedLogIndex,
-      pollForSampleData,
-    ],
+    [logContext.selectedLogFile, pollForSampleData],
   );
 
   // Clear polling when unmounted or sample index changes
@@ -271,16 +265,12 @@ export const SampleProvider: FC<SampleProviderProps> = ({
   // Clear the selected sample when log file changes
   useEffect(() => {
     if (
-      !logsContext.state.logs.files[logsContext.state.selectedLogIndex] ||
+      !logContext.selectedLogFile ||
       logContext.state.selectedSampleIndex === -1
     ) {
       dispatch({ type: "SET_SELECTED_SAMPLE", payload: undefined });
     }
-  }, [
-    logContext.state.selectedSampleIndex,
-    logsContext.state.selectedLogIndex,
-    logsContext.state.logs,
-  ]);
+  }, [logContext.state.selectedSampleIndex, logContext.selectedLogFile]);
 
   // Load selected sample when index changes
   const selectedSampleSummary = useMemo(() => {

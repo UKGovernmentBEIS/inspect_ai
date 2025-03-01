@@ -105,6 +105,7 @@ export interface LogContextType {
   groupByOrder: "asc" | "desc";
   refreshLog: () => Promise<void>;
   loadLog: (logFile: string) => Promise<void>;
+  selectedLogFile?: string;
 }
 
 const LogContext = createContext<LogContextType | undefined>(undefined);
@@ -439,6 +440,7 @@ export const LogProvider: FC<LogProviderProps> = ({
         refreshLog,
         loadLog,
         totalSampleCount,
+        selectedLogFile: logsContext.selectedLogFile,
       }}
     >
       {children}
