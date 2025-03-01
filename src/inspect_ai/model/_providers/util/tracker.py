@@ -5,7 +5,7 @@ from typing import Any, NamedTuple, cast
 import httpx
 from shortuuid import uuid
 
-from inspect_ai._util.retry import trace_http_retry
+from inspect_ai._util.retry import report_http_retry
 
 
 class RequestInfo(NamedTuple):
@@ -43,7 +43,7 @@ class HttpTimeTracker:
 
         # trace a retry if this is attempt > 1
         if request_info.attempts > 1:
-            trace_http_retry()
+            report_http_retry()
 
 
 class BotoTimeTracker(HttpTimeTracker):

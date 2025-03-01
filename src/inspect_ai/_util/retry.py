@@ -1,27 +1,16 @@
-from logging import getLogger
-
-from tenacity import RetryCallState
-
-from .constants import HTTP
-
-logger = getLogger(__name__)
-
-
 _http_retries_count: int = 0
 
 
-def trace_http_retry(ex: Exception | None = None) -> None:
-    # bump counter
+def report_http_retry() -> None:
+    from inspect_ai.log._samples import report_active_sample_retry
+
+    # bump global counter
     global _http_retries_count
     _http_retries_count = _http_retries_count + 1
+
+    # report sample retry
+    report_active_sample_retry()
 
 
 def http_retries_count() -> int:
     return _http_retries_count
-
-
-def log_rate_limit_retry(context: str, retry_state: RetryCallState) -> None:
-    logger.log(
-        HTTP,
-        f"{context} rate limit retry {retry_state.attempt_number} after waiting for {retry_state.idle_for}",
-    )
