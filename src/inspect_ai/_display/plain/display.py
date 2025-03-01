@@ -22,7 +22,7 @@ from ..core.display import (
     TaskSpec,
     TaskWithResult,
 )
-from ..core.footer import task_http_rate_limits_str
+from ..core.footer import task_http_retries_str
 from ..core.panel import task_panel, task_targets
 from ..core.results import task_metric, tasks_results
 
@@ -182,7 +182,7 @@ class PlainTaskDisplay(TaskDisplay):
             status_parts.append(resources)
 
             # Add rate limits
-            rate_limits = task_http_rate_limits_str()
+            rate_limits = task_http_retries_str()
             if rate_limits:
                 status_parts.append(rate_limits)
 

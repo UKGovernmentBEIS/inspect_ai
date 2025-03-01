@@ -1,6 +1,6 @@
 from inspect_ai._util.dotenv import init_dotenv
 from inspect_ai._util.hooks import init_hooks
-from inspect_ai._util.logger import init_http_rate_limit_count, init_logger
+from inspect_ai._util.logger import init_logger
 from inspect_ai.approval._apply import have_tool_approval, init_tool_approval
 from inspect_ai.approval._human.manager import init_human_approval_manager
 from inspect_ai.approval._policy import ApprovalPolicy
@@ -20,7 +20,6 @@ def init_eval_context(
     init_logger(log_level, log_level_transcript)
     init_concurrency()
     init_max_subprocesses(max_subprocesses)
-    init_http_rate_limit_count()
     init_hooks()
     init_active_samples()
     init_human_approval_manager()

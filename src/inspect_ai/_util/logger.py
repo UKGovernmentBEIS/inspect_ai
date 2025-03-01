@@ -1,6 +1,5 @@
 import atexit
 import os
-import re
 from logging import (
     DEBUG,
     INFO,
@@ -173,7 +172,6 @@ def init_logger(
     getLogger().setLevel(capture_level)
     getLogger(PKG_NAME).setLevel(capture_level)
     getLogger("httpx").setLevel(capture_level)
-    getLogger("botocore").setLevel(DEBUG)
 
     if removed_root_handlers:
         getLogger(PKG_NAME).warning(
@@ -207,27 +205,6 @@ def notify_logger_record(record: LogRecord, write: bool) -> None:
         transcript()._event(
             LoggerEvent(message=LoggingMessage._from_log_record(record))
         )
-    global _rate_limit_count
-    if (record.levelno <= INFO and re.search(r"\b429\b", record.getMessage())) or (
-        record.levelno == DEBUG
-        # See https://boto3.amazonaws.com/v1/documentation/api/latest/guide/retries.html#validating-retry-attempts
-        # for boto retry logic / log messages (this is tracking standard or adapative retries)
-        and "botocore.retries.standard" in record.name
-        and "Retry needed, retrying request after delay of:" in record.getMessage()
-    ):
-        _rate_limit_count = _rate_limit_count + 1
-
-
-_rate_limit_count = 0
-
-
-def init_http_rate_limit_count() -> None:
-    global _rate_limit_count
-    _rate_limit_count = 0
-
-
-def http_rate_limit_count() -> int:
-    return _rate_limit_count
 
 
 def warn_once(logger: Logger, message: str) -> None:
