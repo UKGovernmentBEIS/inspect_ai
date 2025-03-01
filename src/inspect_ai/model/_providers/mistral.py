@@ -127,10 +127,10 @@ class MistralAPI(ModelAPI):
         # create client
         with Mistral(api_key=self.api_key, **self.model_args) as client:
             # create time tracker
-            time_tracker = HttpxHooks(client.sdk_configuration.async_client)
+            http_hooks = HttpxHooks(client.sdk_configuration.async_client)
 
             # build request
-            request_id = time_tracker.start_request()
+            request_id = http_hooks.start_request()
             request: dict[str, Any] = dict(
                 model=self.model_name,
                 messages=await mistral_chat_messages(input),
@@ -163,7 +163,7 @@ class MistralAPI(ModelAPI):
                 return ModelCall.create(
                     request=req,
                     response=response,
-                    time=time_tracker.end_request(request_id),
+                    time=http_hooks.end_request(request_id),
                 )
 
             # send request

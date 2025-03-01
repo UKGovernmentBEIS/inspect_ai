@@ -26,12 +26,12 @@ class HttpHooks:
     several times; our request hook makes sure we always track the time of
     the last request.
 
-    There is an 'end_request()' method which gets the total requeset time
+    There is an 'end_request()' method which gets the total request time
     for a request_id and then purges the request_id from our tracking (so
     the dict doesn't grow unbounded)
 
-    Additionally, an http response hook is installed and used for the
-    HTTP log-level.
+    Additionally, an http response hook is installed and used for logging
+    requests for the 'http' log-level
     """
 
     REQUEST_ID_HEADER = "x-irid"

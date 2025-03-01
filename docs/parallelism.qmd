@@ -52,7 +52,7 @@ inspect eval --model openai/gpt-4 --max-retries 10
 
 Note that model interfaces themselves may have internal retry behavior (for example, the `openai` and `anthropic` packages both retry twice by default).
 
-You can put a limit onthe total time for retries using the `--timeout` option:
+You can put a limit on the total time for retries using the `--timeout` option:
 
 ``` bash
 inspect eval --model openai/gpt-4 --timeout 600 

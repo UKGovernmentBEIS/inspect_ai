@@ -5,7 +5,7 @@ from typing import Any, Literal, Tuple, Union, cast
 from pydantic import BaseModel, Field
 from typing_extensions import override
 
-from inspect_ai._util.constants import DEFAULT_MAX_TOKENS, HTTP
+from inspect_ai._util.constants import DEFAULT_MAX_TOKENS
 from inspect_ai._util.content import Content, ContentImage, ContentText
 from inspect_ai._util.error import pip_dependency_error
 from inspect_ai._util.images import file_as_data
