@@ -65377,130 +65377,210 @@ ${events}
         }, 1250);
       }
     };
-    const useResolvedTabs = ({
-      evalVersion,
-      evalStatus,
-      sampleMode,
-      samples,
-      selectedSample,
-      sampleStatus,
-      sampleError,
-      showingSampleDialog,
-      setShowingSampleDialog,
-      runningSampleData,
-      selectedSampleTab,
-      setSelectedSampleTab,
-      sampleScrollPositionRef,
-      setSampleScrollPosition,
-      evalSpec,
-      evalPlan,
-      evalResults,
-      evalStats,
-      evalError,
-      logFileName,
-      selectedTab,
-      refreshLog
-    }) => {
-      const sampleTabScrollRef = reactExports.useRef(null);
+    const useSamplesTabConfig = (sampleMode, samples, selectedSample, sampleStatus, sampleError, evalStatus, showingSampleDialog, setShowingSampleDialog, runningSampleData, selectedSampleTab, setSelectedSampleTab, sampleScrollPositionRef, setSampleScrollPosition, refreshLog, sampleTabScrollRef) => {
       const appContext = useAppContext();
       const logContext = useLogContext();
-      const samplesTab = sampleMode !== "none" ? {
-        id: kEvalWorkspaceTabId,
-        scrollable: (samples == null ? void 0 : samples.length) === 1,
-        scrollRef: sampleTabScrollRef,
-        label: (samples || []).length > 1 ? "Samples" : "Sample",
-        content: () => /* @__PURE__ */ jsxRuntimeExports.jsx(
-          SamplesTab,
-          {
-            sample: selectedSample,
-            runningSampleData,
-            sampleStatus,
-            sampleError,
-            running: evalStatus === "started",
-            showingSampleDialog,
-            setShowingSampleDialog,
-            samples,
-            sampleMode,
-            selectedSampleTab,
-            setSelectedSampleTab,
-            sampleScrollPositionRef,
-            setSampleScrollPosition,
-            sampleTabScrollRef
-          }
-        ),
-        tools: () => sampleMode === "single" || !logContext.samplesDescriptor ? void 0 : [
-          /* @__PURE__ */ jsxRuntimeExports.jsx(SampleTools, { samples: samples || [] }, "sample-tools"),
-          evalStatus === "started" && !appContext.capabilities.streamSamples && /* @__PURE__ */ jsxRuntimeExports.jsx(
-            ToolButton,
+      return reactExports.useMemo(() => {
+        if (sampleMode === "none") {
+          return null;
+        }
+        return {
+          id: kEvalWorkspaceTabId,
+          scrollable: (samples == null ? void 0 : samples.length) === 1,
+          scrollRef: sampleTabScrollRef,
+          label: (samples || []).length > 1 ? "Samples" : "Sample",
+          content: () => /* @__PURE__ */ jsxRuntimeExports.jsx(
+            SamplesTab,
             {
-              label: "Refresh",
-              icon: ApplicationIcons.refresh,
-              onClick: refreshLog
-            },
-            "refresh"
-          )
-        ].filter(Boolean)
-      } : null;
-      const configTab = {
-        id: kInfoWorkspaceTabId,
-        label: "Info",
-        scrollable: true,
-        content: () => /* @__PURE__ */ jsxRuntimeExports.jsx(
-          InfoTab,
-          {
-            evalSpec,
-            evalPlan,
-            evalError,
-            evalResults,
-            evalStats,
-            samples
-          }
-        )
-      };
-      const jsonTab2 = {
-        id: kJsonWorkspaceTabId,
-        label: "JSON",
-        scrollable: true,
-        content: () => {
-          const evalHeader = {
-            version: evalVersion,
-            status: evalStatus,
-            eval: evalSpec,
-            plan: evalPlan,
-            error: evalError,
-            results: evalResults,
-            stats: evalStats
-          };
-          return /* @__PURE__ */ jsxRuntimeExports.jsx(
-            JsonTab,
-            {
-              logFile: logFileName,
-              json: JSON.stringify(evalHeader, null, 2),
-              selected: selectedTab === kJsonWorkspaceTabId
+              sample: selectedSample,
+              runningSampleData,
+              sampleStatus,
+              sampleError,
+              running: evalStatus === "started",
+              showingSampleDialog,
+              setShowingSampleDialog,
+              samples,
+              sampleMode,
+              selectedSampleTab,
+              setSelectedSampleTab,
+              sampleScrollPositionRef,
+              setSampleScrollPosition,
+              sampleTabScrollRef
             }
-          );
-        },
-        tools: () => [
-          /* @__PURE__ */ jsxRuntimeExports.jsx(
-            ToolButton,
+          ),
+          tools: () => sampleMode === "single" || !logContext.samplesDescriptor ? void 0 : [
+            /* @__PURE__ */ jsxRuntimeExports.jsx(SampleTools, { samples: samples || [] }, "sample-tools"),
+            evalStatus === "started" && !appContext.capabilities.streamSamples && /* @__PURE__ */ jsxRuntimeExports.jsx(
+              ToolButton,
+              {
+                label: "Refresh",
+                icon: ApplicationIcons.refresh,
+                onClick: refreshLog
+              },
+              "refresh"
+            )
+          ].filter(Boolean)
+        };
+      }, [
+        sampleMode,
+        samples,
+        selectedSample,
+        sampleStatus,
+        sampleError,
+        evalStatus,
+        showingSampleDialog,
+        setShowingSampleDialog,
+        runningSampleData,
+        selectedSampleTab,
+        setSelectedSampleTab,
+        sampleScrollPositionRef,
+        setSampleScrollPosition,
+        refreshLog,
+        sampleTabScrollRef,
+        appContext.capabilities.streamSamples,
+        logContext.samplesDescriptor
+      ]);
+    };
+    const useInfoTabConfig = (evalSpec, evalPlan, evalError, evalResults, evalStats, samples) => {
+      return reactExports.useMemo(() => {
+        return {
+          id: kInfoWorkspaceTabId,
+          label: "Info",
+          scrollable: true,
+          content: () => /* @__PURE__ */ jsxRuntimeExports.jsx(
+            InfoTab,
             {
-              label: "Copy JSON",
-              icon: ApplicationIcons.copy,
-              className: clsx("task-btn-json-copy", "clipboard-button"),
-              "data-clipboard-target": "#task-json-contents",
-              onClick: copyFeedback
-            },
-            "copy-json"
+              evalSpec,
+              evalPlan,
+              evalError,
+              evalResults,
+              evalStats,
+              samples
+            }
           )
-        ]
-      };
+        };
+      }, [evalSpec, evalPlan, evalError, evalResults, evalStats, samples]);
+    };
+    const useJsonTabConfig = (logFileName, evalVersion, evalStatus, evalSpec, evalPlan, evalError, evalResults, evalStats, selectedTab) => {
+      return reactExports.useMemo(() => {
+        return {
+          id: kJsonWorkspaceTabId,
+          label: "JSON",
+          scrollable: true,
+          content: () => {
+            const evalHeader = {
+              version: evalVersion,
+              status: evalStatus,
+              eval: evalSpec,
+              plan: evalPlan,
+              error: evalError,
+              results: evalResults,
+              stats: evalStats
+            };
+            return /* @__PURE__ */ jsxRuntimeExports.jsx(
+              JsonTab,
+              {
+                logFile: logFileName,
+                json: JSON.stringify(evalHeader, null, 2),
+                selected: selectedTab === kJsonWorkspaceTabId
+              }
+            );
+          },
+          tools: () => [
+            /* @__PURE__ */ jsxRuntimeExports.jsx(
+              ToolButton,
+              {
+                label: "Copy JSON",
+                icon: ApplicationIcons.copy,
+                className: clsx("task-btn-json-copy", "clipboard-button"),
+                "data-clipboard-target": "#task-json-contents",
+                onClick: copyFeedback
+              },
+              "copy-json"
+            )
+          ]
+        };
+      }, [
+        logFileName,
+        evalVersion,
+        evalStatus,
+        evalSpec,
+        evalPlan,
+        evalError,
+        evalResults,
+        evalStats,
+        selectedTab
+      ]);
+    };
+    const useResolvedTabs = (props) => {
+      const {
+        evalVersion,
+        evalStatus,
+        sampleMode,
+        samples,
+        selectedSample,
+        sampleStatus,
+        sampleError,
+        showingSampleDialog,
+        setShowingSampleDialog,
+        runningSampleData,
+        selectedSampleTab,
+        setSelectedSampleTab,
+        sampleScrollPositionRef,
+        setSampleScrollPosition,
+        evalSpec,
+        evalPlan,
+        evalResults,
+        evalStats,
+        evalError,
+        logFileName,
+        selectedTab,
+        refreshLog
+      } = props;
+      const sampleTabScrollRef = reactExports.useRef(null);
+      const samplesTabConfig = useSamplesTabConfig(
+        sampleMode,
+        samples,
+        selectedSample,
+        sampleStatus,
+        sampleError,
+        evalStatus,
+        showingSampleDialog,
+        setShowingSampleDialog,
+        runningSampleData,
+        selectedSampleTab,
+        setSelectedSampleTab,
+        sampleScrollPositionRef,
+        setSampleScrollPosition,
+        refreshLog,
+        sampleTabScrollRef
+      );
+      const configTabConfig = useInfoTabConfig(
+        evalSpec,
+        evalPlan,
+        evalError,
+        evalResults,
+        evalStats,
+        samples
+      );
+      const jsonTabConfig = useJsonTabConfig(
+        logFileName,
+        evalVersion,
+        evalStatus,
+        evalSpec,
+        evalPlan,
+        evalError,
+        evalResults,
+        evalStats,
+        selectedTab
+      );
       return reactExports.useMemo(
         () => ({
-          ...samplesTab ? { samples: samplesTab } : {},
-          config: configTab,
-          json: jsonTab2
+          ...samplesTabConfig ? { samples: samplesTabConfig } : {},
+          config: configTabConfig,
+          json: jsonTabConfig
         }),
-        [samplesTab, configTab, jsonTab2]
+        [samplesTabConfig, configTabConfig, jsonTabConfig]
       );
     };
     var clipboard = { exports: {} };
