@@ -19192,6 +19192,22 @@ span.ap-marker-container:hover span.ap-marker {
 ._eventNodeContainer_c8m1t_43._noBottom_c8m1t_47 {
   padding-bottom: 0;
 }
+._darkenedBg_1ye6u_1 {
+  background-color: var(--bs-light-bg-subtle);
+}
+
+._normalBg_1ye6u_5 {
+  background-color: var(--bs-body-bg);
+}
+
+._node_1ye6u_9._first_1ye6u_9 {
+  padding-top: 0.5em;
+}
+
+._node_1ye6u_9 {
+  padding-top: 0;
+  padding-bottom: 0.5em;
+}
 ._container_gzd7f_1 {
   flex-direction: row;
   width: 100%;
