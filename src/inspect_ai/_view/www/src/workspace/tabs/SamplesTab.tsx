@@ -10,42 +10,29 @@ import {
 import { VirtuosoHandle } from "react-virtuoso";
 import { EmptyPanel } from "../../components/EmptyPanel.tsx";
 import { useLogContext } from "../../contexts/LogContext.tsx";
+import { useSampleContext } from "../../contexts/SampleContext.tsx";
 import { InlineSampleDisplay } from "../../samples/InlineSampleDisplay";
 import { SampleDialog } from "../../samples/SampleDialog";
-import { SamplesDescriptor } from "../../samples/descriptor/samplesDescriptor.tsx";
 import { SampleList } from "../../samples/list/SampleList";
-import { RunningSampleData } from "../../types.ts";
-import { EvalSample } from "../../types/log";
 import { getSampleProcessor } from "./grouping.ts";
 import { ListItem } from "./types.ts";
 
 interface SamplesTabProps {
-  // Optional props
-  sample?: EvalSample;
-  sampleDescriptor?: SamplesDescriptor;
-  sampleError?: Error;
-
   // Required props
   running: boolean;
-  sampleStatus: string;
   showingSampleDialog: boolean;
   setShowingSampleDialog: (showing: boolean) => void;
   selectedSampleTab?: string;
   setSelectedSampleTab: (tab: string) => void;
-  runningSampleData?: RunningSampleData;
   sampleScrollPositionRef: RefObject<number>;
   setSampleScrollPosition: (position: number) => void;
   sampleTabScrollRef: RefObject<HTMLDivElement | null>;
 }
 
 export const SamplesTab: FC<SamplesTabProps> = ({
-  sample,
   running,
-  sampleStatus,
-  sampleError,
   showingSampleDialog,
   setShowingSampleDialog,
-  runningSampleData,
   selectedSampleTab,
   setSelectedSampleTab,
   sampleScrollPositionRef,
@@ -53,6 +40,8 @@ export const SamplesTab: FC<SamplesTabProps> = ({
   sampleTabScrollRef,
 }) => {
   const logContext = useLogContext();
+  const sampleContext = useSampleContext();
+
   const [items, setItems] = useState<ListItem[]>([]);
   const [sampleItems, setSampleItems] = useState<ListItem[]>([]);
 
@@ -138,20 +127,21 @@ export const SamplesTab: FC<SamplesTabProps> = ({
       : -1;
   }, [logContext.state.selectedSampleIndex]);
 
+  const status = sampleContext.state.sampleStatus;
   // Manage the next / previous state the selected sample
   const nextSample = useCallback(() => {
     const next = nextSampleIndex();
-    if (sampleStatus !== "loading" && next > -1) {
+    if (status !== "loading" && next > -1) {
       logContext.dispatch({ type: "SELECT_SAMPLE", payload: next });
     }
-  }, [nextSampleIndex, sampleStatus, logContext.dispatch]);
+  }, [nextSampleIndex, status, logContext.dispatch]);
 
   const previousSample = useCallback(() => {
     const prev = previousSampleIndex();
-    if (sampleStatus !== "loading" && prev > -1) {
+    if (status !== "loading" && prev > -1) {
       logContext.dispatch({ type: "SELECT_SAMPLE", payload: prev });
     }
-  }, [previousSampleIndex, sampleStatus, logContext.dispatch]);
+  }, [previousSampleIndex, status, logContext.dispatch]);
 
   const title =
     logContext.state.selectedSampleIndex > -1 &&
@@ -171,10 +161,6 @@ export const SamplesTab: FC<SamplesTabProps> = ({
         {logContext.samplesDescriptor && logContext.totalSampleCount === 1 ? (
           <InlineSampleDisplay
             id="sample-display"
-            sample={sample}
-            runningSampleData={runningSampleData}
-            sampleStatus={sampleStatus}
-            sampleError={sampleError}
             selectedTab={selectedSampleTab}
             setSelectedTab={setSelectedSampleTab}
             scrollRef={sampleTabScrollRef}
@@ -191,12 +177,8 @@ export const SamplesTab: FC<SamplesTabProps> = ({
           />
         ) : undefined}
         <SampleDialog
-          id={String(sample?.id || "")}
+          id={String(sampleContext.state.selectedSample?.id || "")}
           title={title}
-          sample={sample}
-          sampleStatus={sampleStatus}
-          sampleError={sampleError}
-          runningSampleData={runningSampleData}
           showingSampleDialog={showingSampleDialog}
           setShowingSampleDialog={setShowingSampleDialog}
           selectedTab={selectedSampleTab}
