@@ -1,8 +1,8 @@
-import asyncio
 import uuid
-from asyncio import Future
 from contextvars import ContextVar
-from typing import Callable, Literal, NamedTuple, cast
+from typing import Callable, Literal, NamedTuple
+
+import anyio
 
 from inspect_ai.solver._task_state import TaskState
 from inspect_ai.tool._tool_call import ToolCall, ToolCallView
@@ -26,10 +26,17 @@ class PendingApprovalRequest(NamedTuple):
     epoch: int
 
 
+class ApprovalState:
+    def __init__(self) -> None:
+        self.result: Approval | None = None
+        self.error: Exception | None = None
+        self.event = anyio.Event()
+
+
 class HumanApprovalManager:
     def __init__(self) -> None:
         self._approval_requests: dict[
-            str, tuple[PendingApprovalRequest, Future[Approval]]
+            str, tuple[PendingApprovalRequest, ApprovalState]
         ] = {}
         self._change_callbacks: list[Callable[[Literal["add", "remove"]], None]] = []
 
@@ -37,7 +44,6 @@ class HumanApprovalManager:
         from inspect_ai.log._samples import sample_active
 
         id = str(uuid.uuid4())
-        future = cast(Future[Approval], asyncio.get_event_loop().create_future())
         sample = sample_active()
         assert sample
         assert sample.sample.id is not None
@@ -48,7 +54,7 @@ class HumanApprovalManager:
             id=sample.sample.id,
             epoch=sample.epoch,
         )
-        self._approval_requests[id] = (pending, future)
+        self._approval_requests[id] = (pending, ApprovalState())
         self._notify_change("add")
         return id
 
@@ -57,8 +63,14 @@ class HumanApprovalManager:
         self._notify_change("remove")
 
     async def wait_for_approval(self, id: str) -> Approval:
-        _, future = self._approval_requests[id]
-        return await future
+        _, state = self._approval_requests[id]
+        await state.event.wait()
+        if state.result is not None:
+            return state.result
+        elif state.error is not None:
+            raise state.error
+        else:
+            raise RuntimeError("Approval ended without result or error.")
 
     def on_change(
         self, callback: Callable[[Literal["add", "remove"]], None]
@@ -76,17 +88,17 @@ class HumanApprovalManager:
 
     def complete_approval(self, id: str, result: Approval) -> None:
         if id in self._approval_requests:
-            _, future = self._approval_requests[id]
-            if not future.done():
-                future.set_result(result)
+            _, state = self._approval_requests[id]
+            state.result = result
+            state.event.set()
             del self._approval_requests[id]
             self._notify_change("remove")
 
     def fail_approval(self, id: str, error: Exception) -> None:
         if id in self._approval_requests:
-            _, future = self._approval_requests[id]
-            if not future.done():
-                future.set_exception(error)
+            _, state = self._approval_requests[id]
+            state.error = error
+            state.event.set()
             del self._approval_requests[id]
             self._notify_change("remove")
 
