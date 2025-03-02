@@ -1,6 +1,5 @@
 import clsx from "clsx";
 import { FC } from "react";
-import { SampleSummary } from "../../api/types";
 import { ExpandablePanel } from "../../components/ExpandablePanel";
 import { LabeledValue } from "../../components/LabeledValue";
 import { useLogContext } from "../../contexts/LogContext";
@@ -21,8 +20,8 @@ interface SecondaryBarProps {
   evalPlan?: EvalPlan;
   evalResults?: EvalResults;
   evalStats?: EvalStats;
-  samples?: SampleSummary[];
   status?: string;
+  sampleCount?: number;
 }
 
 /**
@@ -33,8 +32,8 @@ export const SecondaryBar: FC<SecondaryBarProps> = ({
   evalPlan,
   evalResults,
   evalStats,
-  samples,
   status,
+  sampleCount,
 }) => {
   const logContext = useLogContext();
 
@@ -61,7 +60,7 @@ export const SecondaryBar: FC<SecondaryBarProps> = ({
       >
         <DatasetSummary
           dataset={evalSpec.dataset}
-          samples={samples}
+          sampleCount={sampleCount}
           epochs={epochs}
         />
       </LabeledValue>
@@ -147,16 +146,16 @@ export const SecondaryBar: FC<SecondaryBarProps> = ({
 
 interface DatasetSummaryProps {
   dataset?: EvalDataset;
-  samples?: SampleSummary[];
   epochs: number;
+  sampleCount?: number;
 }
 
 /**
  * A component that displays the dataset
  */
 const DatasetSummary: FC<DatasetSummaryProps> = ({
+  sampleCount,
   dataset,
-  samples,
   epochs,
 }) => {
   if (!dataset) {
@@ -165,9 +164,7 @@ const DatasetSummary: FC<DatasetSummaryProps> = ({
 
   return (
     <div>
-      {samples?.length
-        ? formatDataset(samples.length, epochs, dataset.name)
-        : ""}
+      {sampleCount ? formatDataset(sampleCount, epochs, dataset.name) : ""}
     </div>
   );
 };
