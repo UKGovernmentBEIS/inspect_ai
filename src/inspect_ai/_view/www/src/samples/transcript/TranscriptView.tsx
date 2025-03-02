@@ -1,4 +1,4 @@
-import React, { RefObject, useCallback, useState } from "react";
+import { FC, RefObject, useCallback, useState } from "react";
 import { Events } from "../../types/log";
 import { ApprovalEventView } from "./ApprovalEventView";
 import { ErrorEventView } from "./ErrorEventView";
@@ -31,7 +31,7 @@ type TranscriptState = Record<string, TranscriptEventState>;
 /**
  * Renders the TranscriptView component.
  */
-export const TranscriptView: React.FC<TranscriptViewProps> = ({
+export const TranscriptView: FC<TranscriptViewProps> = ({
   id,
   events,
   depth,
@@ -70,7 +70,7 @@ interface TranscriptVirtualListProps {
 /**
  * Renders the Transcript Virtual List.
  */
-export const TranscriptVirtualList: React.FC<TranscriptVirtualListProps> = (
+export const TranscriptVirtualList: FC<TranscriptVirtualListProps> = (
   props,
 ) => {
   let { id, scrollRef, events, depth } = props;
@@ -109,7 +109,7 @@ interface TranscriptVirtualListComponentProps {
 /**
  * Renders the Transcript component.
  */
-export const TranscriptVirtualListComponent: React.FC<
+export const TranscriptVirtualListComponent: FC<
   TranscriptVirtualListComponentProps
 > = ({ id, eventNodes, scrollRef, transcriptState, setTranscriptState }) => {
   const setEventState = useCallback(
@@ -173,7 +173,7 @@ interface TranscriptComponentProps {
 /**
  * Renders the Transcript component.
  */
-export const TranscriptComponent: React.FC<TranscriptComponentProps> = ({
+export const TranscriptComponent: FC<TranscriptComponentProps> = ({
   id,
   transcriptState,
   setTranscriptState,
@@ -240,7 +240,7 @@ interface RenderedEventNodeProps {
 /**
  * Renders the event based on its type.
  */
-export const RenderedEventNode: React.FC<RenderedEventNodeProps> = ({
+export const RenderedEventNode: FC<RenderedEventNodeProps> = ({
   id,
   node,
   scrollRef,

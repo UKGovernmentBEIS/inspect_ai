@@ -1,6 +1,6 @@
 import clsx from "clsx";
 import { highlightElement } from "prismjs";
-import React, { useEffect, useMemo, useRef } from "react";
+import { CSSProperties, FC, useEffect, useMemo, useRef } from "react";
 import "./JsonPanel.css";
 
 const kPrismRenderMaxSize = 250000;
@@ -10,11 +10,11 @@ interface JSONPanelProps {
   data?: unknown;
   json?: string;
   simple?: boolean;
-  style?: React.CSSProperties;
+  style?: CSSProperties;
   className?: string | string[];
 }
 
-export const JSONPanel: React.FC<JSONPanelProps> = ({
+export const JSONPanel: FC<JSONPanelProps> = ({
   id,
   json,
   data,
