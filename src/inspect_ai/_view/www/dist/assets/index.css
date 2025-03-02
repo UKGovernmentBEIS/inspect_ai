@@ -19113,6 +19113,22 @@ span.ap-marker-container:hover span.ap-marker {
   margin: 1em 0em;
   width: 100%;
 }
+._darkenedBg_1ye6u_1 {
+  background-color: var(--bs-light-bg-subtle);
+}
+
+._normalBg_1ye6u_5 {
+  background-color: var(--bs-body-bg);
+}
+
+._node_1ye6u_9._first_1ye6u_9 {
+  padding-top: 0.5em;
+}
+
+._node_1ye6u_9 {
+  padding-top: 0;
+  padding-bottom: 0.5em;
+}
 ._summary_ac4z2_1 {
   width: 100%;
   margin: 0.5em 0em;

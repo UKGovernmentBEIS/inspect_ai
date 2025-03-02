@@ -3,7 +3,7 @@ import { FC, RefObject, useCallback, useState } from "react";
 import { StepEvent } from "../../types/log";
 import { formatDateTime } from "../../utils/format";
 import { EventPanel } from "./event/EventPanel";
-import { TranscriptVirtualListComponent } from "./TranscriptView";
+import { TranscriptVirtualListComponent } from "./TranscriptVirtualListComponent";
 import { EventNode, TranscriptEventState } from "./types";
 
 interface StepEventViewProps {
