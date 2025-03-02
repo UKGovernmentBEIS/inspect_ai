@@ -9,6 +9,7 @@ from logging import getLogger
 from pathlib import PurePath
 from typing import Callable, Literal
 
+import anyio
 from typing_extensions import Unpack
 
 from inspect_ai._display import (
@@ -362,7 +363,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                     )
                 )
 
-            except asyncio.CancelledError:
+            except anyio.get_cancelled_exc_class():
                 # collect eval data
                 collect_eval_data(stats)
 
@@ -640,7 +641,7 @@ async def task_run_sample(
                     # capture most recent state for scoring
                     state = sample_state() or state
 
-                except asyncio.CancelledError as ex:
+                except anyio.get_cancelled_exc_class() as ex:
                     if active.interrupt_action:
                         # record eve t
                         transcript()._event(
@@ -740,7 +741,7 @@ async def task_run_sample(
                             # propagate results into scores
                             state.scores = {k: v.score for k, v in results.items()}
 
-                except asyncio.CancelledError:
+                except anyio.get_cancelled_exc_class():
                     if active.interrupt_action:
                         transcript()._event(
                             SampleLimitEvent(

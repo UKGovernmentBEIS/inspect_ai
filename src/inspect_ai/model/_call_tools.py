@@ -22,6 +22,7 @@ from typing import (
     is_typeddict,
 )
 
+import anyio
 import yaml
 from jsonschema import Draft7Validator
 from pydantic import BaseModel
@@ -199,7 +200,7 @@ async def call_tools(
             # tool call then synthesize the appropriate message/event
             try:
                 tool_message, result_event = await task
-            except asyncio.CancelledError:
+            except anyio.get_cancelled_exc_class():
                 if event.cancelled:
                     tool_message = ChatMessageTool(
                         content="",

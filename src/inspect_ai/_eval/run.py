@@ -3,6 +3,7 @@ import logging
 import os
 from typing import Any, Awaitable, Callable, Set, cast
 
+import anyio
 from shortuuid import uuid
 from typing_extensions import Unpack
 
@@ -255,7 +256,7 @@ async def run_single(tasks: list[TaskRunOptions]) -> list[EvalLog]:
 
         try:
             return await asyncio.gather(*asyncio_tasks)
-        except asyncio.CancelledError:
+        except anyio.get_cancelled_exc_class():
             results: list[EvalLog] = []
             for task in asyncio_tasks:
                 if task.done():
@@ -311,7 +312,7 @@ async def run_multiple(tasks: list[TaskRunOptions], parallel: int) -> list[EvalL
                 await task
                 result = task.result()
                 results.append(result)
-            except asyncio.CancelledError:
+            except anyio.get_cancelled_exc_class():
                 task.cancel()
                 await task
                 result = task.result()
@@ -348,7 +349,7 @@ async def run_multiple(tasks: list[TaskRunOptions], parallel: int) -> list[EvalL
         # wait for all tasks to complete
         try:
             await queue.join()
-        except asyncio.CancelledError:
+        except anyio.get_cancelled_exc_class():
             pass
         finally:
             clear_task_screen()

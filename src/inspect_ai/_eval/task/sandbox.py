@@ -1,4 +1,3 @@
-import asyncio
 import base64
 import contextlib
 from random import random
@@ -104,7 +103,7 @@ async def sandboxenv_context(
             # run sample
             yield
 
-        except asyncio.CancelledError as ex:
+        except anyio.get_cancelled_exc_class() as ex:
             interrupted = True
             raise ex
 
