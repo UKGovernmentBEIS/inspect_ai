@@ -1,6 +1,7 @@
 import clsx from "clsx";
 import { FC } from "react";
-import { RunningMetric, SampleSummary } from "../../api/types";
+import { RunningMetric } from "../../api/types";
+import { useLogContext } from "../../contexts/LogContext";
 import {
   EvalPlan,
   EvalResults,
@@ -13,13 +14,11 @@ import { PrimaryBar } from "./PrimaryBar";
 import { SecondaryBar } from "./SecondaryBar";
 
 interface NavBarProps {
-  file?: string;
   evalSpec?: EvalSpec;
   evalResults?: EvalResults;
   runningMetrics?: RunningMetric[];
   evalPlan?: EvalPlan;
   evalStats?: EvalStats;
-  samples?: SampleSummary[];
   status?: Status;
   showToggle: boolean;
 }
@@ -28,34 +27,32 @@ interface NavBarProps {
  * Renders the Navbar
  */
 export const Navbar: FC<NavBarProps> = ({
-  file,
   evalSpec,
   evalPlan,
   evalResults,
   evalStats,
-  samples,
   showToggle,
   status,
   runningMetrics,
 }) => {
+  const logContext = useLogContext();
   return (
     <nav className={clsx("navbar", "sticky-top", styles.navbarWrapper)}>
       <PrimaryBar
-        file={file}
         evalSpec={evalSpec}
         evalResults={evalResults}
-        samples={samples}
         showToggle={showToggle}
         status={status}
         runningMetrics={runningMetrics}
+        sampleCount={logContext.totalSampleCount}
       />
       <SecondaryBar
         evalSpec={evalSpec}
         evalPlan={evalPlan}
         evalResults={evalResults}
         evalStats={evalStats}
-        samples={samples}
         status={status}
+        sampleCount={logContext.totalSampleCount}
       />
     </nav>
   );

@@ -8,14 +8,13 @@ import {
   useState,
 } from "react";
 import { VirtuosoHandle } from "react-virtuoso";
-import { SampleSummary } from "../../api/types.ts";
 import { EmptyPanel } from "../../components/EmptyPanel.tsx";
 import { useLogContext } from "../../contexts/LogContext.tsx";
 import { InlineSampleDisplay } from "../../samples/InlineSampleDisplay";
 import { SampleDialog } from "../../samples/SampleDialog";
 import { SamplesDescriptor } from "../../samples/descriptor/samplesDescriptor.tsx";
 import { SampleList } from "../../samples/list/SampleList";
-import { RunningSampleData, SampleMode } from "../../types.ts";
+import { RunningSampleData } from "../../types.ts";
 import { EvalSample } from "../../types/log";
 import { getSampleProcessor } from "./grouping.ts";
 import { ListItem } from "./types.ts";
@@ -23,13 +22,11 @@ import { ListItem } from "./types.ts";
 interface SamplesTabProps {
   // Optional props
   sample?: EvalSample;
-  samples?: SampleSummary[];
   sampleDescriptor?: SamplesDescriptor;
   sampleError?: Error;
 
   // Required props
   running: boolean;
-  sampleMode: SampleMode;
   sampleStatus: string;
   showingSampleDialog: boolean;
   setShowingSampleDialog: (showing: boolean) => void;
@@ -43,8 +40,6 @@ interface SamplesTabProps {
 
 export const SamplesTab: FC<SamplesTabProps> = ({
   sample,
-  samples,
-  sampleMode,
   running,
   sampleStatus,
   sampleError,
@@ -90,7 +85,7 @@ export const SamplesTab: FC<SamplesTabProps> = ({
   useEffect(() => {
     const sampleProcessor = logContext.samplesDescriptor
       ? getSampleProcessor(
-          samples || [],
+          logContext.sampleSummaries || [],
           logContext.state.selectedLogSummary?.eval?.config?.epochs || 1,
           logContext.groupBy,
           logContext.groupByOrder,
@@ -100,9 +95,10 @@ export const SamplesTab: FC<SamplesTabProps> = ({
       : undefined;
 
     // Process the samples into the proper data structure
-    const items = samples?.flatMap((sample, index) => {
+    const items = logContext.sampleSummaries?.flatMap((sample, index) => {
       const results: ListItem[] = [];
-      const previousSample = index !== 0 ? samples[index - 1] : undefined;
+      const previousSample =
+        index !== 0 ? logContext.sampleSummaries[index - 1] : undefined;
       const items = sampleProcessor
         ? sampleProcessor(sample, index, previousSample)
         : [];
@@ -120,7 +116,7 @@ export const SamplesTab: FC<SamplesTabProps> = ({
         : [],
     );
   }, [
-    samples,
+    logContext.sampleSummaries,
     logContext.state.selectedLogSummary?.eval?.config?.epochs,
     logContext.state.score,
     logContext.groupBy,
@@ -172,7 +168,7 @@ export const SamplesTab: FC<SamplesTabProps> = ({
   } else {
     return (
       <Fragment>
-        {logContext.samplesDescriptor && sampleMode === "single" ? (
+        {logContext.samplesDescriptor && logContext.totalSampleCount === 1 ? (
           <InlineSampleDisplay
             id="sample-display"
             sample={sample}
@@ -184,7 +180,7 @@ export const SamplesTab: FC<SamplesTabProps> = ({
             scrollRef={sampleTabScrollRef}
           />
         ) : undefined}
-        {logContext.samplesDescriptor && sampleMode === "many" ? (
+        {logContext.samplesDescriptor && logContext.totalSampleCount > 1 ? (
           <SampleList
             listHandle={sampleListHandle}
             items={items}
