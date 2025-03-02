@@ -33,7 +33,6 @@ from inspect_ai._util.registry import (
     registry_log_name,
     registry_unqualified_name,
 )
-from inspect_ai._util.timeouts import Timeout, timeout
 from inspect_ai._util.working import (
     init_sample_working_limit,
     sample_waiting_time,
@@ -607,7 +606,7 @@ async def task_run_sample(
 
                     # initialise timeout context manager
                     timeout_cm = (
-                        timeout(time_limit)
+                        anyio.fail_after(time_limit)
                         if time_limit is not None
                         else contextlib.nullcontext()
                     )
@@ -617,7 +616,7 @@ async def task_run_sample(
                     init_sample_working_limit(start_time, working_limit)
 
                     # run sample w/ optional timeout
-                    async with timeout_cm:
+                    with timeout_cm:
                         # mark started
                         active.started = datetime.now().timestamp()
 
@@ -688,9 +687,8 @@ async def task_run_sample(
                 # the cause of the timeout is a hung container and scoring requires
                 # interacting with the container). as a middle ground we use half
                 # of the original timeout value for scoring.
-                if isinstance(timeout_cm, Timeout):
-                    assert time_limit
-                    timeout_cm = timeout(time_limit / 2)
+                if time_limit is not None:
+                    timeout_cm = anyio.fail_after(time_limit / 2)
 
                 # turn off message and token limits
                 state.message_limit = None
@@ -700,7 +698,7 @@ async def task_run_sample(
                 # scoring
                 try:
                     # timeout during scoring will result in an ordinary sample error
-                    async with timeout_cm:
+                    with timeout_cm:
                         if error is None:
                             for scorer in scorers or []:
                                 scorer_name = unique_scorer_name(
