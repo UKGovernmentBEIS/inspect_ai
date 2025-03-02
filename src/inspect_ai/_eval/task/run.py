@@ -504,7 +504,7 @@ async def task_run_sample(
     fails_on_error: bool,
     time_limit: int | None,
     working_limit: int | None,
-    semaphore: asyncio.Semaphore | None,
+    semaphore: anyio.Semaphore | None,
 ) -> dict[str, SampleScore] | None:
     # if there is an existing sample then tick off its progress, log it, and return it
     if sample_source and sample.id is not None:
@@ -534,7 +534,7 @@ async def task_run_sample(
             return sample_scores
 
     # use semaphore if provided
-    semaphore_cm: asyncio.Semaphore | contextlib.AbstractAsyncContextManager[None] = (
+    semaphore_cm: anyio.Semaphore | contextlib.AbstractAsyncContextManager[None] = (
         semaphore if semaphore else contextlib.nullcontext()
     )
 
@@ -971,10 +971,10 @@ def create_sample_semaphore(
     config: EvalConfig,
     generate_config: GenerateConfig,
     modelapi: ModelAPI | None = None,
-) -> asyncio.Semaphore:
+) -> anyio.Semaphore:
     # if the user set max_samples then use that
     if config.max_samples is not None:
-        return asyncio.Semaphore(config.max_samples)
+        return anyio.Semaphore(config.max_samples)
 
     # use max_connections
     max_samples = (
@@ -986,4 +986,4 @@ def create_sample_semaphore(
     )
 
     # return the semaphore
-    return asyncio.Semaphore(max_samples)
+    return anyio.Semaphore(max_samples)
