@@ -1,7 +1,7 @@
 import os
 import re
 from logging import getLogger
-from typing import Any, Callable, Generator, Literal, cast
+from typing import Any, Callable, Generator, Literal
 
 import anyio
 from pydantic import BaseModel
@@ -11,7 +11,6 @@ from inspect_ai._util._async import get_current_async_library
 from inspect_ai._util.constants import ALL_LOG_FORMATS, EVAL_LOG_FORMAT
 from inspect_ai._util.file import (
     FileInfo,
-    async_fileystem,
     file,
     filesystem,
 )
@@ -95,62 +94,6 @@ def list_eval_logs(
         ]
     else:
         return eval_logs
-
-
-async def list_eval_logs_async(
-    log_dir: str = os.environ.get("INSPECT_LOG_DIR", "./logs"),
-    formats: list[Literal["eval", "json"]] | None = None,
-    recursive: bool = True,
-    descending: bool = True,
-    fs_options: dict[str, Any] = {},
-) -> list[EvalLogInfo]:
-    """List all eval logs in a directory.
-
-    Will be async for filesystem providers that support async (e.g. s3, gcs, etc.)
-    otherwise will fallback to sync implementation.
-
-    Args:
-      log_dir (str): Log directory (defaults to INSPECT_LOG_DIR)
-      formats (Literal["eval", "json"]): Formats to list (default
-        to listing all formats)
-      recursive (bool): List log files recursively (defaults to True).
-      descending (bool): List in descending order.
-      fs_options (dict[str, Any]): Optional. Additional arguments to pass through
-          to the filesystem provider (e.g. `S3FileSystem`).
-
-    Returns:
-       List of EvalLog Info.
-    """
-    # async filesystem if we can
-    fs = filesystem(log_dir, fs_options)
-    if fs.is_async():
-        async with async_fileystem(log_dir, fs_options=fs_options) as async_fs:
-            if await async_fs._exists(log_dir):
-                # prevent caching of listings
-                async_fs.invalidate_cache(log_dir)
-                # list logs
-                if recursive:
-                    files: list[dict[str, Any]] = []
-                    async for _, _, filenames in async_fs._walk(log_dir, detail=True):
-                        files.extend(filenames.values())
-                else:
-                    files = cast(
-                        list[dict[str, Any]],
-                        await async_fs._ls(log_dir, detail=True),
-                    )
-                logs = [fs._file_info(file) for file in files]
-                # resolve to eval logs
-                return log_files_from_ls(logs, formats, descending)
-            else:
-                return []
-    else:
-        return list_eval_logs(
-            log_dir=log_dir,
-            formats=formats,
-            recursive=recursive,
-            descending=descending,
-            fs_options=fs_options,
-        )
 
 
 def write_eval_log(
