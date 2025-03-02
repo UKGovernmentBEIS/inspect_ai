@@ -6,7 +6,7 @@ import { SamplesTab } from "./tabs/SamplesTab";
 
 import clsx from "clsx";
 import { FC, MouseEvent, RefObject, useEffect, useMemo, useRef } from "react";
-import { RunningMetric, SampleSummary } from "../api/types.ts";
+import { RunningMetric } from "../api/types.ts";
 import {
   kEvalWorkspaceTabId,
   kInfoWorkspaceTabId,
@@ -14,7 +14,8 @@ import {
 } from "../constants";
 import { useAppContext } from "../contexts/AppContext.tsx";
 import { useLogContext } from "../contexts/LogContext.tsx";
-import { CurrentLog, RunningSampleData, SampleMode } from "../types.ts";
+import { useSampleContext } from "../contexts/SampleContext.tsx";
+import { CurrentLog, RunningSampleData } from "../types.ts";
 import {
   EvalError,
   EvalPlan,
@@ -29,7 +30,6 @@ import { WorkSpaceView } from "./WorkSpaceView.tsx";
 
 interface WorkSpaceProps {
   task_id?: string;
-  logFileName?: string;
   evalError?: EvalError;
   evalStatus?: Status;
   evalVersion?: number;
@@ -39,8 +39,6 @@ interface WorkSpaceProps {
   evalResults?: EvalResults;
   runningMetrics?: RunningMetric[];
   log?: CurrentLog;
-  samples?: SampleSummary[];
-  sampleMode: SampleMode;
   selectedSample?: EvalSample;
   sampleStatus: string;
   sampleError?: Error;
@@ -66,13 +64,11 @@ export const WorkSpace: FC<WorkSpaceProps> = (props) => {
   const {
     task_id,
     evalStatus,
-    logFileName,
     evalSpec,
     evalPlan,
     evalStats,
     evalResults,
     runningMetrics,
-    samples,
     showToggle,
     selectedTab,
     setSelectedTab,
@@ -97,14 +93,12 @@ export const WorkSpace: FC<WorkSpaceProps> = (props) => {
 
   return (
     <WorkSpaceView
-      logFileName={logFileName}
       divRef={divRef}
       evalSpec={evalSpec}
       evalPlan={evalPlan}
       evalResults={evalResults}
       runningMetrics={runningMetrics}
       evalStats={evalStats}
-      samples={samples}
       status={evalStatus}
       tabs={resolvedTabs}
       selectedTab={selectedTab}
@@ -139,8 +133,6 @@ const copyFeedback = (e: MouseEvent<HTMLElement>) => {
 
 // Individual hook for Samples tab
 export const useSamplesTabConfig = (
-  sampleMode: SampleMode,
-  samples: SampleSummary[] | undefined,
   selectedSample: EvalSample | undefined,
   sampleStatus: string,
   sampleError: Error | undefined,
@@ -157,17 +149,18 @@ export const useSamplesTabConfig = (
 ) => {
   const appContext = useAppContext();
   const logContext = useLogContext();
+  const sampleContext = useSampleContext();
 
   return useMemo(() => {
-    if (sampleMode === "none") {
+    if (logContext.totalSampleCount === 0) {
       return null;
     }
 
     return {
       id: kEvalWorkspaceTabId,
-      scrollable: samples?.length === 1,
+      scrollable: logContext.totalSampleCount === 1,
       scrollRef: sampleTabScrollRef,
-      label: (samples || []).length > 1 ? "Samples" : "Sample",
+      label: logContext.totalSampleCount > 1 ? "Samples" : "Sample",
       content: () => (
         <SamplesTab
           sample={selectedSample}
@@ -177,8 +170,6 @@ export const useSamplesTabConfig = (
           running={evalStatus === "started"}
           showingSampleDialog={showingSampleDialog}
           setShowingSampleDialog={setShowingSampleDialog}
-          samples={samples}
-          sampleMode={sampleMode}
           selectedSampleTab={selectedSampleTab}
           setSelectedSampleTab={setSelectedSampleTab}
           sampleScrollPositionRef={sampleScrollPositionRef}
@@ -187,10 +178,13 @@ export const useSamplesTabConfig = (
         />
       ),
       tools: () =>
-        sampleMode === "single" || !logContext.samplesDescriptor
+        logContext.totalSampleCount === 1 || !logContext.samplesDescriptor
           ? undefined
           : [
-              <SampleTools samples={samples || []} key="sample-tools" />,
+              <SampleTools
+                samples={logContext.sampleSummaries || []}
+                key="sample-tools"
+              />,
               evalStatus === "started" &&
                 !appContext.capabilities.streamSamples && (
                   <ToolButton
@@ -203,8 +197,6 @@ export const useSamplesTabConfig = (
             ].filter(Boolean),
     };
   }, [
-    sampleMode,
-    samples,
     selectedSample,
     sampleStatus,
     sampleError,
@@ -230,8 +222,8 @@ export const useInfoTabConfig = (
   evalError: EvalError | undefined,
   evalResults: EvalResults | undefined,
   evalStats: EvalStats | undefined,
-  samples: SampleSummary[] | undefined,
 ) => {
+  const logContext = useLogContext();
   return useMemo(() => {
     return {
       id: kInfoWorkspaceTabId,
@@ -244,16 +236,22 @@ export const useInfoTabConfig = (
           evalError={evalError}
           evalResults={evalResults}
           evalStats={evalStats}
-          samples={samples}
+          sampleCount={logContext.totalSampleCount}
         />
       ),
     };
-  }, [evalSpec, evalPlan, evalError, evalResults, evalStats, samples]);
+  }, [
+    evalSpec,
+    evalPlan,
+    evalError,
+    evalResults,
+    evalStats,
+    logContext.totalSampleCount,
+  ]);
 };
 
 // Individual hook for JSON tab
 export const useJsonTabConfig = (
-  logFileName: string | undefined,
   evalVersion: number | undefined,
   evalStatus: Status | undefined,
   evalSpec: EvalSpec | undefined,
@@ -263,6 +261,7 @@ export const useJsonTabConfig = (
   evalStats: EvalStats | undefined,
   selectedTab: string,
 ) => {
+  const logContext = useLogContext();
   return useMemo(() => {
     return {
       id: kJsonWorkspaceTabId,
@@ -280,7 +279,7 @@ export const useJsonTabConfig = (
         };
         return (
           <JsonTab
-            logFile={logFileName}
+            logFile={logContext.selectedLogFile}
             json={JSON.stringify(evalHeader, null, 2)}
             selected={selectedTab === kJsonWorkspaceTabId}
           />
@@ -298,7 +297,7 @@ export const useJsonTabConfig = (
       ],
     };
   }, [
-    logFileName,
+    logContext.selectedLogFile,
     evalVersion,
     evalStatus,
     evalSpec,
@@ -315,8 +314,6 @@ export const useResolvedTabs = (props: WorkSpaceProps) => {
   const {
     evalVersion,
     evalStatus,
-    sampleMode,
-    samples,
     selectedSample,
     sampleStatus,
     sampleError,
@@ -332,7 +329,6 @@ export const useResolvedTabs = (props: WorkSpaceProps) => {
     evalResults,
     evalStats,
     evalError,
-    logFileName,
     selectedTab,
     refreshLog,
   } = props;
@@ -341,8 +337,6 @@ export const useResolvedTabs = (props: WorkSpaceProps) => {
 
   // Use individual tab config hooks
   const samplesTabConfig = useSamplesTabConfig(
-    sampleMode,
-    samples,
     selectedSample,
     sampleStatus,
     sampleError,
@@ -364,11 +358,9 @@ export const useResolvedTabs = (props: WorkSpaceProps) => {
     evalError,
     evalResults,
     evalStats,
-    samples,
   );
 
   const jsonTabConfig = useJsonTabConfig(
-    logFileName,
     evalVersion,
     evalStatus,
     evalSpec,

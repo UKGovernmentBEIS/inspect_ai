@@ -1,9 +1,10 @@
 import clsx from "clsx";
 import { FC, useCallback } from "react";
-import { RunningMetric, SampleSummary } from "../../api/types";
+import { RunningMetric } from "../../api/types";
 import { ApplicationIcons } from "../../appearance/icons";
 import { CopyButton } from "../../components/CopyButton";
 import { useAppContext } from "../../contexts/AppContext";
+import { useLogsContext } from "../../contexts/LogsContext";
 import { EvalResults, EvalSpec, Status } from "../../types/log";
 import { filename } from "../../utils/path";
 import styles from "./PrimaryBar.module.css";
@@ -20,9 +21,8 @@ interface PrimaryBarProps {
   status?: Status;
   evalResults?: EvalResults;
   runningMetrics?: RunningMetric[];
-  samples?: SampleSummary[];
-  file?: string;
   evalSpec?: EvalSpec;
+  sampleCount?: number;
 }
 
 export const PrimaryBar: FC<PrimaryBarProps> = ({
@@ -30,12 +30,14 @@ export const PrimaryBar: FC<PrimaryBarProps> = ({
   status,
   evalResults,
   runningMetrics,
-  samples,
-  file,
   evalSpec,
+  sampleCount,
 }) => {
   const appContext = useAppContext();
-  const logFileName = file ? filename(file) : "";
+  const logsContext = useLogsContext();
+  const logFileName = logsContext.selectedLogFile
+    ? filename(logsContext.selectedLogFile)
+    : "";
 
   const handleToggle = useCallback(() => {
     appContext.dispatch({
@@ -96,7 +98,11 @@ export const PrimaryBar: FC<PrimaryBarProps> = ({
             <div className={clsx("navbar-secondary-text", "text-truncate")}>
               {logFileName}
             </div>
-            {file ? <CopyButton value={file} /> : ""}
+            {logsContext.selectedLogFile ? (
+              <CopyButton value={logsContext.selectedLogFile} />
+            ) : (
+              ""
+            )}
           </div>
         </div>
       </div>
@@ -114,14 +120,14 @@ export const PrimaryBar: FC<PrimaryBarProps> = ({
           />
         ) : undefined}
         {status === "cancelled" ? (
-          <CancelledPanel sampleCount={samples?.length || 0} />
+          <CancelledPanel sampleCount={sampleCount || 0} />
         ) : undefined}
         {status === "started" &&
         (!appContext.capabilities.streamSamples || !runningMetrics) ? (
-          <RunningStatusPanel sampleCount={samples?.length || 0} />
+          <RunningStatusPanel sampleCount={sampleCount || 0} />
         ) : undefined}
         {status === "error" ? (
-          <ErroredPanel sampleCount={samples?.length || 0} />
+          <ErroredPanel sampleCount={sampleCount || 0} />
         ) : undefined}
       </div>
       <div id="task-created" style={{ display: "none" }}>

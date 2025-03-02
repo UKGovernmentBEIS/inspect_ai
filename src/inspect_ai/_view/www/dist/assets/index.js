@@ -75662,8 +75662,6 @@ ${events}
     };
     const SamplesTab = ({
       sample: sample2,
-      samples,
-      sampleMode,
       running: running2,
       sampleStatus,
       sampleError,
@@ -75704,18 +75702,18 @@ ${events}
         }
       }, [showingSampleDialog]);
       reactExports.useEffect(() => {
-        var _a3, _b3, _c2;
+        var _a3, _b3, _c2, _d;
         const sampleProcessor = logContext.samplesDescriptor ? getSampleProcessor(
-          samples || [],
+          logContext.sampleSummaries || [],
           ((_c2 = (_b3 = (_a3 = logContext.state.selectedLogSummary) == null ? void 0 : _a3.eval) == null ? void 0 : _b3.config) == null ? void 0 : _c2.epochs) || 1,
           logContext.groupBy,
           logContext.groupByOrder,
           logContext.samplesDescriptor,
           logContext.state.score
         ) : void 0;
-        const items2 = samples == null ? void 0 : samples.flatMap((sample22, index) => {
+        const items2 = (_d = logContext.sampleSummaries) == null ? void 0 : _d.flatMap((sample22, index) => {
           const results = [];
-          const previousSample2 = index !== 0 ? samples[index - 1] : void 0;
+          const previousSample2 = index !== 0 ? logContext.sampleSummaries[index - 1] : void 0;
           const items3 = sampleProcessor ? sampleProcessor(sample22, index, previousSample2) : [];
           results.push(...items3);
           return results;
@@ -75727,7 +75725,7 @@ ${events}
           }) : []
         );
       }, [
-        samples,
+        logContext.sampleSummaries,
         (_c = (_b2 = (_a2 = logContext.state.selectedLogSummary) == null ? void 0 : _a2.eval) == null ? void 0 : _b2.config) == null ? void 0 : _c.epochs,
         logContext.state.score,
         logContext.groupBy,
@@ -75760,16 +75758,16 @@ ${events}
       if (!logContext.samplesDescriptor) {
         return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(EmptyPanel, { children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { children: "No samples" }, void 0, false, {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/tabs/SamplesTab.tsx",
-          lineNumber: 169,
+          lineNumber: 165,
           columnNumber: 9
         }, void 0) }, void 0, false, {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/tabs/SamplesTab.tsx",
-          lineNumber: 168,
+          lineNumber: 164,
           columnNumber: 7
         }, void 0);
       } else {
         return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(reactExports.Fragment, { children: [
-          logContext.samplesDescriptor && sampleMode === "single" ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+          logContext.samplesDescriptor && logContext.totalSampleCount === 1 ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
             InlineSampleDisplay,
             {
               id: "sample-display",
@@ -75785,12 +75783,12 @@ ${events}
             false,
             {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/tabs/SamplesTab.tsx",
-              lineNumber: 176,
+              lineNumber: 172,
               columnNumber: 11
             },
             void 0
           ) : void 0,
-          logContext.samplesDescriptor && sampleMode === "many" ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+          logContext.samplesDescriptor && logContext.totalSampleCount > 1 ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
             SampleList,
             {
               listHandle: sampleListHandle,
@@ -75804,7 +75802,7 @@ ${events}
             false,
             {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/tabs/SamplesTab.tsx",
-              lineNumber: 188,
+              lineNumber: 184,
               columnNumber: 11
             },
             void 0
@@ -75831,17 +75829,308 @@ ${events}
             false,
             {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/tabs/SamplesTab.tsx",
-              lineNumber: 197,
+              lineNumber: 193,
               columnNumber: 9
             },
             void 0
           )
         ] }, void 0, true, {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/tabs/SamplesTab.tsx",
-          lineNumber: 174,
+          lineNumber: 170,
           columnNumber: 7
         }, void 0);
       }
+    };
+    const resolveAttachments = (value2, attachments) => {
+      const kContentProtocol = "tc://";
+      const kAttachmentProtocol = "attachment://";
+      if (Array.isArray(value2)) {
+        return value2.map((v) => resolveAttachments(v, attachments));
+      }
+      if (value2 && typeof value2 === "object") {
+        const resolvedObject = {};
+        for (const key2 of Object.keys(value2)) {
+          resolvedObject[key2] = resolveAttachments(value2[key2], attachments);
+        }
+        return resolvedObject;
+      }
+      if (typeof value2 === "string") {
+        let resolvedValue = value2;
+        if (resolvedValue.startsWith(kContentProtocol)) {
+          resolvedValue = resolvedValue.replace(
+            kContentProtocol,
+            kAttachmentProtocol
+          );
+        }
+        if (resolvedValue.startsWith(kAttachmentProtocol)) {
+          return attachments[resolvedValue.replace(kAttachmentProtocol, "")];
+        }
+        return resolvedValue;
+      }
+      return value2;
+    };
+    const sampleDataAdapter = () => {
+      const attachments = {};
+      const events = {};
+      return {
+        addData: (data) => {
+          data.attachments.forEach((a) => {
+            attachments[a.hash] = a.content;
+          });
+          data.events.forEach((e) => {
+            events[e.event_id] = e;
+          });
+        },
+        resolvedEvents: () => {
+          const eventDatas = Object.values(events);
+          const resolvedEvents = eventDatas.map((ed) => {
+            return ed.event;
+          });
+          return resolveAttachments(resolvedEvents, attachments);
+        }
+      };
+    };
+    const createPolling = (name2, callback, options) => {
+      const log = createLogger(`Polling ${name2}`);
+      const { maxRetries, interval } = options;
+      let timeoutId = null;
+      let retryCount = 0;
+      let isPolling = false;
+      const calculateBackoff = (retryCount2) => {
+        return Math.min(interval * Math.pow(2, retryCount2) * 1e3, 6e4);
+      };
+      const stop = () => {
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+          timeoutId = null;
+        }
+        log.debug("Stop Polling");
+        isPolling = false;
+      };
+      const poll = async () => {
+        if (!isPolling) {
+          return;
+        }
+        try {
+          log.debug("Poll");
+          const shouldContinue = await callback();
+          if (shouldContinue === false) {
+            stop();
+            return;
+          }
+          retryCount = 0;
+          timeoutId = setTimeout(poll, interval * 1e3);
+        } catch (e) {
+          retryCount += 1;
+          if (retryCount >= maxRetries) {
+            log.error(`Polling stopped after ${maxRetries} failed attempts`);
+            stop();
+            return;
+          }
+          const backoffTime = calculateBackoff(retryCount);
+          log.debug(
+            `Retry ${retryCount}/${maxRetries}, backoff: ${backoffTime / 1e3}s`
+          );
+          timeoutId = setTimeout(poll, backoffTime);
+        }
+      };
+      const start = () => {
+        if (isPolling) {
+          return;
+        }
+        log.debug("Start Polling");
+        isPolling = true;
+        poll();
+      };
+      return { start, stop };
+    };
+    const sampleReducer = (state, action) => {
+      switch (action.type) {
+        case "SET_SELECTED_SAMPLE":
+          return { ...state, selectedSample: action.payload };
+        case "CLEAR_SELECTED_SAMPLE":
+          return { ...state, selectedSample: void 0 };
+        case "SET_RUNNING_SAMPLE_DATA":
+          return { ...state, runningSampleData: action.payload };
+        case "SET_LOADING": {
+          const status2 = action.payload ? "loading" : "ok";
+          return { ...state, sampleStatus: status2, sampleError: void 0 };
+        }
+        case "SET_ERROR":
+          return {
+            ...state,
+            sampleStatus: "error",
+            sampleError: action.payload,
+            selectedSample: void 0
+          };
+        case "RESET_SAMPLE":
+          return {
+            selectedSample: void 0,
+            sampleStatus: "loading",
+            sampleError: void 0,
+            runningSampleData: void 0
+          };
+        default:
+          return state;
+      }
+    };
+    const initialSampleState = {
+      selectedSample: void 0,
+      sampleStatus: "loading",
+      sampleError: void 0,
+      runningSampleData: void 0
+    };
+    const SampleContext = reactExports.createContext(void 0);
+    const SampleProvider = ({
+      children: children2,
+      api: api2,
+      initialState: initialState2
+    }) => {
+      const log = reactExports.useMemo(() => {
+        return createLogger("SampleContext");
+      }, []);
+      const [state, dispatch] = reactExports.useReducer(
+        sampleReducer,
+        (initialState2 == null ? void 0 : initialState2.sample) || initialSampleState
+      );
+      const pollingRef = reactExports.useRef(null);
+      const logContext = useLogContext();
+      const migrateOldSample = (sample2) => {
+        if (sample2.transcript) {
+          sample2.events = sample2.transcript.events;
+          sample2.attachments = sample2.transcript.content;
+        }
+        sample2.attachments = sample2.attachments || {};
+        sample2.input = resolveAttachments(sample2.input, sample2.attachments);
+        sample2.messages = resolveAttachments(sample2.messages, sample2.attachments);
+        sample2.events = resolveAttachments(sample2.events, sample2.attachments);
+        sample2.attachments = {};
+        return sample2;
+      };
+      const pollForSampleData = reactExports.useCallback(
+        (logFile, summary2) => {
+          if (pollingRef.current) {
+            pollingRef.current.stop();
+          }
+          const pollCallback = async () => {
+            if (!api2.get_log_sample_data) {
+              return false;
+            }
+            log.debug(`GET RUNNING SAMPLE: ${summary2.id}-${summary2.epoch}`);
+            const sampleDataResponse = await api2.get_log_sample_data(
+              logFile,
+              summary2.id,
+              summary2.epoch
+            );
+            if ((sampleDataResponse == null ? void 0 : sampleDataResponse.status) === "NotFound") {
+              return false;
+            }
+            if ((sampleDataResponse == null ? void 0 : sampleDataResponse.status) === "OK" && sampleDataResponse.sampleData) {
+              const adapter = sampleDataAdapter();
+              adapter.addData(sampleDataResponse.sampleData);
+              const runningData = { events: adapter.resolvedEvents(), summary: summary2 };
+              dispatch({ type: "SET_RUNNING_SAMPLE_DATA", payload: runningData });
+            }
+            return true;
+          };
+          const name2 = `${logFile}:${summary2.id}-${summary2.epoch}`;
+          pollingRef.current = createPolling(name2, pollCallback, {
+            maxRetries: 10,
+            interval: 2
+          });
+          pollingRef.current.start();
+        },
+        [api2.get_log_sample_data, dispatch, log]
+      );
+      reactExports.useEffect(() => {
+        return () => {
+          if (pollingRef.current) {
+            pollingRef.current.stop();
+          }
+        };
+      }, []);
+      reactExports.useEffect(() => {
+        return () => {
+          if (pollingRef.current) {
+            pollingRef.current.stop();
+          }
+        };
+      }, [logContext.selectedLogFile]);
+      reactExports.useEffect(() => {
+        return () => {
+          if (pollingRef.current) {
+            pollingRef.current.stop();
+          }
+        };
+      }, [logContext.state.selectedSampleIndex]);
+      const loadSample = reactExports.useCallback(
+        async (summary2) => {
+          if (!logContext.selectedLogFile) {
+            return;
+          }
+          dispatch({ type: "SET_LOADING", payload: true });
+          try {
+            if (summary2.completed !== false) {
+              log.debug(`LOADING COMPLETED SAMPLE: ${summary2.id}-${summary2.epoch}`);
+              const sample2 = await api2.get_log_sample(
+                logContext.selectedLogFile,
+                summary2.id,
+                summary2.epoch
+              );
+              if (sample2) {
+                const migratedSample = migrateOldSample(sample2);
+                dispatch({ type: "SET_SELECTED_SAMPLE", payload: migratedSample });
+              } else {
+                throw new Error(
+                  "Unable to load sample - an unknown error occurred."
+                );
+              }
+            } else {
+              log.debug(`POLLING RUNNING SAMPLE: ${summary2.id}-${summary2.epoch}`);
+              pollForSampleData(logContext.selectedLogFile, summary2);
+            }
+            dispatch({ type: "SET_LOADING", payload: false });
+          } catch (e) {
+            dispatch({ type: "SET_ERROR", payload: e });
+          }
+        },
+        [logContext.selectedLogFile, pollForSampleData]
+      );
+      reactExports.useEffect(() => {
+        if (!logContext.selectedLogFile || logContext.state.selectedSampleIndex === -1) {
+          dispatch({ type: "SET_SELECTED_SAMPLE", payload: void 0 });
+        }
+      }, [logContext.state.selectedSampleIndex, logContext.selectedLogFile]);
+      const selectedSampleSummary = reactExports.useMemo(() => {
+        return logContext.sampleSummaries[logContext.state.selectedSampleIndex];
+      }, [logContext.state.selectedSampleIndex, logContext.sampleSummaries]);
+      reactExports.useEffect(() => {
+        if (selectedSampleSummary) {
+          loadSample(selectedSampleSummary);
+        } else {
+          dispatch({ type: "RESET_SAMPLE" });
+        }
+      }, [selectedSampleSummary]);
+      const getState = () => {
+        return { sample: state };
+      };
+      const contextValue = {
+        state,
+        dispatch,
+        getState
+      };
+      return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(SampleContext.Provider, { value: contextValue, children: children2 }, void 0, false, {
+        fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/contexts/SampleContext.tsx",
+        lineNumber: 276,
+        columnNumber: 5
+      }, void 0);
+    };
+    const useSampleContext = () => {
+      const context = reactExports.useContext(SampleContext);
+      if (context === void 0) {
+        throw new Error("useSampleContext must be used within a SampleProvider");
+      }
+      return context;
     };
     const ghCommitUrl = (origin, commit) => {
       const baseUrl = origin.replace(/\.git$/, "");
@@ -76539,15 +76828,15 @@ ${events}
       evalPlan,
       evalResults,
       evalStats,
-      samples,
       evalStatus,
-      evalError
+      evalError,
+      sampleCount
     }) => {
       const [hidden2, setHidden] = reactExports.useState(false);
       reactExports.useEffect(() => {
         setHidden(false);
-      }, [evalSpec, evalPlan, evalResults, evalStats, samples]);
-      const showWarning = (!samples || samples.length === 0) && evalStatus === "success" && (evalSpec == null ? void 0 : evalSpec.dataset.samples) && evalSpec.dataset.samples > 0;
+      }, [evalSpec, evalPlan, evalResults, evalStats]);
+      const showWarning = sampleCount === 0 && evalStatus === "success" && (evalSpec == null ? void 0 : evalSpec.dataset.samples) && evalSpec.dataset.samples > 0;
       return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { style: { width: "100%" }, children: [
         showWarning ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
           MessageBand,
@@ -76561,7 +76850,7 @@ ${events}
           false,
           {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/tabs/InfoTab.tsx",
-            lineNumber: 48,
+            lineNumber: 49,
             columnNumber: 9
           },
           void 0
@@ -76578,29 +76867,29 @@ ${events}
             false,
             {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/tabs/InfoTab.tsx",
-              lineNumber: 58,
+              lineNumber: 59,
               columnNumber: 9
             },
             void 0
           ),
           evalStatus !== "started" ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(UsageCard, { stats: evalStats }, void 0, false, {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/tabs/InfoTab.tsx",
-            lineNumber: 63,
+            lineNumber: 64,
             columnNumber: 37
           }, void 0) : void 0,
           evalStatus === "error" && evalError ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(TaskErrorCard, { error: evalError }, void 0, false, {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/tabs/InfoTab.tsx",
-            lineNumber: 65,
+            lineNumber: 66,
             columnNumber: 11
           }, void 0) : void 0
         ] }, void 0, true, {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/tabs/InfoTab.tsx",
-          lineNumber: 57,
+          lineNumber: 58,
           columnNumber: 7
         }, void 0)
       ] }, void 0, true, {
         fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/tabs/InfoTab.tsx",
-        lineNumber: 46,
+        lineNumber: 47,
         columnNumber: 5
       }, void 0);
     };
@@ -77149,12 +77438,12 @@ ${events}
       status: status2,
       evalResults,
       runningMetrics,
-      samples,
-      file,
-      evalSpec
+      evalSpec,
+      sampleCount
     }) => {
       const appContext = useAppContext();
-      const logFileName = file ? filename(file) : "";
+      const logsContext = useLogsContext();
+      const logFileName = logsContext.selectedLogFile ? filename(logsContext.selectedLogFile) : "";
       const handleToggle = reactExports.useCallback(() => {
         appContext.dispatch({
           type: "SET_OFFCANVAS",
@@ -77185,7 +77474,7 @@ ${events}
                   type: "button",
                   children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("i", { className: ApplicationIcons.menu }, void 0, false, {
                     fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/PrimaryBar.tsx",
-                    lineNumber: 68,
+                    lineNumber: 70,
                     columnNumber: 13
                   }, void 0)
                 },
@@ -77193,7 +77482,7 @@ ${events}
                 false,
                 {
                   fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/PrimaryBar.tsx",
-                  lineNumber: 58,
+                  lineNumber: 60,
                   columnNumber: 11
                 },
                 void 0
@@ -77212,7 +77501,7 @@ ${events}
                     false,
                     {
                       fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/PrimaryBar.tsx",
-                      lineNumber: 75,
+                      lineNumber: 77,
                       columnNumber: 13
                     },
                     void 0
@@ -77234,35 +77523,35 @@ ${events}
                     false,
                     {
                       fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/PrimaryBar.tsx",
-                      lineNumber: 82,
+                      lineNumber: 84,
                       columnNumber: 13
                     },
                     void 0
                   )
                 ] }, void 0, true, {
                   fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/PrimaryBar.tsx",
-                  lineNumber: 74,
+                  lineNumber: 76,
                   columnNumber: 11
                 }, void 0),
                 /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: clsx("text-size-small", styles$5.secondaryContainer), children: [
                   /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: clsx("navbar-secondary-text", "text-truncate"), children: logFileName }, void 0, false, {
                     fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/PrimaryBar.tsx",
-                    lineNumber: 96,
+                    lineNumber: 98,
                     columnNumber: 13
                   }, void 0),
-                  file ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(CopyButton, { value: file }, void 0, false, {
+                  logsContext.selectedLogFile ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(CopyButton, { value: logsContext.selectedLogFile }, void 0, false, {
                     fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/PrimaryBar.tsx",
-                    lineNumber: 99,
-                    columnNumber: 21
+                    lineNumber: 102,
+                    columnNumber: 15
                   }, void 0) : ""
                 ] }, void 0, true, {
                   fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/PrimaryBar.tsx",
-                  lineNumber: 95,
+                  lineNumber: 97,
                   columnNumber: 11
                 }, void 0)
               ] }, void 0, true, {
                 fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/PrimaryBar.tsx",
-                lineNumber: 73,
+                lineNumber: 75,
                 columnNumber: 9
               }, void 0)
             ]
@@ -77271,7 +77560,7 @@ ${events}
           true,
           {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/PrimaryBar.tsx",
-            lineNumber: 49,
+            lineNumber: 51,
             columnNumber: 7
           },
           void 0
@@ -77286,39 +77575,39 @@ ${events}
             false,
             {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/PrimaryBar.tsx",
-              lineNumber: 108,
+              lineNumber: 114,
               columnNumber: 11
             },
             void 0
           ) : void 0,
-          status2 === "cancelled" ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(CancelledPanel, { sampleCount: (samples == null ? void 0 : samples.length) || 0 }, void 0, false, {
+          status2 === "cancelled" ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(CancelledPanel, { sampleCount: sampleCount || 0 }, void 0, false, {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/PrimaryBar.tsx",
-            lineNumber: 117,
+            lineNumber: 123,
             columnNumber: 11
           }, void 0) : void 0,
-          status2 === "started" && (!appContext.capabilities.streamSamples || !runningMetrics) ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(RunningStatusPanel, { sampleCount: (samples == null ? void 0 : samples.length) || 0 }, void 0, false, {
+          status2 === "started" && (!appContext.capabilities.streamSamples || !runningMetrics) ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(RunningStatusPanel, { sampleCount: sampleCount || 0 }, void 0, false, {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/PrimaryBar.tsx",
-            lineNumber: 121,
+            lineNumber: 127,
             columnNumber: 11
           }, void 0) : void 0,
-          status2 === "error" ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(ErroredPanel, { sampleCount: (samples == null ? void 0 : samples.length) || 0 }, void 0, false, {
+          status2 === "error" ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(ErroredPanel, { sampleCount: sampleCount || 0 }, void 0, false, {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/PrimaryBar.tsx",
-            lineNumber: 124,
+            lineNumber: 130,
             columnNumber: 11
           }, void 0) : void 0
         ] }, void 0, true, {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/PrimaryBar.tsx",
-          lineNumber: 103,
+          lineNumber: 109,
           columnNumber: 7
         }, void 0),
         /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { id: "task-created", style: { display: "none" }, children: evalSpec == null ? void 0 : evalSpec.created }, void 0, false, {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/PrimaryBar.tsx",
-          lineNumber: 127,
+          lineNumber: 133,
           columnNumber: 7
         }, void 0)
       ] }, void 0, true, {
         fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/PrimaryBar.tsx",
-        lineNumber: 48,
+        lineNumber: 50,
         columnNumber: 5
       }, void 0);
     };
@@ -77393,8 +77682,8 @@ ${events}
       evalPlan,
       evalResults,
       evalStats,
-      samples,
-      status: status2
+      status: status2,
+      sampleCount
     }) => {
       const logContext = useLogContext();
       if (!evalSpec || status2 !== "success") {
@@ -77418,14 +77707,14 @@ ${events}
               DatasetSummary,
               {
                 dataset: evalSpec.dataset,
-                samples,
+                sampleCount,
                 epochs
               },
               void 0,
               false,
               {
                 fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/SecondaryBar.tsx",
-                lineNumber: 62,
+                lineNumber: 61,
                 columnNumber: 9
               },
               void 0
@@ -77435,7 +77724,7 @@ ${events}
           false,
           {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/SecondaryBar.tsx",
-            lineNumber: 57,
+            lineNumber: 56,
             columnNumber: 7
           },
           void 0
@@ -77455,7 +77744,7 @@ ${events}
             ),
             children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(ScorerSummary, { evalDescriptor: logContext.evalDescriptor }, void 0, false, {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/SecondaryBar.tsx",
-              lineNumber: 85,
+              lineNumber: 84,
               columnNumber: 9
             }, void 0)
           },
@@ -77463,7 +77752,7 @@ ${events}
           false,
           {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/SecondaryBar.tsx",
-            lineNumber: 76,
+            lineNumber: 75,
             columnNumber: 7
           },
           void 0
@@ -77479,7 +77768,7 @@ ${events}
               className: clsx(styles$1.justifyRight, "text-size-small"),
               children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(ParamSummary, { params: hyperparameters }, void 0, false, {
                 fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/SecondaryBar.tsx",
-                lineNumber: 99,
+                lineNumber: 98,
                 columnNumber: 11
               }, void 0)
             },
@@ -77487,7 +77776,7 @@ ${events}
             false,
             {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/SecondaryBar.tsx",
-              lineNumber: 94,
+              lineNumber: 93,
               columnNumber: 9
             },
             void 0
@@ -77512,7 +77801,7 @@ ${events}
             false,
             {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/SecondaryBar.tsx",
-              lineNumber: 113,
+              lineNumber: 112,
               columnNumber: 9
             },
             void 0
@@ -77542,7 +77831,7 @@ ${events}
             false,
             {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/SecondaryBar.tsx",
-              lineNumber: 130,
+              lineNumber: 129,
               columnNumber: 7
             },
             void 0
@@ -77552,23 +77841,23 @@ ${events}
         false,
         {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/SecondaryBar.tsx",
-          lineNumber: 125,
+          lineNumber: 124,
           columnNumber: 5
         },
         void 0
       );
     };
     const DatasetSummary = ({
+      sampleCount,
       dataset,
-      samples,
       epochs
     }) => {
       if (!dataset) {
         return null;
       }
-      return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { children: (samples == null ? void 0 : samples.length) ? formatDataset(samples.length, epochs, dataset.name) : "" }, void 0, false, {
+      return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { children: sampleCount ? formatDataset(sampleCount, epochs, dataset.name) : "" }, void 0, false, {
         fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/SecondaryBar.tsx",
-        lineNumber: 167,
+        lineNumber: 166,
         columnNumber: 5
       }, void 0);
     };
@@ -77580,17 +77869,17 @@ ${events}
       return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("span", { style: { position: "relative" }, children: Array.from(items).map((item2, index, array) => /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("span", { children: [
         /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("span", { title: item2.tooltip, children: item2.canonicalName }, void 0, false, {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/SecondaryBar.tsx",
-          lineNumber: 192,
+          lineNumber: 189,
           columnNumber: 11
         }, void 0),
         index < array.length - 1 ? ", " : ""
       ] }, index, true, {
         fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/SecondaryBar.tsx",
-        lineNumber: 191,
+        lineNumber: 188,
         columnNumber: 9
       }, void 0)) }, void 0, false, {
         fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/SecondaryBar.tsx",
-        lineNumber: 189,
+        lineNumber: 186,
         columnNumber: 5
       }, void 0);
     };
@@ -77609,7 +77898,7 @@ ${events}
       if (paraValues.length > 0) {
         return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("code", { style: { padding: 0, color: "var(--bs-body-color)" }, children: paraValues.join(", ") }, void 0, false, {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/SecondaryBar.tsx",
-          lineNumber: 221,
+          lineNumber: 218,
           columnNumber: 7
         }, void 0);
       } else {
@@ -77617,33 +77906,31 @@ ${events}
       }
     };
     const Navbar = ({
-      file,
       evalSpec,
       evalPlan,
       evalResults,
       evalStats,
-      samples,
       showToggle,
       status: status2,
       runningMetrics
     }) => {
+      const logContext = useLogContext();
       return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("nav", { className: clsx("navbar", "sticky-top", styles$7.navbarWrapper), children: [
         /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
           PrimaryBar,
           {
-            file,
             evalSpec,
             evalResults,
-            samples,
             showToggle,
             status: status2,
-            runningMetrics
+            runningMetrics,
+            sampleCount: logContext.totalSampleCount
           },
           void 0,
           false,
           {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/Navbar.tsx",
-            lineNumber: 43,
+            lineNumber: 41,
             columnNumber: 7
           },
           void 0
@@ -77655,21 +77942,21 @@ ${events}
             evalPlan,
             evalResults,
             evalStats,
-            samples,
-            status: status2
+            status: status2,
+            sampleCount: logContext.totalSampleCount
           },
           void 0,
           false,
           {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/Navbar.tsx",
-            lineNumber: 52,
+            lineNumber: 49,
             columnNumber: 7
           },
           void 0
         )
       ] }, void 0, true, {
         fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/Navbar.tsx",
-        lineNumber: 42,
+        lineNumber: 40,
         columnNumber: 5
       }, void 0);
     };
@@ -77686,13 +77973,11 @@ ${events}
       tabPanels
     };
     const WorkSpaceView = ({
-      logFileName,
       evalSpec,
       evalPlan,
       evalResults,
       runningMetrics,
       evalStats,
-      samples,
       status: status2,
       showToggle,
       selectedTab,
@@ -77732,7 +78017,7 @@ ${events}
       if (evalSpec === void 0) {
         return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(EmptyPanel, {}, void 0, false, {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/WorkSpaceView.tsx",
-          lineNumber: 92,
+          lineNumber: 88,
           columnNumber: 12
         }, void 0);
       } else {
@@ -77758,16 +78043,14 @@ ${events}
               evalResults,
               runningMetrics,
               evalStats,
-              samples,
               status: status2,
-              file: logFileName,
               showToggle
             },
             void 0,
             false,
             {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/WorkSpaceView.tsx",
-              lineNumber: 113,
+              lineNumber: 109,
               columnNumber: 9
             },
             void 0
@@ -77803,7 +78086,7 @@ ${events}
                   false,
                   {
                     fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/WorkSpaceView.tsx",
-                    lineNumber: 137,
+                    lineNumber: 131,
                     columnNumber: 19
                   },
                   void 0
@@ -77814,22 +78097,22 @@ ${events}
             false,
             {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/WorkSpaceView.tsx",
-              lineNumber: 126,
+              lineNumber: 120,
               columnNumber: 13
             },
             void 0
           ) }, void 0, false, {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/WorkSpaceView.tsx",
-            lineNumber: 125,
+            lineNumber: 119,
             columnNumber: 11
           }, void 0) }, void 0, false, {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/WorkSpaceView.tsx",
-            lineNumber: 124,
+            lineNumber: 118,
             columnNumber: 9
           }, void 0)
         ] }, void 0, true, {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/WorkSpaceView.tsx",
-          lineNumber: 112,
+          lineNumber: 108,
           columnNumber: 7
         }, void 0);
       }
@@ -77838,13 +78121,11 @@ ${events}
       const {
         task_id,
         evalStatus,
-        logFileName,
         evalSpec,
         evalPlan,
         evalStats,
         evalResults,
         runningMetrics,
-        samples,
         showToggle,
         selectedTab,
         setSelectedTab,
@@ -77864,14 +78145,12 @@ ${events}
       return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
         WorkSpaceView,
         {
-          logFileName,
           divRef,
           evalSpec,
           evalPlan,
           evalResults,
           runningMetrics,
           evalStats,
-          samples,
           status: evalStatus,
           tabs: resolvedTabs,
           selectedTab,
@@ -77884,7 +78163,7 @@ ${events}
         false,
         {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/WorkSpace.tsx",
-          lineNumber: 99,
+          lineNumber: 95,
           columnNumber: 5
         },
         void 0
@@ -77910,18 +78189,19 @@ ${events}
         }, 1250);
       }
     };
-    const useSamplesTabConfig = (sampleMode, samples, selectedSample, sampleStatus, sampleError, evalStatus, showingSampleDialog, setShowingSampleDialog, runningSampleData, selectedSampleTab, setSelectedSampleTab, sampleScrollPositionRef, setSampleScrollPosition, refreshLog, sampleTabScrollRef) => {
+    const useSamplesTabConfig = (selectedSample, sampleStatus, sampleError, evalStatus, showingSampleDialog, setShowingSampleDialog, runningSampleData, selectedSampleTab, setSelectedSampleTab, sampleScrollPositionRef, setSampleScrollPosition, refreshLog, sampleTabScrollRef) => {
       const appContext = useAppContext();
       const logContext = useLogContext();
+      useSampleContext();
       return reactExports.useMemo(() => {
-        if (sampleMode === "none") {
+        if (logContext.totalSampleCount === 0) {
           return null;
         }
         return {
           id: kEvalWorkspaceTabId,
-          scrollable: (samples == null ? void 0 : samples.length) === 1,
+          scrollable: logContext.totalSampleCount === 1,
           scrollRef: sampleTabScrollRef,
-          label: (samples || []).length > 1 ? "Samples" : "Sample",
+          label: logContext.totalSampleCount > 1 ? "Samples" : "Sample",
           content: () => /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
             SamplesTab,
             {
@@ -77932,8 +78212,6 @@ ${events}
               running: evalStatus === "started",
               showingSampleDialog,
               setShowingSampleDialog,
-              samples,
-              sampleMode,
               selectedSampleTab,
               setSelectedSampleTab,
               sampleScrollPositionRef,
@@ -77944,17 +78222,26 @@ ${events}
             false,
             {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/WorkSpace.tsx",
-              lineNumber: 172,
+              lineNumber: 165,
               columnNumber: 9
             },
             void 0
           ),
-          tools: () => sampleMode === "single" || !logContext.samplesDescriptor ? void 0 : [
-            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(SampleTools, { samples: samples || [] }, "sample-tools", false, {
-              fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/WorkSpace.tsx",
-              lineNumber: 193,
-              columnNumber: 15
-            }, void 0),
+          tools: () => logContext.totalSampleCount === 1 || !logContext.samplesDescriptor ? void 0 : [
+            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+              SampleTools,
+              {
+                samples: logContext.sampleSummaries || []
+              },
+              "sample-tools",
+              false,
+              {
+                fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/WorkSpace.tsx",
+                lineNumber: 184,
+                columnNumber: 15
+              },
+              void 0
+            ),
             evalStatus === "started" && !appContext.capabilities.streamSamples && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
               ToolButton,
               {
@@ -77966,7 +78253,7 @@ ${events}
               false,
               {
                 fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/WorkSpace.tsx",
-                lineNumber: 196,
+                lineNumber: 190,
                 columnNumber: 19
               },
               void 0
@@ -77974,8 +78261,6 @@ ${events}
           ].filter(Boolean)
         };
       }, [
-        sampleMode,
-        samples,
         selectedSample,
         sampleStatus,
         sampleError,
@@ -77993,7 +78278,8 @@ ${events}
         logContext.samplesDescriptor
       ]);
     };
-    const useInfoTabConfig = (evalSpec, evalPlan, evalError, evalResults, evalStats, samples) => {
+    const useInfoTabConfig = (evalSpec, evalPlan, evalError, evalResults, evalStats) => {
+      const logContext = useLogContext();
       return reactExports.useMemo(() => {
         return {
           id: kInfoWorkspaceTabId,
@@ -78007,21 +78293,29 @@ ${events}
               evalError,
               evalResults,
               evalStats,
-              samples
+              sampleCount: logContext.totalSampleCount
             },
             void 0,
             false,
             {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/WorkSpace.tsx",
-              lineNumber: 241,
+              lineNumber: 233,
               columnNumber: 9
             },
             void 0
           )
         };
-      }, [evalSpec, evalPlan, evalError, evalResults, evalStats, samples]);
+      }, [
+        evalSpec,
+        evalPlan,
+        evalError,
+        evalResults,
+        evalStats,
+        logContext.totalSampleCount
+      ]);
     };
-    const useJsonTabConfig = (logFileName, evalVersion, evalStatus, evalSpec, evalPlan, evalError, evalResults, evalStats, selectedTab) => {
+    const useJsonTabConfig = (evalVersion, evalStatus, evalSpec, evalPlan, evalError, evalResults, evalStats, selectedTab) => {
+      const logContext = useLogContext();
       return reactExports.useMemo(() => {
         return {
           id: kJsonWorkspaceTabId,
@@ -78040,7 +78334,7 @@ ${events}
             return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
               JsonTab,
               {
-                logFile: logFileName,
+                logFile: logContext.selectedLogFile,
                 json: JSON.stringify(evalHeader, null, 2),
                 selected: selectedTab === kJsonWorkspaceTabId
               },
@@ -78048,7 +78342,7 @@ ${events}
               false,
               {
                 fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/WorkSpace.tsx",
-                lineNumber: 282,
+                lineNumber: 281,
                 columnNumber: 11
               },
               void 0
@@ -78068,7 +78362,7 @@ ${events}
               false,
               {
                 fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/WorkSpace.tsx",
-                lineNumber: 290,
+                lineNumber: 289,
                 columnNumber: 9
               },
               void 0
@@ -78076,7 +78370,7 @@ ${events}
           ]
         };
       }, [
-        logFileName,
+        logContext.selectedLogFile,
         evalVersion,
         evalStatus,
         evalSpec,
@@ -78091,8 +78385,6 @@ ${events}
       const {
         evalVersion,
         evalStatus,
-        sampleMode,
-        samples,
         selectedSample,
         sampleStatus,
         sampleError,
@@ -78108,14 +78400,11 @@ ${events}
         evalResults,
         evalStats,
         evalError,
-        logFileName,
         selectedTab,
         refreshLog
       } = props;
       const sampleTabScrollRef = reactExports.useRef(null);
       const samplesTabConfig = useSamplesTabConfig(
-        sampleMode,
-        samples,
         selectedSample,
         sampleStatus,
         sampleError,
@@ -78135,11 +78424,9 @@ ${events}
         evalPlan,
         evalError,
         evalResults,
-        evalStats,
-        samples
+        evalStats
       );
       const jsonTabConfig = useJsonTabConfig(
-        logFileName,
         evalVersion,
         evalStatus,
         evalSpec,
@@ -78801,297 +79088,6 @@ ${events}
     })(clipboard);
     var clipboardExports = clipboard.exports;
     const ClipboardJS = /* @__PURE__ */ getDefaultExportFromCjs(clipboardExports);
-    const resolveAttachments = (value2, attachments) => {
-      const kContentProtocol = "tc://";
-      const kAttachmentProtocol = "attachment://";
-      if (Array.isArray(value2)) {
-        return value2.map((v) => resolveAttachments(v, attachments));
-      }
-      if (value2 && typeof value2 === "object") {
-        const resolvedObject = {};
-        for (const key2 of Object.keys(value2)) {
-          resolvedObject[key2] = resolveAttachments(value2[key2], attachments);
-        }
-        return resolvedObject;
-      }
-      if (typeof value2 === "string") {
-        let resolvedValue = value2;
-        if (resolvedValue.startsWith(kContentProtocol)) {
-          resolvedValue = resolvedValue.replace(
-            kContentProtocol,
-            kAttachmentProtocol
-          );
-        }
-        if (resolvedValue.startsWith(kAttachmentProtocol)) {
-          return attachments[resolvedValue.replace(kAttachmentProtocol, "")];
-        }
-        return resolvedValue;
-      }
-      return value2;
-    };
-    const sampleDataAdapter = () => {
-      const attachments = {};
-      const events = {};
-      return {
-        addData: (data) => {
-          data.attachments.forEach((a) => {
-            attachments[a.hash] = a.content;
-          });
-          data.events.forEach((e) => {
-            events[e.event_id] = e;
-          });
-        },
-        resolvedEvents: () => {
-          const eventDatas = Object.values(events);
-          const resolvedEvents = eventDatas.map((ed) => {
-            return ed.event;
-          });
-          return resolveAttachments(resolvedEvents, attachments);
-        }
-      };
-    };
-    const createPolling = (name2, callback, options) => {
-      const log = createLogger(`Polling ${name2}`);
-      const { maxRetries, interval } = options;
-      let timeoutId = null;
-      let retryCount = 0;
-      let isPolling = false;
-      const calculateBackoff = (retryCount2) => {
-        return Math.min(interval * Math.pow(2, retryCount2) * 1e3, 6e4);
-      };
-      const stop = () => {
-        if (timeoutId) {
-          clearTimeout(timeoutId);
-          timeoutId = null;
-        }
-        log.debug("Stop Polling");
-        isPolling = false;
-      };
-      const poll = async () => {
-        if (!isPolling) {
-          return;
-        }
-        try {
-          log.debug("Poll");
-          const shouldContinue = await callback();
-          if (shouldContinue === false) {
-            stop();
-            return;
-          }
-          retryCount = 0;
-          timeoutId = setTimeout(poll, interval * 1e3);
-        } catch (e) {
-          retryCount += 1;
-          if (retryCount >= maxRetries) {
-            log.error(`Polling stopped after ${maxRetries} failed attempts`);
-            stop();
-            return;
-          }
-          const backoffTime = calculateBackoff(retryCount);
-          log.debug(
-            `Retry ${retryCount}/${maxRetries}, backoff: ${backoffTime / 1e3}s`
-          );
-          timeoutId = setTimeout(poll, backoffTime);
-        }
-      };
-      const start = () => {
-        if (isPolling) {
-          return;
-        }
-        log.debug("Start Polling");
-        isPolling = true;
-        poll();
-      };
-      return { start, stop };
-    };
-    const sampleReducer = (state, action) => {
-      switch (action.type) {
-        case "SET_SELECTED_SAMPLE":
-          return { ...state, selectedSample: action.payload };
-        case "CLEAR_SELECTED_SAMPLE":
-          return { ...state, selectedSample: void 0 };
-        case "SET_RUNNING_SAMPLE_DATA":
-          return { ...state, runningSampleData: action.payload };
-        case "SET_LOADING": {
-          const status2 = action.payload ? "loading" : "ok";
-          return { ...state, sampleStatus: status2, sampleError: void 0 };
-        }
-        case "SET_ERROR":
-          return {
-            ...state,
-            sampleStatus: "error",
-            sampleError: action.payload,
-            selectedSample: void 0
-          };
-        case "RESET_SAMPLE":
-          return {
-            selectedSample: void 0,
-            sampleStatus: "loading",
-            sampleError: void 0,
-            runningSampleData: void 0
-          };
-        default:
-          return state;
-      }
-    };
-    const initialSampleState = {
-      selectedSample: void 0,
-      sampleStatus: "loading",
-      sampleError: void 0,
-      runningSampleData: void 0
-    };
-    const SampleContext = reactExports.createContext(void 0);
-    const SampleProvider = ({
-      children: children2,
-      api: api2,
-      initialState: initialState2
-    }) => {
-      const log = reactExports.useMemo(() => {
-        return createLogger("SampleContext");
-      }, []);
-      const [state, dispatch] = reactExports.useReducer(
-        sampleReducer,
-        (initialState2 == null ? void 0 : initialState2.sample) || initialSampleState
-      );
-      const pollingRef = reactExports.useRef(null);
-      const logContext = useLogContext();
-      const migrateOldSample = (sample2) => {
-        if (sample2.transcript) {
-          sample2.events = sample2.transcript.events;
-          sample2.attachments = sample2.transcript.content;
-        }
-        sample2.attachments = sample2.attachments || {};
-        sample2.input = resolveAttachments(sample2.input, sample2.attachments);
-        sample2.messages = resolveAttachments(sample2.messages, sample2.attachments);
-        sample2.events = resolveAttachments(sample2.events, sample2.attachments);
-        sample2.attachments = {};
-        return sample2;
-      };
-      const pollForSampleData = reactExports.useCallback(
-        (logFile, summary2) => {
-          if (pollingRef.current) {
-            pollingRef.current.stop();
-          }
-          const pollCallback = async () => {
-            if (!api2.get_log_sample_data) {
-              return false;
-            }
-            log.debug(`GET RUNNING SAMPLE: ${summary2.id}-${summary2.epoch}`);
-            const sampleDataResponse = await api2.get_log_sample_data(
-              logFile,
-              summary2.id,
-              summary2.epoch
-            );
-            if ((sampleDataResponse == null ? void 0 : sampleDataResponse.status) === "NotFound") {
-              return false;
-            }
-            if ((sampleDataResponse == null ? void 0 : sampleDataResponse.status) === "OK" && sampleDataResponse.sampleData) {
-              const adapter = sampleDataAdapter();
-              adapter.addData(sampleDataResponse.sampleData);
-              const runningData = { events: adapter.resolvedEvents(), summary: summary2 };
-              dispatch({ type: "SET_RUNNING_SAMPLE_DATA", payload: runningData });
-            }
-            return true;
-          };
-          const name2 = `${logFile}:${summary2.id}-${summary2.epoch}`;
-          pollingRef.current = createPolling(name2, pollCallback, {
-            maxRetries: 10,
-            interval: 2
-          });
-          pollingRef.current.start();
-        },
-        [api2.get_log_sample_data, dispatch, log]
-      );
-      reactExports.useEffect(() => {
-        return () => {
-          if (pollingRef.current) {
-            pollingRef.current.stop();
-          }
-        };
-      }, []);
-      reactExports.useEffect(() => {
-        return () => {
-          if (pollingRef.current) {
-            pollingRef.current.stop();
-          }
-        };
-      }, [logContext.selectedLogFile]);
-      reactExports.useEffect(() => {
-        return () => {
-          if (pollingRef.current) {
-            pollingRef.current.stop();
-          }
-        };
-      }, [logContext.state.selectedSampleIndex]);
-      const loadSample = reactExports.useCallback(
-        async (summary2) => {
-          if (!logContext.selectedLogFile) {
-            return;
-          }
-          dispatch({ type: "SET_LOADING", payload: true });
-          try {
-            if (summary2.completed !== false) {
-              log.debug(`LOADING COMPLETED SAMPLE: ${summary2.id}-${summary2.epoch}`);
-              const sample2 = await api2.get_log_sample(
-                logContext.selectedLogFile,
-                summary2.id,
-                summary2.epoch
-              );
-              if (sample2) {
-                const migratedSample = migrateOldSample(sample2);
-                dispatch({ type: "SET_SELECTED_SAMPLE", payload: migratedSample });
-              } else {
-                throw new Error(
-                  "Unable to load sample - an unknown error occurred."
-                );
-              }
-            } else {
-              log.debug(`POLLING RUNNING SAMPLE: ${summary2.id}-${summary2.epoch}`);
-              pollForSampleData(logContext.selectedLogFile, summary2);
-            }
-            dispatch({ type: "SET_LOADING", payload: false });
-          } catch (e) {
-            dispatch({ type: "SET_ERROR", payload: e });
-          }
-        },
-        [logContext.selectedLogFile, pollForSampleData]
-      );
-      reactExports.useEffect(() => {
-        if (!logContext.selectedLogFile || logContext.state.selectedSampleIndex === -1) {
-          dispatch({ type: "SET_SELECTED_SAMPLE", payload: void 0 });
-        }
-      }, [logContext.state.selectedSampleIndex, logContext.selectedLogFile]);
-      const selectedSampleSummary = reactExports.useMemo(() => {
-        return logContext.sampleSummaries[logContext.state.selectedSampleIndex];
-      }, [logContext.state.selectedSampleIndex, logContext.sampleSummaries]);
-      reactExports.useEffect(() => {
-        if (selectedSampleSummary) {
-          loadSample(selectedSampleSummary);
-        } else {
-          dispatch({ type: "RESET_SAMPLE" });
-        }
-      }, [selectedSampleSummary]);
-      const getState = () => {
-        return { sample: state };
-      };
-      const contextValue = {
-        state,
-        dispatch,
-        getState
-      };
-      return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(SampleContext.Provider, { value: contextValue, children: children2 }, void 0, false, {
-        fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/contexts/SampleContext.tsx",
-        lineNumber: 276,
-        columnNumber: 5
-      }, void 0);
-    };
-    const useSampleContext = () => {
-      const context = reactExports.useContext(SampleContext);
-      if (context === void 0) {
-        throw new Error("useSampleContext must be used within a SampleProvider");
-      }
-      return context;
-    };
     const App = ({
       api: api2,
       applicationState,
@@ -79348,7 +79344,6 @@ ${events}
       }, [logsContext.dispatch]);
       const fullScreen = logsContext.state.logs.files.length === 1 && !logsContext.state.logs.log_dir;
       const showToggle = logsContext.state.logs.files.length > 1 || !!logsContext.state.logs.log_dir || false;
-      const sampleMode = logContext.totalSampleCount === 0 ? "none" : logContext.totalSampleCount === 1 ? "single" : "many";
       return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(jsxDevRuntimeExports.Fragment, { children: [
         !fullScreen && logContext.state.selectedLogSummary ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
           Sidebar,
@@ -79369,7 +79364,7 @@ ${events}
           false,
           {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/App.tsx",
-            lineNumber: 394,
+            lineNumber: 384,
             columnNumber: 9
           },
           void 0
@@ -79397,12 +79392,12 @@ ${events}
             children: [
               !appContext.capabilities.nativeFind && appContext.state.showFind ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(FindBand, {}, void 0, false, {
                 fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/App.tsx",
-                lineNumber: 433,
+                lineNumber: 423,
                 columnNumber: 11
               }, void 0) : "",
               /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(ProgressBar, { animating: appContext.state.status.loading }, void 0, false, {
                 fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/App.tsx",
-                lineNumber: 437,
+                lineNumber: 427,
                 columnNumber: 9
               }, void 0),
               appContext.state.status.error ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
@@ -79415,7 +79410,7 @@ ${events}
                 false,
                 {
                   fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/App.tsx",
-                  lineNumber: 439,
+                  lineNumber: 429,
                   columnNumber: 11
                 },
                 void 0
@@ -79423,7 +79418,6 @@ ${events}
                 WorkSpace,
                 {
                   task_id: (_c = (_b2 = logContext.state.selectedLogSummary) == null ? void 0 : _b2.eval) == null ? void 0 : _c.task_id,
-                  logFileName: logsContext.selectedLogFile,
                   evalStatus: (_d = logContext.state.selectedLogSummary) == null ? void 0 : _d.status,
                   evalError: filterNull((_e2 = logContext.state.selectedLogSummary) == null ? void 0 : _e2.error),
                   evalVersion: (_f = logContext.state.selectedLogSummary) == null ? void 0 : _f.version,
@@ -79435,8 +79429,6 @@ ${events}
                   ),
                   runningMetrics: (_k = logContext.state.pendingSampleSummaries) == null ? void 0 : _k.metrics,
                   showToggle,
-                  samples: logContext.sampleSummaries,
-                  sampleMode,
                   sampleStatus: sampleContext.state.sampleStatus,
                   sampleError: sampleContext.state.sampleError,
                   refreshLog,
@@ -79457,7 +79449,7 @@ ${events}
                 false,
                 {
                   fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/App.tsx",
-                  lineNumber: 444,
+                  lineNumber: 434,
                   columnNumber: 11
                 },
                 void 0
@@ -79468,14 +79460,14 @@ ${events}
           true,
           {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/App.tsx",
-            lineNumber: 408,
+            lineNumber: 398,
             columnNumber: 7
           },
           void 0
         )
       ] }, void 0, true, {
         fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/App.tsx",
-        lineNumber: 392,
+        lineNumber: 382,
         columnNumber: 5
       }, void 0);
     };

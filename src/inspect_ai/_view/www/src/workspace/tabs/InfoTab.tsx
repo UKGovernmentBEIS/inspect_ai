@@ -20,6 +20,7 @@ interface PlanTabProps {
   samples?: SampleSummary[];
   evalStatus?: "started" | "error" | "cancelled" | "success";
   evalError?: EvalError;
+  sampleCount?: number;
 }
 
 export const InfoTab: FC<PlanTabProps> = ({
@@ -27,17 +28,17 @@ export const InfoTab: FC<PlanTabProps> = ({
   evalPlan,
   evalResults,
   evalStats,
-  samples,
   evalStatus,
   evalError,
+  sampleCount,
 }) => {
   const [hidden, setHidden] = useState(false);
   useEffect(() => {
     setHidden(false);
-  }, [evalSpec, evalPlan, evalResults, evalStats, samples]);
+  }, [evalSpec, evalPlan, evalResults, evalStats]);
 
   const showWarning =
-    (!samples || samples.length === 0) &&
+    sampleCount === 0 &&
     evalStatus === "success" &&
     evalSpec?.dataset.samples &&
     evalSpec.dataset.samples > 0;

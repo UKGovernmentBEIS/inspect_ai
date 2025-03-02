@@ -378,16 +378,6 @@ export const App: FC<AppProps> = ({
     !!logsContext.state.logs.log_dir ||
     false;
 
-  /**
-   * Determines the sample mode based on the selected log's contents.
-   */
-  const sampleMode =
-    logContext.totalSampleCount === 0
-      ? "none"
-      : logContext.totalSampleCount === 1
-        ? "single"
-        : "many";
-
   return (
     <>
       {!fullScreen && logContext.state.selectedLogSummary ? (
@@ -443,7 +433,6 @@ export const App: FC<AppProps> = ({
         ) : (
           <WorkSpace
             task_id={logContext.state.selectedLogSummary?.eval?.task_id}
-            logFileName={logsContext.selectedLogFile}
             evalStatus={logContext.state.selectedLogSummary?.status}
             evalError={filterNull(logContext.state.selectedLogSummary?.error)}
             evalVersion={logContext.state.selectedLogSummary?.version}
@@ -455,8 +444,6 @@ export const App: FC<AppProps> = ({
             )}
             runningMetrics={logContext.state.pendingSampleSummaries?.metrics}
             showToggle={showToggle}
-            samples={logContext.sampleSummaries}
-            sampleMode={sampleMode}
             sampleStatus={sampleContext.state.sampleStatus}
             sampleError={sampleContext.state.sampleError}
             refreshLog={refreshLog}
