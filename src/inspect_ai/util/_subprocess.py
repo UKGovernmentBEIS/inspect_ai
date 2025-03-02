@@ -1,7 +1,6 @@
 import asyncio
 import os
 import shlex
-import sys
 from asyncio.subprocess import Process
 from contextvars import ContextVar
 from dataclasses import dataclass
@@ -194,31 +193,23 @@ async def subprocess(
         # await result wrapped in timeout handler if requested
         if timeout:
             try:
-                if sys.version_info >= (3, 11):
-                    async with asyncio.timeout(timeout):
-                        result = await anext(rc)
-                        return cast(Union[ExecResult[str], ExecResult[bytes]], result)
-                else:
-                    result = await asyncio.wait_for(anext(rc), timeout=timeout)
+                with anyio.fail_after(timeout):
+                    result = await anext(rc)
                     return cast(Union[ExecResult[str], ExecResult[bytes]], result)
-            # wait_for raises asyncio.TimeoutError under Python 3.10, but TimeoutError
-            # under Python > 3.11! asynio.timeout (introduced in Python 3.11) always
-            # raises the standard TimeoutError
-            except (TimeoutError, asyncio.exceptions.TimeoutError):
+            except TimeoutError:
                 # terminate timed out process -- try for graceful termination
                 # then be more forceful if requied
-                try:
-                    proc.terminate()
-                    await anyio.sleep(2)
-                    if proc.returncode is None:
-                        proc.kill()
-                except Exception as ex:
-                    logger.warning(
-                        f"Unexpected error terminating timed out process '{args}': {ex}"
-                    )
-
-                # raise standard Python TimeoutError
-                raise TimeoutError
+                with anyio.CancelScope(shield=True):
+                    try:
+                        proc.terminate()
+                        await anyio.sleep(2)
+                        if proc.returncode is None:
+                            proc.kill()
+                    except Exception as ex:
+                        logger.warning(
+                            f"Unexpected error terminating timed out process '{args}': {ex}"
+                        )
+                raise
 
         # await result without timeout
         else:
