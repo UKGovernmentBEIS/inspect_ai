@@ -3,7 +3,7 @@ import os
 import pytest
 
 from inspect_ai._eval.score import task_score
-from inspect_ai.log._file import read_eval_log, read_eval_log_async
+from inspect_ai.log._file import read_eval_log_async
 
 LOG_SCORED = os.path.join(
     "tests",
