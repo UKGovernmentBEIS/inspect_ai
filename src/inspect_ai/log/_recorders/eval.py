@@ -1,4 +1,3 @@
-import asyncio
 import json
 import os
 import tempfile
@@ -7,6 +6,7 @@ from logging import getLogger
 from typing import Any, BinaryIO, Literal, cast
 from zipfile import ZIP_DEFLATED, ZipFile
 
+import anyio
 from fsspec.asyn import AsyncFileSystem  # type: ignore
 from pydantic import BaseModel, Field
 from pydantic_core import to_json
@@ -286,7 +286,7 @@ class ZipLogFile:
     def __init__(self, file: str) -> None:
         self._file = file
         self._fs = filesystem(file)
-        self._lock = asyncio.Lock()
+        self._lock = anyio.Lock()
         self._temp_file = tempfile.TemporaryFile()
         self._samples: list[EvalSample] = []
         self._summary_counter = 0
