@@ -1,9 +1,8 @@
 import clsx from "clsx";
-import { ReactNode } from "react";
+import { FC, isValidElement, ReactNode } from "react";
 import { ApplicationIcons } from "../../../appearance/icons";
 import { EventNavs } from "./EventNavs";
 
-import React from "react";
 import styles from "./EventPanel.module.css";
 
 interface EventPanelProps {
@@ -28,7 +27,7 @@ interface ChildProps {
 /**
  * Renders the StateEventView component.
  */
-export const EventPanel: React.FC<EventPanelProps> = ({
+export const EventPanel: FC<EventPanelProps> = ({
   id,
   className,
   title,
@@ -140,7 +139,7 @@ export const EventPanel: React.FC<EventPanelProps> = ({
               navs={filteredArrChildren.map((child, index) => {
                 const defaultTitle = `Tab ${index}`;
                 const title =
-                  child && React.isValidElement<ChildProps>(child)
+                  child && isValidElement<ChildProps>(child)
                     ? (child.props as ChildProps)["data-name"] || defaultTitle
                     : defaultTitle;
                 return {

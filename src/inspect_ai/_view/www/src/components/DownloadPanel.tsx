@@ -1,4 +1,4 @@
-import React from "react";
+import { FC } from "react";
 import { DownloadButton } from "../components/DownloadButton";
 import "./DownloadPanel.css";
 
@@ -9,7 +9,7 @@ interface DownloadPanelProps {
   fileContents: string | Blob | ArrayBuffer | ArrayBufferView;
 }
 
-export const DownloadPanel: React.FC<DownloadPanelProps> = ({
+export const DownloadPanel: FC<DownloadPanelProps> = ({
   message,
   buttonLabel,
   fileName,

@@ -1168,7 +1168,7 @@ var require_assets = __commonJS({
       react.exports = react_developmentExports;
     }
     var reactExports = react.exports;
-    const React = /* @__PURE__ */ getDefaultExportFromCjs(reactExports);
+    const E = /* @__PURE__ */ getDefaultExportFromCjs(reactExports);
     /**
      * @license React
      * react-jsx-dev-runtime.development.js
@@ -1595,8 +1595,8 @@ var require_assets = __commonJS({
         info || (parentType = getComponentNameFromType(parentType)) && (info = "\n\nCheck the top-level render call using <" + parentType + ">.");
         return info;
       }
-      var React2 = reactExports, REACT_ELEMENT_TYPE = Symbol.for("react.transitional.element"), REACT_PORTAL_TYPE = Symbol.for("react.portal"), REACT_FRAGMENT_TYPE = Symbol.for("react.fragment"), REACT_STRICT_MODE_TYPE = Symbol.for("react.strict_mode"), REACT_PROFILER_TYPE = Symbol.for("react.profiler");
-      var REACT_CONSUMER_TYPE = Symbol.for("react.consumer"), REACT_CONTEXT_TYPE = Symbol.for("react.context"), REACT_FORWARD_REF_TYPE = Symbol.for("react.forward_ref"), REACT_SUSPENSE_TYPE = Symbol.for("react.suspense"), REACT_SUSPENSE_LIST_TYPE = Symbol.for("react.suspense_list"), REACT_MEMO_TYPE = Symbol.for("react.memo"), REACT_LAZY_TYPE = Symbol.for("react.lazy"), REACT_OFFSCREEN_TYPE = Symbol.for("react.offscreen"), MAYBE_ITERATOR_SYMBOL = Symbol.iterator, REACT_CLIENT_REFERENCE$2 = Symbol.for("react.client.reference"), ReactSharedInternals = React2.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE, hasOwnProperty2 = Object.prototype.hasOwnProperty, assign2 = Object.assign, REACT_CLIENT_REFERENCE$1 = Symbol.for("react.client.reference"), isArrayImpl = Array.isArray, disabledDepth = 0, prevLog, prevInfo, prevWarn, prevError, prevGroup, prevGroupCollapsed, prevGroupEnd;
+      var React = reactExports, REACT_ELEMENT_TYPE = Symbol.for("react.transitional.element"), REACT_PORTAL_TYPE = Symbol.for("react.portal"), REACT_FRAGMENT_TYPE = Symbol.for("react.fragment"), REACT_STRICT_MODE_TYPE = Symbol.for("react.strict_mode"), REACT_PROFILER_TYPE = Symbol.for("react.profiler");
+      var REACT_CONSUMER_TYPE = Symbol.for("react.consumer"), REACT_CONTEXT_TYPE = Symbol.for("react.context"), REACT_FORWARD_REF_TYPE = Symbol.for("react.forward_ref"), REACT_SUSPENSE_TYPE = Symbol.for("react.suspense"), REACT_SUSPENSE_LIST_TYPE = Symbol.for("react.suspense_list"), REACT_MEMO_TYPE = Symbol.for("react.memo"), REACT_LAZY_TYPE = Symbol.for("react.lazy"), REACT_OFFSCREEN_TYPE = Symbol.for("react.offscreen"), MAYBE_ITERATOR_SYMBOL = Symbol.iterator, REACT_CLIENT_REFERENCE$2 = Symbol.for("react.client.reference"), ReactSharedInternals = React.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE, hasOwnProperty2 = Object.prototype.hasOwnProperty, assign2 = Object.assign, REACT_CLIENT_REFERENCE$1 = Symbol.for("react.client.reference"), isArrayImpl = Array.isArray, disabledDepth = 0, prevLog, prevInfo, prevWarn, prevError, prevGroup, prevGroupCollapsed, prevGroupEnd;
       disabledLog.__reactDisabledLog = true;
       var prefix, suffix, reentry = false;
       var componentFrameCache = new ("function" === typeof WeakMap ? WeakMap : Map)();
@@ -1948,7 +1948,7 @@ var require_assets = __commonJS({
         return dispatcher;
       }
       "undefined" !== typeof __REACT_DEVTOOLS_GLOBAL_HOOK__ && "function" === typeof __REACT_DEVTOOLS_GLOBAL_HOOK__.registerInternalModuleStart && __REACT_DEVTOOLS_GLOBAL_HOOK__.registerInternalModuleStart(Error());
-      var React2 = reactExports, Internals = {
+      var React = reactExports, Internals = {
         d: {
           f: noop,
           r: function() {
@@ -1966,7 +1966,7 @@ var require_assets = __commonJS({
         },
         p: 0,
         findDOMNode: null
-      }, REACT_PORTAL_TYPE = Symbol.for("react.portal"), ReactSharedInternals = React2.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE;
+      }, REACT_PORTAL_TYPE = Symbol.for("react.portal"), ReactSharedInternals = React.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE;
       "function" === typeof Map && null != Map.prototype && "function" === typeof Map.prototype.forEach && "function" === typeof Set && null != Set.prototype && "function" === typeof Set.prototype.clear && "function" === typeof Set.prototype.forEach || console.error(
         "React depends on Map and Set built-in types. Make sure that you load a polyfill in older browsers. https://reactjs.org/link/react-polyfills"
       );
@@ -3416,7 +3416,7 @@ var require_assets = __commonJS({
         "number" === type && getActiveElement(node2.ownerDocument) === node2 || node2.defaultValue === "" + value2 || (node2.defaultValue = "" + value2);
       }
       function validateOptionProps(element, props) {
-        null == props.value && ("object" === typeof props.children && null !== props.children ? React2.Children.forEach(props.children, function(child) {
+        null == props.value && ("object" === typeof props.children && null !== props.children ? React.Children.forEach(props.children, function(child) {
           null == child || "string" === typeof child || "number" === typeof child || "bigint" === typeof child || didWarnInvalidChild || (didWarnInvalidChild = true, console.error(
             "Cannot infer the option value of complex children. Pass a `value` prop or use a plain string as children to <option>."
           ));
@@ -16885,9 +16885,9 @@ var require_assets = __commonJS({
         ));
       }
       "undefined" !== typeof __REACT_DEVTOOLS_GLOBAL_HOOK__ && "function" === typeof __REACT_DEVTOOLS_GLOBAL_HOOK__.registerInternalModuleStart && __REACT_DEVTOOLS_GLOBAL_HOOK__.registerInternalModuleStart(Error());
-      var Scheduler = schedulerExports, React2 = reactExports, ReactDOM = reactDomExports, REACT_LEGACY_ELEMENT_TYPE = Symbol.for("react.element"), REACT_ELEMENT_TYPE = Symbol.for("react.transitional.element"), REACT_PORTAL_TYPE = Symbol.for("react.portal"), REACT_FRAGMENT_TYPE = Symbol.for("react.fragment"), REACT_STRICT_MODE_TYPE = Symbol.for("react.strict_mode"), REACT_PROFILER_TYPE = Symbol.for("react.profiler"), REACT_PROVIDER_TYPE = Symbol.for("react.provider"), REACT_CONSUMER_TYPE = Symbol.for("react.consumer"), REACT_CONTEXT_TYPE = Symbol.for("react.context"), REACT_FORWARD_REF_TYPE = Symbol.for("react.forward_ref"), REACT_SUSPENSE_TYPE = Symbol.for("react.suspense"), REACT_SUSPENSE_LIST_TYPE = Symbol.for("react.suspense_list"), REACT_MEMO_TYPE = Symbol.for("react.memo"), REACT_LAZY_TYPE = Symbol.for("react.lazy");
+      var Scheduler = schedulerExports, React = reactExports, ReactDOM = reactDomExports, REACT_LEGACY_ELEMENT_TYPE = Symbol.for("react.element"), REACT_ELEMENT_TYPE = Symbol.for("react.transitional.element"), REACT_PORTAL_TYPE = Symbol.for("react.portal"), REACT_FRAGMENT_TYPE = Symbol.for("react.fragment"), REACT_STRICT_MODE_TYPE = Symbol.for("react.strict_mode"), REACT_PROFILER_TYPE = Symbol.for("react.profiler"), REACT_PROVIDER_TYPE = Symbol.for("react.provider"), REACT_CONSUMER_TYPE = Symbol.for("react.consumer"), REACT_CONTEXT_TYPE = Symbol.for("react.context"), REACT_FORWARD_REF_TYPE = Symbol.for("react.forward_ref"), REACT_SUSPENSE_TYPE = Symbol.for("react.suspense"), REACT_SUSPENSE_LIST_TYPE = Symbol.for("react.suspense_list"), REACT_MEMO_TYPE = Symbol.for("react.memo"), REACT_LAZY_TYPE = Symbol.for("react.lazy");
       var REACT_OFFSCREEN_TYPE = Symbol.for("react.offscreen");
-      var REACT_MEMO_CACHE_SENTINEL = Symbol.for("react.memo_cache_sentinel"), MAYBE_ITERATOR_SYMBOL = Symbol.iterator, REACT_CLIENT_REFERENCE = Symbol.for("react.client.reference"), ReactSharedInternals = React2.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE, assign2 = Object.assign, disabledDepth = 0, prevLog, prevInfo, prevWarn, prevError, prevGroup, prevGroupCollapsed, prevGroupEnd;
+      var REACT_MEMO_CACHE_SENTINEL = Symbol.for("react.memo_cache_sentinel"), MAYBE_ITERATOR_SYMBOL = Symbol.iterator, REACT_CLIENT_REFERENCE = Symbol.for("react.client.reference"), ReactSharedInternals = React.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE, assign2 = Object.assign, disabledDepth = 0, prevLog, prevInfo, prevWarn, prevError, prevGroup, prevGroupCollapsed, prevGroupEnd;
       disabledLog.__reactDisabledLog = true;
       var prefix, suffix, reentry = false;
       var componentFrameCache = new ("function" === typeof WeakMap ? WeakMap : Map)();
@@ -19606,7 +19606,7 @@ var require_assets = __commonJS({
         }
       };
       (function() {
-        var isomorphicReactPackageVersion = React2.version;
+        var isomorphicReactPackageVersion = React.version;
         if ("19.0.0" !== isomorphicReactPackageVersion)
           throw Error(
             'Incompatible React versions: The "react" and "react-dom" packages must have the exact same version. Instead got:\n  - react:      ' + (isomorphicReactPackageVersion + "\n  - react-dom:  19.0.0\nLearn more: https://react.dev/warnings/version-mismatch")
@@ -25438,8 +25438,8 @@ self.onmessage = function (e) {
         info || (parentType = getComponentNameFromType(parentType)) && (info = "\n\nCheck the top-level render call using <" + parentType + ">.");
         return info;
       }
-      var React2 = reactExports, REACT_ELEMENT_TYPE = Symbol.for("react.transitional.element"), REACT_PORTAL_TYPE = Symbol.for("react.portal"), REACT_FRAGMENT_TYPE = Symbol.for("react.fragment"), REACT_STRICT_MODE_TYPE = Symbol.for("react.strict_mode"), REACT_PROFILER_TYPE = Symbol.for("react.profiler");
-      var REACT_CONSUMER_TYPE = Symbol.for("react.consumer"), REACT_CONTEXT_TYPE = Symbol.for("react.context"), REACT_FORWARD_REF_TYPE = Symbol.for("react.forward_ref"), REACT_SUSPENSE_TYPE = Symbol.for("react.suspense"), REACT_SUSPENSE_LIST_TYPE = Symbol.for("react.suspense_list"), REACT_MEMO_TYPE = Symbol.for("react.memo"), REACT_LAZY_TYPE = Symbol.for("react.lazy"), REACT_OFFSCREEN_TYPE = Symbol.for("react.offscreen"), MAYBE_ITERATOR_SYMBOL = Symbol.iterator, REACT_CLIENT_REFERENCE$2 = Symbol.for("react.client.reference"), ReactSharedInternals = React2.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE, hasOwnProperty2 = Object.prototype.hasOwnProperty, assign2 = Object.assign, REACT_CLIENT_REFERENCE$1 = Symbol.for("react.client.reference"), isArrayImpl = Array.isArray, disabledDepth = 0, prevLog, prevInfo, prevWarn, prevError, prevGroup, prevGroupCollapsed, prevGroupEnd;
+      var React = reactExports, REACT_ELEMENT_TYPE = Symbol.for("react.transitional.element"), REACT_PORTAL_TYPE = Symbol.for("react.portal"), REACT_FRAGMENT_TYPE = Symbol.for("react.fragment"), REACT_STRICT_MODE_TYPE = Symbol.for("react.strict_mode"), REACT_PROFILER_TYPE = Symbol.for("react.profiler");
+      var REACT_CONSUMER_TYPE = Symbol.for("react.consumer"), REACT_CONTEXT_TYPE = Symbol.for("react.context"), REACT_FORWARD_REF_TYPE = Symbol.for("react.forward_ref"), REACT_SUSPENSE_TYPE = Symbol.for("react.suspense"), REACT_SUSPENSE_LIST_TYPE = Symbol.for("react.suspense_list"), REACT_MEMO_TYPE = Symbol.for("react.memo"), REACT_LAZY_TYPE = Symbol.for("react.lazy"), REACT_OFFSCREEN_TYPE = Symbol.for("react.offscreen"), MAYBE_ITERATOR_SYMBOL = Symbol.iterator, REACT_CLIENT_REFERENCE$2 = Symbol.for("react.client.reference"), ReactSharedInternals = React.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE, hasOwnProperty2 = Object.prototype.hasOwnProperty, assign2 = Object.assign, REACT_CLIENT_REFERENCE$1 = Symbol.for("react.client.reference"), isArrayImpl = Array.isArray, disabledDepth = 0, prevLog, prevInfo, prevWarn, prevError, prevGroup, prevGroupCollapsed, prevGroupEnd;
       disabledLog.__reactDisabledLog = true;
       var prefix, suffix, reentry = false;
       var componentFrameCache = new ("function" === typeof WeakMap ? WeakMap : Map)();
@@ -26196,19 +26196,19 @@ self.onmessage = function (e) {
         columnNumber: 5
       }, void 0);
     };
-    const ToolButton = React.forwardRef(
+    const ToolButton = reactExports.forwardRef(
       ({ label: label2, classes = "", icon: icon2, className: className2, ...rest }, ref) => {
         const combinedClasses = `btn btn-tools tool-button ${classes} ${className2 || ""}`.trim();
         return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("button", { ref, type: "button", className: combinedClasses, ...rest, children: [
           icon2 && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("i", { className: `${icon2}` }, void 0, false, {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/ToolButton.tsx",
-            lineNumber: 19,
+            lineNumber: 18,
             columnNumber: 18
           }, void 0),
           label2
         ] }, void 0, true, {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/ToolButton.tsx",
-          lineNumber: 18,
+          lineNumber: 17,
           columnNumber: 7
         }, void 0);
       }
@@ -33250,7 +33250,7 @@ self.onmessage = function (e) {
       env = env || {};
       return this.renderer.render(this.parseInline(src, env), this.options, env);
     };
-    const MarkdownDiv = React.forwardRef(
+    const MarkdownDiv = reactExports.forwardRef(
       ({ markdown, style: style2, className: className2 }, ref) => {
         const escaped = markdown ? escape(markdown) : "";
         const preRendered = preRenderText(escaped);
@@ -34516,7 +34516,7 @@ self.onmessage = function (e) {
       });
       if (renderer) {
         const { rendered } = renderer.render(id, entry2);
-        if (rendered !== void 0 && React.isValidElement(rendered)) {
+        if (rendered !== void 0 && reactExports.isValidElement(rendered)) {
           return rendered;
         }
       }
@@ -34532,7 +34532,7 @@ self.onmessage = function (e) {
       })();
       return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("span", { children: displayValue }, void 0, false, {
         fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/metadata/RenderedContent.tsx",
-        lineNumber: 63,
+        lineNumber: 62,
         columnNumber: 10
       }, void 0);
     };
@@ -34546,7 +34546,7 @@ self.onmessage = function (e) {
           return {
             rendered: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(ANSIDisplay, { output: entry2.value }, void 0, false, {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/metadata/RenderedContent.tsx",
-              lineNumber: 80,
+              lineNumber: 79,
               columnNumber: 19
             }, void 0)
           };
@@ -34565,7 +34565,7 @@ self.onmessage = function (e) {
           const obj = JSON.parse(entry2.value);
           return { rendered: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(JSONPanel, { data: obj }, void 0, false, {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/metadata/RenderedContent.tsx",
-            lineNumber: 95,
+            lineNumber: 94,
             columnNumber: 26
           }, void 0) };
         }
@@ -34580,14 +34580,14 @@ self.onmessage = function (e) {
             rendered: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(reactExports.Fragment, { children: [
               /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("i", { className: ApplicationIcons.model }, void 0, false, {
                 fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/metadata/RenderedContent.tsx",
-                lineNumber: 107,
+                lineNumber: 106,
                 columnNumber: 13
               }, void 0),
               " ",
               entry2.value._model
             ] }, void 0, true, {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/metadata/RenderedContent.tsx",
-              lineNumber: 106,
+              lineNumber: 105,
               columnNumber: 11
             }, void 0)
           };
@@ -34658,7 +34658,7 @@ self.onmessage = function (e) {
             false,
             {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/metadata/RenderedContent.tsx",
-              lineNumber: 169,
+              lineNumber: 168,
               columnNumber: 9
             },
             void 0
@@ -34678,14 +34678,14 @@ self.onmessage = function (e) {
             /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: styles$S.query, children: [
               /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("i", { className: ApplicationIcons.search }, void 0, false, {
                 fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/metadata/RenderedContent.tsx",
-                lineNumber: 190,
+                lineNumber: 189,
                 columnNumber: 11
               }, void 0),
               " ",
               entry2.value.query
             ] }, void 0, true, {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/metadata/RenderedContent.tsx",
-              lineNumber: 189,
+              lineNumber: 188,
               columnNumber: 9
             }, void 0)
           );
@@ -34694,18 +34694,18 @@ self.onmessage = function (e) {
               results.push(
                 /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("a", { href: result2.url, children: result2.url }, void 0, false, {
                   fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/metadata/RenderedContent.tsx",
-                  lineNumber: 197,
+                  lineNumber: 196,
                   columnNumber: 15
                 }, void 0) }, void 0, false, {
                   fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/metadata/RenderedContent.tsx",
-                  lineNumber: 196,
+                  lineNumber: 195,
                   columnNumber: 13
                 }, void 0)
               );
               results.push(
                 /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: clsx("text-size-smaller", styles$S.summary), children: result2.summary }, void 0, false, {
                   fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/metadata/RenderedContent.tsx",
-                  lineNumber: 201,
+                  lineNumber: 200,
                   columnNumber: 13
                 }, void 0)
               );
@@ -34726,7 +34726,7 @@ self.onmessage = function (e) {
           return {
             rendered: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("pre", { className: styles$S.preWrap, children: entry2.value }, void 0, false, {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/metadata/RenderedContent.tsx",
-              lineNumber: 221,
+              lineNumber: 220,
               columnNumber: 19
             }, void 0)
           };
@@ -34752,7 +34752,7 @@ self.onmessage = function (e) {
           return {
             rendered: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("img", { src: entry2.value }, void 0, false, {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/metadata/RenderedContent.tsx",
-              lineNumber: 245,
+              lineNumber: 244,
               columnNumber: 19
             }, void 0)
           };
@@ -34778,7 +34778,7 @@ self.onmessage = function (e) {
               false,
               {
                 fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/metadata/RenderedContent.tsx",
-                lineNumber: 257,
+                lineNumber: 256,
                 columnNumber: 11
               },
               void 0
@@ -38059,13 +38059,10 @@ categories: ${categories.join(" ")}`;
     const createLogger = (namespace) => {
       const logger = {
         debug: (message2, ...args) => {
-          console.debug(`[${namespace}] ${message2}`, ...args);
         },
         info: (message2, ...args) => {
-          console.info(`[${namespace}] ${message2}`, ...args);
         },
         warn: (message2, ...args) => {
-          console.warn(`[${namespace}] ${message2}`, ...args);
         },
         // Always log errors, even in production
         error: (message2, ...args) => {
@@ -38073,7 +38070,6 @@ categories: ${categories.join(" ")}`;
         },
         // Lazy evaluation for expensive logs
         debugIf: (fn2) => {
-          console.debug(`[${namespace}] ${fn2()}`);
         }
       };
       return logger;
@@ -60895,11 +60891,11 @@ Supported expressions:
       return Me(t2, e, n).callbackRef;
     }
     function Me(t2, e, n) {
-      const o = React.useRef(null);
+      const o = E.useRef(null);
       let r2 = (s) => {
       };
       if (typeof ResizeObserver < "u") {
-        const s = React.useMemo(() => new ResizeObserver((i2) => {
+        const s = E.useMemo(() => new ResizeObserver((i2) => {
           const l = () => {
             const c2 = i2[0].target;
             c2.offsetParent !== null && t2(c2);
@@ -60913,7 +60909,7 @@ Supported expressions:
       return { callbackRef: r2, ref: o };
     }
     function kn(t2, e, n, o, r2, s, i2, l, c2) {
-      const d = React.useCallback(
+      const d = E.useCallback(
         (f) => {
           const S = Io(f.children, e, l ? "offsetWidth" : "offsetHeight", r2);
           let p = f.parentElement;
@@ -60953,7 +60949,7 @@ Supported expressions:
       return e !== "normal" && !(e != null && e.endsWith("px")) && n(`${t2} was not resolved to pixel value correctly`, e, ht.WARN), e === "normal" ? 0 : parseInt(e != null ? e : "0", 10);
     }
     function _e(t2, e, n) {
-      const o = React.useRef(null), r2 = React.useCallback(
+      const o = E.useRef(null), r2 = E.useCallback(
         (c2) => {
           if (!(c2 != null && c2.offsetParent))
             return;
@@ -60971,10 +60967,10 @@ Supported expressions:
           }, t2(o.current);
         },
         [t2, e]
-      ), { callbackRef: s, ref: i2 } = Me(r2, true, n), l = React.useCallback(() => {
+      ), { callbackRef: s, ref: i2 } = Me(r2, true, n), l = E.useCallback(() => {
         r2(i2.current);
       }, [r2, i2]);
-      return React.useEffect(() => {
+      return E.useEffect(() => {
         if (e) {
           e.addEventListener("scroll", l);
           const c2 = new ResizeObserver(() => {
@@ -62719,9 +62715,9 @@ Supported expressions:
         Object.hasOwn(o, i2) || (n[i2] = e[i2]);
       return n;
     }
-    const pe = typeof document < "u" ? React.useLayoutEffect : React.useEffect;
+    const pe = typeof document < "u" ? E.useLayoutEffect : E.useEffect;
     function je(t2, e, n) {
-      const o = Object.keys(e.required || {}), r2 = Object.keys(e.optional || {}), s = Object.keys(e.methods || {}), i2 = Object.keys(e.events || {}), l = React.createContext({});
+      const o = Object.keys(e.required || {}), r2 = Object.keys(e.optional || {}), s = Object.keys(e.methods || {}), i2 = Object.keys(e.events || {}), l = E.createContext({});
       function c2(g, u) {
         g.propsReady && M(g.propsReady, false);
         for (const T of o) {
@@ -62744,10 +62740,10 @@ Supported expressions:
       function f(g) {
         return i2.reduce((u, T) => (u[T] = fo(g[e.events[T]]), u), {});
       }
-      const S = React.forwardRef((g, u) => {
-        const { children: T, ...b } = g, [h] = React.useState(() => ye(po(t2), (k) => {
+      const S = E.forwardRef((g, u) => {
+        const { children: T, ...b } = g, [h] = E.useState(() => ye(po(t2), (k) => {
           c2(k, b);
-        })), [a] = React.useState(ln(f, h));
+        })), [a] = E.useState(ln(f, h));
         pe(() => {
           for (const k of i2)
             k in b && K(a[k], b[k]);
@@ -62756,41 +62752,41 @@ Supported expressions:
           };
         }, [b, a, h]), pe(() => {
           c2(h, b);
-        }), React.useImperativeHandle(u, sn(d(h)));
+        }), E.useImperativeHandle(u, sn(d(h)));
         const R = n;
         return /* @__PURE__ */ jsxRuntimeExports.jsx(l.Provider, { value: h, children: n ? /* @__PURE__ */ jsxRuntimeExports.jsx(R, { ...Zo([...o, ...r2, ...i2], b), children: T }) : T });
-      }), p = (g) => React.useCallback(Hn(M, React.useContext(l)[g]), [g]), m = (g) => {
-        const T = React.useContext(l)[g], b = React.useCallback(
+      }), p = (g) => E.useCallback(Hn(M, E.useContext(l)[g]), [g]), m = (g) => {
+        const T = E.useContext(l)[g], b = E.useCallback(
           (h) => K(T, h),
           [T]
         );
-        return React.useSyncExternalStore(
+        return E.useSyncExternalStore(
           b,
           () => lt(T),
           () => lt(T)
         );
       }, C2 = (g) => {
-        const T = React.useContext(l)[g], [b, h] = React.useState(ln(lt, T));
+        const T = E.useContext(l)[g], [b, h] = E.useState(ln(lt, T));
         return pe(
           () => K(T, (a) => {
             a !== b && h(sn(a));
           }),
           [T, b]
         ), b;
-      }, I = React.version.startsWith("18") ? m : C2;
+      }, I = E.version.startsWith("18") ? m : C2;
       return {
         Component: S,
         useEmitter: (g, u) => {
-          const b = React.useContext(l)[g];
+          const b = E.useContext(l)[g];
           pe(() => K(b, u), [u, b]);
         },
         useEmitterValue: I,
         usePublisher: p
       };
     }
-    const Re = React.createContext(void 0), qn = React.createContext(void 0), Yn = typeof document < "u" ? React.useLayoutEffect : React.useEffect;
+    const Re = E.createContext(void 0), qn = E.createContext(void 0), Yn = typeof document < "u" ? E.useLayoutEffect : E.useEffect;
     function Zn(t2, e, n, o = Gt, r2, s) {
-      const i2 = React.useRef(null), l = React.useRef(null), c2 = React.useRef(null), d = React.useCallback(
+      const i2 = E.useRef(null), l = E.useRef(null), c2 = E.useRef(null), d = E.useCallback(
         (p) => {
           const m = p.target, C2 = m === window || m === document, I = s ? C2 ? window.pageXOffset || document.documentElement.scrollLeft : m.scrollLeft : C2 ? window.pageYOffset || document.documentElement.scrollTop : m.scrollTop, y = s ? C2 ? document.documentElement.scrollWidth : m.scrollWidth : C2 ? document.documentElement.scrollHeight : m.scrollHeight, g = s ? C2 ? window.innerWidth : m.offsetWidth : C2 ? window.innerHeight : m.offsetHeight, u = () => {
             t2({
@@ -62803,7 +62799,7 @@ Supported expressions:
         },
         [t2, e]
       );
-      React.useEffect(() => {
+      E.useEffect(() => {
         const p = r2 || i2.current;
         return o(r2 || i2.current), d({ suppressFlushSync: true, target: p }), p.addEventListener("scroll", d, { passive: true }), () => {
           o(null), p.removeEventListener("scroll", d);
@@ -62872,7 +62868,7 @@ Supported expressions:
     }), Jo = /* @__PURE__ */ U(
       ([t2, e]) => ({ ...t2, ...e }),
       X(jn, Xo)
-    ), Qo = ({ height: t2 }) => /* @__PURE__ */ jsxRuntimeExports.jsx("div", { style: { height: t2 } }), tr = { overflowAnchor: "none", position: Xn(), zIndex: 1 }, Jn = { overflowAnchor: "none" }, er = { ...Jn, display: "inline-block", height: "100%" }, xn = /* @__PURE__ */ React.memo(function({ showTopList: e = false }) {
+    ), Qo = ({ height: t2 }) => /* @__PURE__ */ jsxRuntimeExports.jsx("div", { style: { height: t2 } }), tr = { overflowAnchor: "none", position: Xn(), zIndex: 1 }, Jn = { overflowAnchor: "none" }, er = { ...Jn, display: "inline-block", height: "100%" }, xn = /* @__PURE__ */ E.memo(function({ showTopList: e = false }) {
       const n = W("listState"), o = gt("sizeRanges"), r2 = W("useWindowScroll"), s = W("customScrollParent"), i2 = gt("windowScrollContainerState"), l = gt("scrollContainerState"), c2 = s || r2 ? i2 : l, d = W("itemContent"), f = W("context"), S = W("groupContent"), p = W("trackItemSizes"), m = W("itemSize"), C2 = W("log"), I = gt("gap"), y = W("horizontalDirection"), { callbackRef: g } = kn(
         o,
         m,
@@ -62883,7 +62879,7 @@ Supported expressions:
         s,
         y,
         W("skipAnimationFrameInResizeObserver")
-      ), [u, T] = React.useState(0);
+      ), [u, T] = E.useState(0);
       Xe("deviation", (B) => {
         u !== B && T(B);
       });
@@ -62979,9 +62975,9 @@ Supported expressions:
     function Qn(t2, e) {
       return { item: typeof t2 == "string" ? void 0 : e };
     }
-    const sr = /* @__PURE__ */ React.memo(function() {
+    const sr = /* @__PURE__ */ E.memo(function() {
       const e = W("HeaderComponent"), n = gt("headerHeight"), o = W("HeaderFooterTag"), r2 = Et(
-        React.useMemo(
+        E.useMemo(
           () => (i2) => {
             n(Ct(i2, "height"));
           },
@@ -62991,9 +62987,9 @@ Supported expressions:
         W("skipAnimationFrameInResizeObserver")
       ), s = W("context");
       return e ? /* @__PURE__ */ jsxRuntimeExports.jsx(o, { ref: r2, children: /* @__PURE__ */ jsxRuntimeExports.jsx(e, { ...Z(e, s) }) }) : null;
-    }), ir = /* @__PURE__ */ React.memo(function() {
+    }), ir = /* @__PURE__ */ E.memo(function() {
       const e = W("FooterComponent"), n = gt("footerHeight"), o = W("HeaderFooterTag"), r2 = Et(
-        React.useMemo(
+        E.useMemo(
           () => (i2) => {
             n(Ct(i2, "height"));
           },
@@ -63005,7 +63001,7 @@ Supported expressions:
       return e ? /* @__PURE__ */ jsxRuntimeExports.jsx(o, { ref: r2, children: /* @__PURE__ */ jsxRuntimeExports.jsx(e, { ...Z(e, s) }) }) : null;
     });
     function Ye({ useEmitter: t2, useEmitterValue: e, usePublisher: n }) {
-      return React.memo(function({ children: s, style: i2, ...l }) {
+      return E.memo(function({ children: s, style: i2, ...l }) {
         const c2 = n("scrollContainerState"), d = e("ScrollerComponent"), f = n("smoothScrollTargetReached"), S = e("scrollerRef"), p = e("context"), m = e("horizontalDirection") || false, { scrollByCallback: C2, scrollerRef: I, scrollToCallback: y } = Zn(
           c2,
           f,
@@ -63030,7 +63026,7 @@ Supported expressions:
       });
     }
     function Ze({ useEmitter: t2, useEmitterValue: e, usePublisher: n }) {
-      return React.memo(function({ children: s, style: i2, ...l }) {
+      return E.memo(function({ children: s, style: i2, ...l }) {
         const c2 = n("windowScrollContainerState"), d = e("ScrollerComponent"), f = n("smoothScrollTargetReached"), S = e("totalListHeight"), p = e("deviation"), m = e("customScrollParent"), C2 = e("context"), { scrollByCallback: I, scrollerRef: y, scrollToCallback: g } = Zn(
           c2,
           f,
@@ -63053,26 +63049,26 @@ Supported expressions:
       });
     }
     const lr = ({ children: t2 }) => {
-      const e = React.useContext(Re), n = gt("viewportHeight"), o = gt("fixedItemHeight"), r2 = W("alignToBottom"), s = W("horizontalDirection"), i2 = React.useMemo(
+      const e = E.useContext(Re), n = gt("viewportHeight"), o = gt("fixedItemHeight"), r2 = W("alignToBottom"), s = W("horizontalDirection"), i2 = E.useMemo(
         () => ne(n, (c2) => Ct(c2, s ? "width" : "height")),
         [n, s]
       ), l = Et(i2, true, W("skipAnimationFrameInResizeObserver"));
-      return React.useEffect(() => {
+      return E.useEffect(() => {
         e && (n(e.viewportHeight), o(e.itemHeight));
       }, [e, n, o]), /* @__PURE__ */ jsxRuntimeExports.jsx("div", { "data-viewport-type": "element", ref: l, style: Zt(r2), children: t2 });
     }, cr = ({ children: t2 }) => {
-      const e = React.useContext(Re), n = gt("windowViewportRect"), o = gt("fixedItemHeight"), r2 = W("customScrollParent"), s = _e(
+      const e = E.useContext(Re), n = gt("windowViewportRect"), o = gt("fixedItemHeight"), r2 = W("customScrollParent"), s = _e(
         n,
         r2,
         W("skipAnimationFrameInResizeObserver")
       ), i2 = W("alignToBottom");
-      return React.useEffect(() => {
+      return E.useEffect(() => {
         e && (o(e.itemHeight), n({ offsetTop: 0, visibleHeight: e.viewportHeight, visibleWidth: 100 }));
       }, [e, n, o]), /* @__PURE__ */ jsxRuntimeExports.jsx("div", { "data-viewport-type": "window", ref: s, style: Zt(i2), children: t2 });
     }, ur = ({ children: t2 }) => {
       const e = W("TopItemListComponent") || "div", n = W("headerHeight"), o = { ...rr, marginTop: `${n}px` }, r2 = W("context");
       return /* @__PURE__ */ jsxRuntimeExports.jsx(e, { style: o, ...Z(e, r2), children: t2 });
-    }, ar = /* @__PURE__ */ React.memo(function(e) {
+    }, ar = /* @__PURE__ */ E.memo(function(e) {
       const n = W("useWindowScroll"), o = W("topItemsIndexes").length > 0, r2 = W("customScrollParent"), s = W("context"), i2 = r2 || n ? fr : dr, l = r2 || n ? cr : lr;
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(i2, { ...e, ...Z(i2, s), children: [
         o && /* @__PURE__ */ jsxRuntimeExports.jsx(ur, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(xn, { showTopList: true }) }),
@@ -63468,9 +63464,9 @@ Supported expressions:
     }), kr = /* @__PURE__ */ U(
       ([t2, e]) => ({ ...t2, ...e }),
       X(Hr, Br)
-    ), Or = /* @__PURE__ */ React.memo(function() {
+    ), Or = /* @__PURE__ */ E.memo(function() {
       const e = et("gridState"), n = et("listClassName"), o = et("itemClassName"), r2 = et("itemContent"), s = et("computeItemKey"), i2 = et("isSeeking"), l = It("scrollHeight"), c2 = et("ItemComponent"), d = et("ListComponent"), f = et("ScrollSeekPlaceholder"), S = et("context"), p = It("itemDimensions"), m = It("gap"), C2 = et("log"), I = et("stateRestoreInProgress"), y = It("reportReadyState"), g = Et(
-        React.useMemo(
+        E.useMemo(
           () => (u) => {
             const T = u.parentElement.parentElement.scrollHeight;
             l(T);
@@ -63523,9 +63519,9 @@ Supported expressions:
           })
         }
       );
-    }), Fr = React.memo(function() {
+    }), Fr = E.memo(function() {
       const e = et("HeaderComponent"), n = It("headerHeight"), o = et("headerFooterTag"), r2 = Et(
-        React.useMemo(
+        E.useMemo(
           () => (i2) => {
             n(Ct(i2, "height"));
           },
@@ -63535,9 +63531,9 @@ Supported expressions:
         false
       ), s = et("context");
       return e ? /* @__PURE__ */ jsxRuntimeExports.jsx(o, { ref: r2, children: /* @__PURE__ */ jsxRuntimeExports.jsx(e, { ...Z(e, s) }) }) : null;
-    }), zr = React.memo(function() {
+    }), zr = E.memo(function() {
       const e = et("FooterComponent"), n = It("footerHeight"), o = et("headerFooterTag"), r2 = Et(
-        React.useMemo(
+        E.useMemo(
           () => (i2) => {
             n(Ct(i2, "height"));
           },
@@ -63548,8 +63544,8 @@ Supported expressions:
       ), s = et("context");
       return e ? /* @__PURE__ */ jsxRuntimeExports.jsx(o, { ref: r2, children: /* @__PURE__ */ jsxRuntimeExports.jsx(e, { ...Z(e, s) }) }) : null;
     }), Lr = ({ children: t2 }) => {
-      const e = React.useContext(qn), n = It("itemDimensions"), o = It("viewportDimensions"), r2 = Et(
-        React.useMemo(
+      const e = E.useContext(qn), n = It("itemDimensions"), o = It("viewportDimensions"), r2 = Et(
+        E.useMemo(
           () => (s) => {
             o(s.getBoundingClientRect());
           },
@@ -63558,15 +63554,15 @@ Supported expressions:
         true,
         false
       );
-      return React.useEffect(() => {
+      return E.useEffect(() => {
         e && (o({ height: e.viewportHeight, width: e.viewportWidth }), n({ height: e.itemHeight, width: e.itemWidth }));
       }, [e, o, n]), /* @__PURE__ */ jsxRuntimeExports.jsx("div", { ref: r2, style: Zt(false), children: t2 });
     }, Pr = ({ children: t2 }) => {
-      const e = React.useContext(qn), n = It("windowViewportRect"), o = It("itemDimensions"), r2 = et("customScrollParent"), s = _e(n, r2, false);
-      return React.useEffect(() => {
+      const e = E.useContext(qn), n = It("windowViewportRect"), o = It("itemDimensions"), r2 = et("customScrollParent"), s = _e(n, r2, false);
+      return E.useEffect(() => {
         e && (o({ height: e.itemHeight, width: e.itemWidth }), n({ offsetTop: 0, visibleHeight: e.viewportHeight, visibleWidth: e.viewportWidth }));
       }, [e, n, o]), /* @__PURE__ */ jsxRuntimeExports.jsx("div", { ref: s, style: Zt(false), children: t2 });
-    }, Vr = /* @__PURE__ */ React.memo(function({ ...e }) {
+    }, Vr = /* @__PURE__ */ E.memo(function({ ...e }) {
       const n = et("useWindowScroll"), o = et("customScrollParent"), r2 = o || n ? Mr : Wr, s = o || n ? Pr : Lr, i2 = et("context");
       return /* @__PURE__ */ jsxRuntimeExports.jsx(r2, { ...e, ...Z(r2, i2), children: /* @__PURE__ */ jsxRuntimeExports.jsxs(s, { children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx(Fr, {}),
@@ -64193,7 +64189,7 @@ Supported expressions:
               false,
               {
                 fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/event/EventPanel.tsx",
-                lineNumber: 88,
+                lineNumber: 87,
                 columnNumber: 11
               },
               void 0
@@ -64213,7 +64209,7 @@ Supported expressions:
               false,
               {
                 fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/event/EventPanel.tsx",
-                lineNumber: 102,
+                lineNumber: 101,
                 columnNumber: 11
               },
               void 0
@@ -64231,7 +64227,7 @@ Supported expressions:
               false,
               {
                 fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/event/EventPanel.tsx",
-                lineNumber: 114,
+                lineNumber: 113,
                 columnNumber: 9
               },
               void 0
@@ -64247,7 +64243,7 @@ Supported expressions:
               false,
               {
                 fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/event/EventPanel.tsx",
-                lineNumber: 122,
+                lineNumber: 121,
                 columnNumber: 9
               },
               void 0
@@ -64265,7 +64261,7 @@ Supported expressions:
               false,
               {
                 fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/event/EventPanel.tsx",
-                lineNumber: 127,
+                lineNumber: 126,
                 columnNumber: 9
               },
               void 0
@@ -64275,7 +64271,7 @@ Supported expressions:
               {
                 navs: filteredArrChildren.map((child, index) => {
                   const defaultTitle = `Tab ${index}`;
-                  const title22 = child && React.isValidElement(child) ? child.props["data-name"] || defaultTitle : defaultTitle;
+                  const title22 = child && reactExports.isValidElement(child) ? child.props["data-name"] || defaultTitle : defaultTitle;
                   return {
                     id: `eventpanel-${id}-${index}`,
                     title: title22,
@@ -64289,13 +64285,13 @@ Supported expressions:
               false,
               {
                 fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/event/EventPanel.tsx",
-                lineNumber: 139,
+                lineNumber: 138,
                 columnNumber: 13
               },
               void 0
             ) : "" }, void 0, false, {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/event/EventPanel.tsx",
-              lineNumber: 135,
+              lineNumber: 134,
               columnNumber: 9
             }, void 0)
           ]
@@ -64304,7 +64300,7 @@ Supported expressions:
         true,
         {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/event/EventPanel.tsx",
-          lineNumber: 77,
+          lineNumber: 76,
           columnNumber: 7
         },
         void 0
@@ -64333,7 +64329,7 @@ Supported expressions:
                 false,
                 {
                   fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/event/EventPanel.tsx",
-                  lineNumber: 181,
+                  lineNumber: 180,
                   columnNumber: 13
                 },
                 void 0
@@ -64344,14 +64340,14 @@ Supported expressions:
           false,
           {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/event/EventPanel.tsx",
-            lineNumber: 167,
+            lineNumber: 166,
             columnNumber: 7
           },
           void 0
         )
       ] }, void 0, true, {
         fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/event/EventPanel.tsx",
-        lineNumber: 165,
+        lineNumber: 164,
         columnNumber: 5
       }, void 0);
       return card2;
@@ -76747,7 +76743,7 @@ ${events}
       metrics.forEach((metric2) => {
         if (metric2.value !== void 0) {
           const key2 = getKey(metric2);
-          if (!!scorers[key2]) {
+          if (scorers[key2]) {
             scorers[key2].metrics.push({
               name: metric2.name,
               value: metric2.value
@@ -77023,13 +77019,11 @@ ${events}
       icon,
       value
     };
-    const RunningStatusPanel = ({
-      sampleCount
-    }) => {
+    const RunningStatusPanel = ({ sampleCount }) => {
       return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: clsx(styles$3.statusContainer), children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: clsx(styles$3.status), children: [
         /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("i", { className: clsx(ApplicationIcons.running, styles$3.icon) }, void 0, false, {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/RunningStatusPanel.tsx",
-          lineNumber: 19,
+          lineNumber: 18,
           columnNumber: 11
         }, void 0),
         /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
@@ -77050,22 +77044,22 @@ ${events}
           true,
           {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/RunningStatusPanel.tsx",
-            lineNumber: 20,
+            lineNumber: 19,
             columnNumber: 11
           },
           void 0
         )
       ] }, void 0, true, {
         fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/RunningStatusPanel.tsx",
-        lineNumber: 18,
+        lineNumber: 17,
         columnNumber: 9
       }, void 0) }, void 0, false, {
         fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/RunningStatusPanel.tsx",
-        lineNumber: 17,
+        lineNumber: 16,
         columnNumber: 7
       }, void 0) }, void 0, false, {
         fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/RunningStatusPanel.tsx",
-        lineNumber: 16,
+        lineNumber: 15,
         columnNumber: 5
       }, void 0);
     };
@@ -78702,9 +78696,9 @@ ${events}
               279: (
                 /***/
                 function(module3) {
-                  function E() {
+                  function E2() {
                   }
-                  E.prototype = {
+                  E2.prototype = {
                     on: function(name2, callback, ctx) {
                       var e = this.e || (this.e = {});
                       (e[name2] || (e[name2] = [])).push({
@@ -78746,8 +78740,8 @@ ${events}
                       return this;
                     }
                   };
-                  module3.exports = E;
-                  module3.exports.TinyEmitter = E;
+                  module3.exports = E2;
+                  module3.exports.TinyEmitter = E2;
                 }
               )
               /******/
