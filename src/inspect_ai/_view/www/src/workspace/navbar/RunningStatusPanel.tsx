@@ -2,6 +2,7 @@ import clsx from "clsx";
 import { RunningMetric } from "../../api/types";
 import { ApplicationIcons } from "../../appearance/icons";
 
+import { FC } from "react";
 import styles from "./RunningStatusPanel.module.css";
 
 export interface RunningPanelProps {
@@ -9,9 +10,7 @@ export interface RunningPanelProps {
   displayMetrics?: RunningMetric[];
 }
 
-export const RunningStatusPanel: React.FC<RunningPanelProps> = ({
-  sampleCount,
-}) => {
+export const RunningStatusPanel: FC<RunningPanelProps> = ({ sampleCount }) => {
   return (
     <div>
       <div className={clsx(styles.statusContainer)}>
