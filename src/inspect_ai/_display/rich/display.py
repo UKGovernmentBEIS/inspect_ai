@@ -1,4 +1,3 @@
-import asyncio
 import contextlib
 from dataclasses import dataclass
 from typing import Any, AsyncIterator, Awaitable, Callable, Iterator
@@ -60,7 +59,6 @@ class RichDisplay(Display):
         self.progress_ui: RProgress | None = None
         self.parallel = False
         self.live: Live | None = None
-        self.timer_handle: asyncio.TimerHandle | None = None
         self.counters: dict[str, str] = {}
         rich_initialise()
 
@@ -105,13 +103,15 @@ class RichDisplay(Display):
                 with RichTaskScreen(live) as task_screen:
                     self.live = live
 
-                    # enque a display update
-                    self.timer_handle = asyncio.get_event_loop().call_later(
-                        1, self._update_display
-                    )
+                    async with anyio.create_task_group() as tg:
+                        # update display every second while running
+                        tg.start_soon(self._update_display_loop)
 
-                    # yield
-                    yield task_screen
+                        # let the task screen run
+                        try:
+                            yield task_screen
+                        finally:
+                            tg.cancel_scope.cancel()
 
                 # render task results (re-enable live if necessary)
                 if not live.is_started:
@@ -125,8 +125,6 @@ class RichDisplay(Display):
             self.progress_ui = None
             self.parallel = False
             self.live = None
-            if self.timer_handle:
-                self.timer_handle.cancel()
 
     @override
     @contextlib.contextmanager
@@ -162,7 +160,13 @@ class RichDisplay(Display):
                 r = task_live_status(self.tasks, self.progress_ui, self.counters)
             self.live.update(r, refresh=True)
 
-        self.timer_handle = asyncio.get_event_loop().call_later(1, self._update_display)
+    async def _update_display_loop(self) -> None:
+        try:
+            while True:
+                await anyio.sleep(1)
+                self._update_display()
+        except anyio.get_cancelled_exc_class():
+            pass
 
     @override
     def display_counter(self, caption: str, value: str) -> None:
