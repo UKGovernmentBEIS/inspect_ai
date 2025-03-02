@@ -7,7 +7,7 @@ import {
   useCallback,
   useMemo,
 } from "react";
-import { RunningMetric, SampleSummary } from "../api/types";
+import { RunningMetric } from "../api/types";
 import { EmptyPanel } from "../components/EmptyPanel";
 import { TabPanel, TabSet } from "../components/TabSet";
 import {
@@ -24,13 +24,11 @@ import { TabDescriptor } from "./types";
 import styles from "./WorkSpaceView.module.css";
 
 interface WorkSpaceViewProps {
-  logFileName?: string;
   evalSpec: EvalSpec;
   evalPlan?: EvalPlan;
   evalResults?: EvalResults;
   runningMetrics?: RunningMetric[];
   evalStats?: EvalStats;
-  samples?: SampleSummary[];
   status?: Status;
   showToggle: boolean;
   tabs: Record<string, TabDescriptor>;
@@ -42,13 +40,11 @@ interface WorkSpaceViewProps {
 }
 
 export const WorkSpaceView: FC<WorkSpaceViewProps> = ({
-  logFileName,
   evalSpec,
   evalPlan,
   evalResults,
   runningMetrics,
   evalStats,
-  samples,
   status,
   showToggle,
   selectedTab,
@@ -116,9 +112,7 @@ export const WorkSpaceView: FC<WorkSpaceViewProps> = ({
           evalResults={evalResults}
           runningMetrics={runningMetrics}
           evalStats={evalStats}
-          samples={samples}
           status={status}
-          file={logFileName}
           showToggle={showToggle}
         />
         <div ref={divRef} className={clsx("workspace", styles.workspace)}>
