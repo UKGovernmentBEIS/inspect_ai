@@ -56,7 +56,7 @@ class HumanApprovalManager:
 
     async def wait_for_approval(self, id: str) -> Approval:
         _, future = self._approval_requests[id]
-        return await future.wait()
+        return await future.result()
 
     def on_change(
         self, callback: Callable[[Literal["add", "remove"]], None]
