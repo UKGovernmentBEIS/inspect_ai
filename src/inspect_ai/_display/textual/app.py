@@ -1,4 +1,3 @@
-import asyncio
 import contextlib
 from asyncio import CancelledError
 from typing import (
@@ -126,8 +125,8 @@ class TaskScreenApp(App[TR]):
 
     async def on_load(self) -> None:
         # events used to synchronise loading
-        self._on_load_app = asyncio.Event()
-        self._on_app_loaded = asyncio.Event()
+        self._on_load_app = anyio.Event()
+        self._on_app_loaded = anyio.Event()
 
         # run the workers
         self.workers.start_all()
@@ -425,7 +424,7 @@ class TaskScreenApp(App[TR]):
 class TextualTaskScreen(TaskScreen, Generic[TR]):
     def __init__(self, app: TaskScreenApp[TR]) -> None:
         self.app = app
-        self.lock = asyncio.Lock()
+        self.lock = anyio.Lock()
 
     def __exit__(self, *excinfo: Any) -> None:
         pass
