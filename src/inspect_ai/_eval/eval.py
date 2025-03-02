@@ -1,7 +1,11 @@
 import logging
 import os
+import sys
 from pathlib import Path
 from typing import Any, Literal
+
+if sys.version_info < (3, 11):
+    from exceptiongroup import ExceptionGroup
 
 from shortuuid import uuid
 from typing_extensions import Unpack
@@ -167,41 +171,48 @@ def eval(
     )
 
     async def run_task_app() -> list[EvalLog]:
-        return await eval_async(
-            tasks=tasks,
-            model=model,
-            model_base_url=model_base_url,
-            model_args=model_args,
-            task_args=task_args,
-            sandbox=sandbox,
-            sandbox_cleanup=sandbox_cleanup,
-            solver=solver,
-            tags=tags,
-            approval=approval,
-            log_level=log_level,
-            log_level_transcript=log_level_transcript,
-            log_dir=log_dir,
-            log_format=log_format,
-            limit=limit,
-            sample_id=sample_id,
-            epochs=epochs,
-            fail_on_error=fail_on_error,
-            debug_errors=debug_errors,
-            message_limit=message_limit,
-            token_limit=token_limit,
-            time_limit=time_limit,
-            working_limit=working_limit,
-            max_samples=max_samples,
-            max_tasks=max_tasks,
-            max_subprocesses=max_subprocesses,
-            max_sandboxes=max_sandboxes,
-            log_samples=log_samples,
-            log_images=log_images,
-            log_buffer=log_buffer,
-            score=score,
-            score_display=score_display,
-            **kwargs,
-        )
+        try:
+            return await eval_async(
+                tasks=tasks,
+                model=model,
+                model_base_url=model_base_url,
+                model_args=model_args,
+                task_args=task_args,
+                sandbox=sandbox,
+                sandbox_cleanup=sandbox_cleanup,
+                solver=solver,
+                tags=tags,
+                approval=approval,
+                log_level=log_level,
+                log_level_transcript=log_level_transcript,
+                log_dir=log_dir,
+                log_format=log_format,
+                limit=limit,
+                sample_id=sample_id,
+                epochs=epochs,
+                fail_on_error=fail_on_error,
+                debug_errors=debug_errors,
+                message_limit=message_limit,
+                token_limit=token_limit,
+                time_limit=time_limit,
+                working_limit=working_limit,
+                max_samples=max_samples,
+                max_tasks=max_tasks,
+                max_subprocesses=max_subprocesses,
+                max_sandboxes=max_sandboxes,
+                log_samples=log_samples,
+                log_images=log_images,
+                log_buffer=log_buffer,
+                score=score,
+                score_display=score_display,
+                **kwargs,
+            )
+        # exceptions can escape when debug_errors is True and that's okay
+        except ExceptionGroup as ex:
+            if debug_errors:
+                raise ex.exceptions[0] from None
+            else:
+                raise
 
     return task_display().run_task_app(run_task_app)
 
