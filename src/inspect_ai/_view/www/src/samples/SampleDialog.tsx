@@ -3,17 +3,12 @@ import { LargeModal, ModalTool, ModalTools } from "../components/LargeModal";
 
 import { FC, Ref, RefObject, useCallback, useMemo, useRef } from "react";
 import { ErrorPanel } from "../components/ErrorPanel";
-import { RunningSampleData, ScoreLabel } from "../types";
-import { EvalSample } from "../types/log";
+import { useSampleContext } from "../contexts/SampleContext";
 import { SampleDisplay } from "./SampleDisplay";
 
 interface SampleDialogProps {
   id: string;
   title: string;
-  sampleStatus: string;
-  sampleError?: Error;
-  sample?: EvalSample;
-  score?: ScoreLabel;
   selectedTab?: string;
   setSelectedTab: (tab: string) => void;
   showingSampleDialog: boolean;
@@ -22,7 +17,6 @@ interface SampleDialogProps {
   prevSample: () => void;
   sampleScrollPositionRef: RefObject<number>;
   setSampleScrollPosition: (position: number) => void;
-  runningSampleData?: RunningSampleData;
 }
 
 /**
@@ -31,20 +25,16 @@ interface SampleDialogProps {
 export const SampleDialog: FC<SampleDialogProps> = ({
   id,
   title,
-  sample,
-  score,
   nextSample,
   prevSample,
-  sampleStatus,
-  sampleError,
   showingSampleDialog,
   setShowingSampleDialog,
   selectedTab,
   setSelectedTab,
   sampleScrollPositionRef,
   setSampleScrollPosition,
-  runningSampleData,
 }) => {
+  const sampleContext = useSampleContext();
   const scrollRef: Ref<HTMLDivElement> = useRef(null);
 
   const tools = useMemo<ModalTools>(() => {
@@ -102,21 +92,24 @@ export const SampleDialog: FC<SampleDialogProps> = ({
       onkeyup={handleKeyUp}
       visible={showingSampleDialog}
       onHide={onHide}
-      showProgress={sampleStatus === "loading"}
+      showProgress={sampleContext.state.sampleStatus === "loading"}
       initialScrollPositionRef={sampleScrollPositionRef}
       setInitialScrollPosition={setSampleScrollPosition}
       scrollRef={scrollRef}
     >
-      {sampleError ? (
-        <ErrorPanel title="Sample Error" error={sampleError} />
+      {sampleContext.state.sampleError ? (
+        <ErrorPanel
+          title="Sample Error"
+          error={sampleContext.state.sampleError}
+        />
       ) : (
         <SampleDisplay
           id={id}
-          sample={sample}
+          sample={sampleContext.state.selectedSample}
+          runningSampleData={sampleContext.state.runningSampleData}
           selectedTab={selectedTab}
           setSelectedTab={setSelectedTab}
           scrollRef={scrollRef}
-          runningSampleData={runningSampleData}
         />
       )}
     </LargeModal>
