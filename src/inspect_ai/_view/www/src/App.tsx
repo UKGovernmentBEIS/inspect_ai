@@ -444,11 +444,7 @@ export const App: FC<AppProps> = ({
             )}
             runningMetrics={logContext.state.pendingSampleSummaries?.metrics}
             showToggle={showToggle}
-            sampleStatus={sampleContext.state.sampleStatus}
-            sampleError={sampleContext.state.sampleError}
             refreshLog={refreshLog}
-            selectedSample={sampleContext.state.selectedSample}
-            runningSampleData={sampleContext.state.runningSampleData}
             showingSampleDialog={showingSampleDialog}
             setShowingSampleDialog={handleSampleShowingDialog}
             selectedTab={selectedWorkspaceTab}

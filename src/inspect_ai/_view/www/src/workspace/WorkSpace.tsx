@@ -14,13 +14,11 @@ import {
 } from "../constants";
 import { useAppContext } from "../contexts/AppContext.tsx";
 import { useLogContext } from "../contexts/LogContext.tsx";
-import { useSampleContext } from "../contexts/SampleContext.tsx";
-import { CurrentLog, RunningSampleData } from "../types.ts";
+import { CurrentLog } from "../types.ts";
 import {
   EvalError,
   EvalPlan,
   EvalResults,
-  EvalSample,
   EvalSpec,
   EvalStats,
   Status,
@@ -39,12 +37,8 @@ interface WorkSpaceProps {
   evalResults?: EvalResults;
   runningMetrics?: RunningMetric[];
   log?: CurrentLog;
-  selectedSample?: EvalSample;
-  sampleStatus: string;
-  sampleError?: Error;
   showToggle: boolean;
   refreshLog: () => void;
-  runningSampleData?: RunningSampleData;
   selectedSampleTab?: string;
   setSelectedSampleTab: (tab: string) => void;
   showingSampleDialog: boolean;
@@ -133,13 +127,9 @@ const copyFeedback = (e: MouseEvent<HTMLElement>) => {
 
 // Individual hook for Samples tab
 export const useSamplesTabConfig = (
-  selectedSample: EvalSample | undefined,
-  sampleStatus: string,
-  sampleError: Error | undefined,
   evalStatus: Status | undefined,
   showingSampleDialog: boolean,
   setShowingSampleDialog: (showing: boolean) => void,
-  runningSampleData: RunningSampleData | undefined,
   selectedSampleTab: string | undefined,
   setSelectedSampleTab: (tab: string) => void,
   sampleScrollPositionRef: RefObject<number>,
@@ -149,7 +139,6 @@ export const useSamplesTabConfig = (
 ) => {
   const appContext = useAppContext();
   const logContext = useLogContext();
-  const sampleContext = useSampleContext();
 
   return useMemo(() => {
     if (logContext.totalSampleCount === 0) {
@@ -163,10 +152,6 @@ export const useSamplesTabConfig = (
       label: logContext.totalSampleCount > 1 ? "Samples" : "Sample",
       content: () => (
         <SamplesTab
-          sample={selectedSample}
-          runningSampleData={runningSampleData}
-          sampleStatus={sampleStatus}
-          sampleError={sampleError}
           running={evalStatus === "started"}
           showingSampleDialog={showingSampleDialog}
           setShowingSampleDialog={setShowingSampleDialog}
@@ -197,13 +182,9 @@ export const useSamplesTabConfig = (
             ].filter(Boolean),
     };
   }, [
-    selectedSample,
-    sampleStatus,
-    sampleError,
     evalStatus,
     showingSampleDialog,
     setShowingSampleDialog,
-    runningSampleData,
     selectedSampleTab,
     setSelectedSampleTab,
     sampleScrollPositionRef,
@@ -314,12 +295,8 @@ export const useResolvedTabs = (props: WorkSpaceProps) => {
   const {
     evalVersion,
     evalStatus,
-    selectedSample,
-    sampleStatus,
-    sampleError,
     showingSampleDialog,
     setShowingSampleDialog,
-    runningSampleData,
     selectedSampleTab,
     setSelectedSampleTab,
     sampleScrollPositionRef,
@@ -337,13 +314,9 @@ export const useResolvedTabs = (props: WorkSpaceProps) => {
 
   // Use individual tab config hooks
   const samplesTabConfig = useSamplesTabConfig(
-    selectedSample,
-    sampleStatus,
-    sampleError,
     evalStatus,
     showingSampleDialog,
     setShowingSampleDialog,
-    runningSampleData,
     selectedSampleTab,
     setSelectedSampleTab,
     sampleScrollPositionRef,
