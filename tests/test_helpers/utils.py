@@ -1,4 +1,3 @@
-import asyncio
 import contextlib
 import importlib.util
 import os
@@ -10,6 +9,7 @@ from random import random
 from types import FrameType
 from typing import Generator, Sequence
 
+import anyio
 import pytest
 
 from inspect_ai import Task, eval, task
@@ -223,7 +223,7 @@ def failing_task_deterministic(should_fail: Sequence[bool]) -> Task:
 @solver
 def sleep_for_solver(seconds: int):
     async def solve(state: TaskState, generate: Generate):
-        await asyncio.sleep(seconds)
+        await anyio.sleep(seconds)
         return state
 
     return solve

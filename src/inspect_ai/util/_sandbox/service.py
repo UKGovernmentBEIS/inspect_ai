@@ -9,6 +9,7 @@ from typing import (
     cast,
 )
 
+import anyio
 from pydantic import JsonValue
 
 from inspect_ai.util._subprocess import ExecResult
@@ -59,7 +60,7 @@ async def sandbox_service(
 
     # wait for and process methods
     while not until():
-        await asyncio.sleep(POLLING_INTERVAL)
+        await anyio.sleep(POLLING_INTERVAL)
         await service.handle_requests()
 
 

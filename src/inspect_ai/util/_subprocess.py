@@ -9,6 +9,8 @@ from logging import getLogger
 from pathlib import Path
 from typing import AsyncGenerator, Generic, Literal, TypeVar, Union, cast, overload
 
+import anyio
+
 from inspect_ai._util.trace import trace_action
 
 from ._concurrency import concurrency
@@ -207,7 +209,7 @@ async def subprocess(
                 # then be more forceful if requied
                 try:
                     proc.terminate()
-                    await asyncio.sleep(2)
+                    await anyio.sleep(2)
                     if proc.returncode is None:
                         proc.kill()
                 except Exception as ex:

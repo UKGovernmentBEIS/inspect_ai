@@ -1,5 +1,5 @@
 aiohttp>=3.9.0
-anyio>=4.4.0 # not directly required, pinned by Snyk to avoid a vulnerability
+anyio>=4.8.0
 beautifulsoup4
 click>=8.1.3
 debugpy

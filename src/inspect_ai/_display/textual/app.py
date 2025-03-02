@@ -11,6 +11,7 @@ from typing import (
     cast,
 )
 
+import anyio
 import rich
 from rich.console import Console
 from textual.app import App, ComposeResult
@@ -136,7 +137,7 @@ class TaskScreenApp(App[TR]):
         while not self._on_load_app.is_set():
             if len(self.workers._workers) == 0:
                 return
-            await asyncio.sleep(0.1)
+            await anyio.sleep(0.1)
 
     @contextlib.contextmanager
     def suspend_app(self) -> Iterator[None]:
