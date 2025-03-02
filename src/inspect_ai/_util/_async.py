@@ -1,4 +1,4 @@
-import asyncio
+import inspect
 from typing import Any, TypeVar
 
 import nest_asyncio  # type: ignore
@@ -6,10 +6,10 @@ import sniffio
 
 
 def is_callable_coroutine(func_or_cls: Any) -> bool:
-    if asyncio.iscoroutinefunction(func_or_cls):
+    if inspect.iscoroutinefunction(func_or_cls):
         return True
     elif callable(func_or_cls):
-        return asyncio.iscoroutinefunction(func_or_cls.__call__)
+        return inspect.iscoroutinefunction(func_or_cls.__call__)
     return False
 
 
