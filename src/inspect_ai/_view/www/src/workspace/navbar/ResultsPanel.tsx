@@ -33,7 +33,7 @@ export const displayScorersFromRunningMetrics = (metrics?: RunningMetric[]) => {
   metrics.forEach((metric) => {
     if (metric.value !== undefined) {
       const key = getKey(metric);
-      if (!!scorers[key]) {
+      if (scorers[key]) {
         scorers[key].metrics.push({
           name: metric.name,
           value: metric.value,
@@ -81,7 +81,7 @@ interface ResultsPanelProps {
   scorers?: ResultsScorer[];
 }
 
-export const ResultsPanel: React.FC<ResultsPanelProps> = ({ scorers }) => {
+export const ResultsPanel: FC<ResultsPanelProps> = ({ scorers }) => {
   if (!scorers || scorers.length === 0) {
     return undefined;
   }

@@ -791,7 +791,7 @@ var require_assets = __commonJS({
       react.exports = react_production;
     }
     var reactExports = react.exports;
-    const React$2 = /* @__PURE__ */ getDefaultExportFromCjs(reactExports);
+    const E = /* @__PURE__ */ getDefaultExportFromCjs(reactExports);
     var reactDom = { exports: {} };
     var reactDom_production = {};
     /**
@@ -17598,7 +17598,7 @@ self.onmessage = function (e) {
         )
       ] });
     };
-    const ToolButton = React$2.forwardRef(
+    const ToolButton = reactExports.forwardRef(
       ({ label: label2, classes = "", icon: icon2, className: className2, ...rest }, ref) => {
         const combinedClasses = `btn btn-tools tool-button ${classes} ${className2 || ""}`.trim();
         return /* @__PURE__ */ jsxRuntimeExports.jsxs("button", { ref, type: "button", className: combinedClasses, ...rest, children: [
@@ -24496,7 +24496,7 @@ self.onmessage = function (e) {
       env = env || {};
       return this.renderer.render(this.parseInline(src, env), this.options, env);
     };
-    const MarkdownDiv = React$2.forwardRef(
+    const MarkdownDiv = reactExports.forwardRef(
       ({ markdown, style: style2, className: className2 }, ref) => {
         const escaped = markdown ? escape(markdown) : "";
         const preRendered = preRenderText(escaped);
@@ -25426,7 +25426,7 @@ self.onmessage = function (e) {
       });
       if (renderer) {
         const { rendered } = renderer.render(id, entry2);
-        if (rendered !== void 0 && React$2.isValidElement(rendered)) {
+        if (rendered !== void 0 && reactExports.isValidElement(rendered)) {
           return rendered;
         }
       }
@@ -51049,11 +51049,11 @@ Supported expressions:
       return Me(t2, e, n).callbackRef;
     }
     function Me(t2, e, n) {
-      const o = React$2.useRef(null);
+      const o = E.useRef(null);
       let r2 = (s) => {
       };
       if (typeof ResizeObserver < "u") {
-        const s = React$2.useMemo(() => new ResizeObserver((i2) => {
+        const s = E.useMemo(() => new ResizeObserver((i2) => {
           const l = () => {
             const c2 = i2[0].target;
             c2.offsetParent !== null && t2(c2);
@@ -51067,7 +51067,7 @@ Supported expressions:
       return { callbackRef: r2, ref: o };
     }
     function kn(t2, e, n, o, r2, s, i2, l, c2) {
-      const d = React$2.useCallback(
+      const d = E.useCallback(
         (f) => {
           const S = Io(f.children, e, l ? "offsetWidth" : "offsetHeight", r2);
           let p = f.parentElement;
@@ -51107,7 +51107,7 @@ Supported expressions:
       return e !== "normal" && !(e != null && e.endsWith("px")) && n(`${t2} was not resolved to pixel value correctly`, e, ht.WARN), e === "normal" ? 0 : parseInt(e != null ? e : "0", 10);
     }
     function _e(t2, e, n) {
-      const o = React$2.useRef(null), r2 = React$2.useCallback(
+      const o = E.useRef(null), r2 = E.useCallback(
         (c2) => {
           if (!(c2 != null && c2.offsetParent))
             return;
@@ -51125,10 +51125,10 @@ Supported expressions:
           }, t2(o.current);
         },
         [t2, e]
-      ), { callbackRef: s, ref: i2 } = Me(r2, true, n), l = React$2.useCallback(() => {
+      ), { callbackRef: s, ref: i2 } = Me(r2, true, n), l = E.useCallback(() => {
         r2(i2.current);
       }, [r2, i2]);
-      return React$2.useEffect(() => {
+      return E.useEffect(() => {
         if (e) {
           e.addEventListener("scroll", l);
           const c2 = new ResizeObserver(() => {
@@ -52873,9 +52873,9 @@ Supported expressions:
         Object.hasOwn(o, i2) || (n[i2] = e[i2]);
       return n;
     }
-    const pe = typeof document < "u" ? React$2.useLayoutEffect : React$2.useEffect;
+    const pe = typeof document < "u" ? E.useLayoutEffect : E.useEffect;
     function je(t2, e, n) {
-      const o = Object.keys(e.required || {}), r2 = Object.keys(e.optional || {}), s = Object.keys(e.methods || {}), i2 = Object.keys(e.events || {}), l = React$2.createContext({});
+      const o = Object.keys(e.required || {}), r2 = Object.keys(e.optional || {}), s = Object.keys(e.methods || {}), i2 = Object.keys(e.events || {}), l = E.createContext({});
       function c2(g, u) {
         g.propsReady && M(g.propsReady, false);
         for (const T of o) {
@@ -52898,10 +52898,10 @@ Supported expressions:
       function f(g) {
         return i2.reduce((u, T) => (u[T] = fo(g[e.events[T]]), u), {});
       }
-      const S = React$2.forwardRef((g, u) => {
-        const { children: T, ...b } = g, [h] = React$2.useState(() => ye(po(t2), (k) => {
+      const S = E.forwardRef((g, u) => {
+        const { children: T, ...b } = g, [h] = E.useState(() => ye(po(t2), (k) => {
           c2(k, b);
-        })), [a] = React$2.useState(ln(f, h));
+        })), [a] = E.useState(ln(f, h));
         pe(() => {
           for (const k of i2)
             k in b && K(a[k], b[k]);
@@ -52910,41 +52910,41 @@ Supported expressions:
           };
         }, [b, a, h]), pe(() => {
           c2(h, b);
-        }), React$2.useImperativeHandle(u, sn(d(h)));
+        }), E.useImperativeHandle(u, sn(d(h)));
         const R = n;
         return /* @__PURE__ */ jsxRuntimeExports.jsx(l.Provider, { value: h, children: n ? /* @__PURE__ */ jsxRuntimeExports.jsx(R, { ...Zo([...o, ...r2, ...i2], b), children: T }) : T });
-      }), p = (g) => React$2.useCallback(Hn(M, React$2.useContext(l)[g]), [g]), m = (g) => {
-        const T = React$2.useContext(l)[g], b = React$2.useCallback(
+      }), p = (g) => E.useCallback(Hn(M, E.useContext(l)[g]), [g]), m = (g) => {
+        const T = E.useContext(l)[g], b = E.useCallback(
           (h) => K(T, h),
           [T]
         );
-        return React$2.useSyncExternalStore(
+        return E.useSyncExternalStore(
           b,
           () => lt(T),
           () => lt(T)
         );
       }, C2 = (g) => {
-        const T = React$2.useContext(l)[g], [b, h] = React$2.useState(ln(lt, T));
+        const T = E.useContext(l)[g], [b, h] = E.useState(ln(lt, T));
         return pe(
           () => K(T, (a) => {
             a !== b && h(sn(a));
           }),
           [T, b]
         ), b;
-      }, I = React$2.version.startsWith("18") ? m : C2;
+      }, I = E.version.startsWith("18") ? m : C2;
       return {
         Component: S,
         useEmitter: (g, u) => {
-          const b = React$2.useContext(l)[g];
+          const b = E.useContext(l)[g];
           pe(() => K(b, u), [u, b]);
         },
         useEmitterValue: I,
         usePublisher: p
       };
     }
-    const Re = React$2.createContext(void 0), qn = React$2.createContext(void 0), Yn = typeof document < "u" ? React$2.useLayoutEffect : React$2.useEffect;
+    const Re = E.createContext(void 0), qn = E.createContext(void 0), Yn = typeof document < "u" ? E.useLayoutEffect : E.useEffect;
     function Zn(t2, e, n, o = Gt, r2, s) {
-      const i2 = React$2.useRef(null), l = React$2.useRef(null), c2 = React$2.useRef(null), d = React$2.useCallback(
+      const i2 = E.useRef(null), l = E.useRef(null), c2 = E.useRef(null), d = E.useCallback(
         (p) => {
           const m = p.target, C2 = m === window || m === document, I = s ? C2 ? window.pageXOffset || document.documentElement.scrollLeft : m.scrollLeft : C2 ? window.pageYOffset || document.documentElement.scrollTop : m.scrollTop, y = s ? C2 ? document.documentElement.scrollWidth : m.scrollWidth : C2 ? document.documentElement.scrollHeight : m.scrollHeight, g = s ? C2 ? window.innerWidth : m.offsetWidth : C2 ? window.innerHeight : m.offsetHeight, u = () => {
             t2({
@@ -52957,7 +52957,7 @@ Supported expressions:
         },
         [t2, e]
       );
-      React$2.useEffect(() => {
+      E.useEffect(() => {
         const p = r2 || i2.current;
         return o(r2 || i2.current), d({ suppressFlushSync: true, target: p }), p.addEventListener("scroll", d, { passive: true }), () => {
           o(null), p.removeEventListener("scroll", d);
@@ -53026,7 +53026,7 @@ Supported expressions:
     }), Jo = /* @__PURE__ */ U(
       ([t2, e]) => ({ ...t2, ...e }),
       X(jn, Xo)
-    ), Qo = ({ height: t2 }) => /* @__PURE__ */ jsxRuntimeExports.jsx("div", { style: { height: t2 } }), tr = { overflowAnchor: "none", position: Xn(), zIndex: 1 }, Jn = { overflowAnchor: "none" }, er = { ...Jn, display: "inline-block", height: "100%" }, xn = /* @__PURE__ */ React$2.memo(function({ showTopList: e = false }) {
+    ), Qo = ({ height: t2 }) => /* @__PURE__ */ jsxRuntimeExports.jsx("div", { style: { height: t2 } }), tr = { overflowAnchor: "none", position: Xn(), zIndex: 1 }, Jn = { overflowAnchor: "none" }, er = { ...Jn, display: "inline-block", height: "100%" }, xn = /* @__PURE__ */ E.memo(function({ showTopList: e = false }) {
       const n = W("listState"), o = gt("sizeRanges"), r2 = W("useWindowScroll"), s = W("customScrollParent"), i2 = gt("windowScrollContainerState"), l = gt("scrollContainerState"), c2 = s || r2 ? i2 : l, d = W("itemContent"), f = W("context"), S = W("groupContent"), p = W("trackItemSizes"), m = W("itemSize"), C2 = W("log"), I = gt("gap"), y = W("horizontalDirection"), { callbackRef: g } = kn(
         o,
         m,
@@ -53037,7 +53037,7 @@ Supported expressions:
         s,
         y,
         W("skipAnimationFrameInResizeObserver")
-      ), [u, T] = React$2.useState(0);
+      ), [u, T] = E.useState(0);
       Xe("deviation", (B) => {
         u !== B && T(B);
       });
@@ -53133,9 +53133,9 @@ Supported expressions:
     function Qn(t2, e) {
       return { item: typeof t2 == "string" ? void 0 : e };
     }
-    const sr = /* @__PURE__ */ React$2.memo(function() {
+    const sr = /* @__PURE__ */ E.memo(function() {
       const e = W("HeaderComponent"), n = gt("headerHeight"), o = W("HeaderFooterTag"), r2 = Et(
-        React$2.useMemo(
+        E.useMemo(
           () => (i2) => {
             n(Ct(i2, "height"));
           },
@@ -53145,9 +53145,9 @@ Supported expressions:
         W("skipAnimationFrameInResizeObserver")
       ), s = W("context");
       return e ? /* @__PURE__ */ jsxRuntimeExports.jsx(o, { ref: r2, children: /* @__PURE__ */ jsxRuntimeExports.jsx(e, { ...Z(e, s) }) }) : null;
-    }), ir = /* @__PURE__ */ React$2.memo(function() {
+    }), ir = /* @__PURE__ */ E.memo(function() {
       const e = W("FooterComponent"), n = gt("footerHeight"), o = W("HeaderFooterTag"), r2 = Et(
-        React$2.useMemo(
+        E.useMemo(
           () => (i2) => {
             n(Ct(i2, "height"));
           },
@@ -53159,7 +53159,7 @@ Supported expressions:
       return e ? /* @__PURE__ */ jsxRuntimeExports.jsx(o, { ref: r2, children: /* @__PURE__ */ jsxRuntimeExports.jsx(e, { ...Z(e, s) }) }) : null;
     });
     function Ye({ useEmitter: t2, useEmitterValue: e, usePublisher: n }) {
-      return React$2.memo(function({ children: s, style: i2, ...l }) {
+      return E.memo(function({ children: s, style: i2, ...l }) {
         const c2 = n("scrollContainerState"), d = e("ScrollerComponent"), f = n("smoothScrollTargetReached"), S = e("scrollerRef"), p = e("context"), m = e("horizontalDirection") || false, { scrollByCallback: C2, scrollerRef: I, scrollToCallback: y } = Zn(
           c2,
           f,
@@ -53184,7 +53184,7 @@ Supported expressions:
       });
     }
     function Ze({ useEmitter: t2, useEmitterValue: e, usePublisher: n }) {
-      return React$2.memo(function({ children: s, style: i2, ...l }) {
+      return E.memo(function({ children: s, style: i2, ...l }) {
         const c2 = n("windowScrollContainerState"), d = e("ScrollerComponent"), f = n("smoothScrollTargetReached"), S = e("totalListHeight"), p = e("deviation"), m = e("customScrollParent"), C2 = e("context"), { scrollByCallback: I, scrollerRef: y, scrollToCallback: g } = Zn(
           c2,
           f,
@@ -53207,26 +53207,26 @@ Supported expressions:
       });
     }
     const lr = ({ children: t2 }) => {
-      const e = React$2.useContext(Re), n = gt("viewportHeight"), o = gt("fixedItemHeight"), r2 = W("alignToBottom"), s = W("horizontalDirection"), i2 = React$2.useMemo(
+      const e = E.useContext(Re), n = gt("viewportHeight"), o = gt("fixedItemHeight"), r2 = W("alignToBottom"), s = W("horizontalDirection"), i2 = E.useMemo(
         () => ne(n, (c2) => Ct(c2, s ? "width" : "height")),
         [n, s]
       ), l = Et(i2, true, W("skipAnimationFrameInResizeObserver"));
-      return React$2.useEffect(() => {
+      return E.useEffect(() => {
         e && (n(e.viewportHeight), o(e.itemHeight));
       }, [e, n, o]), /* @__PURE__ */ jsxRuntimeExports.jsx("div", { "data-viewport-type": "element", ref: l, style: Zt(r2), children: t2 });
     }, cr = ({ children: t2 }) => {
-      const e = React$2.useContext(Re), n = gt("windowViewportRect"), o = gt("fixedItemHeight"), r2 = W("customScrollParent"), s = _e(
+      const e = E.useContext(Re), n = gt("windowViewportRect"), o = gt("fixedItemHeight"), r2 = W("customScrollParent"), s = _e(
         n,
         r2,
         W("skipAnimationFrameInResizeObserver")
       ), i2 = W("alignToBottom");
-      return React$2.useEffect(() => {
+      return E.useEffect(() => {
         e && (o(e.itemHeight), n({ offsetTop: 0, visibleHeight: e.viewportHeight, visibleWidth: 100 }));
       }, [e, n, o]), /* @__PURE__ */ jsxRuntimeExports.jsx("div", { "data-viewport-type": "window", ref: s, style: Zt(i2), children: t2 });
     }, ur = ({ children: t2 }) => {
       const e = W("TopItemListComponent") || "div", n = W("headerHeight"), o = { ...rr, marginTop: `${n}px` }, r2 = W("context");
       return /* @__PURE__ */ jsxRuntimeExports.jsx(e, { style: o, ...Z(e, r2), children: t2 });
-    }, ar = /* @__PURE__ */ React$2.memo(function(e) {
+    }, ar = /* @__PURE__ */ E.memo(function(e) {
       const n = W("useWindowScroll"), o = W("topItemsIndexes").length > 0, r2 = W("customScrollParent"), s = W("context"), i2 = r2 || n ? fr : dr, l = r2 || n ? cr : lr;
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(i2, { ...e, ...Z(i2, s), children: [
         o && /* @__PURE__ */ jsxRuntimeExports.jsx(ur, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(xn, { showTopList: true }) }),
@@ -53657,9 +53657,9 @@ Supported expressions:
     }), kr = /* @__PURE__ */ U(
       ([t2, e]) => ({ ...t2, ...e }),
       X(Hr, Br)
-    ), Or = /* @__PURE__ */ React$2.memo(function() {
+    ), Or = /* @__PURE__ */ E.memo(function() {
       const e = et("gridState"), n = et("listClassName"), o = et("itemClassName"), r2 = et("itemContent"), s = et("computeItemKey"), i2 = et("isSeeking"), l = It("scrollHeight"), c2 = et("ItemComponent"), d = et("ListComponent"), f = et("ScrollSeekPlaceholder"), S = et("context"), p = It("itemDimensions"), m = It("gap"), C2 = et("log"), I = et("stateRestoreInProgress"), y = It("reportReadyState"), g = Et(
-        React$2.useMemo(
+        E.useMemo(
           () => (u) => {
             const T = u.parentElement.parentElement.scrollHeight;
             l(T);
@@ -53712,9 +53712,9 @@ Supported expressions:
           })
         }
       );
-    }), Fr = React$2.memo(function() {
+    }), Fr = E.memo(function() {
       const e = et("HeaderComponent"), n = It("headerHeight"), o = et("headerFooterTag"), r2 = Et(
-        React$2.useMemo(
+        E.useMemo(
           () => (i2) => {
             n(Ct(i2, "height"));
           },
@@ -53724,9 +53724,9 @@ Supported expressions:
         false
       ), s = et("context");
       return e ? /* @__PURE__ */ jsxRuntimeExports.jsx(o, { ref: r2, children: /* @__PURE__ */ jsxRuntimeExports.jsx(e, { ...Z(e, s) }) }) : null;
-    }), zr = React$2.memo(function() {
+    }), zr = E.memo(function() {
       const e = et("FooterComponent"), n = It("footerHeight"), o = et("headerFooterTag"), r2 = Et(
-        React$2.useMemo(
+        E.useMemo(
           () => (i2) => {
             n(Ct(i2, "height"));
           },
@@ -53737,8 +53737,8 @@ Supported expressions:
       ), s = et("context");
       return e ? /* @__PURE__ */ jsxRuntimeExports.jsx(o, { ref: r2, children: /* @__PURE__ */ jsxRuntimeExports.jsx(e, { ...Z(e, s) }) }) : null;
     }), Lr = ({ children: t2 }) => {
-      const e = React$2.useContext(qn), n = It("itemDimensions"), o = It("viewportDimensions"), r2 = Et(
-        React$2.useMemo(
+      const e = E.useContext(qn), n = It("itemDimensions"), o = It("viewportDimensions"), r2 = Et(
+        E.useMemo(
           () => (s) => {
             o(s.getBoundingClientRect());
           },
@@ -53747,15 +53747,15 @@ Supported expressions:
         true,
         false
       );
-      return React$2.useEffect(() => {
+      return E.useEffect(() => {
         e && (o({ height: e.viewportHeight, width: e.viewportWidth }), n({ height: e.itemHeight, width: e.itemWidth }));
       }, [e, o, n]), /* @__PURE__ */ jsxRuntimeExports.jsx("div", { ref: r2, style: Zt(false), children: t2 });
     }, Pr = ({ children: t2 }) => {
-      const e = React$2.useContext(qn), n = It("windowViewportRect"), o = It("itemDimensions"), r2 = et("customScrollParent"), s = _e(n, r2, false);
-      return React$2.useEffect(() => {
+      const e = E.useContext(qn), n = It("windowViewportRect"), o = It("itemDimensions"), r2 = et("customScrollParent"), s = _e(n, r2, false);
+      return E.useEffect(() => {
         e && (o({ height: e.itemHeight, width: e.itemWidth }), n({ offsetTop: 0, visibleHeight: e.viewportHeight, visibleWidth: e.viewportWidth }));
       }, [e, n, o]), /* @__PURE__ */ jsxRuntimeExports.jsx("div", { ref: s, style: Zt(false), children: t2 });
-    }, Vr = /* @__PURE__ */ React$2.memo(function({ ...e }) {
+    }, Vr = /* @__PURE__ */ E.memo(function({ ...e }) {
       const n = et("useWindowScroll"), o = et("customScrollParent"), r2 = o || n ? Mr : Wr, s = o || n ? Pr : Lr, i2 = et("context");
       return /* @__PURE__ */ jsxRuntimeExports.jsx(r2, { ...e, ...Z(r2, i2), children: /* @__PURE__ */ jsxRuntimeExports.jsxs(s, { children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx(Fr, {}),
@@ -54298,7 +54298,7 @@ Supported expressions:
               {
                 navs: filteredArrChildren.map((child, index2) => {
                   const defaultTitle = `Tab ${index2}`;
-                  const title22 = child && React$2.isValidElement(child) ? child.props["data-name"] || defaultTitle : defaultTitle;
+                  const title22 = child && reactExports.isValidElement(child) ? child.props["data-name"] || defaultTitle : defaultTitle;
                   return {
                     id: `eventpanel-${id}-${index2}`,
                     title: title22,
@@ -64904,7 +64904,7 @@ ${events}
       metrics.forEach((metric2) => {
         if (metric2.value !== void 0) {
           const key2 = getKey(metric2);
-          if (!!scorers[key2]) {
+          if (scorers[key2]) {
             scorers[key2].metrics.push({
               name: metric2.name,
               value: metric2.value
@@ -65086,9 +65086,7 @@ ${events}
       statusText,
       icon
     };
-    const RunningStatusPanel = ({
-      sampleCount
-    }) => {
+    const RunningStatusPanel = ({ sampleCount }) => {
       return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$3.statusContainer), children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$3.status), children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(ApplicationIcons.running, styles$3.icon) }),
         /* @__PURE__ */ jsxRuntimeExports.jsxs(
@@ -66408,9 +66406,9 @@ ${events}
               279: (
                 /***/
                 function(module3) {
-                  function E() {
+                  function E2() {
                   }
-                  E.prototype = {
+                  E2.prototype = {
                     on: function(name2, callback, ctx) {
                       var e = this.e || (this.e = {});
                       (e[name2] || (e[name2] = [])).push({
@@ -66452,8 +66450,8 @@ ${events}
                       return this;
                     }
                   };
-                  module3.exports = E;
-                  module3.exports.TinyEmitter = E;
+                  module3.exports = E2;
+                  module3.exports.TinyEmitter = E2;
                 }
               )
               /******/
