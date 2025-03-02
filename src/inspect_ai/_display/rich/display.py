@@ -1,8 +1,9 @@
 import asyncio
 import contextlib
 from dataclasses import dataclass
-from typing import Any, AsyncIterator, Callable, Coroutine, Iterator
+from typing import Any, AsyncIterator, Awaitable, Callable, Iterator
 
+import anyio
 import rich
 from rich.console import Console, Group, RenderableType
 from rich.live import Live
@@ -74,8 +75,8 @@ class RichDisplay(Display):
             yield RichProgress(total, progress)
 
     @override
-    def run_task_app(self, main: Coroutine[Any, Any, TR]) -> TR:
-        return asyncio.run(main)
+    def run_task_app(self, main: Callable[[], Awaitable[TR]]) -> TR:
+        return anyio.run(main)
 
     @override
     @contextlib.contextmanager

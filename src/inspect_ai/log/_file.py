@@ -3,10 +3,11 @@ import re
 from logging import getLogger
 from typing import Any, Callable, Generator, Literal, cast
 
+import anyio
 from pydantic import BaseModel
 from pydantic_core import to_json
 
-from inspect_ai._util._async import run_coroutine
+from inspect_ai._util._async import get_current_async_library
 from inspect_ai._util.constants import ALL_LOG_FORMATS, EVAL_LOG_FORMAT
 from inspect_ai._util.file import (
     FileInfo,
@@ -165,7 +166,13 @@ def write_eval_log(
        format (Literal["eval", "json", "auto"]): Write to format
           (defaults to 'auto' based on `log_file` extension)
     """
-    run_coroutine(write_eval_log_async(log, location, format))
+    # we used to allow calling this from async code, so detect this and provide
+    # a more sensible error message
+    if get_current_async_library() is not None:
+        raise RuntimeError(
+            "write_eval_log cannot be called from an async context (please use write_eval_log_async instead)"
+        )
+    anyio.run(write_eval_log_async, log, location, format)
 
 
 async def write_eval_log_async(
@@ -265,8 +272,15 @@ def read_eval_log(
     Returns:
        EvalLog object read from file.
     """
-    return run_coroutine(
-        read_eval_log_async(log_file, header_only, resolve_attachments, format)
+    # we used to allow calling this from async code, so detect this and provide
+    # a more sensible error message
+    if get_current_async_library() is not None:
+        raise RuntimeError(
+            "read_eval_log cannot be called from an async context (please use read_eval_log_async instead)"
+        )
+
+    return anyio.run(
+        read_eval_log_async, log_file, header_only, resolve_attachments, format
     )
 
 
@@ -321,7 +335,7 @@ async def read_eval_log_async(
 def read_eval_log_headers(
     log_files: list[str] | list[EvalLogInfo],
 ) -> list[EvalLog]:
-    return run_coroutine(read_eval_log_headers_async(log_files))
+    return anyio.run(read_eval_log_headers_async, log_files)
 
 
 async def read_eval_log_headers_async(
@@ -356,8 +370,8 @@ def read_eval_log_sample(
     Raises:
        IndexError: If the passed id and epoch are not found.
     """
-    return run_coroutine(
-        read_eval_log_sample_async(log_file, id, epoch, resolve_attachments, format)
+    return anyio.run(
+        read_eval_log_sample_async, log_file, id, epoch, resolve_attachments, format
     )
 
 

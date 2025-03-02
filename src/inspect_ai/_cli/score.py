@@ -1,6 +1,6 @@
-import asyncio
 import os
 
+import anyio
 import click
 import rich
 from rich.panel import Panel
@@ -64,8 +64,8 @@ def score_command(
     process_common_options(common)
 
     # score
-    asyncio.run(
-        score(
+    async def run_score() -> None:
+        return await score(
             log_dir=common["log_dir"],
             log_file=log_file,
             scorer=scorer,
@@ -74,7 +74,8 @@ def score_command(
             action=action,
             log_level=common["log_level"],
         )
-    )
+
+    anyio.run(run_score)
 
 
 async def score(

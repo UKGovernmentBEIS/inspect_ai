@@ -3,6 +3,8 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any, Callable, Literal, cast
 
+import anyio
+
 from inspect_ai._display import display
 from inspect_ai._eval.loader import scorer_from_spec
 from inspect_ai._util.platform import platform_init
@@ -53,7 +55,7 @@ def score(
     # resolve scorers into a list
     scorers = [scorers] if isinstance(scorers, Scorer) else scorers
 
-    return asyncio.run(score_async(log, scorers, epochs_reducer, action))
+    return anyio.run(score_async, log, scorers, epochs_reducer, action)
 
 
 async def score_async(

@@ -166,8 +166,8 @@ def eval(
         display, trace, max_tasks, max_samples, model
     )
 
-    return task_display().run_task_app(
-        main=eval_async(
+    async def run_task_app() -> list[EvalLog]:
+        return await eval_async(
             tasks=tasks,
             model=model,
             model_base_url=model_base_url,
@@ -202,7 +202,8 @@ def eval(
             score_display=score_display,
             **kwargs,
         )
-    )
+
+    return task_display().run_task_app(run_task_app)
 
 
 # single call to eval_async at a time
@@ -556,8 +557,8 @@ def eval_retry(
     # resolve eval trace
     max_tasks, max_samples = init_eval_display(display, trace, max_tasks, max_samples)
 
-    return task_display().run_task_app(
-        main=eval_retry_async(
+    async def run_task_app() -> list[EvalLog]:
+        return await eval_retry_async(
             tasks=tasks,
             log_level=log_level,
             log_level_transcript=log_level_transcript,
@@ -578,8 +579,9 @@ def eval_retry(
             max_retries=max_retries,
             timeout=timeout,
             max_connections=max_connections,
-        ),
-    )
+        )
+
+    return task_display().run_task_app(run_task_app)
 
 
 async def eval_retry_async(

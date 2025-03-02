@@ -4,14 +4,16 @@ from asyncio import CancelledError
 from typing import (
     Any,
     AsyncIterator,
+    Awaitable,
+    Callable,
     ClassVar,
-    Coroutine,
     Generic,
     Iterator,
     cast,
 )
 
 import anyio
+import anyio.from_thread
 import rich
 from rich.console import Console
 from textual.app import App, ComposeResult
@@ -104,9 +106,9 @@ class TaskScreenApp(App[TR]):
         if focus and self.app._driver:
             textual_enable_mouse_support(self.app._driver)
 
-    def run_app(self, main: Coroutine[Any, Any, TR]) -> TaskScreenResult[TR]:
-        # create the worker
-        self._worker = self.run_worker(main, start=False, exit_on_error=False)
+    def run_app(self, main: Callable[[], Awaitable[TR]]) -> TaskScreenResult[TR]:
+        # TODO: this ties us to the asyncio backend
+        self._worker = self.run_worker(main(), start=False, exit_on_error=False)
 
         # run the app
         self.run()

@@ -4,7 +4,8 @@ from types import TracebackType
 from typing import (
     Any,
     AsyncIterator,
-    Coroutine,
+    Awaitable,
+    Callable,
     Iterator,
     Protocol,
     Type,
@@ -130,7 +131,7 @@ class Display(Protocol):
     @contextlib.contextmanager
     def progress(self, total: int) -> Iterator[Progress]: ...
 
-    def run_task_app(self, main: Coroutine[Any, Any, TR]) -> TR: ...
+    def run_task_app(self, main: Callable[[], Awaitable[TR]]) -> TR: ...
 
     @contextlib.contextmanager
     def suspend_task_app(self) -> Iterator[None]: ...
