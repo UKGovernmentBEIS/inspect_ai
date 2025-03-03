@@ -197,7 +197,6 @@ export const SampleList: FC<SampleListProps> = (props) => {
           type="info"
         />
       ) : undefined}
-
       <SampleHeader
         input={input !== "0"}
         target={target !== "0"}

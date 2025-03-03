@@ -58,6 +58,7 @@
     "fflate": "^0.8.2",
     "filtrex": "^3.1.0",
     "htm": "^3.1.1",
+    "immer": "^10.1.1",
     "json": "^11.0.0",
     "json5": "^2.2.3",
     "jsondiffpatch": "^0.6.0",
@@ -67,6 +68,7 @@
     "prismjs": "^1.30.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "react-virtuoso": "^4.12.5"
+    "react-virtuoso": "^4.12.5",
+    "zustand": "^5.0.3"
   }
 }
