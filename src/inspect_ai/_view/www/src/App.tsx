@@ -235,7 +235,10 @@ export const App: FC<AppProps> = ({
   }, [logContext.state.selectedLogSummary?.eval.task_id]);
 
   useEffect(() => {
-    if (logContext.totalSampleCount === 0) {
+    if (
+      logContext.state.selectedLogSummary &&
+      logContext.totalSampleCount === 0
+    ) {
       setSelectedWorkspaceTab(kInfoWorkspaceTabId);
     }
   }, [logContext.state.selectedLogSummary]);
