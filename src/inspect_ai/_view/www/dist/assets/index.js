@@ -1353,10 +1353,10 @@ var require_assets = __commonJS({
         } catch (err2) {
         }
     }
-    var clz32 = Math.clz32 ? Math.clz32 : clz32Fallback, log = Math.log, LN2 = Math.LN2;
+    var clz32 = Math.clz32 ? Math.clz32 : clz32Fallback, log$2 = Math.log, LN2 = Math.LN2;
     function clz32Fallback(x2) {
       x2 >>>= 0;
-      return 0 === x2 ? 32 : 31 - (log(x2) / LN2 | 0) | 0;
+      return 0 === x2 ? 32 : 31 - (log$2(x2) / LN2 | 0) | 0;
     }
     var nextTransitionLane = 128, nextRetryLane = 4194304;
     function getHighestPriorityLanes(lanes) {
@@ -17614,14 +17614,14 @@ self.onmessage = function (e) {
         }
       }
     };
-    const initialState$1 = {
+    const initialState$2 = {
       status: { loading: false },
       offcanvas: false,
       showFind: false
     };
     const useAppStore = create$2()(
       immer((set2, get2) => ({
-        ...initialState$1,
+        ...initialState$2,
         capabilities: {},
         // Will be initialized on store creation
         // Actions
@@ -29557,190 +29557,164 @@ categories: ${categories.join(" ")}`;
       };
       return logger;
     };
-    const initialLogsState = {
+    const initialState$1 = {
       logs: { log_dir: "", files: [] },
       logHeaders: {},
       headersLoading: false,
       selectedLogIndex: -1
     };
-    const logsReducer$1 = (state, action) => {
-      switch (action.type) {
-        case "SET_LOGS":
-          return { ...state, logs: action.payload };
-        case "SET_LOG_HEADERS":
-          return { ...state, logHeaders: action.payload };
-        case "SET_HEADERS_LOADING":
-          return { ...state, headersLoading: action.payload };
-        case "SET_SELECTED_LOG_INDEX":
-          return { ...state, selectedLogIndex: action.payload };
-        case "SET_SELECTED_LOG_FILE": {
-          const index2 = state.logs.files.findIndex((val) => {
-            return action.payload.endsWith(val.name);
-          });
-          if (index2 > -1) {
-            return { ...state, selectedLogIndex: index2 };
-          } else {
-            return state;
-          }
+    const log = createLogger("LogsStore");
+    const useLogsStore = create$2()((set2, get2) => ({
+      ...initialState$1,
+      api: null,
+      // Actions
+      setLogs: (logs) => {
+        set2({ logs });
+        if (logs.files.length > 0) {
+          setTimeout(() => {
+            const state = useLogsStore.getState();
+            if (!state.headersLoading) {
+              state.loadHeaders();
+            }
+          }, 100);
         }
-        case "UPDATE_LOG_HEADERS":
-          return {
-            ...state,
-            logHeaders: { ...state.logHeaders, ...action.payload }
-          };
-        default:
-          return state;
-      }
-    };
-    const LogsContext = reactExports.createContext(void 0);
-    const LogsProvider = ({
-      children: children2,
-      initialState: initialState2,
-      api: api2
-    }) => {
-      const log2 = reactExports.useMemo(() => {
-        return createLogger("LogsContext");
-      }, []);
-      const [state, dispatch] = reactExports.useReducer(
-        logsReducer$1,
-        initialState2 ? { ...initialLogsState, ...initialState2.logs } : initialLogsState
-      );
-      const setStatus = useAppStore((state2) => state2.setStatus);
-      const getState = () => {
-        return { logs: state };
-      };
-      const loadLogs = async () => {
-        try {
-          log2.debug("LOADING LOG FILES");
-          const result2 = await api2.get_log_paths();
-          return result2;
-        } catch (e) {
-          console.log(e);
-          setStatus({ loading: false, error: e });
+      },
+      setLogHeaders: (logHeaders) => set2({ logHeaders }),
+      setHeadersLoading: (headersLoading) => set2({ headersLoading }),
+      setSelectedLogIndex: (selectedLogIndex) => set2({ selectedLogIndex }),
+      setSelectedLogFile: (logUrl) => {
+        const state = get2();
+        const index2 = state.logs.files.findIndex(
+          (val) => logUrl.endsWith(val.name)
+        );
+        if (index2 > -1) {
+          set2({ selectedLogIndex: index2 });
+        }
+      },
+      updateLogHeaders: (headers) => set2((state) => ({
+        logHeaders: { ...state.logHeaders, ...headers }
+      })),
+      // Helper function to load logs
+      loadLogs: async () => {
+        const api2 = get2().api;
+        if (!api2) {
+          console.error("API not initialized in LogsStore");
           return { log_dir: "", files: [] };
         }
-      };
-      const refreshLogs = reactExports.useCallback(async () => {
-        log2.debug("REFRESH LOGS");
-        const refreshedLogs = await loadLogs();
-        dispatch({
-          type: "SET_LOGS",
-          payload: refreshedLogs || { log_dir: "", files: [] }
-        });
+        try {
+          log.debug("LOADING LOG FILES");
+          return await api2.get_log_paths();
+        } catch (e) {
+          console.log(e);
+          useAppStore.getState().setStatus({ loading: false, error: e });
+          return { log_dir: "", files: [] };
+        }
+      },
+      // Refresh logs
+      refreshLogs: async () => {
+        log.debug("REFRESH LOGS");
+        const state = get2();
+        const refreshedLogs = await get2().loadLogs();
+        set2({ logs: refreshedLogs || { log_dir: "", files: [] } });
         const currentLog = refreshedLogs.files[state.selectedLogIndex > -1 ? state.selectedLogIndex : 0];
-        const newIndex = refreshedLogs == null ? void 0 : refreshedLogs.files.findIndex((file) => {
-          return currentLog.name.endsWith(file.name);
-        });
-        if (newIndex !== void 0) {
-          dispatch({
-            type: "SET_SELECTED_LOG_INDEX",
-            payload: newIndex
-          });
-        }
-      }, [state.logs, state.selectedLogIndex, dispatch]);
-      const selectLogFile = reactExports.useCallback(
-        async (logUrl) => {
-          const index2 = state.logs.files.findIndex((val) => {
-            return val.name.endsWith(logUrl);
-          });
-          if (index2 > -1) {
-            dispatch({
-              type: "SET_SELECTED_LOG_INDEX",
-              payload: index2
-            });
-          } else {
-            const result2 = await loadLogs();
-            const idx = result2 == null ? void 0 : result2.files.findIndex((file) => {
-              return logUrl.endsWith(file.name);
-            });
-            dispatch({
-              type: "SET_LOGS",
-              payload: result2 || { log_dir: "", files: [] }
-            });
-            dispatch({
-              type: "SET_SELECTED_LOG_INDEX",
-              payload: idx && idx > -1 ? idx : 0
-            });
+        if (currentLog) {
+          const newIndex = refreshedLogs == null ? void 0 : refreshedLogs.files.findIndex(
+            (file) => currentLog.name.endsWith(file.name)
+          );
+          if (newIndex !== void 0 && newIndex !== -1) {
+            set2({ selectedLogIndex: newIndex });
           }
-        },
-        [state.logs, dispatch]
-      );
-      const selectedLogFile = reactExports.useMemo(() => {
-        const file = state.logs.files[state.selectedLogIndex];
-        if (file !== void 0) {
-          return file.name;
+        }
+        if (refreshedLogs.files.length > 0) {
+          setTimeout(() => {
+            const currentState = useLogsStore.getState();
+            if (!currentState.headersLoading) {
+              currentState.loadHeaders();
+            }
+          }, 100);
+        }
+      },
+      // Select a specific log file
+      selectLogFile: async (logUrl) => {
+        const state = get2();
+        const index2 = state.logs.files.findIndex(
+          (val) => val.name.endsWith(logUrl)
+        );
+        if (index2 > -1) {
+          set2({ selectedLogIndex: index2 });
         } else {
-          return void 0;
-        }
-      }, [state.logs, state.selectedLogIndex]);
-      reactExports.useEffect(() => {
-        const loadHeaders = async () => {
-          log2.debug("LOADING HEADERS");
-          dispatch({
-            type: "SET_HEADERS_LOADING",
-            payload: true
+          const result2 = await get2().loadLogs();
+          const idx = result2 == null ? void 0 : result2.files.findIndex((file) => logUrl.endsWith(file.name));
+          set2({
+            logs: result2 || { log_dir: "", files: [] },
+            selectedLogIndex: idx !== void 0 && idx > -1 ? idx : 0
           });
-          const chunkSize = 8;
-          const fileLists = [];
-          for (let i2 = 0; i2 < state.logs.files.length; i2 += chunkSize) {
-            let chunk = state.logs.files.slice(i2, i2 + chunkSize).map((log22) => log22.name);
-            fileLists.push(chunk);
-          }
-          try {
-            let counter = 0;
-            for (const fileList of fileLists) {
-              counter++;
-              log2.debug(`LOADING ${counter} of ${fileLists.length} CHUNKS`);
-              const headers = await api2.get_log_headers(fileList);
-              const updatedHeaders = {};
-              headers.forEach((header2, index2) => {
-                const logFile = fileList[index2];
-                updatedHeaders[logFile] = header2;
-              });
-              dispatch({
-                type: "UPDATE_LOG_HEADERS",
-                payload: updatedHeaders
-              });
-              if (headers.length === chunkSize) {
-                await sleep$1(5e3);
-              }
-            }
-          } catch (e) {
-            if (e instanceof Error && (e.message === "Load failed" || e.message === "Failed to fetch")) {
-              setStatus({ loading: false });
-            } else {
-              console.log(e);
-              setStatus({ loading: false, error: e });
-            }
-          }
-          dispatch({
-            type: "SET_HEADERS_LOADING",
-            payload: false
-          });
-        };
-        loadHeaders();
-      }, [state.logs, setStatus, dispatch]);
-      return /* @__PURE__ */ jsxRuntimeExports.jsx(
-        LogsContext.Provider,
-        {
-          value: {
-            state,
-            dispatch,
-            refreshLogs,
-            getState,
-            selectLogFile,
-            selectedLogFile
-          },
-          children: children2
         }
-      );
-    };
-    const useLogsContext = () => {
-      const context = reactExports.useContext(LogsContext);
-      if (!context) {
-        throw new Error("useLogContext must be used within a LogProvider");
-      }
-      return context;
+      },
+      // Load headers
+      loadHeaders: async () => {
+        const state = get2();
+        const api2 = get2().api;
+        if (!api2) {
+          console.error("API not initialized in LogsStore");
+          return;
+        }
+        log.debug("LOADING HEADERS");
+        set2({ headersLoading: true });
+        const chunkSize = 8;
+        const fileLists = [];
+        for (let i2 = 0; i2 < state.logs.files.length; i2 += chunkSize) {
+          const chunk = state.logs.files.slice(i2, i2 + chunkSize).map((logFile) => logFile.name);
+          fileLists.push(chunk);
+        }
+        try {
+          let counter = 0;
+          for (const fileList of fileLists) {
+            counter++;
+            log.debug(`LOADING ${counter} of ${fileLists.length} CHUNKS`);
+            const headers = await api2.get_log_headers(fileList);
+            const updatedHeaders = {};
+            headers.forEach((header2, index2) => {
+              const logFile = fileList[index2];
+              updatedHeaders[logFile] = header2;
+            });
+            set2({
+              ...get2(),
+              logHeaders: { ...get2().logHeaders, ...updatedHeaders }
+            });
+            if (headers.length === chunkSize) {
+              await sleep$1(5e3);
+            }
+          }
+        } catch (e) {
+          if (e instanceof Error && (e.message === "Load failed" || e.message === "Failed to fetch")) {
+            useAppStore.getState().setStatus({ loading: false });
+          } else {
+            console.log(e);
+            useAppStore.getState().setStatus({ loading: false, error: e });
+          }
+        }
+        set2({ headersLoading: false });
+      },
+      // Method to get selected log file
+      getSelectedLogFile: () => {
+        const state = get2();
+        const file = state.logs.files[state.selectedLogIndex];
+        return file !== void 0 ? file.name : void 0;
+      },
+      // For compatibility with existing code
+      getState: () => ({ logs: get2() })
+    }));
+    const useSelectedLogFile = () => useLogsStore((state) => {
+      const file = state.logs.files[state.selectedLogIndex];
+      return file !== void 0 ? file.name : void 0;
+    });
+    const initializeLogsStore = (api2, initialState2) => {
+      useLogsStore.setState((state) => ({
+        ...state,
+        api: api2,
+        ...initialState2 || {}
+      }));
     };
     const initialLogState = {
       selectedSampleIndex: -1,
@@ -29783,7 +29757,8 @@ categories: ${categories.join(" ")}`;
       api: api2
     }) => {
       var _a2, _b2, _c, _d;
-      const logsContext = useLogsContext();
+      const updateLogHeaders = useLogsStore((state2) => state2.updateLogHeaders);
+      const selectedLogFile = useSelectedLogFile();
       const log2 = reactExports.useMemo(() => {
         return createLogger("LogContext");
       }, []);
@@ -29811,25 +29786,21 @@ categories: ${categories.join(" ")}`;
               error: logContents.error !== null ? logContents.error : void 0
             }
           };
-          logsContext.dispatch({
-            type: "UPDATE_LOG_HEADERS",
-            payload: header2
-          });
+          updateLogHeaders(header2);
         },
         [api2, dispatch, log2]
       );
       const refreshLog = reactExports.useCallback(async () => {
-        log2.debug(`REFRESH: ${logsContext.selectedLogFile}`);
-        const file = logsContext.selectedLogFile;
-        if (file) {
-          const logContents = await api2.get_log_summary(file);
+        log2.debug(`REFRESH: ${selectedLogFile}`);
+        if (selectedLogFile) {
+          const logContents = await api2.get_log_summary(selectedLogFile);
           dispatch({ type: "SET_SELECTED_LOG_SUMMARY", payload: logContents });
         }
-      }, [api2, dispatch, logsContext.selectedLogFile, log2]);
+      }, [api2, dispatch, selectedLogFile, log2]);
       const clearPendingSummaries = reactExports.useCallback(() => {
         var _a3, _b3;
         if ((((_a3 = state.pendingSampleSummaries) == null ? void 0 : _a3.samples.length) || 0) > 0) {
-          log2.debug(`CLEAR PENDING: ${logsContext.selectedLogFile}`);
+          log2.debug(`CLEAR PENDING: ${selectedLogFile}`);
           dispatch({
             type: "SET_PENDING_SAMPLE_SUMMARIES",
             payload: {
@@ -29938,14 +29909,10 @@ categories: ${categories.join(" ")}`;
         ]
       );
       reactExports.useEffect(() => {
-        if (!logsContext.selectedLogFile) {
-          return;
-        }
-        const logFile = logsContext.selectedLogFile;
-        if (!logFile) return;
-        const stopPolling = pollPendingSummaries(logFile);
+        if (!selectedLogFile) return;
+        const stopPolling = pollPendingSummaries(selectedLogFile);
         return stopPolling;
-      }, [pollPendingSummaries, logsContext.selectedLogFile]);
+      }, [pollPendingSummaries, selectedLogFile]);
       const sampleSummaries = reactExports.useMemo(() => {
         var _a3, _b3;
         const logSamples = ((_a3 = state.selectedLogSummary) == null ? void 0 : _a3.sampleSummaries) || [];
@@ -30050,7 +30017,7 @@ categories: ${categories.join(" ")}`;
             refreshLog,
             loadLog,
             totalSampleCount,
-            selectedLogFile: logsContext.selectedLogFile
+            selectedLogFile
           },
           children: children2
         }
@@ -65954,8 +65921,8 @@ ${events}
       const streamSamples = useAppStore(
         (state) => state.capabilities.streamSamples
       );
-      const logsContext = useLogsContext();
-      const logFileName = logsContext.selectedLogFile ? filename(logsContext.selectedLogFile) : "";
+      const selectedFileName = useLogsStore((state) => state.selectedLogFile);
+      const logFileName = selectedFileName ? filename(selectedFileName) : "";
       const handleToggle = reactExports.useCallback(() => {
         setOffCanvas(!offCanvas);
       }, [offCanvas, setOffCanvas]);
@@ -66012,7 +65979,7 @@ ${events}
                 ] }),
                 /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("text-size-small", styles$5.secondaryContainer), children: [
                   /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("navbar-secondary-text", "text-truncate"), children: logFileName }),
-                  logsContext.selectedLogFile ? /* @__PURE__ */ jsxRuntimeExports.jsx(CopyButton, { value: logsContext.selectedLogFile }) : ""
+                  selectedFileName ? /* @__PURE__ */ jsxRuntimeExports.jsx(CopyButton, { value: selectedFileName }) : ""
                 ] })
               ] })
             ]
@@ -67276,10 +67243,12 @@ ${events}
       saveApplicationState
     }) => {
       var _a2, _b2, _c, _d, _e2, _f, _g, _h, _i, _j, _k;
-      const logsContext = useLogsContext();
       const logContext = useLogContext();
       const sampleContext = useSampleContext();
       const appStore = useAppStore();
+      const logsStore = useLogsStore();
+      const selectedLogFile = useSelectedLogFile();
+      console.log({ logsStore });
       const mainAppRef = reactExports.useRef(null);
       const [selectedWorkspaceTab, setSelectedWorkspaceTab] = reactExports.useState(
         (applicationState == null ? void 0 : applicationState.selectedWorkspaceTab) || kEvalWorkspaceTabId
@@ -67302,7 +67271,7 @@ ${events}
           sampleScrollPosition: sampleScrollPosition.current,
           workspaceTabScrollPosition: workspaceTabScrollPosition.current,
           ...appStore.getState(),
-          ...logsContext.getState(),
+          ...logsStore.getState(),
           ...logContext.getState(),
           ...sampleContext.getState()
         };
@@ -67314,7 +67283,7 @@ ${events}
         selectedSampleTab,
         showingSampleDialog,
         appStore.getState,
-        logsContext.getState,
+        logsStore.getState,
         logContext.getState
       ]);
       const saveStateRef = reactExports.useRef(saveState);
@@ -67347,7 +67316,7 @@ ${events}
         selectedSampleTab,
         showingSampleDialog,
         appStore.getState,
-        logsContext.getState,
+        logsStore.getState,
         logContext.getState,
         sampleContext.getState
       ]);
@@ -67373,24 +67342,24 @@ ${events}
         }
       }, [sampleContext.state.selectedSample, selectedSampleTab]);
       reactExports.useEffect(() => {
-        if (!logsContext.state.logs.files[logsContext.state.selectedLogIndex] || logContext.state.selectedSampleIndex === -1) {
+        if (!logsStore.logs.files[logsStore.selectedLogIndex] || logContext.state.selectedSampleIndex === -1) {
           sampleContext.dispatch({ type: "CLEAR_SELECTED_SAMPLE" });
         }
       }, [
         logContext.state.selectedSampleIndex,
-        logsContext.state.selectedLogIndex,
-        logsContext.state.logs,
+        logsStore.selectedLogIndex,
+        logsStore.logs,
         sampleContext.dispatch
       ]);
       reactExports.useEffect(() => {
         logContext.dispatch({ type: "SELECT_SAMPLE", payload: 0 });
-      }, [logsContext.selectedLogFile, logContext.dispatch]);
+      }, [selectedLogFile, logContext.dispatch]);
       reactExports.useEffect(() => {
         const loadSpecificLog = async () => {
-          if (logsContext.selectedLogFile) {
+          if (selectedLogFile) {
             try {
               appStore.setStatus({ loading: true, error: void 0 });
-              await logContext.loadLog(logsContext.selectedLogFile);
+              await logContext.loadLog(selectedLogFile);
               appStore.setStatus({ loading: false, error: void 0 });
             } catch (e) {
               console.log(e);
@@ -67399,7 +67368,7 @@ ${events}
           }
         };
         loadSpecificLog();
-      }, [logsContext.selectedLogFile, logContext.loadLog, appStore.setStatus]);
+      }, [selectedLogFile, logContext.loadLog, appStore.setStatus]);
       reactExports.useEffect(() => {
         setSelectedWorkspaceTab(kEvalWorkspaceTabId);
         setSelectedSampleTab(void 0);
@@ -67412,15 +67381,15 @@ ${events}
         }
       }, [logContext.state.selectedLogSummary]);
       reactExports.useEffect(() => {
-        if (logsContext.state.logs.log_dir && logsContext.state.logs.files.length === 0) {
+        if (logsStore.logs.log_dir && logsStore.logs.files.length === 0) {
           appStore.setStatus({
             loading: false,
             error: new Error(
-              `No log files to display in the directory ${logsContext.state.logs.log_dir}. Are you sure this is the correct log directory?`
+              `No log files to display in the directory ${logsStore.logs.log_dir}. Are you sure this is the correct log directory?`
             )
           });
         }
-      }, [logsContext.state.logs.log_dir, logsContext.state.logs.files.length]);
+      }, [logsStore.logs.log_dir, logsStore.logs.files.length]);
       const refreshLog = reactExports.useCallback(() => {
         try {
           appStore.setStatus({ loading: true, error: void 0 });
@@ -67438,7 +67407,7 @@ ${events}
             case "updateState": {
               if (e.data.url) {
                 const decodedUrl = decodeURIComponent(e.data.url);
-                logsContext.selectLogFile(decodedUrl);
+                logsStore.selectLogFile(decodedUrl);
               }
               break;
             }
@@ -67447,23 +67416,19 @@ ${events}
               const log_dir = e.data.log_dir;
               const isFocused = document.hasFocus();
               if (!isFocused) {
-                if (log_dir === logsContext.state.logs.log_dir) {
-                  logsContext.selectLogFile(decodedUrl);
+                if (log_dir === logsStore.logs.log_dir) {
+                  logsStore.selectLogFile(decodedUrl);
                 } else {
                   api2.open_log_file(e.data.url, e.data.log_dir);
                 }
               } else {
-                logsContext.refreshLogs();
+                logsStore.refreshLogs();
               }
               break;
             }
           }
         },
-        [
-          logsContext.state.logs,
-          logsContext.selectLogFile,
-          logsContext.refreshLogs
-        ]
+        [logsStore.logs, logsStore.selectLogFile, logsStore.refreshLogs]
       );
       reactExports.useEffect(() => {
         window.addEventListener("message", onMessage);
@@ -67482,41 +67447,35 @@ ${events}
             const logPath = urlParams.get("task_file");
             const resolvedLogPath = logPath ? logPath.replace(" ", "+") : logPath;
             if (resolvedLogPath) {
-              logsContext.dispatch({
-                type: "SET_LOGS",
-                payload: {
-                  log_dir: "",
-                  files: [{ name: resolvedLogPath }]
-                }
+              logsStore.setLogs({
+                log_dir: "",
+                files: [{ name: resolvedLogPath }]
               });
             } else {
               const log_file = urlParams.get("log_file");
               if (log_file) {
-                await logsContext.selectLogFile(log_file);
+                await logsStore.selectLogFile(log_file);
               } else {
-                await logsContext.refreshLogs();
+                await logsStore.refreshLogs();
               }
             }
           }
           new ClipboardJS(".clipboard-button,.copy-button");
         };
         loadLogsAndState();
-      }, [logsContext.dispatch]);
-      const fullScreen = logsContext.state.logs.files.length === 1 && !logsContext.state.logs.log_dir;
-      const showToggle = logsContext.state.logs.files.length > 1 || !!logsContext.state.logs.log_dir || false;
+      }, [logsStore.setLogs, logsStore.selectLogFile, logsStore.refreshLogs]);
+      const fullScreen = logsStore.logs.files.length === 1 && !logsStore.logs.log_dir;
+      const showToggle = logsStore.logs.files.length > 1 || !!logsStore.logs.log_dir || false;
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
         !fullScreen && logContext.state.selectedLogSummary ? /* @__PURE__ */ jsxRuntimeExports.jsx(
           Sidebar,
           {
-            logs: logsContext.state.logs,
-            logHeaders: logsContext.state.logHeaders,
-            loading: logsContext.state.headersLoading,
-            selectedIndex: logsContext.state.selectedLogIndex,
+            logs: logsStore.logs,
+            logHeaders: logsStore.logHeaders,
+            loading: logsStore.headersLoading,
+            selectedIndex: logsStore.selectedLogIndex,
             onSelectedIndexChanged: (index2) => {
-              logsContext.dispatch({
-                type: "SET_SELECTED_LOG_INDEX",
-                payload: index2
-              });
+              logsStore.setSelectedLogIndex(index2);
               appStore.setOffcanvas(false);
             }
           }
@@ -67640,6 +67599,7 @@ ${events}
       }
     }
     initializeAppStore(capabilities, initialState == null ? void 0 : initialState.app);
+    initializeLogsStore(resolvedApi, initialState == null ? void 0 : initialState.logs);
     const containerId = "app";
     const container = document.getElementById(containerId);
     if (!container) {
@@ -67650,7 +67610,7 @@ ${events}
     }
     const root = clientExports.createRoot(container);
     root.render(
-      /* @__PURE__ */ jsxRuntimeExports.jsx(AppErrorBoundary, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(LogsProvider, { initialState, api, children: /* @__PURE__ */ jsxRuntimeExports.jsx(LogProvider, { initialState, api, children: /* @__PURE__ */ jsxRuntimeExports.jsx(SampleProvider, { initialState, api, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+      /* @__PURE__ */ jsxRuntimeExports.jsx(AppErrorBoundary, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(LogProvider, { initialState, api, children: /* @__PURE__ */ jsxRuntimeExports.jsx(SampleProvider, { initialState, api, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
         App,
         {
           api: resolvedApi,
@@ -67662,7 +67622,7 @@ ${events}
             }
           }, 1e3)
         }
-      ) }) }) }) })
+      ) }) }) })
     );
     function filterState(state) {
       if (!state) {

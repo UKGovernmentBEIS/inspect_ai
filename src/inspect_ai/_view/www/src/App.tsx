@@ -31,7 +31,7 @@ import {
 } from "./constants";
 import { useAppStore } from "./contexts/appStore.ts";
 import { useLogContext } from "./contexts/LogContext.tsx";
-import { useLogsContext } from "./contexts/LogsContext.tsx";
+import { useLogsStore, useSelectedLogFile } from "./contexts/logsStore.ts";
 import { useSampleContext } from "./contexts/SampleContext.tsx";
 import { ApplicationState } from "./types.ts";
 
@@ -50,10 +50,13 @@ export const App: FC<AppProps> = ({
   saveApplicationState,
 }) => {
   // Application Context
-  const logsContext = useLogsContext();
   const logContext = useLogContext();
   const sampleContext = useSampleContext();
   const appStore = useAppStore();
+  const logsStore = useLogsStore();
+  const selectedLogFile = useSelectedLogFile();
+
+  console.log({ logsStore });
 
   // The main application reference
   const mainAppRef = useRef<HTMLDivElement>(null);
@@ -86,7 +89,7 @@ export const App: FC<AppProps> = ({
       sampleScrollPosition: sampleScrollPosition.current,
       workspaceTabScrollPosition: workspaceTabScrollPosition.current,
       ...appStore.getState(),
-      ...logsContext.getState(),
+      ...logsStore.getState(),
       ...logContext.getState(),
       ...sampleContext.getState(),
     };
@@ -98,7 +101,7 @@ export const App: FC<AppProps> = ({
     selectedSampleTab,
     showingSampleDialog,
     appStore.getState,
-    logsContext.getState,
+    logsStore.getState,
     logContext.getState,
   ]);
 
@@ -138,7 +141,7 @@ export const App: FC<AppProps> = ({
     selectedSampleTab,
     showingSampleDialog,
     appStore.getState,
-    logsContext.getState,
+    logsStore.getState,
     logContext.getState,
     sampleContext.getState,
   ]);
@@ -174,32 +177,32 @@ export const App: FC<AppProps> = ({
   // Clear the selected sample when log file changes
   useEffect(() => {
     if (
-      !logsContext.state.logs.files[logsContext.state.selectedLogIndex] ||
+      !logsStore.logs.files[logsStore.selectedLogIndex] ||
       logContext.state.selectedSampleIndex === -1
     ) {
       sampleContext.dispatch({ type: "CLEAR_SELECTED_SAMPLE" });
     }
   }, [
     logContext.state.selectedSampleIndex,
-    logsContext.state.selectedLogIndex,
-    logsContext.state.logs,
+    logsStore.selectedLogIndex,
+    logsStore.logs,
     sampleContext.dispatch,
   ]);
 
   useEffect(() => {
     logContext.dispatch({ type: "SELECT_SAMPLE", payload: 0 });
-  }, [logsContext.selectedLogFile, logContext.dispatch]);
+  }, [selectedLogFile, logContext.dispatch]);
 
   // Load a specific log
   useEffect(() => {
     const loadSpecificLog = async () => {
-      if (logsContext.selectedLogFile) {
+      if (selectedLogFile) {
         try {
           // Set loading first and wait for it to update
           appStore.setStatus({ loading: true, error: undefined });
 
           // Then load the log
-          await logContext.loadLog(logsContext.selectedLogFile);
+          await logContext.loadLog(selectedLogFile);
 
           // Finally set loading to false
           appStore.setStatus({ loading: false, error: undefined });
@@ -210,7 +213,7 @@ export const App: FC<AppProps> = ({
       }
     };
     loadSpecificLog();
-  }, [logsContext.selectedLogFile, logContext.loadLog, appStore.setStatus]);
+  }, [selectedLogFile, logContext.loadLog, appStore.setStatus]);
 
   useEffect(() => {
     // Reset the workspace
@@ -234,18 +237,15 @@ export const App: FC<AppProps> = ({
   }, [logContext.state.selectedLogSummary]);
 
   useEffect(() => {
-    if (
-      logsContext.state.logs.log_dir &&
-      logsContext.state.logs.files.length === 0
-    ) {
+    if (logsStore.logs.log_dir && logsStore.logs.files.length === 0) {
       appStore.setStatus({
         loading: false,
         error: new Error(
-          `No log files to display in the directory ${logsContext.state.logs.log_dir}. Are you sure this is the correct log directory?`,
+          `No log files to display in the directory ${logsStore.logs.log_dir}. Are you sure this is the correct log directory?`,
         ),
       });
     }
-  }, [logsContext.state.logs.log_dir, logsContext.state.logs.files.length]);
+  }, [logsStore.logs.log_dir, logsStore.logs.files.length]);
 
   const refreshLog = useCallback(() => {
     try {
@@ -268,7 +268,7 @@ export const App: FC<AppProps> = ({
         case "updateState": {
           if (e.data.url) {
             const decodedUrl = decodeURIComponent(e.data.url);
-            logsContext.selectLogFile(decodedUrl);
+            logsStore.selectLogFile(decodedUrl);
           }
           break;
         }
@@ -277,23 +277,19 @@ export const App: FC<AppProps> = ({
           const log_dir = e.data.log_dir;
           const isFocused = document.hasFocus();
           if (!isFocused) {
-            if (log_dir === logsContext.state.logs.log_dir) {
-              logsContext.selectLogFile(decodedUrl);
+            if (log_dir === logsStore.logs.log_dir) {
+              logsStore.selectLogFile(decodedUrl);
             } else {
               api.open_log_file(e.data.url, e.data.log_dir);
             }
           } else {
-            logsContext.refreshLogs();
+            logsStore.refreshLogs();
           }
           break;
         }
       }
     },
-    [
-      logsContext.state.logs,
-      logsContext.selectLogFile,
-      logsContext.refreshLogs,
-    ],
+    [logsStore.logs, logsStore.selectLogFile, logsStore.refreshLogs],
   );
 
   // listen for updateState messages from vscode
@@ -323,21 +319,18 @@ export const App: FC<AppProps> = ({
 
         if (resolvedLogPath) {
           // Load only this file
-          logsContext.dispatch({
-            type: "SET_LOGS",
-            payload: {
-              log_dir: "",
-              files: [{ name: resolvedLogPath }],
-            },
+          logsStore.setLogs({
+            log_dir: "",
+            files: [{ name: resolvedLogPath }],
           });
         } else {
           // If a log file was passed, select it
           const log_file = urlParams.get("log_file");
           if (log_file) {
-            await logsContext.selectLogFile(log_file);
+            await logsStore.selectLogFile(log_file);
           } else {
             // Load all logs
-            await logsContext.refreshLogs();
+            await logsStore.refreshLogs();
           }
         }
       }
@@ -346,32 +339,26 @@ export const App: FC<AppProps> = ({
     };
 
     loadLogsAndState();
-  }, [logsContext.dispatch]);
+  }, [logsStore.setLogs, logsStore.selectLogFile, logsStore.refreshLogs]);
 
   // Configure an app envelope specific to the current state
   // if there are no log files, then don't show sidebar
   const fullScreen =
-    logsContext.state.logs.files.length === 1 &&
-    !logsContext.state.logs.log_dir;
+    logsStore.logs.files.length === 1 && !logsStore.logs.log_dir;
 
   const showToggle =
-    logsContext.state.logs.files.length > 1 ||
-    !!logsContext.state.logs.log_dir ||
-    false;
+    logsStore.logs.files.length > 1 || !!logsStore.logs.log_dir || false;
 
   return (
     <>
       {!fullScreen && logContext.state.selectedLogSummary ? (
         <Sidebar
-          logs={logsContext.state.logs}
-          logHeaders={logsContext.state.logHeaders}
-          loading={logsContext.state.headersLoading}
-          selectedIndex={logsContext.state.selectedLogIndex}
+          logs={logsStore.logs}
+          logHeaders={logsStore.logHeaders}
+          loading={logsStore.headersLoading}
+          selectedIndex={logsStore.selectedLogIndex}
           onSelectedIndexChanged={(index) => {
-            logsContext.dispatch({
-              type: "SET_SELECTED_LOG_INDEX",
-              payload: index,
-            });
+            logsStore.setSelectedLogIndex(index);
             appStore.setOffcanvas(false);
           }}
         />
