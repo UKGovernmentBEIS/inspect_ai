@@ -3,7 +3,7 @@ import api from "./api/index";
 import { Capabilities } from "./api/types";
 import { App } from "./App";
 import { AppErrorBoundary } from "./AppErrorBoundary";
-import { AppProvider } from "./contexts/AppContext";
+import { initializeAppStore } from "./contexts/appStore";
 import { LogProvider } from "./contexts/LogContext";
 import { LogsProvider } from "./contexts/LogsContext";
 import { SampleProvider } from "./contexts/SampleContext";
@@ -39,6 +39,8 @@ if (vscode) {
   }
 }
 
+initializeAppStore(capabilities, initialState?.app);
+
 const containerId = "app";
 const container = document.getElementById(containerId);
 if (!container) {
@@ -51,24 +53,22 @@ if (!container) {
 const root = createRoot(container as HTMLElement);
 root.render(
   <AppErrorBoundary>
-    <AppProvider capabilities={capabilities} initialState={initialState}>
-      <LogsProvider initialState={initialState} api={api}>
-        <LogProvider initialState={initialState} api={api}>
-          <SampleProvider initialState={initialState} api={api}>
-            <App
-              api={resolvedApi}
-              applicationState={initialState}
-              saveApplicationState={throttle((state) => {
-                const vscode = getVscodeApi();
-                if (vscode) {
-                  vscode.setState(filterState(state));
-                }
-              }, 1000)}
-            />
-          </SampleProvider>
-        </LogProvider>
-      </LogsProvider>
-    </AppProvider>
+    <LogsProvider initialState={initialState} api={api}>
+      <LogProvider initialState={initialState} api={api}>
+        <SampleProvider initialState={initialState} api={api}>
+          <App
+            api={resolvedApi}
+            applicationState={initialState}
+            saveApplicationState={throttle((state) => {
+              const vscode = getVscodeApi();
+              if (vscode) {
+                vscode.setState(filterState(state));
+              }
+            }, 1000)}
+          />
+        </SampleProvider>
+      </LogProvider>
+    </LogsProvider>
   </AppErrorBoundary>,
 );
 

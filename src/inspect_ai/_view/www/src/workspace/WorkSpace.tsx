@@ -12,7 +12,7 @@ import {
   kInfoWorkspaceTabId,
   kJsonWorkspaceTabId,
 } from "../constants";
-import { useAppContext } from "../contexts/AppContext.tsx";
+import { useAppStore } from "../contexts/appStore.ts";
 import { useLogContext } from "../contexts/LogContext.tsx";
 import { CurrentLog } from "../types.ts";
 import {
@@ -137,8 +137,10 @@ export const useSamplesTabConfig = (
   refreshLog: () => void,
   sampleTabScrollRef: RefObject<HTMLDivElement | null>,
 ) => {
-  const appContext = useAppContext();
   const logContext = useLogContext();
+  const streamSamples = useAppStore(
+    (state) => state.capabilities.streamSamples,
+  );
 
   return useMemo(() => {
     if (logContext.totalSampleCount === 0) {
@@ -170,15 +172,14 @@ export const useSamplesTabConfig = (
                 samples={logContext.sampleSummaries || []}
                 key="sample-tools"
               />,
-              evalStatus === "started" &&
-                !appContext.capabilities.streamSamples && (
-                  <ToolButton
-                    key="refresh"
-                    label="Refresh"
-                    icon={ApplicationIcons.refresh}
-                    onClick={refreshLog}
-                  />
-                ),
+              evalStatus === "started" && !streamSamples && (
+                <ToolButton
+                  key="refresh"
+                  label="Refresh"
+                  icon={ApplicationIcons.refresh}
+                  onClick={refreshLog}
+                />
+              ),
             ].filter(Boolean),
     };
   }, [
@@ -191,7 +192,6 @@ export const useSamplesTabConfig = (
     setSampleScrollPosition,
     refreshLog,
     sampleTabScrollRef,
-    appContext.capabilities.streamSamples,
     logContext.samplesDescriptor,
   ]);
 };
