@@ -5,7 +5,7 @@ import { ApplicationIcons } from "../../appearance/icons";
 import { CopyButton } from "../../components/CopyButton";
 import { kModelNone } from "../../constants";
 import { useAppStore } from "../../contexts/appStore";
-import { useLogsContext } from "../../contexts/LogsContext";
+import { useLogsStore } from "../../contexts/logsStore";
 import { EvalResults, EvalSpec, Status } from "../../types/log";
 import { filename } from "../../utils/path";
 import styles from "./PrimaryBar.module.css";
@@ -39,10 +39,8 @@ export const PrimaryBar: FC<PrimaryBarProps> = ({
   const streamSamples = useAppStore(
     (state) => state.capabilities.streamSamples,
   );
-  const logsContext = useLogsContext();
-  const logFileName = logsContext.selectedLogFile
-    ? filename(logsContext.selectedLogFile)
-    : "";
+  const selectedFileName = useLogsStore((state) => state.selectedLogFile);
+  const logFileName = selectedFileName ? filename(selectedFileName) : "";
 
   const handleToggle = useCallback(() => {
     setOffCanvas(!offCanvas);
@@ -104,11 +102,7 @@ export const PrimaryBar: FC<PrimaryBarProps> = ({
             <div className={clsx("navbar-secondary-text", "text-truncate")}>
               {logFileName}
             </div>
-            {logsContext.selectedLogFile ? (
-              <CopyButton value={logsContext.selectedLogFile} />
-            ) : (
-              ""
-            )}
+            {selectedFileName ? <CopyButton value={selectedFileName} /> : ""}
           </div>
         </div>
       </div>
