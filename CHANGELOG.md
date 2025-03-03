@@ -1,3 +1,7 @@
+## Unreleased
+
+- Computer: Updated tool definition to match improvements in Claude Sonnet 3.7.
+
 ## v0.3.71 (01 March 2025)
 
 - Anthropic: Support for [extended thinking](https://inspect.ai-safety-institute.org.uk/reasoning.html#claude-3.7-sonnet) features of Claude Sonnet 3.7 (minimum version of `anthropic` package bumped to 0.47.1).

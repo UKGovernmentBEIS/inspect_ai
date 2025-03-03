@@ -11,24 +11,127 @@ from inspect_ai.tool import ToolError, ToolResult
 from inspect_ai.util._sandbox.context import sandbox_with
 from inspect_ai.util._sandbox.environment import SandboxEnvironment
 
-Action = Literal[
-    "key",
-    "type",
-    "mouse_move",
-    "left_click",
-    "left_click_drag",
-    "right_click",
-    "middle_click",
-    "double_click",
-    "screenshot",
-    "cursor_position",
-]
-
 
 class ToolExecResult(BaseModel):
     output: str | None = Field(default=None)
     error: str | None = Field(default=None)
     base64_image: str | None = Field(default=None)
+
+
+async def cursor_position(timeout: int | None = None) -> ToolResult:
+    return await _send_cmd(["cursor_position"], timeout=timeout)
+
+
+async def screenshot(timeout: int | None = None) -> ToolResult:
+    return await _send_cmd(["screenshot"], timeout=timeout)
+
+
+async def wait(duration: int, timeout: int | None = None) -> ToolResult:
+    return await _send_cmd(["wait", "--duration", f"{duration}"], timeout=timeout)
+
+
+async def mouse_move(coordinate: list[int], timeout: int | None = None) -> ToolResult:
+    return await _send_cmd(
+        ["mouse_move", "--coordinate", f"{coordinate[0]}", f"{coordinate[1]}"],
+        timeout=timeout,
+    )
+
+
+async def left_mouse_down(timeout: int | None = None) -> ToolResult:
+    return await _send_cmd(["left_mouse_down"], timeout=timeout)
+
+
+async def left_mouse_up(timeout: int | None = None) -> ToolResult:
+    return await _send_cmd(["left_mouse_up"], timeout=timeout)
+
+
+async def left_click(coordinate: list[int], timeout: int | None = None) -> ToolResult:
+    return await _send_cmd(
+        ["left_click", "--coordinate", f"{coordinate[0]}", f"{coordinate[1]}"],
+        timeout=timeout,
+    )
+
+
+async def left_click_drag(
+    start_coordinate: list[int], coordinate: list[int], timeout: int | None = None
+) -> ToolResult:
+    return await _send_cmd(
+        [
+            "left_click_drag",
+            "--start_coordinate",
+            f"{start_coordinate[0]}",
+            f"{start_coordinate[1]}",
+            "--coordinate",
+            f"{coordinate[0]}",
+            f"{coordinate[1]}",
+        ],
+        timeout=timeout,
+    )
+
+
+async def right_click(coordinate: list[int], timeout: int | None = None) -> ToolResult:
+    return await _send_cmd(
+        ["right_click", "--coordinate", f"{coordinate[0]}", f"{coordinate[1]}"],
+        timeout=timeout,
+    )
+
+
+async def middle_click(coordinate: list[int], timeout: int | None = None) -> ToolResult:
+    return await _send_cmd(
+        ["middle_click", "--coordinate", f"{coordinate[0]}", f"{coordinate[1]}"],
+        timeout=timeout,
+    )
+
+
+async def double_click(coordinate: list[int], timeout: int | None = None) -> ToolResult:
+    return await _send_cmd(
+        ["double_click", "--coordinate", f"{coordinate[0]}", f"{coordinate[1]}"],
+        timeout=timeout,
+    )
+
+
+async def triple_click(coordinate: list[int], timeout: int | None = None) -> ToolResult:
+    return await _send_cmd(
+        ["triple_click", "--coordinate", f"{coordinate[0]}", f"{coordinate[1]}"],
+        timeout=timeout,
+    )
+
+
+async def scroll(
+    scroll_amount: int,
+    scroll_direction: Literal["up", "down", "left", "right"],
+    coordinate: list[int] | None,
+    timeout: int | None = None,
+) -> ToolResult:
+    return await _send_cmd(
+        [
+            "scroll",
+            "--scroll_amount",
+            f"{scroll_amount}",
+            "--scroll_direction",
+            f"{scroll_direction}",
+        ]
+        + (
+            ["--coordinate", f"{coordinate[0]}", f"{coordinate[1]}"]
+            if coordinate
+            else []
+        ),
+        timeout=timeout,
+    )
+
+
+async def press_key(key: str, timeout: int | None = None) -> ToolResult:
+    return await _send_cmd(["key", "--text", key], timeout=timeout)
+
+
+async def hold_key(key: str, duration: int, timeout: int | None = None) -> ToolResult:
+    return await _send_cmd(
+        ["hold_key", "--text", key, "--duration", f"{duration}"], timeout=timeout
+    )
+
+
+async def type(text: str, timeout: int | None = None) -> ToolResult:
+    return await _send_cmd(["type", "--text", text], timeout=timeout)
 
 
 async def _send_cmd(cmdTail: list[str], timeout: int | None = None) -> ToolResult:
@@ -39,7 +142,7 @@ async def _send_cmd(cmdTail: list[str], timeout: int | None = None) -> ToolResul
     sample_id = sample.sample.id
     assert sample_id
 
-    cmd = ["python3", "/opt/inspect/tool/computer_tool.py", "--action"] + cmdTail
+    cmd = ["python3", "/opt/inspect/tool/computer_tool.py"] + cmdTail
 
     raw_exec_result = await (await computer_sandbox()).exec(cmd, timeout=timeout)
 
@@ -70,50 +173,6 @@ async def _send_cmd(cmdTail: list[str], timeout: int | None = None) -> ToolResul
         return [image]
 
     return "OK"
-
-
-async def cursor_position(timeout: int | None = None) -> ToolResult:
-    return await _send_cmd(["cursor_position"], timeout=timeout)
-
-
-async def screenshot(timeout: int | None = None) -> ToolResult:
-    return await _send_cmd(["screenshot"], timeout=timeout)
-
-
-async def mouse_move(x: int, y: int, timeout: int | None = None) -> ToolResult:
-    return await _send_cmd(
-        ["mouse_move", "--coordinate", f"{x}", f"{y}"], timeout=timeout
-    )
-
-
-async def left_click(timeout: int | None = None) -> ToolResult:
-    return await _send_cmd(["left_click"], timeout=timeout)
-
-
-async def left_click_drag(x: int, y: int, timeout: int | None = None) -> ToolResult:
-    return await _send_cmd(
-        ["left_click_drag", "--coordinate", f"{x}", f"{y}"], timeout=timeout
-    )
-
-
-async def right_click(timeout: int | None = None) -> ToolResult:
-    return await _send_cmd(["right_click"], timeout=timeout)
-
-
-async def middle_click(timeout: int | None = None) -> ToolResult:
-    return await _send_cmd(["middle_click"], timeout=timeout)
-
-
-async def double_click(timeout: int | None = None) -> ToolResult:
-    return await _send_cmd(["double_click"], timeout=timeout)
-
-
-async def press_key(key: str, timeout: int | None = None) -> ToolResult:
-    return await _send_cmd(["key", "--text", key], timeout=timeout)
-
-
-async def type(text: str, timeout: int | None = None) -> ToolResult:
-    return await _send_cmd(["type", "--text", text], timeout=timeout)
 
 
 async def computer_sandbox() -> SandboxEnvironment:
