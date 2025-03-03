@@ -1,14 +1,23 @@
-import argparse
 import asyncio
 import json
 import logging
 import os
 import sys
 import time
+from argparse import Namespace
+from typing import TypeVar
 
+from _args import parse_arguments
+from _constants import Action
 from _logger import setup_logger
 from _tool_result import ToolResult
 from _x11_client import X11Client
+
+
+class ComputerToolError(Exception):
+    def __init__(self, message):
+        self.message = message
+
 
 # This is a bit sketchy. We really want to use relative imports here. Using absolute imports
 # works at runtime, but it prevents intellisense from working. However, when this folder is
@@ -44,29 +53,67 @@ def main():
         sys.exit(1)
 
 
-def parse_arguments():
-    parser = argparse.ArgumentParser(description="Execute computer tool action")
-    parser.add_argument("--action", type=str, required=True, help="Action to perform")
-    parser.add_argument("--text", type=str, help="Optional text parameter")
-    parser.add_argument(
-        "--coordinate",
-        type=int,
-        nargs=2,
-        help="Optional coordinate parameter as a list of two integers",
-    )
-    return parser.parse_args()
-
-
-async def execute_action(args) -> ToolResult:
+async def execute_action(args: Namespace) -> ToolResult:
     # we can't do anything until X11 is ready to go.
     await wait_for_file("/tmp/xfce_started")
 
     computer = X11Client()
-    return await computer(
-        action=args.action,
-        text=args.text,
-        coordinate=args.coordinate if args.coordinate else None,
-    )
+    action: Action = args.action
+    match action:
+        case "key":
+            return await computer.key(not_none(args.text, "text"))
+        case "hold_key":
+            return await computer.hold_key(
+                not_none(args.text, "text"), not_none(args.duration, "duration")
+            )
+        case "type":
+            return await computer.type(not_none(args.text, "text"))
+        case "cursor_position":
+            return await computer.cursor_position()
+        case "left_mouse_down":
+            return await computer.left_mouse_down()
+        case "left_mouse_up":
+            return await computer.left_mouse_up()
+        case "mouse_move":
+            return await computer.mouse_move(not_none(args.coordinate, "coordinate"))
+        case "left_click":
+            return await computer.left_click(
+                getattr(args, "coordinate", None), getattr(args, "text", None)
+            )
+        case "right_click":
+            return await computer.right_click(
+                getattr(args, "coordinate", None), getattr(args, "text", None)
+            )
+        case "middle_click":
+            return await computer.middle_click(
+                getattr(args, "coordinate", None), getattr(args, "text", None)
+            )
+        case "double_click":
+            return await computer.double_click(
+                getattr(args, "coordinate", None), getattr(args, "text", None)
+            )
+        case "triple_click":
+            return await computer.triple_click(
+                getattr(args, "coordinate", None), getattr(args, "text", None)
+            )
+        case "left_click_drag":
+            return await computer.left_click_drag(
+                not_none(args.start_coordinate, "start_coordinate"),
+                not_none(args.coordinate, "coordinate"),
+            )
+        case "scroll":
+            return await computer.scroll(
+                not_none(args.scroll_direction, "scroll_direction"),
+                not_none(args.scroll_amount, "scroll_amount"),
+                getattr(args, "coordinate", None),
+                getattr(args, "text", None),
+            )
+        case "wait":
+            return await computer.wait(not_none(args.duration, "duration"))
+        case "screenshot":
+            return await computer.screenshot()
+
+    raise ComputerToolError(f"Invalid action: {action}")
 
 
 async def wait_for_file(file_path, check_interval=1):
@@ -79,6 +126,15 @@ async def wait_for_file(file_path, check_interval=1):
     my_logger.info(
         f"Done waiting for {file_path} after {time.time() - start_time:.1f} seconds"
     )
+
+
+T = TypeVar("T")
+
+
+def not_none(value: T | None, name: str) -> T:
+    if value is None:
+        raise ComputerToolError(f"{name} must be provided")
+    return value
 
 
 if __name__ == "__main__":
