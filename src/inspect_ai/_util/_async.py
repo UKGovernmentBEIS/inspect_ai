@@ -1,5 +1,5 @@
 import inspect
-from typing import Any, TypeVar
+from typing import Any, Awaitable, TypeVar
 
 import nest_asyncio  # type: ignore
 import sniffio
@@ -14,6 +14,20 @@ def is_callable_coroutine(func_or_cls: Any) -> bool:
 
 
 T = TypeVar("T")
+
+
+async def ignore_exceptions(coro: Awaitable[T]) -> None:
+    try:
+        await coro
+    except Exception:
+        pass
+
+
+async def print_exceptions(coro: Awaitable[T], context: str) -> None:
+    try:
+        await coro
+    except Exception as ex:
+        print(f"Error {context}: {ex}")
 
 
 _initialised_nest_asyncio: bool = False
