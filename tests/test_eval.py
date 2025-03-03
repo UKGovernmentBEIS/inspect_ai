@@ -1,26 +1,24 @@
-import asyncio
 from copy import deepcopy
 
 import pytest
 
 from inspect_ai import Epochs, Task, eval, eval_async
+from inspect_ai._util._async import tg_collect_or_raise
 from inspect_ai.dataset import Sample
 from inspect_ai.scorer import match
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_no_concurrent_eval_async():
     tasks = [
         Task(dataset=[Sample(input="Say Hello", target="Hello")], scorer=match())
         for i in range(0, 2)
     ]
 
-    results = await asyncio.gather(
-        *[eval_async(task, model="mockllm/model") for task in tasks],
-        return_exceptions=True,
-    )
-
-    assert any([isinstance(result, RuntimeError) for result in results])
+    with pytest.raises(RuntimeError):
+        await tg_collect_or_raise(
+            [eval_async(task, model="mockllm/model") for task in tasks]
+        )
 
 
 def test_eval_config_override():
