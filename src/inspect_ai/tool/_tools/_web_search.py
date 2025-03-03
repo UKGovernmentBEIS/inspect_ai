@@ -1,7 +1,7 @@
-import asyncio
 import os
 from typing import Literal, Protocol, runtime_checkable
 
+import anyio
 import httpx
 from bs4 import BeautifulSoup, NavigableString
 from tenacity import (
@@ -84,16 +84,22 @@ def web_search(
             async with concurrency(f"{provider}_web_search", max_connections):
                 links = await search_provider(query, start_idx=search_calls * 10)
 
-            # Extract and summarize each page individually
-            pages = await asyncio.gather(
-                *[page_if_relevant(link.url, query, model, client) for link in links],
-                return_exceptions=True,
-            )
-            for page, link in zip(pages, links):
-                if page and not isinstance(page, BaseException):
-                    page_contents.append(page)
-                    urls.append(link.url)
-                    snippets.append(link.snippet)
+            async with anyio.create_task_group() as tg:
+
+                async def process_link(link: SearchLink) -> None:
+                    try:
+                        page = await page_if_relevant(link.url, query, model, client)
+                        if page:
+                            page_contents.append(page)
+                            urls.append(link.url)
+                            snippets.append(link.snippet)
+                    # exceptions fetching pages are very common!
+                    except Exception:
+                        pass
+
+                for link in links:
+                    tg.start_soon(process_link, link)
+
             search_calls += 1
 
         all_page_contents = "\n\n".join(page_contents)
