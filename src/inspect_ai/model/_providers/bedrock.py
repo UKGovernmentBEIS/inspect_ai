@@ -1,14 +1,11 @@
 import base64
+from logging import getLogger
 from typing import Any, Literal, Tuple, Union, cast
 
 from pydantic import BaseModel, Field
 from typing_extensions import override
 
-from inspect_ai._util.constants import (
-    DEFAULT_MAX_RETRIES,
-    DEFAULT_MAX_TOKENS,
-    DEFAULT_TIMEOUT,
-)
+from inspect_ai._util.constants import DEFAULT_MAX_TOKENS
 from inspect_ai._util.content import Content, ContentImage, ContentText
 from inspect_ai._util.error import pip_dependency_error
 from inspect_ai._util.images import file_as_data
@@ -31,7 +28,9 @@ from .._model_output import ChatCompletionChoice, ModelOutput, ModelUsage
 from .util import (
     model_base_url,
 )
-from .util.tracker import BotoTimeTracker
+from .util.hooks import ConverseHooks
+
+logger = getLogger(__name__)
 
 # Model for Bedrock Converse API (Response)
 # generated from: https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/bedrock-runtime/client/converse.html#converse
@@ -258,7 +257,7 @@ class BedrockAPI(ModelAPI):
             self.session = aioboto3.Session()
 
             # create time tracker
-            self._time_tracker = BotoTimeTracker(self.session)
+            self._http_hooks = ConverseHooks(self.session)
 
         except ImportError:
             raise pip_dependency_error("Bedrock API", ["aioboto3"])
@@ -288,15 +287,25 @@ class BedrockAPI(ModelAPI):
             return DEFAULT_MAX_TOKENS
 
     @override
-    def is_rate_limit(self, ex: BaseException) -> bool:
+    def should_retry(self, ex: Exception) -> bool:
         from botocore.exceptions import ClientError
 
         # Look for an explicit throttle exception
         if isinstance(ex, ClientError):
-            if ex.response["Error"]["Code"] == "ThrottlingException":
-                return True
-
-        return super().is_rate_limit(ex)
+            error_code = ex.response.get("Error", {}).get("Code", "")
+            return error_code in [
+                "ThrottlingException",
+                "RequestLimitExceeded",
+                "Throttling",
+                "RequestThrottled",
+                "TooManyRequestsException",
+                "ProvisionedThroughputExceededException",
+                "TransactionInProgressException",
+                "RequestTimeout",
+                "ServiceUnavailable",
+            ]
+        else:
+            return False
 
     @override
     def collapse_user_messages(self) -> bool:
@@ -317,20 +326,13 @@ class BedrockAPI(ModelAPI):
         from botocore.exceptions import ClientError
 
         # The bedrock client
-        request_id = self._time_tracker.start_request()
+        request_id = self._http_hooks.start_request()
         async with self.session.client(  # type: ignore[call-overload]
             service_name="bedrock-runtime",
             endpoint_url=self.base_url,
             config=Config(
-                connect_timeout=config.timeout if config.timeout else DEFAULT_TIMEOUT,
-                read_timeout=config.timeout if config.timeout else DEFAULT_TIMEOUT,
-                retries=dict(
-                    max_attempts=config.max_retries
-                    if config.max_retries
-                    else DEFAULT_MAX_RETRIES,
-                    mode="adaptive",
-                ),
-                user_agent_extra=self._time_tracker.user_agent_extra(request_id),
+                retries=dict(mode="adaptive"),
+                user_agent_extra=self._http_hooks.user_agent_extra(request_id),
             ),
             **self.model_args,
         ) as client:
@@ -370,7 +372,7 @@ class BedrockAPI(ModelAPI):
                         request.model_dump(exclude_none=True)
                     ),
                     response=response,
-                    time=self._time_tracker.end_request(request_id),
+                    time=self._http_hooks.end_request(request_id),
                 )
 
             try:

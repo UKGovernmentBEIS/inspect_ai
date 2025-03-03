@@ -4,9 +4,11 @@ import re
 import sys
 from copy import copy
 from logging import getLogger
-from typing import Any, Literal, Tuple, TypedDict, cast
+from typing import Any, Literal, Optional, Tuple, TypedDict, cast
 
-from .util.tracker import HttpxTimeTracker
+from inspect_ai._util.http import is_retryable_http_status
+
+from .util.hooks import HttpxHooks
 
 if sys.version_info >= (3, 11):
     from typing import NotRequired
@@ -14,15 +16,13 @@ else:
     from typing_extensions import NotRequired
 
 from anthropic import (
-    APIConnectionError,
     APIStatusError,
+    APITimeoutError,
     AsyncAnthropic,
     AsyncAnthropicBedrock,
     AsyncAnthropicVertex,
     BadRequestError,
-    InternalServerError,
     NotGiven,
-    RateLimitError,
 )
 from anthropic._types import Body
 from anthropic.types import (
@@ -46,7 +46,6 @@ from typing_extensions import override
 
 from inspect_ai._util.constants import (
     BASE_64_DATA_REMOVED,
-    DEFAULT_MAX_RETRIES,
     NO_CONTENT,
 )
 from inspect_ai._util.content import (
@@ -125,9 +124,6 @@ class AnthropicAPI(ModelAPI):
                 AsyncAnthropic | AsyncAnthropicBedrock | AsyncAnthropicVertex
             ) = AsyncAnthropicBedrock(
                 base_url=base_url,
-                max_retries=(
-                    config.max_retries if config.max_retries else DEFAULT_MAX_RETRIES
-                ),
                 aws_region=aws_region,
                 **model_args,
             )
@@ -141,9 +137,6 @@ class AnthropicAPI(ModelAPI):
                 region=region,
                 project_id=project_id,
                 base_url=base_url,
-                max_retries=(
-                    config.max_retries if config.max_retries else DEFAULT_MAX_RETRIES
-                ),
                 **model_args,
             )
         else:
@@ -156,14 +149,11 @@ class AnthropicAPI(ModelAPI):
             self.client = AsyncAnthropic(
                 base_url=base_url,
                 api_key=self.api_key,
-                max_retries=(
-                    config.max_retries if config.max_retries else DEFAULT_MAX_RETRIES
-                ),
                 **model_args,
             )
 
         # create time tracker
-        self._time_tracker = HttpxTimeTracker(self.client._client)
+        self._http_hooks = HttpxHooks(self.client._client)
 
     @override
     async def close(self) -> None:
@@ -183,7 +173,7 @@ class AnthropicAPI(ModelAPI):
         config: GenerateConfig,
     ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
         # allocate request_id (so we can see it from ModelCall)
-        request_id = self._time_tracker.start_request()
+        request_id = self._http_hooks.start_request()
 
         # setup request and response for ModelCall
         request: dict[str, Any] = {}
@@ -194,7 +184,7 @@ class AnthropicAPI(ModelAPI):
                 request=request,
                 response=response,
                 filter=model_call_filter,
-                time=self._time_tracker.end_request(request_id),
+                time=self._http_hooks.end_request(request_id),
             )
 
         # generate
@@ -204,7 +194,7 @@ class AnthropicAPI(ModelAPI):
                 tools_param,
                 messages,
                 computer_use,
-            ) = await resolve_chat_input(self.model_name, input, tools, config)
+            ) = await self.resolve_chat_input(input, tools, config)
 
             # prepare request params (assembed this way so we can log the raw model call)
             request = dict(messages=messages)
@@ -223,9 +213,9 @@ class AnthropicAPI(ModelAPI):
             request = request | req
 
             # extra headers (for time tracker and computer use)
-            extra_headers = headers | {HttpxTimeTracker.REQUEST_ID_HEADER: request_id}
+            extra_headers = headers | {HttpxHooks.REQUEST_ID_HEADER: request_id}
             if computer_use:
-                betas.append("computer-use-2024-10-22")
+                betas.append("computer-use-2025-01-24")
             if len(betas) > 0:
                 extra_headers["anthropic-beta"] = ",".join(betas)
 
@@ -291,8 +281,6 @@ class AnthropicAPI(ModelAPI):
                 betas.append("output-128k-2025-02-19")
 
         # config that applies to all models
-        if config.timeout is not None:
-            params["timeout"] = float(config.timeout)
         if config.stop_seqs is not None:
             params["stop_sequences"] = config.stop_seqs
 
@@ -326,18 +314,21 @@ class AnthropicAPI(ModelAPI):
     def is_claude_3_5(self) -> bool:
         return "claude-3-5-" in self.model_name
 
+    def is_claude_3_7(self) -> bool:
+        return "claude-3-7-" in self.model_name
+
     @override
     def connection_key(self) -> str:
         return str(self.api_key)
 
     @override
-    def is_rate_limit(self, ex: BaseException) -> bool:
-        # We have observed that anthropic will frequently return InternalServerError
-        # seemingly in place of RateLimitError (at the very least the errors seem to
-        # always be transient). Equating this to rate limit errors may occasionally
-        # result in retrying too many times, but much more often will avert a failed
-        # eval that just needed to survive a transient error
-        return isinstance(ex, RateLimitError | InternalServerError | APIConnectionError)
+    def should_retry(self, ex: Exception) -> bool:
+        if isinstance(ex, APIStatusError):
+            return is_retryable_http_status(ex.status_code)
+        elif isinstance(ex, APITimeoutError):
+            return True
+        else:
+            return False
 
     @override
     def collapse_user_messages(self) -> bool:
@@ -397,6 +388,148 @@ class AnthropicAPI(ModelAPI):
         else:
             return ex
 
+    async def resolve_chat_input(
+        self,
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        config: GenerateConfig,
+    ) -> Tuple[
+        list[TextBlockParam] | None, list["ToolParamDef"], list[MessageParam], bool
+    ]:
+        # extract system message
+        system_messages, messages = split_system_messages(input, config)
+
+        # messages
+        message_params = [(await message_param(message)) for message in messages]
+
+        # collapse user messages (as Inspect 'tool' messages become Claude 'user' messages)
+        message_params = functools.reduce(
+            consecutive_user_message_reducer, message_params, []
+        )
+
+        # tools
+        tools_params, computer_use = self.tool_params_for_tools(tools, config)
+
+        # system messages
+        if len(system_messages) > 0:
+            system_param: list[TextBlockParam] | None = [
+                TextBlockParam(type="text", text=message.text)
+                for message in system_messages
+            ]
+        else:
+            system_param = None
+
+        # add caching directives if necessary
+        cache_prompt = (
+            config.cache_prompt
+            if isinstance(config.cache_prompt, bool)
+            else True
+            if len(tools_params)
+            else False
+        )
+
+        # only certain claude models qualify
+        if cache_prompt:
+            if (
+                "claude-3-sonnet" in self.model_name
+                or "claude-2" in self.model_name
+                or "claude-instant" in self.model_name
+            ):
+                cache_prompt = False
+
+        if cache_prompt:
+            # system
+            if system_param:
+                add_cache_control(system_param[-1])
+            # tools
+            if tools_params:
+                add_cache_control(tools_params[-1])
+            # last 2 user messages
+            user_message_params = list(
+                filter(lambda m: m["role"] == "user", reversed(message_params))
+            )
+            for message in user_message_params[:2]:
+                if isinstance(message["content"], str):
+                    text_param = TextBlockParam(type="text", text=message["content"])
+                    add_cache_control(text_param)
+                    message["content"] = [text_param]
+                else:
+                    content = list(message["content"])
+                    add_cache_control(cast(dict[str, Any], content[-1]))
+
+        # return chat input
+        return system_param, tools_params, message_params, computer_use
+
+    def tool_params_for_tools(
+        self, tools: list[ToolInfo], config: GenerateConfig
+    ) -> tuple[list["ToolParamDef"], bool]:
+        # tool params and computer_use bit to return
+        tool_params: list["ToolParamDef"] = []
+        computer_use = False
+
+        # for each tool, check if it has a native computer use implementation and use that
+        # when available (noting that we need to set the computer use request header)
+        for tool in tools:
+            computer_use_tool = (
+                self.computer_use_tool_param(tool)
+                if config.internal_tools is not False
+                else None
+            )
+            if computer_use_tool:
+                tool_params.append(computer_use_tool)
+                computer_use = True
+            else:
+                tool_params.append(
+                    ToolParam(
+                        name=tool.name,
+                        description=tool.description,
+                        input_schema=tool.parameters.model_dump(exclude_none=True),
+                    )
+                )
+
+        return tool_params, computer_use
+
+    def computer_use_tool_param(
+        self, tool: ToolInfo
+    ) -> Optional["ComputerUseToolParam"]:
+        # check for compatible 'computer' tool
+        if tool.name == "computer" and (
+            sorted(tool.parameters.properties.keys())
+            == sorted(
+                [
+                    "action",
+                    "coordinate",
+                    "duration",
+                    "scroll_amount",
+                    "scroll_direction",
+                    "start_coordinate",
+                    "text",
+                ]
+            )
+        ):
+            if self.is_claude_3_5():
+                warn_once(
+                    logger,
+                    "Use of Anthropic's native computer use support is not enabled in Claude 3.5. Please use 3.7 or later to leverage the native support.",
+                )
+                return None
+            return ComputerUseToolParam(
+                type="computer_20250124",
+                name="computer",
+                # Note: The dimensions passed here for display_width_px and display_height_px should
+                # match the dimensions of screenshots returned by the tool.
+                # Those dimensions will always be one of the values in MAX_SCALING_TARGETS
+                # in _x11_client.py.
+                # TODO: enhance this code to calculate the dimensions based on the scaled screen
+                # size used by the container.
+                display_width_px=1366,
+                display_height_px=768,
+                display_number=1,
+            )
+        # not a computer_use tool
+        else:
+            return None
+
 
 # native anthropic tool definitions for computer use beta
 # https://docs.anthropic.com/en/docs/build-with-claude/computer-use
@@ -410,131 +543,6 @@ class ComputerUseToolParam(TypedDict):
 
 # tools can be either a stock tool param or a special computer use tool param
 ToolParamDef = ToolParam | ComputerUseToolParam
-
-
-async def resolve_chat_input(
-    model: str,
-    input: list[ChatMessage],
-    tools: list[ToolInfo],
-    config: GenerateConfig,
-) -> Tuple[list[TextBlockParam] | None, list[ToolParamDef], list[MessageParam], bool]:
-    # extract system message
-    system_messages, messages = split_system_messages(input, config)
-
-    # messages
-    message_params = [(await message_param(message)) for message in messages]
-
-    # collapse user messages (as Inspect 'tool' messages become Claude 'user' messages)
-    message_params = functools.reduce(
-        consecutive_user_message_reducer, message_params, []
-    )
-
-    # tools
-    tools_params, computer_use = tool_params_for_tools(tools, config)
-
-    # system messages
-    if len(system_messages) > 0:
-        system_param: list[TextBlockParam] | None = [
-            TextBlockParam(type="text", text=message.text)
-            for message in system_messages
-        ]
-    else:
-        system_param = None
-
-    # add caching directives if necessary
-    cache_prompt = (
-        config.cache_prompt
-        if isinstance(config.cache_prompt, bool)
-        else True
-        if len(tools_params)
-        else False
-    )
-
-    # only certain claude models qualify
-    if cache_prompt:
-        if (
-            "claude-3-sonnet" in model
-            or "claude-2" in model
-            or "claude-instant" in model
-        ):
-            cache_prompt = False
-
-    if cache_prompt:
-        # system
-        if system_param:
-            add_cache_control(system_param[-1])
-        # tools
-        if tools_params:
-            add_cache_control(tools_params[-1])
-        # last 2 user messages
-        user_message_params = list(
-            filter(lambda m: m["role"] == "user", reversed(message_params))
-        )
-        for message in user_message_params[:2]:
-            if isinstance(message["content"], str):
-                text_param = TextBlockParam(type="text", text=message["content"])
-                add_cache_control(text_param)
-                message["content"] = [text_param]
-            else:
-                content = list(message["content"])
-                add_cache_control(cast(dict[str, Any], content[-1]))
-
-    # return chat input
-    return system_param, tools_params, message_params, computer_use
-
-
-def tool_params_for_tools(
-    tools: list[ToolInfo], config: GenerateConfig
-) -> tuple[list[ToolParamDef], bool]:
-    # tool params and computer_use bit to return
-    tool_params: list[ToolParamDef] = []
-    computer_use = False
-
-    # for each tool, check if it has a native computer use implementation and use that
-    # when available (noting that we need to set the computer use request header)
-    for tool in tools:
-        computer_use_tool = (
-            computer_use_tool_param(tool)
-            if config.internal_tools is not False
-            else None
-        )
-        if computer_use_tool:
-            tool_params.append(computer_use_tool)
-            computer_use = True
-        else:
-            tool_params.append(
-                ToolParam(
-                    name=tool.name,
-                    description=tool.description,
-                    input_schema=tool.parameters.model_dump(exclude_none=True),
-                )
-            )
-
-    return tool_params, computer_use
-
-
-def computer_use_tool_param(tool: ToolInfo) -> ComputerUseToolParam | None:
-    # check for compatible 'computer' tool
-    if tool.name == "computer" and (
-        sorted(tool.parameters.properties.keys())
-        == sorted(["action", "coordinate", "text"])
-    ):
-        return ComputerUseToolParam(
-            type="computer_20241022",
-            name="computer",
-            # Note: The dimensions passed here for display_width_px and display_height_px should
-            # match the dimensions of screenshots returned by the tool.
-            # Those dimensions will always be one of the values in MAX_SCALING_TARGETS
-            # in _x11_client.py.
-            # TODO: enhance this code to calculate the dimensions based on the scaled screen
-            # size used by the container.
-            display_width_px=1366,
-            display_height_px=768,
-            display_number=1,
-        )
-    # not a computer_use tool
-    else:
-        return None
 
 
 def add_cache_control(

@@ -7,12 +7,11 @@ import httpx
 from openai import (
     DEFAULT_CONNECTION_LIMITS,
     DEFAULT_TIMEOUT,
-    APIConnectionError,
+    APIStatusError,
     APITimeoutError,
     AsyncAzureOpenAI,
     AsyncOpenAI,
     BadRequestError,
-    InternalServerError,
     RateLimitError,
 )
 from openai._types import NOT_GIVEN
@@ -21,11 +20,11 @@ from openai.types.chat import (
 )
 from typing_extensions import override
 
-from inspect_ai._util.constants import DEFAULT_MAX_RETRIES
 from inspect_ai._util.error import PrerequisiteError
+from inspect_ai._util.http import is_retryable_http_status
 from inspect_ai._util.logger import warn_once
 from inspect_ai.model._openai import chat_choices_from_openai
-from inspect_ai.model._providers.util.tracker import HttpxTimeTracker
+from inspect_ai.model._providers.util.hooks import HttpxHooks
 from inspect_ai.tool import ToolChoice, ToolInfo
 
 from .._chat_message import ChatMessage
@@ -130,9 +129,6 @@ class OpenAIAPI(ModelAPI):
                 api_key=self.api_key,
                 azure_endpoint=base_url,
                 azure_deployment=model_name,
-                max_retries=(
-                    config.max_retries if config.max_retries else DEFAULT_MAX_RETRIES
-                ),
                 http_client=http_client,
                 **model_args,
             )
@@ -140,15 +136,12 @@ class OpenAIAPI(ModelAPI):
             self.client = AsyncOpenAI(
                 api_key=self.api_key,
                 base_url=model_base_url(base_url, "OPENAI_BASE_URL"),
-                max_retries=(
-                    config.max_retries if config.max_retries else DEFAULT_MAX_RETRIES
-                ),
                 http_client=http_client,
                 **model_args,
             )
 
         # create time tracker
-        self._time_tracker = HttpxTimeTracker(self.client._client)
+        self._http_hooks = HttpxHooks(self.client._client)
 
     def is_azure(self) -> bool:
         return self.service == "azure"
@@ -186,7 +179,7 @@ class OpenAIAPI(ModelAPI):
             )
 
         # allocate request_id (so we can see it from ModelCall)
-        request_id = self._time_tracker.start_request()
+        request_id = self._http_hooks.start_request()
 
         # setup request and response for ModelCall
         request: dict[str, Any] = {}
@@ -197,7 +190,7 @@ class OpenAIAPI(ModelAPI):
                 request=request,
                 response=response,
                 filter=image_url_filter,
-                time=self._time_tracker.end_request(request_id),
+                time=self._http_hooks.end_request(request_id),
             )
 
         # unlike text models, vision models require a max_tokens (and set it to a very low
@@ -216,7 +209,7 @@ class OpenAIAPI(ModelAPI):
             tool_choice=openai_chat_tool_choice(tool_choice)
             if len(tools) > 0
             else NOT_GIVEN,
-            extra_headers={HttpxTimeTracker.REQUEST_ID_HEADER: request_id},
+            extra_headers={HttpxHooks.REQUEST_ID_HEADER: request_id},
             **self.completion_params(config, len(tools) > 0),
         )
 
@@ -266,17 +259,21 @@ class OpenAIAPI(ModelAPI):
         return chat_choices_from_openai(response, tools)
 
     @override
-    def is_rate_limit(self, ex: BaseException) -> bool:
+    def should_retry(self, ex: Exception) -> bool:
         if isinstance(ex, RateLimitError):
             # Do not retry on these rate limit errors
             # The quota exceeded one is related to monthly account quotas.
-            if "You exceeded your current quota" not in ex.message:
+            if "You exceeded your current quota" in ex.message:
+                warn_once(logger, f"OpenAI quota exceeded, not retrying: {ex.message}")
+                return False
+            else:
                 return True
-        elif isinstance(
-            ex, (APIConnectionError | APITimeoutError | InternalServerError)
-        ):
+        elif isinstance(ex, APIStatusError):
+            return is_retryable_http_status(ex.status_code)
+        elif isinstance(ex, APITimeoutError):
             return True
-        return False
+        else:
+            return False
 
     @override
     def connection_key(self) -> str:
@@ -315,8 +312,6 @@ class OpenAIAPI(ModelAPI):
             params["temperature"] = 1
         if config.top_p is not None:
             params["top_p"] = config.top_p
-        if config.timeout is not None:
-            params["timeout"] = float(config.timeout)
         if config.num_choices is not None:
             params["n"] = config.num_choices
         if config.logprobs is not None:

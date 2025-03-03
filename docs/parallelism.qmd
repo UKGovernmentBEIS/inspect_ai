@@ -28,9 +28,13 @@ $ inspect eval --model openai/gpt-4 --max-connections 20
 
 The default value for max connections is 10. By increasing it we might get better performance due to higher parallelism, however we might get *worse* performance if this causes us to frequently hit rate limits (which are retried with exponential backoff). The "correct" max connections for your evaluations will vary based on your actual rate limit and the size and complexity of your evaluations.
 
+::: {.callout-note appearance="simple"}
+Note that max connections is applied per-model. This means that if you use a grader model from a provider distinct from the one you are evaluating you will get extra concurrency (as each model will enforce its own max connections).
+:::
+
 ### Rate Limits
 
-When you run an eval you'll see information reported on the current active connection usage as well as the number of HTTP rate limit errors that have been encountered (note that Inspect will automatically retry on rate limits and other errors likely to be transient):
+When you run an eval you'll see information reported on the current active connection usage as well as the number of HTTP retries that have occurred (Inspect will automatically retry on rate limits and other errors likely to be transient):
 
 ![](images/rate-limit.png){fig-alt="The Inspect task results displayed in the terminal. The number of HTTP rate limit errors that have occurred (25) is printed in the bottom right of the task results."}
 
@@ -40,20 +44,41 @@ You should experiment with various values for max connections at different times
 
 ### Limiting Retries
 
-By default, Inspect will continue to retry model API calls (with exponential backoff) indefinitely when a rate limit error (HTTP status 429) is returned. You can limit these retries by using the `max_retries` and `timeout` eval options. For example:
+By default, Inspect will retry model API calls indefinitely (with exponential backoff) when a recoverable HTTP error occurs. The initial backoff is 3 seconds and exponentiation will result in a 25 minute wait for the 10th request (then 30 minutes for the 11th and subsequent requests). You can limit Inspect's retries using the `--max-retries` option:
 
 ``` bash
-$ inspect eval --model openai/gpt-4 --max-retries 10 --timeout 600
+inspect eval --model openai/gpt-4 --max-retries 10
 ```
+
+Note that model interfaces themselves may have internal retry behavior (for example, the `openai` and `anthropic` packages both retry twice by default).
+
+You can put a limit on the total time for retries using the `--timeout` option:
+
+``` bash
+inspect eval --model openai/gpt-4 --timeout 600 
+```
+
+### Debugging Retries
 
 If you want more insight into Model API connections and retries, specify `log_level=http`. For example:
 
 ``` bash
-$ inspect eval --model openai/gpt-4 --log-level=http
+inspect eval --model openai/gpt-4 --log-level=http
+```
+
+You can also view all of the HTTP requests for the current (or most recent) evaluation run using the `inspect trace http` command. For example:
+
+``` bash
+inspect trace http           # show all http requests
+inspect trace http --failed  # show only failed requests
 ```
 
 ::: {.callout-note appearance="simple"}
-Note that max connections is applied per-model. This means that if you use a grader model from a provider distinct from the one you are evaluating you will get extra concurrency (as each model will enforce its own max connections).
+Note that the `inspect trace http` command is currently available only in the development version of Inspect. To install the development version from GitHub:
+
+``` bash
+pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+```
 :::
 
 ## Multiple Models {#sec-multiple-models}

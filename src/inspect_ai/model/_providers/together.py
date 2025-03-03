@@ -34,8 +34,8 @@ from .util import (
     chat_api_input,
     chat_api_request,
     environment_prerequisite_error,
-    is_chat_api_rate_limit,
     model_base_url,
+    should_retry_chat_api_error,
 )
 
 
@@ -186,7 +186,6 @@ class TogetherRESTAPI(ModelAPI):
             url=f"{chat_url}",
             headers={"Authorization": f"Bearer {self.api_key}"},
             json=json,
-            config=config,
         )
 
         if "error" in response:
@@ -215,8 +214,8 @@ class TogetherRESTAPI(ModelAPI):
             return ModelOutput(model=model, choices=choices, usage=usage)
 
     @override
-    def is_rate_limit(self, ex: BaseException) -> bool:
-        return is_chat_api_rate_limit(ex)
+    def should_retry(self, ex: Exception) -> bool:
+        return should_retry_chat_api_error(ex)
 
     # cloudflare enforces rate limits by model for each account
     @override

@@ -38,11 +38,9 @@ from typing_extensions import override
 
 # TODO: Migration guide:
 # https://github.com/mistralai/client-python/blob/main/MIGRATION.md
-from inspect_ai._util.constants import (
-    DEFAULT_TIMEOUT,
-    NO_CONTENT,
-)
+from inspect_ai._util.constants import NO_CONTENT
 from inspect_ai._util.content import Content, ContentImage, ContentText
+from inspect_ai._util.http import is_retryable_http_status
 from inspect_ai._util.images import file_as_data_uri
 from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
 
@@ -61,7 +59,7 @@ from .._model_output import (
     StopReason,
 )
 from .util import environment_prerequisite_error, model_base_url
-from .util.tracker import HttpxTimeTracker
+from .util.hooks import HttpxHooks
 
 AZURE_MISTRAL_API_KEY = "AZURE_MISTRAL_API_KEY"
 AZUREAI_MISTRAL_API_KEY = "AZUREAI_MISTRAL_API_KEY"
@@ -127,16 +125,12 @@ class MistralAPI(ModelAPI):
         config: GenerateConfig,
     ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
         # create client
-        with Mistral(
-            api_key=self.api_key,
-            timeout_ms=(config.timeout if config.timeout else DEFAULT_TIMEOUT) * 1000,
-            **self.model_args,
-        ) as client:
+        with Mistral(api_key=self.api_key, **self.model_args) as client:
             # create time tracker
-            time_tracker = HttpxTimeTracker(client.sdk_configuration.async_client)
+            http_hooks = HttpxHooks(client.sdk_configuration.async_client)
 
             # build request
-            request_id = time_tracker.start_request()
+            request_id = http_hooks.start_request()
             request: dict[str, Any] = dict(
                 model=self.model_name,
                 messages=await mistral_chat_messages(input),
@@ -144,7 +138,7 @@ class MistralAPI(ModelAPI):
                 tool_choice=(
                     mistral_chat_tool_choice(tool_choice) if len(tools) > 0 else None
                 ),
-                http_headers={HttpxTimeTracker.REQUEST_ID_HEADER: request_id},
+                http_headers={HttpxHooks.REQUEST_ID_HEADER: request_id},
             )
             if config.temperature is not None:
                 request["temperature"] = config.temperature
@@ -169,7 +163,7 @@ class MistralAPI(ModelAPI):
                 return ModelCall.create(
                     request=req,
                     response=response,
-                    time=time_tracker.end_request(request_id),
+                    time=http_hooks.end_request(request_id),
                 )
 
             # send request
@@ -205,12 +199,13 @@ class MistralAPI(ModelAPI):
             ), model_call()
 
     @override
-    def is_rate_limit(self, ex: BaseException) -> bool:
-        return (
-            isinstance(ex, SDKError)
-            and ex.status_code == 429
-            or isinstance(ex, ReadTimeout | AsyncReadTimeout)
-        )
+    def should_retry(self, ex: Exception) -> bool:
+        if isinstance(ex, SDKError):
+            return is_retryable_http_status(ex.status_code)
+        elif isinstance(ex, ReadTimeout | AsyncReadTimeout):
+            return True
+        else:
+            return False
 
     @override
     def connection_key(self) -> str:

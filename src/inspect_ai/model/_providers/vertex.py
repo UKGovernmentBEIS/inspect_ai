@@ -4,7 +4,13 @@ from copy import copy
 from typing import Any, cast
 
 import vertexai  # type: ignore
-from google.api_core.exceptions import TooManyRequests
+from google.api_core.exceptions import (
+    Aborted,
+    ClientError,
+    DeadlineExceeded,
+    ServiceUnavailable,
+)
+from google.api_core.retry import if_transient_error
 from google.protobuf.json_format import MessageToDict
 from pydantic import JsonValue
 from typing_extensions import override
@@ -31,6 +37,7 @@ from inspect_ai._util.content import (
     ContentText,
     ContentVideo,
 )
+from inspect_ai._util.http import is_retryable_http_status
 from inspect_ai._util.images import file_as_data
 from inspect_ai.tool import ToolCall, ToolChoice, ToolInfo
 
@@ -169,8 +176,18 @@ class VertexAPI(ModelAPI):
         return output, call
 
     @override
-    def is_rate_limit(self, ex: BaseException) -> bool:
-        return isinstance(ex, TooManyRequests)
+    def should_retry(self, ex: Exception) -> bool:
+        # google API-specific errors
+        if isinstance(ex, Aborted | DeadlineExceeded | ServiceUnavailable):
+            return True
+        # standard HTTP errors
+        elif isinstance(ex, ClientError) and ex.code is not None:
+            return is_retryable_http_status(ex.code)
+        # additional errors flagged by google as transient
+        elif isinstance(ex, Exception):
+            return if_transient_error(ex)
+        else:
+            return False
 
     @override
     def connection_key(self) -> str:

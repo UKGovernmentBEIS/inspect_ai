@@ -1,15 +1,16 @@
 import contextlib
 from contextvars import ContextVar
 from datetime import datetime
-from typing import AsyncGenerator, Literal
+from typing import AsyncGenerator, Iterator, Literal
 
 from shortuuid import uuid
 
+from inspect_ai._util.constants import SAMPLE_SUBTASK
 from inspect_ai.dataset._dataset import Sample
 from inspect_ai.util._sandbox import SandboxConnection
 from inspect_ai.util._sandbox.context import sandbox_connections
 
-from ._transcript import Transcript
+from ._transcript import Transcript, transcript
 
 
 class ActiveSample:
@@ -44,6 +45,7 @@ class ActiveSample:
         self.total_tokens = 0
         self.transcript = transcript
         self.sandboxes = sandboxes
+        self.retry_count = 0
         self._interrupt_action: Literal["score", "error"] | None = None
 
     @property
@@ -151,6 +153,29 @@ def set_active_sample_total_messages(total_messages: int) -> None:
     active = sample_active()
     if active:
         active.total_messages = total_messages
+
+
+@contextlib.contextmanager
+def track_active_sample_retries() -> Iterator[None]:
+    reset_active_sample_retries()
+    try:
+        yield
+    finally:
+        reset_active_sample_retries()
+
+
+def reset_active_sample_retries() -> None:
+    active = sample_active()
+    if active:
+        active.retry_count = 0
+
+
+def report_active_sample_retry() -> None:
+    active = sample_active()
+    if active:
+        # only do this for the top level subtask
+        if transcript().name == SAMPLE_SUBTASK:
+            active.retry_count = active.retry_count + 1
 
 
 _sample_active: ContextVar[ActiveSample | None] = ContextVar(

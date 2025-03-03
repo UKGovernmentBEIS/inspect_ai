@@ -13,6 +13,7 @@ from typing import Any, AsyncIterator, Callable, Literal, Type, cast
 
 from pydantic_core import to_jsonable_python
 from tenacity import (
+    RetryCallState,
     retry,
     retry_if_exception,
     stop_after_attempt,
@@ -20,8 +21,9 @@ from tenacity import (
     stop_never,
     wait_exponential_jitter,
 )
+from tenacity.stop import StopBaseT
 
-from inspect_ai._util.constants import DEFAULT_MAX_CONNECTIONS
+from inspect_ai._util.constants import DEFAULT_MAX_CONNECTIONS, HTTP
 from inspect_ai._util.content import (
     Content,
     ContentImage,
@@ -30,6 +32,7 @@ from inspect_ai._util.content import (
 )
 from inspect_ai._util.hooks import init_hooks, override_api_key, send_telemetry
 from inspect_ai._util.interrupt import check_sample_interrupt
+from inspect_ai._util.logger import warn_once
 from inspect_ai._util.platform import platform_init
 from inspect_ai._util.registry import (
     RegistryInfo,
@@ -37,7 +40,7 @@ from inspect_ai._util.registry import (
     registry_info,
     registry_unqualified_name,
 )
-from inspect_ai._util.retry import log_rate_limit_retry
+from inspect_ai._util.retry import report_http_retry
 from inspect_ai._util.trace import trace_action
 from inspect_ai._util.working import report_sample_waiting_time, sample_working_time
 from inspect_ai.tool import Tool, ToolChoice, ToolFunction, ToolInfo
@@ -173,11 +176,11 @@ class ModelAPI(abc.ABC):
         """Scope for enforcement of max_connections."""
         return "default"
 
-    def is_rate_limit(self, ex: BaseException) -> bool:
-        """Is this exception a rate limit error.
+    def should_retry(self, ex: Exception) -> bool:
+        """Should this exception be retried?
 
         Args:
-           ex: Exception to check for rate limit.
+           ex: Exception to check for retry
         """
         return False
 
@@ -331,14 +334,17 @@ class Model:
         start_time = datetime.now()
         working_start = sample_working_time()
         async with self._connection_concurrency(config):
+            from inspect_ai.log._samples import track_active_sample_retries
+
             # generate
-            output = await self._generate(
-                input=input,
-                tools=tools,
-                tool_choice=tool_choice,
-                config=config,
-                cache=cache,
-            )
+            with track_active_sample_retries():
+                output = await self._generate(
+                    input=input,
+                    tools=tools,
+                    tool_choice=tool_choice,
+                    config=config,
+                    cache=cache,
+                )
 
             # update the most recent ModelEvent with the actual start/completed
             # times as well as a computation of working time (events are
@@ -418,27 +424,27 @@ class Model:
         if self.api.collapse_assistant_messages():
             input = collapse_consecutive_assistant_messages(input)
 
-        # retry for rate limit errors (max of 30 minutes)
+        # retry for transient http errors:
+        # - no default timeout or max_retries (try forever)
+        # - exponential backoff starting at 3 seconds (will wait 25 minutes
+        #   on the 10th retry,then will wait no longer than 30 minutes on
+        #   subsequent retries)
+        if config.max_retries is not None and config.timeout is not None:
+            stop: StopBaseT = stop_after_attempt(config.max_retries) | stop_after_delay(
+                config.timeout
+            )
+        elif config.max_retries is not None:
+            stop = stop_after_attempt(config.max_retries)
+        elif config.timeout is not None:
+            stop = stop_after_delay(config.timeout)
+        else:
+            stop = stop_never
+
         @retry(
-            wait=wait_exponential_jitter(max=(30 * 60), jitter=5),
-            retry=retry_if_exception(self.api.is_rate_limit),
-            stop=(
-                (
-                    stop_after_delay(config.timeout)
-                    | stop_after_attempt(config.max_retries)
-                )
-                if config.timeout and config.max_retries
-                else (
-                    stop_after_delay(config.timeout)
-                    if config.timeout
-                    else (
-                        stop_after_attempt(config.max_retries)
-                        if config.max_retries
-                        else stop_never
-                    )
-                )
-            ),
-            before_sleep=functools.partial(log_rate_limit_retry, self.api.model_name),
+            wait=wait_exponential_jitter(initial=3, max=(30 * 60), jitter=3),
+            retry=retry_if_exception(self.should_retry),
+            stop=stop,
+            before_sleep=functools.partial(log_model_retry, self.api.model_name),
         )
         async def generate() -> ModelOutput:
             check_sample_interrupt()
@@ -554,6 +560,30 @@ class Model:
 
         # return results
         return model_output
+
+    def should_retry(self, ex: BaseException) -> bool:
+        if isinstance(ex, Exception):
+            # check standard should_retry() method
+            retry = self.api.should_retry(ex)
+            if retry:
+                report_http_retry()
+                return True
+
+            # see if the API implements legacy is_rate_limit() method
+            is_rate_limit = getattr(self.api, "is_rate_limit", None)
+            if is_rate_limit:
+                warn_once(
+                    logger,
+                    f"provider '{self.name}' implements deprecated is_rate_limit() method, "
+                    + "please change to should_retry()",
+                )
+                retry = cast(bool, is_rate_limit(ex))
+                if retry:
+                    report_http_retry()
+                    return True
+
+        # no retry
+        return False
 
     # function to verify that its okay to call model apis
     def verify_model_apis(self) -> None:
@@ -1181,6 +1211,13 @@ def combine_messages(
         raise TypeError(
             f"Cannot combine messages with invalid content types: {a.content!r}, {b.content!r}"
         )
+
+
+def log_model_retry(model_name: str, retry_state: RetryCallState) -> None:
+    logger.log(
+        HTTP,
+        f"-> {model_name} retry {retry_state.attempt_number} after waiting for {retry_state.idle_for}",
+    )
 
 
 def init_active_model(model: Model, config: GenerateConfig) -> None:
