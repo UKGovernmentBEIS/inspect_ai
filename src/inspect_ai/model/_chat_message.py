@@ -15,9 +15,6 @@ logger = getLogger(__name__)
 class ChatMessageBase(BaseModel):
     """Base class for chat messages."""
 
-    role: Literal["system", "user", "assistant", "tool"]
-    """Conversation role"""
-
     content: str | list[Content]
     """Content (simple string or list of content objects)"""
 
