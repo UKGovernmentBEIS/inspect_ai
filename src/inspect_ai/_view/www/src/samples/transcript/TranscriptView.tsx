@@ -1,4 +1,4 @@
-import { FC, RefObject, useCallback, useState } from "react";
+import { FC, RefObject, useCallback, useMemo, useState } from "react";
 import { Events } from "../../types/log";
 import { ApprovalEventView } from "./ApprovalEventView";
 import { ErrorEventView } from "./ErrorEventView";
@@ -76,8 +76,12 @@ export const TranscriptVirtualList: FC<TranscriptVirtualListProps> = (
   let { id, scrollRef, events, depth } = props;
 
   // Normalize Events themselves
-  const resolvedEvents = fixupEventStream(events);
-  const eventNodes = treeifyEvents(resolvedEvents, depth || 0);
+  const eventNodes = useMemo(() => {
+    const resolvedEvents = fixupEventStream(events);
+    const eventNodes = treeifyEvents(resolvedEvents, depth || 0);
+
+    return eventNodes;
+  }, [events, depth]);
 
   const [transcriptState, setTranscriptState] = useState({});
   const onTranscriptState = useCallback(
