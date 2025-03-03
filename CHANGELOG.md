@@ -1,4 +1,4 @@
-## v0.3.72 (03 March 2025)
+## Unreleased
 
 - Computer: Updated tool definition to match improvements in Claude Sonnet 3.7.
 
