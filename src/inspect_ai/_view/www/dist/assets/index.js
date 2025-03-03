@@ -29313,6 +29313,7 @@ categories: ${categories.join(" ")}`;
             dispatch,
             getState,
             sampleSummaries: filteredSampleSummaries,
+            currentScore,
             scores: scores2,
             evalDescriptor,
             samplesDescriptor,
@@ -54107,53 +54108,76 @@ Supported expressions:
       wrap,
       titled
     };
-    const SampleSummaryView = ({
-      parent_id,
-      sample: sample2
-    }) => {
-      var _a2, _b2;
-      const logContext = useLogContext();
-      const sampleDescriptor = logContext.samplesDescriptor;
-      if (!sampleDescriptor) {
-        return void 0;
-      }
-      const input2 = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.normalized.input) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.normalized.input) : 0;
-      const target2 = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.normalized.target) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.normalized.target) : 0;
-      const answer2 = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.normalized.answer) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.normalized.answer) : 0;
-      const limitSize = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.normalized.limit) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.normalized.limit) : 0;
-      const timeSize = sample2.working_time || sample2.total_time ? 0.15 : 0;
-      const idSize = Math.max(
-        2,
-        Math.min(10, sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.raw.id)
-      );
-      const scoreInput = inputString(sample2.input);
-      if (sample2.choices && sample2.choices.length > 0) {
-        scoreInput.push("");
-        scoreInput.push(
+    function isEvalSample(sample2) {
+      return "choices" in sample2 && Array.isArray(sample2.choices);
+    }
+    const resolveSample = (sample2, sampleDescriptor) => {
+      var _a2, _b2, _c;
+      const input2 = inputString(sample2.input);
+      if (isEvalSample(sample2) && sample2.choices && sample2.choices.length > 0) {
+        input2.push("");
+        input2.push(
           ...sample2.choices.map((choice, index2) => {
             return `${String.fromCharCode(65 + index2)}) ${choice}`;
           })
         );
       }
+      const target2 = sample2.target;
+      const answer2 = sample2 && sampleDescriptor ? (_a2 = sampleDescriptor.selectedScorerDescriptor(sample2)) == null ? void 0 : _a2.answer() : void 0;
+      const limit = isEvalSample(sample2) ? (_b2 = sample2.limit) == null ? void 0 : _b2.type : void 0;
+      const working_time = isEvalSample(sample2) ? sample2.working_time : void 0;
+      const total_time = isEvalSample(sample2) ? sample2.total_time : void 0;
+      const error2 = isEvalSample(sample2) ? (_c = sample2.error) == null ? void 0 : _c.message : void 0;
+      return {
+        id: sample2.id,
+        input: input2,
+        target: target2,
+        answer: answer2,
+        limit,
+        working_time,
+        total_time,
+        error: error2
+      };
+    };
+    const SampleSummaryView = ({
+      parent_id,
+      sample: sample2
+    }) => {
+      var _a2;
+      const logContext = useLogContext();
+      const sampleDescriptor = logContext.samplesDescriptor;
+      if (!sampleDescriptor) {
+        return void 0;
+      }
+      const fields = resolveSample(sample2, sampleDescriptor);
+      const input2 = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.normalized.input) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.normalized.input) : 0;
+      const target2 = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.normalized.target) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.normalized.target) : 0;
+      const answer2 = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.normalized.answer) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.normalized.answer) : 0;
+      const limitSize = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.normalized.limit) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.normalized.limit) : 0;
+      const timeSize = fields.working_time || fields.total_time ? 0.15 : 0;
+      const idSize = Math.max(
+        2,
+        Math.min(10, sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.raw.id)
+      );
       const columns = [];
       columns.push({
         label: "Id",
-        value: sample2.id,
+        value: fields.id,
         size: `${idSize}em`
       });
       columns.push({
         label: "Input",
-        value: scoreInput,
+        value: fields.input,
         size: `${input2}fr`,
         clamp: true
       });
-      if (sample2.target) {
+      if (fields.target) {
         columns.push({
           label: "Target",
           value: /* @__PURE__ */ jsxRuntimeExports.jsx(
             MarkdownDiv,
             {
-              markdown: arrayToString(arrayToString((sample2 == null ? void 0 : sample2.target) || "none")),
+              markdown: arrayToString((fields == null ? void 0 : fields.target) || "none"),
               className: clsx("no-last-para-padding", styles$E.target)
             }
           ),
@@ -54161,14 +54185,13 @@ Supported expressions:
           clamp: true
         });
       }
-      const fullAnswer = sample2 && sampleDescriptor ? (_a2 = sampleDescriptor.selectedScorerDescriptor(sample2)) == null ? void 0 : _a2.answer() : void 0;
-      if (fullAnswer) {
+      if (fields.answer) {
         columns.push({
           label: "Answer",
           value: sample2 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
             MarkdownDiv,
             {
-              markdown: fullAnswer,
+              markdown: fields.answer,
               className: clsx("no-last-para-padding", styles$E.answer)
             }
           ) : "",
@@ -54182,26 +54205,26 @@ Supported expressions:
         }
         return `Working time: ${formatTime$1(working_time)}`;
       };
-      if (sample2.total_time) {
+      if (fields.total_time) {
         columns.push({
           label: "Time",
-          value: formatTime$1(sample2.total_time),
+          value: formatTime$1(fields.total_time),
           size: `${timeSize}fr`,
           center: true,
-          title: toolTip(sample2.working_time)
+          title: toolTip(fields.working_time)
         });
       }
-      if ((sample2 == null ? void 0 : sample2.limit) && limitSize > 0) {
+      if ((fields == null ? void 0 : fields.limit) && limitSize > 0) {
         columns.push({
           label: "Limit",
-          value: sample2.limit.type,
+          value: fields.limit,
           size: `${limitSize}fr`,
           center: true
         });
       }
       columns.push({
         label: "Score",
-        value: sample2.error ? /* @__PURE__ */ jsxRuntimeExports.jsx(FlatSampleError, { message: sample2.error.message }) : ((_b2 = sampleDescriptor == null ? void 0 : sampleDescriptor.evalDescriptor.score(sample2, logContext.state.score)) == null ? void 0 : _b2.render()) || "",
+        value: fields.error ? /* @__PURE__ */ jsxRuntimeExports.jsx(FlatSampleError, { message: fields.error }) : ((_a2 = sampleDescriptor == null ? void 0 : sampleDescriptor.evalDescriptor.score(sample2, logContext.currentScore)) == null ? void 0 : _a2.render()) || "",
         size: "minmax(2em, auto)",
         center: true
       });
@@ -62673,8 +62696,11 @@ ${events}
     };
     const TranscriptVirtualList = (props) => {
       let { id, scrollRef, events, depth } = props;
-      const resolvedEvents = fixupEventStream(events);
-      const eventNodes = treeifyEvents(resolvedEvents, depth || 0);
+      const eventNodes = reactExports.useMemo(() => {
+        const resolvedEvents = fixupEventStream(events);
+        const eventNodes2 = treeifyEvents(resolvedEvents, depth || 0);
+        return eventNodes2;
+      }, [events, depth]);
       const [transcriptState, setTranscriptState] = reactExports.useState({});
       const onTranscriptState = reactExports.useCallback(
         (state) => {
@@ -62986,6 +63012,8 @@ ${events}
       runningSampleData
     }) => {
       const baseId = `sample-dialog`;
+      const logContext = useLogContext();
+      const sampleSummary = logContext.sampleSummaries[logContext.state.selectedSampleIndex];
       const sampleEvents = (sample2 == null ? void 0 : sample2.events) || (runningSampleData == null ? void 0 : runningSampleData.events);
       const onSelectedTab = (e) => {
         const el = e.currentTarget;
@@ -63014,7 +63042,7 @@ ${events}
         );
       }
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
-        sample2 ? /* @__PURE__ */ jsxRuntimeExports.jsx(SampleSummaryView, { parent_id: id, sample: sample2 }) : void 0,
+        sample2 || sampleSummary ? /* @__PURE__ */ jsxRuntimeExports.jsx(SampleSummaryView, { parent_id: id, sample: sample2 || sampleSummary }) : void 0,
         /* @__PURE__ */ jsxRuntimeExports.jsxs(
           TabSet,
           {
@@ -64212,37 +64240,43 @@ ${events}
           }, 0);
         }
       }, [showingSampleDialog]);
-      reactExports.useEffect(() => {
-        var _a3, _b3, _c2, _d2;
-        const sampleProcessor = logContext.samplesDescriptor ? getSampleProcessor(
+      const sampleProcessor = reactExports.useMemo(() => {
+        var _a3, _b3, _c2;
+        if (!logContext.samplesDescriptor) return void 0;
+        return getSampleProcessor(
           logContext.sampleSummaries || [],
           ((_c2 = (_b3 = (_a3 = logContext.state.selectedLogSummary) == null ? void 0 : _a3.eval) == null ? void 0 : _b3.config) == null ? void 0 : _c2.epochs) || 1,
           logContext.groupBy,
           logContext.groupByOrder,
           logContext.samplesDescriptor,
-          logContext.state.score
-        ) : void 0;
-        const items2 = (_d2 = logContext.sampleSummaries) == null ? void 0 : _d2.flatMap((sample2, index2) => {
+          logContext.currentScore
+        );
+      }, [
+        logContext.samplesDescriptor,
+        logContext.sampleSummaries,
+        (_c = (_b2 = (_a2 = logContext.state.selectedLogSummary) == null ? void 0 : _a2.eval) == null ? void 0 : _b2.config) == null ? void 0 : _c.epochs,
+        logContext.groupBy,
+        logContext.groupByOrder,
+        logContext.currentScore
+      ]);
+      const resolvedSamples = reactExports.useMemo(() => {
+        var _a3;
+        return (_a3 = logContext.sampleSummaries) == null ? void 0 : _a3.flatMap((sample2, index2) => {
           const results = [];
           const previousSample2 = index2 !== 0 ? logContext.sampleSummaries[index2 - 1] : void 0;
-          const items3 = sampleProcessor ? sampleProcessor(sample2, index2, previousSample2) : [];
-          results.push(...items3);
+          const items2 = sampleProcessor ? sampleProcessor(sample2, index2, previousSample2) : [];
+          results.push(...items2);
           return results;
         });
-        setItems(items2 || []);
+      }, [logContext.sampleSummaries]);
+      reactExports.useEffect(() => {
+        setItems(resolvedSamples || []);
         setSampleItems(
-          items2 ? items2.filter((item2) => {
+          resolvedSamples ? resolvedSamples.filter((item2) => {
             return item2.type === "sample";
           }) : []
         );
-      }, [
-        logContext.sampleSummaries,
-        (_c = (_b2 = (_a2 = logContext.state.selectedLogSummary) == null ? void 0 : _a2.eval) == null ? void 0 : _b2.config) == null ? void 0 : _c.epochs,
-        logContext.state.score,
-        logContext.groupBy,
-        logContext.groupByOrder,
-        logContext.samplesDescriptor
-      ]);
+      }, [resolvedSamples]);
       const nextSampleIndex = reactExports.useCallback(() => {
         if (logContext.state.selectedSampleIndex < sampleItems.length - 1) {
           return logContext.state.selectedSampleIndex + 1;
@@ -65516,17 +65550,6 @@ ${events}
       workspaceTabScrollPositionRef,
       setWorkspaceTabScrollPosition
     }) => {
-      const debouncedScroll = reactExports.useMemo(() => {
-        return debounce$1((id, position) => {
-          setWorkspaceTabScrollPosition(id, position);
-        }, 100);
-      }, [setWorkspaceTabScrollPosition]);
-      const onScroll = reactExports.useCallback(
-        (id, position) => {
-          debouncedScroll(id, position);
-        },
-        [debouncedScroll]
-      );
       const onSelected = reactExports.useCallback(
         (e) => {
           var _a2;
@@ -65538,10 +65561,10 @@ ${events}
         [setSelectedTab]
       );
       const handleScroll = reactExports.useCallback(
-        (tabId, position) => {
-          onScroll(tabId, position);
-        },
-        [onScroll]
+        debounce$1((tabId, position) => {
+          setWorkspaceTabScrollPosition(tabId, position);
+        }, 100),
+        [setWorkspaceTabScrollPosition]
       );
       if (evalSpec === void 0) {
         return /* @__PURE__ */ jsxRuntimeExports.jsx(EmptyPanel, {});
