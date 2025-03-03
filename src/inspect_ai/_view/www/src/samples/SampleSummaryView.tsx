@@ -1,16 +1,18 @@
 import clsx from "clsx";
 import { MarkdownDiv } from "../components/MarkdownDiv";
-import { EvalSample, WorkingTime } from "../types/log";
+import { EvalSample, Target, TotalTime, WorkingTime } from "../types/log";
 import { arrayToString, formatTime, inputString } from "../utils/format";
 import { FlatSampleError } from "./error/FlatSampleErrorView";
 
 import { FC, ReactNode } from "react";
+import { SampleSummary } from "../api/types";
 import { useLogContext } from "../contexts/LogContext";
 import styles from "./SampleSummaryView.module.css";
+import { SamplesDescriptor } from "./descriptor/samplesDescriptor";
 
 interface SampleSummaryViewProps {
   parent_id: string;
-  sample: EvalSample;
+  sample: SampleSummary | EvalSample;
 }
 
 interface SummaryColumn {
@@ -21,6 +23,59 @@ interface SummaryColumn {
   clamp?: boolean;
   title?: string;
 }
+
+interface SampleFields {
+  id: string | number;
+  input: string[];
+  target: Target;
+  answer?: string;
+  limit?: string;
+  working_time?: WorkingTime;
+  total_time?: TotalTime;
+  error?: string;
+}
+
+function isEvalSample(
+  sample: SampleSummary | EvalSample,
+): sample is EvalSample {
+  return "choices" in sample && Array.isArray((sample as EvalSample).choices);
+}
+
+const resolveSample = (
+  sample: SampleSummary | EvalSample,
+  sampleDescriptor: SamplesDescriptor,
+): SampleFields => {
+  const input = inputString(sample.input);
+  if (isEvalSample(sample) && sample.choices && sample.choices.length > 0) {
+    input.push("");
+    input.push(
+      ...sample.choices.map((choice, index) => {
+        return `${String.fromCharCode(65 + index)}) ${choice}`;
+      }),
+    );
+  }
+
+  const target = sample.target;
+  const answer =
+    sample && sampleDescriptor
+      ? sampleDescriptor.selectedScorerDescriptor(sample)?.answer()
+      : undefined;
+  const limit = isEvalSample(sample) ? sample.limit?.type : undefined;
+  const working_time = isEvalSample(sample) ? sample.working_time : undefined;
+  const total_time = isEvalSample(sample) ? sample.total_time : undefined;
+  const error = isEvalSample(sample) ? sample.error?.message : undefined;
+
+  return {
+    id: sample.id,
+    input,
+    target,
+    answer,
+    limit,
+    working_time,
+    total_time,
+    error,
+  };
+};
 
 /**
  * Component to display a sample with relevant context and visibility control.
@@ -34,6 +89,7 @@ export const SampleSummaryView: FC<SampleSummaryViewProps> = ({
   if (!sampleDescriptor) {
     return undefined;
   }
+  const fields = resolveSample(sample, sampleDescriptor);
 
   const input =
     sampleDescriptor?.messageShape.normalized.input > 0
@@ -51,43 +107,33 @@ export const SampleSummaryView: FC<SampleSummaryViewProps> = ({
     sampleDescriptor?.messageShape.normalized.limit > 0
       ? Math.max(0.15, sampleDescriptor.messageShape.normalized.limit)
       : 0;
-  const timeSize = sample.working_time || sample.total_time ? 0.15 : 0;
+  const timeSize = fields.working_time || fields.total_time ? 0.15 : 0;
   const idSize = Math.max(
     2,
     Math.min(10, sampleDescriptor?.messageShape.raw.id),
   );
 
-  const scoreInput = inputString(sample.input);
-  if (sample.choices && sample.choices.length > 0) {
-    scoreInput.push("");
-    scoreInput.push(
-      ...sample.choices.map((choice, index) => {
-        return `${String.fromCharCode(65 + index)}) ${choice}`;
-      }),
-    );
-  }
-
   // The columns for the sample
   const columns: SummaryColumn[] = [];
   columns.push({
     label: "Id",
-    value: sample.id,
+    value: fields.id,
     size: `${idSize}em`,
   });
 
   columns.push({
     label: "Input",
-    value: scoreInput,
+    value: fields.input,
     size: `${input}fr`,
     clamp: true,
   });
 
-  if (sample.target) {
+  if (fields.target) {
     columns.push({
       label: "Target",
       value: (
         <MarkdownDiv
-          markdown={arrayToString(arrayToString(sample?.target || "none"))}
+          markdown={arrayToString(fields?.target || "none")}
           className={clsx("no-last-para-padding", styles.target)}
         />
       ),
@@ -96,16 +142,12 @@ export const SampleSummaryView: FC<SampleSummaryViewProps> = ({
     });
   }
 
-  const fullAnswer =
-    sample && sampleDescriptor
-      ? sampleDescriptor.selectedScorerDescriptor(sample)?.answer()
-      : undefined;
-  if (fullAnswer) {
+  if (fields.answer) {
     columns.push({
       label: "Answer",
       value: sample ? (
         <MarkdownDiv
-          markdown={fullAnswer}
+          markdown={fields.answer}
           className={clsx("no-last-para-padding", styles.answer)}
         />
       ) : (
@@ -123,20 +165,20 @@ export const SampleSummaryView: FC<SampleSummaryViewProps> = ({
     return `Working time: ${formatTime(working_time)}`;
   };
 
-  if (sample.total_time) {
+  if (fields.total_time) {
     columns.push({
       label: "Time",
-      value: formatTime(sample.total_time),
+      value: formatTime(fields.total_time),
       size: `${timeSize}fr`,
       center: true,
-      title: toolTip(sample.working_time),
+      title: toolTip(fields.working_time),
     });
   }
 
-  if (sample?.limit && limitSize > 0) {
+  if (fields?.limit && limitSize > 0) {
     columns.push({
       label: "Limit",
-      value: sample.limit.type,
+      value: fields.limit,
       size: `${limitSize}fr`,
       center: true,
     });
@@ -144,11 +186,11 @@ export const SampleSummaryView: FC<SampleSummaryViewProps> = ({
 
   columns.push({
     label: "Score",
-    value: sample.error ? (
-      <FlatSampleError message={sample.error.message} />
+    value: fields.error ? (
+      <FlatSampleError message={fields.error} />
     ) : (
       sampleDescriptor?.evalDescriptor
-        .score(sample, logContext.state.score)
+        .score(sample, logContext.currentScore)
         ?.render() || ""
     ),
     size: "minmax(2em, 30em)",
