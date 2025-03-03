@@ -1,16 +1,6 @@
 # Reasoning
 
 
-> [!NOTE]
->
-> The reasoning features described below are currently available only in
-> the development version of Inspect. To install the development version
-> from GitHub:
->
-> ``` bash
-> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-> ```
-
 ## Overview
 
 Reasoning models like OpenAI o1 and o3, Anthropic’s Claude Sonnet 3.7,

@@ -1181,8 +1181,8 @@ example:
 | `--parallel-tool-calls` | Whether to enable calling multiple functions during tool use (defaults to True) OpenAI and Groq only.                                                                                                                                                   |
 | `--max-tool-output`     | Maximum size of tool output (in bytes). Defaults to 16 \* 1024.                                                                                                                                                                                         |
 | `--internal-tools`      | Whether to automatically map tools to model internal implementations (e.g. ‘computer’ for Anthropic).                                                                                                                                                   |
-| `--max-retries`         | Maximum number of times to retry request (defaults to 5)                                                                                                                                                                                                |
-| `--timeout`             | Request timeout (in seconds).                                                                                                                                                                                                                           |
+| `--max-retries`         | Maximum number of times to retry generate request (defaults to unlimited)                                                                                                                                                                               |
+| `--timeout`             | Generate timeout in seconds (defaults to no timeout)                                                                                                                                                                                                    |
 
 ## Tasks and Solvers
 
@@ -6496,16 +6496,6 @@ set a global default in your `.env` configuration file.
 # Reasoning
 
 
-> [!NOTE]
->
-> The reasoning features described below are currently available only in
-> the development version of Inspect. To install the development version
-> from GitHub:
->
-> ``` bash
-> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-> ```
-
 ## Overview
 
 Reasoning models like OpenAI o1 and o3, Anthropic’s Claude Sonnet 3.7,
@@ -8546,14 +8536,15 @@ the various tools (e.g. `task submit`, `task start`, `task stop`,
 `task instructions`, etc.). By default, the following command are
 available:
 
-| Command             | Description                               |
-|---------------------|-------------------------------------------|
-| `task submit`       | Submit your final answer for the task.    |
-| `task note`         | Record a note in the task transcript.     |
-| `task status`       | Print task status (clock, scoring , etc.) |
-| `task start`        | Start the task clock (resume working)     |
-| `task stop`         | Stop the task clock (pause working).      |
-| `task instructions` | Display task command and instructions.    |
+| Command             | Description                                 |
+|---------------------|---------------------------------------------|
+| `task submit`       | Submit your final answer for the task.      |
+| `task quit`         | Quit the task without submitting an answer. |
+| `task note`         | Record a note in the task transcript.       |
+| `task status`       | Print task status (clock, scoring , etc.)   |
+| `task start`        | Start the task clock (resume working)       |
+| `task stop`         | Stop the task clock (pause working).        |
+| `task instructions` | Display task command and instructions.      |
 
 Note that the instructions are also copied to an `instructions.txt` file
 in the container user’s working directory.
@@ -8565,7 +8556,7 @@ using the `task submit`command. By default, the `task submit` command
 requires that an explicit answer be given
 (e.g. `task submit picoCTF{73bfc85c1ba7}`).
 
-However, ff your task is scored by reading from the container filesystem
+However, if your task is scored by reading from the container filesystem
 then no explicit answer need be provided. Indicate this by passing
 `answer=False` to the `human_agent()`:
 
@@ -8585,6 +8576,13 @@ for example:
 ``` python
 solver=human_agent(answer=r"picoCTF{\w+}")
 ```
+
+### Quitting
+
+If the user is unable to complete the task in some allotted time they
+may quit the task using the `task quit` command. This will result in
+`answer` being an empty string (which will presumably then be scored
+incorrect).
 
 ### Intermediate Scoring
 
@@ -10162,9 +10160,9 @@ execution).
 > In order to distinguish successful generate requests from rate limited
 > and retried requests, Inspect installs hooks into the HTTP client of
 > various model packages. This is not possible for some models
-> (`google`, `vertex`, `azureai`, and `goodfire`), and in these cases
-> the `working_time` will include any internal retries that the model
-> client performs.
+> (`vertex`, `azureai`, and `goodfire`), and in these cases the
+> `working_time` will include any internal retries that the model client
+> performs.
 
 ### Message Limit
 
@@ -10519,6 +10517,32 @@ listing anomolies. For example:
 inspect trace anomalies --filter model
 ```
 
+## HTTP Requests
+
+> [!NOTE]
+>
+> Note that the `inspect trace http` command described below is
+> currently available only in the development version of Inspect. To
+> install the development version from GitHub:
+>
+> ``` bash
+> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+> ```
+
+You can view all of the HTTP requests for the current (or most recent)
+evaluation run using the `inspect trace http` command. For example:
+
+``` bash
+inspect trace http           # show all http requests
+inspect trace http --failed  # show only failed requests
+```
+
+The `--filter` parameter also works here, for example:
+
+``` bash
+inspect trace http --failed --filter bedrock
+```
+
 ## Tracing API
 
 In addition to the standard set of actions which are trace logged, you
@@ -10607,12 +10631,19 @@ get better performance due to higher parallelism, however we might get
 connections for your evaluations will vary based on your actual rate
 limit and the size and complexity of your evaluations.
 
+> [!NOTE]
+>
+> Note that max connections is applied per-model. This means that if you
+> use a grader model from a provider distinct from the one you are
+> evaluating you will get extra concurrency (as each model will enforce
+> its own max connections).
+
 ### Rate Limits
 
 When you run an eval you’ll see information reported on the current
-active connection usage as well as the number of HTTP rate limit errors
-that have been encountered (note that Inspect will automatically retry
-on rate limits and other errors likely to be transient):
+active connection usage as well as the number of HTTP retries that have
+occurred (Inspect will automatically retry on rate limits and other
+errors likely to be transient):
 
 ![](images/rate-limit.png)
 
@@ -10634,28 +10665,55 @@ experiencing a net slowdown.
 
 ### Limiting Retries
 
-By default, Inspect will continue to retry model API calls (with
-exponential backoff) indefinitely when a rate limit error (HTTP status
-429) is returned. You can limit these retries by using the `max_retries`
-and `timeout` eval options. For example:
+By default, Inspect will retry model API calls indefinitely (with
+exponential backoff) when a recoverable HTTP error occurs. The initial
+backoff is 3 seconds and exponentiation will result in a 25 minute wait
+for the 10th request (then 30 minutes for the 11th and subsequent
+requests). You can limit Inspect’s retries using the `--max-retries`
+option:
 
 ``` bash
-$ inspect eval --model openai/gpt-4 --max-retries 10 --timeout 600
+inspect eval --model openai/gpt-4 --max-retries 10
 ```
+
+Note that model interfaces themselves may have internal retry behavior
+(for example, the `openai` and `anthropic` packages both retry twice by
+default).
+
+You can put a limit on the total time for retries using the `--timeout`
+option:
+
+``` bash
+inspect eval --model openai/gpt-4 --timeout 600 
+```
+
+### Debugging Retries
 
 If you want more insight into Model API connections and retries, specify
 `log_level=http`. For example:
 
 ``` bash
-$ inspect eval --model openai/gpt-4 --log-level=http
+inspect eval --model openai/gpt-4 --log-level=http
+```
+
+You can also view all of the HTTP requests for the current (or most
+recent) evaluation run using the `inspect trace http` command. For
+example:
+
+``` bash
+inspect trace http           # show all http requests
+inspect trace http --failed  # show only failed requests
 ```
 
 > [!NOTE]
 >
-> Note that max connections is applied per-model. This means that if you
-> use a grader model from a provider distinct from the one you are
-> evaluating you will get extra concurrency (as each model will enforce
-> its own max connections).
+> Note that the `inspect trace http` command is currently available only
+> in the development version of Inspect. To install the development
+> version from GitHub:
+>
+> ``` bash
+> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+> ```
 
 ## Multiple Models
 

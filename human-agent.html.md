@@ -118,14 +118,15 @@ the various tools (e.g. `task submit`, `task start`, `task stop`,
 `task instructions`, etc.). By default, the following command are
 available:
 
-| Command             | Description                               |
-|---------------------|-------------------------------------------|
-| `task submit`       | Submit your final answer for the task.    |
-| `task note`         | Record a note in the task transcript.     |
-| `task status`       | Print task status (clock, scoring , etc.) |
-| `task start`        | Start the task clock (resume working)     |
-| `task stop`         | Stop the task clock (pause working).      |
-| `task instructions` | Display task command and instructions.    |
+| Command             | Description                                 |
+|---------------------|---------------------------------------------|
+| `task submit`       | Submit your final answer for the task.      |
+| `task quit`         | Quit the task without submitting an answer. |
+| `task note`         | Record a note in the task transcript.       |
+| `task status`       | Print task status (clock, scoring , etc.)   |
+| `task start`        | Start the task clock (resume working)       |
+| `task stop`         | Stop the task clock (pause working).        |
+| `task instructions` | Display task command and instructions.      |
 
 Note that the instructions are also copied to an `instructions.txt` file
 in the container user’s working directory.
@@ -137,7 +138,7 @@ using the `task submit`command. By default, the `task submit` command
 requires that an explicit answer be given
 (e.g. `task submit picoCTF{73bfc85c1ba7}`).
 
-However, ff your task is scored by reading from the container filesystem
+However, if your task is scored by reading from the container filesystem
 then no explicit answer need be provided. Indicate this by passing
 `answer=False` to the `human_agent()`:
 
@@ -157,6 +158,13 @@ for example:
 ``` python
 solver=human_agent(answer=r"picoCTF{\w+}")
 ```
+
+### Quitting
+
+If the user is unable to complete the task in some allotted time they
+may quit the task using the `task quit` command. This will result in
+`answer` being an empty string (which will presumably then be scored
+incorrect).
 
 ### Intermediate Scoring
 

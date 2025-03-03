@@ -1515,6 +1515,7 @@ ul.task-list li input[type="checkbox"] {
   <ul>
   <li><a href="#inspect-trace-list" id="toc-inspect-trace-list" class="nav-link active" data-scroll-target="#inspect-trace-list">inspect trace list</a></li>
   <li><a href="#inspect-trace-dump" id="toc-inspect-trace-dump" class="nav-link" data-scroll-target="#inspect-trace-dump">inspect trace dump</a></li>
+  <li><a href="#inspect-trace-http" id="toc-inspect-trace-http" class="nav-link" data-scroll-target="#inspect-trace-http">inspect trace http</a></li>
   <li><a href="#inspect-trace-anomalies" id="toc-inspect-trace-anomalies" class="nav-link" data-scroll-target="#inspect-trace-anomalies">inspect trace anomalies</a></li>
   </ul>
 <div class="toc-actions"><ul><li><a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div></nav>
@@ -1567,6 +1568,10 @@ ul.task-list li input[type="checkbox"] {
 <td>Dump a trace file to stdout (as a JSON array of log records).</td>
 </tr>
 <tr class="odd">
+<td><a href="#inspect-trace-http">http</a></td>
+<td>View all HTTP requests in the trace log.</td>
+</tr>
+<tr class="even">
 <td><a href="#inspect-trace-anomalies">anomalies</a></td>
 <td>Look for anomalies in a trace file (never completed or cancelled actions).</td>
 </tr>
@@ -1655,15 +1660,62 @@ ul.task-list li input[type="checkbox"] {
 </table>
 </section>
 </section>
-<section id="inspect-trace-anomalies" class="level2" data-toc-label="anomalies">
-<h2 data-toc-label="anomalies" class="anchored" data-anchor-id="inspect-trace-anomalies">inspect trace anomalies</h2>
-<p>Look for anomalies in a trace file (never completed or cancelled actions).</p>
+<section id="inspect-trace-http" class="level2" data-toc-label="http">
+<h2 data-toc-label="http" class="anchored" data-anchor-id="inspect-trace-http">inspect trace http</h2>
+<p>View all HTTP requests in the trace log.</p>
 <section id="usage-3" class="level4">
 <h4 class="anchored" data-anchor-id="usage-3">Usage</h4>
-<pre class="text"><code>inspect trace anomalies [OPTIONS] [TRACE_FILE]</code></pre>
+<pre class="text"><code>inspect trace http [OPTIONS] [TRACE_FILE]</code></pre>
 </section>
 <section id="options-2" class="level4">
 <h4 class="anchored" data-anchor-id="options-2">Options</h4>
+<table class="table-sm table-borderless small caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 15%">
+<col style="width: 50%">
+<col style="width: 10%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>--filter</code></td>
+<td>text</td>
+<td>Filter (applied to trace message field).</td>
+<td>None</td>
+</tr>
+<tr class="even">
+<td><code>--failed</code></td>
+<td>boolean</td>
+<td>Show only failed HTTP requests (non-200 status)</td>
+<td><code>False</code></td>
+</tr>
+<tr class="odd">
+<td><code>--help</code></td>
+<td>boolean</td>
+<td>Show this message and exit.</td>
+<td><code>False</code></td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
+<section id="inspect-trace-anomalies" class="level2" data-toc-label="anomalies">
+<h2 data-toc-label="anomalies" class="anchored" data-anchor-id="inspect-trace-anomalies">inspect trace anomalies</h2>
+<p>Look for anomalies in a trace file (never completed or cancelled actions).</p>
+<section id="usage-4" class="level4">
+<h4 class="anchored" data-anchor-id="usage-4">Usage</h4>
+<pre class="text"><code>inspect trace anomalies [OPTIONS] [TRACE_FILE]</code></pre>
+</section>
+<section id="options-3" class="level4">
+<h4 class="anchored" data-anchor-id="options-3">Options</h4>
 <table class="table-sm table-borderless small caption-top table">
 <colgroup>
 <col style="width: 25%">

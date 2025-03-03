@@ -112,8 +112,8 @@ example:
 | `--parallel-tool-calls` | Whether to enable calling multiple functions during tool use (defaults to True) OpenAI and Groq only.                                                                                                                                                   |
 | `--max-tool-output`     | Maximum size of tool output (in bytes). Defaults to 16 \* 1024.                                                                                                                                                                                         |
 | `--internal-tools`      | Whether to automatically map tools to model internal implementations (e.g. ‘computer’ for Anthropic).                                                                                                                                                   |
-| `--max-retries`         | Maximum number of times to retry request (defaults to 5)                                                                                                                                                                                                |
-| `--timeout`             | Request timeout (in seconds).                                                                                                                                                                                                                           |
+| `--max-retries`         | Maximum number of times to retry generate request (defaults to unlimited)                                                                                                                                                                               |
+| `--timeout`             | Generate timeout in seconds (defaults to no timeout)                                                                                                                                                                                                    |
 
 ## Tasks and Solvers
 

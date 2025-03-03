@@ -102,6 +102,32 @@ listing anomolies. For example:
 inspect trace anomalies --filter model
 ```
 
+## HTTP Requests
+
+> [!NOTE]
+>
+> Note that the `inspect trace http` command described below is
+> currently available only in the development version of Inspect. To
+> install the development version from GitHub:
+>
+> ``` bash
+> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+> ```
+
+You can view all of the HTTP requests for the current (or most recent)
+evaluation run using the `inspect trace http` command. For example:
+
+``` bash
+inspect trace http           # show all http requests
+inspect trace http --failed  # show only failed requests
+```
+
+The `--filter` parameter also works here, for example:
+
+``` bash
+inspect trace http --failed --filter bedrock
+```
+
 ## Tracing API
 
 In addition to the standard set of actions which are trace logged, you

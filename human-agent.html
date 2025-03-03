@@ -429,6 +429,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#container-access" id="toc-container-access" class="nav-link" data-scroll-target="#container-access">Container Access</a></li>
   <li><a href="#task-commands" id="toc-task-commands" class="nav-link" data-scroll-target="#task-commands">Task Commands</a></li>
   <li><a href="#answer-submission" id="toc-answer-submission" class="nav-link" data-scroll-target="#answer-submission">Answer Submission</a></li>
+  <li><a href="#quitting" id="toc-quitting" class="nav-link" data-scroll-target="#quitting">Quitting</a></li>
   <li><a href="#intermediate-scoring" id="toc-intermediate-scoring" class="nav-link" data-scroll-target="#intermediate-scoring">Intermediate Scoring</a></li>
   </ul></li>
   <li><a href="#recording" id="toc-recording" class="nav-link" data-scroll-target="#recording">Recording</a></li>
@@ -525,22 +526,26 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <td>Submit your final answer for the task.</td>
 </tr>
 <tr class="even">
+<td><code>task quit</code></td>
+<td>Quit the task without submitting an answer.</td>
+</tr>
+<tr class="odd">
 <td><code>task note</code></td>
 <td>Record a note in the task transcript.</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>task status</code></td>
 <td>Print task status (clock, scoring , etc.)</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>task start</code></td>
 <td>Start the task clock (resume working)</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>task stop</code></td>
 <td>Stop the task clock (pause working).</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>task instructions</code></td>
 <td>Display task command and instructions.</td>
 </tr>
@@ -551,12 +556,16 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="answer-submission" class="level3">
 <h3 class="anchored" data-anchor-id="answer-submission">Answer Submission</h3>
 <p>When the human agent has completed the task, they submit their answer using the <code>task submit</code>command. By default, the <code>task submit</code> command requires that an explicit answer be given (e.g.&nbsp;<code>task submit picoCTF{73bfc85c1ba7}</code>).</p>
-<p>However, ff your task is scored by reading from the container filesystem then no explicit answer need be provided. Indicate this by passing <code>answer=False</code> to the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#human_agent">human_agent()</a></span>:</p>
+<p>However, if your task is scored by reading from the container filesystem then no explicit answer need be provided. Indicate this by passing <code>answer=False</code> to the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#human_agent">human_agent()</a></span>:</p>
 <div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>solver<span class="op">=</span>human_agent(answer<span class="op">=</span><span class="va">False</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>Or from the CLI, use the <code>-S</code> option:</p>
 <div class="sourceCode" id="cb7"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="ex">--solver</span> human_agent <span class="at">-S</span> answer=false</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>You can also specify a regex to match the answer against for validation, for example:</p>
 <div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>solver<span class="op">=</span>human_agent(answer<span class="op">=</span><span class="vs">r"picoCTF{\w+}"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
+<section id="quitting" class="level3">
+<h3 class="anchored" data-anchor-id="quitting">Quitting</h3>
+<p>If the user is unable to complete the task in some allotted time they may quit the task using the <code>task quit</code> command. This will result in <code>answer</code> being an empty string (which will presumably then be scored incorrect).</p>
 </section>
 <section id="intermediate-scoring" class="level3">
 <h3 class="anchored" data-anchor-id="intermediate-scoring">Intermediate Scoring</h3>
@@ -1107,7 +1116,7 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
     </div>
   </div>
 </footer>
-<script>var lightboxQuarto = GLightbox({"selector":".lightbox","descPosition":"bottom","openEffect":"zoom","closeEffect":"zoom","loop":false});
+<script>var lightboxQuarto = GLightbox({"descPosition":"bottom","openEffect":"zoom","closeEffect":"zoom","selector":".lightbox","loop":false});
 window.onload = () => {
   lightboxQuarto.on('slide_before_load', (data) => {
     const { slideIndex, slideNode, slideConfig, player, trigger } = data;
