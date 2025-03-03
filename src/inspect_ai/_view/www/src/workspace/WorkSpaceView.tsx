@@ -1,12 +1,5 @@
 import clsx from "clsx";
-import {
-  FC,
-  Fragment,
-  MouseEvent,
-  RefObject,
-  useCallback,
-  useMemo,
-} from "react";
+import { FC, Fragment, MouseEvent, RefObject, useCallback } from "react";
 import { RunningMetric } from "../api/types";
 import { EmptyPanel } from "../components/EmptyPanel";
 import { TabPanel, TabSet } from "../components/TabSet";
@@ -54,19 +47,6 @@ export const WorkSpaceView: FC<WorkSpaceViewProps> = ({
   workspaceTabScrollPositionRef,
   setWorkspaceTabScrollPosition,
 }) => {
-  const debouncedScroll = useMemo(() => {
-    return debounce((id, position) => {
-      setWorkspaceTabScrollPosition(id, position);
-    }, 100);
-  }, [setWorkspaceTabScrollPosition]);
-
-  const onScroll = useCallback(
-    (id: string, position: number) => {
-      debouncedScroll(id, position);
-    },
-    [debouncedScroll],
-  );
-
   const onSelected = useCallback(
     (e: MouseEvent<HTMLElement>) => {
       const id = e.currentTarget?.id;
@@ -78,10 +58,10 @@ export const WorkSpaceView: FC<WorkSpaceViewProps> = ({
   );
 
   const handleScroll = useCallback(
-    (tabId: string, position: number) => {
-      onScroll(tabId, position);
-    },
-    [onScroll],
+    debounce((tabId: string, position: number) => {
+      setWorkspaceTabScrollPosition(tabId, position);
+    }, 100),
+    [setWorkspaceTabScrollPosition],
   );
 
   if (evalSpec === undefined) {
