@@ -29,7 +29,7 @@ import {
   kSampleMessagesTabId,
   kSampleTranscriptTabId,
 } from "./constants";
-import { useAppContext } from "./contexts/AppContext.tsx";
+import { useAppStore } from "./contexts/appStore.ts";
 import { useLogContext } from "./contexts/LogContext.tsx";
 import { useLogsContext } from "./contexts/LogsContext.tsx";
 import { useSampleContext } from "./contexts/SampleContext.tsx";
@@ -50,10 +50,10 @@ export const App: FC<AppProps> = ({
   saveApplicationState,
 }) => {
   // Application Context
-  const appContext = useAppContext();
   const logsContext = useLogsContext();
   const logContext = useLogContext();
   const sampleContext = useSampleContext();
+  const appStore = useAppStore();
 
   // The main application reference
   const mainAppRef = useRef<HTMLDivElement>(null);
@@ -85,7 +85,7 @@ export const App: FC<AppProps> = ({
       showingSampleDialog,
       sampleScrollPosition: sampleScrollPosition.current,
       workspaceTabScrollPosition: workspaceTabScrollPosition.current,
-      ...appContext.getState(),
+      ...appStore.getState(),
       ...logsContext.getState(),
       ...logContext.getState(),
       ...sampleContext.getState(),
@@ -97,7 +97,7 @@ export const App: FC<AppProps> = ({
     selectedWorkspaceTab,
     selectedSampleTab,
     showingSampleDialog,
-    appContext.getState,
+    appStore.getState,
     logsContext.getState,
     logContext.getState,
   ]);
@@ -137,8 +137,7 @@ export const App: FC<AppProps> = ({
     selectedWorkspaceTab,
     selectedSampleTab,
     showingSampleDialog,
-    status,
-    appContext.getState,
+    appStore.getState,
     logsContext.getState,
     logContext.getState,
     sampleContext.getState,
@@ -197,30 +196,21 @@ export const App: FC<AppProps> = ({
       if (logsContext.selectedLogFile) {
         try {
           // Set loading first and wait for it to update
-          appContext.dispatch({
-            type: "SET_STATUS",
-            payload: { loading: true, error: undefined },
-          });
+          appStore.setStatus({ loading: true, error: undefined });
 
           // Then load the log
           await logContext.loadLog(logsContext.selectedLogFile);
 
           // Finally set loading to false
-          appContext.dispatch({
-            type: "SET_STATUS",
-            payload: { loading: false, error: undefined },
-          });
+          appStore.setStatus({ loading: false, error: undefined });
         } catch (e) {
           console.log(e);
-          appContext.dispatch({
-            type: "SET_STATUS",
-            payload: { loading: false, error: e as Error },
-          });
+          appStore.setStatus({ loading: false, error: e as Error });
         }
       }
     };
     loadSpecificLog();
-  }, [logsContext.selectedLogFile, logContext.loadLog, appContext.dispatch]);
+  }, [logsContext.selectedLogFile, logContext.loadLog, appStore.setStatus]);
 
   useEffect(() => {
     // Reset the workspace
@@ -248,41 +238,29 @@ export const App: FC<AppProps> = ({
       logsContext.state.logs.log_dir &&
       logsContext.state.logs.files.length === 0
     ) {
-      appContext.dispatch({
-        type: "SET_STATUS",
-        payload: {
-          loading: false,
-          error: new Error(
-            `No log files to display in the directory ${logsContext.state.logs.log_dir}. Are you sure this is the correct log directory?`,
-          ),
-        },
+      appStore.setStatus({
+        loading: false,
+        error: new Error(
+          `No log files to display in the directory ${logsContext.state.logs.log_dir}. Are you sure this is the correct log directory?`,
+        ),
       });
     }
   }, [logsContext.state.logs.log_dir, logsContext.state.logs.files.length]);
 
   const refreshLog = useCallback(() => {
     try {
-      appContext.dispatch({
-        type: "SET_STATUS",
-        payload: { loading: true, error: undefined },
-      });
+      appStore.setStatus({ loading: true, error: undefined });
 
       logContext.refreshLog();
       logContext.dispatch({ type: "RESET_FILTERING" });
 
-      appContext.dispatch({
-        type: "SET_STATUS",
-        payload: { loading: false, error: undefined },
-      });
+      appStore.setStatus({ loading: false, error: undefined });
     } catch (e) {
       // Show an error
       console.log(e);
-      appContext.dispatch({
-        type: "SET_STATUS",
-        payload: { loading: false, error: e as Error },
-      });
+      appStore.setStatus({ loading: false, error: e as Error });
     }
-  }, [logContext.refreshLog, logContext.dispatch, appContext.dispatch]);
+  }, [logContext.refreshLog, logContext.dispatch, appStore.setStatus]);
 
   const onMessage = useCallback(
     async (e: HostMessage) => {
@@ -394,7 +372,7 @@ export const App: FC<AppProps> = ({
               type: "SET_SELECTED_LOG_INDEX",
               payload: index,
             });
-            appContext.dispatch({ type: "SET_OFFCANVAS", payload: false });
+            appStore.setOffcanvas(false);
           }}
         />
       ) : undefined}
@@ -403,35 +381,32 @@ export const App: FC<AppProps> = ({
         className={clsx(
           "app-main-grid",
           fullScreen ? "full-screen" : undefined,
-          appContext.state.offcanvas ? "off-canvas" : undefined,
+          appStore.offcanvas ? "off-canvas" : undefined,
         )}
         tabIndex={0}
         onKeyDown={(e) => {
           // Add keyboard shortcuts for find, if needed
-          if (
-            appContext.capabilities.nativeFind ||
-            !appContext.state.showFind
-          ) {
+          if (appStore.capabilities.nativeFind || !appStore.showFind) {
             return;
           }
 
           if ((e.ctrlKey || e.metaKey) && e.key === "f") {
-            appContext.dispatch({ type: "SET_SHOW_FIND", payload: true });
+            appStore.setShowFind(true);
           } else if (e.key === "Escape") {
-            appContext.dispatch({ type: "HIDE_FIND" });
+            appStore.hideFind();
           }
         }}
       >
-        {!appContext.capabilities.nativeFind && appContext.state.showFind ? (
+        {!appStore.capabilities.nativeFind && appStore.showFind ? (
           <FindBand />
         ) : (
           ""
         )}
-        <ProgressBar animating={appContext.state.status.loading} />
-        {appContext.state.status.error ? (
+        <ProgressBar animating={appStore.status.loading} />
+        {appStore.status.error ? (
           <ErrorPanel
             title="An error occurred while loading this task."
-            error={appContext.state.status.error}
+            error={appStore.status.error}
           />
         ) : (
           <WorkSpace
