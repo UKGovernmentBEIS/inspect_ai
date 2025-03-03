@@ -99,6 +99,7 @@ export interface LogContextType {
   getState: () => { log: LogState };
   sampleSummaries: SampleSummary[];
   totalSampleCount: number;
+  currentScore?: ScoreLabel;
   scores: ScorerInfo[];
   evalDescriptor?: EvalDescriptor;
   samplesDescriptor?: SamplesDescriptor;
@@ -451,6 +452,7 @@ export const LogProvider: FC<LogProviderProps> = ({
         dispatch,
         getState,
         sampleSummaries: filteredSampleSummaries,
+        currentScore,
         scores,
         evalDescriptor,
         samplesDescriptor,

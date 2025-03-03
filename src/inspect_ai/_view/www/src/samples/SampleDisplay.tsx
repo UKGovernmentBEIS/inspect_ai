@@ -21,6 +21,7 @@ import {
   kSampleScoringTabId,
   kSampleTranscriptTabId,
 } from "../constants";
+import { useLogContext } from "../contexts/LogContext";
 import { RunningSampleData } from "../types";
 import { EvalSample } from "../types/log";
 import { ModelTokenTable } from "../usage/ModelTokenTable";
@@ -54,6 +55,9 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
   // Tab ids
   const baseId = `sample-dialog`;
 
+  const logContext = useLogContext();
+  const sampleSummary =
+    logContext.sampleSummaries[logContext.state.selectedSampleIndex];
   const sampleEvents = sample?.events || runningSampleData?.events;
 
   // Tab selection
@@ -86,8 +90,8 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
 
   return (
     <Fragment>
-      {sample ? (
-        <SampleSummaryView parent_id={id} sample={sample} />
+      {sample || sampleSummary ? (
+        <SampleSummaryView parent_id={id} sample={sample || sampleSummary} />
       ) : undefined}
       <TabSet
         id={tabsetId}

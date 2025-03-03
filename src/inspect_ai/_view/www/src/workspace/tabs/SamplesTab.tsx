@@ -81,7 +81,7 @@ export const SamplesTab: FC<SamplesTabProps> = ({
       logContext.groupBy,
       logContext.groupByOrder,
       logContext.samplesDescriptor,
-      logContext.state.score,
+      logContext.currentScore,
     );
   }, [
     logContext.samplesDescriptor,
@@ -89,7 +89,7 @@ export const SamplesTab: FC<SamplesTabProps> = ({
     logContext.state.selectedLogSummary?.eval?.config?.epochs,
     logContext.groupBy,
     logContext.groupByOrder,
-    logContext.state.score,
+    logContext.currentScore,
   ]);
 
   // Process the samples into the proper data structure

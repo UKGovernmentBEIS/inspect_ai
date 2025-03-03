@@ -10,7 +10,6 @@ import {
   Scores1,
   Status,
   Target,
-  Type11,
   Version,
 } from "../types/log";
 
@@ -87,7 +86,7 @@ export interface SampleSummary {
   target: Target;
   scores: Scores1;
   error?: string;
-  limit?: Type11;
+  limit?: string;
   completed?: boolean;
 }
 
