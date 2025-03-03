@@ -26,6 +26,7 @@ from google.genai.types import (  # type: ignore
     GenerationConfig,
     HarmBlockThreshold,
     HarmCategory,
+    HttpOptions,
     Part,
     SafetySetting,
     SafetySettingDict,
@@ -49,6 +50,7 @@ from inspect_ai._util.content import (
     ContentVideo,
 )
 from inspect_ai._util.error import PrerequisiteError
+from inspect_ai._util.http import is_retryable_http_status
 from inspect_ai._util.images import file_as_data
 from inspect_ai._util.kvstore import inspect_kvstore
 from inspect_ai._util.trace import trace_message
@@ -69,6 +71,7 @@ from inspect_ai.model import (
 )
 from inspect_ai.model._model_call import ModelCall
 from inspect_ai.model._providers.util import model_base_url
+from inspect_ai.model._providers.util.hooks import HttpHooks, urllib3_hooks
 from inspect_ai.tool import (
     ToolCall,
     ToolChoice,
@@ -199,11 +202,15 @@ class GoogleGenAIAPI(ModelAPI):
         tool_choice: ToolChoice,
         config: GenerateConfig,
     ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
+        # generate request_id
+        request_id = urllib3_hooks().start_request()
+
         # Create google-genai types.
         gemini_contents = await as_chat_messages(self.client, input)
         gemini_tools = chat_tools(tools) if len(tools) > 0 else None
         gemini_tool_config = chat_tool_config(tool_choice) if len(tools) > 0 else None
         parameters = GenerateContentConfig(
+            http_options=HttpOptions(headers={HttpHooks.REQUEST_ID_HEADER: request_id}),
             temperature=config.temperature,
             top_p=config.top_p,
             top_k=config.top_k,
@@ -230,9 +237,8 @@ class GoogleGenAIAPI(ModelAPI):
                 tools=gemini_tools,
                 tool_config=gemini_tool_config,
                 response=response,
+                time=urllib3_hooks().end_request(request_id),
             )
-
-        # TODO: would need to monkey patch AuthorizedSession.request
 
         try:
             response = await self.client.aio.models.generate_content(
@@ -252,11 +258,24 @@ class GoogleGenAIAPI(ModelAPI):
         return output, model_call()
 
     @override
-    def is_rate_limit(self, ex: BaseException) -> bool:
-        # see https://cloud.google.com/storage/docs/retry-strategy
-        return isinstance(ex, APIError) and (
-            ex.code in (408, 429, 429) or ex.code >= 500
-        )
+    def should_retry(self, ex: Exception) -> bool:
+        import requests  # type: ignore
+
+        # standard http errors
+        if isinstance(ex, APIError):
+            return is_retryable_http_status(ex.status)
+
+        # low-level requests exceptions
+        elif isinstance(ex, requests.exceptions.RequestException):
+            return isinstance(
+                ex,
+                (
+                    requests.exceptions.ConnectTimeout
+                    | requests.exceptions.ChunkedEncodingError
+                ),
+            )
+        else:
+            return False
 
     @override
     def connection_key(self) -> str:
@@ -296,6 +315,7 @@ def build_model_call(
     tools: list[Tool] | None,
     tool_config: ToolConfig | None,
     response: GenerateContentResponse | None,
+    time: float | None,
 ) -> ModelCall:
     return ModelCall.create(
         request=dict(
@@ -307,6 +327,7 @@ def build_model_call(
         ),
         response=response if response is not None else {},
         filter=model_call_filter,
+        time=time,
     )
 
 

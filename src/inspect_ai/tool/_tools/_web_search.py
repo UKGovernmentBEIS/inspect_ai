@@ -13,7 +13,7 @@ from tenacity import (
 )
 
 from inspect_ai._util.error import PrerequisiteError
-from inspect_ai._util.retry import httpx_should_retry, log_retry_attempt
+from inspect_ai._util.httpx import httpx_should_retry, log_httpx_retry_attempt
 from inspect_ai.util._concurrency import concurrency
 
 from .._tool import Tool, ToolResult, tool
@@ -204,7 +204,7 @@ def google_search_provider(client: httpx.AsyncClient) -> SearchProvider:
             wait=wait_exponential_jitter(),
             stop=stop_after_attempt(5) | stop_after_delay(60),
             retry=retry_if_exception(httpx_should_retry),
-            before_sleep=log_retry_attempt(search_url),
+            before_sleep=log_httpx_retry_attempt(search_url),
         )
         async def execute_search() -> httpx.Response:
             return await client.get(search_url)

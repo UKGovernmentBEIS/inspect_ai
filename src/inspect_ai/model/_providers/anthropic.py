@@ -6,7 +6,9 @@ from copy import copy
 from logging import getLogger
 from typing import Any, Literal, Optional, Tuple, TypedDict, cast
 
-from .util.tracker import HttpxTimeTracker
+from inspect_ai._util.http import is_retryable_http_status
+
+from .util.hooks import HttpxHooks
 
 if sys.version_info >= (3, 11):
     from typing import NotRequired
@@ -14,15 +16,13 @@ else:
     from typing_extensions import NotRequired
 
 from anthropic import (
-    APIConnectionError,
     APIStatusError,
+    APITimeoutError,
     AsyncAnthropic,
     AsyncAnthropicBedrock,
     AsyncAnthropicVertex,
     BadRequestError,
-    InternalServerError,
     NotGiven,
-    RateLimitError,
 )
 from anthropic._types import Body
 from anthropic.types import (
@@ -46,7 +46,6 @@ from typing_extensions import override
 
 from inspect_ai._util.constants import (
     BASE_64_DATA_REMOVED,
-    DEFAULT_MAX_RETRIES,
     NO_CONTENT,
 )
 from inspect_ai._util.content import (
@@ -125,9 +124,6 @@ class AnthropicAPI(ModelAPI):
                 AsyncAnthropic | AsyncAnthropicBedrock | AsyncAnthropicVertex
             ) = AsyncAnthropicBedrock(
                 base_url=base_url,
-                max_retries=(
-                    config.max_retries if config.max_retries else DEFAULT_MAX_RETRIES
-                ),
                 aws_region=aws_region,
                 **model_args,
             )
@@ -141,9 +137,6 @@ class AnthropicAPI(ModelAPI):
                 region=region,
                 project_id=project_id,
                 base_url=base_url,
-                max_retries=(
-                    config.max_retries if config.max_retries else DEFAULT_MAX_RETRIES
-                ),
                 **model_args,
             )
         else:
@@ -156,14 +149,11 @@ class AnthropicAPI(ModelAPI):
             self.client = AsyncAnthropic(
                 base_url=base_url,
                 api_key=self.api_key,
-                max_retries=(
-                    config.max_retries if config.max_retries else DEFAULT_MAX_RETRIES
-                ),
                 **model_args,
             )
 
         # create time tracker
-        self._time_tracker = HttpxTimeTracker(self.client._client)
+        self._http_hooks = HttpxHooks(self.client._client)
 
     @override
     async def close(self) -> None:
@@ -183,7 +173,7 @@ class AnthropicAPI(ModelAPI):
         config: GenerateConfig,
     ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
         # allocate request_id (so we can see it from ModelCall)
-        request_id = self._time_tracker.start_request()
+        request_id = self._http_hooks.start_request()
 
         # setup request and response for ModelCall
         request: dict[str, Any] = {}
@@ -194,7 +184,7 @@ class AnthropicAPI(ModelAPI):
                 request=request,
                 response=response,
                 filter=model_call_filter,
-                time=self._time_tracker.end_request(request_id),
+                time=self._http_hooks.end_request(request_id),
             )
 
         # generate
@@ -223,7 +213,7 @@ class AnthropicAPI(ModelAPI):
             request = request | req
 
             # extra headers (for time tracker and computer use)
-            extra_headers = headers | {HttpxTimeTracker.REQUEST_ID_HEADER: request_id}
+            extra_headers = headers | {HttpxHooks.REQUEST_ID_HEADER: request_id}
             if computer_use:
                 betas.append("computer-use-2025-01-24")
             if len(betas) > 0:
@@ -291,8 +281,6 @@ class AnthropicAPI(ModelAPI):
                 betas.append("output-128k-2025-02-19")
 
         # config that applies to all models
-        if config.timeout is not None:
-            params["timeout"] = float(config.timeout)
         if config.stop_seqs is not None:
             params["stop_sequences"] = config.stop_seqs
 
@@ -334,13 +322,13 @@ class AnthropicAPI(ModelAPI):
         return str(self.api_key)
 
     @override
-    def is_rate_limit(self, ex: BaseException) -> bool:
-        # We have observed that anthropic will frequently return InternalServerError
-        # seemingly in place of RateLimitError (at the very least the errors seem to
-        # always be transient). Equating this to rate limit errors may occasionally
-        # result in retrying too many times, but much more often will avert a failed
-        # eval that just needed to survive a transient error
-        return isinstance(ex, RateLimitError | InternalServerError | APIConnectionError)
+    def should_retry(self, ex: Exception) -> bool:
+        if isinstance(ex, APIStatusError):
+            return is_retryable_http_status(ex.status_code)
+        elif isinstance(ex, APITimeoutError):
+            return True
+        else:
+            return False
 
     @override
     def collapse_user_messages(self) -> bool:

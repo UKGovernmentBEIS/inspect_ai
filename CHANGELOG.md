@@ -1,3 +1,12 @@
+## Unreleased
+
+- New "HTTP Retries" display (replacing the "HTTP Rate Limits" display) which counts all retries and does so much more consistently and accurately across providers.
+- The `ModelAPI` class now has a `should_retry()` method that replaces the deprecated `is_rate_limit()` method.
+- The "Generate..." progress message in the Running Samples view now shows the number of retries for the active call to `generate()`.
+- New `inspect trace http` command which will show all HTTP requests for a run.
+- More consistent use of `max_retries` and `timeout` configuration options. These options now exclusively control Inspect's outer retry handler; model providers use their default behaviour for the inner request, which is typically 2-4 retries and a service-appropriate timeout.
+- Logging: Inspect no longer sets the global log level nor does it allow its own messages to propagate to the global handler (eliminating the possiblity of duplicate display). This should improve compatibility with applications that have their own custom logging configured. 
+
 ## v0.3.72 (03 March 2025)
 
 - Computer: Updated tool definition to match improvements in Claude Sonnet 3.7.

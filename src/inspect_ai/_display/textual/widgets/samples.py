@@ -506,6 +506,7 @@ class SampleToolbar(Horizontal):
         # track the sample
         self.sample = sample
 
+        status_group = self.query_one("#" + self.STATUS_GROUP)
         pending_status = self.query_one("#" + self.PENDING_STATUS)
         timeout_tool = self.query_one("#" + self.TIMEOUT_TOOL_CALL)
         clock = self.query_one(Clock)
@@ -537,11 +538,19 @@ class SampleToolbar(Horizontal):
                 pending_caption = cast(
                     Static, self.query_one("#" + self.PENDING_CAPTION)
                 )
-                pending_caption_text = (
-                    "Generating..."
-                    if isinstance(last_event, ModelEvent)
-                    else "Executing..."
-                )
+                if isinstance(last_event, ModelEvent):
+                    # see if there are retries in play
+                    if sample.retry_count > 0:
+                        suffix = "retry" if sample.retry_count == 1 else "retries"
+                        pending_caption_text = (
+                            f"Generating ({sample.retry_count:,} {suffix})..."
+                        )
+                    else:
+                        pending_caption_text = "Generating..."
+                else:
+                    pending_caption_text = "Executing..."
+                status_group.styles.width = max(22, len(pending_caption_text))
+
                 pending_caption.update(
                     Text.from_markup(f"[italic]{pending_caption_text}[/italic]")
                 )

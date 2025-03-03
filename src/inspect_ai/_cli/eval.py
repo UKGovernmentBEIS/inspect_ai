@@ -11,7 +11,6 @@ from inspect_ai._util.constants import (
     DEFAULT_EPOCHS,
     DEFAULT_LOG_LEVEL_TRANSCRIPT,
     DEFAULT_MAX_CONNECTIONS,
-    DEFAULT_MAX_RETRIES,
 )
 from inspect_ai._util.file import filesystem
 from inspect_ai._util.samples import parse_sample_id, parse_samples_limit
@@ -47,9 +46,9 @@ NO_SCORE_HELP = (
 NO_SCORE_DISPLAY = "Do not display scoring metrics in realtime."
 MAX_CONNECTIONS_HELP = f"Maximum number of concurrent connections to Model API (defaults to {DEFAULT_MAX_CONNECTIONS})"
 MAX_RETRIES_HELP = (
-    f"Maximum number of times to retry request (defaults to {DEFAULT_MAX_RETRIES})"
+    "Maximum number of times to retry model API requests (defaults to unlimited)"
 )
-TIMEOUT_HELP = "Request timeout (in seconds)."
+TIMEOUT_HELP = "Model API request timeout in seconds (defaults to no timeout)"
 
 
 def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
