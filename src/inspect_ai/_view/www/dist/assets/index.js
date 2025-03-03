@@ -2898,7 +2898,7 @@ var require_assets = __commonJS({
       }
       function clz32Fallback(x2) {
         x2 >>>= 0;
-        return 0 === x2 ? 32 : 31 - (log(x2) / LN2 | 0) | 0;
+        return 0 === x2 ? 32 : 31 - (log2(x2) / LN2 | 0) | 0;
       }
       function getLabelForLane(lane) {
         if (lane & 1) return "SyncHydrationLane";
@@ -16898,7 +16898,7 @@ var require_assets = __commonJS({
         action: null
       }), valueStack = [];
       var fiberStack = [];
-      var index$jscomp$0 = -1, contextStackCursor = createCursor(null), contextFiberStackCursor = createCursor(null), rootInstanceStackCursor = createCursor(null), hostTransitionProviderCursor = createCursor(null), hasOwnProperty2 = Object.prototype.hasOwnProperty, scheduleCallback$3 = Scheduler.unstable_scheduleCallback, cancelCallback$1 = Scheduler.unstable_cancelCallback, shouldYield = Scheduler.unstable_shouldYield, requestPaint = Scheduler.unstable_requestPaint, now$1 = Scheduler.unstable_now, getCurrentPriorityLevel = Scheduler.unstable_getCurrentPriorityLevel, ImmediatePriority = Scheduler.unstable_ImmediatePriority, UserBlockingPriority = Scheduler.unstable_UserBlockingPriority, NormalPriority$1 = Scheduler.unstable_NormalPriority, LowPriority = Scheduler.unstable_LowPriority, IdlePriority = Scheduler.unstable_IdlePriority, log$1 = Scheduler.log, unstable_setDisableYieldValue = Scheduler.unstable_setDisableYieldValue, rendererID = null, injectedHook = null, injectedProfilingHooks = null, hasLoggedError = false, isDevToolsPresent = "undefined" !== typeof __REACT_DEVTOOLS_GLOBAL_HOOK__, clz32 = Math.clz32 ? Math.clz32 : clz32Fallback, log = Math.log, LN2 = Math.LN2, nextTransitionLane = 128, nextRetryLane = 4194304, DiscreteEventPriority = 2, ContinuousEventPriority = 8, DefaultEventPriority = 32, IdleEventPriority = 268435456, randomKey = Math.random().toString(36).slice(2), internalInstanceKey = "__reactFiber$" + randomKey, internalPropsKey = "__reactProps$" + randomKey, internalContainerInstanceKey = "__reactContainer$" + randomKey, internalEventHandlersKey = "__reactEvents$" + randomKey, internalEventHandlerListenersKey = "__reactListeners$" + randomKey, internalEventHandlesSetKey = "__reactHandles$" + randomKey, internalRootNodeResourcesKey = "__reactResources$" + randomKey, internalHoistableMarker = "__reactMarker$" + randomKey, allNativeEvents = /* @__PURE__ */ new Set(), registrationNameDependencies = {}, possibleRegistrationNames = {}, canUseDOM = !("undefined" === typeof window || "undefined" === typeof window.document || "undefined" === typeof window.document.createElement), hasReadOnlyValue = {
+      var index$jscomp$0 = -1, contextStackCursor = createCursor(null), contextFiberStackCursor = createCursor(null), rootInstanceStackCursor = createCursor(null), hostTransitionProviderCursor = createCursor(null), hasOwnProperty2 = Object.prototype.hasOwnProperty, scheduleCallback$3 = Scheduler.unstable_scheduleCallback, cancelCallback$1 = Scheduler.unstable_cancelCallback, shouldYield = Scheduler.unstable_shouldYield, requestPaint = Scheduler.unstable_requestPaint, now$1 = Scheduler.unstable_now, getCurrentPriorityLevel = Scheduler.unstable_getCurrentPriorityLevel, ImmediatePriority = Scheduler.unstable_ImmediatePriority, UserBlockingPriority = Scheduler.unstable_UserBlockingPriority, NormalPriority$1 = Scheduler.unstable_NormalPriority, LowPriority = Scheduler.unstable_LowPriority, IdlePriority = Scheduler.unstable_IdlePriority, log$1 = Scheduler.log, unstable_setDisableYieldValue = Scheduler.unstable_setDisableYieldValue, rendererID = null, injectedHook = null, injectedProfilingHooks = null, hasLoggedError = false, isDevToolsPresent = "undefined" !== typeof __REACT_DEVTOOLS_GLOBAL_HOOK__, clz32 = Math.clz32 ? Math.clz32 : clz32Fallback, log2 = Math.log, LN2 = Math.LN2, nextTransitionLane = 128, nextRetryLane = 4194304, DiscreteEventPriority = 2, ContinuousEventPriority = 8, DefaultEventPriority = 32, IdleEventPriority = 268435456, randomKey = Math.random().toString(36).slice(2), internalInstanceKey = "__reactFiber$" + randomKey, internalPropsKey = "__reactProps$" + randomKey, internalContainerInstanceKey = "__reactContainer$" + randomKey, internalEventHandlersKey = "__reactEvents$" + randomKey, internalEventHandlerListenersKey = "__reactListeners$" + randomKey, internalEventHandlesSetKey = "__reactHandles$" + randomKey, internalRootNodeResourcesKey = "__reactResources$" + randomKey, internalHoistableMarker = "__reactMarker$" + randomKey, allNativeEvents = /* @__PURE__ */ new Set(), registrationNameDependencies = {}, possibleRegistrationNames = {}, canUseDOM = !("undefined" === typeof window || "undefined" === typeof window.document || "undefined" === typeof window.document.createElement), hasReadOnlyValue = {
         button: true,
         checkbox: true,
         image: true,
@@ -20837,18 +20837,18 @@ self.onmessage = function (e) {
     const fetchLogFile = async (file) => {
       return fetchFile(file, async (text2) => {
         var _a2;
-        const log = await asyncJsonParse(text2);
-        if (log.version === 1) {
-          if (log.results) {
-            const untypedLog = log;
-            log.results.scores = [];
+        const log2 = await asyncJsonParse(text2);
+        if (log2.version === 1) {
+          if (log2.results) {
+            const untypedLog = log2;
+            log2.results.scores = [];
             untypedLog.results.scorer.scorer = untypedLog.results.scorer.name;
-            log.results.scores.push(untypedLog.results.scorer);
+            log2.results.scores.push(untypedLog.results.scorer);
             delete untypedLog.results.scorer;
-            log.results.scores[0].metrics = untypedLog.results.metrics;
+            log2.results.scores[0].metrics = untypedLog.results.metrics;
             delete untypedLog.results.metrics;
-            const scorerName = log.results.scores[0].name;
-            (_a2 = log.samples) == null ? void 0 : _a2.forEach((sample2) => {
+            const scorerName = log2.results.scores[0].name;
+            (_a2 = log2.samples) == null ? void 0 : _a2.forEach((sample2) => {
               const untypedSample = sample2;
               sample2.scores = { [scorerName]: untypedSample.score };
               delete untypedSample.score;
@@ -20857,7 +20857,7 @@ self.onmessage = function (e) {
         }
         return {
           raw: text2,
-          parsed: log
+          parsed: log2
         };
       });
     };
@@ -22341,11 +22341,11 @@ self.onmessage = function (e) {
           if (pending_log_promise) {
             return pending_log_promise;
           }
-          pending_log_promise = api2.eval_log(log_file2, 100).then((log) => {
-            current_log = log;
+          pending_log_promise = api2.eval_log(log_file2, 100).then((log2) => {
+            current_log = log2;
             current_path = log_file2;
             pending_log_promise = null;
-            return log;
+            return log2;
           }).catch((err2) => {
             pending_log_promise = null;
             throw err2;
@@ -25486,14 +25486,14 @@ self.onmessage = function (e) {
         }
       }
     };
-    const initialState$1 = {
+    const initialState$2 = {
       status: { loading: false },
       offcanvas: false,
       showFind: false
     };
     const useAppStore = create$2()(
       immer((set2, get2) => ({
-        ...initialState$1,
+        ...initialState$2,
         capabilities: {},
         // Will be initialized on store creation
         // Actions
@@ -38736,8 +38736,8 @@ categories: ${categories.join(" ")}`;
         scorer: key2
       }));
     };
-    const getAvailableScorers = (log, sampleSummaries) => {
-      const resultScorers = log.results ? getScorersFromResults(log.results) : [];
+    const getAvailableScorers = (log2, sampleSummaries) => {
+      const resultScorers = log2.results ? getScorersFromResults(log2.results) : [];
       if (resultScorers.length > 0) {
         return resultScorers;
       }
@@ -38747,11 +38747,11 @@ categories: ${categories.join(" ")}`;
       }
       return void 0;
     };
-    const getDefaultScorer = (log, sampleSummaries) => {
+    const getDefaultScorer = (log2, sampleSummaries) => {
       if (sampleSummaries.length === 0) {
         return void 0;
       }
-      const allScorers = getAvailableScorers(log, sampleSummaries);
+      const allScorers = getAvailableScorers(log2, sampleSummaries);
       if (allScorers) {
         return allScorers[0];
       } else {
@@ -38761,10 +38761,13 @@ categories: ${categories.join(" ")}`;
     const createLogger = (namespace) => {
       const logger = {
         debug: (message2, ...args) => {
+          console.debug(`[${namespace}] ${message2}`, ...args);
         },
         info: (message2, ...args) => {
+          console.info(`[${namespace}] ${message2}`, ...args);
         },
         warn: (message2, ...args) => {
+          console.warn(`[${namespace}] ${message2}`, ...args);
         },
         // Always log errors, even in production
         error: (message2, ...args) => {
@@ -38772,202 +38775,169 @@ categories: ${categories.join(" ")}`;
         },
         // Lazy evaluation for expensive logs
         debugIf: (fn2) => {
+          console.debug(`[${namespace}] ${fn2()}`);
         }
       };
       return logger;
     };
-    const initialLogsState = {
+    const initialState$1 = {
       logs: { log_dir: "", files: [] },
       logHeaders: {},
       headersLoading: false,
       selectedLogIndex: -1
     };
-    const logsReducer$1 = (state, action) => {
-      switch (action.type) {
-        case "SET_LOGS":
-          return { ...state, logs: action.payload };
-        case "SET_LOG_HEADERS":
-          return { ...state, logHeaders: action.payload };
-        case "SET_HEADERS_LOADING":
-          return { ...state, headersLoading: action.payload };
-        case "SET_SELECTED_LOG_INDEX":
-          return { ...state, selectedLogIndex: action.payload };
-        case "SET_SELECTED_LOG_FILE": {
-          const index = state.logs.files.findIndex((val) => {
-            return action.payload.endsWith(val.name);
-          });
-          if (index > -1) {
-            return { ...state, selectedLogIndex: index };
-          } else {
-            return state;
-          }
+    const log = createLogger("LogsStore");
+    const useLogsStore = create$2()((set2, get2) => ({
+      ...initialState$1,
+      api: null,
+      // Actions
+      setLogs: (logs) => {
+        set2({ logs });
+        if (logs.files.length > 0) {
+          setTimeout(() => {
+            const state = useLogsStore.getState();
+            if (!state.headersLoading) {
+              state.loadHeaders();
+            }
+          }, 100);
         }
-        case "UPDATE_LOG_HEADERS":
-          return {
-            ...state,
-            logHeaders: { ...state.logHeaders, ...action.payload }
-          };
-        default:
-          return state;
-      }
-    };
-    const LogsContext = reactExports.createContext(void 0);
-    const LogsProvider = ({
-      children: children2,
-      initialState: initialState2,
-      api: api2
-    }) => {
-      const log = reactExports.useMemo(() => {
-        return createLogger("LogsContext");
-      }, []);
-      const [state, dispatch] = reactExports.useReducer(
-        logsReducer$1,
-        initialState2 ? { ...initialLogsState, ...initialState2.logs } : initialLogsState
-      );
-      const setStatus = useAppStore((state2) => state2.setStatus);
-      const getState = () => {
-        return { logs: state };
-      };
-      const loadLogs = async () => {
-        try {
-          log.debug("LOADING LOG FILES");
-          const result2 = await api2.get_log_paths();
-          return result2;
-        } catch (e) {
-          console.log(e);
-          setStatus({ loading: false, error: e });
+      },
+      setLogHeaders: (logHeaders) => set2({ logHeaders }),
+      setHeadersLoading: (headersLoading) => set2({ headersLoading }),
+      setSelectedLogIndex: (selectedLogIndex) => set2({ selectedLogIndex }),
+      setSelectedLogFile: (logUrl) => {
+        const state = get2();
+        const index = state.logs.files.findIndex(
+          (val) => logUrl.endsWith(val.name)
+        );
+        if (index > -1) {
+          set2({ selectedLogIndex: index });
+        }
+      },
+      updateLogHeaders: (headers) => set2((state) => ({
+        logHeaders: { ...state.logHeaders, ...headers }
+      })),
+      // Helper function to load logs
+      loadLogs: async () => {
+        const api2 = get2().api;
+        if (!api2) {
+          console.error("API not initialized in LogsStore");
           return { log_dir: "", files: [] };
         }
-      };
-      const refreshLogs = reactExports.useCallback(async () => {
+        try {
+          log.debug("LOADING LOG FILES");
+          return await api2.get_log_paths();
+        } catch (e) {
+          console.log(e);
+          useAppStore.getState().setStatus({ loading: false, error: e });
+          return { log_dir: "", files: [] };
+        }
+      },
+      // Refresh logs
+      refreshLogs: async () => {
         log.debug("REFRESH LOGS");
-        const refreshedLogs = await loadLogs();
-        dispatch({
-          type: "SET_LOGS",
-          payload: refreshedLogs || { log_dir: "", files: [] }
-        });
+        const state = get2();
+        const refreshedLogs = await get2().loadLogs();
+        set2({ logs: refreshedLogs || { log_dir: "", files: [] } });
         const currentLog = refreshedLogs.files[state.selectedLogIndex > -1 ? state.selectedLogIndex : 0];
-        const newIndex = refreshedLogs == null ? void 0 : refreshedLogs.files.findIndex((file) => {
-          return currentLog.name.endsWith(file.name);
-        });
-        if (newIndex !== void 0) {
-          dispatch({
-            type: "SET_SELECTED_LOG_INDEX",
-            payload: newIndex
-          });
-        }
-      }, [state.logs, state.selectedLogIndex, dispatch]);
-      const selectLogFile = reactExports.useCallback(
-        async (logUrl) => {
-          const index = state.logs.files.findIndex((val) => {
-            return val.name.endsWith(logUrl);
-          });
-          if (index > -1) {
-            dispatch({
-              type: "SET_SELECTED_LOG_INDEX",
-              payload: index
-            });
-          } else {
-            const result2 = await loadLogs();
-            const idx = result2 == null ? void 0 : result2.files.findIndex((file) => {
-              return logUrl.endsWith(file.name);
-            });
-            dispatch({
-              type: "SET_LOGS",
-              payload: result2 || { log_dir: "", files: [] }
-            });
-            dispatch({
-              type: "SET_SELECTED_LOG_INDEX",
-              payload: idx && idx > -1 ? idx : 0
-            });
+        if (currentLog) {
+          const newIndex = refreshedLogs == null ? void 0 : refreshedLogs.files.findIndex(
+            (file) => currentLog.name.endsWith(file.name)
+          );
+          if (newIndex !== void 0 && newIndex !== -1) {
+            set2({ selectedLogIndex: newIndex });
           }
-        },
-        [state.logs, dispatch]
-      );
-      const selectedLogFile = reactExports.useMemo(() => {
-        const file = state.logs.files[state.selectedLogIndex];
-        if (file !== void 0) {
-          return file.name;
+        }
+        if (refreshedLogs.files.length > 0) {
+          setTimeout(() => {
+            const currentState = useLogsStore.getState();
+            if (!currentState.headersLoading) {
+              currentState.loadHeaders();
+            }
+          }, 100);
+        }
+      },
+      // Select a specific log file
+      selectLogFile: async (logUrl) => {
+        const state = get2();
+        const index = state.logs.files.findIndex(
+          (val) => val.name.endsWith(logUrl)
+        );
+        if (index > -1) {
+          set2({ selectedLogIndex: index });
         } else {
-          return void 0;
+          const result2 = await get2().loadLogs();
+          const idx = result2 == null ? void 0 : result2.files.findIndex((file) => logUrl.endsWith(file.name));
+          set2({
+            logs: result2 || { log_dir: "", files: [] },
+            selectedLogIndex: idx !== void 0 && idx > -1 ? idx : 0
+          });
         }
-      }, [state.logs, state.selectedLogIndex]);
-      reactExports.useEffect(() => {
-        const loadHeaders = async () => {
-          log.debug("LOADING HEADERS");
-          dispatch({
-            type: "SET_HEADERS_LOADING",
-            payload: true
-          });
-          const chunkSize = 8;
-          const fileLists = [];
-          for (let i2 = 0; i2 < state.logs.files.length; i2 += chunkSize) {
-            let chunk = state.logs.files.slice(i2, i2 + chunkSize).map((log2) => log2.name);
-            fileLists.push(chunk);
-          }
-          try {
-            let counter = 0;
-            for (const fileList of fileLists) {
-              counter++;
-              log.debug(`LOADING ${counter} of ${fileLists.length} CHUNKS`);
-              const headers = await api2.get_log_headers(fileList);
-              const updatedHeaders = {};
-              headers.forEach((header2, index) => {
-                const logFile = fileList[index];
-                updatedHeaders[logFile] = header2;
-              });
-              dispatch({
-                type: "UPDATE_LOG_HEADERS",
-                payload: updatedHeaders
-              });
-              if (headers.length === chunkSize) {
-                await sleep$1(5e3);
-              }
-            }
-          } catch (e) {
-            if (e instanceof Error && (e.message === "Load failed" || e.message === "Failed to fetch")) {
-              setStatus({ loading: false });
-            } else {
-              console.log(e);
-              setStatus({ loading: false, error: e });
+      },
+      // Load headers
+      loadHeaders: async () => {
+        const state = get2();
+        const api2 = get2().api;
+        if (!api2) {
+          console.error("API not initialized in LogsStore");
+          return;
+        }
+        log.debug("LOADING HEADERS");
+        set2({ headersLoading: true });
+        const chunkSize = 8;
+        const fileLists = [];
+        for (let i2 = 0; i2 < state.logs.files.length; i2 += chunkSize) {
+          const chunk = state.logs.files.slice(i2, i2 + chunkSize).map((logFile) => logFile.name);
+          fileLists.push(chunk);
+        }
+        try {
+          let counter = 0;
+          for (const fileList of fileLists) {
+            counter++;
+            log.debug(`LOADING ${counter} of ${fileLists.length} CHUNKS`);
+            const headers = await api2.get_log_headers(fileList);
+            const updatedHeaders = {};
+            headers.forEach((header2, index) => {
+              const logFile = fileList[index];
+              updatedHeaders[logFile] = header2;
+            });
+            set2({
+              ...get2(),
+              logHeaders: { ...get2().logHeaders, ...updatedHeaders }
+            });
+            if (headers.length === chunkSize) {
+              await sleep$1(5e3);
             }
           }
-          dispatch({
-            type: "SET_HEADERS_LOADING",
-            payload: false
-          });
-        };
-        loadHeaders();
-      }, [state.logs, setStatus, dispatch]);
-      return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
-        LogsContext.Provider,
-        {
-          value: {
-            state,
-            dispatch,
-            refreshLogs,
-            getState,
-            selectLogFile,
-            selectedLogFile
-          },
-          children: children2
-        },
-        void 0,
-        false,
-        {
-          fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/contexts/LogsContext.tsx",
-          lineNumber: 250,
-          columnNumber: 5
-        },
-        void 0
-      );
-    };
-    const useLogsContext = () => {
-      const context = reactExports.useContext(LogsContext);
-      if (!context) {
-        throw new Error("useLogContext must be used within a LogProvider");
-      }
-      return context;
+        } catch (e) {
+          if (e instanceof Error && (e.message === "Load failed" || e.message === "Failed to fetch")) {
+            useAppStore.getState().setStatus({ loading: false });
+          } else {
+            console.log(e);
+            useAppStore.getState().setStatus({ loading: false, error: e });
+          }
+        }
+        set2({ headersLoading: false });
+      },
+      // Method to get selected log file
+      getSelectedLogFile: () => {
+        const state = get2();
+        const file = state.logs.files[state.selectedLogIndex];
+        return file !== void 0 ? file.name : void 0;
+      },
+      // For compatibility with existing code
+      getState: () => ({ logs: get2() })
+    }));
+    const useSelectedLogFile = () => useLogsStore((state) => {
+      const file = state.logs.files[state.selectedLogIndex];
+      return file !== void 0 ? file.name : void 0;
+    });
+    const initializeLogsStore = (api2, initialState2) => {
+      useLogsStore.setState((state) => ({
+        ...state,
+        api: api2,
+        ...initialState2 || {}
+      }));
     };
     const initialLogState = {
       selectedSampleIndex: -1,
@@ -39010,8 +38980,9 @@ categories: ${categories.join(" ")}`;
       api: api2
     }) => {
       var _a2, _b2, _c, _d;
-      const logsContext = useLogsContext();
-      const log = reactExports.useMemo(() => {
+      const updateLogHeaders = useLogsStore((state2) => state2.updateLogHeaders);
+      const selectedLogFile = useSelectedLogFile();
+      const log2 = reactExports.useMemo(() => {
         return createLogger("LogContext");
       }, []);
       const [state, dispatch] = reactExports.useReducer(
@@ -39023,7 +38994,7 @@ categories: ${categories.join(" ")}`;
       };
       const loadLog = reactExports.useCallback(
         async (logFileName) => {
-          log.debug(`LOAD LOG: ${logFileName}`);
+          log2.debug(`LOAD LOG: ${logFileName}`);
           const logContents = await api2.get_log_summary(logFileName);
           dispatch({ type: "SET_SELECTED_LOG_SUMMARY", payload: logContents });
           dispatch({ type: "RESET_FILTERING" });
@@ -39038,25 +39009,21 @@ categories: ${categories.join(" ")}`;
               error: logContents.error !== null ? logContents.error : void 0
             }
           };
-          logsContext.dispatch({
-            type: "UPDATE_LOG_HEADERS",
-            payload: header2
-          });
+          updateLogHeaders(header2);
         },
-        [api2, dispatch, log]
+        [api2, dispatch, log2]
       );
       const refreshLog = reactExports.useCallback(async () => {
-        log.debug(`REFRESH: ${logsContext.selectedLogFile}`);
-        const file = logsContext.selectedLogFile;
-        if (file) {
-          const logContents = await api2.get_log_summary(file);
+        log2.debug(`REFRESH: ${selectedLogFile}`);
+        if (selectedLogFile) {
+          const logContents = await api2.get_log_summary(selectedLogFile);
           dispatch({ type: "SET_SELECTED_LOG_SUMMARY", payload: logContents });
         }
-      }, [api2, dispatch, logsContext.selectedLogFile, log]);
+      }, [api2, dispatch, selectedLogFile, log2]);
       const clearPendingSummaries = reactExports.useCallback(() => {
         var _a3, _b3;
         if ((((_a3 = state.pendingSampleSummaries) == null ? void 0 : _a3.samples.length) || 0) > 0) {
-          log.debug(`CLEAR PENDING: ${logsContext.selectedLogFile}`);
+          log2.debug(`CLEAR PENDING: ${selectedLogFile}`);
           dispatch({
             type: "SET_PENDING_SAMPLE_SUMMARIES",
             payload: {
@@ -39066,7 +39033,7 @@ categories: ${categories.join(" ")}`;
           });
           refreshLog();
         }
-      }, [dispatch, state.pendingSampleSummaries, log]);
+      }, [dispatch, state.pendingSampleSummaries, log2]);
       const pollPendingSummaries = reactExports.useCallback(
         (logFile) => {
           var _a3, _b3;
@@ -39087,13 +39054,13 @@ categories: ${categories.join(" ")}`;
             }
             if (!api2.get_log_pending_samples) return;
             try {
-              log.debug(`POLL RUNNING SAMPLES: ${logFile}`);
+              log2.debug(`POLL RUNNING SAMPLES: ${logFile}`);
               const pendingSamples = await api2.get_log_pending_samples(
                 logFile,
                 polling.currentEtag
               );
               if (!polling.isActive) {
-                log.debug(`POLL RUNNING SAMPLES CANCELED: ${logFile}`);
+                log2.debug(`POLL RUNNING SAMPLES CANCELED: ${logFile}`);
                 return;
               }
               if (pendingSamples.status === "OK" && pendingSamples.pendingSamples) {
@@ -39107,7 +39074,7 @@ categories: ${categories.join(" ")}`;
                 refreshLog();
                 polling.hadPending = true;
               } else if (pendingSamples.status === "NotFound") {
-                log.debug(`STOP POLLING RUNNING SAMPLES: ${logFile}`);
+                log2.debug(`STOP POLLING RUNNING SAMPLES: ${logFile}`);
                 if (polling.hadPending) {
                   refreshLog();
                 }
@@ -39124,11 +39091,11 @@ categories: ${categories.join(" ")}`;
                 );
               }
             } catch (error2) {
-              log.debug(`ERROR PENDING RUNNING SAMPLES: ${logFile}`);
-              log.error("Error polling pending samples:", error2);
+              log2.debug(`ERROR PENDING RUNNING SAMPLES: ${logFile}`);
+              log2.error("Error polling pending samples:", error2);
               polling.retryCount += 1;
               if (polling.retryCount >= polling.maxRetries) {
-                log.error(
+                log2.error(
                   `Giving up after ${polling.maxRetries} failed attempts to poll pending samples`
                 );
                 polling.isActive = false;
@@ -39140,7 +39107,7 @@ categories: ${categories.join(" ")}`;
                   polling.currentRefresh * Math.pow(2, polling.retryCount) * 1e3,
                   6e4
                 );
-                log.debug(
+                log2.debug(
                   `Retry ${polling.retryCount}/${polling.maxRetries}, backoff time: ${backoffTime / 1e3}s`
                 );
                 polling.timeout = setTimeout(poll, backoffTime);
@@ -39161,18 +39128,14 @@ categories: ${categories.join(" ")}`;
           dispatch,
           refreshLog,
           clearPendingSummaries,
-          log
+          log2
         ]
       );
       reactExports.useEffect(() => {
-        if (!logsContext.selectedLogFile) {
-          return;
-        }
-        const logFile = logsContext.selectedLogFile;
-        if (!logFile) return;
-        const stopPolling = pollPendingSummaries(logFile);
+        if (!selectedLogFile) return;
+        const stopPolling = pollPendingSummaries(selectedLogFile);
         return stopPolling;
-      }, [pollPendingSummaries, logsContext.selectedLogFile]);
+      }, [pollPendingSummaries, selectedLogFile]);
       const sampleSummaries = reactExports.useMemo(() => {
         var _a3, _b3;
         const logSamples = ((_a3 = state.selectedLogSummary) == null ? void 0 : _a3.sampleSummaries) || [];
@@ -39277,7 +39240,7 @@ categories: ${categories.join(" ")}`;
             refreshLog,
             loadLog,
             totalSampleCount,
-            selectedLogFile: logsContext.selectedLogFile
+            selectedLogFile
           },
           children: children2
         },
@@ -39285,7 +39248,7 @@ categories: ${categories.join(" ")}`;
         false,
         {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/contexts/LogContext.tsx",
-          lineNumber: 449,
+          lineNumber: 441,
           columnNumber: 5
         },
         void 0
@@ -60274,7 +60237,7 @@ Supported expressions:
       };
     };
     const createPolling = (name2, callback, options) => {
-      const log = createLogger(`Polling ${name2}`);
+      const log2 = createLogger(`Polling ${name2}`);
       const { maxRetries, interval } = options;
       let timeoutId = null;
       let retryCount = 0;
@@ -60287,7 +60250,7 @@ Supported expressions:
           clearTimeout(timeoutId);
           timeoutId = null;
         }
-        log.debug("Stop Polling");
+        log2.debug("Stop Polling");
         isPolling = false;
       };
       const poll = async () => {
@@ -60295,7 +60258,7 @@ Supported expressions:
           return;
         }
         try {
-          log.debug("Poll");
+          log2.debug("Poll");
           const shouldContinue = await callback();
           if (shouldContinue === false) {
             stop();
@@ -60306,12 +60269,12 @@ Supported expressions:
         } catch (e) {
           retryCount += 1;
           if (retryCount >= maxRetries) {
-            log.error(`Polling stopped after ${maxRetries} failed attempts`);
+            log2.error(`Polling stopped after ${maxRetries} failed attempts`);
             stop();
             return;
           }
           const backoffTime = calculateBackoff(retryCount);
-          log.debug(
+          log2.debug(
             `Retry ${retryCount}/${maxRetries}, backoff: ${backoffTime / 1e3}s`
           );
           timeoutId = setTimeout(poll, backoffTime);
@@ -60321,7 +60284,7 @@ Supported expressions:
         if (isPolling) {
           return;
         }
-        log.debug("Start Polling");
+        log2.debug("Start Polling");
         isPolling = true;
         poll();
       };
@@ -60369,7 +60332,7 @@ Supported expressions:
       api: api2,
       initialState: initialState2
     }) => {
-      const log = reactExports.useMemo(() => {
+      const log2 = reactExports.useMemo(() => {
         return createLogger("SampleContext");
       }, []);
       const [state, dispatch] = reactExports.useReducer(
@@ -60399,7 +60362,7 @@ Supported expressions:
             if (!api2.get_log_sample_data) {
               return false;
             }
-            log.debug(`GET RUNNING SAMPLE: ${summary2.id}-${summary2.epoch}`);
+            log2.debug(`GET RUNNING SAMPLE: ${summary2.id}-${summary2.epoch}`);
             const sampleDataResponse = await api2.get_log_sample_data(
               logFile,
               summary2.id,
@@ -60423,7 +60386,7 @@ Supported expressions:
           });
           pollingRef.current.start();
         },
-        [api2.get_log_sample_data, dispatch, log]
+        [api2.get_log_sample_data, dispatch, log2]
       );
       reactExports.useEffect(() => {
         return () => {
@@ -60454,7 +60417,7 @@ Supported expressions:
           dispatch({ type: "SET_LOADING", payload: true });
           try {
             if (summary2.completed !== false) {
-              log.debug(`LOADING COMPLETED SAMPLE: ${summary2.id}-${summary2.epoch}`);
+              log2.debug(`LOADING COMPLETED SAMPLE: ${summary2.id}-${summary2.epoch}`);
               const sample2 = await api2.get_log_sample(
                 logContext.selectedLogFile,
                 summary2.id,
@@ -60469,7 +60432,7 @@ Supported expressions:
                 );
               }
             } else {
-              log.debug(`POLLING RUNNING SAMPLE: ${summary2.id}-${summary2.epoch}`);
+              log2.debug(`POLLING RUNNING SAMPLE: ${summary2.id}-${summary2.epoch}`);
               pollForSampleData(logContext.selectedLogFile, summary2);
             }
             dispatch({ type: "SET_LOADING", payload: false });
@@ -78190,8 +78153,8 @@ ${events}
       const streamSamples = useAppStore(
         (state) => state.capabilities.streamSamples
       );
-      const logsContext = useLogsContext();
-      const logFileName = logsContext.selectedLogFile ? filename(logsContext.selectedLogFile) : "";
+      const selectedFileName = useLogsStore((state) => state.selectedLogFile);
+      const logFileName = selectedFileName ? filename(selectedFileName) : "";
       const handleToggle = reactExports.useCallback(() => {
         setOffCanvas(!offCanvas);
       }, [offCanvas, setOffCanvas]);
@@ -78219,7 +78182,7 @@ ${events}
                   type: "button",
                   children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("i", { className: ApplicationIcons.menu }, void 0, false, {
                     fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/PrimaryBar.tsx",
-                    lineNumber: 71,
+                    lineNumber: 69,
                     columnNumber: 13
                   }, void 0)
                 },
@@ -78227,7 +78190,7 @@ ${events}
                 false,
                 {
                   fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/PrimaryBar.tsx",
-                  lineNumber: 61,
+                  lineNumber: 59,
                   columnNumber: 11
                 },
                 void 0
@@ -78246,7 +78209,7 @@ ${events}
                     false,
                     {
                       fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/PrimaryBar.tsx",
-                      lineNumber: 78,
+                      lineNumber: 76,
                       columnNumber: 13
                     },
                     void 0
@@ -78268,35 +78231,35 @@ ${events}
                     false,
                     {
                       fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/PrimaryBar.tsx",
-                      lineNumber: 85,
+                      lineNumber: 83,
                       columnNumber: 13
                     },
                     void 0
                   )
                 ] }, void 0, true, {
                   fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/PrimaryBar.tsx",
-                  lineNumber: 77,
+                  lineNumber: 75,
                   columnNumber: 11
                 }, void 0),
                 /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: clsx("text-size-small", styles$5.secondaryContainer), children: [
                   /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: clsx("navbar-secondary-text", "text-truncate"), children: logFileName }, void 0, false, {
                     fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/PrimaryBar.tsx",
-                    lineNumber: 99,
+                    lineNumber: 97,
                     columnNumber: 13
                   }, void 0),
-                  logsContext.selectedLogFile ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(CopyButton, { value: logsContext.selectedLogFile }, void 0, false, {
+                  selectedFileName ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(CopyButton, { value: selectedFileName }, void 0, false, {
                     fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/PrimaryBar.tsx",
-                    lineNumber: 103,
-                    columnNumber: 15
+                    lineNumber: 100,
+                    columnNumber: 33
                   }, void 0) : ""
                 ] }, void 0, true, {
                   fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/PrimaryBar.tsx",
-                  lineNumber: 98,
+                  lineNumber: 96,
                   columnNumber: 11
                 }, void 0)
               ] }, void 0, true, {
                 fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/PrimaryBar.tsx",
-                lineNumber: 76,
+                lineNumber: 74,
                 columnNumber: 9
               }, void 0)
             ]
@@ -78305,7 +78268,7 @@ ${events}
           true,
           {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/PrimaryBar.tsx",
-            lineNumber: 52,
+            lineNumber: 50,
             columnNumber: 7
           },
           void 0
@@ -78320,39 +78283,39 @@ ${events}
             false,
             {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/PrimaryBar.tsx",
-              lineNumber: 113,
+              lineNumber: 107,
               columnNumber: 11
             },
             void 0
           ) : void 0,
           status2 === "cancelled" ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(CancelledPanel, { sampleCount: sampleCount || 0 }, void 0, false, {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/PrimaryBar.tsx",
-            lineNumber: 122,
+            lineNumber: 116,
             columnNumber: 11
           }, void 0) : void 0,
           status2 === "started" && (!streamSamples || !runningMetrics) ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(RunningStatusPanel, { sampleCount: sampleCount || 0 }, void 0, false, {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/PrimaryBar.tsx",
-            lineNumber: 125,
+            lineNumber: 119,
             columnNumber: 11
           }, void 0) : void 0,
           status2 === "error" ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(ErroredPanel, { sampleCount: sampleCount || 0 }, void 0, false, {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/PrimaryBar.tsx",
-            lineNumber: 128,
+            lineNumber: 122,
             columnNumber: 11
           }, void 0) : void 0
         ] }, void 0, true, {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/PrimaryBar.tsx",
-          lineNumber: 110,
+          lineNumber: 104,
           columnNumber: 7
         }, void 0),
         /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { id: "task-created", style: { display: "none" }, children: evalSpec == null ? void 0 : evalSpec.created }, void 0, false, {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/PrimaryBar.tsx",
-          lineNumber: 131,
+          lineNumber: 125,
           columnNumber: 7
         }, void 0)
       ] }, void 0, true, {
         fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/PrimaryBar.tsx",
-        lineNumber: 51,
+        lineNumber: 49,
         columnNumber: 5
       }, void 0);
     };
@@ -79812,10 +79775,12 @@ ${events}
       saveApplicationState
     }) => {
       var _a2, _b2, _c, _d, _e2, _f, _g, _h, _i, _j, _k;
-      const logsContext = useLogsContext();
       const logContext = useLogContext();
       const sampleContext = useSampleContext();
       const appStore = useAppStore();
+      const logsStore = useLogsStore();
+      const selectedLogFile = useSelectedLogFile();
+      console.log({ logsStore });
       const mainAppRef = reactExports.useRef(null);
       const [selectedWorkspaceTab, setSelectedWorkspaceTab] = reactExports.useState(
         (applicationState == null ? void 0 : applicationState.selectedWorkspaceTab) || kEvalWorkspaceTabId
@@ -79838,7 +79803,7 @@ ${events}
           sampleScrollPosition: sampleScrollPosition.current,
           workspaceTabScrollPosition: workspaceTabScrollPosition.current,
           ...appStore.getState(),
-          ...logsContext.getState(),
+          ...logsStore.getState(),
           ...logContext.getState(),
           ...sampleContext.getState()
         };
@@ -79850,7 +79815,7 @@ ${events}
         selectedSampleTab,
         showingSampleDialog,
         appStore.getState,
-        logsContext.getState,
+        logsStore.getState,
         logContext.getState
       ]);
       const saveStateRef = reactExports.useRef(saveState);
@@ -79883,7 +79848,7 @@ ${events}
         selectedSampleTab,
         showingSampleDialog,
         appStore.getState,
-        logsContext.getState,
+        logsStore.getState,
         logContext.getState,
         sampleContext.getState
       ]);
@@ -79909,24 +79874,24 @@ ${events}
         }
       }, [sampleContext.state.selectedSample, selectedSampleTab]);
       reactExports.useEffect(() => {
-        if (!logsContext.state.logs.files[logsContext.state.selectedLogIndex] || logContext.state.selectedSampleIndex === -1) {
+        if (!logsStore.logs.files[logsStore.selectedLogIndex] || logContext.state.selectedSampleIndex === -1) {
           sampleContext.dispatch({ type: "CLEAR_SELECTED_SAMPLE" });
         }
       }, [
         logContext.state.selectedSampleIndex,
-        logsContext.state.selectedLogIndex,
-        logsContext.state.logs,
+        logsStore.selectedLogIndex,
+        logsStore.logs,
         sampleContext.dispatch
       ]);
       reactExports.useEffect(() => {
         logContext.dispatch({ type: "SELECT_SAMPLE", payload: 0 });
-      }, [logsContext.selectedLogFile, logContext.dispatch]);
+      }, [selectedLogFile, logContext.dispatch]);
       reactExports.useEffect(() => {
         const loadSpecificLog = async () => {
-          if (logsContext.selectedLogFile) {
+          if (selectedLogFile) {
             try {
               appStore.setStatus({ loading: true, error: void 0 });
-              await logContext.loadLog(logsContext.selectedLogFile);
+              await logContext.loadLog(selectedLogFile);
               appStore.setStatus({ loading: false, error: void 0 });
             } catch (e) {
               console.log(e);
@@ -79935,7 +79900,7 @@ ${events}
           }
         };
         loadSpecificLog();
-      }, [logsContext.selectedLogFile, logContext.loadLog, appStore.setStatus]);
+      }, [selectedLogFile, logContext.loadLog, appStore.setStatus]);
       reactExports.useEffect(() => {
         setSelectedWorkspaceTab(kEvalWorkspaceTabId);
         setSelectedSampleTab(void 0);
@@ -79948,15 +79913,15 @@ ${events}
         }
       }, [logContext.state.selectedLogSummary]);
       reactExports.useEffect(() => {
-        if (logsContext.state.logs.log_dir && logsContext.state.logs.files.length === 0) {
+        if (logsStore.logs.log_dir && logsStore.logs.files.length === 0) {
           appStore.setStatus({
             loading: false,
             error: new Error(
-              `No log files to display in the directory ${logsContext.state.logs.log_dir}. Are you sure this is the correct log directory?`
+              `No log files to display in the directory ${logsStore.logs.log_dir}. Are you sure this is the correct log directory?`
             )
           });
         }
-      }, [logsContext.state.logs.log_dir, logsContext.state.logs.files.length]);
+      }, [logsStore.logs.log_dir, logsStore.logs.files.length]);
       const refreshLog = reactExports.useCallback(() => {
         try {
           appStore.setStatus({ loading: true, error: void 0 });
@@ -79974,7 +79939,7 @@ ${events}
             case "updateState": {
               if (e.data.url) {
                 const decodedUrl = decodeURIComponent(e.data.url);
-                logsContext.selectLogFile(decodedUrl);
+                logsStore.selectLogFile(decodedUrl);
               }
               break;
             }
@@ -79983,23 +79948,19 @@ ${events}
               const log_dir = e.data.log_dir;
               const isFocused = document.hasFocus();
               if (!isFocused) {
-                if (log_dir === logsContext.state.logs.log_dir) {
-                  logsContext.selectLogFile(decodedUrl);
+                if (log_dir === logsStore.logs.log_dir) {
+                  logsStore.selectLogFile(decodedUrl);
                 } else {
                   api2.open_log_file(e.data.url, e.data.log_dir);
                 }
               } else {
-                logsContext.refreshLogs();
+                logsStore.refreshLogs();
               }
               break;
             }
           }
         },
-        [
-          logsContext.state.logs,
-          logsContext.selectLogFile,
-          logsContext.refreshLogs
-        ]
+        [logsStore.logs, logsStore.selectLogFile, logsStore.refreshLogs]
       );
       reactExports.useEffect(() => {
         window.addEventListener("message", onMessage);
@@ -80018,41 +79979,35 @@ ${events}
             const logPath = urlParams.get("task_file");
             const resolvedLogPath = logPath ? logPath.replace(" ", "+") : logPath;
             if (resolvedLogPath) {
-              logsContext.dispatch({
-                type: "SET_LOGS",
-                payload: {
-                  log_dir: "",
-                  files: [{ name: resolvedLogPath }]
-                }
+              logsStore.setLogs({
+                log_dir: "",
+                files: [{ name: resolvedLogPath }]
               });
             } else {
               const log_file = urlParams.get("log_file");
               if (log_file) {
-                await logsContext.selectLogFile(log_file);
+                await logsStore.selectLogFile(log_file);
               } else {
-                await logsContext.refreshLogs();
+                await logsStore.refreshLogs();
               }
             }
           }
           new ClipboardJS(".clipboard-button,.copy-button");
         };
         loadLogsAndState();
-      }, [logsContext.dispatch]);
-      const fullScreen = logsContext.state.logs.files.length === 1 && !logsContext.state.logs.log_dir;
-      const showToggle = logsContext.state.logs.files.length > 1 || !!logsContext.state.logs.log_dir || false;
+      }, [logsStore.setLogs, logsStore.selectLogFile, logsStore.refreshLogs]);
+      const fullScreen = logsStore.logs.files.length === 1 && !logsStore.logs.log_dir;
+      const showToggle = logsStore.logs.files.length > 1 || !!logsStore.logs.log_dir || false;
       return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(jsxDevRuntimeExports.Fragment, { children: [
         !fullScreen && logContext.state.selectedLogSummary ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
           Sidebar,
           {
-            logs: logsContext.state.logs,
-            logHeaders: logsContext.state.logHeaders,
-            loading: logsContext.state.headersLoading,
-            selectedIndex: logsContext.state.selectedLogIndex,
+            logs: logsStore.logs,
+            logHeaders: logsStore.logHeaders,
+            loading: logsStore.headersLoading,
+            selectedIndex: logsStore.selectedLogIndex,
             onSelectedIndexChanged: (index) => {
-              logsContext.dispatch({
-                type: "SET_SELECTED_LOG_INDEX",
-                payload: index
-              });
+              logsStore.setSelectedLogIndex(index);
               appStore.setOffcanvas(false);
             }
           },
@@ -80060,7 +80015,7 @@ ${events}
           false,
           {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/App.tsx",
-            lineNumber: 365,
+            lineNumber: 355,
             columnNumber: 9
           },
           void 0
@@ -80088,12 +80043,12 @@ ${events}
             children: [
               !appStore.capabilities.nativeFind && appStore.showFind ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(FindBand, {}, void 0, false, {
                 fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/App.tsx",
-                lineNumber: 401,
+                lineNumber: 388,
                 columnNumber: 11
               }, void 0) : "",
               /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(ProgressBar, { animating: appStore.status.loading }, void 0, false, {
                 fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/App.tsx",
-                lineNumber: 405,
+                lineNumber: 392,
                 columnNumber: 9
               }, void 0),
               appStore.status.error ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
@@ -80106,7 +80061,7 @@ ${events}
                 false,
                 {
                   fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/App.tsx",
-                  lineNumber: 407,
+                  lineNumber: 394,
                   columnNumber: 11
                 },
                 void 0
@@ -80141,7 +80096,7 @@ ${events}
                 false,
                 {
                   fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/App.tsx",
-                  lineNumber: 412,
+                  lineNumber: 399,
                   columnNumber: 11
                 },
                 void 0
@@ -80152,14 +80107,14 @@ ${events}
           true,
           {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/App.tsx",
-            lineNumber: 379,
+            lineNumber: 366,
             columnNumber: 7
           },
           void 0
         )
       ] }, void 0, true, {
         fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/App.tsx",
-        lineNumber: 363,
+        lineNumber: 353,
         columnNumber: 5
       }, void 0);
     };
@@ -80232,6 +80187,7 @@ ${events}
       }
     }
     initializeAppStore(capabilities, initialState == null ? void 0 : initialState.app);
+    initializeLogsStore(resolvedApi, initialState == null ? void 0 : initialState.logs);
     const containerId = "app";
     const container = document.getElementById(containerId);
     if (!container) {
@@ -80242,7 +80198,7 @@ ${events}
     }
     const root = clientExports.createRoot(container);
     root.render(
-      /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(AppErrorBoundary, { children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(LogsProvider, { initialState, api, children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(LogProvider, { initialState, api, children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(SampleProvider, { initialState, api, children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+      /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(AppErrorBoundary, { children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(LogProvider, { initialState, api, children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(SampleProvider, { initialState, api, children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
         App,
         {
           api: resolvedApi,
@@ -80259,24 +80215,20 @@ ${events}
         {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/index.tsx",
           lineNumber: 59,
-          columnNumber: 11
+          columnNumber: 9
         },
         void 0
       ) }, void 0, false, {
         fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/index.tsx",
         lineNumber: 58,
-        columnNumber: 9
-      }, void 0) }, void 0, false, {
-        fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/index.tsx",
-        lineNumber: 57,
         columnNumber: 7
       }, void 0) }, void 0, false, {
         fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/index.tsx",
-        lineNumber: 56,
+        lineNumber: 57,
         columnNumber: 5
       }, void 0) }, void 0, false, {
         fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/index.tsx",
-        lineNumber: 55,
+        lineNumber: 56,
         columnNumber: 3
       }, void 0)
     );

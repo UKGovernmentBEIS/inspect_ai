@@ -42,7 +42,7 @@ import {
 import { LogState, ScoreFilter, ScoreLabel } from "../types";
 import { Timeout } from "../types/log";
 import { createLogger } from "../utils/logger";
-import { useLogsContext } from "./LogsContext";
+import { useLogsStore, useSelectedLogFile } from "./logsStore";
 
 // Define action types
 type LogAction =
@@ -123,7 +123,9 @@ export const LogProvider: FC<LogProviderProps> = ({
   initialState,
   api,
 }) => {
-  const logsContext = useLogsContext();
+  const updateLogHeaders = useLogsStore((state) => state.updateLogHeaders);
+  const selectedLogFile = useSelectedLogFile();
+
   const log = useMemo(() => {
     return createLogger("LogContext");
   }, []);
@@ -160,26 +162,22 @@ export const LogProvider: FC<LogProviderProps> = ({
           error: logContents.error !== null ? logContents.error : undefined,
         },
       };
-      logsContext.dispatch({
-        type: "UPDATE_LOG_HEADERS",
-        payload: header,
-      });
+      updateLogHeaders(header);
     },
     [api, dispatch, log],
   );
 
   const refreshLog = useCallback(async () => {
-    log.debug(`REFRESH: ${logsContext.selectedLogFile}`);
-    const file = logsContext.selectedLogFile;
-    if (file) {
-      const logContents = await api.get_log_summary(file);
+    log.debug(`REFRESH: ${selectedLogFile}`);
+    if (selectedLogFile) {
+      const logContents = await api.get_log_summary(selectedLogFile);
       dispatch({ type: "SET_SELECTED_LOG_SUMMARY", payload: logContents });
     }
-  }, [api, dispatch, logsContext.selectedLogFile, log]);
+  }, [api, dispatch, selectedLogFile, log]);
 
   const clearPendingSummaries = useCallback(() => {
     if ((state.pendingSampleSummaries?.samples.length || 0) > 0) {
-      log.debug(`CLEAR PENDING: ${logsContext.selectedLogFile}`);
+      log.debug(`CLEAR PENDING: ${selectedLogFile}`);
       dispatch({
         type: "SET_PENDING_SAMPLE_SUMMARIES",
         payload: {
@@ -317,20 +315,14 @@ export const LogProvider: FC<LogProviderProps> = ({
 
   useEffect(() => {
     // Only start polling if we have a log file
-    if (!logsContext.selectedLogFile) {
-      return;
-    }
-
-    // Get the logFile from context
-    const logFile = logsContext.selectedLogFile;
-    if (!logFile) return;
+    if (!selectedLogFile) return;
 
     // Start polling with the logFile and get the cleanup function
-    const stopPolling = pollPendingSummaries(logFile);
+    const stopPolling = pollPendingSummaries(selectedLogFile);
 
     // Return the cleanup function
     return stopPolling;
-  }, [pollPendingSummaries, logsContext.selectedLogFile]);
+  }, [pollPendingSummaries, selectedLogFile]);
 
   const sampleSummaries = useMemo(() => {
     const logSamples = state.selectedLogSummary?.sampleSummaries || [];
@@ -461,7 +453,7 @@ export const LogProvider: FC<LogProviderProps> = ({
         refreshLog,
         loadLog,
         totalSampleCount,
-        selectedLogFile: logsContext.selectedLogFile,
+        selectedLogFile,
       }}
     >
       {children}

@@ -5,7 +5,7 @@ import { App } from "./App";
 import { AppErrorBoundary } from "./AppErrorBoundary";
 import { initializeAppStore } from "./contexts/appStore";
 import { LogProvider } from "./contexts/LogContext";
-import { LogsProvider } from "./contexts/LogsContext";
+import { initializeLogsStore } from "./contexts/logsStore";
 import { SampleProvider } from "./contexts/SampleContext";
 import { ApplicationState } from "./types";
 import { throttle } from "./utils/sync";
@@ -40,6 +40,7 @@ if (vscode) {
 }
 
 initializeAppStore(capabilities, initialState?.app);
+initializeLogsStore(resolvedApi, initialState?.logs);
 
 const containerId = "app";
 const container = document.getElementById(containerId);
@@ -53,22 +54,20 @@ if (!container) {
 const root = createRoot(container as HTMLElement);
 root.render(
   <AppErrorBoundary>
-    <LogsProvider initialState={initialState} api={api}>
-      <LogProvider initialState={initialState} api={api}>
-        <SampleProvider initialState={initialState} api={api}>
-          <App
-            api={resolvedApi}
-            applicationState={initialState}
-            saveApplicationState={throttle((state) => {
-              const vscode = getVscodeApi();
-              if (vscode) {
-                vscode.setState(filterState(state));
-              }
-            }, 1000)}
-          />
-        </SampleProvider>
-      </LogProvider>
-    </LogsProvider>
+    <LogProvider initialState={initialState} api={api}>
+      <SampleProvider initialState={initialState} api={api}>
+        <App
+          api={resolvedApi}
+          applicationState={initialState}
+          saveApplicationState={throttle((state) => {
+            const vscode = getVscodeApi();
+            if (vscode) {
+              vscode.setState(filterState(state));
+            }
+          }, 1000)}
+        />
+      </SampleProvider>
+    </LogProvider>
   </AppErrorBoundary>,
 );
 
