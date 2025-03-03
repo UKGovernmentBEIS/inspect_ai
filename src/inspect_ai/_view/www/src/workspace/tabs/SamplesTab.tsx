@@ -4,6 +4,7 @@ import {
   RefObject,
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -71,20 +72,29 @@ export const SamplesTab: FC<SamplesTabProps> = ({
     }
   }, [showingSampleDialog]);
 
-  useEffect(() => {
-    const sampleProcessor = logContext.samplesDescriptor
-      ? getSampleProcessor(
-          logContext.sampleSummaries || [],
-          logContext.state.selectedLogSummary?.eval?.config?.epochs || 1,
-          logContext.groupBy,
-          logContext.groupByOrder,
-          logContext.samplesDescriptor,
-          logContext.state.score,
-        )
-      : undefined;
+  const sampleProcessor = useMemo(() => {
+    if (!logContext.samplesDescriptor) return undefined;
 
-    // Process the samples into the proper data structure
-    const items = logContext.sampleSummaries?.flatMap((sample, index) => {
+    return getSampleProcessor(
+      logContext.sampleSummaries || [],
+      logContext.state.selectedLogSummary?.eval?.config?.epochs || 1,
+      logContext.groupBy,
+      logContext.groupByOrder,
+      logContext.samplesDescriptor,
+      logContext.state.score,
+    );
+  }, [
+    logContext.samplesDescriptor,
+    logContext.sampleSummaries,
+    logContext.state.selectedLogSummary?.eval?.config?.epochs,
+    logContext.groupBy,
+    logContext.groupByOrder,
+    logContext.state.score,
+  ]);
+
+  // Process the samples into the proper data structure
+  const resolvedSamples = useMemo(() => {
+    return logContext.sampleSummaries?.flatMap((sample, index) => {
       const results: ListItem[] = [];
       const previousSample =
         index !== 0 ? logContext.sampleSummaries[index - 1] : undefined;
@@ -95,23 +105,18 @@ export const SamplesTab: FC<SamplesTabProps> = ({
       results.push(...items);
       return results;
     });
+  }, [logContext.sampleSummaries]);
 
-    setItems(items || []);
+  useEffect(() => {
+    setItems(resolvedSamples || []);
     setSampleItems(
-      items
-        ? items.filter((item) => {
+      resolvedSamples
+        ? resolvedSamples.filter((item) => {
             return item.type === "sample";
           })
         : [],
     );
-  }, [
-    logContext.sampleSummaries,
-    logContext.state.selectedLogSummary?.eval?.config?.epochs,
-    logContext.state.score,
-    logContext.groupBy,
-    logContext.groupByOrder,
-    logContext.samplesDescriptor,
-  ]);
+  }, [resolvedSamples]);
 
   const nextSampleIndex = useCallback(() => {
     if (logContext.state.selectedSampleIndex < sampleItems.length - 1) {
