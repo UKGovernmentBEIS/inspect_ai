@@ -3,7 +3,7 @@ import { FC, useCallback } from "react";
 import { RunningMetric } from "../../api/types";
 import { ApplicationIcons } from "../../appearance/icons";
 import { CopyButton } from "../../components/CopyButton";
-import { useAppContext } from "../../contexts/AppContext";
+import { useAppStore } from "../../contexts/appStore";
 import { useLogsContext } from "../../contexts/LogsContext";
 import { EvalResults, EvalSpec, Status } from "../../types/log";
 import { filename } from "../../utils/path";
@@ -33,18 +33,19 @@ export const PrimaryBar: FC<PrimaryBarProps> = ({
   evalSpec,
   sampleCount,
 }) => {
-  const appContext = useAppContext();
+  const offCanvas = useAppStore((state) => state.offcanvas);
+  const setOffCanvas = useAppStore((state) => state.setOffcanvas);
+  const streamSamples = useAppStore(
+    (state) => state.capabilities.streamSamples,
+  );
   const logsContext = useLogsContext();
   const logFileName = logsContext.selectedLogFile
     ? filename(logsContext.selectedLogFile)
     : "";
 
   const handleToggle = useCallback(() => {
-    appContext.dispatch({
-      type: "SET_OFFCANVAS",
-      payload: !appContext.state.offcanvas,
-    });
-  }, [appContext.state.offcanvas, appContext.dispatch]);
+    setOffCanvas(!offCanvas);
+  }, [offCanvas, setOffCanvas]);
 
   return (
     <div className={clsx(styles.wrapper)}>
@@ -62,7 +63,7 @@ export const PrimaryBar: FC<PrimaryBarProps> = ({
             onClick={handleToggle}
             className={clsx(
               "btn",
-              appContext.state.offcanvas ? "d-md-none" : undefined,
+              offCanvas ? "d-md-none" : undefined,
               styles.toggle,
             )}
             type="button"
@@ -108,9 +109,7 @@ export const PrimaryBar: FC<PrimaryBarProps> = ({
       </div>
       <div className={clsx(styles.taskStatus, "navbar-text")}>
         {status === "success" ||
-        (status === "started" &&
-          appContext.capabilities.streamSamples &&
-          runningMetrics) ? (
+        (status === "started" && streamSamples && runningMetrics) ? (
           <ResultsPanel
             scorers={
               runningMetrics
@@ -122,8 +121,7 @@ export const PrimaryBar: FC<PrimaryBarProps> = ({
         {status === "cancelled" ? (
           <CancelledPanel sampleCount={sampleCount || 0} />
         ) : undefined}
-        {status === "started" &&
-        (!appContext.capabilities.streamSamples || !runningMetrics) ? (
+        {status === "started" && (!streamSamples || !runningMetrics) ? (
           <RunningStatusPanel sampleCount={sampleCount || 0} />
         ) : undefined}
         {status === "error" ? (

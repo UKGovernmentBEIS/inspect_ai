@@ -10,10 +10,10 @@ import {
   useReducer,
 } from "react";
 import { ClientAPI, EvalLogHeader, LogFiles } from "../api/types";
-import { useAppContext } from "../contexts/AppContext";
 import { LogsState } from "../types";
 import { createLogger } from "../utils/logger";
 import { sleep } from "../utils/sync";
+import { useAppStore } from "./appStore";
 
 // Define action types
 type LogsAction =
@@ -95,7 +95,8 @@ export const LogsProvider: FC<LogsProviderProps> = ({
       ? { ...initialLogsState, ...initialState.logs }
       : initialLogsState,
   );
-  const appContext = useAppContext();
+
+  const setStatus = useAppStore((state) => state.setStatus);
 
   const getState = () => {
     return { logs: state };
@@ -110,10 +111,7 @@ export const LogsProvider: FC<LogsProviderProps> = ({
     } catch (e) {
       // Show an error
       console.log(e);
-      appContext.dispatch({
-        type: "SET_STATUS",
-        payload: { loading: false, error: e as Error },
-      });
+      setStatus({ loading: false, error: e as Error });
       return { log_dir: "", files: [] };
     }
   };
@@ -233,16 +231,10 @@ export const LogsProvider: FC<LogsProviderProps> = ({
           (e.message === "Load failed" || e.message === "Failed to fetch")
         ) {
           // This will happen if the server disappears (e.g. inspect view is terminated)
-          appContext.dispatch({
-            type: "SET_STATUS",
-            payload: { loading: false },
-          });
+          setStatus({ loading: false });
         } else {
           console.log(e);
-          appContext.dispatch({
-            type: "SET_STATUS",
-            payload: { loading: false, error: e as Error },
-          });
+          setStatus({ loading: false, error: e as Error });
         }
       }
       dispatch({
@@ -252,7 +244,7 @@ export const LogsProvider: FC<LogsProviderProps> = ({
     };
 
     loadHeaders();
-  }, [state.logs, appContext.dispatch, dispatch]);
+  }, [state.logs, setStatus, dispatch]);
 
   return (
     <LogsContext.Provider
