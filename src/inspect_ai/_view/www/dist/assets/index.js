@@ -66730,7 +66730,7 @@ ${events}
         sampleContext.dispatch({ type: "CLEAR_SELECTED_SAMPLE" });
       }, [(_a2 = logContext.state.selectedLogSummary) == null ? void 0 : _a2.eval.task_id]);
       reactExports.useEffect(() => {
-        if (logContext.totalSampleCount === 0) {
+        if (logContext.state.selectedLogSummary && logContext.totalSampleCount === 0) {
           setSelectedWorkspaceTab(kInfoWorkspaceTabId);
         }
       }, [logContext.state.selectedLogSummary]);
