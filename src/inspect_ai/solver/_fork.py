@@ -1,10 +1,10 @@
-import asyncio
 from contextvars import ContextVar
 from copy import deepcopy
-from typing import Any, cast
+from typing import Any, Awaitable, cast
 
 from typing_extensions import overload
 
+from inspect_ai._util._async import tg_collect_or_raise
 from inspect_ai._util.registry import registry_log_name, registry_params
 from inspect_ai.util._subtask import subtask
 
@@ -44,8 +44,10 @@ async def fork(
     if isinstance(solvers, Solver):
         return await solver_subtask(state, solvers)
     else:
-        subtasks = [solver_subtask(state, solver) for solver in solvers]
-        return await asyncio.gather(*subtasks)
+        subtasks: list[Awaitable[TaskState]] = [
+            solver_subtask(state, solver) for solver in solvers
+        ]
+        return await tg_collect_or_raise(subtasks)
 
 
 async def solver_subtask(state: TaskState, solver: Solver) -> TaskState:

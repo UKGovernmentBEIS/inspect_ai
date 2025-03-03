@@ -1,4 +1,5 @@
 import inspect
+from logging import Logger
 from typing import Any, Awaitable, TypeVar
 
 import anyio
@@ -57,18 +58,25 @@ async def tg_collect_or_raise(coros: list[Awaitable[T]]) -> list[T]:
     return [r for _, r in sorted(results)]
 
 
-async def ignore_exceptions(coro: Awaitable[T]) -> None:
+async def coro_ignore_exceptions(coro: Awaitable[T]) -> None:
     try:
         await coro
     except Exception:
         pass
 
 
-async def print_exceptions(coro: Awaitable[T], context: str) -> None:
+async def coro_print_exceptions(coro: Awaitable[T], context: str) -> None:
     try:
         await coro
     except Exception as ex:
         print(f"Error {context}: {ex}")
+
+
+async def coro_log_exceptions(coro: Awaitable[T], logger: Logger, context: str) -> None:
+    try:
+        await coro
+    except Exception as ex:
+        logger.warning(f"Error {context}: {ex}")
 
 
 _initialised_nest_asyncio: bool = False

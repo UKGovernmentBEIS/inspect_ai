@@ -7,7 +7,7 @@ from rich import box, print
 from rich.panel import Panel
 from rich.table import Table
 
-from inspect_ai._util._async import print_exceptions
+from inspect_ai._util._async import coro_print_exceptions
 
 from .compose import compose_down, compose_ls, compose_ps
 from .config import is_auto_compose_file, safe_cleanup_auto_compose
@@ -99,7 +99,9 @@ async def cleanup_projects(
     tasks = [cleanup_fn(project, False) for project in projects]
     async with anyio.create_task_group() as tg:
         for task_coro in tasks:
-            tg.start_soon(print_exceptions, task_coro, "cleaning up Docker environment")
+            tg.start_soon(
+                coro_print_exceptions, task_coro, "cleaning up Docker environment"
+            )
 
 
 async def cli_cleanup(project_name: str | None) -> None:
