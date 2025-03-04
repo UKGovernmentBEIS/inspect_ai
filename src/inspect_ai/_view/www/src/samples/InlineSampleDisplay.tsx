@@ -1,9 +1,11 @@
-import { FC, RefObject } from "react";
+import { FC, RefObject, useEffect } from "react";
 import { ErrorPanel } from "../components/ErrorPanel";
 import { ProgressBar } from "../components/ProgressBar";
 import { SampleDisplay } from "./SampleDisplay";
 
-import { useSampleContext } from "../state/SampleContext";
+import { useSelectedSampleSummary } from "../state/logStore";
+import { useSelectedLogFile } from "../state/logsStore";
+import { useLoadSample, useSampleStore } from "../state/sampleStore";
 import styles from "./InlineSampleDisplay.module.css";
 
 interface InlineSampleDisplayProps {
@@ -22,21 +24,31 @@ export const InlineSampleDisplay: FC<InlineSampleDisplayProps> = ({
   setSelectedTab,
   scrollRef,
 }) => {
-  const sampleContext = useSampleContext();
+  const sampleStatus = useSampleStore((state) => state.sampleStatus);
+  const sampleError = useSampleStore((state) => state.sampleError);
+  const selectedSample = useSampleStore((state) => state.selectedSample);
+  const runningSampleData = useSampleStore((state) => state.runningSampleData);
+  const selectedSampleSummary = useSelectedSampleSummary();
+  const loadSample = useLoadSample();
+  const selectedLogFile = useSelectedLogFile();
+
+  useEffect(() => {
+    if (selectedLogFile && selectedSampleSummary) {
+      loadSample(selectedLogFile, selectedSampleSummary);
+    }
+  }, [selectedSampleSummary]);
+
   return (
     <div className={styles.container}>
-      <ProgressBar animating={sampleContext.state.sampleStatus === "loading"} />
+      <ProgressBar animating={sampleStatus === "loading"} />
       <div className={styles.body}>
-        {sampleContext.state.sampleError ? (
-          <ErrorPanel
-            title="Unable to load sample"
-            error={sampleContext.state.sampleError}
-          />
+        {sampleError ? (
+          <ErrorPanel title="Unable to load sample" error={sampleError} />
         ) : (
           <SampleDisplay
             id={id}
-            sample={sampleContext.state.selectedSample}
-            runningSampleData={sampleContext.state.runningSampleData}
+            sample={selectedSample}
+            runningSampleData={runningSampleData}
             selectedTab={selectedTab}
             setSelectedTab={setSelectedTab}
             scrollRef={scrollRef}
