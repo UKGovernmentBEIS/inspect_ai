@@ -145,7 +145,7 @@ def auto_compose_files() -> Set[str]:
 
 
 _running_projects: ContextVar[list[ComposeProject]] = ContextVar(
-    "docker_running_projects"
+    "docker_running_projects", default=[]
 )
 
 _auto_compose_files: ContextVar[Set[str]] = ContextVar("docker_auto_compose_files")
