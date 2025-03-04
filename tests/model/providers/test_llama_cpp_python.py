@@ -8,7 +8,7 @@ from inspect_ai.model import (
 )
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 @skip_if_no_llama_cpp_python
 async def test_llama_cpp_python_api() -> None:
     model = get_model(

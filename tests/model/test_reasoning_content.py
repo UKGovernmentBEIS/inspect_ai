@@ -13,13 +13,13 @@ from inspect_ai.solver._prompt import user_message
 from inspect_ai.solver._solver import generate
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 @skip_if_no_together
 async def test_reasoning_content_together():
     await check_reasoning_content("together/deepseek-ai/DeepSeek-R1")
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 @skip_if_no_groq
 async def test_reasoning_content_groq():
     await check_reasoning_content("groq/deepseek-r1-distill-llama-70b")

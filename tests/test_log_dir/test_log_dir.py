@@ -16,7 +16,7 @@ def base_tmp_dir():
     shutil.rmtree(base_dir)
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 @pytest.mark.parametrize("log_dir", ["logs", "logs/my_custom_location"])
 async def test_log_dir(log_dir, base_tmp_dir):
     log_dir = str(os.path.join(base_tmp_dir, log_dir))

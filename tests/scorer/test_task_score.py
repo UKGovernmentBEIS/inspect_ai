@@ -20,7 +20,7 @@ LOG_UNSCORED = os.path.join(
 )
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_score_unscored():
     unscored_log = await read_eval_log_async(LOG_UNSCORED)
     scored_log = await task_score(log=unscored_log)
@@ -31,7 +31,7 @@ async def test_score_unscored():
     assert len(metrics.items()) == 2
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_score_unscored_new_scorer():
     unscored_log = await read_eval_log_async(LOG_UNSCORED)
     scored_log = await task_score(
@@ -45,7 +45,7 @@ async def test_score_unscored_new_scorer():
     assert len(metrics.items()) == 2
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_score_scored_append():
     unscored_log = await read_eval_log_async(LOG_SCORED)
     scored_log = await task_score(
@@ -63,7 +63,7 @@ async def test_score_scored_append():
     assert len(metrics.items()) == 2
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_score_scored_overwrite():
     unscored_log = await read_eval_log_async(LOG_SCORED)
     scored_log = await task_score(

@@ -28,7 +28,7 @@ def test_mock_model_eval():
     assert result.samples[0].messages[-1].content == MockLLM.default_output
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_mock_generate_default() -> None:
     model = get_model("mockllm/model")
 
@@ -36,7 +36,7 @@ async def test_mock_generate_default() -> None:
     assert response.completion == MockLLM.default_output
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_mock_generate_custom_valid() -> None:
     custom_content_str = "custom #content"
     model = get_model(
@@ -50,7 +50,7 @@ async def test_mock_generate_custom_valid() -> None:
     assert response.completion == custom_content_str
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_mock_generate_custom_invalid() -> None:
     model = get_model(
         "mockllm/model",
@@ -61,7 +61,7 @@ async def test_mock_generate_custom_invalid() -> None:
     assert "must be an instance of ModelOutput" in str(e_info.value)
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_mock_generate_custom_invalid_iterable_string() -> None:
     model = get_model(
         "mockllm/model",
@@ -72,7 +72,7 @@ async def test_mock_generate_custom_invalid_iterable_string() -> None:
     assert "must be an instance of ModelOutput" in str(e_info.value)
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_mock_generate_custom_invalid_iterable_number() -> None:
     with pytest.raises(ValueError) as e_info:
         get_model(
@@ -82,7 +82,7 @@ async def test_mock_generate_custom_invalid_iterable_number() -> None:
     assert "must be an Iterable or a Generator" in str(e_info.value)
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_mock_generate_not_enough() -> None:
     model = get_model(
         "mockllm/model",

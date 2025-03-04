@@ -23,7 +23,7 @@ async def check_num_choices(model_name):
     assert len(response.choices) == 3
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 @skip_if_no_openai
 async def test_openai_num_choices() -> None:
     await check_num_choices("openai/gpt-3.5-turbo")
@@ -34,13 +34,13 @@ async def test_grok_num_choices() -> None:
     await check_num_choices("grok/grok-beta")
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 @skip_if_no_together
 async def test_together_num_choices() -> None:
     await check_num_choices("together/google/gemma-2b-it")
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 @skip_if_github_action
 @skip_if_no_vllm
 async def test_vllm_num_choices() -> None:
