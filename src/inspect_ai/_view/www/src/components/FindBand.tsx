@@ -1,13 +1,13 @@
 import { FC, KeyboardEvent, useCallback, useEffect, useRef } from "react";
 import { ApplicationIcons } from "../appearance/icons";
-import { useAppStore } from "../state/appStore";
+import { useStore } from "../state/store";
 import "./FindBand.css";
 
 interface FindBandProps {}
 
 export const FindBand: FC<FindBandProps> = () => {
   const searchBoxRef = useRef<HTMLInputElement>(null);
-  const storeHideFind = useAppStore((state) => state.hideFind);
+  const storeHideFind = useStore((state) => state.appActions.hideFind);
 
   useEffect(() => {
     setTimeout(() => {

@@ -1,6 +1,6 @@
 import clsx from "clsx";
 import { FC } from "react";
-import { useAppStore } from "../../state/appStore";
+import { useStore } from "../../state/store";
 import styles from "./LogDirectoryTitleView.module.css";
 
 interface LogDirectoryTitleViewProps {
@@ -10,7 +10,7 @@ interface LogDirectoryTitleViewProps {
 export const LogDirectoryTitleView: FC<LogDirectoryTitleViewProps> = ({
   log_dir,
 }) => {
-  const offCanvas = useAppStore((state) => state.offcanvas);
+  const offCanvas = useStore((state) => state.app.offcanvas);
   if (log_dir) {
     const displayDir = prettyDir(log_dir);
     return (
