@@ -17,7 +17,7 @@ import { EditorView, minimalSetup } from "codemirror";
 import { FC, useEffect, useMemo, useRef, useState } from "react";
 
 import { SampleSummary } from "../../../api/types";
-import { useLogContext } from "../../../contexts/LogContext";
+import { useEvalDescriptor } from "../../../state/logStore";
 import { ScoreFilter } from "../../../types";
 import { EvalDescriptor } from "../../descriptor/types";
 import { FilterError, filterSamples, scoreFilterItems } from "../filters";
@@ -160,14 +160,11 @@ export const SampleFilter: FC<SampleFilterProps> = ({
   const linterCompartment = useRef<Compartment>(new Compartment());
   const autocompletionCompartment = useRef<Compartment>(new Compartment());
   const updateListenerCompartment = useRef<Compartment>(new Compartment());
-  const logContext = useLogContext();
+  const evalDescriptor = useEvalDescriptor();
 
   const filterItems = useMemo(
-    () =>
-      logContext.samplesDescriptor?.evalDescriptor
-        ? scoreFilterItems(logContext.samplesDescriptor.evalDescriptor)
-        : [],
-    [logContext.samplesDescriptor?.evalDescriptor],
+    () => (evalDescriptor ? scoreFilterItems(evalDescriptor) : []),
+    [evalDescriptor],
   );
 
   const [filteringResultInstant, setFilteringResultInstant] =
@@ -190,10 +187,10 @@ export const SampleFilter: FC<SampleFilterProps> = ({
 
   const makeUpdateListener = () =>
     EditorView.updateListener.of((update) => {
-      if (update.docChanged && logContext.samplesDescriptor?.evalDescriptor) {
+      if (update.docChanged && evalDescriptor) {
         const newValue = update.state.doc.toString();
         const filteringResult = getFilteringResult(
-          logContext.samplesDescriptor.evalDescriptor,
+          evalDescriptor,
           samples,
           newValue,
         );
@@ -237,13 +234,9 @@ export const SampleFilter: FC<SampleFilterProps> = ({
     const currentValue = editorViewRef.current.state.doc.toString();
     if (scoreFilter.value === currentValue) return;
 
-    if (logContext.samplesDescriptor?.evalDescriptor) {
+    if (evalDescriptor) {
       setFilteringResultInstant(
-        getFilteringResult(
-          logContext.samplesDescriptor.evalDescriptor,
-          samples,
-          scoreFilter.value || "",
-        ),
+        getFilteringResult(evalDescriptor, samples, scoreFilter.value || ""),
       );
     }
     editorViewRef.current.dispatch({
@@ -253,7 +246,7 @@ export const SampleFilter: FC<SampleFilterProps> = ({
         insert: scoreFilter.value || "",
       },
     });
-  }, [logContext.samplesDescriptor?.evalDescriptor, scoreFilter.value]);
+  }, [evalDescriptor, scoreFilter.value]);
 
   // Update compartments when dependencies change
   useEffect(() => {
@@ -261,7 +254,7 @@ export const SampleFilter: FC<SampleFilterProps> = ({
       effects:
         updateListenerCompartment.current.reconfigure(makeUpdateListener()),
     });
-  }, [logContext.samplesDescriptor?.evalDescriptor]);
+  }, [evalDescriptor]);
 
   useEffect(() => {
     editorViewRef.current?.dispatch({

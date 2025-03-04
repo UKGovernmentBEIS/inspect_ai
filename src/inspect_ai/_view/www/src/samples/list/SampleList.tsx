@@ -17,7 +17,7 @@ import { SampleRow } from "./SampleRow";
 import { SampleSeparator } from "./SampleSeparator";
 
 import clsx from "clsx";
-import { useLogContext } from "../../contexts/LogContext";
+import { useLogStore, useSampleDescriptor } from "../../state/logStore";
 import { SampleFooter } from "./SampleFooter";
 import { SampleHeader } from "./SampleHeader";
 import styles from "./SampleList.module.css";
@@ -46,8 +46,8 @@ export const SampleList: FC<SampleListProps> = (props) => {
     listHandle,
   } = props;
 
-  const logContext = useLogContext();
-
+  const selectedSampleIndex = useLogStore((state) => state.selectedSampleIndex);
+  const samplesDescriptor = useSampleDescriptor();
   const [followOutput, setFollowOutput] = useState(false);
 
   const [hidden, setHidden] = useState(false);
@@ -69,12 +69,8 @@ export const SampleList: FC<SampleListProps> = (props) => {
   const prevSelectedIndexRef = useRef<number>(null);
   useEffect(() => {
     const listEl = listHandle.current;
-    if (
-      listEl &&
-      itemRowMapping.length > logContext.state.selectedSampleIndex
-    ) {
-      const actualRowIndex =
-        itemRowMapping[logContext.state.selectedSampleIndex];
+    if (listEl && itemRowMapping.length > selectedSampleIndex) {
+      const actualRowIndex = itemRowMapping[selectedSampleIndex];
 
       requestAnimationFrame(() => {
         setTimeout(() => {
@@ -88,7 +84,7 @@ export const SampleList: FC<SampleListProps> = (props) => {
         }, 25);
       });
     }
-  }, [logContext.state.selectedSampleIndex, listHandle, itemRowMapping]);
+  }, [selectedSampleIndex, listHandle, itemRowMapping]);
 
   const onkeydown = useCallback(
     (e: KeyboardEvent<HTMLDivElement>) => {
@@ -104,18 +100,18 @@ export const SampleList: FC<SampleListProps> = (props) => {
           e.stopPropagation();
           break;
         case "Enter":
-          showSample(logContext.state.selectedSampleIndex);
+          showSample(selectedSampleIndex);
           e.preventDefault();
           e.stopPropagation();
           break;
       }
     },
-    [logContext.state.selectedSampleIndex, nextSample, prevSample, showSample],
+    [selectedSampleIndex, nextSample, prevSample, showSample],
   );
 
   const gridColumnsTemplate = useMemo(() => {
-    return gridColumnsValue(logContext.samplesDescriptor);
-  }, [logContext.samplesDescriptor]);
+    return gridColumnsValue(samplesDescriptor);
+  }, [samplesDescriptor]);
 
   const renderRow = useCallback(
     (item: ListItem) => {
@@ -148,9 +144,7 @@ export const SampleList: FC<SampleListProps> = (props) => {
     [showSample],
   );
 
-  const { input, limit, answer, target } = gridColumns(
-    logContext.samplesDescriptor,
-  );
+  const { input, limit, answer, target } = gridColumns(samplesDescriptor);
 
   const sampleCount = items?.reduce((prev, current) => {
     if (current.type === "sample") {

@@ -4,7 +4,7 @@ import { Fragment } from "react/jsx-runtime";
 import { EvalLogHeader, LogFiles } from "../../api/types";
 import { ApplicationIcons } from "../../appearance/icons";
 import { ProgressBar } from "../../components/ProgressBar";
-import { useAppStore } from "../../contexts/appStore";
+import { useAppStore } from "../../state/appStore";
 import { LogDirectoryTitleView } from "./LogDirectoryTitleView";
 import styles from "./Sidebar.module.css";
 import { SidebarLogEntry } from "./SidebarLogEntry";

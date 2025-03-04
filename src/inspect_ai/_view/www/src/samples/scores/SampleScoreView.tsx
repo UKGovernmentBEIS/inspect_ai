@@ -8,7 +8,7 @@ import { SampleScores } from "./SampleScores";
 
 import { FC } from "react";
 import { SampleSummary } from "../../api/types";
-import { useLogContext } from "../../contexts/LogContext";
+import { useEvalDescriptor } from "../../state/logStore";
 import styles from "./SampleScoreView.module.css";
 
 interface SampleScoreViewProps {
@@ -22,8 +22,8 @@ export const SampleScoreView: FC<SampleScoreViewProps> = ({
   className,
   scorer,
 }) => {
-  const logContext = useLogContext();
-  if (!logContext.samplesDescriptor) {
+  const evalDescriptor = useEvalDescriptor();
+  if (!evalDescriptor) {
     return null;
   }
 
@@ -37,11 +37,10 @@ export const SampleScoreView: FC<SampleScoreViewProps> = ({
     );
   }
 
-  const scorerDescriptor =
-    logContext.samplesDescriptor.evalDescriptor.scorerDescriptor(sample, {
-      scorer,
-      name: scorer,
-    });
+  const scorerDescriptor = evalDescriptor.scorerDescriptor(sample, {
+    scorer,
+    name: scorer,
+  });
   const explanation = scorerDescriptor.explanation() || "(No Explanation)";
   const answer = scorerDescriptor.answer();
   const metadata = scorerDescriptor.metadata();

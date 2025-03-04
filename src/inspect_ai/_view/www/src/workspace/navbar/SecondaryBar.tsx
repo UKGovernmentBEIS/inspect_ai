@@ -2,9 +2,9 @@ import clsx from "clsx";
 import { FC } from "react";
 import { ExpandablePanel } from "../../components/ExpandablePanel";
 import { LabeledValue } from "../../components/LabeledValue";
-import { useLogContext } from "../../contexts/LogContext";
 import { EvalDescriptor } from "../../samples/descriptor/types";
 import { scoreFilterItems } from "../../samples/sample-tools/filters";
+import { useLogStore } from "../../state/logStore";
 import {
   EvalDataset,
   EvalPlan,
@@ -35,7 +35,7 @@ export const SecondaryBar: FC<SecondaryBarProps> = ({
   status,
   sampleCount,
 }) => {
-  const logContext = useLogContext();
+  const evalDescriptor = useLogStore((state) => state.evalDescriptor);
 
   if (!evalSpec || status !== "success") {
     return null;
@@ -81,7 +81,7 @@ export const SecondaryBar: FC<SecondaryBarProps> = ({
           "text-size-small",
         )}
       >
-        <ScorerSummary evalDescriptor={logContext.evalDescriptor} />
+        <ScorerSummary evalDescriptor={evalDescriptor} />
       </LabeledValue>
     ),
   });

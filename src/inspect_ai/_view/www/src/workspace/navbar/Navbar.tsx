@@ -1,7 +1,7 @@
 import clsx from "clsx";
 import { FC } from "react";
 import { RunningMetric } from "../../api/types";
-import { useLogContext } from "../../contexts/LogContext";
+import { useTotalSampleCount } from "../../state/logStore";
 import {
   EvalPlan,
   EvalResults,
@@ -35,7 +35,7 @@ export const Navbar: FC<NavBarProps> = ({
   status,
   runningMetrics,
 }) => {
-  const logContext = useLogContext();
+  const totalSampleCount = useTotalSampleCount();
   return (
     <nav className={clsx("navbar", "sticky-top", styles.navbarWrapper)}>
       <PrimaryBar
@@ -44,7 +44,7 @@ export const Navbar: FC<NavBarProps> = ({
         showToggle={showToggle}
         status={status}
         runningMetrics={runningMetrics}
-        sampleCount={logContext.totalSampleCount}
+        sampleCount={totalSampleCount}
       />
       <SecondaryBar
         evalSpec={evalSpec}
@@ -52,7 +52,7 @@ export const Navbar: FC<NavBarProps> = ({
         evalResults={evalResults}
         evalStats={evalStats}
         status={status}
-        sampleCount={logContext.totalSampleCount}
+        sampleCount={totalSampleCount}
       />
     </nav>
   );

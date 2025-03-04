@@ -5,6 +5,7 @@ import {
   PendingSamples,
   SampleSummary,
 } from "./api/types";
+import { ScorerInfo } from "./scoring/utils";
 import { ContentImage, ContentText, EvalSample, Events } from "./types/log";
 
 export interface AppState {
@@ -28,6 +29,7 @@ export interface LogState {
   epoch: string;
   sort: string;
   score?: ScoreLabel;
+  scores?: ScorerInfo[];
 }
 
 export interface SampleState {

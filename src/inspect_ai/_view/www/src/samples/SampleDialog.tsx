@@ -3,7 +3,7 @@ import { LargeModal, ModalTool, ModalTools } from "../components/LargeModal";
 
 import { FC, Ref, RefObject, useCallback, useMemo, useRef } from "react";
 import { ErrorPanel } from "../components/ErrorPanel";
-import { useSampleContext } from "../contexts/SampleContext";
+import { useSampleContext } from "../state/SampleContext";
 import { SampleDisplay } from "./SampleDisplay";
 
 interface SampleDialogProps {

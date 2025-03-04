@@ -2,8 +2,8 @@ import clsx from "clsx";
 import { FC, ReactNode, useCallback } from "react";
 import { SampleSummary } from "../../api/types";
 import { MarkdownDiv } from "../../components/MarkdownDiv";
-import { useAppStore } from "../../contexts/appStore";
-import { useLogContext } from "../../contexts/LogContext";
+import { useAppStore } from "../../state/appStore";
+import { useLogStore } from "../../state/logStore";
 import { arrayToString, inputString } from "../../utils/format";
 import { SampleErrorView } from "../error/SampleErrorView";
 import styles from "./SampleRow.module.css";
@@ -34,8 +34,7 @@ export const SampleRow: FC<SampleRowProps> = ({
   const streamSampleData = useAppStore(
     (state) => state.capabilities.streamSampleData,
   );
-  const logContext = useLogContext();
-
+  const selectedSampleIndex = useLogStore((state) => state.selectedSampleIndex);
   const handleClick = useCallback(() => {
     if (completed || streamSampleData) {
       showSample(index);
@@ -49,9 +48,7 @@ export const SampleRow: FC<SampleRowProps> = ({
       className={clsx(
         styles.grid,
         "text-size-base",
-        logContext.state.selectedSampleIndex === index
-          ? styles.selected
-          : undefined,
+        selectedSampleIndex === index ? styles.selected : undefined,
       )}
       style={{
         height: `${height}px`,

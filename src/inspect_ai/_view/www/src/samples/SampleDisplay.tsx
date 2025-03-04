@@ -21,7 +21,7 @@ import {
   kSampleScoringTabId,
   kSampleTranscriptTabId,
 } from "../constants";
-import { useLogContext } from "../contexts/LogContext";
+import { useLogStore, useSampleSummaries } from "../state/logStore";
 import { RunningSampleData } from "../types";
 import { EvalSample } from "../types/log";
 import { ModelTokenTable } from "../usage/ModelTokenTable";
@@ -54,10 +54,10 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
 }) => {
   // Tab ids
   const baseId = `sample-dialog`;
+  const sampleSummaries = useSampleSummaries();
+  const selectedSampleIndex = useLogStore((state) => state.selectedSampleIndex);
 
-  const logContext = useLogContext();
-  const sampleSummary =
-    logContext.sampleSummaries[logContext.state.selectedSampleIndex];
+  const sampleSummary = sampleSummaries[selectedSampleIndex];
   const sampleEvents = sample?.events || runningSampleData?.events;
 
   // Tab selection

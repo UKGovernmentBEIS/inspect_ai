@@ -1,6 +1,6 @@
 import clsx from "clsx";
 import { FC } from "react";
-import { useAppStore } from "../../contexts/appStore";
+import { useAppStore } from "../../state/appStore";
 import styles from "./LogDirectoryTitleView.module.css";
 
 interface LogDirectoryTitleViewProps {

@@ -3,7 +3,7 @@ import { ErrorPanel } from "../components/ErrorPanel";
 import { ProgressBar } from "../components/ProgressBar";
 import { SampleDisplay } from "./SampleDisplay";
 
-import { useSampleContext } from "../contexts/SampleContext";
+import { useSampleContext } from "../state/SampleContext";
 import styles from "./InlineSampleDisplay.module.css";
 
 interface InlineSampleDisplayProps {
