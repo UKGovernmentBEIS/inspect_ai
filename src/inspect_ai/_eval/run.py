@@ -292,18 +292,27 @@ async def run_multiple(tasks: list[TaskRunOptions], parallel: int) -> list[EvalL
         parallel * 2
     )
 
+    # find a task that keeps as many different models as possible running concurrently
     async def enque_next_task() -> bool:
         if tasks_completed < total_tasks:
-            # find a task that keeps as many different models as possible running concurrently
-            model = min(model_counts.items(), key=lambda m: m[1])[0]
-            next_task = next((t for t in pending_tasks if str(t.model) == model), None)
-            if next_task:
-                pending_tasks.remove(next_task)
-                model_counts[str(next_task.model)] += 1
-                await send_channel.send(next_task)
-                return True
-            else:
+            # filter out models that have no pending tasks
+            models_with_pending = {
+                model
+                for model in model_counts
+                if any(str(t.model) == model for t in pending_tasks)
+            }
+            if not models_with_pending:
                 return False
+
+            # among those models, pick one with the least usage
+            model = min(models_with_pending, key=lambda m: model_counts[m])
+
+            # now we know there’s at least one pending task for this model so it’s safe to pick it
+            next_task = next(t for t in pending_tasks if str(t.model) == model)
+            pending_tasks.remove(next_task)
+            model_counts[str(next_task.model)] += 1
+            await send_channel.send(next_task)
+            return True
         else:
             return False
 
@@ -338,13 +347,12 @@ async def run_multiple(tasks: list[TaskRunOptions], parallel: int) -> list[EvalL
                 tasks_completed += 1
                 model_counts[str(task_options.model)] -= 1
 
-                # if we need to break, do it before updating counters
+                # if a task was cancelled we are done
                 if not result or result.status == "cancelled":
                     break
 
-                # Check if there are more tasks to process
+                # check if there are more tasks to process
                 if tasks_completed < total_tasks:
-                    # Try to enqueue next task
                     await enque_next_task()
                 elif tasks_completed == total_tasks:
                     # all tasks are complete, close the stream
