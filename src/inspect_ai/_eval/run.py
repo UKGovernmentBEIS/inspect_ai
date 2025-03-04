@@ -1,7 +1,11 @@
 import functools
 import logging
 import os
+import sys
 from typing import Any, Awaitable, Callable, Set, cast
+
+if sys.version_info < (3, 11):
+    from exceptiongroup import ExceptionGroup
 
 import anyio
 from shortuuid import uuid
@@ -233,7 +237,7 @@ async def eval_run(
         # could in turn be executed for multiple models)
         else:
             with chdir(run_dir):
-                return await run_single(task_run_options)
+                return await run_single(task_run_options, debug_errors)
 
     finally:
         # shutdown sandbox environments
@@ -248,7 +252,7 @@ async def eval_run(
 
 # single mode -- run a single logical task (could consist of multiple
 # executable tasks if we are evaluating against multiple models)
-async def run_single(tasks: list[TaskRunOptions]) -> list[EvalLog]:
+async def run_single(tasks: list[TaskRunOptions], debug_errors: bool) -> list[EvalLog]:
     async with display().task_screen(task_specs(tasks), parallel=False) as screen:
         # init ui
         init_task_screen(screen)
@@ -263,7 +267,12 @@ async def run_single(tasks: list[TaskRunOptions]) -> list[EvalLog]:
 
                 for i in range(0, len(tasks)):
                     tg.start_soon(run_task, i)
-
+        # exceptions can escape when debug_errors is True and that's okay
+        except ExceptionGroup as ex:
+            if debug_errors:
+                raise ex.exceptions[0]
+            else:
+                raise
         except anyio.get_cancelled_exc_class():
             # child tasks have already each handled this and updated results
             pass
@@ -271,8 +280,8 @@ async def run_single(tasks: list[TaskRunOptions]) -> list[EvalLog]:
             # clear ui
             clear_task_screen()
 
-            # sort results by original index and return just the values
-            return [r for _, r in sorted(results)]
+        # sort results by original index and return just the values
+        return [r for _, r in sorted(results)]
 
 
 # multiple mode -- run multiple logical tasks (requires some smart
