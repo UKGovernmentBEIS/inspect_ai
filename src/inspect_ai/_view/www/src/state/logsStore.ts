@@ -229,10 +229,13 @@ export const useLogsStore = create<LogsStore>()((set, get) => ({
   getState: () => ({ logs: get() }),
 }));
 
-// Create a selector hook for the selected log file
+// The selected log file
 export const useSelectedLogFile = () =>
   useLogsStore((state) => {
-    const file = state.logs.files[state.selectedLogIndex];
+    const files = state.logs.files;
+    const selectedIndex = state.selectedLogIndex;
+
+    const file = files[selectedIndex];
     return file !== undefined ? file.name : undefined;
   });
 

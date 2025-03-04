@@ -17,7 +17,7 @@ interface AppStore extends AppState {
   getState: () => { app: AppState };
 }
 
-// Define initial state (same as your current initialAppState)
+// Initial state
 const initialState: AppState = {
   status: { loading: false },
   offcanvas: false,
@@ -27,7 +27,7 @@ const initialState: AppState = {
 export const useAppStore = create<AppStore>()(
   immer((set, get) => ({
     ...initialState,
-    capabilities: {} as Capabilities, // Will be initialized on store creation
+    capabilities: {} as Capabilities,
 
     // Actions
     setStatus: (status) =>
@@ -49,7 +49,6 @@ export const useAppStore = create<AppStore>()(
       });
     },
 
-    // For compatibility with existing code
     getState: () => ({
       app: {
         status: get().status,

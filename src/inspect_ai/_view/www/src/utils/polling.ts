@@ -11,7 +11,6 @@ export interface Polling {
   stop: () => void;
 }
 
-// First, create a more robust polling utility
 export const createPolling = (
   name: string,
   callback: () => Promise<boolean>,

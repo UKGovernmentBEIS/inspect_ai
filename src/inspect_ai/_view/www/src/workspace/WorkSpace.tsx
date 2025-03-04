@@ -145,7 +145,6 @@ export const useSamplesTabConfig = (
   const totalSampleCount = useTotalSampleCount();
   const samplesDescriptor = useSampleDescriptor();
   const sampleSummaries = useFilteredSamples();
-  console.log({ sampleSummaries });
   const streamSamples = useAppStore(
     (state) => state.capabilities.streamSamples,
   );
