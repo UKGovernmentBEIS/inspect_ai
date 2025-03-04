@@ -2,6 +2,7 @@ import functools
 import io
 import os
 import shlex
+from contextlib import aclosing
 from contextvars import ContextVar
 from dataclasses import dataclass
 from logging import getLogger
@@ -176,34 +177,34 @@ async def subprocess(
     # wrapper for run command that implements timeout
     async def run_command_timeout() -> Union[ExecResult[str], ExecResult[bytes]]:
         # run the command and capture the process handle
-        rc = run_command()
-        proc = cast(Process, await anext(rc))
+        async with aclosing(run_command()) as rc:
+            proc = cast(Process, await anext(rc))
 
-        # await result wrapped in timeout handler if requested
-        if timeout:
-            try:
-                with anyio.fail_after(timeout):
-                    result = await anext(rc)
-                    return cast(Union[ExecResult[str], ExecResult[bytes]], result)
-            except TimeoutError:
-                # terminate timed out process -- try for graceful termination
-                # then be more forceful if requied
-                with anyio.CancelScope(shield=True):
-                    try:
-                        proc.terminate()
-                        await anyio.sleep(2)
-                        if proc.returncode is None:
-                            proc.kill()
-                    except Exception as ex:
-                        logger.warning(
-                            f"Unexpected error terminating timed out process '{args}': {ex}"
-                        )
-                raise
+            # await result wrapped in timeout handler if requested
+            if timeout:
+                try:
+                    with anyio.fail_after(timeout):
+                        result = await anext(rc)
+                        return cast(Union[ExecResult[str], ExecResult[bytes]], result)
+                except TimeoutError:
+                    # terminate timed out process -- try for graceful termination
+                    # then be more forceful if requied
+                    with anyio.CancelScope(shield=True):
+                        try:
+                            proc.terminate()
+                            await anyio.sleep(2)
+                            if proc.returncode is None:
+                                proc.kill()
+                        except Exception as ex:
+                            logger.warning(
+                                f"Unexpected error terminating timed out process '{args}': {ex}"
+                            )
+                    raise
 
-        # await result without timeout
-        else:
-            result = await anext(rc)
-            return cast(Union[ExecResult[str], ExecResult[bytes]], result)
+            # await result without timeout
+            else:
+                result = await anext(rc)
+                return cast(Union[ExecResult[str], ExecResult[bytes]], result)
 
     # run command
     async with concurrency("subprocesses", max_subprocesses_context_var.get()):
