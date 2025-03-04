@@ -282,41 +282,38 @@ async def run_multiple(tasks: list[TaskRunOptions], parallel: int) -> list[EvalL
     model_counts = {model: 0 for model in models}
 
     # setup pending tasks, queue, and results
-    lock = anyio.Lock()
     pending_tasks = tasks.copy()
     results: list[EvalLog] = []
     tasks_completed = 0
     total_tasks = len(tasks)
 
     # produce/consume tasks
-    send_channel, receive_channel = anyio.create_memory_object_stream[TaskRunOptions]()
+    send_channel, receive_channel = anyio.create_memory_object_stream[TaskRunOptions](
+        parallel * 2
+    )
 
     async def enque_next_task() -> bool:
-        async with lock:
-            if tasks_completed < total_tasks:
-                # find a task that keeps as many different models as possible running concurrently
-                model = min(model_counts.items(), key=lambda m: m[1])[0]
-                next_task = next(
-                    (t for t in pending_tasks if str(t.model) == model), None
-                )
-                if next_task:
-                    pending_tasks.remove(next_task)
-                    model_counts[str(next_task.model)] += 1
-                    await send_channel.send(next_task)
-                    return True
-                else:
-                    return False
+        if tasks_completed < total_tasks:
+            # find a task that keeps as many different models as possible running concurrently
+            model = min(model_counts.items(), key=lambda m: m[1])[0]
+            next_task = next((t for t in pending_tasks if str(t.model) == model), None)
+            if next_task:
+                pending_tasks.remove(next_task)
+                model_counts[str(next_task.model)] += 1
+                await send_channel.send(next_task)
+                return True
             else:
                 return False
+        else:
+            return False
 
     async def worker() -> None:
-        # worker runs untiil cancelled
-        nonlocal tasks_completed
-        while True:
-            result: EvalLog | None = None
-            try:
+        try:
+            nonlocal tasks_completed
+            async for task_options in receive_channel:
+                result: EvalLog | None = None
+
                 # remove the task from the queue and run it
-                task_options = await receive_channel.receive()
                 try:
                     tg_results = await tg_collect(
                         [functools.partial(task_run, task_options)]
@@ -338,9 +335,8 @@ async def run_multiple(tasks: list[TaskRunOptions], parallel: int) -> list[EvalL
                     )
 
                 # tracking
-                async with lock:
-                    tasks_completed += 1
-                    model_counts[str(task_options.model)] -= 1
+                tasks_completed += 1
+                model_counts[str(task_options.model)] -= 1
 
                 # if we need to break, do it before updating counters
                 if not result or result.status == "cancelled":
@@ -357,9 +353,8 @@ async def run_multiple(tasks: list[TaskRunOptions], parallel: int) -> list[EvalL
                     except anyio.ClosedResourceError:
                         # another worker might have already closed it
                         pass
-            except anyio.EndOfStream:
-                # stream closed, exit worker
-                break
+        except anyio.EndOfStream:
+            pass
 
     # with task display
     async with display().task_screen(task_specs(tasks), parallel=True) as screen:
@@ -369,11 +364,11 @@ async def run_multiple(tasks: list[TaskRunOptions], parallel: int) -> list[EvalL
         # Use anyio task group instead of manual task management
         try:
             async with anyio.create_task_group() as tg:
-                # Start worker tasks
+                # start worker tasks
                 for _ in range(parallel):
                     tg.start_soon(worker)
 
-                # Enqueue initial set of tasks
+                # enqueue initial set of tasks
                 for _ in range(min(parallel, total_tasks)):
                     await enque_next_task()
         except anyio.get_cancelled_exc_class():
