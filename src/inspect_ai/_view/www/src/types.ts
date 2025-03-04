@@ -22,9 +22,10 @@ export interface LogsState {
 }
 
 export interface LogState {
+  selectedSampleIndex: number;
   selectedLogSummary?: EvalSummary;
   pendingSampleSummaries?: PendingSamples;
-  selectedSampleIndex: number;
+
   filter: ScoreFilter;
   epoch: string;
   sort: string;
@@ -32,14 +33,17 @@ export interface LogState {
   scores?: ScorerInfo[];
 }
 
+export type SampleStatus = "ok" | "loading" | "error";
+
 export interface SampleState {
   selectedSample: EvalSample | undefined;
-  sampleStatus: "loading" | "ok" | "error";
+  sampleStatus: SampleStatus;
   sampleError: Error | undefined;
   runningSampleData: RunningSampleData | undefined;
 }
 
 export interface ApplicationState {
+  app: AppState;
   logs: LogsState;
   log: LogState;
   sample: SampleState;
@@ -48,16 +52,9 @@ export interface ApplicationState {
   workspaceTabScrollPosition?: Record<string, number>;
 
   // Sample Context
-  selectedSampleIndex?: number;
-  selectedSample?: EvalSample;
-  sampleStatus?: "loading" | "ok" | "error";
-  sampleError?: Error;
   selectedSampleTab?: string;
   sampleScrollPosition?: number;
   showingSampleDialog?: boolean;
-
-  // App Context
-  app: AppState;
 }
 
 export interface AppStatus {
