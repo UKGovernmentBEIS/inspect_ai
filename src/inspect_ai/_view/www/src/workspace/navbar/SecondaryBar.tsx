@@ -4,7 +4,7 @@ import { ExpandablePanel } from "../../components/ExpandablePanel";
 import { LabeledValue } from "../../components/LabeledValue";
 import { EvalDescriptor } from "../../samples/descriptor/types";
 import { scoreFilterItems } from "../../samples/sample-tools/filters";
-import { useLogStore } from "../../state/logStore";
+import { useEvalDescriptor } from "../../state/logStore";
 import {
   EvalDataset,
   EvalPlan,
@@ -35,8 +35,7 @@ export const SecondaryBar: FC<SecondaryBarProps> = ({
   status,
   sampleCount,
 }) => {
-  const evalDescriptor = useLogStore((state) => state.evalDescriptor);
-
+  const evalDescriptor = useEvalDescriptor();
   if (!evalSpec || status !== "success") {
     return null;
   }
@@ -170,7 +169,7 @@ const DatasetSummary: FC<DatasetSummaryProps> = ({
 };
 
 interface ScoreSummaryProps {
-  evalDescriptor?: EvalDescriptor;
+  evalDescriptor?: EvalDescriptor | null;
 }
 
 /**
