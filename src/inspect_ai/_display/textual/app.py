@@ -106,7 +106,6 @@ class TaskScreenApp(App[TR]):
             textual_enable_mouse_support(self.app._driver)
 
     def run_app(self, main: Callable[[], Awaitable[TR]]) -> TaskScreenResult[TR]:
-        # TODO: this ties us to the asyncio backend
         self._worker = self.run_worker(main(), start=False, exit_on_error=False)
 
         # run the app
