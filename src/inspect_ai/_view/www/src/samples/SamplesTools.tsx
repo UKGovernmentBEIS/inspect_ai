@@ -57,7 +57,6 @@ export const SampleTools: FC<SampleToolsProps> = ({ samples }) => {
       <SortFilter
         sort={sort}
         setSort={(sort: string) => {
-          console.log({ sort });
           setSort(sort);
         }}
         epochs={epochs}
