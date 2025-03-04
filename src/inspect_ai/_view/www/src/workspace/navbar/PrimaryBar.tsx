@@ -4,8 +4,8 @@ import { RunningMetric } from "../../api/types";
 import { ApplicationIcons } from "../../appearance/icons";
 import { CopyButton } from "../../components/CopyButton";
 import { kModelNone } from "../../constants";
-import { useAppStore } from "../../contexts/appStore";
-import { useLogsStore } from "../../contexts/logsStore";
+import { useAppStore } from "../../state/appStore";
+import { useSelectedLogFile } from "../../state/logsStore";
 import { EvalResults, EvalSpec, Status } from "../../types/log";
 import { filename } from "../../utils/path";
 import styles from "./PrimaryBar.module.css";
@@ -39,7 +39,8 @@ export const PrimaryBar: FC<PrimaryBarProps> = ({
   const streamSamples = useAppStore(
     (state) => state.capabilities.streamSamples,
   );
-  const selectedFileName = useLogsStore((state) => state.selectedLogFile);
+
+  const selectedFileName = useSelectedLogFile();
   const logFileName = selectedFileName ? filename(selectedFileName) : "";
 
   const handleToggle = useCallback(() => {

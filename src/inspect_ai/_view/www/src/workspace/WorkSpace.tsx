@@ -12,8 +12,13 @@ import {
   kInfoWorkspaceTabId,
   kJsonWorkspaceTabId,
 } from "../constants";
-import { useAppStore } from "../contexts/appStore.ts";
-import { useLogContext } from "../contexts/LogContext.tsx";
+import { useAppStore } from "../state/appStore.ts";
+import { useSelectedLogFile } from "../state/logsStore.ts";
+import {
+  useFilteredSamples,
+  useSampleDescriptor,
+  useTotalSampleCount,
+} from "../state/logStore.ts";
 import { CurrentLog } from "../types.ts";
 import {
   EvalError,
@@ -137,21 +142,24 @@ export const useSamplesTabConfig = (
   refreshLog: () => void,
   sampleTabScrollRef: RefObject<HTMLDivElement | null>,
 ) => {
-  const logContext = useLogContext();
+  const totalSampleCount = useTotalSampleCount();
+  const samplesDescriptor = useSampleDescriptor();
+  const sampleSummaries = useFilteredSamples();
+  console.log({ sampleSummaries });
   const streamSamples = useAppStore(
     (state) => state.capabilities.streamSamples,
   );
 
   return useMemo(() => {
-    if (logContext.totalSampleCount === 0) {
+    if (totalSampleCount === 0) {
       return null;
     }
 
     return {
       id: kEvalWorkspaceTabId,
-      scrollable: logContext.totalSampleCount === 1,
+      scrollable: totalSampleCount === 1,
       scrollRef: sampleTabScrollRef,
-      label: logContext.totalSampleCount > 1 ? "Samples" : "Sample",
+      label: totalSampleCount > 1 ? "Samples" : "Sample",
       content: () => (
         <SamplesTab
           running={evalStatus === "started"}
@@ -165,11 +173,11 @@ export const useSamplesTabConfig = (
         />
       ),
       tools: () =>
-        logContext.totalSampleCount === 1 || !logContext.samplesDescriptor
+        totalSampleCount === 1 || !samplesDescriptor
           ? undefined
           : [
               <SampleTools
-                samples={logContext.sampleSummaries || []}
+                samples={sampleSummaries || []}
                 key="sample-tools"
               />,
               evalStatus === "started" && !streamSamples && (
@@ -192,7 +200,7 @@ export const useSamplesTabConfig = (
     setSampleScrollPosition,
     refreshLog,
     sampleTabScrollRef,
-    logContext.samplesDescriptor,
+    samplesDescriptor,
   ]);
 };
 
@@ -204,7 +212,7 @@ export const useInfoTabConfig = (
   evalResults: EvalResults | undefined,
   evalStats: EvalStats | undefined,
 ) => {
-  const logContext = useLogContext();
+  const totalSampleCount = useTotalSampleCount();
   return useMemo(() => {
     return {
       id: kInfoWorkspaceTabId,
@@ -217,18 +225,11 @@ export const useInfoTabConfig = (
           evalError={evalError}
           evalResults={evalResults}
           evalStats={evalStats}
-          sampleCount={logContext.totalSampleCount}
+          sampleCount={totalSampleCount}
         />
       ),
     };
-  }, [
-    evalSpec,
-    evalPlan,
-    evalError,
-    evalResults,
-    evalStats,
-    logContext.totalSampleCount,
-  ]);
+  }, [evalSpec, evalPlan, evalError, evalResults, evalStats, totalSampleCount]);
 };
 
 // Individual hook for JSON tab
@@ -242,7 +243,7 @@ export const useJsonTabConfig = (
   evalStats: EvalStats | undefined,
   selectedTab: string,
 ) => {
-  const logContext = useLogContext();
+  const selectedLogFile = useSelectedLogFile();
   return useMemo(() => {
     return {
       id: kJsonWorkspaceTabId,
@@ -260,7 +261,7 @@ export const useJsonTabConfig = (
         };
         return (
           <JsonTab
-            logFile={logContext.selectedLogFile}
+            logFile={selectedLogFile}
             json={JSON.stringify(evalHeader, null, 2)}
             selected={selectedTab === kJsonWorkspaceTabId}
           />
@@ -278,7 +279,7 @@ export const useJsonTabConfig = (
       ],
     };
   }, [
-    logContext.selectedLogFile,
+    selectedLogFile,
     evalVersion,
     evalStatus,
     evalSpec,

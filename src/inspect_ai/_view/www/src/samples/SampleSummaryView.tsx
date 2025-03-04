@@ -6,7 +6,7 @@ import { FlatSampleError } from "./error/FlatSampleErrorView";
 
 import { FC, ReactNode } from "react";
 import { SampleSummary } from "../api/types";
-import { useLogContext } from "../contexts/LogContext";
+import { useSampleDescriptor, useScore } from "../state/logStore";
 import styles from "./SampleSummaryView.module.css";
 import { SamplesDescriptor } from "./descriptor/samplesDescriptor";
 
@@ -84,8 +84,8 @@ export const SampleSummaryView: FC<SampleSummaryViewProps> = ({
   parent_id,
   sample,
 }) => {
-  const logContext = useLogContext();
-  const sampleDescriptor = logContext.samplesDescriptor;
+  const sampleDescriptor = useSampleDescriptor();
+  const currentScore = useScore();
   if (!sampleDescriptor) {
     return undefined;
   }
@@ -189,9 +189,8 @@ export const SampleSummaryView: FC<SampleSummaryViewProps> = ({
     value: fields.error ? (
       <FlatSampleError message={fields.error} />
     ) : (
-      sampleDescriptor?.evalDescriptor
-        .score(sample, logContext.currentScore)
-        ?.render() || ""
+      sampleDescriptor?.evalDescriptor.score(sample, currentScore)?.render() ||
+      ""
     ),
     size: "minmax(2em, 30em)",
     center: true,

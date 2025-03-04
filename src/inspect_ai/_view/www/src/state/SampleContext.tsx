@@ -17,7 +17,8 @@ import { EvalSample } from "../types/log";
 import { resolveAttachments } from "../utils/attachments";
 import { createLogger } from "../utils/logger";
 import { createPolling, Polling } from "../utils/polling";
-import { useLogContext } from "./LogContext";
+import { useLogsStore } from "./logsStore";
+import { useFilteredSamples, useLogStore } from "./logStore";
 
 // Define action types
 type SampleAction =
@@ -95,6 +96,10 @@ export const SampleProvider: FC<SampleProviderProps> = ({
     return createLogger("SampleContext");
   }, []);
 
+  const selectedLogFile = useLogsStore((state) => state.getSelectedLogFile());
+  const selectedSampleIndex = useLogStore((state) => state.selectedSampleIndex);
+  const sampleSummaries = useFilteredSamples();
+
   // Use reducer for state management
   const [state, dispatch] = useReducer(
     sampleReducer,
@@ -103,9 +108,6 @@ export const SampleProvider: FC<SampleProviderProps> = ({
 
   // Refs
   const pollingRef = useRef<Polling>(null);
-
-  // Context hooks
-  const logContext = useLogContext();
 
   // Helper function for old sample migration
   const migrateOldSample = (sample: any) => {
@@ -186,7 +188,7 @@ export const SampleProvider: FC<SampleProviderProps> = ({
         pollingRef.current.stop();
       }
     };
-  }, [logContext.selectedLogFile]);
+  }, [selectedLogFile]);
 
   // Cancel polling
   useEffect(() => {
@@ -195,12 +197,12 @@ export const SampleProvider: FC<SampleProviderProps> = ({
         pollingRef.current.stop();
       }
     };
-  }, [logContext.state.selectedSampleIndex]);
+  }, [selectedSampleIndex]);
 
   // Load a specific sample
   const loadSample = useCallback(
     async (summary: SampleSummary) => {
-      if (!logContext.selectedLogFile) {
+      if (!selectedLogFile) {
         return;
       }
 
@@ -213,7 +215,7 @@ export const SampleProvider: FC<SampleProviderProps> = ({
         if (summary.completed !== false) {
           log.debug(`LOADING COMPLETED SAMPLE: ${summary.id}-${summary.epoch}`);
           const sample = await api.get_log_sample(
-            logContext.selectedLogFile,
+            selectedLogFile,
             summary.id,
             summary.epoch,
           );
@@ -227,7 +229,7 @@ export const SampleProvider: FC<SampleProviderProps> = ({
           }
         } else {
           log.debug(`POLLING RUNNING SAMPLE: ${summary.id}-${summary.epoch}`);
-          pollForSampleData(logContext.selectedLogFile, summary);
+          pollForSampleData(selectedLogFile, summary);
         }
 
         dispatch({ type: "SET_LOADING", payload: false });
@@ -235,23 +237,20 @@ export const SampleProvider: FC<SampleProviderProps> = ({
         dispatch({ type: "SET_ERROR", payload: e as Error });
       }
     },
-    [logContext.selectedLogFile, pollForSampleData],
+    [selectedLogFile, pollForSampleData],
   );
 
   // Clear the selected sample when log file changes
   useEffect(() => {
-    if (
-      !logContext.selectedLogFile ||
-      logContext.state.selectedSampleIndex === -1
-    ) {
+    if (!selectedLogFile || selectedSampleIndex === -1) {
       dispatch({ type: "SET_SELECTED_SAMPLE", payload: undefined });
     }
-  }, [logContext.state.selectedSampleIndex, logContext.selectedLogFile]);
+  }, [selectedSampleIndex, selectedLogFile]);
 
   // Load selected sample when index changes
   const selectedSampleSummary = useMemo(() => {
-    return logContext.sampleSummaries[logContext.state.selectedSampleIndex];
-  }, [logContext.state.selectedSampleIndex, logContext.sampleSummaries]);
+    return sampleSummaries[selectedSampleIndex];
+  }, [selectedSampleIndex, sampleSummaries]);
 
   useEffect(() => {
     if (selectedSampleSummary) {

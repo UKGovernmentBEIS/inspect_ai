@@ -140,7 +140,7 @@ export const sortSamples = (
         if (result !== 0) {
           return result;
         } else {
-          return sortId(a, b);
+          return sortId(b, a);
         }
       }
 
