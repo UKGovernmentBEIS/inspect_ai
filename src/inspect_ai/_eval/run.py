@@ -1,4 +1,5 @@
 import asyncio
+import functools
 import logging
 import os
 from typing import Any, Awaitable, Callable, Set, cast
@@ -13,6 +14,7 @@ from inspect_ai._display.core.active import (
     init_task_screen,
 )
 from inspect_ai._display.core.display import TaskSpec
+from inspect_ai._util._async import tg_collect
 from inspect_ai._util.error import PrerequisiteError, exception_message
 from inspect_ai._util.path import chdir
 from inspect_ai._util.registry import registry_unqualified_name
@@ -280,58 +282,83 @@ async def run_multiple(tasks: list[TaskRunOptions], parallel: int) -> list[EvalL
     model_counts = {model: 0 for model in models}
 
     # setup pending tasks, queue, and results
+    lock = anyio.Lock()
     pending_tasks = tasks.copy()
-    queue: asyncio.Queue[TaskRunOptions] = asyncio.Queue()
     results: list[EvalLog] = []
     tasks_completed = 0
     total_tasks = len(tasks)
 
+    # produce/consume tasks
+    send_channel, receive_channel = anyio.create_memory_object_stream[TaskRunOptions]()
+
     async def enque_next_task() -> bool:
-        if tasks_completed < total_tasks:
-            # find a task that keeps as many different models as possible running concurrently
-            model = min(model_counts.items(), key=lambda m: m[1])[0]
-            next_task = next((t for t in pending_tasks if str(t.model) == model), None)
-            if next_task:
-                pending_tasks.remove(next_task)
-                model_counts[str(next_task.model)] += 1
-                await queue.put(next_task)
-                return True
+        async with lock:
+            if tasks_completed < total_tasks:
+                # find a task that keeps as many different models as possible running concurrently
+                model = min(model_counts.items(), key=lambda m: m[1])[0]
+                next_task = next(
+                    (t for t in pending_tasks if str(t.model) == model), None
+                )
+                if next_task:
+                    pending_tasks.remove(next_task)
+                    model_counts[str(next_task.model)] += 1
+                    await send_channel.send(next_task)
+                    return True
+                else:
+                    return False
             else:
                 return False
-        else:
-            return False
 
     async def worker() -> None:
         # worker runs untiil cancelled
         nonlocal tasks_completed
         while True:
-            # remove the task from the queue and run it
-            task_options = await queue.get()
-            task = asyncio.create_task(task_run(task_options))
+            result: EvalLog | None = None
             try:
-                await task
-                result = task.result()
-                results.append(result)
-            except anyio.get_cancelled_exc_class():
-                task.cancel()
-                await task
-                result = task.result()
-                results.append(result)
-            except Exception as ex:
-                # errors generally don't escape from tasks (the exception being if an error
-                # occurs during the final write of the log)
-                log.error(
-                    f"Task '{task_options.task.name}' encountered an error during finalisation: {ex}"
-                )
+                # remove the task from the queue and run it
+                task_options = await receive_channel.receive()
+                try:
+                    tg_results = await tg_collect(
+                        [functools.partial(task_run, task_options)]
+                    )
+                    # check for empty results list (indicates cancellation)
+                    if len(tg_results) == 0:
+                        # task was cancelled, break out of the worker loop
+                        result = None
 
-            # tracking
-            tasks_completed += 1
-            model_counts[str(task_options.model)] -= 1
-            queue.task_done()
+                    else:
+                        result = tg_results[0]
+                        results.append(result)
 
-            if result.status != "cancelled":
-                await enque_next_task()
-            else:
+                except Exception as ex:
+                    # errors generally don't escape from tasks (the exception being if an error
+                    # occurs during the final write of the log)
+                    log.error(
+                        f"Task '{task_options.task.name}' encountered an error during finalisation: {ex}"
+                    )
+
+                # tracking
+                async with lock:
+                    tasks_completed += 1
+                    model_counts[str(task_options.model)] -= 1
+
+                # if we need to break, do it before updating counters
+                if not result or result.status == "cancelled":
+                    break
+
+                # Check if there are more tasks to process
+                if tasks_completed < total_tasks:
+                    # Try to enqueue next task
+                    await enque_next_task()
+                elif tasks_completed == total_tasks:
+                    # all tasks are complete, close the stream
+                    try:
+                        await send_channel.aclose()
+                    except anyio.ClosedResourceError:
+                        # another worker might have already closed it
+                        pass
+            except anyio.EndOfStream:
+                # stream closed, exit worker
                 break
 
     # with task display
@@ -339,24 +366,31 @@ async def run_multiple(tasks: list[TaskRunOptions], parallel: int) -> list[EvalL
         # init screen
         init_task_screen(screen)
 
-        # start worker tasks
-        workers = [asyncio.create_task(worker()) for _ in range(0, parallel)]
-
-        # enque initial set of tasks
-        for _ in range(0, parallel):
-            await enque_next_task()
-
-        # wait for all tasks to complete
+        # Use anyio task group instead of manual task management
         try:
-            await queue.join()
+            async with anyio.create_task_group() as tg:
+                # Start worker tasks
+                for _ in range(parallel):
+                    tg.start_soon(worker)
+
+                # Enqueue initial set of tasks
+                for _ in range(min(parallel, total_tasks)):
+                    await enque_next_task()
         except anyio.get_cancelled_exc_class():
             pass
         finally:
-            clear_task_screen()
+            # Always ensure channels are closed
+            try:
+                await send_channel.aclose()
+            except anyio.ClosedResourceError:
+                pass
 
-        # cancel worker tasks
-        for w in workers:
-            w.cancel()
+            try:
+                await receive_channel.aclose()
+            except anyio.ClosedResourceError:
+                pass
+
+            clear_task_screen()
 
         return results
 
