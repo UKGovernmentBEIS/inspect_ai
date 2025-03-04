@@ -29,10 +29,10 @@ import {
   kSampleMessagesTabId,
   kSampleTranscriptTabId,
 } from "./constants";
-import { useAppStore } from "./state/appStore.ts";
 import { useLogsStore, useSelectedLogFile } from "./state/logsStore.ts";
 import { useLogStore, useTotalSampleCount } from "./state/logStore.ts";
 import { useSampleStore } from "./state/sampleStore.ts";
+import { useStore } from "./state/store.ts";
 import { ApplicationState } from "./types.ts";
 
 interface AppProps {
@@ -44,17 +44,24 @@ interface AppProps {
 /**
  * Renders the Main Application
  */
-export const App: FC<AppProps> = ({
-  api,
-  applicationState,
-  saveApplicationState,
-}) => {
+export const App: FC<AppProps> = ({ api, applicationState }) => {
   // Application Context
-  const appStore = useAppStore();
+
   const logsStore = useLogsStore();
   const logStore = useLogStore();
 
-  const getSampleState = useSampleStore((state) => state.getState);
+  // App layout and state
+  const appStatus = useStore((state) => state.app.status);
+  const setAppStatus = useStore((state) => state.appActions.setStatus);
+  const offCanvas = useStore((state) => state.app.offcanvas);
+  const setOffCanvas = useStore((state) => state.appActions.setOffcanvas);
+
+  // Find
+  const nativeFind = useStore((state) => state.capabilities.nativeFind);
+  const showFind = useStore((state) => state.app.showFind);
+  const setShowFind = useStore((state) => state.appActions.setShowFind);
+  const hideFind = useStore((state) => state.appActions.hideFind);
+
   const clearSelectedSample = useSampleStore(
     (state) => state.clearSelectedSample,
   );
@@ -85,41 +92,11 @@ export const App: FC<AppProps> = ({
     !!applicationState?.showingSampleDialog,
   );
 
-  const saveState = useCallback(() => {
-    const state = {
-      selectedWorkspaceTab,
-      selectedSampleTab,
-      showingSampleDialog,
-      sampleScrollPosition: sampleScrollPosition.current,
-      workspaceTabScrollPosition: workspaceTabScrollPosition.current,
-      ...appStore.getState(),
-      ...logsStore.getState(),
-      ...logStore.getState(),
-      ...getSampleState(),
-    };
-    if (saveApplicationState) {
-      saveApplicationState(state);
-    }
-  }, [
-    selectedWorkspaceTab,
-    selectedSampleTab,
-    showingSampleDialog,
-    appStore.getState,
-    logsStore.getState,
-    logStore.getState,
-    getSampleState,
-  ]);
-
-  const saveStateRef = useRef(saveState);
-  // Update the ref whenever saveState changes
-  useEffect(() => {
-    saveStateRef.current = saveState;
-  }, [saveState]);
-
   const setSampleScrollPosition = useCallback(
     debounce((position) => {
       sampleScrollPosition.current = position;
-      saveStateRef.current();
+      // TODO Save state somehow
+      // saveStateRef.current();
     }, 1000),
     [],
   );
@@ -131,7 +108,7 @@ export const App: FC<AppProps> = ({
           ...workspaceTabScrollPosition.current,
           [tab]: position,
         };
-        saveStateRef.current();
+        // TODO Save state somehow
       }
     }, 1000),
     [],
@@ -140,16 +117,8 @@ export const App: FC<AppProps> = ({
   // Save state when it changes, so that we can restore it later
   //
   useEffect(() => {
-    saveStateRef.current();
-  }, [
-    selectedWorkspaceTab,
-    selectedSampleTab,
-    showingSampleDialog,
-    appStore.getState,
-    logsStore.getState,
-    logStore.getState,
-    getSampleState,
-  ]);
+    // TODO Save state somehow
+  }, [selectedWorkspaceTab, selectedSampleTab, showingSampleDialog]);
 
   const handleSampleShowingDialog = useCallback(
     (show: boolean) => {
@@ -203,21 +172,21 @@ export const App: FC<AppProps> = ({
       if (selectedLogFile) {
         try {
           // Set loading first and wait for it to update
-          appStore.setStatus({ loading: true, error: undefined });
+          setAppStatus({ loading: true, error: undefined });
 
           // Then load the log
           await logStore.loadLog(selectedLogFile);
 
           // Finally set loading to false
-          appStore.setStatus({ loading: false, error: undefined });
+          setAppStatus({ loading: false, error: undefined });
         } catch (e) {
           console.log(e);
-          appStore.setStatus({ loading: false, error: e as Error });
+          setAppStatus({ loading: false, error: e as Error });
         }
       }
     };
     loadSpecificLog();
-  }, [selectedLogFile, logStore.loadLog, appStore.setStatus]);
+  }, [selectedLogFile, logStore.loadLog, setAppStatus]);
 
   useEffect(() => {
     // Reset the workspace
@@ -240,7 +209,7 @@ export const App: FC<AppProps> = ({
 
   useEffect(() => {
     if (logsStore.logs.log_dir && logsStore.logs.files.length === 0) {
-      appStore.setStatus({
+      setAppStatus({
         loading: false,
         error: new Error(
           `No log files to display in the directory ${logsStore.logs.log_dir}. Are you sure this is the correct log directory?`,
@@ -251,18 +220,18 @@ export const App: FC<AppProps> = ({
 
   const refreshLog = useCallback(() => {
     try {
-      appStore.setStatus({ loading: true, error: undefined });
+      setAppStatus({ loading: true, error: undefined });
 
       logStore.refreshLog();
       logStore.resetFiltering();
 
-      appStore.setStatus({ loading: false, error: undefined });
+      setAppStatus({ loading: false, error: undefined });
     } catch (e) {
       // Show an error
       console.log(e);
-      appStore.setStatus({ loading: false, error: e as Error });
+      setAppStatus({ loading: false, error: e as Error });
     }
-  }, [logStore.refreshLog, logStore.resetFiltering, appStore.setStatus]);
+  }, [logStore.refreshLog, logStore.resetFiltering, setAppStatus]);
 
   const onMessage = useCallback(
     async (e: HostMessage) => {
@@ -361,7 +330,7 @@ export const App: FC<AppProps> = ({
           selectedIndex={logsStore.selectedLogIndex}
           onSelectedIndexChanged={(index) => {
             logsStore.setSelectedLogIndex(index);
-            appStore.setOffcanvas(false);
+            setOffCanvas(false);
           }}
         />
       ) : undefined}
@@ -370,32 +339,31 @@ export const App: FC<AppProps> = ({
         className={clsx(
           "app-main-grid",
           fullScreen ? "full-screen" : undefined,
-          appStore.offcanvas ? "off-canvas" : undefined,
+          offCanvas ? "off-canvas" : undefined,
         )}
         tabIndex={0}
         onKeyDown={(e) => {
+          console.log("KEYB");
+          console.log({ nativeFind, showFind });
           // Add keyboard shortcuts for find, if needed
-          if (appStore.capabilities.nativeFind || !appStore.showFind) {
+          if (nativeFind || !setShowFind) {
             return;
           }
 
           if ((e.ctrlKey || e.metaKey) && e.key === "f") {
-            appStore.setShowFind(true);
+            console.log("SET SHOW FIND");
+            setShowFind(true);
           } else if (e.key === "Escape") {
-            appStore.hideFind();
+            hideFind();
           }
         }}
       >
-        {!appStore.capabilities.nativeFind && appStore.showFind ? (
-          <FindBand />
-        ) : (
-          ""
-        )}
-        <ProgressBar animating={appStore.status.loading} />
-        {appStore.status.error ? (
+        {!nativeFind && showFind ? <FindBand /> : ""}
+        <ProgressBar animating={appStatus.loading} />
+        {appStatus.error ? (
           <ErrorPanel
             title="An error occurred while loading this task."
-            error={appStore.status.error}
+            error={appStatus.error}
           />
         ) : (
           <WorkSpace

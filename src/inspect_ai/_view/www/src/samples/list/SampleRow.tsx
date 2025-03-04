@@ -2,8 +2,8 @@ import clsx from "clsx";
 import { FC, ReactNode, useCallback } from "react";
 import { SampleSummary } from "../../api/types";
 import { MarkdownDiv } from "../../components/MarkdownDiv";
-import { useAppStore } from "../../state/appStore";
 import { useLogStore } from "../../state/logStore";
+import { useStore } from "../../state/store";
 import { arrayToString, inputString } from "../../utils/format";
 import { SampleErrorView } from "../error/SampleErrorView";
 import styles from "./SampleRow.module.css";
@@ -31,7 +31,7 @@ export const SampleRow: FC<SampleRowProps> = ({
   height,
   showSample,
 }) => {
-  const streamSampleData = useAppStore(
+  const streamSampleData = useStore(
     (state) => state.capabilities.streamSampleData,
   );
   const selectedSampleIndex = useLogStore((state) => state.selectedSampleIndex);

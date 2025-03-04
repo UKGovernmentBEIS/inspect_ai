@@ -4,8 +4,8 @@ import { RunningMetric } from "../../api/types";
 import { ApplicationIcons } from "../../appearance/icons";
 import { CopyButton } from "../../components/CopyButton";
 import { kModelNone } from "../../constants";
-import { useAppStore } from "../../state/appStore";
 import { useSelectedLogFile } from "../../state/logsStore";
+import { useStore } from "../../state/store";
 import { EvalResults, EvalSpec, Status } from "../../types/log";
 import { filename } from "../../utils/path";
 import styles from "./PrimaryBar.module.css";
@@ -34,11 +34,9 @@ export const PrimaryBar: FC<PrimaryBarProps> = ({
   evalSpec,
   sampleCount,
 }) => {
-  const offCanvas = useAppStore((state) => state.offcanvas);
-  const setOffCanvas = useAppStore((state) => state.setOffcanvas);
-  const streamSamples = useAppStore(
-    (state) => state.capabilities.streamSamples,
-  );
+  const offCanvas = useStore((state) => state.app.offcanvas);
+  const setOffCanvas = useStore((state) => state.appActions.setOffcanvas);
+  const streamSamples = useStore((state) => state.capabilities.streamSamples);
 
   const selectedFileName = useSelectedLogFile();
   const logFileName = selectedFileName ? filename(selectedFileName) : "";
