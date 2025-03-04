@@ -10,6 +10,7 @@ import sniffio
 if sys.version_info >= (3, 11):
     from typing import TypeVarTuple, Unpack
 else:
+    from exceptiongroup import ExceptionGroup
     from typing_extensions import TypeVarTuple, Unpack
 
 
@@ -25,6 +26,48 @@ def is_callable_coroutine(func_or_cls: Any) -> bool:
 
 
 T = TypeVar("T")
+
+
+async def tg_collect(
+    funcs: list[Callable[[], Awaitable[T]]], exception_group: bool = False
+) -> list[T]:
+    """Runs all of the pased async functions and collects their results.
+
+    The results will be returned in the same order as the input `funcs`.
+
+    Args:
+       funcs: List of async functions.
+       exception_group: `True` to raise an ExceptionGroup or
+          `False` (the default) to raise only the first exception.
+
+    Returns:
+       List of results of type T.
+
+    Raises:
+       Exception: First exception occurring in failed tasks
+          (for `exception_group == False`, the default)
+       ExceptionGroup: Exceptions that occurred in failed tasks
+         (for `exception_group == True`)
+    """
+    try:
+        results: list[tuple[int, T]] = []
+
+        async with anyio.create_task_group() as tg:
+
+            async def run_task(index: int) -> None:
+                result = await funcs[index]()
+                results.append((index, result))
+
+            for i in range(0, len(funcs)):
+                tg.start_soon(run_task, i)
+
+        # sort results by original index and return just the values
+        return [r for _, r in sorted(results)]
+    except ExceptionGroup as ex:
+        if exception_group:
+            raise
+        else:
+            raise ex.exceptions[1]
 
 
 async def tg_collect_or_raise(coros: list[Awaitable[T]]) -> list[T]:

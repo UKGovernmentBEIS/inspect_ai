@@ -1,3 +1,4 @@
+import functools
 import io
 import os
 import shlex
@@ -12,7 +13,7 @@ import anyio
 from anyio import open_process
 from anyio.abc import ByteReceiveStream, Process
 
-from inspect_ai._util._async import tg_collect_or_raise
+from inspect_ai._util._async import tg_collect
 from inspect_ai._util.trace import trace_action
 
 from ._concurrency import concurrency
@@ -148,8 +149,11 @@ async def subprocess(
 
                 return buffer.getvalue()
 
-            stdout, stderr = await tg_collect_or_raise(
-                [read_stream(process.stdout), read_stream(process.stderr)]
+            stdout, stderr = await tg_collect(
+                [
+                    functools.partial(read_stream, process.stdout),
+                    functools.partial(read_stream, process.stderr),
+                ]
             )
 
             returncode = await process.wait()
