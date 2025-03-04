@@ -25,6 +25,17 @@ Page Content: {text}
 """
 
 
+class SearchLink:
+    def __init__(self, url: str, snippet: str) -> None:
+        self.url = url
+        self.snippet = snippet
+
+
+@runtime_checkable
+class SearchProvider(Protocol):
+    async def __call__(self, query: str, start_idx: int) -> list[SearchLink]: ...
+
+
 @tool
 def web_search(
     provider: Literal["google"] = "google",
@@ -97,8 +108,8 @@ def web_search(
                     except Exception:
                         pass
 
-                for link in links:
-                    tg.start_soon(process_link, link)
+                for lk in links:
+                    tg.start_soon(process_link, lk)
 
             search_calls += 1
 
@@ -172,17 +183,6 @@ async def page_if_relevant(
         return full_text
     else:
         return None
-
-
-class SearchLink:
-    def __init__(self, url: str, snippet: str) -> None:
-        self.url = url
-        self.snippet = snippet
-
-
-@runtime_checkable
-class SearchProvider(Protocol):
-    async def __call__(self, query: str, start_idx: int) -> list[SearchLink]: ...
 
 
 def google_search_provider(client: httpx.AsyncClient) -> SearchProvider:
