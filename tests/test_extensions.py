@@ -1,6 +1,7 @@
 import importlib
 
 import pytest
+from pydantic_core import to_jsonable_python
 from test_helpers.tools import list_files
 from test_helpers.utils import ensure_test_package_installed
 
@@ -66,6 +67,39 @@ async def test_extension_sandboxenv_with_specialised_config():
                 "podman", PodmanSandboxEnvironmentConfig(socket_path="/path/to/socket")
             ),
         )
-        await eval_async(task, model="mockllm/model")
+        logs = await eval_async(task, model="mockllm/model")
+
+        # Ensure that the PodmanSandboxEnvironmentConfig object is serializable.
+        to_jsonable_python(logs[0].eval, exclude_none=True, fallback=lambda _x: None)
     except Exception as ex:
         pytest.fail(f"Exception raised: {ex}")
+
+
+def test_can_roundtrip_specialised_config():
+    ensure_test_package_installed()
+    module = importlib.import_module("inspect_package.sandboxenv.podman")
+    PodmanSandboxEnvironmentConfig = module.PodmanSandboxEnvironmentConfig
+
+    # Historical issue: the SandboxEnvironmentSpec type was unable to determine which
+    # sandbox-specific config Pydantic model to instantiate when deserializing from
+    # JSON.
+    spec = SandboxEnvironmentSpec(
+        type="podman",
+        config=PodmanSandboxEnvironmentConfig(socket_path="/path/to/socket"),
+    )
+    json_str = spec.model_dump_json()
+    recreated = SandboxEnvironmentSpec.model_validate_json(json_str)
+
+    assert recreated == spec
+    assert recreated.config == spec.config
+    assert isinstance(recreated.config, PodmanSandboxEnvironmentConfig)
+
+
+def test_supports_str_config():
+    spec = SandboxEnvironmentSpec(type="podman", config="/path/to/socket")
+    json_str = spec.model_dump_json()
+    recreated = SandboxEnvironmentSpec.model_validate_json(json_str)
+
+    assert recreated == spec
+    assert recreated.config == spec.config
+    assert isinstance(recreated.config, str)

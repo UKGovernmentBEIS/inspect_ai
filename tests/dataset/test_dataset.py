@@ -45,8 +45,8 @@ def test_dataset_fields(type: Type[T_ds], file: str) -> None:
         dataset_path(file), sample_fields=sample_field_spec
     )
     assert_sample(dataset[0])
-    assert isinstance(dataset[0].sandbox, tuple)
-    assert dataset[0].sandbox[0] == "docker"
+    assert isinstance(dataset[0].sandbox, BaseModel)
+    assert dataset[0].sandbox.type == "docker"
 
 
 # test reading a dataset with a custom data_to_sample function

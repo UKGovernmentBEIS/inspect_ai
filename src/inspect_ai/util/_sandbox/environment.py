@@ -3,18 +3,20 @@ from __future__ import annotations
 import abc
 from dataclasses import dataclass, field
 from typing import (
+    Annotated,
     Any,
     Awaitable,
     Callable,
+    Iterator,
     Literal,
-    NamedTuple,
     Type,
     TypeVar,
     Union,
+    cast,
     overload,
 )
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from .._subprocess import ExecResult
 
@@ -38,6 +40,7 @@ SampleCleanup = Callable[
     ],
     Awaitable[None],
 ]
+DeserializeConfig = Callable[[dict[str, Any]], BaseModel]
 
 
 class HostMapping(BaseModel):
@@ -296,6 +299,23 @@ class SandboxEnvironment(abc.ABC):
         """
         pass
 
+    @classmethod
+    def deserialize_config(cls, config: dict[str, Any]) -> BaseModel:
+        """Deserialize a sandbox-specific configuration model from a dict.
+
+        A basic implementation would be: `return MySandboxEnvironmentConfig(**config)`
+
+        Args:
+          config: Configuration dictionary produced by serializing the configuration
+            model.
+
+        Returns:
+          The sandbox-specific configuration model.
+        """
+        raise NotImplementedError(
+            "The SandboxEnvironment provider has not implemented deserialize_config."
+        )
+
 
 @dataclass
 class SandboxEnvironments:
@@ -311,14 +331,41 @@ class SandboxEnvironments:
     """
 
 
-class SandboxEnvironmentSpec(NamedTuple):
+class SandboxEnvironmentSpec(BaseModel, frozen=True):
     """Specification of a SandboxEnvironment."""
 
     type: str
     """Sandbox type (e.g. 'local', 'docker')"""
 
-    config: SandboxEnvironmentConfigType | None = None
+    # Any is used to prevent Pydantic from trying to initialise a BaseModel.
+    config: Annotated[Any, "BaseModel, str or None"] = None
     """Sandbox configuration (filename or config object)."""
+
+    # Maintain backward compatibility for old NamedTuple usage.
+    def __init__(self, type: str, config: BaseModel | str | None = None):
+        super().__init__(type=type, config=config)
+
+    @model_validator(mode="before")
+    @classmethod
+    def load_config_model(cls, data: dict[str, Any]) -> dict[str, Any]:
+        type = data["type"]
+        config = data.get("config")
+        if isinstance(config, dict) and len(config) > 0:
+            data["config"] = deserialize_sandbox_specific_config(type, config)
+        return data
+
+    # Maintain backward compatibility for old NamedTuple usage.
+    def __getitem__(self, key: int | str) -> Any:
+        if isinstance(key, int):
+            # Convert to a tuple and use integer indexing.
+            values_tuple = tuple(self.__dict__.values())
+            return values_tuple[key]
+        return getattr(self, key)
+
+    # Maintain backward compatibility for old NamedTuple usage.
+    def __iter__(self) -> Iterator[Any]:  # type: ignore
+        for name in self.__annotations__:
+            yield getattr(self, name)
 
 
 SandboxEnvironmentConfigType = BaseModel | str
@@ -343,3 +390,14 @@ def resolve_sandbox_environment(
         return SandboxEnvironmentSpec(sandbox[0], sandbox[1])
     else:
         return None
+
+
+def deserialize_sandbox_specific_config(type: str, config: dict[str, Any]) -> BaseModel:
+    # Avoid circular import
+    from inspect_ai.util._sandbox.registry import registry_find_sandboxenv
+
+    sandboxenv_type = registry_find_sandboxenv(type)
+    deserialize_config = cast(
+        DeserializeConfig, getattr(sandboxenv_type, "deserialize_config")
+    )
+    return deserialize_config(config)
