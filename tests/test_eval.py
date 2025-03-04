@@ -1,9 +1,10 @@
+import functools
 from copy import deepcopy
 
 import pytest
 
 from inspect_ai import Epochs, Task, eval, eval_async
-from inspect_ai._util._async import tg_collect_or_raise
+from inspect_ai._util._async import tg_collect
 from inspect_ai.dataset import Sample
 from inspect_ai.scorer import match
 
@@ -16,8 +17,11 @@ async def test_no_concurrent_eval_async():
     ]
 
     with pytest.raises(RuntimeError):
-        await tg_collect_or_raise(
-            [eval_async(task, model="mockllm/model") for task in tasks]
+        await tg_collect(
+            [
+                functools.partial(eval_async, task, model="mockllm/model")
+                for task in tasks
+            ]
         )
 
 

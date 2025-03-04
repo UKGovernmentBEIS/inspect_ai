@@ -67,47 +67,7 @@ async def tg_collect(
         if exception_group:
             raise
         else:
-            raise ex.exceptions[1]
-
-
-async def tg_collect_or_raise(coros: list[Awaitable[T]]) -> list[T]:
-    """Runs all of the passed coroutines collecting their results.
-
-    If an exception occurs in any of the tasks then the other tasks
-    are cancelled and the exception is raised.
-
-    Args:
-       coros: List of coroutines
-
-    Returns:
-       List of results if no exceptions occurred.
-
-    Raises:
-       Exception: The first exception occurring in any of the coroutines.
-    """
-    results: list[tuple[int, T]] = []
-    first_exception: Exception | None = None
-
-    async with anyio.create_task_group() as tg:
-
-        async def run_task(task: Awaitable[T], index: int) -> None:
-            nonlocal first_exception
-            try:
-                result = await task
-                results.append((index, result))
-            except Exception as exc:
-                if first_exception is None:
-                    first_exception = exc
-                tg.cancel_scope.cancel()
-
-        for i, coro in enumerate(coros):
-            tg.start_soon(run_task, coro, i)
-
-    if first_exception:
-        raise first_exception
-
-    # sort results by original index and return just the values
-    return [r for _, r in sorted(results)]
+            raise ex.exceptions[0]
 
 
 async def coro_print_exceptions(

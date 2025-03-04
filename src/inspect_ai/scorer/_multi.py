@@ -1,4 +1,6 @@
-from inspect_ai._util._async import tg_collect_or_raise
+import functools
+
+from inspect_ai._util._async import tg_collect
 from inspect_ai.scorer._reducer.registry import create_reducers
 from inspect_ai.solver._task_state import TaskState
 
@@ -18,8 +20,8 @@ def multi_scorer(scorers: list[Scorer], reducer: str | ScoreReducer) -> Scorer:
     reducer = create_reducers(reducer)[0]
 
     async def score(state: TaskState, target: Target) -> Score:
-        scores = await tg_collect_or_raise(
-            [_scorer(state, target) for _scorer in scorers]
+        scores = await tg_collect(
+            [functools.partial(_scorer, state, target) for _scorer in scorers]
         )
         return reducer(scores)
 

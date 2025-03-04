@@ -1,4 +1,6 @@
-from inspect_ai._util._async import tg_collect_or_raise
+import functools
+
+from inspect_ai._util._async import tg_collect
 from inspect_ai._util.constants import BASE_64_DATA_REMOVED
 from inspect_ai._util.content import Content, ContentAudio, ContentImage, ContentVideo
 from inspect_ai._util.images import file_as_data_uri
@@ -9,8 +11,8 @@ from inspect_ai.solver import TaskState
 
 
 async def states_with_base64_content(states: list[TaskState]) -> list[TaskState]:
-    return await tg_collect_or_raise(
-        [state_with_base64_content(state) for state in states]
+    return await tg_collect(
+        [functools.partial(state_with_base64_content, state) for state in states]
     )
 
 
@@ -25,8 +27,8 @@ def state_without_base64_content(state: TaskState) -> TaskState:
 
 
 async def samples_with_base64_content(samples: list[Sample]) -> list[Sample]:
-    return await tg_collect_or_raise(
-        [sample_with_base64_content(sample) for sample in samples]
+    return await tg_collect(
+        [functools.partial(sample_with_base64_content, sample) for sample in samples]
     )
 
 
@@ -51,8 +53,11 @@ def sample_without_base64_content(sample: Sample) -> Sample:
 async def messages_with_base64_content(
     messages: list[ChatMessage],
 ) -> list[ChatMessage]:
-    return await tg_collect_or_raise(
-        [message_with_base64_content(message) for message in messages]
+    return await tg_collect(
+        [
+            functools.partial(message_with_base64_content, message)
+            for message in messages
+        ]
     )
 
 

@@ -1,12 +1,13 @@
+import functools
 from copy import deepcopy
 from pathlib import Path
-from typing import Any, Awaitable, Callable, Literal, cast
+from typing import Any, Callable, Literal, cast
 
 import anyio
 
 from inspect_ai._display import display
 from inspect_ai._eval.loader import scorer_from_spec
-from inspect_ai._util._async import tg_collect_or_raise
+from inspect_ai._util._async import tg_collect
 from inspect_ai._util.platform import platform_init
 from inspect_ai._util.registry import registry_create, registry_unqualified_name
 from inspect_ai.log import (
@@ -107,13 +108,15 @@ async def score_async(
         def progress() -> None:
             p.update(1)
 
-        tasks: list[Awaitable[dict[str, SampleScore]]] = [
-            run_score_task(state, Target(sample.target), scorers, progress)
-            for (sample, state) in zip(log.samples, states)
-        ]
-
         # do scoring
-        scores: list[dict[str, SampleScore]] = await tg_collect_or_raise(tasks)
+        scores: list[dict[str, SampleScore]] = await tg_collect(
+            [
+                functools.partial(
+                    run_score_task, state, Target(sample.target), scorers, progress
+                )
+                for (sample, state) in zip(log.samples, states)
+            ]
+        )
 
         # write them back (gather ensures that they come back in the same order)
         for index, score in enumerate(scores):

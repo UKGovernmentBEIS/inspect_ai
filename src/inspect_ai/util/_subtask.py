@@ -12,7 +12,7 @@ from typing import (
     runtime_checkable,
 )
 
-from inspect_ai._util._async import is_callable_coroutine, tg_collect_or_raise
+from inspect_ai._util._async import is_callable_coroutine, tg_collect
 from inspect_ai._util.content import Content
 from inspect_ai._util.trace import trace_action
 from inspect_ai._util.working import sample_waiting_time
@@ -138,7 +138,7 @@ def subtask(
             transcript()._event(event)
 
             # create and run the task as a coroutine
-            result, events = (await tg_collect_or_raise([run()]))[0]
+            result, events = (await tg_collect([run]))[0]
 
             # time accounting
             completed = datetime.now()
