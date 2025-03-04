@@ -3,7 +3,7 @@ import { filename } from "../../utils/path";
 import { FC } from "react";
 import { DownloadPanel } from "../../components/DownloadPanel";
 import { JSONPanel } from "../../components/JsonPanel";
-import { useAppStore } from "../../contexts/appStore";
+import { useAppStore } from "../../state/appStore";
 import styles from "./JsonTab.module.css";
 
 const kJsonMaxSize = 10000000;

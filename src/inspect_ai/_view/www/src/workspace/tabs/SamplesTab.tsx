@@ -10,11 +10,19 @@ import {
 } from "react";
 import { VirtuosoHandle } from "react-virtuoso";
 import { EmptyPanel } from "../../components/EmptyPanel.tsx";
-import { useLogContext } from "../../contexts/LogContext.tsx";
-import { useSampleContext } from "../../contexts/SampleContext.tsx";
 import { InlineSampleDisplay } from "../../samples/InlineSampleDisplay";
 import { SampleDialog } from "../../samples/SampleDialog";
 import { SampleList } from "../../samples/list/SampleList";
+import { useSampleContext } from "../../state/SampleContext.tsx";
+import {
+  useFilteredSamples,
+  useGroupBy,
+  useGroupByOrder,
+  useLogStore,
+  useSampleDescriptor,
+  useScore,
+  useTotalSampleCount,
+} from "../../state/logStore.ts";
 import { getSampleProcessor } from "./grouping.ts";
 import { ListItem } from "./types.ts";
 
@@ -40,8 +48,16 @@ export const SamplesTab: FC<SamplesTabProps> = ({
   setSampleScrollPosition,
   sampleTabScrollRef,
 }) => {
-  const logContext = useLogContext();
   const sampleContext = useSampleContext();
+  const selectSample = useLogStore((state) => state.selectSample);
+  const samplesDescriptor = useSampleDescriptor();
+  const sampleSummaries = useFilteredSamples();
+  const selectedLogSummary = useLogStore((state) => state.selectedLogSummary);
+  const groupBy = useGroupBy();
+  const groupByOrder = useGroupByOrder();
+  const currentScore = useScore();
+  const selectedSampleIndex = useLogStore((state) => state.selectedSampleIndex);
+  const totalSampleCount = useTotalSampleCount();
 
   const [items, setItems] = useState<ListItem[]>([]);
   const [sampleItems, setSampleItems] = useState<ListItem[]>([]);
@@ -52,10 +68,10 @@ export const SamplesTab: FC<SamplesTabProps> = ({
   // Shows the sample dialog
   const showSample = useCallback(
     (index: number) => {
-      logContext.dispatch({ type: "SELECT_SAMPLE", payload: index });
+      selectSample(index);
       setShowingSampleDialog(true);
     },
-    [logContext.dispatch, setShowingSampleDialog],
+    [selectSample, setShowingSampleDialog],
   );
 
   useEffect(() => {
@@ -73,31 +89,30 @@ export const SamplesTab: FC<SamplesTabProps> = ({
   }, [showingSampleDialog]);
 
   const sampleProcessor = useMemo(() => {
-    if (!logContext.samplesDescriptor) return undefined;
+    if (!samplesDescriptor) return undefined;
 
     return getSampleProcessor(
-      logContext.sampleSummaries || [],
-      logContext.state.selectedLogSummary?.eval?.config?.epochs || 1,
-      logContext.groupBy,
-      logContext.groupByOrder,
-      logContext.samplesDescriptor,
-      logContext.currentScore,
+      sampleSummaries || [],
+      selectedLogSummary?.eval?.config?.epochs || 1,
+      groupBy,
+      groupByOrder,
+      samplesDescriptor,
+      currentScore,
     );
   }, [
-    logContext.samplesDescriptor,
-    logContext.sampleSummaries,
-    logContext.state.selectedLogSummary?.eval?.config?.epochs,
-    logContext.groupBy,
-    logContext.groupByOrder,
-    logContext.currentScore,
+    samplesDescriptor,
+    sampleSummaries,
+    selectedLogSummary?.eval?.config?.epochs,
+    groupBy,
+    groupByOrder,
+    currentScore,
   ]);
 
-  // Process the samples into the proper data structure
-  const resolvedSamples = useMemo(() => {
-    return logContext.sampleSummaries?.flatMap((sample, index) => {
+  useEffect(() => {
+    const resolvedSamples = sampleSummaries?.flatMap((sample, index) => {
       const results: ListItem[] = [];
       const previousSample =
-        index !== 0 ? logContext.sampleSummaries[index - 1] : undefined;
+        index !== 0 ? sampleSummaries[index - 1] : undefined;
       const items = sampleProcessor
         ? sampleProcessor(sample, index, previousSample)
         : [];
@@ -105,9 +120,8 @@ export const SamplesTab: FC<SamplesTabProps> = ({
       results.push(...items);
       return results;
     });
-  }, [logContext.sampleSummaries]);
 
-  useEffect(() => {
+    console.log({ resolvedSamples });
     setItems(resolvedSamples || []);
     setSampleItems(
       resolvedSamples
@@ -116,45 +130,42 @@ export const SamplesTab: FC<SamplesTabProps> = ({
           })
         : [],
     );
-  }, [resolvedSamples]);
+  }, [sampleSummaries, sampleProcessor]);
 
   const nextSampleIndex = useCallback(() => {
-    if (logContext.state.selectedSampleIndex < sampleItems.length - 1) {
-      return logContext.state.selectedSampleIndex + 1;
+    if (selectedSampleIndex < sampleItems.length - 1) {
+      return selectedSampleIndex + 1;
     } else {
       return -1;
     }
-  }, [logContext.state.selectedSampleIndex, sampleItems.length]);
+  }, [selectedSampleIndex, sampleItems.length]);
 
   const previousSampleIndex = useCallback(() => {
-    return logContext.state.selectedSampleIndex > 0
-      ? logContext.state.selectedSampleIndex - 1
-      : -1;
-  }, [logContext.state.selectedSampleIndex]);
+    return selectedSampleIndex > 0 ? selectedSampleIndex - 1 : -1;
+  }, [selectedSampleIndex]);
 
   const status = sampleContext.state.sampleStatus;
   // Manage the next / previous state the selected sample
   const nextSample = useCallback(() => {
     const next = nextSampleIndex();
     if (status !== "loading" && next > -1) {
-      logContext.dispatch({ type: "SELECT_SAMPLE", payload: next });
+      selectSample(next);
     }
-  }, [nextSampleIndex, status, logContext.dispatch]);
+  }, [nextSampleIndex, status, selectSample]);
 
   const previousSample = useCallback(() => {
     const prev = previousSampleIndex();
     if (status !== "loading" && prev > -1) {
-      logContext.dispatch({ type: "SELECT_SAMPLE", payload: prev });
+      selectSample(prev);
     }
-  }, [previousSampleIndex, status, logContext.dispatch]);
+  }, [previousSampleIndex, status, selectSample]);
 
   const title =
-    logContext.state.selectedSampleIndex > -1 &&
-    sampleItems.length > logContext.state.selectedSampleIndex
-      ? sampleItems[logContext.state.selectedSampleIndex].label
+    selectedSampleIndex > -1 && sampleItems.length > selectedSampleIndex
+      ? sampleItems[selectedSampleIndex].label
       : "";
 
-  if (!logContext.samplesDescriptor) {
+  if (!samplesDescriptor) {
     return (
       <EmptyPanel>
         <div>No samples</div>
@@ -163,7 +174,7 @@ export const SamplesTab: FC<SamplesTabProps> = ({
   } else {
     return (
       <Fragment>
-        {logContext.samplesDescriptor && logContext.totalSampleCount === 1 ? (
+        {samplesDescriptor && totalSampleCount === 1 ? (
           <InlineSampleDisplay
             id="sample-display"
             selectedTab={selectedSampleTab}
@@ -171,7 +182,7 @@ export const SamplesTab: FC<SamplesTabProps> = ({
             scrollRef={sampleTabScrollRef}
           />
         ) : undefined}
-        {logContext.samplesDescriptor && logContext.totalSampleCount > 1 ? (
+        {samplesDescriptor && totalSampleCount > 1 ? (
           <SampleList
             listHandle={sampleListHandle}
             items={items}

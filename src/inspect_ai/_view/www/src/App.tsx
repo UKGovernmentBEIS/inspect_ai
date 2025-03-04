@@ -29,10 +29,10 @@ import {
   kSampleMessagesTabId,
   kSampleTranscriptTabId,
 } from "./constants";
-import { useAppStore } from "./contexts/appStore.ts";
-import { useLogContext } from "./contexts/LogContext.tsx";
-import { useLogsStore, useSelectedLogFile } from "./contexts/logsStore.ts";
-import { useSampleContext } from "./contexts/SampleContext.tsx";
+import { useAppStore } from "./state/appStore.ts";
+import { useLogsStore, useSelectedLogFile } from "./state/logsStore.ts";
+import { useLogStore, useTotalSampleCount } from "./state/logStore.ts";
+import { useSampleContext } from "./state/SampleContext.tsx";
 import { ApplicationState } from "./types.ts";
 
 interface AppProps {
@@ -50,13 +50,12 @@ export const App: FC<AppProps> = ({
   saveApplicationState,
 }) => {
   // Application Context
-  const logContext = useLogContext();
   const sampleContext = useSampleContext();
   const appStore = useAppStore();
   const logsStore = useLogsStore();
-  const selectedLogFile = useSelectedLogFile();
+  const logStore = useLogStore();
 
-  console.log({ logsStore });
+  const selectedLogFile = useSelectedLogFile();
 
   // The main application reference
   const mainAppRef = useRef<HTMLDivElement>(null);
@@ -90,7 +89,7 @@ export const App: FC<AppProps> = ({
       workspaceTabScrollPosition: workspaceTabScrollPosition.current,
       ...appStore.getState(),
       ...logsStore.getState(),
-      ...logContext.getState(),
+      ...logStore.getState(),
       ...sampleContext.getState(),
     };
     if (saveApplicationState) {
@@ -102,7 +101,7 @@ export const App: FC<AppProps> = ({
     showingSampleDialog,
     appStore.getState,
     logsStore.getState,
-    logContext.getState,
+    logStore.getState,
   ]);
 
   const saveStateRef = useRef(saveState);
@@ -142,7 +141,7 @@ export const App: FC<AppProps> = ({
     showingSampleDialog,
     appStore.getState,
     logsStore.getState,
-    logContext.getState,
+    logStore.getState,
     sampleContext.getState,
   ]);
 
@@ -178,20 +177,20 @@ export const App: FC<AppProps> = ({
   useEffect(() => {
     if (
       !logsStore.logs.files[logsStore.selectedLogIndex] ||
-      logContext.state.selectedSampleIndex === -1
+      logStore.selectedSampleIndex === -1
     ) {
       sampleContext.dispatch({ type: "CLEAR_SELECTED_SAMPLE" });
     }
   }, [
-    logContext.state.selectedSampleIndex,
+    logStore.selectedSampleIndex,
     logsStore.selectedLogIndex,
     logsStore.logs,
     sampleContext.dispatch,
   ]);
 
   useEffect(() => {
-    logContext.dispatch({ type: "SELECT_SAMPLE", payload: 0 });
-  }, [selectedLogFile, logContext.dispatch]);
+    logStore.selectSample(0);
+  }, [selectedLogFile, logStore.selectSample]);
 
   // Load a specific log
   useEffect(() => {
@@ -202,7 +201,7 @@ export const App: FC<AppProps> = ({
           appStore.setStatus({ loading: true, error: undefined });
 
           // Then load the log
-          await logContext.loadLog(selectedLogFile);
+          await logStore.loadLog(selectedLogFile);
 
           // Finally set loading to false
           appStore.setStatus({ loading: false, error: undefined });
@@ -213,7 +212,7 @@ export const App: FC<AppProps> = ({
       }
     };
     loadSpecificLog();
-  }, [selectedLogFile, logContext.loadLog, appStore.setStatus]);
+  }, [selectedLogFile, logStore.loadLog, appStore.setStatus]);
 
   useEffect(() => {
     // Reset the workspace
@@ -225,16 +224,14 @@ export const App: FC<AppProps> = ({
     workspaceTabScrollPosition.current = {};
 
     sampleContext.dispatch({ type: "CLEAR_SELECTED_SAMPLE" });
-  }, [logContext.state.selectedLogSummary?.eval.task_id]);
+  }, [logStore.selectedLogSummary?.eval.task_id]);
 
+  const totalSampleCount = useTotalSampleCount();
   useEffect(() => {
-    if (
-      logContext.state.selectedLogSummary &&
-      logContext.totalSampleCount === 0
-    ) {
+    if (logStore.selectedLogSummary && totalSampleCount === 0) {
       setSelectedWorkspaceTab(kInfoWorkspaceTabId);
     }
-  }, [logContext.state.selectedLogSummary]);
+  }, [logStore.selectedLogSummary]);
 
   useEffect(() => {
     if (logsStore.logs.log_dir && logsStore.logs.files.length === 0) {
@@ -251,8 +248,8 @@ export const App: FC<AppProps> = ({
     try {
       appStore.setStatus({ loading: true, error: undefined });
 
-      logContext.refreshLog();
-      logContext.dispatch({ type: "RESET_FILTERING" });
+      logStore.refreshLog();
+      logStore.resetFiltering();
 
       appStore.setStatus({ loading: false, error: undefined });
     } catch (e) {
@@ -260,7 +257,7 @@ export const App: FC<AppProps> = ({
       console.log(e);
       appStore.setStatus({ loading: false, error: e as Error });
     }
-  }, [logContext.refreshLog, logContext.dispatch, appStore.setStatus]);
+  }, [logStore.refreshLog, logStore.resetFiltering, appStore.setStatus]);
 
   const onMessage = useCallback(
     async (e: HostMessage) => {
@@ -351,7 +348,7 @@ export const App: FC<AppProps> = ({
 
   return (
     <>
-      {!fullScreen && logContext.state.selectedLogSummary ? (
+      {!fullScreen && logStore.selectedLogSummary ? (
         <Sidebar
           logs={logsStore.logs}
           logHeaders={logsStore.logHeaders}
@@ -397,17 +394,15 @@ export const App: FC<AppProps> = ({
           />
         ) : (
           <WorkSpace
-            task_id={logContext.state.selectedLogSummary?.eval?.task_id}
-            evalStatus={logContext.state.selectedLogSummary?.status}
-            evalError={filterNull(logContext.state.selectedLogSummary?.error)}
-            evalVersion={logContext.state.selectedLogSummary?.version}
-            evalSpec={logContext.state.selectedLogSummary?.eval}
-            evalPlan={logContext.state.selectedLogSummary?.plan}
-            evalStats={logContext.state.selectedLogSummary?.stats}
-            evalResults={filterNull(
-              logContext.state.selectedLogSummary?.results,
-            )}
-            runningMetrics={logContext.state.pendingSampleSummaries?.metrics}
+            task_id={logStore.selectedLogSummary?.eval?.task_id}
+            evalStatus={logStore.selectedLogSummary?.status}
+            evalError={filterNull(logStore.selectedLogSummary?.error)}
+            evalVersion={logStore.selectedLogSummary?.version}
+            evalSpec={logStore.selectedLogSummary?.eval}
+            evalPlan={logStore.selectedLogSummary?.plan}
+            evalStats={logStore.selectedLogSummary?.stats}
+            evalResults={filterNull(logStore.selectedLogSummary?.results)}
+            runningMetrics={logStore.pendingSampleSummaries?.metrics}
             showToggle={showToggle}
             refreshLog={refreshLog}
             showingSampleDialog={showingSampleDialog}
