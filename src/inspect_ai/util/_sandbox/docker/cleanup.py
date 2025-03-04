@@ -96,11 +96,14 @@ async def cleanup_projects(
     )
 
     # cleanup all of the projects in parallel
-    tasks = [cleanup_fn(project, False) for project in projects]
     async with anyio.create_task_group() as tg:
-        for task_coro in tasks:
+        for project in projects:
             tg.start_soon(
-                coro_print_exceptions, task_coro, "cleaning up Docker environment"
+                coro_print_exceptions,
+                "cleaning up Docker environment",
+                cleanup_fn,
+                project,
+                False,
             )
 
 

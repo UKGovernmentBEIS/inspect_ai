@@ -143,13 +143,13 @@ class SandboxService:
             request_files = result.stdout.strip().splitlines()
             if request_files:
                 async with anyio.create_task_group() as tg:
-                    tasks = [self._handle_request(file) for file in request_files]
-                    for task in tasks:
+                    for file in request_files:
                         tg.start_soon(
                             coro_log_exceptions,
-                            task,
                             logger,
                             "handling sandbox service request",
+                            self._handle_request,
+                            file,
                         )
 
     async def _handle_request(self, request_file: str) -> None:

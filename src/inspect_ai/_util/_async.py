@@ -1,10 +1,19 @@
 import inspect
+import sys
 from logging import Logger
-from typing import Any, Awaitable, TypeVar
+from typing import Any, Awaitable, Callable, TypeVar
 
 import anyio
 import nest_asyncio  # type: ignore
 import sniffio
+
+if sys.version_info >= (3, 11):
+    from typing import TypeVarTuple, Unpack
+else:
+    from typing_extensions import TypeVarTuple, Unpack
+
+
+PosArgsT = TypeVarTuple("PosArgsT")
 
 
 def is_callable_coroutine(func_or_cls: Any) -> bool:
@@ -58,23 +67,25 @@ async def tg_collect_or_raise(coros: list[Awaitable[T]]) -> list[T]:
     return [r for _, r in sorted(results)]
 
 
-async def coro_ignore_exceptions(coro: Awaitable[T]) -> None:
+async def coro_print_exceptions(
+    context: str,
+    func: Callable[[Unpack[PosArgsT]], Awaitable[Any]],
+    *args: Unpack[PosArgsT],
+) -> None:
     try:
-        await coro
-    except Exception:
-        pass
-
-
-async def coro_print_exceptions(coro: Awaitable[T], context: str) -> None:
-    try:
-        await coro
+        await func(*args)
     except Exception as ex:
         print(f"Error {context}: {ex}")
 
 
-async def coro_log_exceptions(coro: Awaitable[T], logger: Logger, context: str) -> None:
+async def coro_log_exceptions(
+    logger: Logger,
+    context: str,
+    func: Callable[[Unpack[PosArgsT]], Awaitable[Any]],
+    *args: Unpack[PosArgsT],
+) -> None:
     try:
-        await coro
+        await func(*args)
     except Exception as ex:
         logger.warning(f"Error {context}: {ex}")
 
