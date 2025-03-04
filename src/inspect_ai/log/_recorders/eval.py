@@ -275,7 +275,7 @@ def text_inputs(inputs: str | list[ChatMessage]) -> str | list[ChatMessage]:
 
 
 class ZipLogFile:
-    _zip: ZipFile
+    _zip: ZipFile | None
     _temp_file: BinaryIO
     _fs: FileSystem
 
@@ -355,7 +355,8 @@ class ZipLogFile:
     async def flush(self) -> None:
         async with self._lock:
             # close the zip file so it is flushed
-            self._zip.close()
+            if self._zip:
+                self._zip.close()
 
             # read the temp_file (leaves pointer at end for subsequent appends)
             self._temp_file.seek(0)
@@ -377,6 +378,13 @@ class ZipLogFile:
                 return _read_log(self._temp_file, self._file)
             finally:
                 self._temp_file.close()
+                if self._zip:
+                    self._zip.close()
+
+    # cleanup zip file if we didn't in normal course
+    def __del__(self) -> None:
+        if self._zip:
+            self._zip.close()
 
     def _open(self) -> None:
         self._zip = ZipFile(
@@ -388,6 +396,7 @@ class ZipLogFile:
 
     # raw unsynchronized version of write
     def _zip_writestr(self, filename: str, data: Any) -> None:
+        assert self._zip
         self._zip.writestr(
             filename,
             to_json(
