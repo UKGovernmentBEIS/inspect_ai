@@ -116,7 +116,12 @@ async def subprocess(
         Union[Process, ExecResult[str], ExecResult[bytes]], None
     ]:
         async with await open_process(
-            args, stdin=PIPE if input else DEVNULL, cwd=cwd, env={**os.environ, **env}
+            args,
+            stdin=PIPE if input else DEVNULL,
+            stdout=PIPE if capture_output else None,
+            stderr=PIPE if capture_output else None,
+            cwd=cwd,
+            env={**os.environ, **env},
         ) as process:
             # yield the process so the caller has a handle to it
             yield process
