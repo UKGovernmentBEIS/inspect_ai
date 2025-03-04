@@ -19627,7 +19627,7 @@ span.ap-marker-container:hover span.ap-marker {
   display: grid;
   grid-template-columns: minmax(0, max-content) max-content;
 }
-._simpleMetricsRows_tnqkm_1 {
+._simpleMetricsRows_qy19p_1 {
   display: flex;
   flex-direction: row;
   flex-wrap: wrap;
@@ -19638,7 +19638,7 @@ span.ap-marker-container:hover span.ap-marker {
   overflow: scroll;
 }
 
-._multiMetricsRows_tnqkm_12 {
+._multiMetricsRows_qy19p_12 {
   display: flex;
   flex-direction: row;
   flex-wrap: wrap;
@@ -19652,14 +19652,14 @@ span.ap-marker-container:hover span.ap-marker {
   align-items: baseline;
 }
 
-._verticalMetricReducer_tnqkm_26 {
+._verticalMetricReducer_qy19p_26 {
   font-size: var(--inspect-font-size-smaller);
   text-align: center;
   padding-top: 0.3rem;
   margin-bottom: -0.3rem;
 }
 
-._verticalMetricName_tnqkm_33 {
+._verticalMetricName_qy19p_33 {
   font-size: var(--inspect-font-size-smaller);
   text-align: center;
   padding-top: 0.3rem;
@@ -19667,36 +19667,35 @@ span.ap-marker-container:hover span.ap-marker {
   border-bottom: solid var(--bs-border-color) 1px;
 }
 
-._verticalMetricValue_tnqkm_41 {
+._verticalMetricValue_qy19p_41 {
   font-weight: 500;
   text-align: center;
 }
 
-._multiScorer_tnqkm_46 {
+._multiScorer_qy19p_46 {
   padding-left: 0;
-  height: 100%;
   display: flex;
   flex-direction: column;
   padding: 0.5em 1em;
 }
 
-._multiScorerIndent_tnqkm_54 {
+._multiScorerIndent_qy19p_53 {
   padding-left: 1.5em;
 }
 
-._multiScorerReducer_tnqkm_58 {
+._multiScorerReducer_qy19p_57 {
   text-align: center;
   margin-bottom: -0.3rem;
   margin-top: 0.2em;
 }
 
-._multiScorerLabel_tnqkm_64 {
+._multiScorerLabel_qy19p_63 {
   text-align: center;
   border-bottom: solid var(--bs-border-color) 1px;
   margin-bottom: -0.1rem;
 }
 
-._multiScorerValue_tnqkm_70 {
+._multiScorerValue_qy19p_69 {
   display: grid;
   grid-template-columns: auto auto;
   grid-auto-rows: auto;
@@ -19705,12 +19704,12 @@ span.ap-marker-container:hover span.ap-marker {
   padding-top: 0.3em;
 }
 
-._multiScorerValueContent_tnqkm_79 {
+._multiScorerValueContent_qy19p_78 {
   font-weight: 600;
   text-align: center;
 }
 
-._multiScoreMetricGrid_tnqkm_84 {
+._multiScoreMetricGrid_qy19p_83 {
   display: grid;
   grid-template-rows: auto auto;
   column-gap: 1em;
