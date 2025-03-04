@@ -270,7 +270,8 @@ class GoogleGenAIAPI(ModelAPI):
             return isinstance(
                 ex,
                 (
-                    requests.exceptions.ConnectTimeout
+                    requests.exceptions.ConnectionError
+                    | requests.exceptions.ConnectTimeout
                     | requests.exceptions.ChunkedEncodingError
                 ),
             )
