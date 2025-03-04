@@ -181,6 +181,8 @@ const useLogStore = create<LogStore>()(
           state.selectedLogSummary = { ...logContents };
         });
 
+        state.resetFiltering();
+
         // Push the updated header information up
         const header = {
           [logFileName]: {
@@ -399,7 +401,7 @@ const clearPendingSummaries = (
 };
 
 // Initialize store with API and optional initial states
-export const initializeLogStore = (api: ClientAPI, initialState: LogState) => {
+export const initializeLogStore = (api: ClientAPI, initialState?: LogState) => {
   useLogStore.getState().initializeStore(api, initialState);
 };
 
@@ -536,6 +538,14 @@ export const useGroupByOrder = () => {
       ? "asc"
       : "desc";
   }, [sort]);
+};
+
+export const useSelectedSampleSummary = () => {
+  const filteredSamples = useFilteredSamples();
+  const selectedIndex = useLogStore((state) => state.selectedSampleIndex);
+  return useMemo(() => {
+    return filteredSamples[selectedIndex];
+  }, [filteredSamples, selectedIndex]);
 };
 
 export { useLogStore };
