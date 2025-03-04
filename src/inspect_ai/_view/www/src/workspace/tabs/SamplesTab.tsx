@@ -13,7 +13,6 @@ import { EmptyPanel } from "../../components/EmptyPanel.tsx";
 import { InlineSampleDisplay } from "../../samples/InlineSampleDisplay";
 import { SampleDialog } from "../../samples/SampleDialog";
 import { SampleList } from "../../samples/list/SampleList";
-import { useSampleContext } from "../../state/SampleContext.tsx";
 import {
   useFilteredSamples,
   useGroupBy,
@@ -23,6 +22,7 @@ import {
   useScore,
   useTotalSampleCount,
 } from "../../state/logStore.ts";
+import { useSampleStore } from "../../state/sampleStore.ts";
 import { getSampleProcessor } from "./grouping.ts";
 import { ListItem } from "./types.ts";
 
@@ -48,16 +48,20 @@ export const SamplesTab: FC<SamplesTabProps> = ({
   setSampleScrollPosition,
   sampleTabScrollRef,
 }) => {
-  const sampleContext = useSampleContext();
   const selectSample = useLogStore((state) => state.selectSample);
-  const samplesDescriptor = useSampleDescriptor();
+  const selectedSampleIndex = useLogStore((state) => state.selectedSampleIndex);
+
   const sampleSummaries = useFilteredSamples();
   const selectedLogSummary = useLogStore((state) => state.selectedLogSummary);
+  const totalSampleCount = useTotalSampleCount();
+
+  const samplesDescriptor = useSampleDescriptor();
   const groupBy = useGroupBy();
   const groupByOrder = useGroupByOrder();
   const currentScore = useScore();
-  const selectedSampleIndex = useLogStore((state) => state.selectedSampleIndex);
-  const totalSampleCount = useTotalSampleCount();
+
+  const sampleStatus = useSampleStore((state) => state.sampleStatus);
+  const selectedSample = useSampleStore((state) => state.selectedSample);
 
   const [items, setItems] = useState<ListItem[]>([]);
   const [sampleItems, setSampleItems] = useState<ListItem[]>([]);
@@ -68,6 +72,7 @@ export const SamplesTab: FC<SamplesTabProps> = ({
   // Shows the sample dialog
   const showSample = useCallback(
     (index: number) => {
+      console.log("Show sample");
       selectSample(index);
       setShowingSampleDialog(true);
     },
@@ -121,7 +126,6 @@ export const SamplesTab: FC<SamplesTabProps> = ({
       return results;
     });
 
-    console.log({ resolvedSamples });
     setItems(resolvedSamples || []);
     setSampleItems(
       resolvedSamples
@@ -144,21 +148,20 @@ export const SamplesTab: FC<SamplesTabProps> = ({
     return selectedSampleIndex > 0 ? selectedSampleIndex - 1 : -1;
   }, [selectedSampleIndex]);
 
-  const status = sampleContext.state.sampleStatus;
   // Manage the next / previous state the selected sample
   const nextSample = useCallback(() => {
     const next = nextSampleIndex();
-    if (status !== "loading" && next > -1) {
+    if (sampleStatus !== "loading" && next > -1) {
       selectSample(next);
     }
-  }, [nextSampleIndex, status, selectSample]);
+  }, [nextSampleIndex, sampleStatus, selectSample, showingSampleDialog]);
 
   const previousSample = useCallback(() => {
     const prev = previousSampleIndex();
-    if (status !== "loading" && prev > -1) {
+    if (sampleStatus !== "loading" && prev > -1) {
       selectSample(prev);
     }
-  }, [previousSampleIndex, status, selectSample]);
+  }, [previousSampleIndex, sampleStatus, selectSample, showingSampleDialog]);
 
   const title =
     selectedSampleIndex > -1 && sampleItems.length > selectedSampleIndex
@@ -192,18 +195,20 @@ export const SamplesTab: FC<SamplesTabProps> = ({
             showSample={showSample}
           />
         ) : undefined}
-        <SampleDialog
-          id={String(sampleContext.state.selectedSample?.id || "")}
-          title={title}
-          showingSampleDialog={showingSampleDialog}
-          setShowingSampleDialog={setShowingSampleDialog}
-          selectedTab={selectedSampleTab}
-          setSelectedTab={setSelectedSampleTab}
-          nextSample={nextSample}
-          prevSample={previousSample}
-          sampleScrollPositionRef={sampleScrollPositionRef}
-          setSampleScrollPosition={setSampleScrollPosition}
-        />
+        {showingSampleDialog ? (
+          <SampleDialog
+            id={String(selectedSample?.id || "")}
+            title={title}
+            showingSampleDialog={showingSampleDialog}
+            setShowingSampleDialog={setShowingSampleDialog}
+            selectedTab={selectedSampleTab}
+            setSelectedTab={setSelectedSampleTab}
+            nextSample={nextSample}
+            prevSample={previousSample}
+            sampleScrollPositionRef={sampleScrollPositionRef}
+            setSampleScrollPosition={setSampleScrollPosition}
+          />
+        ) : undefined}
       </Fragment>
     );
   }

@@ -32,7 +32,7 @@ import {
 import { useAppStore } from "./state/appStore.ts";
 import { useLogsStore, useSelectedLogFile } from "./state/logsStore.ts";
 import { useLogStore, useTotalSampleCount } from "./state/logStore.ts";
-import { useSampleContext } from "./state/SampleContext.tsx";
+import { useSampleStore } from "./state/sampleStore.ts";
 import { ApplicationState } from "./types.ts";
 
 interface AppProps {
@@ -50,10 +50,15 @@ export const App: FC<AppProps> = ({
   saveApplicationState,
 }) => {
   // Application Context
-  const sampleContext = useSampleContext();
   const appStore = useAppStore();
   const logsStore = useLogsStore();
   const logStore = useLogStore();
+
+  const getSampleState = useSampleStore((state) => state.getState);
+  const clearSelectedSample = useSampleStore(
+    (state) => state.clearSelectedSample,
+  );
+  const selectedSample = useSampleStore((state) => state.selectedSample);
 
   const selectedLogFile = useSelectedLogFile();
 
@@ -90,7 +95,7 @@ export const App: FC<AppProps> = ({
       ...appStore.getState(),
       ...logsStore.getState(),
       ...logStore.getState(),
-      ...sampleContext.getState(),
+      ...getSampleState(),
     };
     if (saveApplicationState) {
       saveApplicationState(state);
@@ -102,6 +107,7 @@ export const App: FC<AppProps> = ({
     appStore.getState,
     logsStore.getState,
     logStore.getState,
+    getSampleState,
   ]);
 
   const saveStateRef = useRef(saveState);
@@ -142,7 +148,7 @@ export const App: FC<AppProps> = ({
     appStore.getState,
     logsStore.getState,
     logStore.getState,
-    sampleContext.getState,
+    getSampleState,
   ]);
 
   const handleSampleShowingDialog = useCallback(
@@ -154,13 +160,12 @@ export const App: FC<AppProps> = ({
 
   useEffect(() => {
     if (!showingSampleDialog) {
-      sampleContext.dispatch({ type: "CLEAR_SELECTED_SAMPLE" });
+      clearSelectedSample();
       setSelectedSampleTab(undefined);
     }
-  }, [showingSampleDialog, sampleContext.dispatch, setSelectedSampleTab]);
+  }, [showingSampleDialog, clearSelectedSample, setSelectedSampleTab]);
 
   useEffect(() => {
-    const selectedSample = sampleContext.state.selectedSample;
     if (!selectedSample) return;
 
     const newTab =
@@ -171,7 +176,7 @@ export const App: FC<AppProps> = ({
     if (selectedSampleTab === undefined) {
       setSelectedSampleTab(newTab);
     }
-  }, [sampleContext.state.selectedSample, selectedSampleTab]);
+  }, [selectedSample, selectedSampleTab]);
 
   // Clear the selected sample when log file changes
   useEffect(() => {
@@ -179,13 +184,13 @@ export const App: FC<AppProps> = ({
       !logsStore.logs.files[logsStore.selectedLogIndex] ||
       logStore.selectedSampleIndex === -1
     ) {
-      sampleContext.dispatch({ type: "CLEAR_SELECTED_SAMPLE" });
+      clearSelectedSample();
     }
   }, [
     logStore.selectedSampleIndex,
     logsStore.selectedLogIndex,
     logsStore.logs,
-    sampleContext.dispatch,
+    clearSelectedSample,
   ]);
 
   useEffect(() => {
@@ -223,8 +228,8 @@ export const App: FC<AppProps> = ({
 
     workspaceTabScrollPosition.current = {};
 
-    sampleContext.dispatch({ type: "CLEAR_SELECTED_SAMPLE" });
-  }, [logStore.selectedLogSummary?.eval.task_id]);
+    clearSelectedSample();
+  }, [logStore.selectedLogSummary?.eval.task_id, clearSelectedSample]);
 
   const totalSampleCount = useTotalSampleCount();
   useEffect(() => {

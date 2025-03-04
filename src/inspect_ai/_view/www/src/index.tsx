@@ -6,7 +6,7 @@ import { AppErrorBoundary } from "./AppErrorBoundary";
 import { initializeAppStore } from "./state/appStore";
 import { initializeLogsStore } from "./state/logsStore";
 import { initializeLogStore } from "./state/logStore";
-import { SampleProvider } from "./state/SampleContext";
+import { initializeSampleStore } from "./state/sampleStore";
 import { ApplicationState } from "./types";
 import { throttle } from "./utils/sync";
 import { getVscodeApi } from "./utils/vscode";
@@ -42,6 +42,7 @@ if (vscode) {
 initializeAppStore(capabilities, initialState?.app);
 initializeLogsStore(resolvedApi, initialState?.logs);
 initializeLogStore(resolvedApi, initialState?.log);
+initializeSampleStore(resolvedApi, initialState?.sample);
 
 const containerId = "app";
 const container = document.getElementById(containerId);
@@ -55,18 +56,16 @@ if (!container) {
 const root = createRoot(container as HTMLElement);
 root.render(
   <AppErrorBoundary>
-    <SampleProvider initialState={initialState} api={api}>
-      <App
-        api={resolvedApi}
-        applicationState={initialState}
-        saveApplicationState={throttle((state) => {
-          const vscode = getVscodeApi();
-          if (vscode) {
-            vscode.setState(filterState(state));
-          }
-        }, 1000)}
-      />
-    </SampleProvider>
+    <App
+      api={resolvedApi}
+      applicationState={initialState}
+      saveApplicationState={throttle((state) => {
+        const vscode = getVscodeApi();
+        if (vscode) {
+          vscode.setState(filterState(state));
+        }
+      }, 1000)}
+    />
   </AppErrorBoundary>,
 );
 
