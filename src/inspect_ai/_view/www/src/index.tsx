@@ -7,6 +7,7 @@ import { initializeAppStore } from "./state/appStore";
 import { initializeLogsStore } from "./state/logsStore";
 import { initializeLogStore } from "./state/logStore";
 import { initializeSampleStore } from "./state/sampleStore";
+import { initializeStore } from "./state/store";
 import { ApplicationState } from "./types";
 import { throttle } from "./utils/sync";
 import { getVscodeApi } from "./utils/vscode";
@@ -43,6 +44,7 @@ initializeAppStore(capabilities, initialState?.app);
 initializeLogsStore(resolvedApi, initialState?.logs);
 initializeLogStore(resolvedApi, initialState?.log);
 initializeSampleStore(resolvedApi, initialState?.sample);
+initializeStore(resolvedApi, capabilities);
 
 const containerId = "app";
 const container = document.getElementById(containerId);

@@ -4,7 +4,7 @@ import { Fragment } from "react/jsx-runtime";
 import { EvalLogHeader, LogFiles } from "../../api/types";
 import { ApplicationIcons } from "../../appearance/icons";
 import { ProgressBar } from "../../components/ProgressBar";
-import { useAppStore } from "../../state/appStore";
+import { useStore } from "../../state/store";
 import { LogDirectoryTitleView } from "./LogDirectoryTitleView";
 import styles from "./Sidebar.module.css";
 import { SidebarLogEntry } from "./SidebarLogEntry";
@@ -24,8 +24,8 @@ export const Sidebar: FC<SidebarProps> = ({
   selectedIndex,
   onSelectedIndexChanged,
 }) => {
-  const setOffCanvas = useAppStore((state) => state.setOffcanvas);
-  const offCanvas = useAppStore((state) => state.offcanvas);
+  const setOffCanvas = useStore((state) => state.appActions.setOffcanvas);
+  const offCanvas = useStore((state) => state.app.offcanvas);
   const handleToggle = useCallback(() => {
     setOffCanvas(!offCanvas);
   }, [offCanvas, setOffCanvas]);

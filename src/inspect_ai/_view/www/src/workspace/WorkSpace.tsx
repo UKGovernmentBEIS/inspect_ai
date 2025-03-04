@@ -12,13 +12,13 @@ import {
   kInfoWorkspaceTabId,
   kJsonWorkspaceTabId,
 } from "../constants";
-import { useAppStore } from "../state/appStore.ts";
 import { useSelectedLogFile } from "../state/logsStore.ts";
 import {
   useFilteredSamples,
   useSampleDescriptor,
   useTotalSampleCount,
 } from "../state/logStore.ts";
+import { useStore } from "../state/store.ts";
 import { CurrentLog } from "../types.ts";
 import {
   EvalError,
@@ -145,9 +145,7 @@ export const useSamplesTabConfig = (
   const totalSampleCount = useTotalSampleCount();
   const samplesDescriptor = useSampleDescriptor();
   const sampleSummaries = useFilteredSamples();
-  const streamSamples = useAppStore(
-    (state) => state.capabilities.streamSamples,
-  );
+  const streamSamples = useStore((state) => state.capabilities.streamSamples);
 
   return useMemo(() => {
     if (totalSampleCount === 0) {
