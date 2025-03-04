@@ -4,7 +4,7 @@ import { ClientAPI, EvalLogHeader, LogFiles } from "../api/types";
 import { LogsState } from "../types";
 import { createLogger } from "../utils/logger";
 import { sleep } from "../utils/sync";
-import { useAppStore } from "./appStore";
+import { useStore } from "./store";
 
 interface LogsStore extends LogsState {
   // API reference
@@ -93,7 +93,9 @@ export const useLogsStore = create<LogsStore>()((set, get) => ({
       return await api.get_log_paths();
     } catch (e) {
       console.log(e);
-      useAppStore.getState().setStatus({ loading: false, error: e as Error });
+      useStore
+        .getState()
+        .appActions.setStatus({ loading: false, error: e as Error });
       return { log_dir: "", files: [] };
     }
   },
@@ -208,10 +210,12 @@ export const useLogsStore = create<LogsStore>()((set, get) => ({
         (e.message === "Load failed" || e.message === "Failed to fetch")
       ) {
         // This happens if the server disappears
-        useAppStore.getState().setStatus({ loading: false });
+        useStore.getState().appActions.setStatus({ loading: false });
       } else {
         console.log(e);
-        useAppStore.getState().setStatus({ loading: false, error: e as Error });
+        useStore
+          .getState()
+          .appActions.setStatus({ loading: false, error: e as Error });
       }
     }
 

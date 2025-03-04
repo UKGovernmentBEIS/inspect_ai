@@ -16888,7 +16888,7 @@ self.onmessage = function (e) {
     };
     const createStore$1 = (createState) => createState ? createStoreImpl(createState) : createStoreImpl;
     const identity = (arg) => arg;
-    function useStore(api2, selector = identity) {
+    function useStore$1(api2, selector = identity) {
       const slice = E.useSyncExternalStore(
         api2.subscribe,
         () => selector(api2.getState()),
@@ -16899,11 +16899,200 @@ self.onmessage = function (e) {
     }
     const createImpl = (createState) => {
       const api2 = createStore$1(createState);
-      const useBoundStore = (selector) => useStore(api2, selector);
+      const useBoundStore = (selector) => useStore$1(api2, selector);
       Object.assign(useBoundStore, api2);
       return useBoundStore;
     };
     const create$2 = (createState) => createImpl;
+    function createJSONStorage(getStorage, options2) {
+      let storage;
+      try {
+        storage = getStorage();
+      } catch (e) {
+        return;
+      }
+      const persistStorage = {
+        getItem: (name2) => {
+          var _a2;
+          const parse2 = (str22) => {
+            if (str22 === null) {
+              return null;
+            }
+            return JSON.parse(str22, void 0);
+          };
+          const str2 = (_a2 = storage.getItem(name2)) != null ? _a2 : null;
+          if (str2 instanceof Promise) {
+            return str2.then(parse2);
+          }
+          return parse2(str2);
+        },
+        setItem: (name2, newValue) => storage.setItem(
+          name2,
+          JSON.stringify(newValue, void 0)
+        ),
+        removeItem: (name2) => storage.removeItem(name2)
+      };
+      return persistStorage;
+    }
+    const toThenable = (fn2) => (input2) => {
+      try {
+        const result2 = fn2(input2);
+        if (result2 instanceof Promise) {
+          return result2;
+        }
+        return {
+          then(onFulfilled) {
+            return toThenable(onFulfilled)(result2);
+          },
+          catch(_onRejected) {
+            return this;
+          }
+        };
+      } catch (e) {
+        return {
+          then(_onFulfilled) {
+            return this;
+          },
+          catch(onRejected) {
+            return toThenable(onRejected)(e);
+          }
+        };
+      }
+    };
+    const persistImpl = (config2, baseOptions) => (set2, get2, api2) => {
+      let options2 = {
+        storage: createJSONStorage(() => localStorage),
+        partialize: (state) => state,
+        version: 0,
+        merge: (persistedState, currentState) => ({
+          ...currentState,
+          ...persistedState
+        }),
+        ...baseOptions
+      };
+      let hasHydrated = false;
+      const hydrationListeners = /* @__PURE__ */ new Set();
+      const finishHydrationListeners = /* @__PURE__ */ new Set();
+      let storage = options2.storage;
+      if (!storage) {
+        return config2(
+          (...args) => {
+            console.warn(
+              `[zustand persist middleware] Unable to update item '${options2.name}', the given storage is currently unavailable.`
+            );
+            set2(...args);
+          },
+          get2,
+          api2
+        );
+      }
+      const setItem = () => {
+        const state = options2.partialize({ ...get2() });
+        return storage.setItem(options2.name, {
+          state,
+          version: options2.version
+        });
+      };
+      const savedSetState = api2.setState;
+      api2.setState = (state, replace2) => {
+        savedSetState(state, replace2);
+        void setItem();
+      };
+      const configResult = config2(
+        (...args) => {
+          set2(...args);
+          void setItem();
+        },
+        get2,
+        api2
+      );
+      api2.getInitialState = () => configResult;
+      let stateFromStorage;
+      const hydrate = () => {
+        var _a2, _b2;
+        if (!storage) return;
+        hasHydrated = false;
+        hydrationListeners.forEach((cb) => {
+          var _a22;
+          return cb((_a22 = get2()) != null ? _a22 : configResult);
+        });
+        const postRehydrationCallback = ((_b2 = options2.onRehydrateStorage) == null ? void 0 : _b2.call(options2, (_a2 = get2()) != null ? _a2 : configResult)) || void 0;
+        return toThenable(storage.getItem.bind(storage))(options2.name).then((deserializedStorageValue) => {
+          if (deserializedStorageValue) {
+            if (typeof deserializedStorageValue.version === "number" && deserializedStorageValue.version !== options2.version) {
+              if (options2.migrate) {
+                const migration = options2.migrate(
+                  deserializedStorageValue.state,
+                  deserializedStorageValue.version
+                );
+                if (migration instanceof Promise) {
+                  return migration.then((result2) => [true, result2]);
+                }
+                return [true, migration];
+              }
+              console.error(
+                `State loaded from storage couldn't be migrated since no migrate function was provided`
+              );
+            } else {
+              return [false, deserializedStorageValue.state];
+            }
+          }
+          return [false, void 0];
+        }).then((migrationResult) => {
+          var _a22;
+          const [migrated, migratedState] = migrationResult;
+          stateFromStorage = options2.merge(
+            migratedState,
+            (_a22 = get2()) != null ? _a22 : configResult
+          );
+          set2(stateFromStorage, true);
+          if (migrated) {
+            return setItem();
+          }
+        }).then(() => {
+          postRehydrationCallback == null ? void 0 : postRehydrationCallback(stateFromStorage, void 0);
+          stateFromStorage = get2();
+          hasHydrated = true;
+          finishHydrationListeners.forEach((cb) => cb(stateFromStorage));
+        }).catch((e) => {
+          postRehydrationCallback == null ? void 0 : postRehydrationCallback(void 0, e);
+        });
+      };
+      api2.persist = {
+        setOptions: (newOptions) => {
+          options2 = {
+            ...options2,
+            ...newOptions
+          };
+          if (newOptions.storage) {
+            storage = newOptions.storage;
+          }
+        },
+        clearStorage: () => {
+          storage == null ? void 0 : storage.removeItem(options2.name);
+        },
+        getOptions: () => options2,
+        rehydrate: () => hydrate(),
+        hasHydrated: () => hasHydrated,
+        onHydrate: (cb) => {
+          hydrationListeners.add(cb);
+          return () => {
+            hydrationListeners.delete(cb);
+          };
+        },
+        onFinishHydration: (cb) => {
+          finishHydrationListeners.add(cb);
+          return () => {
+            finishHydrationListeners.delete(cb);
+          };
+        }
+      };
+      if (!options2.skipHydration) {
+        hydrate();
+      }
+      return stateFromStorage || configResult;
+    };
+    const persist = persistImpl;
     var NOTHING = Symbol.for("immer-nothing");
     var DRAFTABLE = Symbol.for("immer-draftable");
     var DRAFT_STATE = Symbol.for("immer-state");
@@ -17554,48 +17743,72 @@ self.onmessage = function (e) {
       offcanvas: false,
       showFind: false
     };
-    const useAppStore = create$2()(
-      immer((set2, get2) => ({
-        ...initialState$4,
+    const createAppSlice = (set2, _get, _store) => {
+      return {
+        // State
+        app: initialState$4,
         capabilities: {},
         // Actions
-        setStatus: (status2) => set2((state) => {
-          state.status = status2;
-        }),
-        setOffcanvas: (show) => set2((state) => {
-          state.offcanvas = show;
-        }),
-        setShowFind: (show) => set2((state) => {
-          state.showFind = show;
-        }),
-        hideFind: () => {
-          clearDocumentSelection();
-          set2((state) => {
-            state.showFind = false;
-          });
-        },
-        getState: () => ({
-          app: {
-            status: get2().status,
-            offcanvas: get2().offcanvas,
-            showFind: get2().showFind
+        appActions: {
+          setStatus: (status2) => set2((state) => {
+            state.app.status = status2;
+          }),
+          setOffcanvas: (show) => set2((state) => {
+            state.app.offcanvas = show;
+          }),
+          setShowFind: (show) => set2((state) => {
+            state.app.showFind = show;
+          }),
+          hideFind: () => {
+            clearDocumentSelection();
+            set2((state) => {
+              state.app.showFind = false;
+            });
           }
-        })
-      }))
-    );
-    const initializeAppStore = (capabilities2, initialState2) => {
-      useAppStore.setState((state) => {
-        state.capabilities = capabilities2;
-        if (initialState2) {
-          state.status = initialState2.status || state.status;
-          state.offcanvas = initialState2.offcanvas !== void 0 ? initialState2.offcanvas : state.offcanvas;
-          state.showFind = initialState2.showFind !== void 0 ? initialState2.showFind : state.showFind;
         }
+      };
+    };
+    const initializeAppSlice = (set2, capabilities2, restoreState) => {
+      set2((state) => {
+        state.capabilities = capabilities2;
+        state.app = { ...initialState$4 };
       });
+    };
+    const useStore = create$2()(
+      persist(
+        immer((set2, get2, store) => ({
+          // Shared state
+          api: null,
+          // Initialize function
+          initialize: (api2, capabilities2) => {
+            set2((state) => {
+              state.api = api2;
+            });
+            initializeAppSlice(set2, capabilities2);
+          },
+          // Create the slices and merge them in
+          ...createAppSlice(set2)
+        })),
+        {
+          name: "app-storage",
+          partialize: (state) => ({
+            // Thing out state to only store the parts that
+            // should be stored
+            app: {
+              offcanvas: state.app.offcanvas,
+              showFind: state.app.showFind
+              // Don't persist status
+            }
+          })
+        }
+      )
+    );
+    const initializeStore = (api2, capabilities2) => {
+      useStore.getState().initialize(api2, capabilities2);
     };
     const FindBand = () => {
       const searchBoxRef = reactExports.useRef(null);
-      const storeHideFind = useAppStore((state) => state.hideFind);
+      const storeHideFind = useStore((state) => state.appActions.hideFind);
       reactExports.useEffect(() => {
         setTimeout(() => {
           var _a2;
@@ -17730,7 +17943,7 @@ self.onmessage = function (e) {
     const LogDirectoryTitleView = ({
       log_dir
     }) => {
-      const offCanvas = useAppStore((state) => state.offcanvas);
+      const offCanvas = useStore((state) => state.app.offcanvas);
       if (log_dir) {
         const displayDir = prettyDir(log_dir);
         return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { style: { display: "flex", flexDirection: "column" }, children: [
@@ -18151,8 +18364,8 @@ self.onmessage = function (e) {
       selectedIndex,
       onSelectedIndexChanged
     }) => {
-      const setOffCanvas = useAppStore((state) => state.setOffcanvas);
-      const offCanvas = useAppStore((state) => state.offcanvas);
+      const setOffCanvas = useStore((state) => state.appActions.setOffcanvas);
+      const offCanvas = useStore((state) => state.app.offcanvas);
       const handleToggle = reactExports.useCallback(() => {
         setOffCanvas(!offCanvas);
       }, [offCanvas, setOffCanvas]);
@@ -29534,7 +29747,7 @@ categories: ${categories.join(" ")}`;
           return await api2.get_log_paths();
         } catch (e) {
           console.log(e);
-          useAppStore.getState().setStatus({ loading: false, error: e });
+          useStore.getState().appActions.setStatus({ loading: false, error: e });
           return { log_dir: "", files: [] };
         }
       },
@@ -29614,10 +29827,10 @@ categories: ${categories.join(" ")}`;
           }
         } catch (e) {
           if (e instanceof Error && (e.message === "Load failed" || e.message === "Failed to fetch")) {
-            useAppStore.getState().setStatus({ loading: false });
+            useStore.getState().appActions.setStatus({ loading: false });
           } else {
             console.log(e);
-            useAppStore.getState().setStatus({ loading: false, error: e });
+            useStore.getState().appActions.setStatus({ loading: false, error: e });
           }
         }
         set2({ headersLoading: false });
@@ -50631,9 +50844,7 @@ Supported expressions:
     };
     const kJsonMaxSize = 1e7;
     const JsonTab = ({ logFile, json }) => {
-      const downloadFiles = useAppStore(
-        (state) => state.capabilities.downloadFiles
-      );
+      const downloadFiles = useStore((state) => state.capabilities.downloadFiles);
       if (logFile && json.length > kJsonMaxSize && downloadFiles) {
         const file = `${filename(logFile)}.json`;
         return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$N.jsonTab, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -64300,7 +64511,7 @@ ${events}
       height,
       showSample
     }) => {
-      const streamSampleData = useAppStore(
+      const streamSampleData = useStore(
         (state) => state.capabilities.streamSampleData
       );
       const selectedSampleIndex = useLogStore((state) => state.selectedSampleIndex);
@@ -65828,11 +66039,9 @@ ${events}
       evalSpec,
       sampleCount
     }) => {
-      const offCanvas = useAppStore((state) => state.offcanvas);
-      const setOffCanvas = useAppStore((state) => state.setOffcanvas);
-      const streamSamples = useAppStore(
-        (state) => state.capabilities.streamSamples
-      );
+      const offCanvas = useStore((state) => state.app.offcanvas);
+      const setOffCanvas = useStore((state) => state.appActions.setOffcanvas);
+      const streamSamples = useStore((state) => state.capabilities.streamSamples);
       const selectedFileName = useSelectedLogFile();
       const logFileName = selectedFileName ? filename(selectedFileName) : "";
       const handleToggle = reactExports.useCallback(() => {
@@ -66315,9 +66524,7 @@ ${events}
       const totalSampleCount = useTotalSampleCount();
       const samplesDescriptor = useSampleDescriptor();
       const sampleSummaries = useFilteredSamples();
-      const streamSamples = useAppStore(
-        (state) => state.capabilities.streamSamples
-      );
+      const streamSamples = useStore((state) => state.capabilities.streamSamples);
       return reactExports.useMemo(() => {
         if (totalSampleCount === 0) {
           return null;
@@ -67144,16 +67351,18 @@ ${events}
     })(clipboard);
     var clipboardExports = clipboard.exports;
     const ClipboardJS = /* @__PURE__ */ getDefaultExportFromCjs(clipboardExports);
-    const App = ({
-      api: api2,
-      applicationState,
-      saveApplicationState
-    }) => {
+    const App = ({ api: api2, applicationState }) => {
       var _a2, _b2, _c, _d, _e2, _f, _g, _h, _i, _j, _k;
-      const appStore = useAppStore();
       const logsStore = useLogsStore();
       const logStore = useLogStore();
-      const getSampleState = useSampleStore((state) => state.getState);
+      const appStatus = useStore((state) => state.app.status);
+      const setAppStatus = useStore((state) => state.appActions.setStatus);
+      const offCanvas = useStore((state) => state.app.offcanvas);
+      const setOffCanvas = useStore((state) => state.appActions.setOffcanvas);
+      const nativeFind = useStore((state) => state.capabilities.nativeFind);
+      const showFind = useStore((state) => state.app.showFind);
+      const setShowFind = useStore((state) => state.appActions.setShowFind);
+      const hideFind = useStore((state) => state.appActions.hideFind);
       const clearSelectedSample = useSampleStore(
         (state) => state.clearSelectedSample
       );
@@ -67173,38 +67382,9 @@ ${events}
       const [showingSampleDialog, setShowingSampleDialog] = reactExports.useState(
         !!(applicationState == null ? void 0 : applicationState.showingSampleDialog)
       );
-      const saveState = reactExports.useCallback(() => {
-        const state = {
-          selectedWorkspaceTab,
-          selectedSampleTab,
-          showingSampleDialog,
-          sampleScrollPosition: sampleScrollPosition.current,
-          workspaceTabScrollPosition: workspaceTabScrollPosition.current,
-          ...appStore.getState(),
-          ...logsStore.getState(),
-          ...logStore.getState(),
-          ...getSampleState()
-        };
-        if (saveApplicationState) {
-          saveApplicationState(state);
-        }
-      }, [
-        selectedWorkspaceTab,
-        selectedSampleTab,
-        showingSampleDialog,
-        appStore.getState,
-        logsStore.getState,
-        logStore.getState,
-        getSampleState
-      ]);
-      const saveStateRef = reactExports.useRef(saveState);
-      reactExports.useEffect(() => {
-        saveStateRef.current = saveState;
-      }, [saveState]);
       const setSampleScrollPosition = reactExports.useCallback(
         debounce$1((position) => {
           sampleScrollPosition.current = position;
-          saveStateRef.current();
         }, 1e3),
         []
       );
@@ -67215,22 +67395,12 @@ ${events}
               ...workspaceTabScrollPosition.current,
               [tab2]: position
             };
-            saveStateRef.current();
           }
         }, 1e3),
         []
       );
       reactExports.useEffect(() => {
-        saveStateRef.current();
-      }, [
-        selectedWorkspaceTab,
-        selectedSampleTab,
-        showingSampleDialog,
-        appStore.getState,
-        logsStore.getState,
-        logStore.getState,
-        getSampleState
-      ]);
+      }, [selectedWorkspaceTab, selectedSampleTab, showingSampleDialog]);
       const handleSampleShowingDialog = reactExports.useCallback(
         (show) => {
           setShowingSampleDialog(show);
@@ -67268,17 +67438,17 @@ ${events}
         const loadSpecificLog = async () => {
           if (selectedLogFile) {
             try {
-              appStore.setStatus({ loading: true, error: void 0 });
+              setAppStatus({ loading: true, error: void 0 });
               await logStore.loadLog(selectedLogFile);
-              appStore.setStatus({ loading: false, error: void 0 });
+              setAppStatus({ loading: false, error: void 0 });
             } catch (e) {
               console.log(e);
-              appStore.setStatus({ loading: false, error: e });
+              setAppStatus({ loading: false, error: e });
             }
           }
         };
         loadSpecificLog();
-      }, [selectedLogFile, logStore.loadLog, appStore.setStatus]);
+      }, [selectedLogFile, logStore.loadLog, setAppStatus]);
       reactExports.useEffect(() => {
         setSelectedWorkspaceTab(kEvalWorkspaceTabId);
         setSelectedSampleTab(void 0);
@@ -67293,7 +67463,7 @@ ${events}
       }, [logStore.selectedLogSummary]);
       reactExports.useEffect(() => {
         if (logsStore.logs.log_dir && logsStore.logs.files.length === 0) {
-          appStore.setStatus({
+          setAppStatus({
             loading: false,
             error: new Error(
               `No log files to display in the directory ${logsStore.logs.log_dir}. Are you sure this is the correct log directory?`
@@ -67303,15 +67473,15 @@ ${events}
       }, [logsStore.logs.log_dir, logsStore.logs.files.length]);
       const refreshLog = reactExports.useCallback(() => {
         try {
-          appStore.setStatus({ loading: true, error: void 0 });
+          setAppStatus({ loading: true, error: void 0 });
           logStore.refreshLog();
           logStore.resetFiltering();
-          appStore.setStatus({ loading: false, error: void 0 });
+          setAppStatus({ loading: false, error: void 0 });
         } catch (e) {
           console.log(e);
-          appStore.setStatus({ loading: false, error: e });
+          setAppStatus({ loading: false, error: e });
         }
-      }, [logStore.refreshLog, logStore.resetFiltering, appStore.setStatus]);
+      }, [logStore.refreshLog, logStore.resetFiltering, setAppStatus]);
       const onMessage = reactExports.useCallback(
         async (e) => {
           switch (e.data.type) {
@@ -67387,7 +67557,7 @@ ${events}
             selectedIndex: logsStore.selectedLogIndex,
             onSelectedIndexChanged: (index2) => {
               logsStore.setSelectedLogIndex(index2);
-              appStore.setOffcanvas(false);
+              setOffCanvas(false);
             }
           }
         ) : void 0,
@@ -67398,27 +67568,30 @@ ${events}
             className: clsx(
               "app-main-grid",
               fullScreen ? "full-screen" : void 0,
-              appStore.offcanvas ? "off-canvas" : void 0
+              offCanvas ? "off-canvas" : void 0
             ),
             tabIndex: 0,
             onKeyDown: (e) => {
-              if (appStore.capabilities.nativeFind || !appStore.showFind) {
+              console.log("KEYB");
+              console.log({ nativeFind, showFind });
+              if (nativeFind || !setShowFind) {
                 return;
               }
               if ((e.ctrlKey || e.metaKey) && e.key === "f") {
-                appStore.setShowFind(true);
+                console.log("SET SHOW FIND");
+                setShowFind(true);
               } else if (e.key === "Escape") {
-                appStore.hideFind();
+                hideFind();
               }
             },
             children: [
-              !appStore.capabilities.nativeFind && appStore.showFind ? /* @__PURE__ */ jsxRuntimeExports.jsx(FindBand, {}) : "",
-              /* @__PURE__ */ jsxRuntimeExports.jsx(ProgressBar, { animating: appStore.status.loading }),
-              appStore.status.error ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+              !nativeFind && showFind ? /* @__PURE__ */ jsxRuntimeExports.jsx(FindBand, {}) : "",
+              /* @__PURE__ */ jsxRuntimeExports.jsx(ProgressBar, { animating: appStatus.loading }),
+              appStatus.error ? /* @__PURE__ */ jsxRuntimeExports.jsx(
                 ErrorPanel,
                 {
                   title: "An error occurred while loading this task.",
-                  error: appStore.status.error
+                  error: appStatus.error
                 }
               ) : /* @__PURE__ */ jsxRuntimeExports.jsx(
                 WorkSpace,
@@ -67507,10 +67680,10 @@ ${events}
         capabilities.webWorkers = false;
       }
     }
-    initializeAppStore(capabilities, initialState == null ? void 0 : initialState.app);
     initializeLogsStore(resolvedApi, initialState == null ? void 0 : initialState.logs);
     initializeLogStore(resolvedApi, initialState == null ? void 0 : initialState.log);
     initializeSampleStore(resolvedApi, initialState == null ? void 0 : initialState.sample);
+    initializeStore(resolvedApi, capabilities);
     const containerId = "app";
     const container = document.getElementById(containerId);
     if (!container) {

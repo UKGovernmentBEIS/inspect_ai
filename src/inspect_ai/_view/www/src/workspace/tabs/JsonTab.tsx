@@ -3,7 +3,7 @@ import { filename } from "../../utils/path";
 import { FC } from "react";
 import { DownloadPanel } from "../../components/DownloadPanel";
 import { JSONPanel } from "../../components/JsonPanel";
-import { useAppStore } from "../../state/appStore";
+import { useStore } from "../../state/store";
 import styles from "./JsonTab.module.css";
 
 const kJsonMaxSize = 10000000;
@@ -18,9 +18,7 @@ interface JsonTabProps {
  * Renders JSON tab
  */
 export const JsonTab: FC<JsonTabProps> = ({ logFile, json }) => {
-  const downloadFiles = useAppStore(
-    (state) => state.capabilities.downloadFiles,
-  );
+  const downloadFiles = useStore((state) => state.capabilities.downloadFiles);
   if (logFile && json.length > kJsonMaxSize && downloadFiles) {
     // This JSON file is so large we can't really productively render it
     // we should instead just provide a DL link
