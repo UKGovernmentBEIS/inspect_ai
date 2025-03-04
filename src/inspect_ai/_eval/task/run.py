@@ -1,5 +1,5 @@
-import asyncio
 import contextlib
+import functools
 import sys
 import time
 from copy import deepcopy
@@ -20,6 +20,7 @@ from inspect_ai._display import (
     display,
 )
 from inspect_ai._display.core.display import TaskDisplay, TaskDisplayMetric
+from inspect_ai._util._async import tg_collect
 from inspect_ai._util.constants import (
     DEFAULT_EPOCHS,
     DEFAULT_MAX_CONNECTIONS,
@@ -286,35 +287,6 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                             task.metrics,
                         )
 
-                    # create sample coroutines
-                    sample_coroutines = [
-                        task_run_sample(
-                            task_name=task.name,
-                            sample=sample,
-                            state=state,
-                            sandbox=sandbox,
-                            max_sandboxes=config.max_sandboxes,
-                            sandbox_cleanup=sandbox_cleanup,
-                            plan=plan,
-                            scorers=scorers,
-                            generate=generate,
-                            progress=progress,
-                            logger=logger if log_samples else None,
-                            log_images=log_images,
-                            sample_source=sample_source,
-                            sample_error=sample_error_handler,
-                            sample_complete=sample_complete,
-                            fails_on_error=(
-                                config.fail_on_error is None
-                                or config.fail_on_error is True
-                            ),
-                            time_limit=config.time_limit,
-                            working_limit=config.working_limit,
-                            semaphore=sample_semaphore,
-                        )
-                        for (sample, state) in zip(samples, states)
-                    ]
-
                     # initial progress
                     td.sample_complete(complete=0, total=len(samples))
 
@@ -327,7 +299,36 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                         task.metrics,
                     )
 
-                    sample_results = await asyncio.gather(*sample_coroutines)
+                    sample_results = await tg_collect(
+                        [
+                            functools.partial(
+                                task_run_sample,
+                                task_name=task.name,
+                                sample=sample,
+                                state=state,
+                                sandbox=sandbox,
+                                max_sandboxes=config.max_sandboxes,
+                                sandbox_cleanup=sandbox_cleanup,
+                                plan=plan,
+                                scorers=scorers,
+                                generate=generate,
+                                progress=progress,
+                                logger=logger if log_samples else None,
+                                log_images=log_images,
+                                sample_source=sample_source,
+                                sample_error=sample_error_handler,
+                                sample_complete=sample_complete,
+                                fails_on_error=(
+                                    config.fail_on_error is None
+                                    or config.fail_on_error is True
+                                ),
+                                time_limit=config.time_limit,
+                                working_limit=config.working_limit,
+                                semaphore=sample_semaphore,
+                            )
+                            for (sample, state) in zip(samples, states)
+                        ]
+                    )
 
                 # compute and record metrics if we have scores
                 completed_scores = [
@@ -642,7 +643,7 @@ async def task_run_sample(
 
                 except anyio.get_cancelled_exc_class() as ex:
                     if active.interrupt_action:
-                        # record eve t
+                        # record event
                         transcript()._event(
                             SampleLimitEvent(
                                 type="operator",
@@ -660,6 +661,8 @@ async def task_run_sample(
                                 error, raise_error = handle_error(ex)
 
                     else:
+                        # task group provided by tg_collect will automatically
+                        # handle the cancel exception
                         raise
 
                 except SampleLimitExceededError as ex:
