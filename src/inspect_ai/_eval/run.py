@@ -1,4 +1,3 @@
-import asyncio
 import functools
 import logging
 import os
@@ -250,26 +249,30 @@ async def eval_run(
 # single mode -- run a single logical task (could consist of multiple
 # executable tasks if we are evaluating against multiple models)
 async def run_single(tasks: list[TaskRunOptions]) -> list[EvalLog]:
-    # https://discuss.python.org/t/asyncio-cancel-a-cancellation-utility-as-a-coroutine-this-time-with-feeling/26304/3
-
     async with display().task_screen(task_specs(tasks), parallel=False) as screen:
+        # init ui
         init_task_screen(screen)
-        asyncio_tasks = [asyncio.create_task(task_run(task)) for task in tasks]
 
+        results: list[tuple[int, EvalLog]] = []
         try:
-            return await asyncio.gather(*asyncio_tasks)
+            async with anyio.create_task_group() as tg:
+
+                async def run_task(index: int) -> None:
+                    result = await task_run(tasks[index])
+                    results.append((index, result))
+
+                for i in range(0, len(tasks)):
+                    tg.start_soon(run_task, i)
+
         except anyio.get_cancelled_exc_class():
-            results: list[EvalLog] = []
-            for task in asyncio_tasks:
-                if task.done():
-                    results.append(task.result())
-                else:
-                    task.cancel()
-                    await task
-                    results.append(task.result())
-            return results
+            # child tasks have already each handled this and updated results
+            pass
         finally:
+            # clear ui
             clear_task_screen()
+
+            # sort results by original index and return just the values
+            return [r for _, r in sorted(results)]
 
 
 # multiple mode -- run multiple logical tasks (requires some smart
