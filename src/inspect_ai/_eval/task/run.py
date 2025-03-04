@@ -364,16 +364,17 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                 )
 
             except anyio.get_cancelled_exc_class():
-                # collect eval data
-                collect_eval_data(stats)
+                with anyio.CancelScope(shield=True):
+                    # collect eval data
+                    collect_eval_data(stats)
 
-                # finish w/ cancelled status
-                eval_log = await logger.log_finish(
-                    "cancelled", stats, results, reductions
-                )
+                    # finish w/ cancelled status
+                    eval_log = await logger.log_finish(
+                        "cancelled", stats, results, reductions
+                    )
 
-                # display task cancelled
-                td.complete(TaskCancelled(logger.samples_completed, stats))
+                    # display task cancelled
+                    td.complete(TaskCancelled(logger.samples_completed, stats))
 
             except BaseException as ex:
                 if options.debug_errors:
