@@ -1,7 +1,7 @@
 import { FC } from "react";
 import { Fragment } from "react/jsx-runtime";
 import { SampleSummary } from "../api/types";
-import { useLogContext } from "../contexts/LogContext";
+import { useLogStore, useScores } from "../state/logStore";
 import { ScoreFilter, ScoreLabel } from "../types";
 import { EpochFilter } from "./sample-tools/EpochFilter";
 import { SampleFilter } from "./sample-tools/sample-filter/SampleFilter";
@@ -13,39 +13,52 @@ interface SampleToolsProps {
 }
 
 export const SampleTools: FC<SampleToolsProps> = ({ samples }) => {
-  const logContext = useLogContext();
-  const epochs = logContext.state.selectedLogSummary?.eval.config.epochs || 1;
+  const selectedLogSummary = useLogStore((state) => state.selectedLogSummary);
+
+  const filter = useLogStore((state) => state.filter);
+  const setFilter = useLogStore((state) => state.setFilter);
+
+  const scores = useScores();
+  const score = useLogStore((state) => state.score);
+  const setScore = useLogStore((state) => state.setScore);
+  const epoch = useLogStore((state) => state.epoch);
+  const setEpoch = useLogStore((state) => state.setEpoch);
+  const sort = useLogStore((state) => state.sort);
+  const setSort = useLogStore((state) => state.setSort);
+
+  const epochs = selectedLogSummary?.eval.config.epochs || 1;
   return (
     <Fragment>
       <SampleFilter
         samples={samples}
-        scoreFilter={logContext.state.filter}
+        scoreFilter={filter}
         setScoreFilter={(filter: ScoreFilter) => {
-          logContext.dispatch({ type: "SET_FILTER", payload: filter });
+          setFilter(filter);
         }}
       />
-      {logContext.scores.length > 1 ? (
+      {scores?.length > 1 ? (
         <SelectScorer
-          scores={logContext.scores}
-          score={logContext.state.score}
+          scores={scores}
+          score={score}
           setScore={(score: ScoreLabel) => {
-            logContext.dispatch({ type: "SET_SCORE", payload: score });
+            setScore(score);
           }}
         />
       ) : undefined}
       {epochs > 1 ? (
         <EpochFilter
-          epoch={logContext.state.epoch}
+          epoch={epoch}
           setEpoch={(epoch: string) => {
-            logContext.dispatch({ type: "SET_EPOCH", payload: epoch });
+            setEpoch(epoch);
           }}
           epochs={epochs}
         />
       ) : undefined}
       <SortFilter
-        sort={logContext.state.sort}
+        sort={sort}
         setSort={(sort: string) => {
-          logContext.dispatch({ type: "SET_SORT", payload: sort });
+          console.log({ sort });
+          setSort(sort);
         }}
         epochs={epochs}
       />

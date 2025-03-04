@@ -3,10 +3,10 @@ import api from "./api/index";
 import { Capabilities } from "./api/types";
 import { App } from "./App";
 import { AppErrorBoundary } from "./AppErrorBoundary";
-import { initializeAppStore } from "./contexts/appStore";
-import { LogProvider } from "./contexts/LogContext";
-import { initializeLogsStore } from "./contexts/logsStore";
-import { SampleProvider } from "./contexts/SampleContext";
+import { initializeAppStore } from "./state/appStore";
+import { initializeLogsStore } from "./state/logsStore";
+import { initializeLogStore } from "./state/logStore";
+import { SampleProvider } from "./state/SampleContext";
 import { ApplicationState } from "./types";
 import { throttle } from "./utils/sync";
 import { getVscodeApi } from "./utils/vscode";
@@ -41,6 +41,7 @@ if (vscode) {
 
 initializeAppStore(capabilities, initialState?.app);
 initializeLogsStore(resolvedApi, initialState?.logs);
+initializeLogStore(resolvedApi, initialState?.log);
 
 const containerId = "app";
 const container = document.getElementById(containerId);
@@ -54,20 +55,18 @@ if (!container) {
 const root = createRoot(container as HTMLElement);
 root.render(
   <AppErrorBoundary>
-    <LogProvider initialState={initialState} api={api}>
-      <SampleProvider initialState={initialState} api={api}>
-        <App
-          api={resolvedApi}
-          applicationState={initialState}
-          saveApplicationState={throttle((state) => {
-            const vscode = getVscodeApi();
-            if (vscode) {
-              vscode.setState(filterState(state));
-            }
-          }, 1000)}
-        />
-      </SampleProvider>
-    </LogProvider>
+    <SampleProvider initialState={initialState} api={api}>
+      <App
+        api={resolvedApi}
+        applicationState={initialState}
+        saveApplicationState={throttle((state) => {
+          const vscode = getVscodeApi();
+          if (vscode) {
+            vscode.setState(filterState(state));
+          }
+        }, 1000)}
+      />
+    </SampleProvider>
   </AppErrorBoundary>,
 );
 
