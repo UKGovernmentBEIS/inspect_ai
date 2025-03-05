@@ -1353,10 +1353,10 @@ var require_assets = __commonJS({
         } catch (err2) {
         }
     }
-    var clz32 = Math.clz32 ? Math.clz32 : clz32Fallback, log$2 = Math.log, LN2 = Math.LN2;
+    var clz32 = Math.clz32 ? Math.clz32 : clz32Fallback, log$5 = Math.log, LN2 = Math.LN2;
     function clz32Fallback(x2) {
       x2 >>>= 0;
-      return 0 === x2 ? 32 : 31 - (log$2(x2) / LN2 | 0) | 0;
+      return 0 === x2 ? 32 : 31 - (log$5(x2) / LN2 | 0) | 0;
     }
     var nextTransitionLane = 128, nextRetryLane = 4194304;
     function getHighestPriorityLanes(lanes) {
@@ -17770,7 +17770,7 @@ self.onmessage = function (e) {
         }
       }
     };
-    const initialState$5 = {
+    const initialState$4 = {
       status: { loading: false },
       offcanvas: false,
       showFind: false
@@ -17778,7 +17778,7 @@ self.onmessage = function (e) {
     const createAppSlice = (set2, _get, _store) => {
       return {
         // State
-        app: initialState$5,
+        app: initialState$4,
         capabilities: {},
         // Actions
         appActions: {
@@ -17803,7 +17803,7 @@ self.onmessage = function (e) {
     const initializeAppSlice = (set2, capabilities2, restoreState) => {
       set2((state) => {
         state.capabilities = capabilities2;
-        state.app = { ...initialState$5 };
+        state.app = { ...initialState$4 };
       });
     };
     const kModelNone = "none/none";
@@ -17900,7 +17900,7 @@ self.onmessage = function (e) {
       };
       return { start, stop };
     };
-    const log$1 = createLogger("logPolling");
+    const log$4 = createLogger("logPolling");
     function createLogPolling(get2, set2) {
       let currentPolling = null;
       const startPolling = (logFileName) => {
@@ -17916,7 +17916,7 @@ self.onmessage = function (e) {
             const api2 = state.api;
             if (!(api2 == null ? void 0 : api2.get_log_pending_samples)) return false;
             const currentEtag = (_a3 = get2().log.pendingSampleSummaries) == null ? void 0 : _a3.etag;
-            log$1.debug(`POLL RUNNING SAMPLES: ${logFileName}`);
+            log$4.debug(`POLL RUNNING SAMPLES: ${logFileName}`);
             const pendingSamples = await api2.get_log_pending_samples(
               logFileName,
               currentEtag
@@ -17928,7 +17928,7 @@ self.onmessage = function (e) {
               get2().logActions.refreshLog();
               return true;
             } else if (pendingSamples.status === "NotFound") {
-              log$1.debug(`STOP POLLING RUNNING SAMPLES: ${logFileName}`);
+              log$4.debug(`STOP POLLING RUNNING SAMPLES: ${logFileName}`);
               clearPendingSummaries(logFileName);
               return false;
             }
@@ -17965,7 +17965,8 @@ self.onmessage = function (e) {
         clearPendingSummaries
       };
     }
-    const initialState$4 = {
+    const log$3 = createLogger("logSlice");
+    const initialState$3 = {
       // Log state
       selectedSampleIndex: -1,
       selectedLogSummary: void 0,
@@ -17979,11 +17980,10 @@ self.onmessage = function (e) {
       scores: void 0
     };
     const createLogSlice = (set2, get2, _store) => {
-      const log2 = createLogger("logSlice");
       const logPolling = createLogPolling(get2, set2);
       return {
         // State
-        log: initialState$4,
+        log: initialState$3,
         // Actions
         logActions: {
           selectSample: (index2) => set2((state) => {
@@ -18041,7 +18041,7 @@ self.onmessage = function (e) {
               state.logsActions.updateLogHeaders(header2);
               logPolling.startPolling(logFileName);
             } catch (error2) {
-              log2.error("Error loading log:", error2);
+              log$3.error("Error loading log:", error2);
             }
           },
           refreshLog: async () => {
@@ -18055,28 +18055,28 @@ self.onmessage = function (e) {
               const logContents = await api2.get_log_summary(selectedLogFile);
               state.logActions.setSelectedLogSummary(logContents);
             } catch (error2) {
-              log2.error("Error refreshing log:", error2);
+              log$3.error("Error refreshing log:", error2);
             }
           }
         }
       };
     };
-    const initalialLogSlice = (set2, restoreState) => {
+    const initalializeLogSlice = (set2, restoreState) => {
       set2((state) => {
-        state.log = { ...initialState$4 };
+        state.log = { ...initialState$3 };
       });
     };
-    const initialState$3 = {
+    const log$2 = createLogger("Log Slice");
+    const initialState$2 = {
       logs: { log_dir: "", files: [] },
       logHeaders: {},
       headersLoading: false,
       selectedLogIndex: -1
     };
     const createLogsSlice = (set2, get2, _store) => {
-      const log2 = createLogger("Log Slice");
       return {
         // State
-        logs: initialState$3,
+        logs: initialState$2,
         // Actions
         logsActions: {
           setLogs: (logs) => {
@@ -18121,7 +18121,7 @@ self.onmessage = function (e) {
               return { log_dir: "", files: [] };
             }
             try {
-              log2.debug("LOADING LOG FILES");
+              log$2.debug("LOADING LOG FILES");
               return await api2.get_log_paths();
             } catch (e) {
               console.log(e);
@@ -18149,7 +18149,7 @@ self.onmessage = function (e) {
               let counter = 0;
               for (const fileList of fileLists) {
                 counter++;
-                log2.debug(`LOADING ${counter} of ${fileLists.length} CHUNKS`);
+                log$2.debug(`LOADING ${counter} of ${fileLists.length} CHUNKS`);
                 const headers = await api2.get_log_headers(fileList);
                 const updatedHeaders = {};
                 headers.forEach((header2, index2) => {
@@ -18221,7 +18221,195 @@ self.onmessage = function (e) {
     };
     const initializeLogsSlice = (set2, restoreState) => {
       set2((state) => {
-        state.logs = { ...initialState$3 };
+        state.logs = { ...initialState$2 };
+      });
+    };
+    const resolveAttachments = (value2, attachments) => {
+      const kContentProtocol = "tc://";
+      const kAttachmentProtocol = "attachment://";
+      if (Array.isArray(value2)) {
+        return value2.map((v) => resolveAttachments(v, attachments));
+      }
+      if (value2 && typeof value2 === "object") {
+        const resolvedObject = {};
+        for (const key2 of Object.keys(value2)) {
+          resolvedObject[key2] = resolveAttachments(value2[key2], attachments);
+        }
+        return resolvedObject;
+      }
+      if (typeof value2 === "string") {
+        let resolvedValue = value2;
+        if (resolvedValue.startsWith(kContentProtocol)) {
+          resolvedValue = resolvedValue.replace(
+            kContentProtocol,
+            kAttachmentProtocol
+          );
+        }
+        if (resolvedValue.startsWith(kAttachmentProtocol)) {
+          return attachments[resolvedValue.replace(kAttachmentProtocol, "")];
+        }
+        return resolvedValue;
+      }
+      return value2;
+    };
+    const sampleDataAdapter = () => {
+      const attachments = {};
+      const events = {};
+      return {
+        addData: (data) => {
+          data.attachments.forEach((a) => {
+            attachments[a.hash] = a.content;
+          });
+          data.events.forEach((e) => {
+            events[e.event_id] = e;
+          });
+        },
+        resolvedEvents: () => {
+          const eventDatas = Object.values(events);
+          const resolvedEvents = eventDatas.map((ed) => {
+            return ed.event;
+          });
+          return resolveAttachments(resolvedEvents, attachments);
+        }
+      };
+    };
+    const log$1 = createLogger("samplePolling");
+    function createSamplePolling(get2, _set) {
+      let currentPolling = null;
+      const startPolling = (logFile, summary2) => {
+        if (currentPolling) {
+          currentPolling.stop();
+        }
+        log$1.debug(`POLLING RUNNING SAMPLE: ${summary2.id}-${summary2.epoch}`);
+        const pollCallback = async () => {
+          const api2 = get2().api;
+          if (!api2) {
+            throw new Error("Required API is missing");
+          }
+          if (!api2.get_log_sample_data) {
+            return false;
+          }
+          log$1.debug(`GET RUNNING SAMPLE: ${summary2.id}-${summary2.epoch}`);
+          const sampleDataResponse = await api2.get_log_sample_data(
+            logFile,
+            summary2.id,
+            summary2.epoch
+          );
+          if ((sampleDataResponse == null ? void 0 : sampleDataResponse.status) === "NotFound") {
+            return false;
+          }
+          if ((sampleDataResponse == null ? void 0 : sampleDataResponse.status) === "OK" && sampleDataResponse.sampleData) {
+            const adapter = sampleDataAdapter();
+            adapter.addData(sampleDataResponse.sampleData);
+            const runningData = { events: adapter.resolvedEvents(), summary: summary2 };
+            get2().sampleActions.setRunningSampleData(runningData);
+          }
+          return true;
+        };
+        const name2 = `${logFile}:${summary2.id}-${summary2.epoch}`;
+        const polling = createPolling(name2, pollCallback, {
+          maxRetries: 10,
+          interval: 2
+          // 2 seconds
+        });
+        currentPolling = polling;
+        polling.start();
+      };
+      const stopPolling = () => {
+        if (currentPolling) {
+          currentPolling.stop();
+          currentPolling = null;
+        }
+      };
+      return {
+        startPolling,
+        stopPolling
+      };
+    }
+    const log = createLogger("sampleSlice");
+    const initialState$1 = {
+      selectedSample: void 0,
+      sampleStatus: "ok",
+      sampleError: void 0,
+      runningSampleData: void 0
+    };
+    const createSampleSlice = (set2, get2, _store) => {
+      const migrateOldSample = (sample2) => {
+        if (sample2.transcript) {
+          sample2.events = sample2.transcript.events;
+          sample2.attachments = sample2.transcript.content;
+        }
+        sample2.attachments = sample2.attachments || {};
+        sample2.input = resolveAttachments(sample2.input, sample2.attachments);
+        sample2.messages = resolveAttachments(sample2.messages, sample2.attachments);
+        sample2.events = resolveAttachments(sample2.events, sample2.attachments);
+        sample2.attachments = {};
+        return sample2;
+      };
+      const samplePolling = createSamplePolling(get2);
+      return {
+        // Actions
+        sample: initialState$1,
+        sampleActions: {
+          setSelectedSample: (sample2) => set2((state) => {
+            state.sample.selectedSample = sample2;
+          }),
+          clearSelectedSample: () => set2((state) => {
+            state.sample.selectedSample = void 0;
+          }),
+          setSampleStatus: (status2) => set2((state) => {
+            state.sample.sampleStatus = status2;
+          }),
+          setSampleError: (error2) => set2((state) => {
+            state.sample.sampleError = error2;
+          }),
+          setRunningSampleData: (data) => set2((state) => {
+            state.sample.runningSampleData = data;
+          }),
+          clearRunningSampleData: () => set2((state) => {
+            state.sample.runningSampleData = void 0;
+          }),
+          loadSample: async (logFile, sampleSummary) => {
+            var _a2;
+            const sampleActions = get2().sampleActions;
+            sampleActions.setSampleError(void 0);
+            sampleActions.setSampleStatus("loading");
+            try {
+              if (sampleSummary.completed !== false) {
+                log.debug(
+                  `LOADING COMPLETED SAMPLE: ${sampleSummary.id}-${sampleSummary.epoch}`
+                );
+                const sample2 = await ((_a2 = get2().api) == null ? void 0 : _a2.get_log_sample(
+                  logFile,
+                  sampleSummary.id,
+                  sampleSummary.epoch
+                ));
+                if (sample2) {
+                  const migratedSample = migrateOldSample(sample2);
+                  sampleActions.setSelectedSample(migratedSample);
+                } else {
+                  throw new Error(
+                    "Unable to load sample - an unknown error occurred"
+                  );
+                }
+              } else {
+                log.debug(
+                  `POLLING RUNNING SAMPLE: ${sampleSummary.id}-${sampleSummary.epoch}`
+                );
+                samplePolling.startPolling(logFile, sampleSummary);
+              }
+              sampleActions.setSampleStatus("ok");
+            } catch (e) {
+              sampleActions.setSampleError(e);
+              sampleActions.setSampleStatus("error");
+            }
+          }
+        }
+      };
+    };
+    const initializeSampleSlice = (set2, restoreState) => {
+      set2((state) => {
+        state.sample = { ...initialState$1 };
       });
     };
     const useStore = create$2()(
@@ -18236,12 +18424,14 @@ self.onmessage = function (e) {
             });
             initializeAppSlice(set2, capabilities2);
             initializeLogsSlice(set2);
-            initalialLogSlice(set2);
+            initalializeLogSlice(set2);
+            initializeSampleSlice(set2);
           },
           // Create the slices and merge them in
           ...createAppSlice(set2),
           ...createLogsSlice(set2, get2),
-          ...createLogSlice(set2, get2)
+          ...createLogSlice(set2, get2),
+          ...createSampleSlice(set2, get2)
         })),
         {
           name: "app-storage",
@@ -30240,6 +30430,40 @@ categories: ${categories.join(" ")}`;
       return reactExports.useMemo(() => {
         return filteredSamples[selectedIndex];
       }, [filteredSamples, selectedIndex]);
+    };
+    const useSampleData = () => {
+      const sampleStatus = useStore((state) => state.sample.sampleStatus);
+      const sampleError = useStore((state) => state.sample.sampleError);
+      const selectedSample = useStore((state) => state.sample.selectedSample);
+      const runningSampleData = useStore((state) => state.sample.runningSampleData);
+      const loadSample = useStore((state) => state.sampleActions.loadSample);
+      return reactExports.useMemo(() => {
+        return {
+          status: sampleStatus,
+          error: sampleError,
+          sample: selectedSample,
+          running: runningSampleData,
+          loadSample
+        };
+      }, [
+        sampleStatus,
+        sampleError,
+        selectedSample,
+        runningSampleData,
+        loadSample
+      ]);
+    };
+    const useLogSelection = () => {
+      const selectedSampleSummary = useSelectedSampleSummary();
+      const selectedLogFile = useStore(
+        (state) => state.logsActions.getSelectedLogFile()
+      );
+      return reactExports.useMemo(() => {
+        return {
+          logFile: selectedLogFile,
+          sample: selectedSampleSummary
+        };
+      }, [selectedLogFile, selectedSampleSummary]);
     };
     const container$9 = "_container_15b4r_1";
     const label$5 = "_label_15b4r_5";
@@ -64161,374 +64385,6 @@ ${events}
         }
       }
     };
-    const resolveAttachments = (value2, attachments) => {
-      const kContentProtocol = "tc://";
-      const kAttachmentProtocol = "attachment://";
-      if (Array.isArray(value2)) {
-        return value2.map((v) => resolveAttachments(v, attachments));
-      }
-      if (value2 && typeof value2 === "object") {
-        const resolvedObject = {};
-        for (const key2 of Object.keys(value2)) {
-          resolvedObject[key2] = resolveAttachments(value2[key2], attachments);
-        }
-        return resolvedObject;
-      }
-      if (typeof value2 === "string") {
-        let resolvedValue = value2;
-        if (resolvedValue.startsWith(kContentProtocol)) {
-          resolvedValue = resolvedValue.replace(
-            kContentProtocol,
-            kAttachmentProtocol
-          );
-        }
-        if (resolvedValue.startsWith(kAttachmentProtocol)) {
-          return attachments[resolvedValue.replace(kAttachmentProtocol, "")];
-        }
-        return resolvedValue;
-      }
-      return value2;
-    };
-    const sampleDataAdapter = () => {
-      const attachments = {};
-      const events = {};
-      return {
-        addData: (data) => {
-          data.attachments.forEach((a) => {
-            attachments[a.hash] = a.content;
-          });
-          data.events.forEach((e) => {
-            events[e.event_id] = e;
-          });
-        },
-        resolvedEvents: () => {
-          const eventDatas = Object.values(events);
-          const resolvedEvents = eventDatas.map((ed) => {
-            return ed.event;
-          });
-          return resolveAttachments(resolvedEvents, attachments);
-        }
-      };
-    };
-    const initialState$2 = {
-      logs: { log_dir: "", files: [] },
-      logHeaders: {},
-      headersLoading: false,
-      selectedLogIndex: -1
-    };
-    const log = createLogger("LogsStore");
-    const useLogsStore = create$2()((set2, get2) => ({
-      ...initialState$2,
-      api: null,
-      // Actions
-      setLogs: (logs) => {
-        set2({ logs });
-        if (logs.files.length > 0) {
-          setTimeout(() => {
-            const state = useLogsStore.getState();
-            if (!state.headersLoading) {
-              state.loadHeaders();
-            }
-          }, 100);
-        }
-      },
-      setLogHeaders: (logHeaders) => set2({ logHeaders }),
-      setHeadersLoading: (headersLoading) => set2({ headersLoading }),
-      setSelectedLogIndex: (selectedLogIndex) => set2({ selectedLogIndex }),
-      setSelectedLogFile: (logUrl) => {
-        const state = get2();
-        const index2 = state.logs.files.findIndex(
-          (val) => logUrl.endsWith(val.name)
-        );
-        if (index2 > -1) {
-          set2({ selectedLogIndex: index2 });
-        }
-      },
-      updateLogHeaders: (headers) => set2((state) => ({
-        logHeaders: { ...state.logHeaders, ...headers }
-      })),
-      // Helper function to load logs
-      loadLogs: async () => {
-        const api2 = get2().api;
-        if (!api2) {
-          console.error("API not initialized in LogsStore");
-          return { log_dir: "", files: [] };
-        }
-        try {
-          log.debug("LOADING LOG FILES");
-          return await api2.get_log_paths();
-        } catch (e) {
-          console.log(e);
-          useStore.getState().appActions.setStatus({ loading: false, error: e });
-          return { log_dir: "", files: [] };
-        }
-      },
-      // Refresh logs
-      refreshLogs: async () => {
-        const state = get2();
-        const refreshedLogs = await get2().loadLogs();
-        set2({ logs: refreshedLogs || { log_dir: "", files: [] } });
-        const currentLog = refreshedLogs.files[state.selectedLogIndex > -1 ? state.selectedLogIndex : 0];
-        if (currentLog) {
-          const newIndex = refreshedLogs == null ? void 0 : refreshedLogs.files.findIndex(
-            (file) => currentLog.name.endsWith(file.name)
-          );
-          if (newIndex !== void 0 && newIndex !== -1) {
-            set2({ selectedLogIndex: newIndex });
-          }
-        }
-        if (refreshedLogs.files.length > 0) {
-          setTimeout(() => {
-            const currentState = useLogsStore.getState();
-            if (!currentState.headersLoading) {
-              currentState.loadHeaders();
-            }
-          }, 100);
-        }
-      },
-      // Select a specific log file
-      selectLogFile: async (logUrl) => {
-        const state = get2();
-        const index2 = state.logs.files.findIndex(
-          (val) => val.name.endsWith(logUrl)
-        );
-        if (index2 > -1) {
-          set2({ selectedLogIndex: index2 });
-        } else {
-          const result2 = await get2().loadLogs();
-          const idx = result2 == null ? void 0 : result2.files.findIndex((file) => logUrl.endsWith(file.name));
-          set2({
-            logs: result2 || { log_dir: "", files: [] },
-            selectedLogIndex: idx !== void 0 && idx > -1 ? idx : 0
-          });
-        }
-      },
-      // Load headers
-      loadHeaders: async () => {
-        const state = get2();
-        const api2 = get2().api;
-        if (!api2) {
-          console.error("API not initialized in LogsStore");
-          return;
-        }
-        set2({ headersLoading: true });
-        const chunkSize = 8;
-        const fileLists = [];
-        for (let i2 = 0; i2 < state.logs.files.length; i2 += chunkSize) {
-          const chunk = state.logs.files.slice(i2, i2 + chunkSize).map((logFile) => logFile.name);
-          fileLists.push(chunk);
-        }
-        try {
-          let counter = 0;
-          for (const fileList of fileLists) {
-            counter++;
-            log.debug(`LOADING ${counter} of ${fileLists.length} CHUNKS`);
-            const headers = await api2.get_log_headers(fileList);
-            const updatedHeaders = {};
-            headers.forEach((header2, index2) => {
-              const logFile = fileList[index2];
-              updatedHeaders[logFile] = header2;
-            });
-            set2({
-              ...get2(),
-              logHeaders: { ...get2().logHeaders, ...updatedHeaders }
-            });
-            if (headers.length === chunkSize) {
-              await sleep$1(5e3);
-            }
-          }
-        } catch (e) {
-          if (e instanceof Error && (e.message === "Load failed" || e.message === "Failed to fetch")) {
-            useStore.getState().appActions.setStatus({ loading: false });
-          } else {
-            console.log(e);
-            useStore.getState().appActions.setStatus({ loading: false, error: e });
-          }
-        }
-        set2({ headersLoading: false });
-      },
-      // Method to get selected log file
-      getSelectedLogFile: () => {
-        const state = get2();
-        const file = state.logs.files[state.selectedLogIndex];
-        return file !== void 0 ? file.name : void 0;
-      },
-      // For compatibility with existing code
-      getState: () => ({ logs: get2() })
-    }));
-    const initialState$1 = {
-      selectedSample: void 0,
-      sampleStatus: "ok",
-      sampleError: void 0,
-      runningSampleData: void 0
-    };
-    const useSampleStore = create$2()(
-      immer((set2, get2) => {
-        const migrateOldSample = (sample2) => {
-          if (sample2.transcript) {
-            sample2.events = sample2.transcript.events;
-            sample2.attachments = sample2.transcript.content;
-          }
-          sample2.attachments = sample2.attachments || {};
-          sample2.input = resolveAttachments(sample2.input, sample2.attachments);
-          sample2.messages = resolveAttachments(sample2.messages, sample2.attachments);
-          sample2.events = resolveAttachments(sample2.events, sample2.attachments);
-          sample2.attachments = {};
-          return sample2;
-        };
-        return {
-          // Initial state
-          ...initialState$1,
-          // Initialize api as null
-          api: null,
-          // Getter method
-          getState: () => ({
-            sample: {
-              selectedSample: get2().selectedSample,
-              sampleStatus: get2().sampleStatus,
-              sampleError: get2().sampleError,
-              runningSampleData: get2().runningSampleData
-            }
-          }),
-          // Actions
-          setSelectedSample: (sample2) => set2((state) => {
-            state.selectedSample = sample2;
-          }),
-          clearSelectedSample: () => set2((state) => {
-            state.selectedSample = void 0;
-          }),
-          setSampleStatus: (status2) => set2((state) => {
-            state.sampleStatus = status2;
-          }),
-          setSampleError: (error2) => set2((state) => {
-            state.sampleError = error2;
-          }),
-          setRunningSampleData: (data) => set2((state) => {
-            state.runningSampleData = data;
-          }),
-          clearRunningSampleData: () => set2((state) => {
-            state.runningSampleData = void 0;
-          }),
-          loadSample: async (logFile, sampleSummary) => {
-            var _a2;
-            const log2 = createLogger("sampleStore");
-            get2().setSampleError(void 0);
-            get2().setSampleStatus("loading");
-            try {
-              if (sampleSummary.completed !== false) {
-                log2.debug(
-                  `LOADING COMPLETED SAMPLE: ${sampleSummary.id}-${sampleSummary.epoch}`
-                );
-                const sample2 = await ((_a2 = get2().api) == null ? void 0 : _a2.get_log_sample(
-                  logFile,
-                  sampleSummary.id,
-                  sampleSummary.epoch
-                ));
-                if (sample2) {
-                  const migratedSample = migrateOldSample(sample2);
-                  get2().setSelectedSample(migratedSample);
-                } else {
-                  throw new Error(
-                    "Unable to load sample - an unknown error occurred"
-                  );
-                }
-              } else {
-                log2.debug(
-                  `POLLING RUNNING SAMPLE: ${sampleSummary.id}-${sampleSummary.epoch}`
-                );
-                get2().pollForSampleData(logFile, sampleSummary);
-              }
-              get2().setSampleStatus("ok");
-            } catch (e) {
-              get2().setSampleError(e);
-              get2().setSampleStatus("error");
-            }
-          },
-          activePolling: null,
-          pollForSampleData: (logFile, summary2) => {
-            const log2 = createLogger("sampleStore");
-            get2().stopPolling();
-            log2.debug(`POLLING RUNNING SAMPLE: ${summary2.id}-${summary2.epoch}`);
-            const pollCallback = async () => {
-              const api2 = get2().api;
-              if (!api2) {
-                throw new Error("Required API is missing");
-              }
-              if (!api2.get_log_sample_data) {
-                return false;
-              }
-              log2.debug(`GET RUNNING SAMPLE: ${summary2.id}-${summary2.epoch}`);
-              const sampleDataResponse = await api2.get_log_sample_data(
-                logFile,
-                summary2.id,
-                summary2.epoch
-              );
-              if ((sampleDataResponse == null ? void 0 : sampleDataResponse.status) === "NotFound") {
-                return false;
-              }
-              if ((sampleDataResponse == null ? void 0 : sampleDataResponse.status) === "OK" && sampleDataResponse.sampleData) {
-                const adapter = sampleDataAdapter();
-                adapter.addData(sampleDataResponse.sampleData);
-                const runningData = { events: adapter.resolvedEvents(), summary: summary2 };
-                get2().setRunningSampleData(runningData);
-              }
-              return true;
-            };
-            const name2 = `${logFile}:${summary2.id}-${summary2.epoch}`;
-            const polling = createPolling(name2, pollCallback, {
-              maxRetries: 10,
-              interval: 2
-              // 2 seconds
-            });
-            set2((state) => {
-              state.activePolling = polling;
-            });
-            polling.start();
-          },
-          stopPolling: () => {
-            const activePolling = get2().activePolling;
-            if (activePolling) {
-              activePolling.stop();
-            }
-            set2((state) => {
-              state.activePolling = null;
-            });
-          },
-          // Reset the entire store
-          resetStore: () => {
-            get2().stopPolling();
-            set2(() => ({ ...initialState$1, api: get2().api }));
-          },
-          initializeStore: (api2, initialSampleState) => {
-            set2((state) => {
-              state.api = api2;
-              if (initialSampleState) {
-                if (initialSampleState.selectedSample !== void 0)
-                  state.selectedSample = initialSampleState.selectedSample;
-                if (initialSampleState.sampleStatus !== void 0)
-                  state.sampleStatus = initialSampleState.sampleStatus;
-                if (initialSampleState.sampleError !== void 0)
-                  state.sampleError = initialSampleState.sampleError;
-                if (initialSampleState.runningSampleData !== void 0)
-                  state.runningSampleData = initialSampleState.runningSampleData;
-              }
-            });
-          }
-        };
-      })
-    );
-    const initializeSampleStore = (api2, initialState2) => {
-      useSampleStore.getState().initializeStore(api2, initialState2);
-    };
-    function useLoadSample() {
-      return (logFile, sampleSummary) => {
-        if (logFile && sampleSummary) {
-          useSampleStore.getState().loadSample(logFile, sampleSummary);
-        } else {
-          throw new Error("Can't load samples when there is no log file");
-        }
-      };
-    }
     const container$5 = "_container_gzd7f_1";
     const body$2 = "_body_gzd7f_6";
     const styles$k = {
@@ -64541,28 +64397,21 @@ ${events}
       setSelectedTab,
       scrollRef
     }) => {
-      const sampleStatus = useSampleStore((state) => state.sampleStatus);
-      const sampleError = useSampleStore((state) => state.sampleError);
-      const selectedSample = useSampleStore((state) => state.selectedSample);
-      const runningSampleData = useSampleStore((state) => state.runningSampleData);
-      const selectedSampleSummary = useSelectedSampleSummary();
-      const loadSample = useLoadSample();
-      const selectedLogFile = useStore(
-        (state) => state.logsActions.getSelectedLogFile()
-      );
+      const sampleData = useSampleData();
+      const logSelection = useLogSelection();
       reactExports.useEffect(() => {
-        if (selectedLogFile && selectedSampleSummary) {
-          loadSample(selectedLogFile, selectedSampleSummary);
+        if (logSelection.logFile && logSelection.sample) {
+          sampleData.loadSample(logSelection.logFile, logSelection.sample);
         }
-      }, [selectedSampleSummary]);
+      }, [logSelection.logFile, logSelection.sample]);
       return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$k.container, children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx(ProgressBar, { animating: sampleStatus === "loading" }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$k.body, children: sampleError ? /* @__PURE__ */ jsxRuntimeExports.jsx(ErrorPanel, { title: "Unable to load sample", error: sampleError }) : /* @__PURE__ */ jsxRuntimeExports.jsx(
+        /* @__PURE__ */ jsxRuntimeExports.jsx(ProgressBar, { animating: sampleData.status === "loading" }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$k.body, children: sampleData.error ? /* @__PURE__ */ jsxRuntimeExports.jsx(ErrorPanel, { title: "Unable to load sample", error: sampleData.error }) : /* @__PURE__ */ jsxRuntimeExports.jsx(
           SampleDisplay,
           {
             id,
-            sample: selectedSample,
-            runningSampleData,
+            sample: sampleData.sample,
+            runningSampleData: sampleData.running,
             selectedTab,
             setSelectedTab,
             scrollRef
@@ -64721,20 +64570,13 @@ ${events}
       setSampleScrollPosition
     }) => {
       const scrollRef = reactExports.useRef(null);
-      const sampleStatus = useSampleStore((state) => state.sampleStatus);
-      const sampleError = useSampleStore((state) => state.sampleError);
-      const selectedSample = useSampleStore((state) => state.selectedSample);
-      const runningSampleData = useSampleStore((state) => state.runningSampleData);
-      const selectedSampleSummary = useSelectedSampleSummary();
-      const loadSample = useLoadSample();
-      const selectedLogFile = useStore(
-        (state) => state.logsActions.getSelectedLogFile()
-      );
+      const sampleData = useSampleData();
+      const logSelection = useLogSelection();
       reactExports.useEffect(() => {
-        if (selectedLogFile && selectedSampleSummary) {
-          loadSample(selectedLogFile, selectedSampleSummary);
+        if (logSelection.logFile && logSelection.sample) {
+          sampleData.loadSample(logSelection.logFile, logSelection.sample);
         }
-      }, [selectedSampleSummary]);
+      }, [logSelection.logFile, logSelection.sample]);
       const tools2 = reactExports.useMemo(() => {
         const nextTool = {
           label: "Next Sample",
@@ -64785,16 +64627,16 @@ ${events}
           onkeyup: handleKeyUp,
           visible: showingSampleDialog,
           onHide,
-          showProgress: sampleStatus === "loading",
+          showProgress: sampleData.status === "loading",
           initialScrollPositionRef: sampleScrollPositionRef,
           setInitialScrollPosition: setSampleScrollPosition,
           scrollRef,
-          children: sampleError ? /* @__PURE__ */ jsxRuntimeExports.jsx(ErrorPanel, { title: "Sample Error", error: sampleError }) : /* @__PURE__ */ jsxRuntimeExports.jsx(
+          children: sampleData.error ? /* @__PURE__ */ jsxRuntimeExports.jsx(ErrorPanel, { title: "Sample Error", error: sampleData.error }) : /* @__PURE__ */ jsxRuntimeExports.jsx(
             SampleDisplay,
             {
               id,
-              sample: selectedSample,
-              runningSampleData,
+              sample: sampleData.sample,
+              runningSampleData: sampleData.running,
               selectedTab,
               setSelectedTab,
               scrollRef
@@ -65468,8 +65310,8 @@ ${events}
       const groupBy = useGroupBy();
       const groupByOrder = useGroupByOrder();
       const currentScore = useScore();
-      const sampleStatus = useSampleStore((state) => state.sampleStatus);
-      const selectedSample = useSampleStore((state) => state.selectedSample);
+      const sampleStatus = useStore((state) => state.sample.sampleStatus);
+      const selectedSample = useStore((state) => state.sample.selectedSample);
       const [items, setItems] = reactExports.useState([]);
       const [sampleItems, setSampleItems] = reactExports.useState([]);
       const sampleListHandle = reactExports.useRef(null);
@@ -67782,9 +67624,6 @@ ${events}
         (state) => state.log.selectedSampleIndex
       );
       const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
-      const clearSelectedSample = useSampleStore(
-        (state) => state.clearSelectedSample
-      );
       const runningMetrics = useStore(
         (state) => {
           var _a3;
@@ -67792,10 +67631,13 @@ ${events}
         }
       );
       const selectSample = useStore((state) => state.logActions.selectSample);
-      const selectedSample = useSampleStore((state) => state.selectedSample);
       const resetFiltering = useStore((state) => state.logActions.resetFiltering);
       const loadLog = useStore((state) => state.logActions.loadLog);
       const refreshLog = useStore((state) => state.logActions.refreshLog);
+      const clearSelectedSample = useStore(
+        (state) => state.sampleActions.clearSelectedSample
+      );
+      const selectedSample = useStore((state) => state.sample.selectedSample);
       const mainAppRef = reactExports.useRef(null);
       const [selectedWorkspaceTab, setSelectedWorkspaceTab] = reactExports.useState(
         (applicationState == null ? void 0 : applicationState.selectedWorkspaceTab) || kEvalWorkspaceTabId
@@ -68100,7 +67942,6 @@ ${events}
         capabilities.webWorkers = false;
       }
     }
-    initializeSampleStore(resolvedApi, initialState == null ? void 0 : initialState.sample);
     initializeStore(resolvedApi, capabilities);
     const containerId = "app";
     const container = document.getElementById(containerId);

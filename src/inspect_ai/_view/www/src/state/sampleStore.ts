@@ -2,12 +2,11 @@ import { useEffect } from "react";
 import { create } from "zustand";
 import { immer } from "zustand/middleware/immer";
 import { ClientAPI, SampleSummary } from "../api/types";
-import { sampleDataAdapter } from "../samples/sampleDataAdapter";
 import { RunningSampleData, SampleState, SampleStatus } from "../types";
 import { EvalSample } from "../types/log";
 import { resolveAttachments } from "../utils/attachments";
 import { createLogger } from "../utils/logger";
-import { createPolling, Polling } from "../utils/polling";
+import { Polling } from "../utils/polling";
 import { useFilteredSamples } from "./hooks";
 import { useLogsStore } from "./logsStore";
 import { useStore } from "./store";
@@ -149,61 +148,6 @@ export const useSampleStore = create<SampleStore>()(
 
       pollForSampleData: (logFile, summary) => {
         const log = createLogger("sampleStore");
-
-        // Stop any existing polling first
-        get().stopPolling();
-
-        log.debug(`POLLING RUNNING SAMPLE: ${summary.id}-${summary.epoch}`);
-
-        // Create the polling callback
-        const pollCallback = async () => {
-          const api = get().api;
-          if (!api) {
-            throw new Error("Required API is missing");
-          }
-
-          if (!api.get_log_sample_data) {
-            return false; // Stop polling
-          }
-
-          log.debug(`GET RUNNING SAMPLE: ${summary.id}-${summary.epoch}`);
-          const sampleDataResponse = await api.get_log_sample_data(
-            logFile,
-            summary.id,
-            summary.epoch,
-          );
-
-          if (sampleDataResponse?.status === "NotFound") {
-            // Stop polling
-            return false;
-          }
-
-          if (
-            sampleDataResponse?.status === "OK" &&
-            sampleDataResponse.sampleData
-          ) {
-            const adapter = sampleDataAdapter();
-            adapter.addData(sampleDataResponse.sampleData);
-            const runningData = { events: adapter.resolvedEvents(), summary };
-            get().setRunningSampleData(runningData);
-          }
-          // Continue polling
-          return true;
-        };
-
-        // Create the polling instance
-        const name = `${logFile}:${summary.id}-${summary.epoch}`;
-        const polling = createPolling(name, pollCallback, {
-          maxRetries: 10,
-          interval: 2, // 2 seconds
-        });
-
-        // Store the polling instance and start it
-        set((state) => {
-          state.activePolling = polling;
-        });
-
-        polling.start();
       },
 
       stopPolling: () => {
