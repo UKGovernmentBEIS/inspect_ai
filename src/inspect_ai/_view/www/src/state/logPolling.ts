@@ -2,14 +2,15 @@ import { createLogger } from "../utils/logger";
 import { createPolling } from "../utils/polling";
 import { StoreState } from "./store";
 
-// Track the current polling instance
-let currentPolling: ReturnType<typeof createPolling> | null = null;
+// The logger
+const log = createLogger("logPolling");
 
 export function createLogPolling(
   get: () => StoreState,
   set: (fn: (state: StoreState) => void) => void,
 ) {
-  const log = createLogger("logPolling");
+  // Tracks the currently polling instance
+  let currentPolling: ReturnType<typeof createPolling> | null = null;
 
   // Function to start polling for a specific log file
   const startPolling = (logFileName: string) => {
@@ -70,7 +71,7 @@ export function createLogPolling(
     currentPolling.start();
   };
 
-  // Function to clear pending summaries
+  // Clear pending summaries
   const clearPendingSummaries = (logFileName: string) => {
     const pendingSampleSummaries = get().log.pendingSampleSummaries;
     if ((pendingSampleSummaries?.samples.length || 0) > 0) {
@@ -85,7 +86,7 @@ export function createLogPolling(
     }
   };
 
-  // Function to stop polling
+  // Stop polling
   const stopPolling = () => {
     if (currentPolling) {
       currentPolling.stop();
