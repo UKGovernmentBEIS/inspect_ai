@@ -25972,7 +25972,6 @@ self.onmessage = function (e) {
             set2((state) => {
               state.log.selectedLogSummary = selectedLogSummary;
             });
-            get2().logActions.selectSample(0);
             if (selectedLogSummary.status !== "started" && selectedLogSummary.sampleSummaries.length === 0) {
               get2().appActions.setWorkspaceTab(kInfoWorkspaceTabId);
             }
@@ -26012,6 +26011,7 @@ self.onmessage = function (e) {
             try {
               const logContents = await api2.get_log_summary(logFileName);
               state.logActions.setSelectedLogSummary(logContents);
+              state.logActions.selectSample(0);
               state.logActions.resetFiltering();
               const header2 = {
                 [logFileName]: {
@@ -76575,7 +76575,7 @@ ${events}
     };
     const kSampleHeight = 88;
     const kSeparatorHeight = 24;
-    const SampleList = (props) => {
+    const SampleList = reactExports.memo((props) => {
       const {
         items,
         running: running2,
@@ -76594,31 +76594,6 @@ ${events}
       reactExports.useEffect(() => {
         setHidden(false);
       }, [items]);
-      const itemRowMapping = reactExports.useMemo(() => {
-        const rowIndexes = [];
-        items.forEach((item2, index) => {
-          if (item2.type === "sample") {
-            rowIndexes.push(index);
-          }
-        });
-        return rowIndexes;
-      }, [items]);
-      const prevSelectedIndexRef = reactExports.useRef(null);
-      reactExports.useEffect(() => {
-        const listEl = listHandle.current;
-        if (listEl && itemRowMapping.length > selectedSampleIndex) {
-          const actualRowIndex = itemRowMapping[selectedSampleIndex];
-          requestAnimationFrame(() => {
-            setTimeout(() => {
-              try {
-                listEl.scrollToIndex(actualRowIndex);
-                prevSelectedIndexRef.current = actualRowIndex;
-              } catch {
-              }
-            }, 25);
-          });
-        }
-      }, [selectedSampleIndex, listHandle, itemRowMapping]);
       const onkeydown = reactExports.useCallback(
         (e) => {
           switch (e.key) {
@@ -76664,7 +76639,7 @@ ${events}
               false,
               {
                 fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/list/SampleList.tsx",
-                lineNumber: 123,
+                lineNumber: 92,
                 columnNumber: 11
               },
               void 0
@@ -76681,7 +76656,7 @@ ${events}
               false,
               {
                 fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/list/SampleList.tsx",
-                lineNumber: 137,
+                lineNumber: 106,
                 columnNumber: 11
               },
               void 0
@@ -76729,7 +76704,7 @@ ${events}
           false,
           {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/list/SampleList.tsx",
-            lineNumber: 190,
+            lineNumber: 159,
             columnNumber: 9
           },
           void 0
@@ -76747,7 +76722,7 @@ ${events}
           false,
           {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/list/SampleList.tsx",
-            lineNumber: 197,
+            lineNumber: 166,
             columnNumber: 7
           },
           void 0
@@ -76779,22 +76754,22 @@ ${events}
           false,
           {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/list/SampleList.tsx",
-            lineNumber: 204,
+            lineNumber: 173,
             columnNumber: 7
           },
           void 0
         ),
         /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(SampleFooter, { sampleCount, running: running2 }, void 0, false, {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/list/SampleList.tsx",
-          lineNumber: 225,
+          lineNumber: 194,
           columnNumber: 7
         }, void 0)
       ] }, void 0, true, {
         fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/list/SampleList.tsx",
-        lineNumber: 188,
+        lineNumber: 157,
         columnNumber: 5
       }, void 0);
-    };
+    });
     const gridColumnsValue = (sampleDescriptor) => {
       const { input: input2, target: target2, answer: answer2, limit, id, score: score2 } = gridColumns(sampleDescriptor);
       return `${id} ${input2} ${target2} ${answer2} ${limit} ${score2}`;
@@ -76991,7 +76966,6 @@ ${events}
       const groupBy = useGroupBy();
       const groupByOrder = useGroupByOrder();
       const currentScore = useScore();
-      const sampleStatus = useStore((state) => state.sample.sampleStatus);
       const selectedSample = useStore((state) => state.sample.selectedSample);
       const [items, setItems] = reactExports.useState([]);
       const [sampleItems, setSampleItems] = reactExports.useState([]);
@@ -77013,16 +76987,17 @@ ${events}
         [selectSample, setShowingSampleDialog]
       );
       reactExports.useEffect(() => {
+        setTimeout(() => {
+          if (sampleListHandle.current) {
+            sampleListHandle.current.scrollIntoView({ index: selectedSampleIndex });
+          }
+        }, 0);
+      }, [selectedSampleIndex]);
+      reactExports.useEffect(() => {
         if (showingSampleDialog) {
           setTimeout(() => {
             var _a3;
             (_a3 = sampleDialogRef.current) == null ? void 0 : _a3.focus();
-          }, 0);
-        } else {
-          setTimeout(() => {
-            if (sampleListHandle.current) {
-              sampleListHandle.current.scrollToIndex(0);
-            }
           }, 0);
         }
       }, [showingSampleDialog]);
@@ -77060,37 +77035,30 @@ ${events}
           }) : []
         );
       }, [sampleSummaries, sampleProcessor]);
-      const nextSampleIndex = reactExports.useCallback(() => {
-        if (selectedSampleIndex < sampleItems.length - 1) {
-          return selectedSampleIndex + 1;
-        } else {
-          return -1;
-        }
-      }, [selectedSampleIndex, sampleItems.length]);
       const previousSampleIndex = reactExports.useCallback(() => {
         return selectedSampleIndex > 0 ? selectedSampleIndex - 1 : -1;
       }, [selectedSampleIndex]);
       const nextSample = reactExports.useCallback(() => {
-        const next2 = nextSampleIndex();
-        if (sampleStatus !== "loading" && next2 > -1) {
+        const next2 = Math.min(selectedSampleIndex + 1, sampleItems.length - 1);
+        if (next2 > -1) {
           selectSample(next2);
         }
-      }, [nextSampleIndex, sampleStatus, selectSample, showingSampleDialog]);
+      }, [selectedSampleIndex, sampleItems, selectSample]);
       const previousSample = reactExports.useCallback(() => {
         const prev2 = previousSampleIndex();
-        if (sampleStatus !== "loading" && prev2 > -1) {
+        if (prev2 > -1) {
           selectSample(prev2);
         }
-      }, [previousSampleIndex, sampleStatus, selectSample, showingSampleDialog]);
+      }, [previousSampleIndex, selectSample]);
       const title2 = selectedSampleIndex > -1 && sampleItems.length > selectedSampleIndex ? sampleItems[selectedSampleIndex].label : "";
       if (totalSampleCount === 0) {
         return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(EmptyPanel, { children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { children: "No samples" }, void 0, false, {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/tabs/SamplesTab.tsx",
-          lineNumber: 175,
+          lineNumber: 170,
           columnNumber: 9
         }, void 0) }, void 0, false, {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/tabs/SamplesTab.tsx",
-          lineNumber: 174,
+          lineNumber: 169,
           columnNumber: 7
         }, void 0);
       } else {
@@ -77107,7 +77075,7 @@ ${events}
             false,
             {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/tabs/SamplesTab.tsx",
-              lineNumber: 182,
+              lineNumber: 177,
               columnNumber: 11
             },
             void 0
@@ -77126,7 +77094,7 @@ ${events}
             false,
             {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/tabs/SamplesTab.tsx",
-              lineNumber: 190,
+              lineNumber: 185,
               columnNumber: 11
             },
             void 0
@@ -77149,14 +77117,14 @@ ${events}
             false,
             {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/tabs/SamplesTab.tsx",
-              lineNumber: 200,
+              lineNumber: 195,
               columnNumber: 11
             },
             void 0
           ) : void 0
         ] }, void 0, true, {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/tabs/SamplesTab.tsx",
-          lineNumber: 180,
+          lineNumber: 175,
           columnNumber: 7
         }, void 0);
       }

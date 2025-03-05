@@ -53,7 +53,6 @@ export const SamplesTab: FC<SamplesTabProps> = ({
   const groupByOrder = useGroupByOrder();
   const currentScore = useScore();
 
-  const sampleStatus = useStore((state) => state.sample.sampleStatus);
   const selectedSample = useStore((state) => state.sample.selectedSample);
 
   const [items, setItems] = useState<ListItem[]>([]);
@@ -80,16 +79,20 @@ export const SamplesTab: FC<SamplesTabProps> = ({
     [selectSample, setShowingSampleDialog],
   );
 
+  // Keep the selected item scrolled into view
+  useEffect(() => {
+    setTimeout(() => {
+      if (sampleListHandle.current) {
+        sampleListHandle.current.scrollIntoView({ index: selectedSampleIndex });
+      }
+    }, 0);
+  }, [selectedSampleIndex]);
+
+  // Focus the dialog when it is shown
   useEffect(() => {
     if (showingSampleDialog) {
       setTimeout(() => {
         sampleDialogRef.current?.focus();
-      }, 0);
-    } else {
-      setTimeout(() => {
-        if (sampleListHandle.current) {
-          sampleListHandle.current.scrollToIndex(0);
-        }
       }, 0);
     }
   }, [showingSampleDialog]);
@@ -137,32 +140,24 @@ export const SamplesTab: FC<SamplesTabProps> = ({
     );
   }, [sampleSummaries, sampleProcessor]);
 
-  const nextSampleIndex = useCallback(() => {
-    if (selectedSampleIndex < sampleItems.length - 1) {
-      return selectedSampleIndex + 1;
-    } else {
-      return -1;
-    }
-  }, [selectedSampleIndex, sampleItems.length]);
-
   const previousSampleIndex = useCallback(() => {
     return selectedSampleIndex > 0 ? selectedSampleIndex - 1 : -1;
   }, [selectedSampleIndex]);
 
   // Manage the next / previous state the selected sample
   const nextSample = useCallback(() => {
-    const next = nextSampleIndex();
-    if (sampleStatus !== "loading" && next > -1) {
+    const next = Math.min(selectedSampleIndex + 1, sampleItems.length - 1);
+    if (next > -1) {
       selectSample(next);
     }
-  }, [nextSampleIndex, sampleStatus, selectSample, showingSampleDialog]);
+  }, [selectedSampleIndex, sampleItems, selectSample]);
 
   const previousSample = useCallback(() => {
     const prev = previousSampleIndex();
-    if (sampleStatus !== "loading" && prev > -1) {
+    if (prev > -1) {
       selectSample(prev);
     }
-  }, [previousSampleIndex, sampleStatus, selectSample, showingSampleDialog]);
+  }, [previousSampleIndex, selectSample]);
 
   const title =
     selectedSampleIndex > -1 && sampleItems.length > selectedSampleIndex
