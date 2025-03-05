@@ -13,6 +13,7 @@ import anyio
 import pytest
 
 from inspect_ai import Task, eval, task
+from inspect_ai._util._async import configured_async_backend
 from inspect_ai.dataset import Sample
 from inspect_ai.model import ChatMessage, ModelName, ModelOutput
 from inspect_ai.scorer import match
@@ -132,6 +133,13 @@ def skip_if_no_docker(func):
 
     return pytest.mark.skipif(
         not is_docker_installed, reason="Test doesn't work without Docker installed."
+    )(func)
+
+
+def skip_if_trio(func):
+    return pytest.mark.skipif(
+        configured_async_backend() == "trio",
+        reason="Test not compatible with Trio async backend.",
     )(func)
 
 

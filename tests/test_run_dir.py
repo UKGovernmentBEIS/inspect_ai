@@ -1,11 +1,14 @@
 import os
 from pathlib import Path
 
+from test_helpers.utils import skip_if_trio
+
 from inspect_ai import eval
 
 TEST_RUN_DIR_PATH = Path("tests/test_run_dir")
 
 
+@skip_if_trio
 def test_run_dir():
     cwd = os.getcwd()
 
