@@ -1,7 +1,7 @@
 import { EvalLogHeader, LogFiles } from "../api/types";
 import { LogsState } from "../types";
 import { createLogger } from "../utils/logger";
-import { sleep } from "../utils/sync";
+import { createLogsPolling } from "./logsPolling";
 import { StoreState } from "./store";
 
 const log = createLogger("Log Slice");
@@ -20,7 +20,6 @@ export interface LogsSlice {
     // Fetch or update logs
     refreshLogs: () => Promise<void>;
     selectLogFile: (logUrl: string) => Promise<void>;
-    loadHeaders: () => Promise<void>;
     loadLogs: () => Promise<LogFiles>;
 
     // Computed values
@@ -40,6 +39,8 @@ export const createLogsSlice = (
   get: () => StoreState,
   _store: any,
 ): [LogsSlice, () => void] => {
+  const logsPolling = createLogsPolling(get, set);
+
   const slice = {
     // State
     logs: initialState,
@@ -57,7 +58,7 @@ export const createLogsSlice = (
           setTimeout(() => {
             const currentState = get();
             if (!currentState.logs.headersLoading) {
-              currentState.logsActions.loadHeaders();
+              logsPolling.startPolling(logs);
             }
           }, 100);
         }
@@ -107,64 +108,6 @@ export const createLogsSlice = (
           return { log_dir: "", files: [] };
         }
       },
-
-      // Load Headers
-      loadHeaders: async () => {
-        const state = get();
-        const api = state.api;
-        if (!api) {
-          console.error("API not initialized for the log slice");
-          return;
-        }
-
-        log.debug("LOADING HEADERS");
-        get().logsActions.setHeadersLoading(true);
-
-        // Group into chunks
-        const logs = get().logs.logs;
-        const chunkSize = 8;
-        const fileLists = [];
-        for (let i = 0; i < logs.files.length; i += chunkSize) {
-          const chunk = logs.files
-            .slice(i, i + chunkSize)
-            .map((logFile) => logFile.name);
-          fileLists.push(chunk);
-        }
-
-        // Chunk by chunk, read the header information
-        try {
-          let counter = 0;
-          for (const fileList of fileLists) {
-            counter++;
-            log.debug(`LOADING ${counter} of ${fileLists.length} CHUNKS`);
-            const headers = await api.get_log_headers(fileList);
-            const updatedHeaders: Record<string, EvalLogHeader> = {};
-
-            headers.forEach((header, index) => {
-              const logFile = fileList[index];
-              updatedHeaders[logFile] = header as EvalLogHeader;
-            });
-            state.logsActions.updateLogHeaders(updatedHeaders);
-            if (headers.length === chunkSize) {
-              await sleep(5000);
-            }
-          }
-        } catch (e: unknown) {
-          if (
-            e instanceof Error &&
-            (e.message === "Load failed" || e.message === "Failed to fetch")
-          ) {
-            // This happens if the server disappears
-            state.appActions.setStatus({ loading: false });
-          } else {
-            console.log(e);
-            state.appActions.setStatus({ loading: false, error: e as Error });
-          }
-        }
-
-        get().logsActions.setHeadersLoading(false);
-      },
-
       refreshLogs: async () => {
         log.debug("REFRESH LOGS");
         const state = get();

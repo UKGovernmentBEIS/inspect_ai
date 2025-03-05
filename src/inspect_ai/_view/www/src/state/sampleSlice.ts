@@ -44,6 +44,7 @@ export const createSampleSlice = (
 ): [SampleSlice, () => void] => {
   // Migrates old versions of samples to the new structure
   const migrateOldSample = (sample: any) => {
+    sample = { ...sample };
     if (sample.transcript) {
       sample.events = sample.transcript.events;
       sample.attachments = sample.transcript.content;
