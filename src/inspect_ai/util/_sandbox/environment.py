@@ -303,6 +303,8 @@ class SandboxEnvironment(abc.ABC):
     def deserialize_config(cls, config: dict[str, Any]) -> BaseModel:
         """Deserialize a sandbox-specific configuration model from a dict.
 
+        Override this method if you support a custom configuration model.
+
         A basic implementation would be: `return MySandboxEnvironmentConfig(**config)`
 
         Args:
