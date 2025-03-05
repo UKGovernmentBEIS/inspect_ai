@@ -4,10 +4,15 @@ import { persist } from "zustand/middleware";
 import { immer } from "zustand/middleware/immer";
 import { Capabilities, ClientAPI } from "../api/types";
 import { AppSlice, createAppSlice, initializeAppSlice } from "./appSlice";
-import { createLogSlice, initalialLogSlice, LogSlice } from "./logSlice";
+import { createLogSlice, initalializeLogSlice, LogSlice } from "./logSlice";
 import { createLogsSlice, initializeLogsSlice, LogsSlice } from "./logsSlice";
+import {
+  createSampleSlice,
+  initializeSampleSlice,
+  SampleSlice,
+} from "./sampleSlice";
 
-export interface StoreState extends AppSlice, LogsSlice, LogSlice {
+export interface StoreState extends AppSlice, LogsSlice, LogSlice, SampleSlice {
   // Shared data
   api: ClientAPI | null;
 
@@ -30,13 +35,15 @@ export const useStore = create<StoreState>()(
         // Initialize application slices
         initializeAppSlice(set, capabilities);
         initializeLogsSlice(set);
-        initalialLogSlice(set);
+        initalializeLogSlice(set);
+        initializeSampleSlice(set);
       },
 
       // Create the slices and merge them in
       ...createAppSlice(set, get, store),
       ...createLogsSlice(set, get, store),
       ...createLogSlice(set, get, store),
+      ...createSampleSlice(set, get, store),
     })),
     {
       name: "app-storage",
