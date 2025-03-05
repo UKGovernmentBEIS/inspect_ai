@@ -4,7 +4,6 @@ import { createLogger } from "../utils/logger";
 import { sleep } from "../utils/sync";
 import { StoreState } from "./store";
 
-// Define the app slice interface
 export interface LogsSlice {
   logs: LogsState;
   logsActions: {
@@ -27,7 +26,6 @@ export interface LogsSlice {
   };
 }
 
-// Initial state
 const initialState: LogsState = {
   logs: { log_dir: "", files: [] },
   logHeaders: {},
@@ -35,7 +33,6 @@ const initialState: LogsState = {
   selectedLogIndex: -1,
 };
 
-// Create the app slice with corrected types for immer middleware
 export const createLogsSlice = (
   set: (fn: (state: StoreState) => void) => void,
   get: () => StoreState,
@@ -55,7 +52,7 @@ export const createLogsSlice = (
 
         // If we have files in the logs, load the headers
         if (logs.files.length > 0) {
-          // Use setTimeout to ensure state is updated first
+          // ensure state is updated first
           setTimeout(() => {
             const currentState = get();
             if (!currentState.logs.headersLoading) {
@@ -233,7 +230,6 @@ export const createLogsSlice = (
   } as const;
 };
 
-// Initialize app slice with immer-compatible set function type
 export const initializeLogsSlice = <T extends LogsSlice>(
   set: (fn: (state: T) => void) => void,
   restoreState?: Partial<LogsState>,

@@ -3,7 +3,6 @@ import { AppState, AppStatus } from "../types";
 import { clearDocumentSelection } from "../utils/browser";
 import { StoreState } from "./store";
 
-// Define the app slice interface
 export interface AppSlice {
   app: AppState;
   capabilities: Capabilities;
@@ -15,14 +14,12 @@ export interface AppSlice {
   };
 }
 
-// Initial state
 const initialState: AppState = {
   status: { loading: false },
   offcanvas: false,
   showFind: false,
 };
 
-// Create the app slice using StoreState directly
 export const createAppSlice = (
   set: (fn: (state: StoreState) => void) => void,
   _get: () => StoreState,
@@ -60,7 +57,6 @@ export const createAppSlice = (
   } as const;
 };
 
-// Initialize app slice with StoreState
 export const initializeAppSlice = (
   set: (fn: (state: StoreState) => void) => void,
   capabilities: Capabilities,
@@ -84,8 +80,3 @@ export const initializeAppSlice = (
     }
   });
 };
-
-// Selectors to get app state and actions
-export const selectAppState = (state: StoreState) => state.app;
-export const selectAppActions = (state: StoreState) => state.appActions;
-export const selectAppCapabilities = (state: StoreState) => state.capabilities;

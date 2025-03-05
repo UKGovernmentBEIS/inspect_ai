@@ -1,5 +1,4 @@
 import { useMemo } from "react";
-import { SampleSummary } from "../api/types";
 import { kEpochAscVal, kSampleAscVal, kScoreAscVal } from "../constants";
 import {
   createEvalDescriptor,
@@ -13,7 +12,10 @@ import {
 } from "../samples/sample-tools/SortFilter";
 import { getAvailableScorers, getDefaultScorer } from "../scoring/utils";
 import { useStore } from "./store";
+import { mergeSampleSummaries } from "./utils";
 
+// Fetches all samples summaries (both completed and incomplete)
+// without applying any filtering
 export const useSampleSummaries = () => {
   const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
   const pendingSampleSummaries = useStore(
@@ -28,6 +30,7 @@ export const useSampleSummaries = () => {
   }, [selectedLogSummary, pendingSampleSummaries]);
 };
 
+// Counts the total number of unfiltered sample summaries (both complete and incomplete)
 export const useTotalSampleCount = () => {
   const sampleSummaries = useSampleSummaries();
   return useMemo(() => {
@@ -35,6 +38,9 @@ export const useTotalSampleCount = () => {
   }, [sampleSummaries]);
 };
 
+// Provides the currently selected score for this eval, providing a default
+// based upon the configuration (eval + summaries) if no scorer has been
+// selected
 export const useScore = () => {
   const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
   const sampleSummaries = useSampleSummaries();
@@ -50,6 +56,9 @@ export const useScore = () => {
   }, [selectedLogSummary, sampleSummaries, score]);
 };
 
+// Provides the list of available scorers. Will inspect the eval or samples
+// to determine scores (even for in progress evals that don't yet have final
+// metrics)
 export const useScores = () => {
   const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
   const sampleSummaries = useSampleSummaries();
@@ -62,6 +71,7 @@ export const useScores = () => {
   }, [selectedLogSummary, sampleSummaries]);
 };
 
+// Provides the eval descriptor
 export const useEvalDescriptor = () => {
   const scores = useScores();
   const sampleSummaries = useSampleSummaries();
@@ -70,6 +80,7 @@ export const useEvalDescriptor = () => {
   }, [scores, sampleSummaries]);
 };
 
+// Provides the sampls descriptor
 export const useSampleDescriptor = () => {
   const evalDescriptor = useEvalDescriptor();
   const sampleSummaries = useSampleSummaries();
@@ -81,6 +92,8 @@ export const useSampleDescriptor = () => {
   }, [evalDescriptor, sampleSummaries, score]);
 };
 
+// Provides the list of filtered samples
+// (applying sorting, grouping, and filtering)
 export const useFilteredSamples = () => {
   const evalDescriptor = useEvalDescriptor();
   const sampleSummaries = useSampleSummaries();
@@ -120,6 +133,7 @@ export const useFilteredSamples = () => {
   ]);
 };
 
+// Computes the group by to use given a particular sort
 export const useGroupBy = () => {
   const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
   const sort = useStore((state) => state.log.sort);
@@ -138,6 +152,7 @@ export const useGroupBy = () => {
   }, [selectedLogSummary, sort, epoch]);
 };
 
+// Computes the ordering for groups based upon the sort
 export const useGroupByOrder = () => {
   const sort = useStore((state) => state.log.sort);
   return useMemo(() => {
@@ -149,32 +164,11 @@ export const useGroupByOrder = () => {
   }, [sort]);
 };
 
+// Provides the currently selected sample summary
 export const useSelectedSampleSummary = () => {
   const filteredSamples = useFilteredSamples();
   const selectedIndex = useStore((state) => state.log.selectedSampleIndex);
   return useMemo(() => {
     return filteredSamples[selectedIndex];
   }, [filteredSamples, selectedIndex]);
-};
-
-// Function to merge log samples with pending samples
-const mergeSampleSummaries = (
-  logSamples: SampleSummary[],
-  pendingSamples: SampleSummary[],
-) => {
-  // Create a map of existing sample IDs to avoid duplicates
-  const existingSampleIds = new Set(
-    logSamples.map((sample) => `${sample.id}-${sample.epoch}`),
-  );
-
-  // Filter out any pending samples that already exist in the log
-  const uniquePendingSamples = pendingSamples
-    .filter((sample) => !existingSampleIds.has(`${sample.id}-${sample.epoch}`))
-    .map((sample) => {
-      // Always mark pending items as incomplete to be sure we trigger polling
-      return { ...sample, completed: false };
-    });
-
-  // Combine and return all samples
-  return [...logSamples, ...uniquePendingSamples];
 };
