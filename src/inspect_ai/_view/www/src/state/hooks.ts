@@ -172,3 +172,40 @@ export const useSelectedSampleSummary = () => {
     return filteredSamples[selectedIndex];
   }, [filteredSamples, selectedIndex]);
 };
+
+export const useSampleData = () => {
+  const sampleStatus = useStore((state) => state.sample.sampleStatus);
+  const sampleError = useStore((state) => state.sample.sampleError);
+  const selectedSample = useStore((state) => state.sample.selectedSample);
+  const runningSampleData = useStore((state) => state.sample.runningSampleData);
+  const loadSample = useStore((state) => state.sampleActions.loadSample);
+  return useMemo(() => {
+    return {
+      status: sampleStatus,
+      error: sampleError,
+      sample: selectedSample,
+      running: runningSampleData,
+      loadSample,
+    };
+  }, [
+    sampleStatus,
+    sampleError,
+    selectedSample,
+    runningSampleData,
+    loadSample,
+  ]);
+};
+
+export const useLogSelection = () => {
+  const selectedSampleSummary = useSelectedSampleSummary();
+  const selectedLogFile = useStore((state) =>
+    state.logsActions.getSelectedLogFile(),
+  );
+
+  return useMemo(() => {
+    return {
+      logFile: selectedLogFile,
+      sample: selectedSampleSummary,
+    };
+  }, [selectedLogFile, selectedSampleSummary]);
+};
