@@ -7,7 +7,6 @@ import { AppSlice, createAppSlice, initializeAppSlice } from "./appSlice";
 import { createLogSlice, initalialLogSlice, LogSlice } from "./logSlice";
 import { createLogsSlice, initializeLogsSlice, LogsSlice } from "./logsSlice";
 
-// Define the complete store state
 export interface StoreState extends AppSlice, LogsSlice, LogSlice {
   // Shared data
   api: ClientAPI | null;
@@ -16,14 +15,13 @@ export interface StoreState extends AppSlice, LogsSlice, LogSlice {
   initialize: (api: ClientAPI, capabilities: Capabilities) => void;
 }
 
-// Create the combined store with immer middleware
 export const useStore = create<StoreState>()(
   persist(
     immer((set, get, store) => ({
       // Shared state
       api: null,
 
-      // Initialize function
+      // Initialize
       initialize: (api, capabilities) => {
         set((state) => {
           state.api = api;

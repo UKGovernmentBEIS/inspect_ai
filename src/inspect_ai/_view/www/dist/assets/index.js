@@ -1332,7 +1332,7 @@ var require_assets = __commonJS({
       contextFiberStackCursor.current === fiber && (pop$1(contextStackCursor), pop$1(contextFiberStackCursor));
       hostTransitionProviderCursor.current === fiber && (pop$1(hostTransitionProviderCursor), HostTransitionContext._currentValue = sharedNotPendingObject);
     }
-    var hasOwnProperty$1 = Object.prototype.hasOwnProperty, scheduleCallback$3 = Scheduler.unstable_scheduleCallback, cancelCallback$1 = Scheduler.unstable_cancelCallback, shouldYield = Scheduler.unstable_shouldYield, requestPaint = Scheduler.unstable_requestPaint, now = Scheduler.unstable_now, getCurrentPriorityLevel = Scheduler.unstable_getCurrentPriorityLevel, ImmediatePriority = Scheduler.unstable_ImmediatePriority, UserBlockingPriority = Scheduler.unstable_UserBlockingPriority, NormalPriority$1 = Scheduler.unstable_NormalPriority, LowPriority = Scheduler.unstable_LowPriority, IdlePriority = Scheduler.unstable_IdlePriority, log$1 = Scheduler.log, unstable_setDisableYieldValue = Scheduler.unstable_setDisableYieldValue, rendererID = null, injectedHook = null;
+    var hasOwnProperty$1 = Object.prototype.hasOwnProperty, scheduleCallback$3 = Scheduler.unstable_scheduleCallback, cancelCallback$1 = Scheduler.unstable_cancelCallback, shouldYield = Scheduler.unstable_shouldYield, requestPaint = Scheduler.unstable_requestPaint, now = Scheduler.unstable_now, getCurrentPriorityLevel = Scheduler.unstable_getCurrentPriorityLevel, ImmediatePriority = Scheduler.unstable_ImmediatePriority, UserBlockingPriority = Scheduler.unstable_UserBlockingPriority, NormalPriority$1 = Scheduler.unstable_NormalPriority, LowPriority = Scheduler.unstable_LowPriority, IdlePriority = Scheduler.unstable_IdlePriority, log$1$1 = Scheduler.log, unstable_setDisableYieldValue = Scheduler.unstable_setDisableYieldValue, rendererID = null, injectedHook = null;
     function onCommitRoot(root2) {
       if (injectedHook && "function" === typeof injectedHook.onCommitFiberRoot)
         try {
@@ -1346,7 +1346,7 @@ var require_assets = __commonJS({
         }
     }
     function setIsStrictModeForDevtools(newIsStrictMode) {
-      "function" === typeof log$1 && unstable_setDisableYieldValue(newIsStrictMode);
+      "function" === typeof log$1$1 && unstable_setDisableYieldValue(newIsStrictMode);
       if (injectedHook && "function" === typeof injectedHook.setStrictMode)
         try {
           injectedHook.setStrictMode(rendererID, newIsStrictMode);
@@ -17929,9 +17929,9 @@ self.onmessage = function (e) {
       };
       return { start, stop };
     };
-    let currentPolling = null;
+    const log$1 = createLogger("logPolling");
     function createLogPolling(get2, set2) {
-      const log2 = createLogger("logPolling");
+      let currentPolling = null;
       const startPolling = (logFileName) => {
         var _a2;
         if (currentPolling) {
@@ -17945,7 +17945,7 @@ self.onmessage = function (e) {
             const api2 = state.api;
             if (!(api2 == null ? void 0 : api2.get_log_pending_samples)) return false;
             const currentEtag = (_a3 = get2().log.pendingSampleSummaries) == null ? void 0 : _a3.etag;
-            log2.debug(`POLL RUNNING SAMPLES: ${logFileName}`);
+            log$1.debug(`POLL RUNNING SAMPLES: ${logFileName}`);
             const pendingSamples = await api2.get_log_pending_samples(
               logFileName,
               currentEtag
@@ -17957,7 +17957,7 @@ self.onmessage = function (e) {
               get2().logActions.refreshLog();
               return true;
             } else if (pendingSamples.status === "NotFound") {
-              log2.debug(`STOP POLLING RUNNING SAMPLES: ${logFileName}`);
+              log$1.debug(`STOP POLLING RUNNING SAMPLES: ${logFileName}`);
               clearPendingSummaries(logFileName);
               return false;
             }
@@ -18258,7 +18258,7 @@ self.onmessage = function (e) {
         immer((set2, get2, store) => ({
           // Shared state
           api: null,
-          // Initialize function
+          // Initialize
           initialize: (api2, capabilities2) => {
             set2((state) => {
               state.api = api2;
@@ -30144,6 +30144,15 @@ categories: ${categories.join(" ")}`;
         return void 0;
       }
     };
+    const mergeSampleSummaries = (logSamples, pendingSamples) => {
+      const existingSampleIds = new Set(
+        logSamples.map((sample2) => `${sample2.id}-${sample2.epoch}`)
+      );
+      const uniquePendingSamples = pendingSamples.filter((sample2) => !existingSampleIds.has(`${sample2.id}-${sample2.epoch}`)).map((sample2) => {
+        return { ...sample2, completed: false };
+      });
+      return [...logSamples, ...uniquePendingSamples];
+    };
     const useSampleSummaries = () => {
       const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
       const pendingSampleSummaries = useStore(
@@ -30253,15 +30262,6 @@ categories: ${categories.join(" ")}`;
       return reactExports.useMemo(() => {
         return filteredSamples[selectedIndex];
       }, [filteredSamples, selectedIndex]);
-    };
-    const mergeSampleSummaries = (logSamples, pendingSamples) => {
-      const existingSampleIds = new Set(
-        logSamples.map((sample2) => `${sample2.id}-${sample2.epoch}`)
-      );
-      const uniquePendingSamples = pendingSamples.filter((sample2) => !existingSampleIds.has(`${sample2.id}-${sample2.epoch}`)).map((sample2) => {
-        return { ...sample2, completed: false };
-      });
-      return [...logSamples, ...uniquePendingSamples];
     };
     const container$9 = "_container_15b4r_1";
     const label$5 = "_label_15b4r_5";
