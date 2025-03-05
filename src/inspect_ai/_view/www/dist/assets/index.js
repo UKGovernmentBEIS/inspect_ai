@@ -18295,13 +18295,6 @@ self.onmessage = function (e) {
                 state.logsActions.setSelectedLogIndex(newIndex);
               }
             }
-            if (refreshedLogs.files.length > 0) {
-              setTimeout(() => {
-                if (!state.logs.headersLoading) {
-                  state.logsActions.loadHeaders();
-                }
-              }, 100);
-            }
           },
           // Select a specific log file
           selectLogFile: async (logUrl) => {
