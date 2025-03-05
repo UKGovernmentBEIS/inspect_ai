@@ -11,9 +11,7 @@ import {
   useRef,
 } from "react";
 import { ErrorPanel } from "../components/ErrorPanel";
-import { useSelectedSampleSummary } from "../state/hooks";
-import { useLoadSample, useSampleStore } from "../state/sampleStore";
-import { useStore } from "../state/store";
+import { useLogSelection, useSampleData } from "../state/hooks";
 import { SampleDisplay } from "./SampleDisplay";
 
 interface SampleDialogProps {
@@ -46,21 +44,13 @@ export const SampleDialog: FC<SampleDialogProps> = ({
 }) => {
   const scrollRef: Ref<HTMLDivElement> = useRef(null);
 
-  const sampleStatus = useSampleStore((state) => state.sampleStatus);
-  const sampleError = useSampleStore((state) => state.sampleError);
-  const selectedSample = useSampleStore((state) => state.selectedSample);
-  const runningSampleData = useSampleStore((state) => state.runningSampleData);
-  const selectedSampleSummary = useSelectedSampleSummary();
-  const loadSample = useLoadSample();
-  const selectedLogFile = useStore((state) =>
-    state.logsActions.getSelectedLogFile(),
-  );
-
+  const sampleData = useSampleData();
+  const logSelection = useLogSelection();
   useEffect(() => {
-    if (selectedLogFile && selectedSampleSummary) {
-      loadSample(selectedLogFile, selectedSampleSummary);
+    if (logSelection.logFile && logSelection.sample) {
+      sampleData.loadSample(logSelection.logFile, logSelection.sample);
     }
-  }, [selectedSampleSummary]);
+  }, [logSelection.logFile, logSelection.sample]);
 
   const tools = useMemo<ModalTools>(() => {
     const nextTool: ModalTool = {
@@ -117,18 +107,18 @@ export const SampleDialog: FC<SampleDialogProps> = ({
       onkeyup={handleKeyUp}
       visible={showingSampleDialog}
       onHide={onHide}
-      showProgress={sampleStatus === "loading"}
+      showProgress={sampleData.status === "loading"}
       initialScrollPositionRef={sampleScrollPositionRef}
       setInitialScrollPosition={setSampleScrollPosition}
       scrollRef={scrollRef}
     >
-      {sampleError ? (
-        <ErrorPanel title="Sample Error" error={sampleError} />
+      {sampleData.error ? (
+        <ErrorPanel title="Sample Error" error={sampleData.error} />
       ) : (
         <SampleDisplay
           id={id}
-          sample={selectedSample}
-          runningSampleData={runningSampleData}
+          sample={sampleData.sample}
+          runningSampleData={sampleData.running}
           selectedTab={selectedTab}
           setSelectedTab={setSelectedTab}
           scrollRef={scrollRef}

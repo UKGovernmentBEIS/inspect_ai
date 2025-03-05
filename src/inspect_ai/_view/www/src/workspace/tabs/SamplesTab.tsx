@@ -21,7 +21,6 @@ import {
   useScore,
   useTotalSampleCount,
 } from "../../state/hooks.ts";
-import { useSampleStore } from "../../state/sampleStore.ts";
 import { useStore } from "../../state/store.ts";
 import { getSampleProcessor } from "./grouping.ts";
 import { ListItem } from "./types.ts";
@@ -62,8 +61,8 @@ export const SamplesTab: FC<SamplesTabProps> = ({
   const groupByOrder = useGroupByOrder();
   const currentScore = useScore();
 
-  const sampleStatus = useSampleStore((state) => state.sampleStatus);
-  const selectedSample = useSampleStore((state) => state.selectedSample);
+  const sampleStatus = useStore((state) => state.sample.sampleStatus);
+  const selectedSample = useStore((state) => state.sample.selectedSample);
 
   const [items, setItems] = useState<ListItem[]>([]);
   const [sampleItems, setSampleItems] = useState<ListItem[]>([]);

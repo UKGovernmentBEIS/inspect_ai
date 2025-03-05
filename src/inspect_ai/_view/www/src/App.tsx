@@ -30,7 +30,6 @@ import {
   kSampleTranscriptTabId,
 } from "./constants";
 import { useTotalSampleCount } from "./state/hooks.ts";
-import { useSampleStore } from "./state/sampleStore.ts";
 import { useStore } from "./state/store.ts";
 import { ApplicationState } from "./types.ts";
 
@@ -44,8 +43,6 @@ interface AppProps {
  * Renders the Main Application
  */
 export const App: FC<AppProps> = ({ api, applicationState }) => {
-  // Application Context
-
   // App layout and state
   const appStatus = useStore((state) => state.app.status);
   const setAppStatus = useStore((state) => state.appActions.setStatus);
@@ -58,7 +55,7 @@ export const App: FC<AppProps> = ({ api, applicationState }) => {
   const setShowFind = useStore((state) => state.appActions.setShowFind);
   const hideFind = useStore((state) => state.appActions.hideFind);
 
-  // Logs
+  // Logs Data
   const logs = useStore((state) => state.logs.logs);
   const selectedLogIndex = useStore((state) => state.logs.selectedLogIndex);
   const logHeaders = useStore((state) => state.logs.logHeaders);
@@ -73,22 +70,24 @@ export const App: FC<AppProps> = ({ api, applicationState }) => {
   const refreshLogs = useStore((state) => state.logsActions.refreshLogs);
   const selectLogFile = useStore((state) => state.logsActions.selectLogFile);
 
-  // Log
+  // Log Data
   const selectedSampleIndex = useStore(
     (state) => state.log.selectedSampleIndex,
   );
   const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
-  const clearSelectedSample = useSampleStore(
-    (state) => state.clearSelectedSample,
-  );
   const runningMetrics = useStore(
     (state) => state.log.pendingSampleSummaries?.metrics,
   );
   const selectSample = useStore((state) => state.logActions.selectSample);
-  const selectedSample = useSampleStore((state) => state.selectedSample);
   const resetFiltering = useStore((state) => state.logActions.resetFiltering);
   const loadLog = useStore((state) => state.logActions.loadLog);
   const refreshLog = useStore((state) => state.logActions.refreshLog);
+
+  // Sample Data
+  const clearSelectedSample = useStore(
+    (state) => state.sampleActions.clearSelectedSample,
+  );
+  const selectedSample = useStore((state) => state.sample.selectedSample);
 
   // The main application reference
   const mainAppRef = useRef<HTMLDivElement>(null);

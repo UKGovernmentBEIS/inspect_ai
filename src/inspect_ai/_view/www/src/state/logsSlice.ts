@@ -4,6 +4,8 @@ import { createLogger } from "../utils/logger";
 import { sleep } from "../utils/sync";
 import { StoreState } from "./store";
 
+const log = createLogger("Log Slice");
+
 export interface LogsSlice {
   logs: LogsState;
   logsActions: {
@@ -38,7 +40,6 @@ export const createLogsSlice = (
   get: () => StoreState,
   _store: any,
 ) => {
-  const log = createLogger("Log Slice");
   return {
     // State
     logs: initialState,

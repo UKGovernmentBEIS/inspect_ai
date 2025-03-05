@@ -6,6 +6,8 @@ import { createLogger } from "../utils/logger";
 import { createLogPolling } from "./logPolling";
 import { StoreState } from "./store";
 
+const log = createLogger("logSlice");
+
 export interface LogSlice {
   log: LogState;
   logActions: {
@@ -65,7 +67,6 @@ export const createLogSlice = (
   get: () => StoreState,
   _store: any,
 ) => {
-  const log = createLogger("logSlice");
   const logPolling = createLogPolling(get, set);
 
   return {
@@ -177,7 +178,7 @@ export const createLogSlice = (
 };
 
 // Initialize app slice with StoreState
-export const initalialLogSlice = (
+export const initalializeLogSlice = (
   set: (fn: (state: StoreState) => void) => void,
   restoreState?: Partial<LogState>,
 ) => {

@@ -3,7 +3,6 @@ import api from "./api/index";
 import { Capabilities } from "./api/types";
 import { App } from "./App";
 import { AppErrorBoundary } from "./AppErrorBoundary";
-import { initializeSampleStore } from "./state/sampleStore";
 import { initializeStore } from "./state/store";
 import { ApplicationState } from "./types";
 import { throttle } from "./utils/sync";
@@ -37,7 +36,7 @@ if (vscode) {
   }
 }
 
-initializeSampleStore(resolvedApi, initialState?.sample);
+// Inititialize the application store
 initializeStore(resolvedApi, capabilities);
 
 const containerId = "app";

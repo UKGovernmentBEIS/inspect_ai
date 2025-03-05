@@ -3,9 +3,7 @@ import { ErrorPanel } from "../components/ErrorPanel";
 import { ProgressBar } from "../components/ProgressBar";
 import { SampleDisplay } from "./SampleDisplay";
 
-import { useSelectedSampleSummary } from "../state/hooks";
-import { useLoadSample, useSampleStore } from "../state/sampleStore";
-import { useStore } from "../state/store";
+import { useLogSelection, useSampleData } from "../state/hooks";
 import styles from "./InlineSampleDisplay.module.css";
 
 interface InlineSampleDisplayProps {
@@ -24,33 +22,25 @@ export const InlineSampleDisplay: FC<InlineSampleDisplayProps> = ({
   setSelectedTab,
   scrollRef,
 }) => {
-  const sampleStatus = useSampleStore((state) => state.sampleStatus);
-  const sampleError = useSampleStore((state) => state.sampleError);
-  const selectedSample = useSampleStore((state) => state.selectedSample);
-  const runningSampleData = useSampleStore((state) => state.runningSampleData);
-  const selectedSampleSummary = useSelectedSampleSummary();
-  const loadSample = useLoadSample();
-  const selectedLogFile = useStore((state) =>
-    state.logsActions.getSelectedLogFile(),
-  );
-
+  const sampleData = useSampleData();
+  const logSelection = useLogSelection();
   useEffect(() => {
-    if (selectedLogFile && selectedSampleSummary) {
-      loadSample(selectedLogFile, selectedSampleSummary);
+    if (logSelection.logFile && logSelection.sample) {
+      sampleData.loadSample(logSelection.logFile, logSelection.sample);
     }
-  }, [selectedSampleSummary]);
+  }, [logSelection.logFile, logSelection.sample]);
 
   return (
     <div className={styles.container}>
-      <ProgressBar animating={sampleStatus === "loading"} />
+      <ProgressBar animating={sampleData.status === "loading"} />
       <div className={styles.body}>
-        {sampleError ? (
-          <ErrorPanel title="Unable to load sample" error={sampleError} />
+        {sampleData.error ? (
+          <ErrorPanel title="Unable to load sample" error={sampleData.error} />
         ) : (
           <SampleDisplay
             id={id}
-            sample={selectedSample}
-            runningSampleData={runningSampleData}
+            sample={sampleData.sample}
+            runningSampleData={sampleData.running}
             selectedTab={selectedTab}
             setSelectedTab={setSelectedTab}
             scrollRef={scrollRef}
