@@ -17,6 +17,9 @@ from pydantic import BaseModel
 from s3fs import S3FileSystem  # type: ignore
 from shortuuid import uuid
 
+from inspect_ai._util._async import configured_async_backend, current_async_backend
+from inspect_ai._util.error import PrerequisiteError
+
 # https://filesystem-spec.readthedocs.io/en/latest/_modules/fsspec/spec.html#AbstractFileSystem
 # https://filesystem-spec.readthedocs.io/en/latest/api.html#fsspec.generic.GenericFileSystem
 
@@ -304,7 +307,17 @@ def absolute_file_path(file: str) -> str:
 
 
 def default_fs_options(file: str) -> dict[str, Any]:
-    options = deepcopy(DEFAULT_FS_OPTIONS.get(urlparse(file).scheme, {}))
+    scheme = urlparse(file).scheme
+    if (
+        scheme == "s3"
+        and configured_async_backend() == "trio"
+        and current_async_backend() == "trio"
+    ):
+        raise PrerequisiteError(
+            "ERROR: The s3 interface is not supported when running under the trio async backend."
+        )
+
+    options = deepcopy(DEFAULT_FS_OPTIONS.get(scheme, {}))
     # disable caching for all filesystems
     options.update(
         dict(
