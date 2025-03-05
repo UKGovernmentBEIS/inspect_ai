@@ -11,7 +11,7 @@ import {
   useRef,
 } from "react";
 import { ErrorPanel } from "../components/ErrorPanel";
-import { useSelectedSampleSummary } from "../state/logStore";
+import { useSelectedSampleSummary } from "../state/hooks";
 import { useLoadSample, useSampleStore } from "../state/sampleStore";
 import { useStore } from "../state/store";
 import { SampleDisplay } from "./SampleDisplay";

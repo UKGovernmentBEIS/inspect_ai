@@ -1,7 +1,8 @@
 import { FC } from "react";
 import { Fragment } from "react/jsx-runtime";
 import { SampleSummary } from "../api/types";
-import { useLogStore, useScores } from "../state/logStore";
+import { useScores } from "../state/hooks";
+import { useStore } from "../state/store";
 import { ScoreFilter, ScoreLabel } from "../types";
 import { EpochFilter } from "./sample-tools/EpochFilter";
 import { SampleFilter } from "./sample-tools/sample-filter/SampleFilter";
@@ -13,18 +14,18 @@ interface SampleToolsProps {
 }
 
 export const SampleTools: FC<SampleToolsProps> = ({ samples }) => {
-  const selectedLogSummary = useLogStore((state) => state.selectedLogSummary);
+  const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
 
-  const filter = useLogStore((state) => state.filter);
-  const setFilter = useLogStore((state) => state.setFilter);
+  const filter = useStore((state) => state.log.filter);
+  const setFilter = useStore((state) => state.logActions.setFilter);
 
   const scores = useScores();
-  const score = useLogStore((state) => state.score);
-  const setScore = useLogStore((state) => state.setScore);
-  const epoch = useLogStore((state) => state.epoch);
-  const setEpoch = useLogStore((state) => state.setEpoch);
-  const sort = useLogStore((state) => state.sort);
-  const setSort = useLogStore((state) => state.setSort);
+  const score = useStore((state) => state.log.score);
+  const setScore = useStore((state) => state.logActions.setScore);
+  const epoch = useStore((state) => state.log.epoch);
+  const setEpoch = useStore((state) => state.logActions.setEpoch);
+  const sort = useStore((state) => state.log.sort);
+  const setSort = useStore((state) => state.logActions.setSort);
 
   const epochs = selectedLogSummary?.eval.config.epochs || 1;
   return (

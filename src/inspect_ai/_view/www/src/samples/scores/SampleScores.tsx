@@ -1,7 +1,7 @@
 import { FC, Fragment } from "react";
 import { SampleSummary } from "../../api/types";
 
-import { useSampleDescriptor } from "../../state/logStore";
+import { useSampleDescriptor } from "../../state/hooks";
 import styles from "./SampleScores.module.css";
 
 interface SampleScoresProps {

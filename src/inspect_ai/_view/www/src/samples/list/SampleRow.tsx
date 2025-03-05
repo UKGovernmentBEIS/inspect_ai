@@ -2,7 +2,6 @@ import clsx from "clsx";
 import { FC, ReactNode, useCallback } from "react";
 import { SampleSummary } from "../../api/types";
 import { MarkdownDiv } from "../../components/MarkdownDiv";
-import { useLogStore } from "../../state/logStore";
 import { useStore } from "../../state/store";
 import { arrayToString, inputString } from "../../utils/format";
 import { SampleErrorView } from "../error/SampleErrorView";
@@ -34,7 +33,9 @@ export const SampleRow: FC<SampleRowProps> = ({
   const streamSampleData = useStore(
     (state) => state.capabilities.streamSampleData,
   );
-  const selectedSampleIndex = useLogStore((state) => state.selectedSampleIndex);
+  const selectedSampleIndex = useStore(
+    (state) => state.log.selectedSampleIndex,
+  );
   const handleClick = useCallback(() => {
     if (completed || streamSampleData) {
       showSample(index);

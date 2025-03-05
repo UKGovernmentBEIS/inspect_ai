@@ -8,8 +8,9 @@ import { EvalSample } from "../types/log";
 import { resolveAttachments } from "../utils/attachments";
 import { createLogger } from "../utils/logger";
 import { createPolling, Polling } from "../utils/polling";
+import { useFilteredSamples } from "./hooks";
 import { useLogsStore } from "./logsStore";
-import { useFilteredSamples, useLogStore } from "./logStore";
+import { useStore } from "./store";
 
 // Define the store type with proper typing
 interface SampleStore extends SampleState {
@@ -264,7 +265,9 @@ export function useLoadSample() {
 
 export function useSampleLoader() {
   const selectedLogFile = useLogsStore((state) => state.getSelectedLogFile());
-  const selectedSampleIndex = useLogStore((state) => state.selectedSampleIndex);
+  const selectedSampleIndex = useStore(
+    (state) => state.log.selectedSampleIndex,
+  );
   const sampleSummaries = useFilteredSamples();
   const { loadSample, stopPolling } = useSampleStore();
 

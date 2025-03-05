@@ -3,7 +3,7 @@ import { ErrorPanel } from "../components/ErrorPanel";
 import { ProgressBar } from "../components/ProgressBar";
 import { SampleDisplay } from "./SampleDisplay";
 
-import { useSelectedSampleSummary } from "../state/logStore";
+import { useSelectedSampleSummary } from "../state/hooks";
 import { useLoadSample, useSampleStore } from "../state/sampleStore";
 import { useStore } from "../state/store";
 import styles from "./InlineSampleDisplay.module.css";

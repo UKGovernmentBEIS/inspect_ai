@@ -29,7 +29,7 @@ import {
   kSampleMessagesTabId,
   kSampleTranscriptTabId,
 } from "./constants";
-import { useLogStore, useTotalSampleCount } from "./state/logStore.ts";
+import { useTotalSampleCount } from "./state/hooks.ts";
 import { useSampleStore } from "./state/sampleStore.ts";
 import { useStore } from "./state/store.ts";
 import { ApplicationState } from "./types.ts";
@@ -45,8 +45,6 @@ interface AppProps {
  */
 export const App: FC<AppProps> = ({ api, applicationState }) => {
   // Application Context
-
-  const logStore = useLogStore();
 
   // App layout and state
   const appStatus = useStore((state) => state.app.status);
@@ -75,11 +73,22 @@ export const App: FC<AppProps> = ({ api, applicationState }) => {
   const refreshLogs = useStore((state) => state.logsActions.refreshLogs);
   const selectLogFile = useStore((state) => state.logsActions.selectLogFile);
 
-  // Sample
+  // Log
+  const selectedSampleIndex = useStore(
+    (state) => state.log.selectedSampleIndex,
+  );
+  const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
   const clearSelectedSample = useSampleStore(
     (state) => state.clearSelectedSample,
   );
+  const runningMetrics = useStore(
+    (state) => state.log.pendingSampleSummaries?.metrics,
+  );
+  const selectSample = useStore((state) => state.logActions.selectSample);
   const selectedSample = useSampleStore((state) => state.selectedSample);
+  const resetFiltering = useStore((state) => state.logActions.resetFiltering);
+  const loadLog = useStore((state) => state.logActions.loadLog);
+  const refreshLog = useStore((state) => state.logActions.refreshLog);
 
   // The main application reference
   const mainAppRef = useRef<HTMLDivElement>(null);
@@ -161,19 +170,14 @@ export const App: FC<AppProps> = ({ api, applicationState }) => {
 
   // Clear the selected sample when log file changes
   useEffect(() => {
-    if (!logs.files[selectedLogIndex] || logStore.selectedSampleIndex === -1) {
+    if (!logs.files[selectedLogIndex] || selectedSampleIndex === -1) {
       clearSelectedSample();
     }
-  }, [
-    logStore.selectedSampleIndex,
-    selectedLogIndex,
-    logs,
-    clearSelectedSample,
-  ]);
+  }, [selectedSampleIndex, selectedLogIndex, logs, clearSelectedSample]);
 
   useEffect(() => {
-    logStore.selectSample(0);
-  }, [selectedLogFile, logStore.selectSample]);
+    selectSample(0);
+  }, [selectedLogFile, selectSample]);
 
   // Load a specific log
   useEffect(() => {
@@ -184,7 +188,7 @@ export const App: FC<AppProps> = ({ api, applicationState }) => {
           setAppStatus({ loading: true, error: undefined });
 
           // Then load the log
-          await logStore.loadLog(selectedLogFile);
+          await loadLog(selectedLogFile);
 
           // Finally set loading to false
           setAppStatus({ loading: false, error: undefined });
@@ -195,7 +199,7 @@ export const App: FC<AppProps> = ({ api, applicationState }) => {
       }
     };
     loadSpecificLog();
-  }, [selectedLogFile, logStore.loadLog, setAppStatus]);
+  }, [selectedLogFile, loadLog, setAppStatus]);
 
   useEffect(() => {
     // Reset the workspace
@@ -207,14 +211,14 @@ export const App: FC<AppProps> = ({ api, applicationState }) => {
     workspaceTabScrollPosition.current = {};
 
     clearSelectedSample();
-  }, [logStore.selectedLogSummary?.eval.task_id, clearSelectedSample]);
+  }, [selectedLogSummary?.eval.task_id, clearSelectedSample]);
 
   const totalSampleCount = useTotalSampleCount();
   useEffect(() => {
-    if (logStore.selectedLogSummary && totalSampleCount === 0) {
+    if (selectedLogSummary && totalSampleCount === 0) {
       setSelectedWorkspaceTab(kInfoWorkspaceTabId);
     }
-  }, [logStore.selectedLogSummary]);
+  }, [selectedLogSummary]);
 
   useEffect(() => {
     if (logs.log_dir && logs.files.length === 0) {
@@ -227,12 +231,12 @@ export const App: FC<AppProps> = ({ api, applicationState }) => {
     }
   }, [logs.log_dir, logs.files.length]);
 
-  const refreshLog = useCallback(() => {
+  const appRefreshLog = useCallback(() => {
     try {
       setAppStatus({ loading: true, error: undefined });
 
-      logStore.refreshLog();
-      logStore.resetFiltering();
+      refreshLog();
+      resetFiltering();
 
       setAppStatus({ loading: false, error: undefined });
     } catch (e) {
@@ -240,7 +244,7 @@ export const App: FC<AppProps> = ({ api, applicationState }) => {
       console.log(e);
       setAppStatus({ loading: false, error: e as Error });
     }
-  }, [logStore.refreshLog, logStore.resetFiltering, setAppStatus]);
+  }, [refreshLog, resetFiltering, setAppStatus]);
 
   const onMessage = useCallback(
     async (e: HostMessage) => {
@@ -329,7 +333,7 @@ export const App: FC<AppProps> = ({ api, applicationState }) => {
 
   return (
     <>
-      {!fullScreen && logStore.selectedLogSummary ? (
+      {!fullScreen && selectedLogSummary ? (
         <Sidebar
           logs={logs}
           logHeaders={logHeaders}
@@ -371,17 +375,17 @@ export const App: FC<AppProps> = ({ api, applicationState }) => {
           />
         ) : (
           <WorkSpace
-            task_id={logStore.selectedLogSummary?.eval?.task_id}
-            evalStatus={logStore.selectedLogSummary?.status}
-            evalError={filterNull(logStore.selectedLogSummary?.error)}
-            evalVersion={logStore.selectedLogSummary?.version}
-            evalSpec={logStore.selectedLogSummary?.eval}
-            evalPlan={logStore.selectedLogSummary?.plan}
-            evalStats={logStore.selectedLogSummary?.stats}
-            evalResults={filterNull(logStore.selectedLogSummary?.results)}
-            runningMetrics={logStore.pendingSampleSummaries?.metrics}
+            task_id={selectedLogSummary?.eval?.task_id}
+            evalStatus={selectedLogSummary?.status}
+            evalError={filterNull(selectedLogSummary?.error)}
+            evalVersion={selectedLogSummary?.version}
+            evalSpec={selectedLogSummary?.eval}
+            evalPlan={selectedLogSummary?.plan}
+            evalStats={selectedLogSummary?.stats}
+            evalResults={filterNull(selectedLogSummary?.results)}
+            runningMetrics={runningMetrics}
             showToggle={showToggle}
-            refreshLog={refreshLog}
+            refreshLog={appRefreshLog}
             showingSampleDialog={showingSampleDialog}
             setShowingSampleDialog={handleSampleShowingDialog}
             selectedTab={selectedWorkspaceTab}

@@ -17,7 +17,8 @@ import { SampleRow } from "./SampleRow";
 import { SampleSeparator } from "./SampleSeparator";
 
 import clsx from "clsx";
-import { useLogStore, useSampleDescriptor } from "../../state/logStore";
+import { useSampleDescriptor } from "../../state/hooks";
+import { useStore } from "../../state/store";
 import { SampleFooter } from "./SampleFooter";
 import { SampleHeader } from "./SampleHeader";
 import styles from "./SampleList.module.css";
@@ -46,7 +47,9 @@ export const SampleList: FC<SampleListProps> = (props) => {
     listHandle,
   } = props;
 
-  const selectedSampleIndex = useLogStore((state) => state.selectedSampleIndex);
+  const selectedSampleIndex = useStore(
+    (state) => state.log.selectedSampleIndex,
+  );
   const samplesDescriptor = useSampleDescriptor();
   const [followOutput, setFollowOutput] = useState(false);
 

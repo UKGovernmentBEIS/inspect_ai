@@ -1,4 +1,3 @@
-// src/stores/logsStore.ts
 import { create } from "zustand";
 import { ClientAPI, EvalLogHeader, LogFiles } from "../api/types";
 import { LogsState } from "../types";

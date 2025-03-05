@@ -2864,7 +2864,7 @@ var require_assets = __commonJS({
           }
       }
       function setIsStrictModeForDevtools(newIsStrictMode) {
-        "function" === typeof log$12 && unstable_setDisableYieldValue(newIsStrictMode);
+        "function" === typeof log$1 && unstable_setDisableYieldValue(newIsStrictMode);
         if (injectedHook && "function" === typeof injectedHook.setStrictMode)
           try {
             injectedHook.setStrictMode(rendererID, newIsStrictMode);
@@ -16898,7 +16898,7 @@ var require_assets = __commonJS({
         action: null
       }), valueStack = [];
       var fiberStack = [];
-      var index$jscomp$0 = -1, contextStackCursor = createCursor(null), contextFiberStackCursor = createCursor(null), rootInstanceStackCursor = createCursor(null), hostTransitionProviderCursor = createCursor(null), hasOwnProperty2 = Object.prototype.hasOwnProperty, scheduleCallback$3 = Scheduler.unstable_scheduleCallback, cancelCallback$1 = Scheduler.unstable_cancelCallback, shouldYield = Scheduler.unstable_shouldYield, requestPaint = Scheduler.unstable_requestPaint, now$1 = Scheduler.unstable_now, getCurrentPriorityLevel = Scheduler.unstable_getCurrentPriorityLevel, ImmediatePriority = Scheduler.unstable_ImmediatePriority, UserBlockingPriority = Scheduler.unstable_UserBlockingPriority, NormalPriority$1 = Scheduler.unstable_NormalPriority, LowPriority = Scheduler.unstable_LowPriority, IdlePriority = Scheduler.unstable_IdlePriority, log$12 = Scheduler.log, unstable_setDisableYieldValue = Scheduler.unstable_setDisableYieldValue, rendererID = null, injectedHook = null, injectedProfilingHooks = null, hasLoggedError = false, isDevToolsPresent = "undefined" !== typeof __REACT_DEVTOOLS_GLOBAL_HOOK__, clz32 = Math.clz32 ? Math.clz32 : clz32Fallback, log2 = Math.log, LN2 = Math.LN2, nextTransitionLane = 128, nextRetryLane = 4194304, DiscreteEventPriority = 2, ContinuousEventPriority = 8, DefaultEventPriority = 32, IdleEventPriority = 268435456, randomKey = Math.random().toString(36).slice(2), internalInstanceKey = "__reactFiber$" + randomKey, internalPropsKey = "__reactProps$" + randomKey, internalContainerInstanceKey = "__reactContainer$" + randomKey, internalEventHandlersKey = "__reactEvents$" + randomKey, internalEventHandlerListenersKey = "__reactListeners$" + randomKey, internalEventHandlesSetKey = "__reactHandles$" + randomKey, internalRootNodeResourcesKey = "__reactResources$" + randomKey, internalHoistableMarker = "__reactMarker$" + randomKey, allNativeEvents = /* @__PURE__ */ new Set(), registrationNameDependencies = {}, possibleRegistrationNames = {}, canUseDOM = !("undefined" === typeof window || "undefined" === typeof window.document || "undefined" === typeof window.document.createElement), hasReadOnlyValue = {
+      var index$jscomp$0 = -1, contextStackCursor = createCursor(null), contextFiberStackCursor = createCursor(null), rootInstanceStackCursor = createCursor(null), hostTransitionProviderCursor = createCursor(null), hasOwnProperty2 = Object.prototype.hasOwnProperty, scheduleCallback$3 = Scheduler.unstable_scheduleCallback, cancelCallback$1 = Scheduler.unstable_cancelCallback, shouldYield = Scheduler.unstable_shouldYield, requestPaint = Scheduler.unstable_requestPaint, now$1 = Scheduler.unstable_now, getCurrentPriorityLevel = Scheduler.unstable_getCurrentPriorityLevel, ImmediatePriority = Scheduler.unstable_ImmediatePriority, UserBlockingPriority = Scheduler.unstable_UserBlockingPriority, NormalPriority$1 = Scheduler.unstable_NormalPriority, LowPriority = Scheduler.unstable_LowPriority, IdlePriority = Scheduler.unstable_IdlePriority, log$1 = Scheduler.log, unstable_setDisableYieldValue = Scheduler.unstable_setDisableYieldValue, rendererID = null, injectedHook = null, injectedProfilingHooks = null, hasLoggedError = false, isDevToolsPresent = "undefined" !== typeof __REACT_DEVTOOLS_GLOBAL_HOOK__, clz32 = Math.clz32 ? Math.clz32 : clz32Fallback, log2 = Math.log, LN2 = Math.LN2, nextTransitionLane = 128, nextRetryLane = 4194304, DiscreteEventPriority = 2, ContinuousEventPriority = 8, DefaultEventPriority = 32, IdleEventPriority = 268435456, randomKey = Math.random().toString(36).slice(2), internalInstanceKey = "__reactFiber$" + randomKey, internalPropsKey = "__reactProps$" + randomKey, internalContainerInstanceKey = "__reactContainer$" + randomKey, internalEventHandlersKey = "__reactEvents$" + randomKey, internalEventHandlerListenersKey = "__reactListeners$" + randomKey, internalEventHandlesSetKey = "__reactHandles$" + randomKey, internalRootNodeResourcesKey = "__reactResources$" + randomKey, internalHoistableMarker = "__reactMarker$" + randomKey, allNativeEvents = /* @__PURE__ */ new Set(), registrationNameDependencies = {}, possibleRegistrationNames = {}, canUseDOM = !("undefined" === typeof window || "undefined" === typeof window.document || "undefined" === typeof window.document.createElement), hasReadOnlyValue = {
         button: true,
         checkbox: true,
         image: true,
@@ -25711,6 +25711,28 @@ self.onmessage = function (e) {
         state.app = { ...initialState$5 };
       });
     };
+    const kEvalWorkspaceTabId = "eval-tab";
+    const kJsonWorkspaceTabId = "json-tab";
+    const kInfoWorkspaceTabId = "plan-tab";
+    const kSampleMessagesTabId = `sample-display-messages`;
+    const kSampleTranscriptTabId = `sample-display-transcript`;
+    const kSampleScoringTabId = `sample-display-scoring`;
+    const kSampleMetdataTabId = `sample-display-metadata`;
+    const kSampleErrorTabId = `sample-display-error`;
+    const kSampleJsonTabId = `sample-display-json`;
+    const kScoreTypePassFail = "passfail";
+    const kScoreTypeCategorical = "categorical";
+    const kScoreTypeNumeric = "numeric";
+    const kScoreTypeOther = "other";
+    const kScoreTypeObject = "object";
+    const kScoreTypeBoolean = "boolean";
+    const kSampleAscVal = "sample-asc";
+    const kSampleDescVal = "sample-desc";
+    const kEpochAscVal = "epoch-asc";
+    const kEpochDescVal = "epoch-desc";
+    const kScoreAscVal = "score-asc";
+    const kScoreDescVal = "score-desc";
+    const kDefaultSort = kSampleAscVal;
     const createLogger = (namespace) => {
       const logger = {
         debug: (message2, ...args) => {
@@ -25733,7 +25755,230 @@ self.onmessage = function (e) {
       };
       return logger;
     };
+    const createPolling = (name2, callback, options) => {
+      const log2 = createLogger(`Polling ${name2}`);
+      const { maxRetries, interval } = options;
+      let timeoutId = null;
+      let retryCount = 0;
+      let isPolling = false;
+      const calculateBackoff = (retryCount2) => {
+        return Math.min(interval * Math.pow(2, retryCount2) * 1e3, 6e4);
+      };
+      const stop = () => {
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+          timeoutId = null;
+        }
+        log2.debug("Stop Polling");
+        isPolling = false;
+      };
+      const poll = async () => {
+        if (!isPolling) {
+          return;
+        }
+        try {
+          log2.debug("Poll");
+          const shouldContinue = await callback();
+          if (shouldContinue === false) {
+            stop();
+            return;
+          }
+          retryCount = 0;
+          timeoutId = setTimeout(poll, interval * 1e3);
+        } catch (e) {
+          retryCount += 1;
+          if (retryCount >= maxRetries) {
+            log2.error(`Polling stopped after ${maxRetries} failed attempts`);
+            stop();
+            return;
+          }
+          const backoffTime = calculateBackoff(retryCount);
+          log2.debug(
+            `Retry ${retryCount}/${maxRetries}, backoff: ${backoffTime / 1e3}s`
+          );
+          timeoutId = setTimeout(poll, backoffTime);
+        }
+      };
+      const start = () => {
+        if (isPolling) {
+          return;
+        }
+        log2.debug("Start Polling");
+        isPolling = true;
+        poll();
+      };
+      return { start, stop };
+    };
+    let currentPolling = null;
+    function createLogPolling(get2, set2) {
+      const log2 = createLogger("logPolling");
+      const startPolling = (logFileName) => {
+        var _a2;
+        if (currentPolling) {
+          currentPolling.stop();
+        }
+        currentPolling = createPolling(
+          `PendingSamples-${logFileName}`,
+          async () => {
+            var _a3;
+            const state = get2();
+            const api2 = state.api;
+            if (!(api2 == null ? void 0 : api2.get_log_pending_samples)) return false;
+            const currentEtag = (_a3 = get2().log.pendingSampleSummaries) == null ? void 0 : _a3.etag;
+            log2.debug(`POLL RUNNING SAMPLES: ${logFileName}`);
+            const pendingSamples = await api2.get_log_pending_samples(
+              logFileName,
+              currentEtag
+            );
+            if (pendingSamples.status === "OK" && pendingSamples.pendingSamples) {
+              set2((state2) => {
+                state2.log.pendingSampleSummaries = pendingSamples.pendingSamples;
+              });
+              get2().logActions.refreshLog();
+              return true;
+            } else if (pendingSamples.status === "NotFound") {
+              log2.debug(`STOP POLLING RUNNING SAMPLES: ${logFileName}`);
+              clearPendingSummaries(logFileName);
+              return false;
+            }
+            return true;
+          },
+          {
+            maxRetries: 10,
+            interval: ((_a2 = get2().log.pendingSampleSummaries) == null ? void 0 : _a2.refresh) || 2
+          }
+        );
+        currentPolling.start();
+      };
+      const clearPendingSummaries = (logFileName) => {
+        const pendingSampleSummaries = get2().log.pendingSampleSummaries;
+        if (((pendingSampleSummaries == null ? void 0 : pendingSampleSummaries.samples.length) || 0) > 0) {
+          log2.debug(`CLEAR PENDING: ${logFileName}`);
+          set2((state) => {
+            state.log.pendingSampleSummaries = {
+              samples: [],
+              refresh: (pendingSampleSummaries == null ? void 0 : pendingSampleSummaries.refresh) || 2
+            };
+          });
+          get2().logActions.refreshLog();
+        }
+      };
+      const stopPolling = () => {
+        if (currentPolling) {
+          currentPolling.stop();
+          currentPolling = null;
+        }
+      };
+      return {
+        startPolling,
+        stopPolling,
+        clearPendingSummaries
+      };
+    }
     const initialState$4 = {
+      // Log state
+      selectedSampleIndex: -1,
+      selectedLogSummary: void 0,
+      pendingSampleSummaries: void 0,
+      api: null,
+      // Filter state
+      filter: {},
+      epoch: "all",
+      sort: kDefaultSort,
+      score: void 0,
+      scores: void 0
+    };
+    const createLogSlice = (set2, get2, _store) => {
+      const log2 = createLogger("logSlice");
+      const logPolling = createLogPolling(get2, set2);
+      return {
+        // State
+        log: initialState$4,
+        // Actions
+        logActions: {
+          selectSample: (index) => set2((state) => {
+            state.log.selectedSampleIndex = index;
+          }),
+          setSelectedLogSummary: (selectedLogSummary) => set2((state) => {
+            state.log.selectedLogSummary = selectedLogSummary;
+          }),
+          setPendingSampleSummaries: (pendingSampleSummaries) => set2((state) => {
+            state.log.pendingSampleSummaries = pendingSampleSummaries;
+          }),
+          setFilter: (filter) => set2((state) => {
+            state.log.filter = filter;
+          }),
+          setEpoch: (epoch) => set2((state) => {
+            state.log.epoch = epoch;
+          }),
+          setSort: (sort) => set2((state) => {
+            state.log.sort = sort;
+          }),
+          setScore: (score2) => set2((state) => {
+            state.log.score = score2;
+          }),
+          setScores: (scores2) => set2((state) => {
+            state.log.scores = scores2;
+          }),
+          resetFiltering: () => set2((state) => {
+            state.log.filter = {};
+            state.log.epoch = "all";
+            state.log.sort = kDefaultSort;
+            state.log.score = void 0;
+          }),
+          loadLog: async (logFileName) => {
+            const state = get2();
+            const api2 = state.api;
+            if (!api2) {
+              console.error("API not initialized in Store");
+              return;
+            }
+            log2.debug(`LOAD LOG: ${logFileName}`);
+            try {
+              const logContents = await api2.get_log_summary(logFileName);
+              state.logActions.setSelectedLogSummary(logContents);
+              state.logActions.resetFiltering();
+              const header2 = {
+                [logFileName]: {
+                  version: logContents.version,
+                  status: logContents.status,
+                  eval: logContents.eval,
+                  plan: logContents.plan,
+                  results: logContents.results !== null ? logContents.results : void 0,
+                  stats: logContents.stats,
+                  error: logContents.error !== null ? logContents.error : void 0
+                }
+              };
+              state.logsActions.updateLogHeaders(header2);
+              logPolling.startPolling(logFileName);
+            } catch (error2) {
+              log2.error("Error loading log:", error2);
+            }
+          },
+          refreshLog: async () => {
+            const state = get2();
+            const api2 = state.api;
+            const selectedLogFile = state.logsActions.getSelectedLogFile();
+            if (!api2 || !selectedLogFile) {
+              return;
+            }
+            log2.debug(`REFRESH: ${selectedLogFile}`);
+            try {
+              const logContents = await api2.get_log_summary(selectedLogFile);
+              state.logActions.setSelectedLogSummary(logContents);
+            } catch (error2) {
+              log2.error("Error refreshing log:", error2);
+            }
+          }
+        }
+      };
+    };
+    const initalialLogSlice = (set2, restoreState) => {
+      set2((state) => {
+        state.log = { ...initialState$4 };
+      });
+    };
+    const initialState$3 = {
       logs: { log_dir: "", files: [] },
       logHeaders: {},
       headersLoading: false,
@@ -25743,7 +25988,7 @@ self.onmessage = function (e) {
       const log2 = createLogger("Log Slice");
       return {
         // State
-        logs: initialState$4,
+        logs: initialState$3,
         // Actions
         logsActions: {
           setLogs: (logs) => {
@@ -25890,7 +26135,7 @@ self.onmessage = function (e) {
     };
     const initializeLogsSlice = (set2, restoreState) => {
       set2((state) => {
-        state.logs = { ...initialState$4 };
+        state.logs = { ...initialState$3 };
       });
     };
     const useStore = create$2()(
@@ -25898,8 +26143,6 @@ self.onmessage = function (e) {
         immer((set2, get2, store) => ({
           // Shared state
           api: null,
-          globalError: null,
-          globalLoading: false,
           // Initialize function
           initialize: (api2, capabilities2) => {
             set2((state) => {
@@ -25907,31 +26150,26 @@ self.onmessage = function (e) {
             });
             initializeAppSlice(set2, capabilities2);
             initializeLogsSlice(set2);
-          },
-          setGlobalError: (error2) => {
-            set2((state) => {
-              state.globalError = error2;
-            });
-          },
-          setGlobalLoading: (loading) => {
-            set2((state) => {
-              state.globalLoading = loading;
-            });
+            initalialLogSlice(set2);
           },
           // Create the slices and merge them in
           ...createAppSlice(set2),
-          ...createLogsSlice(set2, get2)
+          ...createLogsSlice(set2, get2),
+          ...createLogSlice(set2, get2)
         })),
         {
           name: "app-storage",
           partialize: (state) => ({
+            // TODO: Partialize state
             // Thing out state to only store the parts that
             // should be stored
             app: {
               offcanvas: state.app.offcanvas,
               showFind: state.app.showFind
               // Don't persist status
-            }
+            },
+            logs: {},
+            log: {}
           })
         }
       )
@@ -27323,28 +27561,6 @@ self.onmessage = function (e) {
       }
     );
     ToolButton.displayName = "ToolButton";
-    const kEvalWorkspaceTabId = "eval-tab";
-    const kJsonWorkspaceTabId = "json-tab";
-    const kInfoWorkspaceTabId = "plan-tab";
-    const kSampleMessagesTabId = `sample-display-messages`;
-    const kSampleTranscriptTabId = `sample-display-transcript`;
-    const kSampleScoringTabId = `sample-display-scoring`;
-    const kSampleMetdataTabId = `sample-display-metadata`;
-    const kSampleErrorTabId = `sample-display-error`;
-    const kSampleJsonTabId = `sample-display-json`;
-    const kScoreTypePassFail = "passfail";
-    const kScoreTypeCategorical = "categorical";
-    const kScoreTypeNumeric = "numeric";
-    const kScoreTypeOther = "other";
-    const kScoreTypeObject = "object";
-    const kScoreTypeBoolean = "boolean";
-    const kSampleAscVal = "sample-asc";
-    const kSampleDescVal = "sample-desc";
-    const kEpochAscVal = "epoch-asc";
-    const kEpochDescVal = "epoch-desc";
-    const kScoreAscVal = "score-asc";
-    const kScoreDescVal = "score-desc";
-    const kDefaultSort = kSampleAscVal;
     const circle$1 = "_circle_upui3_1";
     const green$1 = "_green_upui3_12";
     const red$1 = "_red_upui3_18";
@@ -39165,369 +39381,10 @@ categories: ${categories.join(" ")}`;
         return void 0;
       }
     };
-    const initialState$3 = {
-      logs: { log_dir: "", files: [] },
-      logHeaders: {},
-      headersLoading: false,
-      selectedLogIndex: -1
-    };
-    const log$1 = createLogger("LogsStore");
-    const useLogsStore = create$2()((set2, get2) => ({
-      ...initialState$3,
-      api: null,
-      // Actions
-      setLogs: (logs) => {
-        set2({ logs });
-        if (logs.files.length > 0) {
-          setTimeout(() => {
-            const state = useLogsStore.getState();
-            if (!state.headersLoading) {
-              state.loadHeaders();
-            }
-          }, 100);
-        }
-      },
-      setLogHeaders: (logHeaders) => set2({ logHeaders }),
-      setHeadersLoading: (headersLoading) => set2({ headersLoading }),
-      setSelectedLogIndex: (selectedLogIndex) => set2({ selectedLogIndex }),
-      setSelectedLogFile: (logUrl) => {
-        const state = get2();
-        const index = state.logs.files.findIndex(
-          (val) => logUrl.endsWith(val.name)
-        );
-        if (index > -1) {
-          set2({ selectedLogIndex: index });
-        }
-      },
-      updateLogHeaders: (headers) => set2((state) => ({
-        logHeaders: { ...state.logHeaders, ...headers }
-      })),
-      // Helper function to load logs
-      loadLogs: async () => {
-        const api2 = get2().api;
-        if (!api2) {
-          console.error("API not initialized in LogsStore");
-          return { log_dir: "", files: [] };
-        }
-        try {
-          log$1.debug("LOADING LOG FILES");
-          return await api2.get_log_paths();
-        } catch (e) {
-          console.log(e);
-          useStore.getState().appActions.setStatus({ loading: false, error: e });
-          return { log_dir: "", files: [] };
-        }
-      },
-      // Refresh logs
-      refreshLogs: async () => {
-        log$1.debug("REFRESH LOGS");
-        const state = get2();
-        const refreshedLogs = await get2().loadLogs();
-        set2({ logs: refreshedLogs || { log_dir: "", files: [] } });
-        const currentLog = refreshedLogs.files[state.selectedLogIndex > -1 ? state.selectedLogIndex : 0];
-        if (currentLog) {
-          const newIndex = refreshedLogs == null ? void 0 : refreshedLogs.files.findIndex(
-            (file) => currentLog.name.endsWith(file.name)
-          );
-          if (newIndex !== void 0 && newIndex !== -1) {
-            set2({ selectedLogIndex: newIndex });
-          }
-        }
-        if (refreshedLogs.files.length > 0) {
-          setTimeout(() => {
-            const currentState = useLogsStore.getState();
-            if (!currentState.headersLoading) {
-              currentState.loadHeaders();
-            }
-          }, 100);
-        }
-      },
-      // Select a specific log file
-      selectLogFile: async (logUrl) => {
-        const state = get2();
-        const index = state.logs.files.findIndex(
-          (val) => val.name.endsWith(logUrl)
-        );
-        if (index > -1) {
-          set2({ selectedLogIndex: index });
-        } else {
-          const result2 = await get2().loadLogs();
-          const idx = result2 == null ? void 0 : result2.files.findIndex((file) => logUrl.endsWith(file.name));
-          set2({
-            logs: result2 || { log_dir: "", files: [] },
-            selectedLogIndex: idx !== void 0 && idx > -1 ? idx : 0
-          });
-        }
-      },
-      // Load headers
-      loadHeaders: async () => {
-        const state = get2();
-        const api2 = get2().api;
-        if (!api2) {
-          console.error("API not initialized in LogsStore");
-          return;
-        }
-        log$1.debug("LOADING HEADERS");
-        set2({ headersLoading: true });
-        const chunkSize = 8;
-        const fileLists = [];
-        for (let i2 = 0; i2 < state.logs.files.length; i2 += chunkSize) {
-          const chunk = state.logs.files.slice(i2, i2 + chunkSize).map((logFile) => logFile.name);
-          fileLists.push(chunk);
-        }
-        try {
-          let counter = 0;
-          for (const fileList of fileLists) {
-            counter++;
-            log$1.debug(`LOADING ${counter} of ${fileLists.length} CHUNKS`);
-            const headers = await api2.get_log_headers(fileList);
-            const updatedHeaders = {};
-            headers.forEach((header2, index) => {
-              const logFile = fileList[index];
-              updatedHeaders[logFile] = header2;
-            });
-            set2({
-              ...get2(),
-              logHeaders: { ...get2().logHeaders, ...updatedHeaders }
-            });
-            if (headers.length === chunkSize) {
-              await sleep$1(5e3);
-            }
-          }
-        } catch (e) {
-          if (e instanceof Error && (e.message === "Load failed" || e.message === "Failed to fetch")) {
-            useStore.getState().appActions.setStatus({ loading: false });
-          } else {
-            console.log(e);
-            useStore.getState().appActions.setStatus({ loading: false, error: e });
-          }
-        }
-        set2({ headersLoading: false });
-      },
-      // Method to get selected log file
-      getSelectedLogFile: () => {
-        const state = get2();
-        const file = state.logs.files[state.selectedLogIndex];
-        return file !== void 0 ? file.name : void 0;
-      },
-      // For compatibility with existing code
-      getState: () => ({ logs: get2() })
-    }));
-    const initialState$2 = {
-      // Log state
-      selectedSampleIndex: -1,
-      selectedLogSummary: void 0,
-      pendingSampleSummaries: void 0,
-      api: null,
-      // Filter state
-      filter: {},
-      epoch: "all",
-      sort: kDefaultSort,
-      score: void 0,
-      scores: void 0
-    };
-    const log = createLogger("logStore");
-    const useLogStore = create$2()(
-      immer((set2, get2) => ({
-        ...initialState$2,
-        // ---- Log Actions ----
-        selectSample: (index) => set2({ selectedSampleIndex: index }),
-        setSelectedLogSummary: (selectedLogSummary) => {
-          set2({ selectedLogSummary });
-        },
-        setPendingSampleSummaries: (pendingSampleSummaries) => set2({ pendingSampleSummaries }),
-        // ---- Filter Actions ----
-        setFilter: (filter) => set2({ filter }),
-        setEpoch: (epoch) => set2({ epoch }),
-        setSort: (sort) => set2((state) => {
-          state.sort = sort;
-        }),
-        setScore: (score2) => set2({ score: score2 }),
-        setScores: (scores2) => set2({ scores: scores2 }),
-        resetFiltering: () => set2({
-          filter: {},
-          epoch: "all",
-          sort: kDefaultSort,
-          score: void 0
-        }),
-        // ---- API Functions ----
-        initializeStore: (api2, initialLogState) => {
-          set2((state) => {
-            state.api = api2;
-            if (initialLogState) {
-              Object.assign(state, initialLogState);
-            }
-          });
-        },
-        loadLog: async (logFileName) => {
-          const state = get2();
-          const api2 = state.api;
-          if (!api2) {
-            console.error("API not initialized in Store");
-            return;
-          }
-          log.debug(`LOAD LOG: ${logFileName}`);
-          try {
-            const logContents = await api2.get_log_summary(logFileName);
-            set2((state2) => {
-              state2.selectedLogSummary = { ...logContents };
-            });
-            state.resetFiltering();
-            const header2 = {
-              [logFileName]: {
-                version: logContents.version,
-                status: logContents.status,
-                eval: logContents.eval,
-                plan: logContents.plan,
-                results: logContents.results !== null ? logContents.results : void 0,
-                stats: logContents.stats,
-                error: logContents.error !== null ? logContents.error : void 0
-              }
-            };
-            useLogsStore.getState().updateLogHeaders(header2);
-            startPollingPendingSamples(logFileName, get2, set2);
-          } catch (error2) {
-            log.error("Error loading log:", error2);
-          }
-        },
-        refreshLog: async () => {
-          const state = get2();
-          const api2 = state.api;
-          const logsStore = useLogsStore.getState();
-          const selectedLogFile = logsStore.getSelectedLogFile();
-          if (!api2 || !selectedLogFile) {
-            return;
-          }
-          log.debug(`REFRESH: ${selectedLogFile}`);
-          try {
-            const logContents = await api2.get_log_summary(selectedLogFile);
-            set2((state2) => {
-              state2.selectedLogSummary = logContents;
-            });
-          } catch (error2) {
-            log.error("Error refreshing log:", error2);
-          }
-        },
-        // For backward compatibility
-        getState: () => ({ log: get2() })
-      }))
-    );
-    const mergeSampleSummaries = (logSamples, pendingSamples) => {
-      const existingSampleIds = new Set(
-        logSamples.map((sample2) => `${sample2.id}-${sample2.epoch}`)
-      );
-      const uniquePendingSamples = pendingSamples.filter((sample2) => !existingSampleIds.has(`${sample2.id}-${sample2.epoch}`)).map((sample2) => {
-        return { ...sample2, completed: false };
-      });
-      return [...logSamples, ...uniquePendingSamples];
-    };
-    let currentPollCleanup = null;
-    const startPollingPendingSamples = (logFile, getState, setState) => {
-      var _a2, _b2;
-      if (currentPollCleanup) {
-        currentPollCleanup();
-        currentPollCleanup = null;
-      }
-      const polling = {
-        isActive: true,
-        hadPending: false,
-        currentEtag: (_a2 = getState().pendingSampleSummaries) == null ? void 0 : _a2.etag,
-        currentRefresh: ((_b2 = getState().pendingSampleSummaries) == null ? void 0 : _b2.refresh) || 2,
-        timeout: -1,
-        retryCount: 0,
-        maxRetries: 10
-      };
-      const poll = async () => {
-        if (!polling.isActive) {
-          return;
-        }
-        const state = getState();
-        const api2 = state.api;
-        if (!(api2 == null ? void 0 : api2.get_log_pending_samples)) return;
-        try {
-          log.debug(`POLL RUNNING SAMPLES: ${logFile}`);
-          const pendingSamples = await api2.get_log_pending_samples(
-            logFile,
-            polling.currentEtag
-          );
-          if (!polling.isActive) {
-            log.debug(`POLL RUNNING SAMPLES CANCELED: ${logFile}`);
-            return;
-          }
-          if (pendingSamples.status === "OK" && pendingSamples.pendingSamples) {
-            polling.retryCount = 0;
-            polling.currentEtag = pendingSamples.pendingSamples.etag;
-            polling.currentRefresh = pendingSamples.pendingSamples.refresh || polling.currentRefresh;
-            setState({
-              pendingSampleSummaries: pendingSamples.pendingSamples
-            });
-            getState().refreshLog();
-            polling.hadPending = true;
-          } else if (pendingSamples.status === "NotFound") {
-            log.debug(`STOP POLLING RUNNING SAMPLES: ${logFile}`);
-            if (polling.hadPending) {
-              getState().refreshLog();
-            }
-            clearPendingSummaries(logFile, getState, setState);
-            polling.isActive = false;
-            return;
-          }
-          if (polling.isActive) {
-            polling.timeout = setTimeout(poll, polling.currentRefresh * 1e3);
-          }
-        } catch (error2) {
-          log.debug(`ERROR PENDING RUNNING SAMPLES: ${logFile}`);
-          log.error("Error polling pending samples:", error2);
-          polling.retryCount += 1;
-          if (polling.retryCount >= polling.maxRetries) {
-            log.error(
-              `Giving up after ${polling.maxRetries} failed attempts to poll pending samples`
-            );
-            polling.isActive = false;
-            clearPendingSummaries(logFile, getState, setState);
-            return;
-          }
-          if (polling.isActive) {
-            const backoffTime = Math.min(
-              polling.currentRefresh * Math.pow(2, polling.retryCount) * 1e3,
-              6e4
-            );
-            log.debug(
-              `Retry ${polling.retryCount}/${polling.maxRetries}, backoff time: ${backoffTime / 1e3}s`
-            );
-            polling.timeout = setTimeout(poll, backoffTime);
-          }
-        }
-      };
-      poll();
-      currentPollCleanup = () => {
-        polling.isActive = false;
-        if (polling.timeout) {
-          clearTimeout(polling.timeout);
-          polling.timeout = -1;
-        }
-      };
-    };
-    const clearPendingSummaries = (logFile, getState, setState) => {
-      const pendingSampleSummaries = getState().pendingSampleSummaries;
-      if (((pendingSampleSummaries == null ? void 0 : pendingSampleSummaries.samples.length) || 0) > 0) {
-        log.debug(`CLEAR PENDING: ${logFile}`);
-        setState({
-          pendingSampleSummaries: {
-            samples: [],
-            refresh: (pendingSampleSummaries == null ? void 0 : pendingSampleSummaries.refresh) || 2
-          }
-        });
-        getState().refreshLog();
-      }
-    };
-    const initializeLogStore = (api2, initialState2) => {
-      useLogStore.getState().initializeStore(api2, initialState2);
-    };
     const useSampleSummaries = () => {
-      const selectedLogSummary = useLogStore((state) => state.selectedLogSummary);
-      const pendingSampleSummaries = useLogStore(
-        (state) => state.pendingSampleSummaries
+      const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
+      const pendingSampleSummaries = useStore(
+        (state) => state.log.pendingSampleSummaries
       );
       return reactExports.useMemo(() => {
         return mergeSampleSummaries(
@@ -39543,9 +39400,9 @@ categories: ${categories.join(" ")}`;
       }, [sampleSummaries]);
     };
     const useScore = () => {
-      const selectedLogSummary = useLogStore((state) => state.selectedLogSummary);
+      const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
       const sampleSummaries = useSampleSummaries();
-      const score2 = useLogStore((state) => state.score);
+      const score2 = useStore((state) => state.log.score);
       return reactExports.useMemo(() => {
         if (score2) {
           return score2;
@@ -39557,7 +39414,7 @@ categories: ${categories.join(" ")}`;
       }, [selectedLogSummary, sampleSummaries, score2]);
     };
     const useScores = () => {
-      const selectedLogSummary = useLogStore((state) => state.selectedLogSummary);
+      const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
       const sampleSummaries = useSampleSummaries();
       return reactExports.useMemo(() => {
         if (!selectedLogSummary) {
@@ -39584,9 +39441,9 @@ categories: ${categories.join(" ")}`;
     const useFilteredSamples = () => {
       const evalDescriptor = useEvalDescriptor();
       const sampleSummaries = useSampleSummaries();
-      const filter = useLogStore((state) => state.filter);
-      const epoch = useLogStore((state) => state.epoch);
-      const sort = useLogStore((state) => state.sort);
+      const filter = useStore((state) => state.log.filter);
+      const epoch = useStore((state) => state.log.epoch);
+      const sort = useStore((state) => state.log.sort);
       const samplesDescriptor = useSampleDescriptor();
       const score2 = useScore();
       return reactExports.useMemo(() => {
@@ -39605,9 +39462,9 @@ categories: ${categories.join(" ")}`;
       ]);
     };
     const useGroupBy = () => {
-      const selectedLogSummary = useLogStore((state) => state.selectedLogSummary);
-      const sort = useLogStore((state) => state.sort);
-      const epoch = useLogStore((state) => state.epoch);
+      const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
+      const sort = useStore((state) => state.log.sort);
+      const epoch = useStore((state) => state.log.epoch);
       return reactExports.useMemo(() => {
         var _a2, _b2;
         const epochs = ((_b2 = (_a2 = selectedLogSummary == null ? void 0 : selectedLogSummary.eval) == null ? void 0 : _a2.config) == null ? void 0 : _b2.epochs) || 1;
@@ -39622,17 +39479,26 @@ categories: ${categories.join(" ")}`;
       }, [selectedLogSummary, sort, epoch]);
     };
     const useGroupByOrder = () => {
-      const sort = useLogStore((state) => state.sort);
+      const sort = useStore((state) => state.log.sort);
       return reactExports.useMemo(() => {
         return sort === kSampleAscVal || sort === kEpochAscVal || sort === kScoreAscVal ? "asc" : "desc";
       }, [sort]);
     };
     const useSelectedSampleSummary = () => {
       const filteredSamples = useFilteredSamples();
-      const selectedIndex = useLogStore((state) => state.selectedSampleIndex);
+      const selectedIndex = useStore((state) => state.log.selectedSampleIndex);
       return reactExports.useMemo(() => {
         return filteredSamples[selectedIndex];
       }, [filteredSamples, selectedIndex]);
+    };
+    const mergeSampleSummaries = (logSamples, pendingSamples) => {
+      const existingSampleIds = new Set(
+        logSamples.map((sample2) => `${sample2.id}-${sample2.epoch}`)
+      );
+      const uniquePendingSamples = pendingSamples.filter((sample2) => !existingSampleIds.has(`${sample2.id}-${sample2.epoch}`)).map((sample2) => {
+        return { ...sample2, completed: false };
+      });
+      return [...logSamples, ...uniquePendingSamples];
     };
     const container$9 = "_container_15b4r_1";
     const label$5 = "_label_15b4r_5";
@@ -60337,16 +60203,16 @@ Supported expressions:
       return score2 && sc.scorer === score2.scorer;
     });
     const SampleTools = ({ samples }) => {
-      const selectedLogSummary = useLogStore((state) => state.selectedLogSummary);
-      const filter = useLogStore((state) => state.filter);
-      const setFilter = useLogStore((state) => state.setFilter);
+      const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
+      const filter = useStore((state) => state.log.filter);
+      const setFilter = useStore((state) => state.logActions.setFilter);
       const scores2 = useScores();
-      const score2 = useLogStore((state) => state.score);
-      const setScore = useLogStore((state) => state.setScore);
-      const epoch = useLogStore((state) => state.epoch);
-      const setEpoch = useLogStore((state) => state.setEpoch);
-      const sort = useLogStore((state) => state.sort);
-      const setSort = useLogStore((state) => state.setSort);
+      const score2 = useStore((state) => state.log.score);
+      const setScore = useStore((state) => state.logActions.setScore);
+      const epoch = useStore((state) => state.log.epoch);
+      const setEpoch = useStore((state) => state.logActions.setEpoch);
+      const sort = useStore((state) => state.log.sort);
+      const setSort = useStore((state) => state.logActions.setSort);
       const epochs = (selectedLogSummary == null ? void 0 : selectedLogSummary.eval.config.epochs) || 1;
       return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(jsxRuntimeExports.Fragment, { children: [
         /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
@@ -60362,7 +60228,7 @@ Supported expressions:
           false,
           {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SamplesTools.tsx",
-            lineNumber: 32,
+            lineNumber: 33,
             columnNumber: 7
           },
           void 0
@@ -60380,7 +60246,7 @@ Supported expressions:
           false,
           {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SamplesTools.tsx",
-            lineNumber: 40,
+            lineNumber: 41,
             columnNumber: 9
           },
           void 0
@@ -60398,7 +60264,7 @@ Supported expressions:
           false,
           {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SamplesTools.tsx",
-            lineNumber: 49,
+            lineNumber: 50,
             columnNumber: 9
           },
           void 0
@@ -60416,14 +60282,14 @@ Supported expressions:
           false,
           {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SamplesTools.tsx",
-            lineNumber: 57,
+            lineNumber: 58,
             columnNumber: 7
           },
           void 0
         )
       ] }, void 0, true, {
         fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SamplesTools.tsx",
-        lineNumber: 31,
+        lineNumber: 32,
         columnNumber: 5
       }, void 0);
     };
@@ -74946,7 +74812,9 @@ ${events}
     }) => {
       const baseId = `sample-dialog`;
       const sampleSummaries = useSampleSummaries();
-      const selectedSampleIndex = useLogStore((state) => state.selectedSampleIndex);
+      const selectedSampleIndex = useStore(
+        (state) => state.log.selectedSampleIndex
+      );
       const sampleSummary = sampleSummaries[selectedSampleIndex];
       const sampleEvents = (sample2 == null ? void 0 : sample2.events) || (runningSampleData == null ? void 0 : runningSampleData.events);
       const onSelectedTab = (e) => {
@@ -74975,7 +74843,7 @@ ${events}
             false,
             {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SampleDisplay.tsx",
-              lineNumber: 80,
+              lineNumber: 83,
               columnNumber: 7
             },
             void 0
@@ -74985,7 +74853,7 @@ ${events}
       return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(reactExports.Fragment, { children: [
         sample2 || sampleSummary ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(SampleSummaryView, { parent_id: id, sample: sample2 || sampleSummary }, void 0, false, {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SampleDisplay.tsx",
-          lineNumber: 94,
+          lineNumber: 97,
           columnNumber: 9
         }, void 0) : void 0,
         /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
@@ -75016,7 +74884,7 @@ ${events}
                     false,
                     {
                       fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SampleDisplay.tsx",
-                      lineNumber: 115,
+                      lineNumber: 118,
                       columnNumber: 13
                     },
                     void 0
@@ -75026,7 +74894,7 @@ ${events}
                 false,
                 {
                   fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SampleDisplay.tsx",
-                  lineNumber: 103,
+                  lineNumber: 106,
                   columnNumber: 11
                 },
                 void 0
@@ -75053,7 +74921,7 @@ ${events}
                     false,
                     {
                       fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SampleDisplay.tsx",
-                      lineNumber: 133,
+                      lineNumber: 136,
                       columnNumber: 13
                     },
                     void 0
@@ -75063,7 +74931,7 @@ ${events}
                 false,
                 {
                   fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SampleDisplay.tsx",
-                  lineNumber: 124,
+                  lineNumber: 127,
                   columnNumber: 11
                 },
                 void 0
@@ -75078,7 +74946,7 @@ ${events}
                   selected: selectedTab === kSampleScoringTabId,
                   children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(SampleScoreView, { sample: sample2, scorer: scorerNames[0] }, void 0, false, {
                     fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SampleDisplay.tsx",
-                    lineNumber: 152,
+                    lineNumber: 155,
                     columnNumber: 13
                   }, void 0)
                 },
@@ -75086,7 +74954,7 @@ ${events}
                 false,
                 {
                   fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SampleDisplay.tsx",
-                  lineNumber: 144,
+                  lineNumber: 147,
                   columnNumber: 11
                 },
                 void 0
@@ -75102,7 +74970,7 @@ ${events}
                     selected: selectedTab === tabId,
                     children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(SampleScoreView, { sample: sample2, scorer }, void 0, false, {
                       fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SampleDisplay.tsx",
-                      lineNumber: 168,
+                      lineNumber: 171,
                       columnNumber: 23
                     }, void 0)
                   },
@@ -75110,14 +74978,14 @@ ${events}
                   false,
                   {
                     fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SampleDisplay.tsx",
-                    lineNumber: 160,
+                    lineNumber: 163,
                     columnNumber: 21
                   },
                   void 0
                 );
               }) : void 0 }, void 0, false, {
                 fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SampleDisplay.tsx",
-                lineNumber: 155,
+                lineNumber: 158,
                 columnNumber: 11
               }, void 0),
               sampleMetadatas.length > 0 ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
@@ -75130,7 +74998,7 @@ ${events}
                   selected: selectedTab === kSampleMetdataTabId,
                   children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: clsx(styles$G.metadataPanel), children: sampleMetadatas }, void 0, false, {
                     fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SampleDisplay.tsx",
-                    lineNumber: 183,
+                    lineNumber: 186,
                     columnNumber: 13
                   }, void 0)
                 },
@@ -75138,7 +75006,7 @@ ${events}
                 false,
                 {
                   fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SampleDisplay.tsx",
-                  lineNumber: 176,
+                  lineNumber: 179,
                   columnNumber: 11
                 },
                 void 0
@@ -75161,13 +75029,13 @@ ${events}
                     false,
                     {
                       fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SampleDisplay.tsx",
-                      lineNumber: 195,
+                      lineNumber: 198,
                       columnNumber: 15
                     },
                     void 0
                   ) }, void 0, false, {
                     fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SampleDisplay.tsx",
-                    lineNumber: 194,
+                    lineNumber: 197,
                     columnNumber: 13
                   }, void 0)
                 },
@@ -75175,7 +75043,7 @@ ${events}
                 false,
                 {
                   fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SampleDisplay.tsx",
-                  lineNumber: 187,
+                  lineNumber: 190,
                   columnNumber: 11
                 },
                 void 0
@@ -75199,13 +75067,13 @@ ${events}
                     false,
                     {
                       fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SampleDisplay.tsx",
-                      lineNumber: 211,
+                      lineNumber: 214,
                       columnNumber: 15
                     },
                     void 0
                   ) }, void 0, false, {
                     fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SampleDisplay.tsx",
-                    lineNumber: 210,
+                    lineNumber: 213,
                     columnNumber: 13
                   }, void 0)
                 },
@@ -75213,7 +75081,7 @@ ${events}
                 false,
                 {
                   fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SampleDisplay.tsx",
-                  lineNumber: 203,
+                  lineNumber: 206,
                   columnNumber: 11
                 },
                 void 0
@@ -75224,14 +75092,14 @@ ${events}
           true,
           {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SampleDisplay.tsx",
-            lineNumber: 96,
+            lineNumber: 99,
             columnNumber: 7
           },
           void 0
         )
       ] }, void 0, true, {
         fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SampleDisplay.tsx",
-        lineNumber: 92,
+        lineNumber: 95,
         columnNumber: 5
       }, void 0);
     };
@@ -75245,7 +75113,7 @@ ${events}
           /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(Card, { children: [
             /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(CardHeader, { label: "Usage" }, void 0, false, {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SampleDisplay.tsx",
-              lineNumber: 233,
+              lineNumber: 236,
               columnNumber: 9
             }, void 0),
             /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(CardBody, { children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
@@ -75258,18 +75126,18 @@ ${events}
               false,
               {
                 fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SampleDisplay.tsx",
-                lineNumber: 235,
+                lineNumber: 238,
                 columnNumber: 11
               },
               void 0
             ) }, void 0, false, {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SampleDisplay.tsx",
-              lineNumber: 234,
+              lineNumber: 237,
               columnNumber: 9
             }, void 0)
           ] }, `sample-usage-${id}`, true, {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SampleDisplay.tsx",
-            lineNumber: 232,
+            lineNumber: 235,
             columnNumber: 7
           }, void 0)
         );
@@ -75279,42 +75147,42 @@ ${events}
           /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(Card, { children: [
             /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(CardHeader, { label: "Time" }, void 0, false, {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SampleDisplay.tsx",
-              lineNumber: 252,
+              lineNumber: 255,
               columnNumber: 9
             }, void 0),
             /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(CardBody, { children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: clsx(styles$G.timePanel, "text-size-smaller"), children: [
               /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: clsx("text-style-label", "text-style-secondary"), children: "Working" }, void 0, false, {
                 fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SampleDisplay.tsx",
-                lineNumber: 255,
+                lineNumber: 258,
                 columnNumber: 13
               }, void 0),
               /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { children: formatTime$1(sample2.working_time) }, void 0, false, {
                 fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SampleDisplay.tsx",
-                lineNumber: 258,
+                lineNumber: 261,
                 columnNumber: 13
               }, void 0),
               /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: clsx("text-style-label", "text-style-secondary"), children: "Total" }, void 0, false, {
                 fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SampleDisplay.tsx",
-                lineNumber: 259,
+                lineNumber: 262,
                 columnNumber: 13
               }, void 0),
               /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { children: formatTime$1(sample2.total_time) }, void 0, false, {
                 fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SampleDisplay.tsx",
-                lineNumber: 262,
+                lineNumber: 265,
                 columnNumber: 13
               }, void 0)
             ] }, void 0, true, {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SampleDisplay.tsx",
-              lineNumber: 254,
+              lineNumber: 257,
               columnNumber: 11
             }, void 0) }, void 0, false, {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SampleDisplay.tsx",
-              lineNumber: 253,
+              lineNumber: 256,
               columnNumber: 9
             }, void 0)
           ] }, `sample-time-${id}`, true, {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SampleDisplay.tsx",
-            lineNumber: 251,
+            lineNumber: 254,
             columnNumber: 7
           }, void 0)
         );
@@ -75324,7 +75192,7 @@ ${events}
           /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(Card, { children: [
             /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(CardHeader, { label: "Metadata" }, void 0, false, {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SampleDisplay.tsx",
-              lineNumber: 272,
+              lineNumber: 275,
               columnNumber: 9
             }, void 0),
             /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(CardBody, { children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
@@ -75338,18 +75206,18 @@ ${events}
               false,
               {
                 fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SampleDisplay.tsx",
-                lineNumber: 274,
+                lineNumber: 277,
                 columnNumber: 11
               },
               void 0
             ) }, void 0, false, {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SampleDisplay.tsx",
-              lineNumber: 273,
+              lineNumber: 276,
               columnNumber: 9
             }, void 0)
           ] }, `sample-metadata-${id}`, true, {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SampleDisplay.tsx",
-            lineNumber: 271,
+            lineNumber: 274,
             columnNumber: 7
           }, void 0)
         );
@@ -75359,7 +75227,7 @@ ${events}
           /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(Card, { children: [
             /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(CardHeader, { label: "Store" }, void 0, false, {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SampleDisplay.tsx",
-              lineNumber: 287,
+              lineNumber: 290,
               columnNumber: 9
             }, void 0),
             /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(CardBody, { children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
@@ -75373,18 +75241,18 @@ ${events}
               false,
               {
                 fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SampleDisplay.tsx",
-                lineNumber: 289,
+                lineNumber: 292,
                 columnNumber: 11
               },
               void 0
             ) }, void 0, false, {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SampleDisplay.tsx",
-              lineNumber: 288,
+              lineNumber: 291,
               columnNumber: 9
             }, void 0)
           ] }, `sample-store-${id}`, true, {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SampleDisplay.tsx",
-            lineNumber: 286,
+            lineNumber: 289,
             columnNumber: 7
           }, void 0)
         );
@@ -75494,60 +75362,154 @@ ${events}
         }
       };
     };
-    const createPolling = (name2, callback, options) => {
-      const log2 = createLogger(`Polling ${name2}`);
-      const { maxRetries, interval } = options;
-      let timeoutId = null;
-      let retryCount = 0;
-      let isPolling = false;
-      const calculateBackoff = (retryCount2) => {
-        return Math.min(interval * Math.pow(2, retryCount2) * 1e3, 6e4);
-      };
-      const stop = () => {
-        if (timeoutId) {
-          clearTimeout(timeoutId);
-          timeoutId = null;
+    const initialState$2 = {
+      logs: { log_dir: "", files: [] },
+      logHeaders: {},
+      headersLoading: false,
+      selectedLogIndex: -1
+    };
+    const log = createLogger("LogsStore");
+    const useLogsStore = create$2()((set2, get2) => ({
+      ...initialState$2,
+      api: null,
+      // Actions
+      setLogs: (logs) => {
+        set2({ logs });
+        if (logs.files.length > 0) {
+          setTimeout(() => {
+            const state = useLogsStore.getState();
+            if (!state.headersLoading) {
+              state.loadHeaders();
+            }
+          }, 100);
         }
-        log2.debug("Stop Polling");
-        isPolling = false;
-      };
-      const poll = async () => {
-        if (!isPolling) {
-          return;
+      },
+      setLogHeaders: (logHeaders) => set2({ logHeaders }),
+      setHeadersLoading: (headersLoading) => set2({ headersLoading }),
+      setSelectedLogIndex: (selectedLogIndex) => set2({ selectedLogIndex }),
+      setSelectedLogFile: (logUrl) => {
+        const state = get2();
+        const index = state.logs.files.findIndex(
+          (val) => logUrl.endsWith(val.name)
+        );
+        if (index > -1) {
+          set2({ selectedLogIndex: index });
+        }
+      },
+      updateLogHeaders: (headers) => set2((state) => ({
+        logHeaders: { ...state.logHeaders, ...headers }
+      })),
+      // Helper function to load logs
+      loadLogs: async () => {
+        const api2 = get2().api;
+        if (!api2) {
+          console.error("API not initialized in LogsStore");
+          return { log_dir: "", files: [] };
         }
         try {
-          log2.debug("Poll");
-          const shouldContinue = await callback();
-          if (shouldContinue === false) {
-            stop();
-            return;
-          }
-          retryCount = 0;
-          timeoutId = setTimeout(poll, interval * 1e3);
+          log.debug("LOADING LOG FILES");
+          return await api2.get_log_paths();
         } catch (e) {
-          retryCount += 1;
-          if (retryCount >= maxRetries) {
-            log2.error(`Polling stopped after ${maxRetries} failed attempts`);
-            stop();
-            return;
-          }
-          const backoffTime = calculateBackoff(retryCount);
-          log2.debug(
-            `Retry ${retryCount}/${maxRetries}, backoff: ${backoffTime / 1e3}s`
-          );
-          timeoutId = setTimeout(poll, backoffTime);
+          console.log(e);
+          useStore.getState().appActions.setStatus({ loading: false, error: e });
+          return { log_dir: "", files: [] };
         }
-      };
-      const start = () => {
-        if (isPolling) {
+      },
+      // Refresh logs
+      refreshLogs: async () => {
+        log.debug("REFRESH LOGS");
+        const state = get2();
+        const refreshedLogs = await get2().loadLogs();
+        set2({ logs: refreshedLogs || { log_dir: "", files: [] } });
+        const currentLog = refreshedLogs.files[state.selectedLogIndex > -1 ? state.selectedLogIndex : 0];
+        if (currentLog) {
+          const newIndex = refreshedLogs == null ? void 0 : refreshedLogs.files.findIndex(
+            (file) => currentLog.name.endsWith(file.name)
+          );
+          if (newIndex !== void 0 && newIndex !== -1) {
+            set2({ selectedLogIndex: newIndex });
+          }
+        }
+        if (refreshedLogs.files.length > 0) {
+          setTimeout(() => {
+            const currentState = useLogsStore.getState();
+            if (!currentState.headersLoading) {
+              currentState.loadHeaders();
+            }
+          }, 100);
+        }
+      },
+      // Select a specific log file
+      selectLogFile: async (logUrl) => {
+        const state = get2();
+        const index = state.logs.files.findIndex(
+          (val) => val.name.endsWith(logUrl)
+        );
+        if (index > -1) {
+          set2({ selectedLogIndex: index });
+        } else {
+          const result2 = await get2().loadLogs();
+          const idx = result2 == null ? void 0 : result2.files.findIndex((file) => logUrl.endsWith(file.name));
+          set2({
+            logs: result2 || { log_dir: "", files: [] },
+            selectedLogIndex: idx !== void 0 && idx > -1 ? idx : 0
+          });
+        }
+      },
+      // Load headers
+      loadHeaders: async () => {
+        const state = get2();
+        const api2 = get2().api;
+        if (!api2) {
+          console.error("API not initialized in LogsStore");
           return;
         }
-        log2.debug("Start Polling");
-        isPolling = true;
-        poll();
-      };
-      return { start, stop };
-    };
+        log.debug("LOADING HEADERS");
+        set2({ headersLoading: true });
+        const chunkSize = 8;
+        const fileLists = [];
+        for (let i2 = 0; i2 < state.logs.files.length; i2 += chunkSize) {
+          const chunk = state.logs.files.slice(i2, i2 + chunkSize).map((logFile) => logFile.name);
+          fileLists.push(chunk);
+        }
+        try {
+          let counter = 0;
+          for (const fileList of fileLists) {
+            counter++;
+            log.debug(`LOADING ${counter} of ${fileLists.length} CHUNKS`);
+            const headers = await api2.get_log_headers(fileList);
+            const updatedHeaders = {};
+            headers.forEach((header2, index) => {
+              const logFile = fileList[index];
+              updatedHeaders[logFile] = header2;
+            });
+            set2({
+              ...get2(),
+              logHeaders: { ...get2().logHeaders, ...updatedHeaders }
+            });
+            if (headers.length === chunkSize) {
+              await sleep$1(5e3);
+            }
+          }
+        } catch (e) {
+          if (e instanceof Error && (e.message === "Load failed" || e.message === "Failed to fetch")) {
+            useStore.getState().appActions.setStatus({ loading: false });
+          } else {
+            console.log(e);
+            useStore.getState().appActions.setStatus({ loading: false, error: e });
+          }
+        }
+        set2({ headersLoading: false });
+      },
+      // Method to get selected log file
+      getSelectedLogFile: () => {
+        const state = get2();
+        const file = state.logs.files[state.selectedLogIndex];
+        return file !== void 0 ? file.name : void 0;
+      },
+      // For compatibility with existing code
+      getState: () => ({ logs: get2() })
+    }));
     const initialState$1 = {
       selectedSample: void 0,
       sampleStatus: "ok",
@@ -76307,7 +76269,9 @@ ${events}
       const streamSampleData = useStore(
         (state) => state.capabilities.streamSampleData
       );
-      const selectedSampleIndex = useLogStore((state) => state.selectedSampleIndex);
+      const selectedSampleIndex = useStore(
+        (state) => state.log.selectedSampleIndex
+      );
       const handleClick = reactExports.useCallback(() => {
         if (completed || streamSampleData) {
           showSample(index);
@@ -76331,7 +76295,7 @@ ${events}
           children: [
             /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: clsx("sample-id", "three-line-clamp", styles$h.cell), children: sample2.id }, void 0, false, {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/list/SampleRow.tsx",
-              lineNumber: 59,
+              lineNumber: 60,
               columnNumber: 7
             }, void 0),
             /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
@@ -76349,7 +76313,7 @@ ${events}
               false,
               {
                 fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/list/SampleRow.tsx",
-                lineNumber: 62,
+                lineNumber: 63,
                 columnNumber: 7
               },
               void 0
@@ -76364,13 +76328,13 @@ ${events}
               false,
               {
                 fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/list/SampleRow.tsx",
-                lineNumber: 73,
+                lineNumber: 74,
                 columnNumber: 9
               },
               void 0
             ) }, void 0, false, {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/list/SampleRow.tsx",
-              lineNumber: 72,
+              lineNumber: 73,
               columnNumber: 7
             }, void 0),
             /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: clsx("sample-answer", "three-line-clamp", styles$h.cell), children: sample2 ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
@@ -76383,13 +76347,13 @@ ${events}
               false,
               {
                 fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/list/SampleRow.tsx",
-                lineNumber: 80,
+                lineNumber: 81,
                 columnNumber: 11
               },
               void 0
             ) : "" }, void 0, false, {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/list/SampleRow.tsx",
-              lineNumber: 78,
+              lineNumber: 79,
               columnNumber: 7
             }, void 0),
             /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
@@ -76407,22 +76371,22 @@ ${events}
               false,
               {
                 fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/list/SampleRow.tsx",
-                lineNumber: 88,
+                lineNumber: 89,
                 columnNumber: 7
               },
               void 0
             ),
             /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: clsx("text-size-small", styles$h.cell, styles$h.score), children: sample2.error ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(SampleErrorView, { message: sample2.error }, void 0, false, {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/list/SampleRow.tsx",
-              lineNumber: 101,
+              lineNumber: 102,
               columnNumber: 11
             }, void 0) : completed ? scoreRendered : /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(Spinner, {}, void 0, false, {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/list/SampleRow.tsx",
-              lineNumber: 105,
+              lineNumber: 106,
               columnNumber: 11
             }, void 0) }, void 0, false, {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/list/SampleRow.tsx",
-              lineNumber: 99,
+              lineNumber: 100,
               columnNumber: 7
             }, void 0)
           ]
@@ -76431,7 +76395,7 @@ ${events}
         true,
         {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/list/SampleRow.tsx",
-          lineNumber: 45,
+          lineNumber: 46,
           columnNumber: 5
         },
         void 0
@@ -76440,11 +76404,11 @@ ${events}
     const Spinner = () => {
       return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: clsx("spinner-border", styles$h.spinner), role: "status", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("span", { className: clsx("visually-hidden"), children: "Running..." }, void 0, false, {
         fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/list/SampleRow.tsx",
-        lineNumber: 115,
+        lineNumber: 116,
         columnNumber: 7
       }, void 0) }, void 0, false, {
         fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/list/SampleRow.tsx",
-        lineNumber: 114,
+        lineNumber: 115,
         columnNumber: 5
       }, void 0);
     };
@@ -76626,7 +76590,9 @@ ${events}
         className: className2,
         listHandle
       } = props;
-      const selectedSampleIndex = useLogStore((state) => state.selectedSampleIndex);
+      const selectedSampleIndex = useStore(
+        (state) => state.log.selectedSampleIndex
+      );
       const samplesDescriptor = useSampleDescriptor();
       const [followOutput, setFollowOutput] = reactExports.useState(false);
       const [hidden2, setHidden] = reactExports.useState(false);
@@ -76703,7 +76669,7 @@ ${events}
               false,
               {
                 fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/list/SampleList.tsx",
-                lineNumber: 120,
+                lineNumber: 123,
                 columnNumber: 11
               },
               void 0
@@ -76720,7 +76686,7 @@ ${events}
               false,
               {
                 fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/list/SampleList.tsx",
-                lineNumber: 134,
+                lineNumber: 137,
                 columnNumber: 11
               },
               void 0
@@ -76768,7 +76734,7 @@ ${events}
           false,
           {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/list/SampleList.tsx",
-            lineNumber: 187,
+            lineNumber: 190,
             columnNumber: 9
           },
           void 0
@@ -76786,7 +76752,7 @@ ${events}
           false,
           {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/list/SampleList.tsx",
-            lineNumber: 194,
+            lineNumber: 197,
             columnNumber: 7
           },
           void 0
@@ -76818,19 +76784,19 @@ ${events}
           false,
           {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/list/SampleList.tsx",
-            lineNumber: 201,
+            lineNumber: 204,
             columnNumber: 7
           },
           void 0
         ),
         /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(SampleFooter, { sampleCount, running: running2 }, void 0, false, {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/list/SampleList.tsx",
-          lineNumber: 222,
+          lineNumber: 225,
           columnNumber: 7
         }, void 0)
       ] }, void 0, true, {
         fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/list/SampleList.tsx",
-        lineNumber: 185,
+        lineNumber: 188,
         columnNumber: 5
       }, void 0);
     };
@@ -77023,10 +76989,12 @@ ${events}
       sampleTabScrollRef
     }) => {
       var _a2, _b2;
-      const selectSample = useLogStore((state) => state.selectSample);
-      const selectedSampleIndex = useLogStore((state) => state.selectedSampleIndex);
+      const selectSample = useStore((state) => state.logActions.selectSample);
+      const selectedSampleIndex = useStore(
+        (state) => state.log.selectedSampleIndex
+      );
       const sampleSummaries = useFilteredSamples();
-      const selectedLogSummary = useLogStore((state) => state.selectedLogSummary);
+      const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
       const totalSampleCount = useTotalSampleCount();
       const samplesDescriptor = useSampleDescriptor();
       const groupBy = useGroupBy();
@@ -77119,11 +77087,11 @@ ${events}
       if (!samplesDescriptor) {
         return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(EmptyPanel, { children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { children: "No samples" }, void 0, false, {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/tabs/SamplesTab.tsx",
-          lineNumber: 173,
+          lineNumber: 175,
           columnNumber: 9
         }, void 0) }, void 0, false, {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/tabs/SamplesTab.tsx",
-          lineNumber: 172,
+          lineNumber: 174,
           columnNumber: 7
         }, void 0);
       } else {
@@ -77140,7 +77108,7 @@ ${events}
             false,
             {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/tabs/SamplesTab.tsx",
-              lineNumber: 180,
+              lineNumber: 182,
               columnNumber: 11
             },
             void 0
@@ -77159,7 +77127,7 @@ ${events}
             false,
             {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/tabs/SamplesTab.tsx",
-              lineNumber: 188,
+              lineNumber: 190,
               columnNumber: 11
             },
             void 0
@@ -77182,14 +77150,14 @@ ${events}
             false,
             {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/tabs/SamplesTab.tsx",
-              lineNumber: 198,
+              lineNumber: 200,
               columnNumber: 11
             },
             void 0
           ) : void 0
         ] }, void 0, true, {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/tabs/SamplesTab.tsx",
-          lineNumber: 178,
+          lineNumber: 180,
           columnNumber: 7
         }, void 0);
       }
@@ -80120,8 +80088,7 @@ ${events}
     var clipboardExports = clipboard.exports;
     const ClipboardJS = /* @__PURE__ */ getDefaultExportFromCjs(clipboardExports);
     const App = ({ api: api2, applicationState }) => {
-      var _a2, _b2, _c, _d, _e2, _f, _g, _h, _i, _j, _k;
-      const logStore = useLogStore();
+      var _a2;
       const appStatus = useStore((state) => state.app.status);
       const setAppStatus = useStore((state) => state.appActions.setStatus);
       const offCanvas = useStore((state) => state.app.offcanvas);
@@ -80143,10 +80110,24 @@ ${events}
       );
       const refreshLogs = useStore((state) => state.logsActions.refreshLogs);
       const selectLogFile = useStore((state) => state.logsActions.selectLogFile);
+      const selectedSampleIndex = useStore(
+        (state) => state.log.selectedSampleIndex
+      );
+      const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
       const clearSelectedSample = useSampleStore(
         (state) => state.clearSelectedSample
       );
+      const runningMetrics = useStore(
+        (state) => {
+          var _a3;
+          return (_a3 = state.log.pendingSampleSummaries) == null ? void 0 : _a3.metrics;
+        }
+      );
+      const selectSample = useStore((state) => state.logActions.selectSample);
       const selectedSample = useSampleStore((state) => state.selectedSample);
+      const resetFiltering = useStore((state) => state.logActions.resetFiltering);
+      const loadLog = useStore((state) => state.logActions.loadLog);
+      const refreshLog = useStore((state) => state.logActions.refreshLog);
       const mainAppRef = reactExports.useRef(null);
       const [selectedWorkspaceTab, setSelectedWorkspaceTab] = reactExports.useState(
         (applicationState == null ? void 0 : applicationState.selectedWorkspaceTab) || kEvalWorkspaceTabId
@@ -80201,24 +80182,19 @@ ${events}
         }
       }, [selectedSample, selectedSampleTab]);
       reactExports.useEffect(() => {
-        if (!logs.files[selectedLogIndex] || logStore.selectedSampleIndex === -1) {
+        if (!logs.files[selectedLogIndex] || selectedSampleIndex === -1) {
           clearSelectedSample();
         }
-      }, [
-        logStore.selectedSampleIndex,
-        selectedLogIndex,
-        logs,
-        clearSelectedSample
-      ]);
+      }, [selectedSampleIndex, selectedLogIndex, logs, clearSelectedSample]);
       reactExports.useEffect(() => {
-        logStore.selectSample(0);
-      }, [selectedLogFile, logStore.selectSample]);
+        selectSample(0);
+      }, [selectedLogFile, selectSample]);
       reactExports.useEffect(() => {
         const loadSpecificLog = async () => {
           if (selectedLogFile) {
             try {
               setAppStatus({ loading: true, error: void 0 });
-              await logStore.loadLog(selectedLogFile);
+              await loadLog(selectedLogFile);
               setAppStatus({ loading: false, error: void 0 });
             } catch (e) {
               console.log(e);
@@ -80227,19 +80203,19 @@ ${events}
           }
         };
         loadSpecificLog();
-      }, [selectedLogFile, logStore.loadLog, setAppStatus]);
+      }, [selectedLogFile, loadLog, setAppStatus]);
       reactExports.useEffect(() => {
         setSelectedWorkspaceTab(kEvalWorkspaceTabId);
         setSelectedSampleTab(void 0);
         workspaceTabScrollPosition.current = {};
         clearSelectedSample();
-      }, [(_a2 = logStore.selectedLogSummary) == null ? void 0 : _a2.eval.task_id, clearSelectedSample]);
+      }, [selectedLogSummary == null ? void 0 : selectedLogSummary.eval.task_id, clearSelectedSample]);
       const totalSampleCount = useTotalSampleCount();
       reactExports.useEffect(() => {
-        if (logStore.selectedLogSummary && totalSampleCount === 0) {
+        if (selectedLogSummary && totalSampleCount === 0) {
           setSelectedWorkspaceTab(kInfoWorkspaceTabId);
         }
-      }, [logStore.selectedLogSummary]);
+      }, [selectedLogSummary]);
       reactExports.useEffect(() => {
         if (logs.log_dir && logs.files.length === 0) {
           setAppStatus({
@@ -80250,17 +80226,17 @@ ${events}
           });
         }
       }, [logs.log_dir, logs.files.length]);
-      const refreshLog = reactExports.useCallback(() => {
+      const appRefreshLog = reactExports.useCallback(() => {
         try {
           setAppStatus({ loading: true, error: void 0 });
-          logStore.refreshLog();
-          logStore.resetFiltering();
+          refreshLog();
+          resetFiltering();
           setAppStatus({ loading: false, error: void 0 });
         } catch (e) {
           console.log(e);
           setAppStatus({ loading: false, error: e });
         }
-      }, [logStore.refreshLog, logStore.resetFiltering, setAppStatus]);
+      }, [refreshLog, resetFiltering, setAppStatus]);
       const onMessage = reactExports.useCallback(
         async (e) => {
           switch (e.data.type) {
@@ -80327,7 +80303,7 @@ ${events}
       const fullScreen = logs.files.length === 1 && !logs.log_dir;
       const showToggle = logs.files.length > 1 || !!logs.log_dir || false;
       return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(jsxDevRuntimeExports.Fragment, { children: [
-        !fullScreen && logStore.selectedLogSummary ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+        !fullScreen && selectedLogSummary ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
           Sidebar,
           {
             logs,
@@ -80343,7 +80319,7 @@ ${events}
           false,
           {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/App.tsx",
-            lineNumber: 333,
+            lineNumber: 337,
             columnNumber: 9
           },
           void 0
@@ -80371,12 +80347,12 @@ ${events}
             children: [
               !nativeFind && showFind ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(FindBand, {}, void 0, false, {
                 fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/App.tsx",
-                lineNumber: 365,
+                lineNumber: 369,
                 columnNumber: 36
               }, void 0) : "",
               /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(ProgressBar, { animating: appStatus.loading }, void 0, false, {
                 fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/App.tsx",
-                lineNumber: 366,
+                lineNumber: 370,
                 columnNumber: 9
               }, void 0),
               appStatus.error ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
@@ -80389,24 +80365,24 @@ ${events}
                 false,
                 {
                   fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/App.tsx",
-                  lineNumber: 368,
+                  lineNumber: 372,
                   columnNumber: 11
                 },
                 void 0
               ) : /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
                 WorkSpace,
                 {
-                  task_id: (_c = (_b2 = logStore.selectedLogSummary) == null ? void 0 : _b2.eval) == null ? void 0 : _c.task_id,
-                  evalStatus: (_d = logStore.selectedLogSummary) == null ? void 0 : _d.status,
-                  evalError: filterNull((_e2 = logStore.selectedLogSummary) == null ? void 0 : _e2.error),
-                  evalVersion: (_f = logStore.selectedLogSummary) == null ? void 0 : _f.version,
-                  evalSpec: (_g = logStore.selectedLogSummary) == null ? void 0 : _g.eval,
-                  evalPlan: (_h = logStore.selectedLogSummary) == null ? void 0 : _h.plan,
-                  evalStats: (_i = logStore.selectedLogSummary) == null ? void 0 : _i.stats,
-                  evalResults: filterNull((_j = logStore.selectedLogSummary) == null ? void 0 : _j.results),
-                  runningMetrics: (_k = logStore.pendingSampleSummaries) == null ? void 0 : _k.metrics,
+                  task_id: (_a2 = selectedLogSummary == null ? void 0 : selectedLogSummary.eval) == null ? void 0 : _a2.task_id,
+                  evalStatus: selectedLogSummary == null ? void 0 : selectedLogSummary.status,
+                  evalError: filterNull(selectedLogSummary == null ? void 0 : selectedLogSummary.error),
+                  evalVersion: selectedLogSummary == null ? void 0 : selectedLogSummary.version,
+                  evalSpec: selectedLogSummary == null ? void 0 : selectedLogSummary.eval,
+                  evalPlan: selectedLogSummary == null ? void 0 : selectedLogSummary.plan,
+                  evalStats: selectedLogSummary == null ? void 0 : selectedLogSummary.stats,
+                  evalResults: filterNull(selectedLogSummary == null ? void 0 : selectedLogSummary.results),
+                  runningMetrics,
                   showToggle,
-                  refreshLog,
+                  refreshLog: appRefreshLog,
                   showingSampleDialog,
                   setShowingSampleDialog: handleSampleShowingDialog,
                   selectedTab: selectedWorkspaceTab,
@@ -80422,7 +80398,7 @@ ${events}
                 false,
                 {
                   fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/App.tsx",
-                  lineNumber: 373,
+                  lineNumber: 377,
                   columnNumber: 11
                 },
                 void 0
@@ -80433,14 +80409,14 @@ ${events}
           true,
           {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/App.tsx",
-            lineNumber: 344,
+            lineNumber: 348,
             columnNumber: 7
           },
           void 0
         )
       ] }, void 0, true, {
         fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/App.tsx",
-        lineNumber: 331,
+        lineNumber: 335,
         columnNumber: 5
       }, void 0);
     };
@@ -80512,7 +80488,6 @@ ${events}
         capabilities.webWorkers = false;
       }
     }
-    initializeLogStore(resolvedApi, initialState == null ? void 0 : initialState.log);
     initializeSampleStore(resolvedApi, initialState == null ? void 0 : initialState.sample);
     initializeStore(resolvedApi, capabilities);
     const containerId = "app";
@@ -80541,13 +80516,13 @@ ${events}
         false,
         {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/index.tsx",
-          lineNumber: 57,
+          lineNumber: 55,
           columnNumber: 5
         },
         void 0
       ) }, void 0, false, {
         fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/index.tsx",
-        lineNumber: 56,
+        lineNumber: 54,
         columnNumber: 3
       }, void 0)
     );
