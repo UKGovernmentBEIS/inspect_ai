@@ -117,7 +117,7 @@ def configured_async_backend() -> Literal["asyncio", "trio"]:
 
 
 def _validate_backend(backend: str) -> Literal["asyncio", "trio"]:
-    if backend in ["asynio", "trio"]:
+    if backend in ["asyncio", "trio"]:
         return cast(Literal["asyncio", "trio"], backend)
     else:
         raise RuntimeError(f"Unknown async backend: {backend}")
