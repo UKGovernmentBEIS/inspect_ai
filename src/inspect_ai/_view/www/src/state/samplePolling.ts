@@ -91,7 +91,7 @@ export function createSamplePolling(
     const name = `${logFile}:${summary.id}-${summary.epoch}`;
     const polling = createPolling(name, pollCallback, {
       maxRetries: 10,
-      interval: 2, // 2 seconds
+      interval: 2,
     });
 
     // Store the polling instance and start it

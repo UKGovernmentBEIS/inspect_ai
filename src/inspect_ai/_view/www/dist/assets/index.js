@@ -24683,9 +24683,6 @@ self.onmessage = function (e) {
         columnNumber: 5
       }, void 0);
     };
-    function sleep$1(ms) {
-      return new Promise((resolve) => setTimeout(resolve, ms));
-    }
     function throttle$1(func, wait, options = {}) {
       let context;
       let args;
@@ -25860,7 +25857,7 @@ self.onmessage = function (e) {
       };
       return { start, stop };
     };
-    const log$4 = createLogger("logPolling");
+    const log$5 = createLogger("logPolling");
     function createLogPolling(get2, set2) {
       let currentPolling = null;
       let isActive = true;
@@ -25875,14 +25872,14 @@ self.onmessage = function (e) {
           async () => {
             var _a3;
             if (!isActive) {
-              log$4.debug(`Component unmounted, stopping poll for: ${logFileName}`);
+              log$5.debug(`Component unmounted, stopping poll for: ${logFileName}`);
               return false;
             }
             const state = get2();
             const api2 = state.api;
             if (!(api2 == null ? void 0 : api2.get_log_pending_samples)) return false;
             const currentEtag = (_a3 = get2().log.pendingSampleSummaries) == null ? void 0 : _a3.etag;
-            log$4.debug(`POLL RUNNING SAMPLES: ${logFileName}`);
+            log$5.debug(`POLL RUNNING SAMPLES: ${logFileName}`);
             if (!isActive) {
               return false;
             }
@@ -25900,7 +25897,7 @@ self.onmessage = function (e) {
               get2().logActions.refreshLog();
               return true;
             } else if (pendingSamples.status === "NotFound") {
-              log$4.debug(`STOP POLLING RUNNING SAMPLES: ${logFileName}`);
+              log$5.debug(`STOP POLLING RUNNING SAMPLES: ${logFileName}`);
               clearPendingSummaries(logFileName);
               return false;
             }
@@ -25919,7 +25916,7 @@ self.onmessage = function (e) {
         }
         const pendingSampleSummaries = get2().log.pendingSampleSummaries;
         if (((pendingSampleSummaries == null ? void 0 : pendingSampleSummaries.samples.length) || 0) > 0) {
-          log$4.debug(`CLEAR PENDING: ${logFileName}`);
+          log$5.debug(`CLEAR PENDING: ${logFileName}`);
           set2((state) => {
             state.log.pendingSampleSummaries = {
               samples: [],
@@ -25936,7 +25933,7 @@ self.onmessage = function (e) {
         }
       };
       const cleanup = () => {
-        log$4.debug(`CLEANUP`);
+        log$5.debug(`CLEANUP`);
         isActive = false;
         stopPolling();
       };
@@ -25947,7 +25944,7 @@ self.onmessage = function (e) {
         cleanup
       };
     }
-    const log$3 = createLogger("logSlice");
+    const log$4 = createLogger("logSlice");
     const initialState$3 = {
       // Log state
       selectedSampleIndex: -1,
@@ -26011,7 +26008,7 @@ self.onmessage = function (e) {
               console.error("API not initialized in Store");
               return;
             }
-            log$3.debug(`LOAD LOG: ${logFileName}`);
+            log$4.debug(`LOAD LOG: ${logFileName}`);
             try {
               const logContents = await api2.get_log_summary(logFileName);
               state.logActions.setSelectedLogSummary(logContents);
@@ -26030,7 +26027,7 @@ self.onmessage = function (e) {
               state.logsActions.updateLogHeaders(header2);
               logPolling.startPolling(logFileName);
             } catch (error2) {
-              log$3.error("Error loading log:", error2);
+              log$4.error("Error loading log:", error2);
             }
           },
           refreshLog: async () => {
@@ -26040,12 +26037,12 @@ self.onmessage = function (e) {
             if (!api2 || !selectedLogFile) {
               return;
             }
-            log$3.debug(`REFRESH: ${selectedLogFile}`);
+            log$4.debug(`REFRESH: ${selectedLogFile}`);
             try {
               const logContents = await api2.get_log_summary(selectedLogFile);
               state.logActions.setSelectedLogSummary(logContents);
             } catch (error2) {
-              log$3.error("Error refreshing log:", error2);
+              log$4.error("Error refreshing log:", error2);
             }
           }
         }
@@ -26060,6 +26057,82 @@ self.onmessage = function (e) {
         state.log = { ...initialState$3 };
       });
     };
+    const log$3 = createLogger("logsPolling");
+    function createLogsPolling(get2, _set) {
+      let currentPolling = null;
+      let isActive = true;
+      const startPolling = (logFiles) => {
+        const api2 = get2().api;
+        if (!api2) {
+          throw new Error("Failed to start polling - no API");
+        }
+        if (currentPolling) {
+          currentPolling.stop();
+        }
+        isActive = true;
+        log$3.debug("LOADING HEADERS");
+        get2().logsActions.setHeadersLoading(true);
+        const chunkSize = 8;
+        const fileLists = [];
+        for (let i2 = 0; i2 < logFiles.files.length; i2 += chunkSize) {
+          const chunk = logFiles.files.slice(i2, i2 + chunkSize).map((logFile) => logFile.name);
+          fileLists.push(chunk);
+        }
+        const totalLen = fileLists.length;
+        currentPolling = createPolling(
+          `LogHeaders`,
+          async () => {
+            if (!isActive) {
+              get2().logsActions.setHeadersLoading(false);
+              return false;
+            }
+            log$3.debug(`POLL HEADERS`);
+            const currentFileList = fileLists.shift();
+            if (currentFileList) {
+              log$3.debug(
+                `LOADING ${totalLen - fileLists.length} of ${totalLen} CHUNKS`
+              );
+              const headers = await api2.get_log_headers(currentFileList);
+              const updatedHeaders = {};
+              headers.forEach((header2, index) => {
+                const logFile = currentFileList[index];
+                updatedHeaders[logFile] = header2;
+              });
+              get2().logsActions.updateLogHeaders(updatedHeaders);
+            } else {
+              get2().logsActions.setHeadersLoading(false);
+              return false;
+            }
+            if (!isActive) {
+              get2().logsActions.setHeadersLoading(false);
+              return false;
+            }
+            return true;
+          },
+          {
+            maxRetries: 10,
+            interval: 5
+          }
+        );
+        currentPolling.start();
+      };
+      const stopPolling = () => {
+        if (currentPolling) {
+          currentPolling.stop();
+          currentPolling = null;
+        }
+      };
+      const cleanup = () => {
+        log$3.debug(`CLEANUP`);
+        isActive = false;
+        stopPolling();
+      };
+      return {
+        startPolling,
+        stopPolling,
+        cleanup
+      };
+    }
     const log$2 = createLogger("Log Slice");
     const initialState$2 = {
       logs: { log_dir: "", files: [] },
@@ -26068,6 +26141,7 @@ self.onmessage = function (e) {
       selectedLogIndex: -1
     };
     const createLogsSlice = (set2, get2, _store) => {
+      const logsPolling = createLogsPolling(get2);
       const slice = {
         // State
         logs: initialState$2,
@@ -26081,7 +26155,7 @@ self.onmessage = function (e) {
               setTimeout(() => {
                 const currentState = get2();
                 if (!currentState.logs.headersLoading) {
-                  currentState.logsActions.loadHeaders();
+                  logsPolling.startPolling(logs);
                 }
               }, 100);
             }
@@ -26122,49 +26196,6 @@ self.onmessage = function (e) {
               get2().appActions.setStatus({ loading: false, error: e });
               return { log_dir: "", files: [] };
             }
-          },
-          // Load Headers
-          loadHeaders: async () => {
-            const state = get2();
-            const api2 = state.api;
-            if (!api2) {
-              console.error("API not initialized for the log slice");
-              return;
-            }
-            log$2.debug("LOADING HEADERS");
-            get2().logsActions.setHeadersLoading(true);
-            const logs = get2().logs.logs;
-            const chunkSize = 8;
-            const fileLists = [];
-            for (let i2 = 0; i2 < logs.files.length; i2 += chunkSize) {
-              const chunk = logs.files.slice(i2, i2 + chunkSize).map((logFile) => logFile.name);
-              fileLists.push(chunk);
-            }
-            try {
-              let counter = 0;
-              for (const fileList of fileLists) {
-                counter++;
-                log$2.debug(`LOADING ${counter} of ${fileLists.length} CHUNKS`);
-                const headers = await api2.get_log_headers(fileList);
-                const updatedHeaders = {};
-                headers.forEach((header2, index) => {
-                  const logFile = fileList[index];
-                  updatedHeaders[logFile] = header2;
-                });
-                state.logsActions.updateLogHeaders(updatedHeaders);
-                if (headers.length === chunkSize) {
-                  await sleep$1(5e3);
-                }
-              }
-            } catch (e) {
-              if (e instanceof Error && (e.message === "Load failed" || e.message === "Failed to fetch")) {
-                state.appActions.setStatus({ loading: false });
-              } else {
-                console.log(e);
-                state.appActions.setStatus({ loading: false, error: e });
-              }
-            }
-            get2().logsActions.setHeadersLoading(false);
           },
           refreshLogs: async () => {
             log$2.debug("REFRESH LOGS");
@@ -26321,7 +26352,6 @@ self.onmessage = function (e) {
         const polling = createPolling(name2, pollCallback, {
           maxRetries: 10,
           interval: 2
-          // 2 seconds
         });
         currentPolling = polling;
         polling.start();
@@ -26352,6 +26382,7 @@ self.onmessage = function (e) {
     };
     const createSampleSlice = (set2, get2, _store) => {
       const migrateOldSample = (sample2) => {
+        sample2 = { ...sample2 };
         if (sample2.transcript) {
           sample2.events = sample2.transcript.events;
           sample2.attachments = sample2.transcript.content;
