@@ -72,7 +72,6 @@ export const SamplesTab: FC<SamplesTabProps> = ({
   // Shows the sample dialog
   const showSample = useCallback(
     (index: number) => {
-      console.log("Show sample");
       selectSample(index);
       setShowingSampleDialog(true);
     },

@@ -3,7 +3,6 @@ import api from "./api/index";
 import { Capabilities } from "./api/types";
 import { App } from "./App";
 import { AppErrorBoundary } from "./AppErrorBoundary";
-import { initializeLogsStore } from "./state/logsStore";
 import { initializeLogStore } from "./state/logStore";
 import { initializeSampleStore } from "./state/sampleStore";
 import { initializeStore } from "./state/store";
@@ -39,7 +38,6 @@ if (vscode) {
   }
 }
 
-initializeLogsStore(resolvedApi, initialState?.logs);
 initializeLogStore(resolvedApi, initialState?.log);
 initializeSampleStore(resolvedApi, initialState?.sample);
 initializeStore(resolvedApi, capabilities);

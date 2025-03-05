@@ -1,6 +1,7 @@
 import { Capabilities } from "../api/types";
 import { AppState, AppStatus } from "../types";
 import { clearDocumentSelection } from "../utils/browser";
+import { StoreState } from "./store";
 
 // Define the app slice interface
 export interface AppSlice {
@@ -21,10 +22,10 @@ const initialState: AppState = {
   showFind: false,
 };
 
-// Create the app slice with corrected types for immer middleware
-export const createAppSlice = <T extends AppSlice>(
-  set: (fn: (state: T) => void) => void,
-  _get: () => T,
+// Create the app slice using StoreState directly
+export const createAppSlice = (
+  set: (fn: (state: StoreState) => void) => void,
+  _get: () => StoreState,
   _store: any,
 ) => {
   return {
@@ -59,9 +60,9 @@ export const createAppSlice = <T extends AppSlice>(
   } as const;
 };
 
-// Initialize app slice with immer-compatible set function type
-export const initializeAppSlice = <T extends AppSlice>(
-  set: (fn: (state: T) => void) => void,
+// Initialize app slice with StoreState
+export const initializeAppSlice = (
+  set: (fn: (state: StoreState) => void) => void,
   capabilities: Capabilities,
   restoreState?: Partial<AppState>,
 ) => {
@@ -85,8 +86,6 @@ export const initializeAppSlice = <T extends AppSlice>(
 };
 
 // Selectors to get app state and actions
-export const selectAppState = <T extends AppSlice>(state: T) => state.app;
-export const selectAppActions = <T extends AppSlice>(state: T) =>
-  state.appActions;
-export const selectAppCapabilities = <T extends AppSlice>(state: T) =>
-  state.capabilities;
+export const selectAppState = (state: StoreState) => state.app;
+export const selectAppActions = (state: StoreState) => state.appActions;
+export const selectAppCapabilities = (state: StoreState) => state.capabilities;
