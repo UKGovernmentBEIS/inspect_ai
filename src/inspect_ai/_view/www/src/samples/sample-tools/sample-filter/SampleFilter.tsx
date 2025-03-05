@@ -17,7 +17,7 @@ import { EditorView, minimalSetup } from "codemirror";
 import { FC, useEffect, useMemo, useRef, useState } from "react";
 
 import { SampleSummary } from "../../../api/types";
-import { useEvalDescriptor } from "../../../state/logStore";
+import { useEvalDescriptor } from "../../../state/hooks";
 import { ScoreFilter } from "../../../types";
 import { EvalDescriptor } from "../../descriptor/types";
 import { FilterError, filterSamples, scoreFilterItems } from "../filters";
