@@ -305,7 +305,7 @@ pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
 :::
 
 
-Inspect asynchronous code is written using the [AnyIO](https://anyio.readthedocs.io/en/stable/) library, which is an async backend indepedent implementation of async primitives (e.g. tasks, synchonization, subprocesss, streams, etc.).
+Inspect asynchronous code is written using the [AnyIO](https://anyio.readthedocs.io/en/stable/) library, which is an async backend independent implementation of async primitives (e.g. tasks, synchronization, subprocesses, streams, etc.).
 
 AnyIO in turn supports two backends: Python's built-in [asyncio](https://docs.python.org/3/library/asyncio.html) library as well as the [Trio](https://trio.readthedocs.io/en/stable/) async framework. By default, Inspect uses asyncio and is compatible with user code that uses native asyncio functions.
 
