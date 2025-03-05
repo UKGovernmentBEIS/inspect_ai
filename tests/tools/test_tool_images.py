@@ -1,5 +1,3 @@
-import os
-
 from test_helpers.utils import (
     skip_if_no_anthropic,
     skip_if_no_google,
@@ -7,11 +5,14 @@ from test_helpers.utils import (
 )
 
 from inspect_ai import Task, eval, task
+from inspect_ai._util.constants import PKG_PATH
 from inspect_ai._util.images import file_as_data_uri
 from inspect_ai.dataset import Sample
 from inspect_ai.scorer import includes
 from inspect_ai.solver import generate, use_tools
 from inspect_ai.tool import ContentImage, tool
+
+IMAGES_PATH = PKG_PATH / ".." / ".." / "tests" / "dataset" / "test_dataset" / "images"
 
 
 @tool
@@ -23,9 +24,7 @@ def camera():
         Returns:
             Image with a picture of the environment
         """
-        ballons = os.path.join(
-            "..", "..", "tests", "dataset", "test_dataset", "images", "ballons.png"
-        )
+        ballons = (IMAGES_PATH / "ballons.png").as_posix()
 
         return ContentImage(image=await file_as_data_uri(ballons))
 
