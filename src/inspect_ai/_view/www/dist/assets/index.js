@@ -17905,6 +17905,7 @@ self.onmessage = function (e) {
           clearTimeout(timeoutId);
           timeoutId = null;
         }
+        log2.debug("Stop Polling");
         isPolling = false;
         isStopped = true;
       };
@@ -17935,6 +17936,9 @@ self.onmessage = function (e) {
             return;
           }
           const backoffTime = calculateBackoff(retryCount);
+          log2.debug(
+            `Retry ${retryCount}/${maxRetries}, backoff: ${backoffTime / 1e3}s`
+          );
           timeoutId = setTimeout(poll, backoffTime);
         }
       };
@@ -17942,6 +17946,7 @@ self.onmessage = function (e) {
         if (isPolling) {
           return;
         }
+        log2.debug("Start Polling");
         isPolling = true;
         isStopped = false;
         poll();
@@ -18007,6 +18012,7 @@ self.onmessage = function (e) {
         }
         const pendingSampleSummaries = get2().log.pendingSampleSummaries;
         if (((pendingSampleSummaries == null ? void 0 : pendingSampleSummaries.samples.length) || 0) > 0) {
+          log$5.debug(`CLEAR PENDING: ${logFileName}`);
           set2((state) => {
             state.log.pendingSampleSummaries = {
               samples: [],
@@ -18023,6 +18029,7 @@ self.onmessage = function (e) {
         }
       };
       const cleanup = () => {
+        log$5.debug(`CLEANUP`);
         isActive = false;
         stopPolling();
       };
@@ -18061,7 +18068,6 @@ self.onmessage = function (e) {
             set2((state) => {
               state.log.selectedLogSummary = selectedLogSummary;
             });
-            get2().logActions.selectSample(0);
             if (selectedLogSummary.status !== "started" && selectedLogSummary.sampleSummaries.length === 0) {
               get2().appActions.setWorkspaceTab(kInfoWorkspaceTabId);
             }
@@ -18097,9 +18103,11 @@ self.onmessage = function (e) {
               console.error("API not initialized in Store");
               return;
             }
+            log$4.debug(`LOAD LOG: ${logFileName}`);
             try {
               const logContents = await api2.get_log_summary(logFileName);
               state.logActions.setSelectedLogSummary(logContents);
+              state.logActions.selectSample(0);
               state.logActions.resetFiltering();
               const header2 = {
                 [logFileName]: {
@@ -18125,6 +18133,7 @@ self.onmessage = function (e) {
             if (!api2 || !selectedLogFile) {
               return;
             }
+            log$4.debug(`REFRESH: ${selectedLogFile}`);
             try {
               const logContents = await api2.get_log_summary(selectedLogFile);
               state.logActions.setSelectedLogSummary(logContents);
@@ -18157,6 +18166,7 @@ self.onmessage = function (e) {
           currentPolling.stop();
         }
         isActive = true;
+        log$3.debug("LOADING HEADERS");
         get2().logsActions.setHeadersLoading(true);
         const chunkSize = 8;
         const fileLists = [];
@@ -18209,6 +18219,7 @@ self.onmessage = function (e) {
         }
       };
       const cleanup = () => {
+        log$3.debug(`CLEANUP`);
         isActive = false;
         stopPolling();
       };
@@ -18283,6 +18294,7 @@ self.onmessage = function (e) {
             }
           },
           refreshLogs: async () => {
+            log$2.debug("REFRESH LOGS");
             const state = get2();
             const refreshedLogs = await state.logsActions.loadLogs();
             state.logsActions.setLogs(refreshedLogs || { log_dir: "", files: [] });
@@ -18447,6 +18459,7 @@ self.onmessage = function (e) {
         }
       };
       const cleanup = () => {
+        log$1.debug(`CLEANUP`);
         isActive = false;
         stopPolling();
       };
@@ -65090,7 +65103,7 @@ ${events}
     };
     const kSampleHeight = 88;
     const kSeparatorHeight = 24;
-    const SampleList = (props) => {
+    const SampleList = reactExports.memo((props) => {
       const {
         items,
         running: running2,
@@ -65109,31 +65122,6 @@ ${events}
       reactExports.useEffect(() => {
         setHidden(false);
       }, [items]);
-      const itemRowMapping = reactExports.useMemo(() => {
-        const rowIndexes = [];
-        items.forEach((item2, index2) => {
-          if (item2.type === "sample") {
-            rowIndexes.push(index2);
-          }
-        });
-        return rowIndexes;
-      }, [items]);
-      const prevSelectedIndexRef = reactExports.useRef(null);
-      reactExports.useEffect(() => {
-        const listEl = listHandle.current;
-        if (listEl && itemRowMapping.length > selectedSampleIndex) {
-          const actualRowIndex = itemRowMapping[selectedSampleIndex];
-          requestAnimationFrame(() => {
-            setTimeout(() => {
-              try {
-                listEl.scrollToIndex(actualRowIndex);
-                prevSelectedIndexRef.current = actualRowIndex;
-              } catch {
-              }
-            }, 25);
-          });
-        }
-      }, [selectedSampleIndex, listHandle, itemRowMapping]);
       const onkeydown = reactExports.useCallback(
         (e) => {
           switch (e.key) {
@@ -65261,7 +65249,7 @@ ${events}
         ),
         /* @__PURE__ */ jsxRuntimeExports.jsx(SampleFooter, { sampleCount, running: running2 })
       ] });
-    };
+    });
     const gridColumnsValue = (sampleDescriptor) => {
       const { input: input2, target: target2, answer: answer2, limit, id, score: score2 } = gridColumns(sampleDescriptor);
       return `${id} ${input2} ${target2} ${answer2} ${limit} ${score2}`;
@@ -65458,7 +65446,6 @@ ${events}
       const groupBy = useGroupBy();
       const groupByOrder = useGroupByOrder();
       const currentScore = useScore();
-      const sampleStatus = useStore((state) => state.sample.sampleStatus);
       const selectedSample = useStore((state) => state.sample.selectedSample);
       const [items, setItems] = reactExports.useState([]);
       const [sampleItems, setSampleItems] = reactExports.useState([]);
@@ -65480,16 +65467,17 @@ ${events}
         [selectSample, setShowingSampleDialog]
       );
       reactExports.useEffect(() => {
+        setTimeout(() => {
+          if (sampleListHandle.current) {
+            sampleListHandle.current.scrollIntoView({ index: selectedSampleIndex });
+          }
+        }, 0);
+      }, [selectedSampleIndex]);
+      reactExports.useEffect(() => {
         if (showingSampleDialog) {
           setTimeout(() => {
             var _a3;
             (_a3 = sampleDialogRef.current) == null ? void 0 : _a3.focus();
-          }, 0);
-        } else {
-          setTimeout(() => {
-            if (sampleListHandle.current) {
-              sampleListHandle.current.scrollToIndex(0);
-            }
           }, 0);
         }
       }, [showingSampleDialog]);
@@ -65527,28 +65515,21 @@ ${events}
           }) : []
         );
       }, [sampleSummaries, sampleProcessor]);
-      const nextSampleIndex = reactExports.useCallback(() => {
-        if (selectedSampleIndex < sampleItems.length - 1) {
-          return selectedSampleIndex + 1;
-        } else {
-          return -1;
-        }
-      }, [selectedSampleIndex, sampleItems.length]);
       const previousSampleIndex = reactExports.useCallback(() => {
         return selectedSampleIndex > 0 ? selectedSampleIndex - 1 : -1;
       }, [selectedSampleIndex]);
       const nextSample = reactExports.useCallback(() => {
-        const next = nextSampleIndex();
-        if (sampleStatus !== "loading" && next > -1) {
+        const next = Math.min(selectedSampleIndex + 1, sampleItems.length - 1);
+        if (next > -1) {
           selectSample(next);
         }
-      }, [nextSampleIndex, sampleStatus, selectSample, showingSampleDialog]);
+      }, [selectedSampleIndex, sampleItems, selectSample]);
       const previousSample = reactExports.useCallback(() => {
         const prev = previousSampleIndex();
-        if (sampleStatus !== "loading" && prev > -1) {
+        if (prev > -1) {
           selectSample(prev);
         }
-      }, [previousSampleIndex, sampleStatus, selectSample, showingSampleDialog]);
+      }, [previousSampleIndex, selectSample]);
       const title2 = selectedSampleIndex > -1 && sampleItems.length > selectedSampleIndex ? sampleItems[selectedSampleIndex].label : "";
       if (totalSampleCount === 0) {
         return /* @__PURE__ */ jsxRuntimeExports.jsx(EmptyPanel, { children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: "No samples" }) });
