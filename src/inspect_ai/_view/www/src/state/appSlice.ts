@@ -42,8 +42,8 @@ export const createAppSlice = (
   set: (fn: (state: StoreState) => void) => void,
   get: () => StoreState,
   _store: any,
-) => {
-  return {
+): [AppSlice, () => void] => {
+  const slice = {
     // State
     app: initialState,
     capabilities: {} as Capabilities,
@@ -103,6 +103,10 @@ export const createAppSlice = (
       },
     },
   } as const;
+
+  const cleanup = () => {};
+
+  return [slice, cleanup];
 };
 
 export const initializeAppSlice = (

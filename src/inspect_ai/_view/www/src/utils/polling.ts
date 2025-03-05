@@ -21,7 +21,11 @@ export const createPolling = (
   const { maxRetries, interval } = options;
   let timeoutId: Timeout = null;
   let retryCount = 0;
+  // Are we currently polling
   let isPolling = false;
+
+  // Are we stopped (e.g. cleaning up)
+  let isStopped = false;
 
   const calculateBackoff = (retryCount: number) => {
     return Math.min(interval * Math.pow(2, retryCount) * 1000, 60000);
@@ -34,17 +38,18 @@ export const createPolling = (
     }
     log.debug("Stop Polling");
     isPolling = false;
+    isStopped = true;
   };
 
   const poll = async () => {
-    if (!isPolling) {
-      return;
-    }
-
     try {
       log.debug("Poll");
-      const shouldContinue = await callback();
+      // Don't proceed if polling has been stopped
+      if (!isPolling || isStopped) {
+        return;
+      }
 
+      const shouldContinue = await callback();
       if (shouldContinue === false) {
         stop();
         return;
@@ -52,8 +57,16 @@ export const createPolling = (
 
       // Reset retry count on success
       retryCount = 0;
+      if (!isPolling || isStopped) {
+        return;
+      }
       timeoutId = setTimeout(poll, interval * 1000);
     } catch (e) {
+      // Don't retry if polling has been stopped
+      if (!isPolling || isStopped) {
+        return;
+      }
+
       retryCount += 1;
 
       if (retryCount >= maxRetries) {
@@ -76,6 +89,7 @@ export const createPolling = (
     }
     log.debug("Start Polling");
     isPolling = true;
+    isStopped = false;
     poll();
   };
 
