@@ -1,11 +1,11 @@
 import {
   FC,
   KeyboardEvent,
+  memo,
   RefObject,
   useCallback,
   useEffect,
   useMemo,
-  useRef,
   useState,
 } from "react";
 import { Virtuoso, VirtuosoHandle } from "react-virtuoso";
@@ -36,7 +36,7 @@ interface SampleListProps {
   listHandle: RefObject<VirtuosoHandle | null>;
 }
 
-export const SampleList: FC<SampleListProps> = (props) => {
+export const SampleList: FC<SampleListProps> = memo((props) => {
   const {
     items,
     running,
@@ -57,37 +57,6 @@ export const SampleList: FC<SampleListProps> = (props) => {
   useEffect(() => {
     setHidden(false);
   }, [items]);
-
-  // Keep a mapping of the indexes to items (skipping separators)
-  const itemRowMapping = useMemo(() => {
-    const rowIndexes: number[] = [];
-    items.forEach((item, index) => {
-      if (item.type === "sample") {
-        rowIndexes.push(index);
-      }
-    });
-    return rowIndexes;
-  }, [items]);
-
-  const prevSelectedIndexRef = useRef<number>(null);
-  useEffect(() => {
-    const listEl = listHandle.current;
-    if (listEl && itemRowMapping.length > selectedSampleIndex) {
-      const actualRowIndex = itemRowMapping[selectedSampleIndex];
-
-      requestAnimationFrame(() => {
-        setTimeout(() => {
-          try {
-            listEl.scrollToIndex(actualRowIndex);
-            prevSelectedIndexRef.current = actualRowIndex;
-          } catch {
-            // TODO: Improve our behavior with regards to scrolling
-            // Theory: calling this while following the bottom of the list isn't great
-          }
-        }, 25);
-      });
-    }
-  }, [selectedSampleIndex, listHandle, itemRowMapping]);
 
   const onkeydown = useCallback(
     (e: KeyboardEvent<HTMLDivElement>) => {
@@ -225,7 +194,7 @@ export const SampleList: FC<SampleListProps> = (props) => {
       <SampleFooter sampleCount={sampleCount} running={running} />
     </div>
   );
-};
+});
 
 const gridColumnsValue = (sampleDescriptor?: SamplesDescriptor) => {
   const { input, target, answer, limit, id, score } =

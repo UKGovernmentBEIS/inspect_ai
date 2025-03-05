@@ -85,8 +85,6 @@ export const createLogSlice = (
           state.log.selectedLogSummary = selectedLogSummary;
         });
 
-        // Select the first sample
-        get().logActions.selectSample(0);
         if (
           selectedLogSummary.status !== "started" &&
           selectedLogSummary.sampleSummaries.length === 0
@@ -142,6 +140,7 @@ export const createLogSlice = (
         try {
           const logContents = await api.get_log_summary(logFileName);
           state.logActions.setSelectedLogSummary(logContents);
+          state.logActions.selectSample(0);
           state.logActions.resetFiltering();
 
           // Push the updated header information up
