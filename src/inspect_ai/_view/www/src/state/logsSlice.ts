@@ -39,8 +39,8 @@ export const createLogsSlice = (
   set: (fn: (state: StoreState) => void) => void,
   get: () => StoreState,
   _store: any,
-) => {
-  return {
+): [LogsSlice, () => void] => {
+  const slice = {
     // State
     logs: initialState,
 
@@ -229,6 +229,10 @@ export const createLogsSlice = (
       },
     },
   } as const;
+
+  const cleanup = () => {};
+
+  return [slice, cleanup];
 };
 
 export const initializeLogsSlice = <T extends LogsSlice>(

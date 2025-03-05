@@ -25712,7 +25712,7 @@ self.onmessage = function (e) {
       }
     };
     const createAppSlice = (set2, get2, _store) => {
-      return {
+      const slice = {
         // State
         app: initialState$4,
         capabilities: {},
@@ -25765,6 +25765,9 @@ self.onmessage = function (e) {
           }
         }
       };
+      const cleanup = () => {
+      };
+      return [slice, cleanup];
     };
     const initializeAppSlice = (set2, capabilities2, restoreState) => {
       set2((state) => {
@@ -25800,6 +25803,7 @@ self.onmessage = function (e) {
       let timeoutId = null;
       let retryCount = 0;
       let isPolling = false;
+      let isStopped = false;
       const calculateBackoff = (retryCount2) => {
         return Math.min(interval * Math.pow(2, retryCount2) * 1e3, 6e4);
       };
@@ -25810,21 +25814,28 @@ self.onmessage = function (e) {
         }
         log2.debug("Stop Polling");
         isPolling = false;
+        isStopped = true;
       };
       const poll = async () => {
-        if (!isPolling) {
-          return;
-        }
         try {
           log2.debug("Poll");
+          if (!isPolling || isStopped) {
+            return;
+          }
           const shouldContinue = await callback();
           if (shouldContinue === false) {
             stop();
             return;
           }
           retryCount = 0;
+          if (!isPolling || isStopped) {
+            return;
+          }
           timeoutId = setTimeout(poll, interval * 1e3);
         } catch (e) {
+          if (!isPolling || isStopped) {
+            return;
+          }
           retryCount += 1;
           if (retryCount >= maxRetries) {
             log2.error(`Polling stopped after ${maxRetries} failed attempts`);
@@ -25844,6 +25855,7 @@ self.onmessage = function (e) {
         }
         log2.debug("Start Polling");
         isPolling = true;
+        isStopped = false;
         poll();
       };
       return { start, stop };
@@ -25851,24 +25863,36 @@ self.onmessage = function (e) {
     const log$4 = createLogger("logPolling");
     function createLogPolling(get2, set2) {
       let currentPolling = null;
+      let isActive = true;
       const startPolling = (logFileName) => {
         var _a2;
         if (currentPolling) {
           currentPolling.stop();
         }
+        isActive = true;
         currentPolling = createPolling(
           `PendingSamples-${logFileName}`,
           async () => {
             var _a3;
+            if (!isActive) {
+              log$4.debug(`Component unmounted, stopping poll for: ${logFileName}`);
+              return false;
+            }
             const state = get2();
             const api2 = state.api;
             if (!(api2 == null ? void 0 : api2.get_log_pending_samples)) return false;
             const currentEtag = (_a3 = get2().log.pendingSampleSummaries) == null ? void 0 : _a3.etag;
             log$4.debug(`POLL RUNNING SAMPLES: ${logFileName}`);
+            if (!isActive) {
+              return false;
+            }
             const pendingSamples = await api2.get_log_pending_samples(
               logFileName,
               currentEtag
             );
+            if (!isActive) {
+              return false;
+            }
             if (pendingSamples.status === "OK" && pendingSamples.pendingSamples) {
               set2((state2) => {
                 state2.log.pendingSampleSummaries = pendingSamples.pendingSamples;
@@ -25890,6 +25914,9 @@ self.onmessage = function (e) {
         currentPolling.start();
       };
       const clearPendingSummaries = (logFileName) => {
+        if (!isActive) {
+          return false;
+        }
         const pendingSampleSummaries = get2().log.pendingSampleSummaries;
         if (((pendingSampleSummaries == null ? void 0 : pendingSampleSummaries.samples.length) || 0) > 0) {
           log$4.debug(`CLEAR PENDING: ${logFileName}`);
@@ -25908,10 +25935,16 @@ self.onmessage = function (e) {
           currentPolling = null;
         }
       };
+      const cleanup = () => {
+        log$4.debug(`CLEANUP`);
+        isActive = false;
+        stopPolling();
+      };
       return {
         startPolling,
         stopPolling,
-        clearPendingSummaries
+        clearPendingSummaries,
+        cleanup
       };
     }
     const log$3 = createLogger("logSlice");
@@ -25930,7 +25963,7 @@ self.onmessage = function (e) {
     };
     const createLogSlice = (set2, get2, _store) => {
       const logPolling = createLogPolling(get2, set2);
-      return {
+      const slice = {
         // State
         log: initialState$3,
         // Actions
@@ -25943,7 +25976,7 @@ self.onmessage = function (e) {
               state.log.selectedLogSummary = selectedLogSummary;
             });
             get2().logActions.selectSample(0);
-            if (selectedLogSummary.status !== "started") {
+            if (selectedLogSummary.status !== "started" && selectedLogSummary.sampleSummaries.length === 0) {
               get2().appActions.setWorkspaceTab(kInfoWorkspaceTabId);
             }
           },
@@ -26017,6 +26050,10 @@ self.onmessage = function (e) {
           }
         }
       };
+      const cleanup = () => {
+        logPolling.cleanup();
+      };
+      return [slice, cleanup];
     };
     const initalializeLogSlice = (set2, restoreState) => {
       set2((state) => {
@@ -26031,7 +26068,7 @@ self.onmessage = function (e) {
       selectedLogIndex: -1
     };
     const createLogsSlice = (set2, get2, _store) => {
-      return {
+      const slice = {
         // State
         logs: initialState$2,
         // Actions
@@ -26177,6 +26214,9 @@ self.onmessage = function (e) {
           }
         }
       };
+      const cleanup = () => {
+      };
+      return [slice, cleanup];
     };
     const initializeLogsSlice = (set2, restoreState) => {
       set2((state) => {
@@ -26235,12 +26275,20 @@ self.onmessage = function (e) {
     const log$1 = createLogger("samplePolling");
     function createSamplePolling(get2, _set) {
       let currentPolling = null;
+      let isActive = true;
       const startPolling = (logFile, summary2) => {
         if (currentPolling) {
           currentPolling.stop();
         }
+        isActive = true;
         log$1.debug(`POLLING RUNNING SAMPLE: ${summary2.id}-${summary2.epoch}`);
         const pollCallback = async () => {
+          if (!isActive) {
+            log$1.debug(
+              `Component unmounted, stopping poll for: ${summary2.id}-${summary2.epoch}`
+            );
+            return false;
+          }
           const api2 = get2().api;
           if (!api2) {
             throw new Error("Required API is missing");
@@ -26249,15 +26297,24 @@ self.onmessage = function (e) {
             return false;
           }
           log$1.debug(`GET RUNNING SAMPLE: ${summary2.id}-${summary2.epoch}`);
+          if (!isActive) {
+            return false;
+          }
           const sampleDataResponse = await api2.get_log_sample_data(
             logFile,
             summary2.id,
             summary2.epoch
           );
+          if (!isActive) {
+            return false;
+          }
           if ((sampleDataResponse == null ? void 0 : sampleDataResponse.status) === "NotFound") {
             return false;
           }
           if ((sampleDataResponse == null ? void 0 : sampleDataResponse.status) === "OK" && sampleDataResponse.sampleData) {
+            if (!isActive) {
+              return false;
+            }
             const adapter = sampleDataAdapter();
             adapter.addData(sampleDataResponse.sampleData);
             const events = adapter.resolvedEvents();
@@ -26282,9 +26339,15 @@ self.onmessage = function (e) {
           currentPolling = null;
         }
       };
+      const cleanup = () => {
+        log$1.debug(`CLEANUP`);
+        isActive = false;
+        stopPolling();
+      };
       return {
         startPolling,
-        stopPolling
+        stopPolling,
+        cleanup
       };
     }
     const log = createLogger("sampleSlice");
@@ -26308,7 +26371,7 @@ self.onmessage = function (e) {
         return sample2;
       };
       const samplePolling = createSamplePolling(get2);
-      return {
+      const slice = {
         // Actions
         sample: initialState$1,
         sampleActions: {
@@ -26372,6 +26435,10 @@ self.onmessage = function (e) {
           }
         }
       };
+      const cleanup = () => {
+        samplePolling.cleanup();
+      };
+      return [slice, cleanup];
     };
     const initializeSampleSlice = (set2, restoreState) => {
       set2((state) => {
@@ -26380,25 +26447,37 @@ self.onmessage = function (e) {
     };
     const useStore = create$2()(
       persist(
-        immer((set2, get2, store) => ({
-          // Shared state
-          api: null,
-          // Initialize
-          initialize: (api2, capabilities2) => {
-            set2((state) => {
-              state.api = api2;
-            });
-            initializeAppSlice(set2, capabilities2);
-            initializeLogsSlice(set2);
-            initalializeLogSlice(set2);
-            initializeSampleSlice(set2);
-          },
-          // Create the slices and merge them in
-          ...createAppSlice(set2, get2),
-          ...createLogsSlice(set2, get2),
-          ...createLogSlice(set2, get2),
-          ...createSampleSlice(set2, get2)
-        })),
+        immer((set2, get2, store) => {
+          const [appSlice, appCleanup] = createAppSlice(set2, get2);
+          const [logsSlice, logsCleanup] = createLogsSlice(set2, get2);
+          const [logSlice, logCleanup] = createLogSlice(set2, get2);
+          const [sampleSlice, sampleCleanup] = createSampleSlice(set2, get2);
+          return {
+            // Shared state
+            api: null,
+            // Initialize
+            initialize: (api2, capabilities2) => {
+              set2((state) => {
+                state.api = api2;
+              });
+              initializeAppSlice(set2, capabilities2);
+              initializeLogsSlice(set2);
+              initalializeLogSlice(set2);
+              initializeSampleSlice(set2);
+            },
+            // Create the slices and merge them in
+            ...appSlice,
+            ...logsSlice,
+            ...logSlice,
+            ...sampleSlice,
+            cleanup: () => {
+              appCleanup();
+              logsCleanup();
+              logCleanup();
+              sampleCleanup();
+            }
+          };
+        }),
         {
           name: "app-storage",
           partialize: (state) => ({

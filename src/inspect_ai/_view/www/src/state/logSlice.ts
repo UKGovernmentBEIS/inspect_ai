@@ -66,10 +66,10 @@ export const createLogSlice = (
   set: (fn: (state: StoreState) => void) => void,
   get: () => StoreState,
   _store: any,
-) => {
+): [LogSlice, () => void] => {
   const logPolling = createLogPolling(get, set);
 
-  return {
+  const slice = {
     // State
     log: initialState,
 
@@ -186,6 +186,12 @@ export const createLogSlice = (
       },
     },
   } as const;
+
+  const cleanup = () => {
+    logPolling.cleanup();
+  };
+
+  return [slice, cleanup];
 };
 
 // Initialize app slice with StoreState

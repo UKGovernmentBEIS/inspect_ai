@@ -14,6 +14,9 @@ export function createSamplePolling(
   // Tracks the currently polling instance
   let currentPolling: ReturnType<typeof createPolling> | null = null;
 
+  // Track whether or not we're active
+  let isActive = true;
+
   // Function to start polling for a specific log file
   const startPolling = (logFile: string, summary: SampleSummary) => {
     // Stop any existing polling first
@@ -21,10 +24,20 @@ export function createSamplePolling(
       currentPolling.stop();
     }
 
+    // Note that we're active when we start polling
+    isActive = true;
+
     log.debug(`POLLING RUNNING SAMPLE: ${summary.id}-${summary.epoch}`);
 
     // Create the polling callback
     const pollCallback = async () => {
+      if (!isActive) {
+        log.debug(
+          `Component unmounted, stopping poll for: ${summary.id}-${summary.epoch}`,
+        );
+        return false; // Stop polling
+      }
+
       const api = get().api;
       if (!api) {
         throw new Error("Required API is missing");
@@ -35,11 +48,20 @@ export function createSamplePolling(
       }
 
       log.debug(`GET RUNNING SAMPLE: ${summary.id}-${summary.epoch}`);
+
+      if (!isActive) {
+        return false; // Stop polling
+      }
+
       const sampleDataResponse = await api.get_log_sample_data(
         logFile,
         summary.id,
         summary.epoch,
       );
+
+      if (!isActive) {
+        return false; // Stop polling
+      }
 
       if (sampleDataResponse?.status === "NotFound") {
         // Stop polling
@@ -50,6 +72,10 @@ export function createSamplePolling(
         sampleDataResponse?.status === "OK" &&
         sampleDataResponse.sampleData
       ) {
+        if (!isActive) {
+          return false; // Stop polling
+        }
+
         const adapter = sampleDataAdapter();
         adapter.addData(sampleDataResponse.sampleData);
         const events = adapter.resolvedEvents();
@@ -81,8 +107,15 @@ export function createSamplePolling(
     }
   };
 
+  const cleanup = () => {
+    log.debug(`CLEANUP`);
+    isActive = false;
+    stopPolling();
+  };
+
   return {
     startPolling,
     stopPolling,
+    cleanup,
   };
 }

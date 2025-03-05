@@ -12,6 +12,9 @@ export function createLogPolling(
   // Tracks the currently polling instance
   let currentPolling: ReturnType<typeof createPolling> | null = null;
 
+  // Are we active
+  let isActive = true;
+
   // Function to start polling for a specific log file
   const startPolling = (logFileName: string) => {
     // Stop any existing polling
@@ -19,10 +22,18 @@ export function createLogPolling(
       currentPolling.stop();
     }
 
+    // note that we're active
+    isActive = true;
+
     // Create a new polling instance
     currentPolling = createPolling(
       `PendingSamples-${logFileName}`,
       async () => {
+        if (!isActive) {
+          log.debug(`Component unmounted, stopping poll for: ${logFileName}`);
+          return false; // Stop polling
+        }
+
         const state = get();
         const api = state.api;
 
@@ -32,10 +43,19 @@ export function createLogPolling(
         const currentEtag = get().log.pendingSampleSummaries?.etag;
 
         log.debug(`POLL RUNNING SAMPLES: ${logFileName}`);
+
+        if (!isActive) {
+          return false; // Stop polling
+        }
+
         const pendingSamples = await api.get_log_pending_samples(
           logFileName,
           currentEtag,
         );
+
+        if (!isActive) {
+          return false; // Stop polling
+        }
 
         if (pendingSamples.status === "OK" && pendingSamples.pendingSamples) {
           // Update state with new pending samples
@@ -73,6 +93,10 @@ export function createLogPolling(
 
   // Clear pending summaries
   const clearPendingSummaries = (logFileName: string) => {
+    if (!isActive) {
+      return false; // Stop polling
+    }
+
     const pendingSampleSummaries = get().log.pendingSampleSummaries;
     if ((pendingSampleSummaries?.samples.length || 0) > 0) {
       log.debug(`CLEAR PENDING: ${logFileName}`);
@@ -94,9 +118,17 @@ export function createLogPolling(
     }
   };
 
+  // Method to call when component unmounts
+  const cleanup = () => {
+    log.debug(`CLEANUP`);
+    isActive = false;
+    stopPolling();
+  };
+
   return {
     startPolling,
     stopPolling,
     clearPendingSummaries,
+    cleanup,
   };
 }

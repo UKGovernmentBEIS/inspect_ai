@@ -41,7 +41,7 @@ export const createSampleSlice = (
   set: (fn: (state: StoreState) => void) => void,
   get: () => StoreState,
   _store: any,
-) => {
+): [SampleSlice, () => void] => {
   // Migrates old versions of samples to the new structure
   const migrateOldSample = (sample: any) => {
     if (sample.transcript) {
@@ -59,7 +59,7 @@ export const createSampleSlice = (
   // The sample poller
   const samplePolling = createSamplePolling(get, set);
 
-  return {
+  const slice = {
     // Actions
     sample: initialState,
     sampleActions: {
@@ -132,6 +132,11 @@ export const createSampleSlice = (
       },
     },
   } as const;
+
+  const cleanup = () => {
+    samplePolling.cleanup();
+  };
+  return [slice, cleanup];
 };
 
 export const initializeSampleSlice = (
