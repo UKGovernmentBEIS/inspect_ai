@@ -21,15 +21,9 @@ import { WorkSpace } from "./workspace/WorkSpace";
 
 import ClipboardJS from "clipboard";
 import clsx from "clsx";
-import { FC, useCallback, useEffect, useRef, useState } from "react";
+import { FC, useCallback, useEffect, useRef } from "react";
 import { ClientAPI, HostMessage } from "./api/types.ts";
-import {
-  kEvalWorkspaceTabId,
-  kInfoWorkspaceTabId,
-  kSampleMessagesTabId,
-  kSampleTranscriptTabId,
-} from "./constants";
-import { useTotalSampleCount } from "./state/hooks.ts";
+import { kEvalWorkspaceTabId } from "./constants";
 import { useStore } from "./state/store.ts";
 import { ApplicationState } from "./types.ts";
 
@@ -48,6 +42,10 @@ export const App: FC<AppProps> = ({ api, applicationState }) => {
   const setAppStatus = useStore((state) => state.appActions.setStatus);
   const offCanvas = useStore((state) => state.app.offcanvas);
   const setOffCanvas = useStore((state) => state.appActions.setOffcanvas);
+  const setSelectedWorkspaceTab = useStore(
+    (state) => state.appActions.setWorkspaceTab,
+  );
+  const clearSampleTab = useStore((state) => state.appActions.clearSampleTab);
 
   // Find
   const nativeFind = useStore((state) => state.capabilities.nativeFind);
@@ -71,14 +69,10 @@ export const App: FC<AppProps> = ({ api, applicationState }) => {
   const selectLogFile = useStore((state) => state.logsActions.selectLogFile);
 
   // Log Data
-  const selectedSampleIndex = useStore(
-    (state) => state.log.selectedSampleIndex,
-  );
   const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
   const runningMetrics = useStore(
     (state) => state.log.pendingSampleSummaries?.metrics,
   );
-  const selectSample = useStore((state) => state.logActions.selectSample);
   const resetFiltering = useStore((state) => state.logActions.resetFiltering);
   const loadLog = useStore((state) => state.logActions.loadLog);
   const refreshLog = useStore((state) => state.logActions.refreshLog);
@@ -87,29 +81,16 @@ export const App: FC<AppProps> = ({ api, applicationState }) => {
   const clearSelectedSample = useStore(
     (state) => state.sampleActions.clearSelectedSample,
   );
-  const selectedSample = useStore((state) => state.sample.selectedSample);
 
   // The main application reference
   const mainAppRef = useRef<HTMLDivElement>(null);
-
-  // Workspace (the selected tab)
-  const [selectedWorkspaceTab, setSelectedWorkspaceTab] = useState<string>(
-    applicationState?.selectedWorkspaceTab || kEvalWorkspaceTabId,
-  );
-
-  const [selectedSampleTab, setSelectedSampleTab] = useState<
-    string | undefined
-  >(applicationState?.selectedSampleTab);
-  const sampleScrollPosition = useRef<number>(
-    applicationState?.sampleScrollPosition || 0,
-  );
 
   const workspaceTabScrollPosition = useRef<Record<string, number>>(
     applicationState?.workspaceTabScrollPosition || {},
   );
 
-  const [showingSampleDialog, setShowingSampleDialog] = useState<boolean>(
-    !!applicationState?.showingSampleDialog,
+  const sampleScrollPosition = useRef<number>(
+    applicationState?.sampleScrollPosition || 0,
   );
 
   const setSampleScrollPosition = useCallback(
@@ -133,50 +114,6 @@ export const App: FC<AppProps> = ({ api, applicationState }) => {
     }, 1000),
     [],
   );
-
-  // Save state when it changes, so that we can restore it later
-  //
-  useEffect(() => {
-    // TODO Save state somehow
-  }, [selectedWorkspaceTab, selectedSampleTab, showingSampleDialog]);
-
-  const handleSampleShowingDialog = useCallback(
-    (show: boolean) => {
-      setShowingSampleDialog(show);
-    },
-    [setShowingSampleDialog],
-  );
-
-  useEffect(() => {
-    if (!showingSampleDialog) {
-      clearSelectedSample();
-      setSelectedSampleTab(undefined);
-    }
-  }, [showingSampleDialog, clearSelectedSample, setSelectedSampleTab]);
-
-  useEffect(() => {
-    if (!selectedSample) return;
-
-    const newTab =
-      (selectedSample.events?.length || 0) > 0
-        ? kSampleTranscriptTabId
-        : kSampleMessagesTabId;
-
-    if (selectedSampleTab === undefined) {
-      setSelectedSampleTab(newTab);
-    }
-  }, [selectedSample, selectedSampleTab]);
-
-  // Clear the selected sample when log file changes
-  useEffect(() => {
-    if (!logs.files[selectedLogIndex] || selectedSampleIndex === -1) {
-      clearSelectedSample();
-    }
-  }, [selectedSampleIndex, selectedLogIndex, logs, clearSelectedSample]);
-
-  useEffect(() => {
-    selectSample(0);
-  }, [selectedLogFile, selectSample]);
 
   // Load a specific log
   useEffect(() => {
@@ -202,22 +139,16 @@ export const App: FC<AppProps> = ({ api, applicationState }) => {
 
   useEffect(() => {
     // Reset the workspace
+
     setSelectedWorkspaceTab(kEvalWorkspaceTabId);
 
     // Reset the sample tab
-    setSelectedSampleTab(undefined);
+    clearSampleTab();
 
     workspaceTabScrollPosition.current = {};
 
     clearSelectedSample();
   }, [selectedLogSummary?.eval.task_id, clearSelectedSample]);
-
-  const totalSampleCount = useTotalSampleCount();
-  useEffect(() => {
-    if (selectedLogSummary && totalSampleCount === 0) {
-      setSelectedWorkspaceTab(kInfoWorkspaceTabId);
-    }
-  }, [selectedLogSummary]);
 
   useEffect(() => {
     if (logs.log_dir && logs.files.length === 0) {
@@ -385,12 +316,6 @@ export const App: FC<AppProps> = ({ api, applicationState }) => {
             runningMetrics={runningMetrics}
             showToggle={showToggle}
             refreshLog={appRefreshLog}
-            showingSampleDialog={showingSampleDialog}
-            setShowingSampleDialog={handleSampleShowingDialog}
-            selectedTab={selectedWorkspaceTab}
-            setSelectedTab={setSelectedWorkspaceTab}
-            selectedSampleTab={selectedSampleTab}
-            setSelectedSampleTab={setSelectedSampleTab}
             sampleScrollPositionRef={sampleScrollPosition}
             setSampleScrollPosition={setSampleScrollPosition}
             workspaceTabScrollPositionRef={workspaceTabScrollPosition}

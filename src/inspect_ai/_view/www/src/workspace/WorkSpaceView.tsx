@@ -14,6 +14,7 @@ import { debounce } from "../utils/sync";
 import { Navbar } from "./navbar/Navbar";
 import { TabDescriptor } from "./types";
 
+import { useStore } from "../state/store";
 import styles from "./WorkSpaceView.module.css";
 
 interface WorkSpaceViewProps {
@@ -25,8 +26,6 @@ interface WorkSpaceViewProps {
   status?: Status;
   showToggle: boolean;
   tabs: Record<string, TabDescriptor>;
-  selectedTab: string;
-  setSelectedTab: (tab: string) => void;
   divRef: RefObject<HTMLDivElement | null>;
   workspaceTabScrollPositionRef: RefObject<Record<string, number>>;
   setWorkspaceTabScrollPosition: (tab: string, pos: number) => void;
@@ -40,13 +39,14 @@ export const WorkSpaceView: FC<WorkSpaceViewProps> = ({
   evalStats,
   status,
   showToggle,
-  selectedTab,
   tabs,
-  setSelectedTab,
   divRef,
   workspaceTabScrollPositionRef,
   setWorkspaceTabScrollPosition,
 }) => {
+  const selectedTab = useStore((state) => state.app.tabs.workspace);
+  const setSelectedTab = useStore((state) => state.appActions.setWorkspaceTab);
+
   const onSelected = useCallback(
     (e: MouseEvent<HTMLElement>) => {
       const id = e.currentTarget?.id;
