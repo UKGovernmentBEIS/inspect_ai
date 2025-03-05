@@ -2,6 +2,8 @@ import anyio
 
 from inspect_ai.model import ChatMessageUser, GenerateConfig, get_model
 
+# create a BlockingPortal (single one for entire process) then start_soon the code that waits using the BlockingPortal
+
 
 async def test_hf():
     model = get_model(
