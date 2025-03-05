@@ -8,6 +8,7 @@ import os
 import time
 from concurrent.futures import Future
 from dataclasses import dataclass
+from logging import getLogger
 from queue import Empty, Queue
 from threading import Thread
 from typing import Any, Literal, Protocol, cast
@@ -26,6 +27,7 @@ from typing_extensions import override
 
 from inspect_ai._util.constants import DEFAULT_MAX_TOKENS
 from inspect_ai._util.content import ContentText
+from inspect_ai._util.trace import trace_action
 from inspect_ai.tool import ToolChoice, ToolInfo
 
 from .._chat_message import ChatMessage, ChatMessageAssistant
@@ -40,6 +42,9 @@ from .._model_output import (
     TopLogprob,
 )
 from .util import ChatAPIHandler, HFHandler
+
+logger = getLogger(__name__)
+
 
 HF_TOKEN = "HF_TOKEN"
 
@@ -408,12 +413,13 @@ async def batched_generate(input: GenerateInput) -> GenerateOutput:
     batch_queue.put(_QueueItem(input=input, future=future))
 
     # await the future
-    while True:
-        try:
-            return future.result(timeout=0.01)
-        except concurrent.futures.TimeoutError:
-            pass
-        await anyio.sleep(1)
+    with trace_action(logger, "HF Batched Generate", "HF Batched Generate"):
+        while True:
+            try:
+                return future.result(timeout=0.01)
+            except concurrent.futures.TimeoutError:
+                pass
+            await anyio.sleep(1)
 
 
 def process_batches() -> None:
