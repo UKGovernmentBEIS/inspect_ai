@@ -188,15 +188,6 @@ export const createLogsSlice = (
             state.logsActions.setSelectedLogIndex(newIndex);
           }
         }
-
-        // Always load headers if we have files, regardless of how logs were refreshed
-        if (refreshedLogs.files.length > 0) {
-          setTimeout(() => {
-            if (!state.logs.headersLoading) {
-              state.logsActions.loadHeaders();
-            }
-          }, 100);
-        }
       },
       // Select a specific log file
       selectLogFile: async (logUrl: string) => {
