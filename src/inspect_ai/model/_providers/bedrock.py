@@ -248,7 +248,7 @@ class BedrockAPI(ModelAPI):
         # raise if we are using trio
         if current_async_backend() == "trio":
             raise PrerequisiteError(
-                "The bedrock provider does not work with the trio async backend."
+                "ERROR: The bedrock provider does not work with the trio async backend."
             )
 
         # save model_args
