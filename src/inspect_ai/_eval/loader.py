@@ -306,11 +306,12 @@ def create_file_tasks(
             setattr(task, TASK_RUN_DIR_ATTR, run_dir)
             tasks.append(task)
 
-            # warn about deprecated chdir attrib
+            # warn that chdir is deprecated
             if "chdir" in task.attribs:
                 warn_once(
                     logger,
-                    "The 'chdir' task attribute is deprecated (tasks now always chdir)",
+                    "The 'chdir' task attribute is deprecated and will be removed in a future release "
+                    + "(you should write your tasks to not depend on their runtime working directory)",
                 )
 
         return tasks
