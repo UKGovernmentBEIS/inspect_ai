@@ -3,7 +3,6 @@ import { FC, useCallback } from "react";
 import { RunningMetric } from "../../api/types";
 import { ApplicationIcons } from "../../appearance/icons";
 import { CopyButton } from "../../components/CopyButton";
-import { useSelectedLogFile } from "../../state/logsStore";
 import { useStore } from "../../state/store";
 import { EvalResults, EvalSpec, Status } from "../../types/log";
 import { filename } from "../../utils/path";
@@ -36,9 +35,11 @@ export const PrimaryBar: FC<PrimaryBarProps> = ({
   const offCanvas = useStore((state) => state.app.offcanvas);
   const setOffCanvas = useStore((state) => state.appActions.setOffcanvas);
   const streamSamples = useStore((state) => state.capabilities.streamSamples);
+  const selectedLogFile = useStore((state) =>
+    state.logsActions.getSelectedLogFile(),
+  );
 
-  const selectedFileName = useSelectedLogFile();
-  const logFileName = selectedFileName ? filename(selectedFileName) : "";
+  const logFileName = selectedLogFile ? filename(selectedLogFile) : "";
 
   const handleToggle = useCallback(() => {
     setOffCanvas(!offCanvas);
@@ -96,7 +97,7 @@ export const PrimaryBar: FC<PrimaryBarProps> = ({
             <div className={clsx("navbar-secondary-text", "text-truncate")}>
               {logFileName}
             </div>
-            {selectedFileName ? <CopyButton value={selectedFileName} /> : ""}
+            {selectedLogFile ? <CopyButton value={selectedLogFile} /> : ""}
           </div>
         </div>
       </div>

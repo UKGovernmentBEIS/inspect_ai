@@ -4,8 +4,8 @@ import { ProgressBar } from "../components/ProgressBar";
 import { SampleDisplay } from "./SampleDisplay";
 
 import { useSelectedSampleSummary } from "../state/logStore";
-import { useSelectedLogFile } from "../state/logsStore";
 import { useLoadSample, useSampleStore } from "../state/sampleStore";
+import { useStore } from "../state/store";
 import styles from "./InlineSampleDisplay.module.css";
 
 interface InlineSampleDisplayProps {
@@ -30,7 +30,9 @@ export const InlineSampleDisplay: FC<InlineSampleDisplayProps> = ({
   const runningSampleData = useSampleStore((state) => state.runningSampleData);
   const selectedSampleSummary = useSelectedSampleSummary();
   const loadSample = useLoadSample();
-  const selectedLogFile = useSelectedLogFile();
+  const selectedLogFile = useStore((state) =>
+    state.logsActions.getSelectedLogFile(),
+  );
 
   useEffect(() => {
     if (selectedLogFile && selectedSampleSummary) {

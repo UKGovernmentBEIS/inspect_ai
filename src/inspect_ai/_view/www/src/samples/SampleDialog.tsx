@@ -11,9 +11,9 @@ import {
   useRef,
 } from "react";
 import { ErrorPanel } from "../components/ErrorPanel";
-import { useSelectedLogFile } from "../state/logsStore";
 import { useSelectedSampleSummary } from "../state/logStore";
 import { useLoadSample, useSampleStore } from "../state/sampleStore";
+import { useStore } from "../state/store";
 import { SampleDisplay } from "./SampleDisplay";
 
 interface SampleDialogProps {
@@ -52,7 +52,9 @@ export const SampleDialog: FC<SampleDialogProps> = ({
   const runningSampleData = useSampleStore((state) => state.runningSampleData);
   const selectedSampleSummary = useSelectedSampleSummary();
   const loadSample = useLoadSample();
-  const selectedLogFile = useSelectedLogFile();
+  const selectedLogFile = useStore((state) =>
+    state.logsActions.getSelectedLogFile(),
+  );
 
   useEffect(() => {
     if (selectedLogFile && selectedSampleSummary) {

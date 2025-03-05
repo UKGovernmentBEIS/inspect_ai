@@ -255,7 +255,6 @@ export const initializeSampleStore = (
 export function useLoadSample() {
   return (logFile: string, sampleSummary: SampleSummary) => {
     if (logFile && sampleSummary) {
-      console.log("LOAD SAMPLE FROM " + logFile);
       useSampleStore.getState().loadSample(logFile, sampleSummary);
     } else {
       throw new Error("Can't load samples when there is no log file");
