@@ -334,7 +334,11 @@ class SandboxEnvironments:
 
 
 class SandboxEnvironmentSpec(BaseModel, frozen=True):
-    """Specification of a SandboxEnvironment."""
+    """Specification of a SandboxEnvironment.
+
+    Used to be a NamedTuple, so some tuple functionality is maintained for backward
+    compatibility.
+    """
 
     type: str
     """Sandbox type (e.g. 'local', 'docker')"""
@@ -343,7 +347,6 @@ class SandboxEnvironmentSpec(BaseModel, frozen=True):
     config: Annotated[Any, "BaseModel, str or None"] = None
     """Sandbox configuration (filename or config object)."""
 
-    # Maintain backward compatibility for old NamedTuple usage.
     def __init__(self, type: str, config: BaseModel | str | None = None):
         super().__init__(type=type, config=config)
 
@@ -358,7 +361,6 @@ class SandboxEnvironmentSpec(BaseModel, frozen=True):
             data["config"] = deserialize_sandbox_specific_config(type, config)
         return data
 
-    # Maintain backward compatibility for old NamedTuple usage.
     def __getitem__(self, key: int | str) -> Any:
         if isinstance(key, int):
             # Convert to a tuple and use integer indexing.
@@ -366,7 +368,6 @@ class SandboxEnvironmentSpec(BaseModel, frozen=True):
             return values_tuple[key]
         return getattr(self, key)
 
-    # Maintain backward compatibility for old NamedTuple usage.
     def __iter__(self) -> Iterator[Any]:  # type: ignore
         for name in self.__annotations__:
             yield getattr(self, name)
