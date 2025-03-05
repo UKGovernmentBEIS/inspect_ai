@@ -4,6 +4,8 @@ import os
 import sys
 from typing import Any, Awaitable, Callable, Set, cast
 
+from inspect_ai._util.trace import trace_action
+
 if sys.version_info < (3, 11):
     from exceptiongroup import ExceptionGroup
 
@@ -330,7 +332,10 @@ async def run_multiple(tasks: list[TaskRunOptions], parallel: int) -> list[EvalL
             next_task = next(t for t in pending_tasks if str(t.model) == model)
             pending_tasks.remove(next_task)
             model_counts[str(next_task.model)] += 1
-            await send_channel.send(next_task)
+            with trace_action(
+                log, "Enque Task", f"task: {next_task.task.name} ({next_task.model})"
+            ):
+                await send_channel.send(next_task)
             return True
         else:
             return False
@@ -341,11 +346,16 @@ async def run_multiple(tasks: list[TaskRunOptions], parallel: int) -> list[EvalL
             async for task_options in receive_channel:
                 result: EvalLog | None = None
 
-                # remove the task from the queue and run it
+                # run the task
                 try:
-                    tg_results = await tg_collect(
-                        [functools.partial(task_run, task_options)]
-                    )
+                    with trace_action(
+                        log,
+                        "Run Task",
+                        f"task: {task_options.task.name} ({task_options.model})",
+                    ):
+                        tg_results = await tg_collect(
+                            [functools.partial(task_run, task_options)]
+                        )
                     # check for empty results list (indicates cancellation)
                     if len(tg_results) == 0:
                         # task was cancelled, break out of the worker loop
