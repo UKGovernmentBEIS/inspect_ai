@@ -21,7 +21,7 @@ export const useWhyDidYouUpdate = (componentName: string, props: any) => {
       if (Object.keys(changedProps).length > 0) {
         console.log(`[${componentName}] props changed:`, changedProps);
       } else {
-        console.log("No props changed");
+        console.log(`[${componentName}] no props changed`);
       }
     }
 
