@@ -1,4 +1,5 @@
 import { SampleSummary } from "../api/types";
+import { kSampleMessagesTabId } from "../constants";
 import { RunningSampleData, SampleState, SampleStatus } from "../types";
 import { EvalSample } from "../types/log";
 import { resolveAttachments } from "../utils/attachments";
@@ -62,10 +63,15 @@ export const createSampleSlice = (
     // Actions
     sample: initialState,
     sampleActions: {
-      setSelectedSample: (sample: EvalSample) =>
+      setSelectedSample: (sample: EvalSample) => {
         set((state) => {
           state.sample.selectedSample = sample;
-        }),
+        });
+        if (sample.events.length < 1) {
+          // If there are no events, use the messages tab as the default
+          get().appActions.setSampleTab(kSampleMessagesTabId);
+        }
+      },
       clearSelectedSample: () =>
         set((state) => {
           state.sample.selectedSample = undefined;

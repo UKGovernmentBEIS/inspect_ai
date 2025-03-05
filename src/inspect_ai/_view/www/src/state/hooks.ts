@@ -86,7 +86,7 @@ export const useSampleDescriptor = () => {
   const sampleSummaries = useSampleSummaries();
   const score = useScore();
   return useMemo(() => {
-    return evalDescriptor && score
+    return evalDescriptor
       ? createSamplesDescriptor(sampleSummaries, evalDescriptor, score)
       : undefined;
   }, [evalDescriptor, sampleSummaries, score]);
