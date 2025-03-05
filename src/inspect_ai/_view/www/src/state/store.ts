@@ -18,33 +18,49 @@ export interface StoreState extends AppSlice, LogsSlice, LogSlice, SampleSlice {
 
   // Global actions
   initialize: (api: ClientAPI, capabilities: Capabilities) => void;
+
+  cleanup: () => void;
 }
 
 export const useStore = create<StoreState>()(
   persist(
-    immer((set, get, store) => ({
-      // Shared state
-      api: null,
+    immer((set, get, store) => {
+      const [appSlice, appCleanup] = createAppSlice(set, get, store);
+      const [logsSlice, logsCleanup] = createLogsSlice(set, get, store);
+      const [logSlice, logCleanup] = createLogSlice(set, get, store);
+      const [sampleSlice, sampleCleanup] = createSampleSlice(set, get, store);
 
-      // Initialize
-      initialize: (api, capabilities) => {
-        set((state) => {
-          state.api = api;
-        });
+      return {
+        // Shared state
+        api: null,
 
-        // Initialize application slices
-        initializeAppSlice(set, capabilities);
-        initializeLogsSlice(set);
-        initalializeLogSlice(set);
-        initializeSampleSlice(set);
-      },
+        // Initialize
+        initialize: (api, capabilities) => {
+          set((state) => {
+            state.api = api;
+          });
 
-      // Create the slices and merge them in
-      ...createAppSlice(set, get, store),
-      ...createLogsSlice(set, get, store),
-      ...createLogSlice(set, get, store),
-      ...createSampleSlice(set, get, store),
-    })),
+          // Initialize application slices
+          initializeAppSlice(set, capabilities);
+          initializeLogsSlice(set);
+          initalializeLogSlice(set);
+          initializeSampleSlice(set);
+        },
+
+        // Create the slices and merge them in
+        ...appSlice,
+        ...logsSlice,
+        ...logSlice,
+        ...sampleSlice,
+
+        cleanup: () => {
+          appCleanup();
+          logsCleanup();
+          logCleanup();
+          sampleCleanup();
+        },
+      };
+    }),
     {
       name: "app-storage",
       partialize: (state) => ({
