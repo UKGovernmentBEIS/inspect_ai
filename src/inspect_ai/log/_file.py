@@ -109,11 +109,10 @@ def write_eval_log(
        format (Literal["eval", "json", "auto"]): Write to format
           (defaults to 'auto' based on `log_file` extension)
     """
-    # we used to allow calling this from async code, so detect this and provide
-    # a more sensible error message
-    if current_async_backend() is not None:
+    # don't mix trio and asyncio
+    if current_async_backend() == "trio":
         raise RuntimeError(
-            "write_eval_log cannot be called from an async context (please use write_eval_log_async instead)"
+            "write_eval_log cannot be called from a trio async context (please use write_eval_log_async instead)"
         )
 
     # will use s3fs and is not called from main inspect solver/scorer/tool/sandbox
@@ -218,11 +217,10 @@ def read_eval_log(
     Returns:
        EvalLog object read from file.
     """
-    # we used to allow calling this from async code, so detect this and provide
-    # a more sensible error message
-    if current_async_backend() is not None:
+    # don't mix trio and asyncio
+    if current_async_backend() == "trio":
         raise RuntimeError(
-            "read_eval_log cannot be called from an async context (please use read_eval_log_async instead)"
+            "read_eval_log cannot be called from a trio async context (please use read_eval_log_async instead)"
         )
 
     # will use s3fs and is not called from main inspect solver/scorer/tool/sandbox
@@ -325,9 +323,10 @@ def read_eval_log_sample(
     Raises:
        IndexError: If the passed id and epoch are not found.
     """
-    if current_async_backend() is not None:
+    # don't mix trio and asyncio
+    if current_async_backend() == "trio":
         raise RuntimeError(
-            "read_eval_log_sample cannot be called from an async context (please use read_eval_log_sample_async instead)"
+            "read_eval_log_sample cannot be called from a trio async context (please use read_eval_log_sample_async instead)"
         )
 
     # will use s3fs and is not called from main inspect solver/scorer/tool/sandbox
