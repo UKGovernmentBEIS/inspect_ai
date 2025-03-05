@@ -106,13 +106,13 @@ def init_nest_asyncio() -> None:
 
 def current_async_backend() -> Literal["asyncio", "trio"] | None:
     try:
-        return _validate_backend(sniffio.current_async_library())
+        return _validate_backend(sniffio.current_async_library().lower())
     except sniffio.AsyncLibraryNotFoundError:
         return None
 
 
 def configured_async_backend() -> Literal["asyncio", "trio"]:
-    backend = os.environ.get("INSPECT_ASYNC_BACKEND", "asyncio")
+    backend = os.environ.get("INSPECT_ASYNC_BACKEND", "asyncio").lower()
     return _validate_backend(backend)
 
 
