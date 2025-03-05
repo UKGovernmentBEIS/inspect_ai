@@ -1,4 +1,5 @@
 import { Capabilities } from "../api/types";
+import { kEvalWorkspaceTabId, kSampleTranscriptTabId } from "../constants";
 import { AppState, AppStatus } from "../types";
 import { clearDocumentSelection } from "../utils/browser";
 import { StoreState } from "./store";
@@ -11,18 +12,35 @@ export interface AppSlice {
     setOffcanvas: (show: boolean) => void;
     setShowFind: (show: boolean) => void;
     hideFind: () => void;
+
+    setShowingSampleDialog: (showing: boolean) => void;
+    setWorkspaceTab: (tab: string) => void;
+    clearWorkspaceTab: () => void;
+
+    setSampleTab: (tab: string) => void;
+    clearSampleTab: () => void;
   };
 }
+
+const kDefaultWorkspaceTab = kEvalWorkspaceTabId;
+const kDefaultSampleTab = kSampleTranscriptTabId;
 
 const initialState: AppState = {
   status: { loading: false },
   offcanvas: false,
   showFind: false,
+  dialogs: {
+    sample: false,
+  },
+  tabs: {
+    workspace: kDefaultWorkspaceTab,
+    sample: kDefaultSampleTab,
+  },
 };
 
 export const createAppSlice = (
   set: (fn: (state: StoreState) => void) => void,
-  _get: () => StoreState,
+  get: () => StoreState,
   _store: any,
 ) => {
   return {
@@ -51,6 +69,36 @@ export const createAppSlice = (
         clearDocumentSelection();
         set((state) => {
           state.app.showFind = false;
+        });
+      },
+      setShowingSampleDialog: (showing: boolean) => {
+        set((state) => {
+          state.app.dialogs.sample = showing;
+        });
+        if (!showing) {
+          const state = get();
+          state.appActions.clearSampleTab();
+          state.sampleActions.clearSelectedSample();
+        }
+      },
+      setWorkspaceTab: (tab: string) => {
+        set((state) => {
+          state.app.tabs.workspace = tab;
+        });
+      },
+      clearWorkspaceTab: () => {
+        set((state) => {
+          state.app.tabs.workspace = kDefaultWorkspaceTab;
+        });
+      },
+      setSampleTab: (tab: string) => {
+        set((state) => {
+          state.app.tabs.sample = tab;
+        });
+      },
+      clearSampleTab: () => {
+        set((state) => {
+          state.app.tabs.sample = kDefaultSampleTab;
         });
       },
     },

@@ -28,10 +28,6 @@ import { ListItem } from "./types.ts";
 interface SamplesTabProps {
   // Required props
   running: boolean;
-  showingSampleDialog: boolean;
-  setShowingSampleDialog: (showing: boolean) => void;
-  selectedSampleTab?: string;
-  setSelectedSampleTab: (tab: string) => void;
   sampleScrollPositionRef: RefObject<number>;
   setSampleScrollPosition: (position: number) => void;
   sampleTabScrollRef: RefObject<HTMLDivElement | null>;
@@ -39,10 +35,6 @@ interface SamplesTabProps {
 
 export const SamplesTab: FC<SamplesTabProps> = ({
   running,
-  showingSampleDialog,
-  setShowingSampleDialog,
-  selectedSampleTab,
-  setSelectedSampleTab,
   sampleScrollPositionRef,
   setSampleScrollPosition,
   sampleTabScrollRef,
@@ -69,6 +61,15 @@ export const SamplesTab: FC<SamplesTabProps> = ({
 
   const sampleListHandle = useRef<VirtuosoHandle | null>(null);
   const sampleDialogRef = useRef<HTMLDivElement>(null);
+
+  const selectedSampleTab = useStore((state) => state.app.tabs.sample);
+  const setSelectedSampleTab = useStore(
+    (state) => state.appActions.setSampleTab,
+  );
+  const showingSampleDialog = useStore((state) => state.app.dialogs.sample);
+  const setShowingSampleDialog = useStore(
+    (state) => state.appActions.setShowingSampleDialog,
+  );
 
   // Shows the sample dialog
   const showSample = useCallback(
@@ -168,7 +169,7 @@ export const SamplesTab: FC<SamplesTabProps> = ({
       ? sampleItems[selectedSampleIndex].label
       : "";
 
-  if (!samplesDescriptor) {
+  if (totalSampleCount === 0) {
     return (
       <EmptyPanel>
         <div>No samples</div>

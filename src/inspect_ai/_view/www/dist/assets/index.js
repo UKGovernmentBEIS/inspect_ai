@@ -25665,52 +25665,6 @@ self.onmessage = function (e) {
       return initializer(store.setState, get2, store);
     };
     const immer = immerImpl;
-    const clearDocumentSelection = () => {
-      const sel = window.getSelection();
-      if (sel) {
-        if (sel.removeAllRanges) {
-          sel.removeAllRanges();
-        } else if (sel.empty) {
-          sel.empty();
-        }
-      }
-    };
-    const initialState$4 = {
-      status: { loading: false },
-      offcanvas: false,
-      showFind: false
-    };
-    const createAppSlice = (set2, _get, _store) => {
-      return {
-        // State
-        app: initialState$4,
-        capabilities: {},
-        // Actions
-        appActions: {
-          setStatus: (status2) => set2((state) => {
-            state.app.status = status2;
-          }),
-          setOffcanvas: (show) => set2((state) => {
-            state.app.offcanvas = show;
-          }),
-          setShowFind: (show) => set2((state) => {
-            state.app.showFind = show;
-          }),
-          hideFind: () => {
-            clearDocumentSelection();
-            set2((state) => {
-              state.app.showFind = false;
-            });
-          }
-        }
-      };
-    };
-    const initializeAppSlice = (set2, capabilities2, restoreState) => {
-      set2((state) => {
-        state.capabilities = capabilities2;
-        state.app = { ...initialState$4 };
-      });
-    };
     const kEvalWorkspaceTabId = "eval-tab";
     const kJsonWorkspaceTabId = "json-tab";
     const kInfoWorkspaceTabId = "plan-tab";
@@ -25733,6 +25687,91 @@ self.onmessage = function (e) {
     const kScoreAscVal = "score-asc";
     const kScoreDescVal = "score-desc";
     const kDefaultSort = kSampleAscVal;
+    const clearDocumentSelection = () => {
+      const sel = window.getSelection();
+      if (sel) {
+        if (sel.removeAllRanges) {
+          sel.removeAllRanges();
+        } else if (sel.empty) {
+          sel.empty();
+        }
+      }
+    };
+    const kDefaultWorkspaceTab = kEvalWorkspaceTabId;
+    const kDefaultSampleTab = kSampleTranscriptTabId;
+    const initialState$4 = {
+      status: { loading: false },
+      offcanvas: false,
+      showFind: false,
+      dialogs: {
+        sample: false
+      },
+      tabs: {
+        workspace: kDefaultWorkspaceTab,
+        sample: kDefaultSampleTab
+      }
+    };
+    const createAppSlice = (set2, get2, _store) => {
+      return {
+        // State
+        app: initialState$4,
+        capabilities: {},
+        // Actions
+        appActions: {
+          setStatus: (status2) => set2((state) => {
+            state.app.status = status2;
+          }),
+          setOffcanvas: (show) => set2((state) => {
+            state.app.offcanvas = show;
+          }),
+          setShowFind: (show) => set2((state) => {
+            state.app.showFind = show;
+          }),
+          hideFind: () => {
+            clearDocumentSelection();
+            set2((state) => {
+              state.app.showFind = false;
+            });
+          },
+          setShowingSampleDialog: (showing) => {
+            set2((state) => {
+              state.app.dialogs.sample = showing;
+            });
+            if (!showing) {
+              const state = get2();
+              state.appActions.clearSampleTab();
+              state.sampleActions.clearSelectedSample();
+            }
+          },
+          setWorkspaceTab: (tab2) => {
+            set2((state) => {
+              state.app.tabs.workspace = tab2;
+            });
+          },
+          clearWorkspaceTab: () => {
+            set2((state) => {
+              state.app.tabs.workspace = kDefaultWorkspaceTab;
+            });
+          },
+          setSampleTab: (tab2) => {
+            set2((state) => {
+              state.app.tabs.sample = tab2;
+            });
+          },
+          clearSampleTab: () => {
+            set2((state) => {
+              state.app.tabs.sample = kDefaultSampleTab;
+            });
+          }
+        }
+      };
+    };
+    const initializeAppSlice = (set2, capabilities2, restoreState) => {
+      set2((state) => {
+        state.capabilities = capabilities2;
+        state.app = { ...initialState$4 };
+      });
+    };
     const createLogger = (namespace) => {
       const logger = {
         debug: (message2, ...args) => {
@@ -25899,9 +25938,15 @@ self.onmessage = function (e) {
           selectSample: (index) => set2((state) => {
             state.log.selectedSampleIndex = index;
           }),
-          setSelectedLogSummary: (selectedLogSummary) => set2((state) => {
-            state.log.selectedLogSummary = selectedLogSummary;
-          }),
+          setSelectedLogSummary: (selectedLogSummary) => {
+            set2((state) => {
+              state.log.selectedLogSummary = selectedLogSummary;
+            });
+            get2().logActions.selectSample(0);
+            if (selectedLogSummary.status !== "started") {
+              get2().appActions.setWorkspaceTab(kInfoWorkspaceTabId);
+            }
+          },
           setPendingSampleSummaries: (pendingSampleSummaries) => set2((state) => {
             state.log.pendingSampleSummaries = pendingSampleSummaries;
           }),
@@ -26215,7 +26260,9 @@ self.onmessage = function (e) {
           if ((sampleDataResponse == null ? void 0 : sampleDataResponse.status) === "OK" && sampleDataResponse.sampleData) {
             const adapter = sampleDataAdapter();
             adapter.addData(sampleDataResponse.sampleData);
-            const runningData = { events: adapter.resolvedEvents(), summary: summary2 };
+            const events = adapter.resolvedEvents();
+            const runningData = { events, summary: summary2 };
+            log$1.debug(`EVENTS: ${events.length}`);
             get2().sampleActions.setRunningSampleData(runningData);
           }
           return true;
@@ -26265,9 +26312,14 @@ self.onmessage = function (e) {
         // Actions
         sample: initialState$1,
         sampleActions: {
-          setSelectedSample: (sample2) => set2((state) => {
-            state.sample.selectedSample = sample2;
-          }),
+          setSelectedSample: (sample2) => {
+            set2((state) => {
+              state.sample.selectedSample = sample2;
+            });
+            if (sample2.events.length < 1) {
+              get2().appActions.setSampleTab(kSampleMessagesTabId);
+            }
+          },
           clearSelectedSample: () => set2((state) => {
             state.sample.selectedSample = void 0;
           }),
@@ -26342,7 +26394,7 @@ self.onmessage = function (e) {
             initializeSampleSlice(set2);
           },
           // Create the slices and merge them in
-          ...createAppSlice(set2),
+          ...createAppSlice(set2, get2),
           ...createLogsSlice(set2, get2),
           ...createLogSlice(set2, get2),
           ...createSampleSlice(set2, get2)
@@ -39634,7 +39686,7 @@ categories: ${categories.join(" ")}`;
       const sampleSummaries = useSampleSummaries();
       const score2 = useScore();
       return reactExports.useMemo(() => {
-        return evalDescriptor && score2 ? createSamplesDescriptor(sampleSummaries, evalDescriptor, score2) : void 0;
+        return evalDescriptor ? createSamplesDescriptor(sampleSummaries, evalDescriptor, score2) : void 0;
       }, [evalDescriptor, sampleSummaries, score2]);
     };
     const useFilteredSamples = () => {
@@ -75552,7 +75604,7 @@ ${events}
       const sampleData = useSampleData();
       const logSelection = useLogSelection();
       reactExports.useEffect(() => {
-        if (logSelection.logFile && logSelection.sample) {
+        if (logSelection.logFile) {
           sampleData.loadSample(logSelection.logFile, logSelection.sample);
         }
       }, [logSelection.logFile, logSelection.sample]);
@@ -76820,10 +76872,6 @@ ${events}
     };
     const SamplesTab = ({
       running: running2,
-      showingSampleDialog,
-      setShowingSampleDialog,
-      selectedSampleTab,
-      setSelectedSampleTab,
       sampleScrollPositionRef,
       setSampleScrollPosition,
       sampleTabScrollRef
@@ -76846,6 +76894,14 @@ ${events}
       const [sampleItems, setSampleItems] = reactExports.useState([]);
       const sampleListHandle = reactExports.useRef(null);
       const sampleDialogRef = reactExports.useRef(null);
+      const selectedSampleTab = useStore((state) => state.app.tabs.sample);
+      const setSelectedSampleTab = useStore(
+        (state) => state.appActions.setSampleTab
+      );
+      const showingSampleDialog = useStore((state) => state.app.dialogs.sample);
+      const setShowingSampleDialog = useStore(
+        (state) => state.appActions.setShowingSampleDialog
+      );
       const showSample = reactExports.useCallback(
         (index) => {
           selectSample(index);
@@ -76924,14 +76980,14 @@ ${events}
         }
       }, [previousSampleIndex, sampleStatus, selectSample, showingSampleDialog]);
       const title2 = selectedSampleIndex > -1 && sampleItems.length > selectedSampleIndex ? sampleItems[selectedSampleIndex].label : "";
-      if (!samplesDescriptor) {
+      if (totalSampleCount === 0) {
         return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(EmptyPanel, { children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { children: "No samples" }, void 0, false, {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/tabs/SamplesTab.tsx",
-          lineNumber: 174,
+          lineNumber: 175,
           columnNumber: 9
         }, void 0) }, void 0, false, {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/tabs/SamplesTab.tsx",
-          lineNumber: 173,
+          lineNumber: 174,
           columnNumber: 7
         }, void 0);
       } else {
@@ -76948,7 +77004,7 @@ ${events}
             false,
             {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/tabs/SamplesTab.tsx",
-              lineNumber: 181,
+              lineNumber: 182,
               columnNumber: 11
             },
             void 0
@@ -76967,7 +77023,7 @@ ${events}
             false,
             {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/tabs/SamplesTab.tsx",
-              lineNumber: 189,
+              lineNumber: 190,
               columnNumber: 11
             },
             void 0
@@ -76990,14 +77046,14 @@ ${events}
             false,
             {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/tabs/SamplesTab.tsx",
-              lineNumber: 199,
+              lineNumber: 200,
               columnNumber: 11
             },
             void 0
           ) : void 0
         ] }, void 0, true, {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/tabs/SamplesTab.tsx",
-          lineNumber: 179,
+          lineNumber: 180,
           columnNumber: 7
         }, void 0);
       }
@@ -78851,13 +78907,13 @@ ${events}
       evalStats,
       status: status2,
       showToggle,
-      selectedTab,
       tabs: tabs2,
-      setSelectedTab,
       divRef,
       workspaceTabScrollPositionRef,
       setWorkspaceTabScrollPosition
     }) => {
+      const selectedTab = useStore((state) => state.app.tabs.workspace);
+      const setSelectedTab = useStore((state) => state.appActions.setWorkspaceTab);
       const onSelected = reactExports.useCallback(
         (e) => {
           var _a2;
@@ -78987,8 +79043,6 @@ ${events}
         evalResults,
         runningMetrics,
         showToggle,
-        selectedTab,
-        setSelectedTab,
         workspaceTabScrollPositionRef,
         setWorkspaceTabScrollPosition
       } = props;
@@ -79013,9 +79067,7 @@ ${events}
           evalStats,
           status: evalStatus,
           tabs: resolvedTabs,
-          selectedTab,
           showToggle,
-          setSelectedTab,
           workspaceTabScrollPositionRef,
           setWorkspaceTabScrollPosition
         },
@@ -79023,7 +79075,7 @@ ${events}
         false,
         {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/WorkSpace.tsx",
-          lineNumber: 93,
+          lineNumber: 85,
           columnNumber: 5
         },
         void 0
@@ -79049,15 +79101,12 @@ ${events}
         }, 1250);
       }
     };
-    const useSamplesTabConfig = (evalStatus, showingSampleDialog, setShowingSampleDialog, selectedSampleTab, setSelectedSampleTab, sampleScrollPositionRef, setSampleScrollPosition, refreshLog, sampleTabScrollRef) => {
+    const useSamplesTabConfig = (evalStatus, sampleScrollPositionRef, setSampleScrollPosition, refreshLog, sampleTabScrollRef) => {
       const totalSampleCount = useTotalSampleCount();
       const samplesDescriptor = useSampleDescriptor();
       const sampleSummaries = useFilteredSamples();
       const streamSamples = useStore((state) => state.capabilities.streamSamples);
       return reactExports.useMemo(() => {
-        if (totalSampleCount === 0) {
-          return null;
-        }
         return {
           id: kEvalWorkspaceTabId,
           scrollable: totalSampleCount === 1,
@@ -79067,10 +79116,6 @@ ${events}
             SamplesTab,
             {
               running: evalStatus === "started",
-              showingSampleDialog,
-              setShowingSampleDialog,
-              selectedSampleTab,
-              setSelectedSampleTab,
               sampleScrollPositionRef,
               setSampleScrollPosition,
               sampleTabScrollRef
@@ -79079,7 +79124,7 @@ ${events}
             false,
             {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/WorkSpace.tsx",
-              lineNumber: 160,
+              lineNumber: 142,
               columnNumber: 9
             },
             void 0
@@ -79094,7 +79139,7 @@ ${events}
               false,
               {
                 fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/WorkSpace.tsx",
-                lineNumber: 175,
+                lineNumber: 153,
                 columnNumber: 15
               },
               void 0
@@ -79110,7 +79155,7 @@ ${events}
               false,
               {
                 fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/WorkSpace.tsx",
-                lineNumber: 180,
+                lineNumber: 158,
                 columnNumber: 17
               },
               void 0
@@ -79119,15 +79164,13 @@ ${events}
         };
       }, [
         evalStatus,
-        showingSampleDialog,
-        setShowingSampleDialog,
-        selectedSampleTab,
-        setSelectedSampleTab,
         sampleScrollPositionRef,
         setSampleScrollPosition,
         refreshLog,
         sampleTabScrollRef,
-        samplesDescriptor
+        sampleSummaries,
+        samplesDescriptor,
+        totalSampleCount
       ]);
     };
     const useInfoTabConfig = (evalSpec, evalPlan, evalError, evalResults, evalStats) => {
@@ -79151,7 +79194,7 @@ ${events}
             false,
             {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/WorkSpace.tsx",
-              lineNumber: 218,
+              lineNumber: 194,
               columnNumber: 9
             },
             void 0
@@ -79159,10 +79202,11 @@ ${events}
         };
       }, [evalSpec, evalPlan, evalError, evalResults, evalStats, totalSampleCount]);
     };
-    const useJsonTabConfig = (evalVersion, evalStatus, evalSpec, evalPlan, evalError, evalResults, evalStats, selectedTab) => {
+    const useJsonTabConfig = (evalVersion, evalStatus, evalSpec, evalPlan, evalError, evalResults, evalStats) => {
       const selectedLogFile = useStore(
         (state) => state.logsActions.getSelectedLogFile()
       );
+      const selectedTab = useStore((state) => state.app.tabs.workspace);
       return reactExports.useMemo(() => {
         return {
           id: kJsonWorkspaceTabId,
@@ -79189,7 +79233,7 @@ ${events}
               false,
               {
                 fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/WorkSpace.tsx",
-                lineNumber: 262,
+                lineNumber: 238,
                 columnNumber: 11
               },
               void 0
@@ -79209,7 +79253,7 @@ ${events}
               false,
               {
                 fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/WorkSpace.tsx",
-                lineNumber: 270,
+                lineNumber: 246,
                 columnNumber: 9
               },
               void 0
@@ -79232,10 +79276,6 @@ ${events}
       const {
         evalVersion,
         evalStatus,
-        showingSampleDialog,
-        setShowingSampleDialog,
-        selectedSampleTab,
-        setSelectedSampleTab,
         sampleScrollPositionRef,
         setSampleScrollPosition,
         evalSpec,
@@ -79243,16 +79283,11 @@ ${events}
         evalResults,
         evalStats,
         evalError,
-        selectedTab,
         refreshLog
       } = props;
       const sampleTabScrollRef = reactExports.useRef(null);
       const samplesTabConfig = useSamplesTabConfig(
         evalStatus,
-        showingSampleDialog,
-        setShowingSampleDialog,
-        selectedSampleTab,
-        setSelectedSampleTab,
         sampleScrollPositionRef,
         setSampleScrollPosition,
         refreshLog,
@@ -79272,8 +79307,7 @@ ${events}
         evalPlan,
         evalError,
         evalResults,
-        evalStats,
-        selectedTab
+        evalStats
       );
       return reactExports.useMemo(
         () => ({
@@ -79933,6 +79967,10 @@ ${events}
       const setAppStatus = useStore((state) => state.appActions.setStatus);
       const offCanvas = useStore((state) => state.app.offcanvas);
       const setOffCanvas = useStore((state) => state.appActions.setOffcanvas);
+      const setSelectedWorkspaceTab = useStore(
+        (state) => state.appActions.setWorkspaceTab
+      );
+      const clearSampleTab = useStore((state) => state.appActions.clearSampleTab);
       const nativeFind = useStore((state) => state.capabilities.nativeFind);
       const showFind = useStore((state) => state.app.showFind);
       const setShowFind = useStore((state) => state.appActions.setShowFind);
@@ -79950,9 +79988,6 @@ ${events}
       );
       const refreshLogs = useStore((state) => state.logsActions.refreshLogs);
       const selectLogFile = useStore((state) => state.logsActions.selectLogFile);
-      const selectedSampleIndex = useStore(
-        (state) => state.log.selectedSampleIndex
-      );
       const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
       const runningMetrics = useStore(
         (state) => {
@@ -79960,27 +79995,18 @@ ${events}
           return (_a3 = state.log.pendingSampleSummaries) == null ? void 0 : _a3.metrics;
         }
       );
-      const selectSample = useStore((state) => state.logActions.selectSample);
       const resetFiltering = useStore((state) => state.logActions.resetFiltering);
       const loadLog = useStore((state) => state.logActions.loadLog);
       const refreshLog = useStore((state) => state.logActions.refreshLog);
       const clearSelectedSample = useStore(
         (state) => state.sampleActions.clearSelectedSample
       );
-      const selectedSample = useStore((state) => state.sample.selectedSample);
       const mainAppRef = reactExports.useRef(null);
-      const [selectedWorkspaceTab, setSelectedWorkspaceTab] = reactExports.useState(
-        (applicationState == null ? void 0 : applicationState.selectedWorkspaceTab) || kEvalWorkspaceTabId
-      );
-      const [selectedSampleTab, setSelectedSampleTab] = reactExports.useState(applicationState == null ? void 0 : applicationState.selectedSampleTab);
-      const sampleScrollPosition = reactExports.useRef(
-        (applicationState == null ? void 0 : applicationState.sampleScrollPosition) || 0
-      );
       const workspaceTabScrollPosition = reactExports.useRef(
         (applicationState == null ? void 0 : applicationState.workspaceTabScrollPosition) || {}
       );
-      const [showingSampleDialog, setShowingSampleDialog] = reactExports.useState(
-        !!(applicationState == null ? void 0 : applicationState.showingSampleDialog)
+      const sampleScrollPosition = reactExports.useRef(
+        (applicationState == null ? void 0 : applicationState.sampleScrollPosition) || 0
       );
       const setSampleScrollPosition = reactExports.useCallback(
         debounce$1((position) => {
@@ -80000,36 +80026,6 @@ ${events}
         []
       );
       reactExports.useEffect(() => {
-      }, [selectedWorkspaceTab, selectedSampleTab, showingSampleDialog]);
-      const handleSampleShowingDialog = reactExports.useCallback(
-        (show) => {
-          setShowingSampleDialog(show);
-        },
-        [setShowingSampleDialog]
-      );
-      reactExports.useEffect(() => {
-        if (!showingSampleDialog) {
-          clearSelectedSample();
-          setSelectedSampleTab(void 0);
-        }
-      }, [showingSampleDialog, clearSelectedSample, setSelectedSampleTab]);
-      reactExports.useEffect(() => {
-        var _a3;
-        if (!selectedSample) return;
-        const newTab = (((_a3 = selectedSample.events) == null ? void 0 : _a3.length) || 0) > 0 ? kSampleTranscriptTabId : kSampleMessagesTabId;
-        if (selectedSampleTab === void 0) {
-          setSelectedSampleTab(newTab);
-        }
-      }, [selectedSample, selectedSampleTab]);
-      reactExports.useEffect(() => {
-        if (!logs.files[selectedLogIndex] || selectedSampleIndex === -1) {
-          clearSelectedSample();
-        }
-      }, [selectedSampleIndex, selectedLogIndex, logs, clearSelectedSample]);
-      reactExports.useEffect(() => {
-        selectSample(0);
-      }, [selectedLogFile, selectSample]);
-      reactExports.useEffect(() => {
         const loadSpecificLog = async () => {
           if (selectedLogFile) {
             try {
@@ -80046,16 +80042,10 @@ ${events}
       }, [selectedLogFile, loadLog, setAppStatus]);
       reactExports.useEffect(() => {
         setSelectedWorkspaceTab(kEvalWorkspaceTabId);
-        setSelectedSampleTab(void 0);
+        clearSampleTab();
         workspaceTabScrollPosition.current = {};
         clearSelectedSample();
       }, [selectedLogSummary == null ? void 0 : selectedLogSummary.eval.task_id, clearSelectedSample]);
-      const totalSampleCount = useTotalSampleCount();
-      reactExports.useEffect(() => {
-        if (selectedLogSummary && totalSampleCount === 0) {
-          setSelectedWorkspaceTab(kInfoWorkspaceTabId);
-        }
-      }, [selectedLogSummary]);
       reactExports.useEffect(() => {
         if (logs.log_dir && logs.files.length === 0) {
           setAppStatus({
@@ -80159,7 +80149,7 @@ ${events}
           false,
           {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/App.tsx",
-            lineNumber: 336,
+            lineNumber: 267,
             columnNumber: 9
           },
           void 0
@@ -80187,12 +80177,12 @@ ${events}
             children: [
               !nativeFind && showFind ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(FindBand, {}, void 0, false, {
                 fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/App.tsx",
-                lineNumber: 368,
+                lineNumber: 299,
                 columnNumber: 36
               }, void 0) : "",
               /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(ProgressBar, { animating: appStatus.loading }, void 0, false, {
                 fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/App.tsx",
-                lineNumber: 369,
+                lineNumber: 300,
                 columnNumber: 9
               }, void 0),
               appStatus.error ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
@@ -80205,7 +80195,7 @@ ${events}
                 false,
                 {
                   fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/App.tsx",
-                  lineNumber: 371,
+                  lineNumber: 302,
                   columnNumber: 11
                 },
                 void 0
@@ -80223,12 +80213,6 @@ ${events}
                   runningMetrics,
                   showToggle,
                   refreshLog: appRefreshLog,
-                  showingSampleDialog,
-                  setShowingSampleDialog: handleSampleShowingDialog,
-                  selectedTab: selectedWorkspaceTab,
-                  setSelectedTab: setSelectedWorkspaceTab,
-                  selectedSampleTab,
-                  setSelectedSampleTab,
                   sampleScrollPositionRef: sampleScrollPosition,
                   setSampleScrollPosition,
                   workspaceTabScrollPositionRef: workspaceTabScrollPosition,
@@ -80238,7 +80222,7 @@ ${events}
                 false,
                 {
                   fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/App.tsx",
-                  lineNumber: 376,
+                  lineNumber: 307,
                   columnNumber: 11
                 },
                 void 0
@@ -80249,14 +80233,14 @@ ${events}
           true,
           {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/App.tsx",
-            lineNumber: 347,
+            lineNumber: 278,
             columnNumber: 7
           },
           void 0
         )
       ] }, void 0, true, {
         fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/App.tsx",
-        lineNumber: 334,
+        lineNumber: 265,
         columnNumber: 5
       }, void 0);
     };

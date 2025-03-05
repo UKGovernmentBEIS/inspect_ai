@@ -1,5 +1,5 @@
 import { EvalSummary, PendingSamples } from "../api/types";
-import { kDefaultSort } from "../constants";
+import { kDefaultSort, kInfoWorkspaceTabId } from "../constants";
 import { ScorerInfo } from "../scoring/utils";
 import { LogState, ScoreFilter, ScoreLabel } from "../types";
 import { createLogger } from "../utils/logger";
@@ -80,10 +80,21 @@ export const createLogSlice = (
           state.log.selectedSampleIndex = index;
         }),
 
-      setSelectedLogSummary: (selectedLogSummary: EvalSummary) =>
+      setSelectedLogSummary: (selectedLogSummary: EvalSummary) => {
         set((state) => {
           state.log.selectedLogSummary = selectedLogSummary;
-        }),
+        });
+
+        // Select the first sample
+        get().logActions.selectSample(0);
+        if (
+          selectedLogSummary.status !== "started" &&
+          selectedLogSummary.sampleSummaries.length === 0
+        ) {
+          // If there are no samples, use the workspace tab id by default
+          get().appActions.setWorkspaceTab(kInfoWorkspaceTabId);
+        }
+      },
 
       setPendingSampleSummaries: (pendingSampleSummaries: PendingSamples) =>
         set((state) => {

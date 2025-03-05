@@ -12,6 +12,13 @@ export interface AppState {
   status: AppStatus;
   offcanvas: boolean;
   showFind: boolean;
+  tabs: {
+    workspace: string;
+    sample: string;
+  };
+  dialogs: {
+    sample: boolean;
+  };
 }
 
 export interface LogsState {

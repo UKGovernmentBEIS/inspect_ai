@@ -52,7 +52,9 @@ export function createSamplePolling(
       ) {
         const adapter = sampleDataAdapter();
         adapter.addData(sampleDataResponse.sampleData);
-        const runningData = { events: adapter.resolvedEvents(), summary };
+        const events = adapter.resolvedEvents();
+        const runningData = { events, summary };
+        log.debug(`EVENTS: ${events.length}`);
         get().sampleActions.setRunningSampleData(runningData);
       }
       // Continue polling
