@@ -12,7 +12,6 @@ import {
   kInfoWorkspaceTabId,
   kJsonWorkspaceTabId,
 } from "../constants";
-import { useSelectedLogFile } from "../state/logsStore.ts";
 import {
   useFilteredSamples,
   useSampleDescriptor,
@@ -240,7 +239,10 @@ export const useJsonTabConfig = (
   evalStats: EvalStats | undefined,
   selectedTab: string,
 ) => {
-  const selectedLogFile = useSelectedLogFile();
+  const selectedLogFile = useStore((state) =>
+    state.logsActions.getSelectedLogFile(),
+  );
+
   return useMemo(() => {
     return {
       id: kJsonWorkspaceTabId,

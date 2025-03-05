@@ -17803,7 +17803,7 @@ self.onmessage = function (e) {
         }
       }
     };
-    const initialState$4 = {
+    const initialState$5 = {
       status: { loading: false },
       offcanvas: false,
       showFind: false
@@ -17811,7 +17811,7 @@ self.onmessage = function (e) {
     const createAppSlice = (set2, _get, _store) => {
       return {
         // State
-        app: initialState$4,
+        app: initialState$5,
         capabilities: {},
         // Actions
         appActions: {
@@ -17836,7 +17836,189 @@ self.onmessage = function (e) {
     const initializeAppSlice = (set2, capabilities2, restoreState) => {
       set2((state) => {
         state.capabilities = capabilities2;
-        state.app = { ...initialState$4 };
+        state.app = { ...initialState$5 };
+      });
+    };
+    const createLogger = (namespace) => {
+      const logger = {
+        debug: (message2, ...args) => {
+          if (__DEV_WATCH__) console.debug(`[${namespace}] ${message2}`, ...args);
+        },
+        info: (message2, ...args) => {
+          if (__DEV_WATCH__) console.info(`[${namespace}] ${message2}`, ...args);
+        },
+        warn: (message2, ...args) => {
+          if (__DEV_WATCH__) console.warn(`[${namespace}] ${message2}`, ...args);
+        },
+        // Always log errors, even in production
+        error: (message2, ...args) => {
+          console.error(`[${namespace}] ${message2}`, ...args);
+        },
+        // Lazy evaluation for expensive logs
+        debugIf: (fn2) => {
+          if (__DEV_WATCH__) console.debug(`[${namespace}] ${fn2()}`);
+        }
+      };
+      return logger;
+    };
+    const initialState$4 = {
+      logs: { log_dir: "", files: [] },
+      logHeaders: {},
+      headersLoading: false,
+      selectedLogIndex: -1
+    };
+    const createLogsSlice = (set2, get2, _store) => {
+      const log2 = createLogger("Log Slice");
+      return {
+        // State
+        logs: initialState$4,
+        // Actions
+        logsActions: {
+          setLogs: (logs) => {
+            set2((state) => {
+              state.logs.logs = logs;
+            });
+            if (logs.files.length > 0) {
+              setTimeout(() => {
+                const currentState = get2();
+                if (!currentState.logs.headersLoading) {
+                  currentState.logsActions.loadHeaders();
+                }
+              }, 100);
+            }
+          },
+          setLogHeaders: (headers) => set2((state) => {
+            state.logs.logHeaders = headers;
+          }),
+          setHeadersLoading: (loading) => set2((state) => {
+            state.logs.headersLoading = loading;
+          }),
+          setSelectedLogIndex: (selectedLogIndex) => set2((state) => {
+            state.logs.selectedLogIndex = selectedLogIndex;
+          }),
+          updateLogHeaders: (headers) => set2((state) => {
+            state.logs.logHeaders = { ...get2().logs.logHeaders, ...headers };
+          }),
+          setSelectedLogFile: (logUrl) => {
+            const state = get2();
+            const index2 = state.logs.logs.files.findIndex(
+              (val) => logUrl.endsWith(val.name)
+            );
+            if (index2 > -1) {
+              state.logsActions.setSelectedLogIndex(index2);
+            }
+          },
+          // Helper function to load logs
+          loadLogs: async () => {
+            const api2 = get2().api;
+            if (!api2) {
+              console.error("API not initialized in LogsStore");
+              return { log_dir: "", files: [] };
+            }
+            try {
+              log2.debug("LOADING LOG FILES");
+              return await api2.get_log_paths();
+            } catch (e) {
+              console.log(e);
+              get2().appActions.setStatus({ loading: false, error: e });
+              return { log_dir: "", files: [] };
+            }
+          },
+          // Load Headers
+          loadHeaders: async () => {
+            const state = get2();
+            const api2 = state.api;
+            if (!api2) {
+              console.error("API not initialized for the log slice");
+              return;
+            }
+            log2.debug("LOADING HEADERS");
+            get2().logsActions.setHeadersLoading(true);
+            const logs = get2().logs.logs;
+            const chunkSize = 8;
+            const fileLists = [];
+            for (let i2 = 0; i2 < logs.files.length; i2 += chunkSize) {
+              const chunk = logs.files.slice(i2, i2 + chunkSize).map((logFile) => logFile.name);
+              fileLists.push(chunk);
+            }
+            try {
+              let counter = 0;
+              for (const fileList of fileLists) {
+                counter++;
+                log2.debug(`LOADING ${counter} of ${fileLists.length} CHUNKS`);
+                const headers = await api2.get_log_headers(fileList);
+                const updatedHeaders = {};
+                headers.forEach((header2, index2) => {
+                  const logFile = fileList[index2];
+                  updatedHeaders[logFile] = header2;
+                });
+                state.logsActions.updateLogHeaders(updatedHeaders);
+                if (headers.length === chunkSize) {
+                  await sleep$1(5e3);
+                }
+              }
+            } catch (e) {
+              if (e instanceof Error && (e.message === "Load failed" || e.message === "Failed to fetch")) {
+                state.appActions.setStatus({ loading: false });
+              } else {
+                console.log(e);
+                state.appActions.setStatus({ loading: false, error: e });
+              }
+            }
+            get2().logsActions.setHeadersLoading(false);
+          },
+          refreshLogs: async () => {
+            log2.debug("REFRESH LOGS");
+            const state = get2();
+            const refreshedLogs = await state.logsActions.loadLogs();
+            state.logsActions.setLogs(refreshedLogs || { log_dir: "", files: [] });
+            const currentLog = refreshedLogs.files[state.logs.selectedLogIndex > -1 ? state.logs.selectedLogIndex : 0];
+            if (currentLog) {
+              const newIndex = refreshedLogs == null ? void 0 : refreshedLogs.files.findIndex(
+                (file) => currentLog.name.endsWith(file.name)
+              );
+              if (newIndex !== void 0 && newIndex !== -1) {
+                state.logsActions.setSelectedLogIndex(newIndex);
+              }
+            }
+            if (refreshedLogs.files.length > 0) {
+              setTimeout(() => {
+                if (!state.logs.headersLoading) {
+                  state.logsActions.loadHeaders();
+                }
+              }, 100);
+            }
+          },
+          // Select a specific log file
+          selectLogFile: async (logUrl) => {
+            const state = get2();
+            const index2 = state.logs.logs.files.findIndex(
+              (val) => val.name.endsWith(logUrl)
+            );
+            if (index2 > -1) {
+              state.logsActions.setSelectedLogIndex(index2);
+            } else {
+              const result2 = await state.logsActions.loadLogs();
+              const idx = result2 == null ? void 0 : result2.files.findIndex(
+                (file) => logUrl.endsWith(file.name)
+              );
+              state.logsActions.setLogs(result2 || { log_dir: "", files: [] });
+              state.logsActions.setSelectedLogIndex(
+                idx !== void 0 && idx > -1 ? idx : 0
+              );
+            }
+          },
+          getSelectedLogFile: () => {
+            const state = get2();
+            const file = state.logs.logs.files[state.logs.selectedLogIndex];
+            return file !== void 0 ? file.name : void 0;
+          }
+        }
+      };
+    };
+    const initializeLogsSlice = (set2, restoreState) => {
+      set2((state) => {
+        state.logs = { ...initialState$4 };
       });
     };
     const useStore = create$2()(
@@ -17844,15 +18026,29 @@ self.onmessage = function (e) {
         immer((set2, get2, store) => ({
           // Shared state
           api: null,
+          globalError: null,
+          globalLoading: false,
           // Initialize function
           initialize: (api2, capabilities2) => {
             set2((state) => {
               state.api = api2;
             });
             initializeAppSlice(set2, capabilities2);
+            initializeLogsSlice(set2);
+          },
+          setGlobalError: (error2) => {
+            set2((state) => {
+              state.globalError = error2;
+            });
+          },
+          setGlobalLoading: (loading) => {
+            set2((state) => {
+              state.globalLoading = loading;
+            });
           },
           // Create the slices and merge them in
-          ...createAppSlice(set2)
+          ...createAppSlice(set2),
+          ...createLogsSlice(set2, get2)
         })),
         {
           name: "app-storage",
@@ -29746,28 +29942,6 @@ categories: ${categories.join(" ")}`;
         return void 0;
       }
     };
-    const createLogger = (namespace) => {
-      const logger = {
-        debug: (message2, ...args) => {
-          if (__DEV_WATCH__) console.debug(`[${namespace}] ${message2}`, ...args);
-        },
-        info: (message2, ...args) => {
-          if (__DEV_WATCH__) console.info(`[${namespace}] ${message2}`, ...args);
-        },
-        warn: (message2, ...args) => {
-          if (__DEV_WATCH__) console.warn(`[${namespace}] ${message2}`, ...args);
-        },
-        // Always log errors, even in production
-        error: (message2, ...args) => {
-          console.error(`[${namespace}] ${message2}`, ...args);
-        },
-        // Lazy evaluation for expensive logs
-        debugIf: (fn2) => {
-          if (__DEV_WATCH__) console.debug(`[${namespace}] ${fn2()}`);
-        }
-      };
-      return logger;
-    };
     const initialState$3 = {
       logs: { log_dir: "", files: [] },
       logHeaders: {},
@@ -29916,19 +30090,6 @@ categories: ${categories.join(" ")}`;
       // For compatibility with existing code
       getState: () => ({ logs: get2() })
     }));
-    const useSelectedLogFile = () => useLogsStore((state) => {
-      const files = state.logs.files;
-      const selectedIndex = state.selectedLogIndex;
-      const file = files[selectedIndex];
-      return file !== void 0 ? file.name : void 0;
-    });
-    const initializeLogsStore = (api2, initialState2) => {
-      useLogsStore.setState((state) => ({
-        ...state,
-        api: api2,
-        ...initialState2 || {}
-      }));
-    };
     const initialState$2 = {
       // Log state
       selectedSampleIndex: -1,
@@ -64182,7 +64343,6 @@ ${events}
     function useLoadSample() {
       return (logFile, sampleSummary) => {
         if (logFile && sampleSummary) {
-          console.log("LOAD SAMPLE FROM " + logFile);
           useSampleStore.getState().loadSample(logFile, sampleSummary);
         } else {
           throw new Error("Can't load samples when there is no log file");
@@ -64207,7 +64367,9 @@ ${events}
       const runningSampleData = useSampleStore((state) => state.runningSampleData);
       const selectedSampleSummary = useSelectedSampleSummary();
       const loadSample = useLoadSample();
-      const selectedLogFile = useSelectedLogFile();
+      const selectedLogFile = useStore(
+        (state) => state.logsActions.getSelectedLogFile()
+      );
       reactExports.useEffect(() => {
         if (selectedLogFile && selectedSampleSummary) {
           loadSample(selectedLogFile, selectedSampleSummary);
@@ -64385,7 +64547,9 @@ ${events}
       const runningSampleData = useSampleStore((state) => state.runningSampleData);
       const selectedSampleSummary = useSelectedSampleSummary();
       const loadSample = useLoadSample();
-      const selectedLogFile = useSelectedLogFile();
+      const selectedLogFile = useStore(
+        (state) => state.logsActions.getSelectedLogFile()
+      );
       reactExports.useEffect(() => {
         if (selectedLogFile && selectedSampleSummary) {
           loadSample(selectedLogFile, selectedSampleSummary);
@@ -65140,7 +65304,6 @@ ${events}
       const sampleDialogRef = reactExports.useRef(null);
       const showSample = reactExports.useCallback(
         (index2) => {
-          console.log("Show sample");
           selectSample(index2);
           setShowingSampleDialog(true);
         },
@@ -66131,8 +66294,10 @@ ${events}
       const offCanvas = useStore((state) => state.app.offcanvas);
       const setOffCanvas = useStore((state) => state.appActions.setOffcanvas);
       const streamSamples = useStore((state) => state.capabilities.streamSamples);
-      const selectedFileName = useSelectedLogFile();
-      const logFileName = selectedFileName ? filename(selectedFileName) : "";
+      const selectedLogFile = useStore(
+        (state) => state.logsActions.getSelectedLogFile()
+      );
+      const logFileName = selectedLogFile ? filename(selectedLogFile) : "";
       const handleToggle = reactExports.useCallback(() => {
         setOffCanvas(!offCanvas);
       }, [offCanvas, setOffCanvas]);
@@ -66189,7 +66354,7 @@ ${events}
                 ] }),
                 /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("text-size-small", styles$5.secondaryContainer), children: [
                   /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("navbar-secondary-text", "text-truncate"), children: logFileName }),
-                  selectedFileName ? /* @__PURE__ */ jsxRuntimeExports.jsx(CopyButton, { value: selectedFileName }) : ""
+                  selectedLogFile ? /* @__PURE__ */ jsxRuntimeExports.jsx(CopyButton, { value: selectedLogFile }) : ""
                 ] })
               ] })
             ]
@@ -66690,7 +66855,9 @@ ${events}
       }, [evalSpec, evalPlan, evalError, evalResults, evalStats, totalSampleCount]);
     };
     const useJsonTabConfig = (evalVersion, evalStatus, evalSpec, evalPlan, evalError, evalResults, evalStats, selectedTab) => {
-      const selectedLogFile = useSelectedLogFile();
+      const selectedLogFile = useStore(
+        (state) => state.logsActions.getSelectedLogFile()
+      );
       return reactExports.useMemo(() => {
         return {
           id: kJsonWorkspaceTabId,
@@ -67442,7 +67609,6 @@ ${events}
     const ClipboardJS = /* @__PURE__ */ getDefaultExportFromCjs(clipboardExports);
     const App = ({ api: api2, applicationState }) => {
       var _a2, _b2, _c, _d, _e2, _f, _g, _h, _i, _j, _k;
-      const logsStore = useLogsStore();
       const logStore = useLogStore();
       const appStatus = useStore((state) => state.app.status);
       const setAppStatus = useStore((state) => state.appActions.setStatus);
@@ -67452,11 +67618,23 @@ ${events}
       const showFind = useStore((state) => state.app.showFind);
       const setShowFind = useStore((state) => state.appActions.setShowFind);
       const hideFind = useStore((state) => state.appActions.hideFind);
+      const logs = useStore((state) => state.logs.logs);
+      const selectedLogIndex = useStore((state) => state.logs.selectedLogIndex);
+      const logHeaders = useStore((state) => state.logs.logHeaders);
+      const headersLoading = useStore((state) => state.logs.headersLoading);
+      const setLogs = useStore((state) => state.logsActions.setLogs);
+      const selectedLogFile = useStore(
+        (state) => state.logsActions.getSelectedLogFile()
+      );
+      const setSelectedLogIndex = useStore(
+        (state) => state.logsActions.setSelectedLogIndex
+      );
+      const refreshLogs = useStore((state) => state.logsActions.refreshLogs);
+      const selectLogFile = useStore((state) => state.logsActions.selectLogFile);
       const clearSelectedSample = useSampleStore(
         (state) => state.clearSelectedSample
       );
       const selectedSample = useSampleStore((state) => state.selectedSample);
-      const selectedLogFile = useSelectedLogFile();
       const mainAppRef = reactExports.useRef(null);
       const [selectedWorkspaceTab, setSelectedWorkspaceTab] = reactExports.useState(
         (applicationState == null ? void 0 : applicationState.selectedWorkspaceTab) || kEvalWorkspaceTabId
@@ -67511,13 +67689,13 @@ ${events}
         }
       }, [selectedSample, selectedSampleTab]);
       reactExports.useEffect(() => {
-        if (!logsStore.logs.files[logsStore.selectedLogIndex] || logStore.selectedSampleIndex === -1) {
+        if (!logs.files[selectedLogIndex] || logStore.selectedSampleIndex === -1) {
           clearSelectedSample();
         }
       }, [
         logStore.selectedSampleIndex,
-        logsStore.selectedLogIndex,
-        logsStore.logs,
+        selectedLogIndex,
+        logs,
         clearSelectedSample
       ]);
       reactExports.useEffect(() => {
@@ -67551,15 +67729,15 @@ ${events}
         }
       }, [logStore.selectedLogSummary]);
       reactExports.useEffect(() => {
-        if (logsStore.logs.log_dir && logsStore.logs.files.length === 0) {
+        if (logs.log_dir && logs.files.length === 0) {
           setAppStatus({
             loading: false,
             error: new Error(
-              `No log files to display in the directory ${logsStore.logs.log_dir}. Are you sure this is the correct log directory?`
+              `No log files to display in the directory ${logs.log_dir}. Are you sure this is the correct log directory?`
             )
           });
         }
-      }, [logsStore.logs.log_dir, logsStore.logs.files.length]);
+      }, [logs.log_dir, logs.files.length]);
       const refreshLog = reactExports.useCallback(() => {
         try {
           setAppStatus({ loading: true, error: void 0 });
@@ -67577,7 +67755,7 @@ ${events}
             case "updateState": {
               if (e.data.url) {
                 const decodedUrl = decodeURIComponent(e.data.url);
-                logsStore.selectLogFile(decodedUrl);
+                selectLogFile(decodedUrl);
               }
               break;
             }
@@ -67586,19 +67764,19 @@ ${events}
               const log_dir = e.data.log_dir;
               const isFocused = document.hasFocus();
               if (!isFocused) {
-                if (log_dir === logsStore.logs.log_dir) {
-                  logsStore.selectLogFile(decodedUrl);
+                if (log_dir === logs.log_dir) {
+                  selectLogFile(decodedUrl);
                 } else {
                   api2.open_log_file(e.data.url, e.data.log_dir);
                 }
               } else {
-                logsStore.refreshLogs();
+                refreshLogs();
               }
               break;
             }
           }
         },
-        [logsStore.logs, logsStore.selectLogFile, logsStore.refreshLogs]
+        [logs, selectLogFile, refreshLogs]
       );
       reactExports.useEffect(() => {
         window.addEventListener("message", onMessage);
@@ -67617,35 +67795,35 @@ ${events}
             const logPath = urlParams.get("task_file");
             const resolvedLogPath = logPath ? logPath.replace(" ", "+") : logPath;
             if (resolvedLogPath) {
-              logsStore.setLogs({
+              setLogs({
                 log_dir: "",
                 files: [{ name: resolvedLogPath }]
               });
             } else {
               const log_file = urlParams.get("log_file");
               if (log_file) {
-                await logsStore.selectLogFile(log_file);
+                await selectLogFile(log_file);
               } else {
-                await logsStore.refreshLogs();
+                await refreshLogs();
               }
             }
           }
           new ClipboardJS(".clipboard-button,.copy-button");
         };
         loadLogsAndState();
-      }, [logsStore.setLogs, logsStore.selectLogFile, logsStore.refreshLogs]);
-      const fullScreen = logsStore.logs.files.length === 1 && !logsStore.logs.log_dir;
-      const showToggle = logsStore.logs.files.length > 1 || !!logsStore.logs.log_dir || false;
+      }, [setLogs, selectLogFile, refreshLogs]);
+      const fullScreen = logs.files.length === 1 && !logs.log_dir;
+      const showToggle = logs.files.length > 1 || !!logs.log_dir || false;
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
         !fullScreen && logStore.selectedLogSummary ? /* @__PURE__ */ jsxRuntimeExports.jsx(
           Sidebar,
           {
-            logs: logsStore.logs,
-            logHeaders: logsStore.logHeaders,
-            loading: logsStore.headersLoading,
-            selectedIndex: logsStore.selectedLogIndex,
+            logs,
+            logHeaders,
+            loading: headersLoading,
+            selectedIndex: selectedLogIndex,
             onSelectedIndexChanged: (index2) => {
-              logsStore.setSelectedLogIndex(index2);
+              setSelectedLogIndex(index2);
               setOffCanvas(false);
             }
           }
@@ -67661,13 +67839,10 @@ ${events}
             ),
             tabIndex: 0,
             onKeyDown: (e) => {
-              console.log("KEYB");
-              console.log({ nativeFind, showFind });
               if (nativeFind || !setShowFind) {
                 return;
               }
               if ((e.ctrlKey || e.metaKey) && e.key === "f") {
-                console.log("SET SHOW FIND");
                 setShowFind(true);
               } else if (e.key === "Escape") {
                 hideFind();
@@ -67769,7 +67944,6 @@ ${events}
         capabilities.webWorkers = false;
       }
     }
-    initializeLogsStore(resolvedApi, initialState == null ? void 0 : initialState.logs);
     initializeLogStore(resolvedApi, initialState == null ? void 0 : initialState.log);
     initializeSampleStore(resolvedApi, initialState == null ? void 0 : initialState.sample);
     initializeStore(resolvedApi, capabilities);

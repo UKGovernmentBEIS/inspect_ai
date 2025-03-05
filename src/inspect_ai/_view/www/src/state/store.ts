@@ -3,22 +3,23 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { immer } from "zustand/middleware/immer";
 import { Capabilities, ClientAPI } from "../api/types";
-import {
-  AppSlice,
-  createAppSlice,
-  initializeAppSlice,
-  selectAppActions,
-  selectAppCapabilities,
-  selectAppState,
-} from "./appSlice";
+import { AppSlice, createAppSlice, initializeAppSlice } from "./appSlice";
+import { createLogsSlice, initializeLogsSlice, LogsSlice } from "./logsSlice";
 
 // Define the complete store state
-interface StoreState extends AppSlice {
+export interface StoreState extends AppSlice, LogsSlice {
   // Shared data
   api: ClientAPI | null;
 
+  // Global state
+  globalError: Error | null;
+  globalLoading: boolean;
+
   // Global actions
   initialize: (api: ClientAPI, capabilities: Capabilities) => void;
+
+  setGlobalError: (error: Error | null) => void;
+  setGlobalLoading: (loading: boolean) => void;
 }
 
 // Create the combined store with immer middleware
@@ -27,6 +28,8 @@ export const useStore = create<StoreState>()(
     immer((set, get, store) => ({
       // Shared state
       api: null,
+      globalError: null,
+      globalLoading: false,
 
       // Initialize function
       initialize: (api, capabilities) => {
@@ -36,10 +39,24 @@ export const useStore = create<StoreState>()(
 
         // Initialize application slices
         initializeAppSlice(set, capabilities);
+        initializeLogsSlice(set);
+      },
+
+      setGlobalError: (error) => {
+        set((state) => {
+          state.globalError = error;
+        });
+      },
+
+      setGlobalLoading: (loading) => {
+        set((state) => {
+          state.globalLoading = loading;
+        });
       },
 
       // Create the slices and merge them in
       ...createAppSlice(set, get, store),
+      ...createLogsSlice(set, get, store),
     })),
     {
       name: "app-storage",
@@ -55,24 +72,6 @@ export const useStore = create<StoreState>()(
     },
   ),
 );
-
-// Convenience hooks for components
-export const useAppState = () => useStore(selectAppState);
-export const useAppActions = () => useStore(selectAppActions);
-export const useAppCapabilities = () => useStore(selectAppCapabilities);
-
-// Combined hook that includes both state and actions
-export const useAppStore = () => {
-  const state = useAppState();
-  const actions = useAppActions();
-  const capabilities = useAppCapabilities();
-
-  return {
-    ...state,
-    ...actions,
-    capabilities,
-  };
-};
 
 // Initialize the store
 export const initializeStore = (api: ClientAPI, capabilities: Capabilities) => {
