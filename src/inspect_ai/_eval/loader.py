@@ -13,6 +13,7 @@ from typing import Any, Callable, Tuple, cast
 from typing_extensions import overload
 
 from inspect_ai._eval.task.util import task_file, task_run_dir
+from inspect_ai._util._async import configured_async_backend
 from inspect_ai._util.decorator import parse_decorators
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.logger import warn_once
@@ -308,6 +309,11 @@ def create_file_tasks(
 
             # warn that chdir is deprecated
             if "chdir" in task.attribs:
+                if configured_async_backend() == "trio":
+                    raise RuntimeError(
+                        "The task 'chdir' attribute is not compatible with the trio async backend."
+                    )
+
                 warn_once(
                     logger,
                     "The 'chdir' task attribute is deprecated and will be removed in a future release "

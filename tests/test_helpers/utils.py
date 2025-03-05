@@ -136,11 +136,19 @@ def skip_if_no_docker(func):
     )(func)
 
 
-def skip_if_trio(func):
+def skip_if_async_backend(backend):
     return pytest.mark.skipif(
-        configured_async_backend() == "trio",
-        reason="Test not compatible with Trio async backend.",
-    )(func)
+        configured_async_backend() == backend,
+        reason=f"Test not compatible with {backend} async backend.",
+    )
+
+
+def skip_if_trio(func):
+    return skip_if_async_backend("trio")(func)
+
+
+def skip_if_asyncio(func):
+    return skip_if_async_backend("asyncio")(func)
 
 
 def run_example(example: str, model: str):
