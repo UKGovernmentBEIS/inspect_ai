@@ -352,6 +352,8 @@ class SandboxEnvironmentSpec(BaseModel, frozen=True):
     def load_config_model(cls, data: dict[str, Any]) -> dict[str, Any]:
         type = data["type"]
         config = data.get("config")
+        # Pydantic won't know what concrete type to instantiate for config, so
+        # ask the relevant sandbox environment to deserialize it.
         if isinstance(config, dict) and len(config) > 0:
             data["config"] = deserialize_sandbox_specific_config(type, config)
         return data
