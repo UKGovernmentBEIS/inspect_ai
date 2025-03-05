@@ -164,7 +164,7 @@ def simple_task_state(
 def file_check(file: str):
     async def solve(state: TaskState, generate: Generate):
         if not Path(file).exists():
-            raise ValueError(f"File {file} does not exist.")
+            raise FileNotFoundError(f"File {file} does not exist.")
 
         return state
 

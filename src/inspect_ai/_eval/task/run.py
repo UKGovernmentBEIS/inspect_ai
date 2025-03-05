@@ -95,9 +95,9 @@ from .images import (
 )
 from .log import TaskLogger, collect_eval_data, log_start
 from .results import eval_results
-from .rundir import set_task_run_dir
+from .rundir import set_task_chdir
 from .sandbox import sandboxenv_context
-from .util import sample_messages, slice_dataset, task_run_dir
+from .util import sample_messages, slice_dataset
 
 py_logger = getLogger(__name__)
 
@@ -147,8 +147,8 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
     # init task context
     init_task_context(model, options.task.approval, generate_config)
 
-    # establish run_dir for duration of execution
-    with set_task_run_dir(task_run_dir(task)):
+    # establish chdir for duration of execution (if a task has chdir=True)
+    with set_task_chdir(task):
         # track stats and error
         results: EvalResults | None = None
         reductions: list[EvalSampleReductions] | None = None
