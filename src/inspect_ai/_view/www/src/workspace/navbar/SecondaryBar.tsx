@@ -4,7 +4,7 @@ import { ExpandablePanel } from "../../components/ExpandablePanel";
 import { LabeledValue } from "../../components/LabeledValue";
 import { EvalDescriptor } from "../../samples/descriptor/types";
 import { scoreFilterItems } from "../../samples/sample-tools/filters";
-import { useEvalDescriptor } from "../../state/logStore";
+import { useEvalDescriptor } from "../../state/hooks";
 import {
   EvalDataset,
   EvalPlan,

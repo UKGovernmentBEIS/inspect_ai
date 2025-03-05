@@ -16,7 +16,7 @@ import {
   useFilteredSamples,
   useSampleDescriptor,
   useTotalSampleCount,
-} from "../state/logStore.ts";
+} from "../state/hooks.ts";
 import { useStore } from "../state/store.ts";
 import { CurrentLog } from "../types.ts";
 import {

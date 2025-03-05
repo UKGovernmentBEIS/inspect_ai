@@ -1,7 +1,7 @@
 import clsx from "clsx";
 import { FC } from "react";
 import { RunningMetric } from "../../api/types";
-import { useTotalSampleCount } from "../../state/logStore";
+import { useTotalSampleCount } from "../../state/hooks";
 import {
   EvalPlan,
   EvalResults,

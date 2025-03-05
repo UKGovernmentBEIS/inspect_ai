@@ -17,12 +17,12 @@ import {
   useFilteredSamples,
   useGroupBy,
   useGroupByOrder,
-  useLogStore,
   useSampleDescriptor,
   useScore,
   useTotalSampleCount,
-} from "../../state/logStore.ts";
+} from "../../state/hooks.ts";
 import { useSampleStore } from "../../state/sampleStore.ts";
+import { useStore } from "../../state/store.ts";
 import { getSampleProcessor } from "./grouping.ts";
 import { ListItem } from "./types.ts";
 
@@ -48,11 +48,13 @@ export const SamplesTab: FC<SamplesTabProps> = ({
   setSampleScrollPosition,
   sampleTabScrollRef,
 }) => {
-  const selectSample = useLogStore((state) => state.selectSample);
-  const selectedSampleIndex = useLogStore((state) => state.selectedSampleIndex);
+  const selectSample = useStore((state) => state.logActions.selectSample);
+  const selectedSampleIndex = useStore(
+    (state) => state.log.selectedSampleIndex,
+  );
 
   const sampleSummaries = useFilteredSamples();
-  const selectedLogSummary = useLogStore((state) => state.selectedLogSummary);
+  const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
   const totalSampleCount = useTotalSampleCount();
 
   const samplesDescriptor = useSampleDescriptor();

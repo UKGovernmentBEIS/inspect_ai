@@ -8,7 +8,7 @@ import { SampleScores } from "./SampleScores";
 
 import { FC } from "react";
 import { SampleSummary } from "../../api/types";
-import { useEvalDescriptor } from "../../state/logStore";
+import { useEvalDescriptor } from "../../state/hooks";
 import styles from "./SampleScoreView.module.css";
 
 interface SampleScoreViewProps {

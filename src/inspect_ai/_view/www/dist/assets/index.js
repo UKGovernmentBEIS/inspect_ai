@@ -1332,7 +1332,7 @@ var require_assets = __commonJS({
       contextFiberStackCursor.current === fiber && (pop$1(contextStackCursor), pop$1(contextFiberStackCursor));
       hostTransitionProviderCursor.current === fiber && (pop$1(hostTransitionProviderCursor), HostTransitionContext._currentValue = sharedNotPendingObject);
     }
-    var hasOwnProperty$1 = Object.prototype.hasOwnProperty, scheduleCallback$3 = Scheduler.unstable_scheduleCallback, cancelCallback$1 = Scheduler.unstable_cancelCallback, shouldYield = Scheduler.unstable_shouldYield, requestPaint = Scheduler.unstable_requestPaint, now = Scheduler.unstable_now, getCurrentPriorityLevel = Scheduler.unstable_getCurrentPriorityLevel, ImmediatePriority = Scheduler.unstable_ImmediatePriority, UserBlockingPriority = Scheduler.unstable_UserBlockingPriority, NormalPriority$1 = Scheduler.unstable_NormalPriority, LowPriority = Scheduler.unstable_LowPriority, IdlePriority = Scheduler.unstable_IdlePriority, log$1$1 = Scheduler.log, unstable_setDisableYieldValue = Scheduler.unstable_setDisableYieldValue, rendererID = null, injectedHook = null;
+    var hasOwnProperty$1 = Object.prototype.hasOwnProperty, scheduleCallback$3 = Scheduler.unstable_scheduleCallback, cancelCallback$1 = Scheduler.unstable_cancelCallback, shouldYield = Scheduler.unstable_shouldYield, requestPaint = Scheduler.unstable_requestPaint, now = Scheduler.unstable_now, getCurrentPriorityLevel = Scheduler.unstable_getCurrentPriorityLevel, ImmediatePriority = Scheduler.unstable_ImmediatePriority, UserBlockingPriority = Scheduler.unstable_UserBlockingPriority, NormalPriority$1 = Scheduler.unstable_NormalPriority, LowPriority = Scheduler.unstable_LowPriority, IdlePriority = Scheduler.unstable_IdlePriority, log$1 = Scheduler.log, unstable_setDisableYieldValue = Scheduler.unstable_setDisableYieldValue, rendererID = null, injectedHook = null;
     function onCommitRoot(root2) {
       if (injectedHook && "function" === typeof injectedHook.onCommitFiberRoot)
         try {
@@ -1346,7 +1346,7 @@ var require_assets = __commonJS({
         }
     }
     function setIsStrictModeForDevtools(newIsStrictMode) {
-      "function" === typeof log$1$1 && unstable_setDisableYieldValue(newIsStrictMode);
+      "function" === typeof log$1 && unstable_setDisableYieldValue(newIsStrictMode);
       if (injectedHook && "function" === typeof injectedHook.setStrictMode)
         try {
           injectedHook.setStrictMode(rendererID, newIsStrictMode);
@@ -17839,16 +17839,36 @@ self.onmessage = function (e) {
         state.app = { ...initialState$5 };
       });
     };
+    const kModelNone = "none/none";
+    const kEvalWorkspaceTabId = "eval-tab";
+    const kJsonWorkspaceTabId = "json-tab";
+    const kInfoWorkspaceTabId = "plan-tab";
+    const kSampleMessagesTabId = `sample-display-messages`;
+    const kSampleTranscriptTabId = `sample-display-transcript`;
+    const kSampleScoringTabId = `sample-display-scoring`;
+    const kSampleMetdataTabId = `sample-display-metadata`;
+    const kSampleErrorTabId = `sample-display-error`;
+    const kSampleJsonTabId = `sample-display-json`;
+    const kScoreTypePassFail = "passfail";
+    const kScoreTypeCategorical = "categorical";
+    const kScoreTypeNumeric = "numeric";
+    const kScoreTypeOther = "other";
+    const kScoreTypeObject = "object";
+    const kScoreTypeBoolean = "boolean";
+    const kSampleAscVal = "sample-asc";
+    const kSampleDescVal = "sample-desc";
+    const kEpochAscVal = "epoch-asc";
+    const kEpochDescVal = "epoch-desc";
+    const kScoreAscVal = "score-asc";
+    const kScoreDescVal = "score-desc";
+    const kDefaultSort = kSampleAscVal;
     const createLogger = (namespace) => {
       const logger = {
         debug: (message2, ...args) => {
-          if (__DEV_WATCH__) console.debug(`[${namespace}] ${message2}`, ...args);
         },
         info: (message2, ...args) => {
-          if (__DEV_WATCH__) console.info(`[${namespace}] ${message2}`, ...args);
         },
         warn: (message2, ...args) => {
-          if (__DEV_WATCH__) console.warn(`[${namespace}] ${message2}`, ...args);
         },
         // Always log errors, even in production
         error: (message2, ...args) => {
@@ -17856,12 +17876,226 @@ self.onmessage = function (e) {
         },
         // Lazy evaluation for expensive logs
         debugIf: (fn2) => {
-          if (__DEV_WATCH__) console.debug(`[${namespace}] ${fn2()}`);
         }
       };
       return logger;
     };
+    const createPolling = (name2, callback, options2) => {
+      const log2 = createLogger(`Polling ${name2}`);
+      const { maxRetries, interval } = options2;
+      let timeoutId = null;
+      let retryCount = 0;
+      let isPolling = false;
+      const calculateBackoff = (retryCount2) => {
+        return Math.min(interval * Math.pow(2, retryCount2) * 1e3, 6e4);
+      };
+      const stop = () => {
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+          timeoutId = null;
+        }
+        isPolling = false;
+      };
+      const poll = async () => {
+        if (!isPolling) {
+          return;
+        }
+        try {
+          log2.debug("Poll");
+          const shouldContinue = await callback();
+          if (shouldContinue === false) {
+            stop();
+            return;
+          }
+          retryCount = 0;
+          timeoutId = setTimeout(poll, interval * 1e3);
+        } catch (e) {
+          retryCount += 1;
+          if (retryCount >= maxRetries) {
+            log2.error(`Polling stopped after ${maxRetries} failed attempts`);
+            stop();
+            return;
+          }
+          const backoffTime = calculateBackoff(retryCount);
+          timeoutId = setTimeout(poll, backoffTime);
+        }
+      };
+      const start = () => {
+        if (isPolling) {
+          return;
+        }
+        isPolling = true;
+        poll();
+      };
+      return { start, stop };
+    };
+    let currentPolling = null;
+    function createLogPolling(get2, set2) {
+      const log2 = createLogger("logPolling");
+      const startPolling = (logFileName) => {
+        var _a2;
+        if (currentPolling) {
+          currentPolling.stop();
+        }
+        currentPolling = createPolling(
+          `PendingSamples-${logFileName}`,
+          async () => {
+            var _a3;
+            const state = get2();
+            const api2 = state.api;
+            if (!(api2 == null ? void 0 : api2.get_log_pending_samples)) return false;
+            const currentEtag = (_a3 = get2().log.pendingSampleSummaries) == null ? void 0 : _a3.etag;
+            log2.debug(`POLL RUNNING SAMPLES: ${logFileName}`);
+            const pendingSamples = await api2.get_log_pending_samples(
+              logFileName,
+              currentEtag
+            );
+            if (pendingSamples.status === "OK" && pendingSamples.pendingSamples) {
+              set2((state2) => {
+                state2.log.pendingSampleSummaries = pendingSamples.pendingSamples;
+              });
+              get2().logActions.refreshLog();
+              return true;
+            } else if (pendingSamples.status === "NotFound") {
+              log2.debug(`STOP POLLING RUNNING SAMPLES: ${logFileName}`);
+              clearPendingSummaries(logFileName);
+              return false;
+            }
+            return true;
+          },
+          {
+            maxRetries: 10,
+            interval: ((_a2 = get2().log.pendingSampleSummaries) == null ? void 0 : _a2.refresh) || 2
+          }
+        );
+        currentPolling.start();
+      };
+      const clearPendingSummaries = (logFileName) => {
+        const pendingSampleSummaries = get2().log.pendingSampleSummaries;
+        if (((pendingSampleSummaries == null ? void 0 : pendingSampleSummaries.samples.length) || 0) > 0) {
+          set2((state) => {
+            state.log.pendingSampleSummaries = {
+              samples: [],
+              refresh: (pendingSampleSummaries == null ? void 0 : pendingSampleSummaries.refresh) || 2
+            };
+          });
+          get2().logActions.refreshLog();
+        }
+      };
+      const stopPolling = () => {
+        if (currentPolling) {
+          currentPolling.stop();
+          currentPolling = null;
+        }
+      };
+      return {
+        startPolling,
+        stopPolling,
+        clearPendingSummaries
+      };
+    }
     const initialState$4 = {
+      // Log state
+      selectedSampleIndex: -1,
+      selectedLogSummary: void 0,
+      pendingSampleSummaries: void 0,
+      api: null,
+      // Filter state
+      filter: {},
+      epoch: "all",
+      sort: kDefaultSort,
+      score: void 0,
+      scores: void 0
+    };
+    const createLogSlice = (set2, get2, _store) => {
+      const log2 = createLogger("logSlice");
+      const logPolling = createLogPolling(get2, set2);
+      return {
+        // State
+        log: initialState$4,
+        // Actions
+        logActions: {
+          selectSample: (index2) => set2((state) => {
+            state.log.selectedSampleIndex = index2;
+          }),
+          setSelectedLogSummary: (selectedLogSummary) => set2((state) => {
+            state.log.selectedLogSummary = selectedLogSummary;
+          }),
+          setPendingSampleSummaries: (pendingSampleSummaries) => set2((state) => {
+            state.log.pendingSampleSummaries = pendingSampleSummaries;
+          }),
+          setFilter: (filter) => set2((state) => {
+            state.log.filter = filter;
+          }),
+          setEpoch: (epoch) => set2((state) => {
+            state.log.epoch = epoch;
+          }),
+          setSort: (sort) => set2((state) => {
+            state.log.sort = sort;
+          }),
+          setScore: (score2) => set2((state) => {
+            state.log.score = score2;
+          }),
+          setScores: (scores2) => set2((state) => {
+            state.log.scores = scores2;
+          }),
+          resetFiltering: () => set2((state) => {
+            state.log.filter = {};
+            state.log.epoch = "all";
+            state.log.sort = kDefaultSort;
+            state.log.score = void 0;
+          }),
+          loadLog: async (logFileName) => {
+            const state = get2();
+            const api2 = state.api;
+            if (!api2) {
+              console.error("API not initialized in Store");
+              return;
+            }
+            try {
+              const logContents = await api2.get_log_summary(logFileName);
+              state.logActions.setSelectedLogSummary(logContents);
+              state.logActions.resetFiltering();
+              const header2 = {
+                [logFileName]: {
+                  version: logContents.version,
+                  status: logContents.status,
+                  eval: logContents.eval,
+                  plan: logContents.plan,
+                  results: logContents.results !== null ? logContents.results : void 0,
+                  stats: logContents.stats,
+                  error: logContents.error !== null ? logContents.error : void 0
+                }
+              };
+              state.logsActions.updateLogHeaders(header2);
+              logPolling.startPolling(logFileName);
+            } catch (error2) {
+              log2.error("Error loading log:", error2);
+            }
+          },
+          refreshLog: async () => {
+            const state = get2();
+            const api2 = state.api;
+            const selectedLogFile = state.logsActions.getSelectedLogFile();
+            if (!api2 || !selectedLogFile) {
+              return;
+            }
+            try {
+              const logContents = await api2.get_log_summary(selectedLogFile);
+              state.logActions.setSelectedLogSummary(logContents);
+            } catch (error2) {
+              log2.error("Error refreshing log:", error2);
+            }
+          }
+        }
+      };
+    };
+    const initalialLogSlice = (set2, restoreState) => {
+      set2((state) => {
+        state.log = { ...initialState$4 };
+      });
+    };
+    const initialState$3 = {
       logs: { log_dir: "", files: [] },
       logHeaders: {},
       headersLoading: false,
@@ -17871,7 +18105,7 @@ self.onmessage = function (e) {
       const log2 = createLogger("Log Slice");
       return {
         // State
-        logs: initialState$4,
+        logs: initialState$3,
         // Actions
         logsActions: {
           setLogs: (logs) => {
@@ -17932,7 +18166,6 @@ self.onmessage = function (e) {
               console.error("API not initialized for the log slice");
               return;
             }
-            log2.debug("LOADING HEADERS");
             get2().logsActions.setHeadersLoading(true);
             const logs = get2().logs.logs;
             const chunkSize = 8;
@@ -17968,7 +18201,6 @@ self.onmessage = function (e) {
             get2().logsActions.setHeadersLoading(false);
           },
           refreshLogs: async () => {
-            log2.debug("REFRESH LOGS");
             const state = get2();
             const refreshedLogs = await state.logsActions.loadLogs();
             state.logsActions.setLogs(refreshedLogs || { log_dir: "", files: [] });
@@ -18018,7 +18250,7 @@ self.onmessage = function (e) {
     };
     const initializeLogsSlice = (set2, restoreState) => {
       set2((state) => {
-        state.logs = { ...initialState$4 };
+        state.logs = { ...initialState$3 };
       });
     };
     const useStore = create$2()(
@@ -18026,8 +18258,6 @@ self.onmessage = function (e) {
         immer((set2, get2, store) => ({
           // Shared state
           api: null,
-          globalError: null,
-          globalLoading: false,
           // Initialize function
           initialize: (api2, capabilities2) => {
             set2((state) => {
@@ -18035,31 +18265,26 @@ self.onmessage = function (e) {
             });
             initializeAppSlice(set2, capabilities2);
             initializeLogsSlice(set2);
-          },
-          setGlobalError: (error2) => {
-            set2((state) => {
-              state.globalError = error2;
-            });
-          },
-          setGlobalLoading: (loading) => {
-            set2((state) => {
-              state.globalLoading = loading;
-            });
+            initalialLogSlice(set2);
           },
           // Create the slices and merge them in
           ...createAppSlice(set2),
-          ...createLogsSlice(set2, get2)
+          ...createLogsSlice(set2, get2),
+          ...createLogSlice(set2, get2)
         })),
         {
           name: "app-storage",
           partialize: (state) => ({
+            // TODO: Partialize state
             // Thing out state to only store the parts that
             // should be stored
             app: {
               offcanvas: state.app.offcanvas,
               showFind: state.app.showFind
               // Don't persist status
-            }
+            },
+            logs: {},
+            log: {}
           })
         }
       )
@@ -18266,29 +18491,6 @@ self.onmessage = function (e) {
       active,
       item: item$2
     };
-    const kModelNone = "none/none";
-    const kEvalWorkspaceTabId = "eval-tab";
-    const kJsonWorkspaceTabId = "json-tab";
-    const kInfoWorkspaceTabId = "plan-tab";
-    const kSampleMessagesTabId = `sample-display-messages`;
-    const kSampleTranscriptTabId = `sample-display-transcript`;
-    const kSampleScoringTabId = `sample-display-scoring`;
-    const kSampleMetdataTabId = `sample-display-metadata`;
-    const kSampleErrorTabId = `sample-display-error`;
-    const kSampleJsonTabId = `sample-display-json`;
-    const kScoreTypePassFail = "passfail";
-    const kScoreTypeCategorical = "categorical";
-    const kScoreTypeNumeric = "numeric";
-    const kScoreTypeOther = "other";
-    const kScoreTypeObject = "object";
-    const kScoreTypeBoolean = "boolean";
-    const kSampleAscVal = "sample-asc";
-    const kSampleDescVal = "sample-desc";
-    const kEpochAscVal = "epoch-asc";
-    const kEpochDescVal = "epoch-desc";
-    const kScoreAscVal = "score-asc";
-    const kScoreDescVal = "score-desc";
-    const kDefaultSort = kSampleAscVal;
     const error$1 = "_error_srruf_1";
     const running = "_running_srruf_6";
     const cancelled = "_cancelled_srruf_13";
@@ -29942,369 +30144,10 @@ categories: ${categories.join(" ")}`;
         return void 0;
       }
     };
-    const initialState$3 = {
-      logs: { log_dir: "", files: [] },
-      logHeaders: {},
-      headersLoading: false,
-      selectedLogIndex: -1
-    };
-    const log$1 = createLogger("LogsStore");
-    const useLogsStore = create$2()((set2, get2) => ({
-      ...initialState$3,
-      api: null,
-      // Actions
-      setLogs: (logs) => {
-        set2({ logs });
-        if (logs.files.length > 0) {
-          setTimeout(() => {
-            const state = useLogsStore.getState();
-            if (!state.headersLoading) {
-              state.loadHeaders();
-            }
-          }, 100);
-        }
-      },
-      setLogHeaders: (logHeaders) => set2({ logHeaders }),
-      setHeadersLoading: (headersLoading) => set2({ headersLoading }),
-      setSelectedLogIndex: (selectedLogIndex) => set2({ selectedLogIndex }),
-      setSelectedLogFile: (logUrl) => {
-        const state = get2();
-        const index2 = state.logs.files.findIndex(
-          (val) => logUrl.endsWith(val.name)
-        );
-        if (index2 > -1) {
-          set2({ selectedLogIndex: index2 });
-        }
-      },
-      updateLogHeaders: (headers) => set2((state) => ({
-        logHeaders: { ...state.logHeaders, ...headers }
-      })),
-      // Helper function to load logs
-      loadLogs: async () => {
-        const api2 = get2().api;
-        if (!api2) {
-          console.error("API not initialized in LogsStore");
-          return { log_dir: "", files: [] };
-        }
-        try {
-          log$1.debug("LOADING LOG FILES");
-          return await api2.get_log_paths();
-        } catch (e) {
-          console.log(e);
-          useStore.getState().appActions.setStatus({ loading: false, error: e });
-          return { log_dir: "", files: [] };
-        }
-      },
-      // Refresh logs
-      refreshLogs: async () => {
-        log$1.debug("REFRESH LOGS");
-        const state = get2();
-        const refreshedLogs = await get2().loadLogs();
-        set2({ logs: refreshedLogs || { log_dir: "", files: [] } });
-        const currentLog = refreshedLogs.files[state.selectedLogIndex > -1 ? state.selectedLogIndex : 0];
-        if (currentLog) {
-          const newIndex = refreshedLogs == null ? void 0 : refreshedLogs.files.findIndex(
-            (file) => currentLog.name.endsWith(file.name)
-          );
-          if (newIndex !== void 0 && newIndex !== -1) {
-            set2({ selectedLogIndex: newIndex });
-          }
-        }
-        if (refreshedLogs.files.length > 0) {
-          setTimeout(() => {
-            const currentState = useLogsStore.getState();
-            if (!currentState.headersLoading) {
-              currentState.loadHeaders();
-            }
-          }, 100);
-        }
-      },
-      // Select a specific log file
-      selectLogFile: async (logUrl) => {
-        const state = get2();
-        const index2 = state.logs.files.findIndex(
-          (val) => val.name.endsWith(logUrl)
-        );
-        if (index2 > -1) {
-          set2({ selectedLogIndex: index2 });
-        } else {
-          const result2 = await get2().loadLogs();
-          const idx = result2 == null ? void 0 : result2.files.findIndex((file) => logUrl.endsWith(file.name));
-          set2({
-            logs: result2 || { log_dir: "", files: [] },
-            selectedLogIndex: idx !== void 0 && idx > -1 ? idx : 0
-          });
-        }
-      },
-      // Load headers
-      loadHeaders: async () => {
-        const state = get2();
-        const api2 = get2().api;
-        if (!api2) {
-          console.error("API not initialized in LogsStore");
-          return;
-        }
-        log$1.debug("LOADING HEADERS");
-        set2({ headersLoading: true });
-        const chunkSize = 8;
-        const fileLists = [];
-        for (let i2 = 0; i2 < state.logs.files.length; i2 += chunkSize) {
-          const chunk = state.logs.files.slice(i2, i2 + chunkSize).map((logFile) => logFile.name);
-          fileLists.push(chunk);
-        }
-        try {
-          let counter = 0;
-          for (const fileList of fileLists) {
-            counter++;
-            log$1.debug(`LOADING ${counter} of ${fileLists.length} CHUNKS`);
-            const headers = await api2.get_log_headers(fileList);
-            const updatedHeaders = {};
-            headers.forEach((header2, index2) => {
-              const logFile = fileList[index2];
-              updatedHeaders[logFile] = header2;
-            });
-            set2({
-              ...get2(),
-              logHeaders: { ...get2().logHeaders, ...updatedHeaders }
-            });
-            if (headers.length === chunkSize) {
-              await sleep$1(5e3);
-            }
-          }
-        } catch (e) {
-          if (e instanceof Error && (e.message === "Load failed" || e.message === "Failed to fetch")) {
-            useStore.getState().appActions.setStatus({ loading: false });
-          } else {
-            console.log(e);
-            useStore.getState().appActions.setStatus({ loading: false, error: e });
-          }
-        }
-        set2({ headersLoading: false });
-      },
-      // Method to get selected log file
-      getSelectedLogFile: () => {
-        const state = get2();
-        const file = state.logs.files[state.selectedLogIndex];
-        return file !== void 0 ? file.name : void 0;
-      },
-      // For compatibility with existing code
-      getState: () => ({ logs: get2() })
-    }));
-    const initialState$2 = {
-      // Log state
-      selectedSampleIndex: -1,
-      selectedLogSummary: void 0,
-      pendingSampleSummaries: void 0,
-      api: null,
-      // Filter state
-      filter: {},
-      epoch: "all",
-      sort: kDefaultSort,
-      score: void 0,
-      scores: void 0
-    };
-    const log = createLogger("logStore");
-    const useLogStore = create$2()(
-      immer((set2, get2) => ({
-        ...initialState$2,
-        // ---- Log Actions ----
-        selectSample: (index2) => set2({ selectedSampleIndex: index2 }),
-        setSelectedLogSummary: (selectedLogSummary) => {
-          set2({ selectedLogSummary });
-        },
-        setPendingSampleSummaries: (pendingSampleSummaries) => set2({ pendingSampleSummaries }),
-        // ---- Filter Actions ----
-        setFilter: (filter) => set2({ filter }),
-        setEpoch: (epoch) => set2({ epoch }),
-        setSort: (sort) => set2((state) => {
-          state.sort = sort;
-        }),
-        setScore: (score2) => set2({ score: score2 }),
-        setScores: (scores2) => set2({ scores: scores2 }),
-        resetFiltering: () => set2({
-          filter: {},
-          epoch: "all",
-          sort: kDefaultSort,
-          score: void 0
-        }),
-        // ---- API Functions ----
-        initializeStore: (api2, initialLogState) => {
-          set2((state) => {
-            state.api = api2;
-            if (initialLogState) {
-              Object.assign(state, initialLogState);
-            }
-          });
-        },
-        loadLog: async (logFileName) => {
-          const state = get2();
-          const api2 = state.api;
-          if (!api2) {
-            console.error("API not initialized in Store");
-            return;
-          }
-          log.debug(`LOAD LOG: ${logFileName}`);
-          try {
-            const logContents = await api2.get_log_summary(logFileName);
-            set2((state2) => {
-              state2.selectedLogSummary = { ...logContents };
-            });
-            state.resetFiltering();
-            const header2 = {
-              [logFileName]: {
-                version: logContents.version,
-                status: logContents.status,
-                eval: logContents.eval,
-                plan: logContents.plan,
-                results: logContents.results !== null ? logContents.results : void 0,
-                stats: logContents.stats,
-                error: logContents.error !== null ? logContents.error : void 0
-              }
-            };
-            useLogsStore.getState().updateLogHeaders(header2);
-            startPollingPendingSamples(logFileName, get2, set2);
-          } catch (error2) {
-            log.error("Error loading log:", error2);
-          }
-        },
-        refreshLog: async () => {
-          const state = get2();
-          const api2 = state.api;
-          const logsStore = useLogsStore.getState();
-          const selectedLogFile = logsStore.getSelectedLogFile();
-          if (!api2 || !selectedLogFile) {
-            return;
-          }
-          log.debug(`REFRESH: ${selectedLogFile}`);
-          try {
-            const logContents = await api2.get_log_summary(selectedLogFile);
-            set2((state2) => {
-              state2.selectedLogSummary = logContents;
-            });
-          } catch (error2) {
-            log.error("Error refreshing log:", error2);
-          }
-        },
-        // For backward compatibility
-        getState: () => ({ log: get2() })
-      }))
-    );
-    const mergeSampleSummaries = (logSamples, pendingSamples) => {
-      const existingSampleIds = new Set(
-        logSamples.map((sample2) => `${sample2.id}-${sample2.epoch}`)
-      );
-      const uniquePendingSamples = pendingSamples.filter((sample2) => !existingSampleIds.has(`${sample2.id}-${sample2.epoch}`)).map((sample2) => {
-        return { ...sample2, completed: false };
-      });
-      return [...logSamples, ...uniquePendingSamples];
-    };
-    let currentPollCleanup = null;
-    const startPollingPendingSamples = (logFile, getState, setState) => {
-      var _a2, _b2;
-      if (currentPollCleanup) {
-        currentPollCleanup();
-        currentPollCleanup = null;
-      }
-      const polling = {
-        isActive: true,
-        hadPending: false,
-        currentEtag: (_a2 = getState().pendingSampleSummaries) == null ? void 0 : _a2.etag,
-        currentRefresh: ((_b2 = getState().pendingSampleSummaries) == null ? void 0 : _b2.refresh) || 2,
-        timeout: -1,
-        retryCount: 0,
-        maxRetries: 10
-      };
-      const poll = async () => {
-        if (!polling.isActive) {
-          return;
-        }
-        const state = getState();
-        const api2 = state.api;
-        if (!(api2 == null ? void 0 : api2.get_log_pending_samples)) return;
-        try {
-          log.debug(`POLL RUNNING SAMPLES: ${logFile}`);
-          const pendingSamples = await api2.get_log_pending_samples(
-            logFile,
-            polling.currentEtag
-          );
-          if (!polling.isActive) {
-            log.debug(`POLL RUNNING SAMPLES CANCELED: ${logFile}`);
-            return;
-          }
-          if (pendingSamples.status === "OK" && pendingSamples.pendingSamples) {
-            polling.retryCount = 0;
-            polling.currentEtag = pendingSamples.pendingSamples.etag;
-            polling.currentRefresh = pendingSamples.pendingSamples.refresh || polling.currentRefresh;
-            setState({
-              pendingSampleSummaries: pendingSamples.pendingSamples
-            });
-            getState().refreshLog();
-            polling.hadPending = true;
-          } else if (pendingSamples.status === "NotFound") {
-            log.debug(`STOP POLLING RUNNING SAMPLES: ${logFile}`);
-            if (polling.hadPending) {
-              getState().refreshLog();
-            }
-            clearPendingSummaries(logFile, getState, setState);
-            polling.isActive = false;
-            return;
-          }
-          if (polling.isActive) {
-            polling.timeout = setTimeout(poll, polling.currentRefresh * 1e3);
-          }
-        } catch (error2) {
-          log.debug(`ERROR PENDING RUNNING SAMPLES: ${logFile}`);
-          log.error("Error polling pending samples:", error2);
-          polling.retryCount += 1;
-          if (polling.retryCount >= polling.maxRetries) {
-            log.error(
-              `Giving up after ${polling.maxRetries} failed attempts to poll pending samples`
-            );
-            polling.isActive = false;
-            clearPendingSummaries(logFile, getState, setState);
-            return;
-          }
-          if (polling.isActive) {
-            const backoffTime = Math.min(
-              polling.currentRefresh * Math.pow(2, polling.retryCount) * 1e3,
-              6e4
-            );
-            log.debug(
-              `Retry ${polling.retryCount}/${polling.maxRetries}, backoff time: ${backoffTime / 1e3}s`
-            );
-            polling.timeout = setTimeout(poll, backoffTime);
-          }
-        }
-      };
-      poll();
-      currentPollCleanup = () => {
-        polling.isActive = false;
-        if (polling.timeout) {
-          clearTimeout(polling.timeout);
-          polling.timeout = -1;
-        }
-      };
-    };
-    const clearPendingSummaries = (logFile, getState, setState) => {
-      const pendingSampleSummaries = getState().pendingSampleSummaries;
-      if (((pendingSampleSummaries == null ? void 0 : pendingSampleSummaries.samples.length) || 0) > 0) {
-        log.debug(`CLEAR PENDING: ${logFile}`);
-        setState({
-          pendingSampleSummaries: {
-            samples: [],
-            refresh: (pendingSampleSummaries == null ? void 0 : pendingSampleSummaries.refresh) || 2
-          }
-        });
-        getState().refreshLog();
-      }
-    };
-    const initializeLogStore = (api2, initialState2) => {
-      useLogStore.getState().initializeStore(api2, initialState2);
-    };
     const useSampleSummaries = () => {
-      const selectedLogSummary = useLogStore((state) => state.selectedLogSummary);
-      const pendingSampleSummaries = useLogStore(
-        (state) => state.pendingSampleSummaries
+      const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
+      const pendingSampleSummaries = useStore(
+        (state) => state.log.pendingSampleSummaries
       );
       return reactExports.useMemo(() => {
         return mergeSampleSummaries(
@@ -30320,9 +30163,9 @@ categories: ${categories.join(" ")}`;
       }, [sampleSummaries]);
     };
     const useScore = () => {
-      const selectedLogSummary = useLogStore((state) => state.selectedLogSummary);
+      const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
       const sampleSummaries = useSampleSummaries();
-      const score2 = useLogStore((state) => state.score);
+      const score2 = useStore((state) => state.log.score);
       return reactExports.useMemo(() => {
         if (score2) {
           return score2;
@@ -30334,7 +30177,7 @@ categories: ${categories.join(" ")}`;
       }, [selectedLogSummary, sampleSummaries, score2]);
     };
     const useScores = () => {
-      const selectedLogSummary = useLogStore((state) => state.selectedLogSummary);
+      const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
       const sampleSummaries = useSampleSummaries();
       return reactExports.useMemo(() => {
         if (!selectedLogSummary) {
@@ -30361,9 +30204,9 @@ categories: ${categories.join(" ")}`;
     const useFilteredSamples = () => {
       const evalDescriptor = useEvalDescriptor();
       const sampleSummaries = useSampleSummaries();
-      const filter = useLogStore((state) => state.filter);
-      const epoch = useLogStore((state) => state.epoch);
-      const sort = useLogStore((state) => state.sort);
+      const filter = useStore((state) => state.log.filter);
+      const epoch = useStore((state) => state.log.epoch);
+      const sort = useStore((state) => state.log.sort);
       const samplesDescriptor = useSampleDescriptor();
       const score2 = useScore();
       return reactExports.useMemo(() => {
@@ -30382,9 +30225,9 @@ categories: ${categories.join(" ")}`;
       ]);
     };
     const useGroupBy = () => {
-      const selectedLogSummary = useLogStore((state) => state.selectedLogSummary);
-      const sort = useLogStore((state) => state.sort);
-      const epoch = useLogStore((state) => state.epoch);
+      const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
+      const sort = useStore((state) => state.log.sort);
+      const epoch = useStore((state) => state.log.epoch);
       return reactExports.useMemo(() => {
         var _a2, _b2;
         const epochs = ((_b2 = (_a2 = selectedLogSummary == null ? void 0 : selectedLogSummary.eval) == null ? void 0 : _a2.config) == null ? void 0 : _b2.epochs) || 1;
@@ -30399,17 +30242,26 @@ categories: ${categories.join(" ")}`;
       }, [selectedLogSummary, sort, epoch]);
     };
     const useGroupByOrder = () => {
-      const sort = useLogStore((state) => state.sort);
+      const sort = useStore((state) => state.log.sort);
       return reactExports.useMemo(() => {
         return sort === kSampleAscVal || sort === kEpochAscVal || sort === kScoreAscVal ? "asc" : "desc";
       }, [sort]);
     };
     const useSelectedSampleSummary = () => {
       const filteredSamples = useFilteredSamples();
-      const selectedIndex = useLogStore((state) => state.selectedSampleIndex);
+      const selectedIndex = useStore((state) => state.log.selectedSampleIndex);
       return reactExports.useMemo(() => {
         return filteredSamples[selectedIndex];
       }, [filteredSamples, selectedIndex]);
+    };
+    const mergeSampleSummaries = (logSamples, pendingSamples) => {
+      const existingSampleIds = new Set(
+        logSamples.map((sample2) => `${sample2.id}-${sample2.epoch}`)
+      );
+      const uniquePendingSamples = pendingSamples.filter((sample2) => !existingSampleIds.has(`${sample2.id}-${sample2.epoch}`)).map((sample2) => {
+        return { ...sample2, completed: false };
+      });
+      return [...logSamples, ...uniquePendingSamples];
     };
     const container$9 = "_container_15b4r_1";
     const label$5 = "_label_15b4r_5";
@@ -50993,16 +50845,16 @@ Supported expressions:
       return score2 && sc.scorer === score2.scorer;
     });
     const SampleTools = ({ samples }) => {
-      const selectedLogSummary = useLogStore((state) => state.selectedLogSummary);
-      const filter = useLogStore((state) => state.filter);
-      const setFilter = useLogStore((state) => state.setFilter);
+      const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
+      const filter = useStore((state) => state.log.filter);
+      const setFilter = useStore((state) => state.logActions.setFilter);
       const scores2 = useScores();
-      const score2 = useLogStore((state) => state.score);
-      const setScore = useLogStore((state) => state.setScore);
-      const epoch = useLogStore((state) => state.epoch);
-      const setEpoch = useLogStore((state) => state.setEpoch);
-      const sort = useLogStore((state) => state.sort);
-      const setSort = useLogStore((state) => state.setSort);
+      const score2 = useStore((state) => state.log.score);
+      const setScore = useStore((state) => state.logActions.setScore);
+      const epoch = useStore((state) => state.log.epoch);
+      const setEpoch = useStore((state) => state.logActions.setEpoch);
+      const sort = useStore((state) => state.log.sort);
+      const setSort = useStore((state) => state.logActions.setSort);
       const epochs = (selectedLogSummary == null ? void 0 : selectedLogSummary.eval.config.epochs) || 1;
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -63795,7 +63647,9 @@ ${events}
     }) => {
       const baseId = `sample-dialog`;
       const sampleSummaries = useSampleSummaries();
-      const selectedSampleIndex = useLogStore((state) => state.selectedSampleIndex);
+      const selectedSampleIndex = useStore(
+        (state) => state.log.selectedSampleIndex
+      );
       const sampleSummary = sampleSummaries[selectedSampleIndex];
       const sampleEvents = (sample2 == null ? void 0 : sample2.events) || (runningSampleData == null ? void 0 : runningSampleData.events);
       const onSelectedTab = (e) => {
@@ -64122,60 +63976,152 @@ ${events}
         }
       };
     };
-    const createPolling = (name2, callback, options2) => {
-      const log2 = createLogger(`Polling ${name2}`);
-      const { maxRetries, interval } = options2;
-      let timeoutId = null;
-      let retryCount = 0;
-      let isPolling = false;
-      const calculateBackoff = (retryCount2) => {
-        return Math.min(interval * Math.pow(2, retryCount2) * 1e3, 6e4);
-      };
-      const stop = () => {
-        if (timeoutId) {
-          clearTimeout(timeoutId);
-          timeoutId = null;
+    const initialState$2 = {
+      logs: { log_dir: "", files: [] },
+      logHeaders: {},
+      headersLoading: false,
+      selectedLogIndex: -1
+    };
+    const log = createLogger("LogsStore");
+    const useLogsStore = create$2()((set2, get2) => ({
+      ...initialState$2,
+      api: null,
+      // Actions
+      setLogs: (logs) => {
+        set2({ logs });
+        if (logs.files.length > 0) {
+          setTimeout(() => {
+            const state = useLogsStore.getState();
+            if (!state.headersLoading) {
+              state.loadHeaders();
+            }
+          }, 100);
         }
-        log2.debug("Stop Polling");
-        isPolling = false;
-      };
-      const poll = async () => {
-        if (!isPolling) {
-          return;
+      },
+      setLogHeaders: (logHeaders) => set2({ logHeaders }),
+      setHeadersLoading: (headersLoading) => set2({ headersLoading }),
+      setSelectedLogIndex: (selectedLogIndex) => set2({ selectedLogIndex }),
+      setSelectedLogFile: (logUrl) => {
+        const state = get2();
+        const index2 = state.logs.files.findIndex(
+          (val) => logUrl.endsWith(val.name)
+        );
+        if (index2 > -1) {
+          set2({ selectedLogIndex: index2 });
+        }
+      },
+      updateLogHeaders: (headers) => set2((state) => ({
+        logHeaders: { ...state.logHeaders, ...headers }
+      })),
+      // Helper function to load logs
+      loadLogs: async () => {
+        const api2 = get2().api;
+        if (!api2) {
+          console.error("API not initialized in LogsStore");
+          return { log_dir: "", files: [] };
         }
         try {
-          log2.debug("Poll");
-          const shouldContinue = await callback();
-          if (shouldContinue === false) {
-            stop();
-            return;
-          }
-          retryCount = 0;
-          timeoutId = setTimeout(poll, interval * 1e3);
+          log.debug("LOADING LOG FILES");
+          return await api2.get_log_paths();
         } catch (e) {
-          retryCount += 1;
-          if (retryCount >= maxRetries) {
-            log2.error(`Polling stopped after ${maxRetries} failed attempts`);
-            stop();
-            return;
-          }
-          const backoffTime = calculateBackoff(retryCount);
-          log2.debug(
-            `Retry ${retryCount}/${maxRetries}, backoff: ${backoffTime / 1e3}s`
-          );
-          timeoutId = setTimeout(poll, backoffTime);
+          console.log(e);
+          useStore.getState().appActions.setStatus({ loading: false, error: e });
+          return { log_dir: "", files: [] };
         }
-      };
-      const start = () => {
-        if (isPolling) {
+      },
+      // Refresh logs
+      refreshLogs: async () => {
+        const state = get2();
+        const refreshedLogs = await get2().loadLogs();
+        set2({ logs: refreshedLogs || { log_dir: "", files: [] } });
+        const currentLog = refreshedLogs.files[state.selectedLogIndex > -1 ? state.selectedLogIndex : 0];
+        if (currentLog) {
+          const newIndex = refreshedLogs == null ? void 0 : refreshedLogs.files.findIndex(
+            (file) => currentLog.name.endsWith(file.name)
+          );
+          if (newIndex !== void 0 && newIndex !== -1) {
+            set2({ selectedLogIndex: newIndex });
+          }
+        }
+        if (refreshedLogs.files.length > 0) {
+          setTimeout(() => {
+            const currentState = useLogsStore.getState();
+            if (!currentState.headersLoading) {
+              currentState.loadHeaders();
+            }
+          }, 100);
+        }
+      },
+      // Select a specific log file
+      selectLogFile: async (logUrl) => {
+        const state = get2();
+        const index2 = state.logs.files.findIndex(
+          (val) => val.name.endsWith(logUrl)
+        );
+        if (index2 > -1) {
+          set2({ selectedLogIndex: index2 });
+        } else {
+          const result2 = await get2().loadLogs();
+          const idx = result2 == null ? void 0 : result2.files.findIndex((file) => logUrl.endsWith(file.name));
+          set2({
+            logs: result2 || { log_dir: "", files: [] },
+            selectedLogIndex: idx !== void 0 && idx > -1 ? idx : 0
+          });
+        }
+      },
+      // Load headers
+      loadHeaders: async () => {
+        const state = get2();
+        const api2 = get2().api;
+        if (!api2) {
+          console.error("API not initialized in LogsStore");
           return;
         }
-        log2.debug("Start Polling");
-        isPolling = true;
-        poll();
-      };
-      return { start, stop };
-    };
+        set2({ headersLoading: true });
+        const chunkSize = 8;
+        const fileLists = [];
+        for (let i2 = 0; i2 < state.logs.files.length; i2 += chunkSize) {
+          const chunk = state.logs.files.slice(i2, i2 + chunkSize).map((logFile) => logFile.name);
+          fileLists.push(chunk);
+        }
+        try {
+          let counter = 0;
+          for (const fileList of fileLists) {
+            counter++;
+            log.debug(`LOADING ${counter} of ${fileLists.length} CHUNKS`);
+            const headers = await api2.get_log_headers(fileList);
+            const updatedHeaders = {};
+            headers.forEach((header2, index2) => {
+              const logFile = fileList[index2];
+              updatedHeaders[logFile] = header2;
+            });
+            set2({
+              ...get2(),
+              logHeaders: { ...get2().logHeaders, ...updatedHeaders }
+            });
+            if (headers.length === chunkSize) {
+              await sleep$1(5e3);
+            }
+          }
+        } catch (e) {
+          if (e instanceof Error && (e.message === "Load failed" || e.message === "Failed to fetch")) {
+            useStore.getState().appActions.setStatus({ loading: false });
+          } else {
+            console.log(e);
+            useStore.getState().appActions.setStatus({ loading: false, error: e });
+          }
+        }
+        set2({ headersLoading: false });
+      },
+      // Method to get selected log file
+      getSelectedLogFile: () => {
+        const state = get2();
+        const file = state.logs.files[state.selectedLogIndex];
+        return file !== void 0 ? file.name : void 0;
+      },
+      // For compatibility with existing code
+      getState: () => ({ logs: get2() })
+    }));
     const initialState$1 = {
       selectedSample: void 0,
       sampleStatus: "ok",
@@ -64767,7 +64713,9 @@ ${events}
       const streamSampleData = useStore(
         (state) => state.capabilities.streamSampleData
       );
-      const selectedSampleIndex = useLogStore((state) => state.selectedSampleIndex);
+      const selectedSampleIndex = useStore(
+        (state) => state.log.selectedSampleIndex
+      );
       const handleClick = reactExports.useCallback(() => {
         if (completed || streamSampleData) {
           showSample(index2);
@@ -64938,7 +64886,9 @@ ${events}
         className: className2,
         listHandle
       } = props;
-      const selectedSampleIndex = useLogStore((state) => state.selectedSampleIndex);
+      const selectedSampleIndex = useStore(
+        (state) => state.log.selectedSampleIndex
+      );
       const samplesDescriptor = useSampleDescriptor();
       const [followOutput, setFollowOutput] = reactExports.useState(false);
       const [hidden2, setHidden] = reactExports.useState(false);
@@ -65287,10 +65237,12 @@ ${events}
       sampleTabScrollRef
     }) => {
       var _a2, _b2;
-      const selectSample = useLogStore((state) => state.selectSample);
-      const selectedSampleIndex = useLogStore((state) => state.selectedSampleIndex);
+      const selectSample = useStore((state) => state.logActions.selectSample);
+      const selectedSampleIndex = useStore(
+        (state) => state.log.selectedSampleIndex
+      );
       const sampleSummaries = useFilteredSamples();
-      const selectedLogSummary = useLogStore((state) => state.selectedLogSummary);
+      const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
       const totalSampleCount = useTotalSampleCount();
       const samplesDescriptor = useSampleDescriptor();
       const groupBy = useGroupBy();
@@ -67608,8 +67560,7 @@ ${events}
     var clipboardExports = clipboard.exports;
     const ClipboardJS = /* @__PURE__ */ getDefaultExportFromCjs(clipboardExports);
     const App = ({ api: api2, applicationState }) => {
-      var _a2, _b2, _c, _d, _e2, _f, _g, _h, _i, _j, _k;
-      const logStore = useLogStore();
+      var _a2;
       const appStatus = useStore((state) => state.app.status);
       const setAppStatus = useStore((state) => state.appActions.setStatus);
       const offCanvas = useStore((state) => state.app.offcanvas);
@@ -67631,10 +67582,24 @@ ${events}
       );
       const refreshLogs = useStore((state) => state.logsActions.refreshLogs);
       const selectLogFile = useStore((state) => state.logsActions.selectLogFile);
+      const selectedSampleIndex = useStore(
+        (state) => state.log.selectedSampleIndex
+      );
+      const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
       const clearSelectedSample = useSampleStore(
         (state) => state.clearSelectedSample
       );
+      const runningMetrics = useStore(
+        (state) => {
+          var _a3;
+          return (_a3 = state.log.pendingSampleSummaries) == null ? void 0 : _a3.metrics;
+        }
+      );
+      const selectSample = useStore((state) => state.logActions.selectSample);
       const selectedSample = useSampleStore((state) => state.selectedSample);
+      const resetFiltering = useStore((state) => state.logActions.resetFiltering);
+      const loadLog = useStore((state) => state.logActions.loadLog);
+      const refreshLog = useStore((state) => state.logActions.refreshLog);
       const mainAppRef = reactExports.useRef(null);
       const [selectedWorkspaceTab, setSelectedWorkspaceTab] = reactExports.useState(
         (applicationState == null ? void 0 : applicationState.selectedWorkspaceTab) || kEvalWorkspaceTabId
@@ -67689,24 +67654,19 @@ ${events}
         }
       }, [selectedSample, selectedSampleTab]);
       reactExports.useEffect(() => {
-        if (!logs.files[selectedLogIndex] || logStore.selectedSampleIndex === -1) {
+        if (!logs.files[selectedLogIndex] || selectedSampleIndex === -1) {
           clearSelectedSample();
         }
-      }, [
-        logStore.selectedSampleIndex,
-        selectedLogIndex,
-        logs,
-        clearSelectedSample
-      ]);
+      }, [selectedSampleIndex, selectedLogIndex, logs, clearSelectedSample]);
       reactExports.useEffect(() => {
-        logStore.selectSample(0);
-      }, [selectedLogFile, logStore.selectSample]);
+        selectSample(0);
+      }, [selectedLogFile, selectSample]);
       reactExports.useEffect(() => {
         const loadSpecificLog = async () => {
           if (selectedLogFile) {
             try {
               setAppStatus({ loading: true, error: void 0 });
-              await logStore.loadLog(selectedLogFile);
+              await loadLog(selectedLogFile);
               setAppStatus({ loading: false, error: void 0 });
             } catch (e) {
               console.log(e);
@@ -67715,19 +67675,19 @@ ${events}
           }
         };
         loadSpecificLog();
-      }, [selectedLogFile, logStore.loadLog, setAppStatus]);
+      }, [selectedLogFile, loadLog, setAppStatus]);
       reactExports.useEffect(() => {
         setSelectedWorkspaceTab(kEvalWorkspaceTabId);
         setSelectedSampleTab(void 0);
         workspaceTabScrollPosition.current = {};
         clearSelectedSample();
-      }, [(_a2 = logStore.selectedLogSummary) == null ? void 0 : _a2.eval.task_id, clearSelectedSample]);
+      }, [selectedLogSummary == null ? void 0 : selectedLogSummary.eval.task_id, clearSelectedSample]);
       const totalSampleCount = useTotalSampleCount();
       reactExports.useEffect(() => {
-        if (logStore.selectedLogSummary && totalSampleCount === 0) {
+        if (selectedLogSummary && totalSampleCount === 0) {
           setSelectedWorkspaceTab(kInfoWorkspaceTabId);
         }
-      }, [logStore.selectedLogSummary]);
+      }, [selectedLogSummary]);
       reactExports.useEffect(() => {
         if (logs.log_dir && logs.files.length === 0) {
           setAppStatus({
@@ -67738,17 +67698,17 @@ ${events}
           });
         }
       }, [logs.log_dir, logs.files.length]);
-      const refreshLog = reactExports.useCallback(() => {
+      const appRefreshLog = reactExports.useCallback(() => {
         try {
           setAppStatus({ loading: true, error: void 0 });
-          logStore.refreshLog();
-          logStore.resetFiltering();
+          refreshLog();
+          resetFiltering();
           setAppStatus({ loading: false, error: void 0 });
         } catch (e) {
           console.log(e);
           setAppStatus({ loading: false, error: e });
         }
-      }, [logStore.refreshLog, logStore.resetFiltering, setAppStatus]);
+      }, [refreshLog, resetFiltering, setAppStatus]);
       const onMessage = reactExports.useCallback(
         async (e) => {
           switch (e.data.type) {
@@ -67815,7 +67775,7 @@ ${events}
       const fullScreen = logs.files.length === 1 && !logs.log_dir;
       const showToggle = logs.files.length > 1 || !!logs.log_dir || false;
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
-        !fullScreen && logStore.selectedLogSummary ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+        !fullScreen && selectedLogSummary ? /* @__PURE__ */ jsxRuntimeExports.jsx(
           Sidebar,
           {
             logs,
@@ -67860,17 +67820,17 @@ ${events}
               ) : /* @__PURE__ */ jsxRuntimeExports.jsx(
                 WorkSpace,
                 {
-                  task_id: (_c = (_b2 = logStore.selectedLogSummary) == null ? void 0 : _b2.eval) == null ? void 0 : _c.task_id,
-                  evalStatus: (_d = logStore.selectedLogSummary) == null ? void 0 : _d.status,
-                  evalError: filterNull((_e2 = logStore.selectedLogSummary) == null ? void 0 : _e2.error),
-                  evalVersion: (_f = logStore.selectedLogSummary) == null ? void 0 : _f.version,
-                  evalSpec: (_g = logStore.selectedLogSummary) == null ? void 0 : _g.eval,
-                  evalPlan: (_h = logStore.selectedLogSummary) == null ? void 0 : _h.plan,
-                  evalStats: (_i = logStore.selectedLogSummary) == null ? void 0 : _i.stats,
-                  evalResults: filterNull((_j = logStore.selectedLogSummary) == null ? void 0 : _j.results),
-                  runningMetrics: (_k = logStore.pendingSampleSummaries) == null ? void 0 : _k.metrics,
+                  task_id: (_a2 = selectedLogSummary == null ? void 0 : selectedLogSummary.eval) == null ? void 0 : _a2.task_id,
+                  evalStatus: selectedLogSummary == null ? void 0 : selectedLogSummary.status,
+                  evalError: filterNull(selectedLogSummary == null ? void 0 : selectedLogSummary.error),
+                  evalVersion: selectedLogSummary == null ? void 0 : selectedLogSummary.version,
+                  evalSpec: selectedLogSummary == null ? void 0 : selectedLogSummary.eval,
+                  evalPlan: selectedLogSummary == null ? void 0 : selectedLogSummary.plan,
+                  evalStats: selectedLogSummary == null ? void 0 : selectedLogSummary.stats,
+                  evalResults: filterNull(selectedLogSummary == null ? void 0 : selectedLogSummary.results),
+                  runningMetrics,
                   showToggle,
-                  refreshLog,
+                  refreshLog: appRefreshLog,
                   showingSampleDialog,
                   setShowingSampleDialog: handleSampleShowingDialog,
                   selectedTab: selectedWorkspaceTab,
@@ -67944,7 +67904,6 @@ ${events}
         capabilities.webWorkers = false;
       }
     }
-    initializeLogStore(resolvedApi, initialState == null ? void 0 : initialState.log);
     initializeSampleStore(resolvedApi, initialState == null ? void 0 : initialState.sample);
     initializeStore(resolvedApi, capabilities);
     const containerId = "app";
