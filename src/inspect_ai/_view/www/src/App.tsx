@@ -29,7 +29,6 @@ import {
   kSampleMessagesTabId,
   kSampleTranscriptTabId,
 } from "./constants";
-import { useLogsStore, useSelectedLogFile } from "./state/logsStore.ts";
 import { useLogStore, useTotalSampleCount } from "./state/logStore.ts";
 import { useSampleStore } from "./state/sampleStore.ts";
 import { useStore } from "./state/store.ts";
@@ -47,7 +46,6 @@ interface AppProps {
 export const App: FC<AppProps> = ({ api, applicationState }) => {
   // Application Context
 
-  const logsStore = useLogsStore();
   const logStore = useLogStore();
 
   // App layout and state
@@ -62,12 +60,26 @@ export const App: FC<AppProps> = ({ api, applicationState }) => {
   const setShowFind = useStore((state) => state.appActions.setShowFind);
   const hideFind = useStore((state) => state.appActions.hideFind);
 
+  // Logs
+  const logs = useStore((state) => state.logs.logs);
+  const selectedLogIndex = useStore((state) => state.logs.selectedLogIndex);
+  const logHeaders = useStore((state) => state.logs.logHeaders);
+  const headersLoading = useStore((state) => state.logs.headersLoading);
+  const setLogs = useStore((state) => state.logsActions.setLogs);
+  const selectedLogFile = useStore((state) =>
+    state.logsActions.getSelectedLogFile(),
+  );
+  const setSelectedLogIndex = useStore(
+    (state) => state.logsActions.setSelectedLogIndex,
+  );
+  const refreshLogs = useStore((state) => state.logsActions.refreshLogs);
+  const selectLogFile = useStore((state) => state.logsActions.selectLogFile);
+
+  // Sample
   const clearSelectedSample = useSampleStore(
     (state) => state.clearSelectedSample,
   );
   const selectedSample = useSampleStore((state) => state.selectedSample);
-
-  const selectedLogFile = useSelectedLogFile();
 
   // The main application reference
   const mainAppRef = useRef<HTMLDivElement>(null);
@@ -149,16 +161,13 @@ export const App: FC<AppProps> = ({ api, applicationState }) => {
 
   // Clear the selected sample when log file changes
   useEffect(() => {
-    if (
-      !logsStore.logs.files[logsStore.selectedLogIndex] ||
-      logStore.selectedSampleIndex === -1
-    ) {
+    if (!logs.files[selectedLogIndex] || logStore.selectedSampleIndex === -1) {
       clearSelectedSample();
     }
   }, [
     logStore.selectedSampleIndex,
-    logsStore.selectedLogIndex,
-    logsStore.logs,
+    selectedLogIndex,
+    logs,
     clearSelectedSample,
   ]);
 
@@ -208,15 +217,15 @@ export const App: FC<AppProps> = ({ api, applicationState }) => {
   }, [logStore.selectedLogSummary]);
 
   useEffect(() => {
-    if (logsStore.logs.log_dir && logsStore.logs.files.length === 0) {
+    if (logs.log_dir && logs.files.length === 0) {
       setAppStatus({
         loading: false,
         error: new Error(
-          `No log files to display in the directory ${logsStore.logs.log_dir}. Are you sure this is the correct log directory?`,
+          `No log files to display in the directory ${logs.log_dir}. Are you sure this is the correct log directory?`,
         ),
       });
     }
-  }, [logsStore.logs.log_dir, logsStore.logs.files.length]);
+  }, [logs.log_dir, logs.files.length]);
 
   const refreshLog = useCallback(() => {
     try {
@@ -239,7 +248,7 @@ export const App: FC<AppProps> = ({ api, applicationState }) => {
         case "updateState": {
           if (e.data.url) {
             const decodedUrl = decodeURIComponent(e.data.url);
-            logsStore.selectLogFile(decodedUrl);
+            selectLogFile(decodedUrl);
           }
           break;
         }
@@ -248,19 +257,19 @@ export const App: FC<AppProps> = ({ api, applicationState }) => {
           const log_dir = e.data.log_dir;
           const isFocused = document.hasFocus();
           if (!isFocused) {
-            if (log_dir === logsStore.logs.log_dir) {
-              logsStore.selectLogFile(decodedUrl);
+            if (log_dir === logs.log_dir) {
+              selectLogFile(decodedUrl);
             } else {
               api.open_log_file(e.data.url, e.data.log_dir);
             }
           } else {
-            logsStore.refreshLogs();
+            refreshLogs();
           }
           break;
         }
       }
     },
-    [logsStore.logs, logsStore.selectLogFile, logsStore.refreshLogs],
+    [logs, selectLogFile, refreshLogs],
   );
 
   // listen for updateState messages from vscode
@@ -290,7 +299,7 @@ export const App: FC<AppProps> = ({ api, applicationState }) => {
 
         if (resolvedLogPath) {
           // Load only this file
-          logsStore.setLogs({
+          setLogs({
             log_dir: "",
             files: [{ name: resolvedLogPath }],
           });
@@ -298,10 +307,10 @@ export const App: FC<AppProps> = ({ api, applicationState }) => {
           // If a log file was passed, select it
           const log_file = urlParams.get("log_file");
           if (log_file) {
-            await logsStore.selectLogFile(log_file);
+            await selectLogFile(log_file);
           } else {
             // Load all logs
-            await logsStore.refreshLogs();
+            await refreshLogs();
           }
         }
       }
@@ -310,26 +319,24 @@ export const App: FC<AppProps> = ({ api, applicationState }) => {
     };
 
     loadLogsAndState();
-  }, [logsStore.setLogs, logsStore.selectLogFile, logsStore.refreshLogs]);
+  }, [setLogs, selectLogFile, refreshLogs]);
 
   // Configure an app envelope specific to the current state
   // if there are no log files, then don't show sidebar
-  const fullScreen =
-    logsStore.logs.files.length === 1 && !logsStore.logs.log_dir;
+  const fullScreen = logs.files.length === 1 && !logs.log_dir;
 
-  const showToggle =
-    logsStore.logs.files.length > 1 || !!logsStore.logs.log_dir || false;
+  const showToggle = logs.files.length > 1 || !!logs.log_dir || false;
 
   return (
     <>
       {!fullScreen && logStore.selectedLogSummary ? (
         <Sidebar
-          logs={logsStore.logs}
-          logHeaders={logsStore.logHeaders}
-          loading={logsStore.headersLoading}
-          selectedIndex={logsStore.selectedLogIndex}
+          logs={logs}
+          logHeaders={logHeaders}
+          loading={headersLoading}
+          selectedIndex={selectedLogIndex}
           onSelectedIndexChanged={(index) => {
-            logsStore.setSelectedLogIndex(index);
+            setSelectedLogIndex(index);
             setOffCanvas(false);
           }}
         />
@@ -343,15 +350,12 @@ export const App: FC<AppProps> = ({ api, applicationState }) => {
         )}
         tabIndex={0}
         onKeyDown={(e) => {
-          console.log("KEYB");
-          console.log({ nativeFind, showFind });
           // Add keyboard shortcuts for find, if needed
           if (nativeFind || !setShowFind) {
             return;
           }
 
           if ((e.ctrlKey || e.metaKey) && e.key === "f") {
-            console.log("SET SHOW FIND");
             setShowFind(true);
           } else if (e.key === "Escape") {
             hideFind();
