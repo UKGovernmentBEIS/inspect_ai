@@ -1,5 +1,4 @@
 import pytest
-from test_helpers.utils import skip_if_trio
 
 from inspect_ai import Task, eval
 from inspect_ai.dataset import Sample
@@ -10,7 +9,6 @@ from inspect_ai.solver import generate
 
 
 @pytest.mark.anyio
-@skip_if_trio
 async def test_mock_generate_default() -> None:
     model = get_model("mockllm/model")
 
@@ -19,7 +17,6 @@ async def test_mock_generate_default() -> None:
 
 
 @pytest.mark.anyio
-@skip_if_trio
 async def test_mock_generate_custom_valid() -> None:
     custom_content_str = "custom #content"
     model = get_model(
@@ -34,7 +31,6 @@ async def test_mock_generate_custom_valid() -> None:
 
 
 @pytest.mark.anyio
-@skip_if_trio
 async def test_mock_generate_custom_invalid() -> None:
     model = get_model(
         "mockllm/model",
@@ -46,7 +42,6 @@ async def test_mock_generate_custom_invalid() -> None:
 
 
 @pytest.mark.anyio
-@skip_if_trio
 async def test_mock_generate_custom_invalid_iterable_string() -> None:
     model = get_model(
         "mockllm/model",
@@ -58,7 +53,6 @@ async def test_mock_generate_custom_invalid_iterable_string() -> None:
 
 
 @pytest.mark.anyio
-@skip_if_trio
 async def test_mock_generate_custom_invalid_iterable_number() -> None:
     with pytest.raises(ValueError) as e_info:
         get_model(
@@ -69,7 +63,6 @@ async def test_mock_generate_custom_invalid_iterable_number() -> None:
 
 
 @pytest.mark.anyio
-@skip_if_trio
 async def test_mock_generate_not_enough() -> None:
     model = get_model(
         "mockllm/model",
@@ -99,8 +92,6 @@ def test_mock_model_eval():
     )
 
     result = eval(task, model="mockllm/model")[0]
-
-    print(f"result: [{str(result)}]")
 
     assert result.status == "success"
     assert result.samples[0].messages[-1].content == MockLLM.default_output
