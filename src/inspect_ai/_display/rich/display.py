@@ -11,6 +11,7 @@ from rich.progress import Progress as RProgress
 from rich.table import Table
 from typing_extensions import override
 
+from inspect_ai._util._async import configured_async_backend
 from inspect_ai._util.constants import CONSOLE_DISPLAY_WIDTH
 from inspect_ai.log._transcript import InputEvent, transcript
 from inspect_ai.util._display import display_type
@@ -74,7 +75,7 @@ class RichDisplay(Display):
 
     @override
     def run_task_app(self, main: Callable[[], Awaitable[TR]]) -> TR:
-        return anyio.run(main)
+        return anyio.run(main, backend=configured_async_backend())
 
     @override
     @contextlib.contextmanager

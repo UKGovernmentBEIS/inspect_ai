@@ -7,7 +7,7 @@ import anyio
 from pydantic import BaseModel
 from pydantic_core import to_json
 
-from inspect_ai._util._async import get_current_async_library
+from inspect_ai._util._async import current_async_backend
 from inspect_ai._util.constants import ALL_LOG_FORMATS, EVAL_LOG_FORMAT
 from inspect_ai._util.file import (
     FileInfo,
@@ -111,11 +111,14 @@ def write_eval_log(
     """
     # we used to allow calling this from async code, so detect this and provide
     # a more sensible error message
-    if get_current_async_library() is not None:
+    if current_async_backend() is not None:
         raise RuntimeError(
             "write_eval_log cannot be called from an async context (please use write_eval_log_async instead)"
         )
-    anyio.run(write_eval_log_async, log, location, format)
+
+    # will use s3fs and is not called from main inspect solver/scorer/tool/sandbox
+    # flow, so force the use of asyncio
+    anyio.run(write_eval_log_async, log, location, format, backend="asyncio")
 
 
 async def write_eval_log_async(
@@ -217,13 +220,20 @@ def read_eval_log(
     """
     # we used to allow calling this from async code, so detect this and provide
     # a more sensible error message
-    if get_current_async_library() is not None:
+    if current_async_backend() is not None:
         raise RuntimeError(
             "read_eval_log cannot be called from an async context (please use read_eval_log_async instead)"
         )
 
+    # will use s3fs and is not called from main inspect solver/scorer/tool/sandbox
+    # flow, so force the use of asyncio
     return anyio.run(
-        read_eval_log_async, log_file, header_only, resolve_attachments, format
+        read_eval_log_async,
+        log_file,
+        header_only,
+        resolve_attachments,
+        format,
+        backend="asyncio",
     )
 
 
@@ -278,7 +288,9 @@ async def read_eval_log_async(
 def read_eval_log_headers(
     log_files: list[str] | list[EvalLogInfo],
 ) -> list[EvalLog]:
-    return anyio.run(read_eval_log_headers_async, log_files)
+    # will use s3fs and is not called from main inspect solver/scorer/tool/sandbox
+    # flow, so force the use of asyncio
+    return anyio.run(read_eval_log_headers_async, log_files, backend="asyncio")
 
 
 async def read_eval_log_headers_async(
@@ -313,8 +325,21 @@ def read_eval_log_sample(
     Raises:
        IndexError: If the passed id and epoch are not found.
     """
+    if current_async_backend() is not None:
+        raise RuntimeError(
+            "read_eval_log_sample cannot be called from an async context (please use read_eval_log_sample_async instead)"
+        )
+
+    # will use s3fs and is not called from main inspect solver/scorer/tool/sandbox
+    # flow, so force the use of asyncio
     return anyio.run(
-        read_eval_log_sample_async, log_file, id, epoch, resolve_attachments, format
+        read_eval_log_sample_async,
+        log_file,
+        id,
+        epoch,
+        resolve_attachments,
+        format,
+        backend="asyncio",
     )
 
 

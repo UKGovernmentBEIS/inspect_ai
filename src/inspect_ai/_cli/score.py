@@ -13,6 +13,7 @@ from inspect_ai._display import display
 from inspect_ai._display.core.rich import rich_theme
 from inspect_ai._eval.context import init_eval_context, init_task_context
 from inspect_ai._eval.score import ScoreAction, task_score
+from inspect_ai._util._async import configured_async_backend
 from inspect_ai._util.file import basename, dirname, exists
 from inspect_ai.log._log import EvalLog
 from inspect_ai.log._recorders import create_recorder_for_location
@@ -75,7 +76,7 @@ def score_command(
             log_level=common["log_level"],
         )
 
-    anyio.run(run_score)
+    anyio.run(run_score, backend=configured_async_backend())
 
 
 async def score(

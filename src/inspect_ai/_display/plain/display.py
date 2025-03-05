@@ -5,6 +5,7 @@ import anyio
 import rich
 
 from inspect_ai._display.core.rich import rich_initialise
+from inspect_ai._util._async import configured_async_backend
 from inspect_ai._util.text import truncate
 from inspect_ai._util.throttle import throttle
 
@@ -42,7 +43,7 @@ class PlainDisplay(Display):
         yield PlainProgress(total)
 
     def run_task_app(self, main: Callable[[], Awaitable[TR]]) -> TR:
-        return anyio.run(main)
+        return anyio.run(main, backend=configured_async_backend())
 
     @contextlib.contextmanager
     def suspend_task_app(self) -> Iterator[None]:

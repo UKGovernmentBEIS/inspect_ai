@@ -1,7 +1,8 @@
 import inspect
+import os
 import sys
 from logging import Logger
-from typing import Any, Awaitable, Callable, TypeVar
+from typing import Any, Awaitable, Callable, Literal, TypeVar, cast
 
 import anyio
 import nest_asyncio  # type: ignore
@@ -103,8 +104,20 @@ def init_nest_asyncio() -> None:
         _initialised_nest_asyncio = True
 
 
-def get_current_async_library() -> str | None:
+def current_async_backend() -> Literal["asyncio", "trio"] | None:
     try:
-        return sniffio.current_async_library()
+        return _validate_backend(sniffio.current_async_library())
     except sniffio.AsyncLibraryNotFoundError:
         return None
+
+
+def configured_async_backend() -> Literal["asyncio", "trio"]:
+    backend = os.environ.get("INSPECT_ASYNC_BACKEND", "asyncio")
+    return _validate_backend(backend)
+
+
+def _validate_backend(backend: str) -> Literal["asyncio", "trio"]:
+    if backend in ["asynio", "trio"]:
+        return cast(Literal["asyncio", "trio"], backend)
+    else:
+        raise RuntimeError(f"Unknown async backend: {backend}")
