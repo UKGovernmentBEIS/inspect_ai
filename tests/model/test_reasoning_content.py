@@ -1,7 +1,12 @@
 from typing import Literal
 
 import pytest
-from test_helpers.utils import skip_if_no_google, skip_if_no_groq, skip_if_no_together
+from test_helpers.utils import (
+    skip_if_no_google,
+    skip_if_no_groq,
+    skip_if_no_together,
+    skip_if_trio,
+)
 
 from inspect_ai import Task, eval
 from inspect_ai._util.content import ContentReasoning
@@ -25,18 +30,6 @@ async def test_reasoning_content_groq():
     await check_reasoning_content("groq/deepseek-r1-distill-llama-70b")
 
 
-@skip_if_no_google
-def test_reasoning_content_google():
-    log = eval(
-        Task(dataset=[Sample(input="Solve 3*x^3-5*x=1")]),
-        model="google/gemini-2.0-flash-thinking-exp",
-    )[0]
-    assert log.samples
-    content = log.samples[0].output.message.content
-    assert isinstance(content, list)
-    assert isinstance(content[0], ContentReasoning)
-
-
 @pytest.mark.slow
 @skip_if_no_together
 def test_reasoning_history_none():
@@ -53,6 +46,19 @@ def test_reasoning_history_all():
 @skip_if_no_together
 def test_reasoning_history_last():
     check_reasoning_history("last", 1)
+
+
+@skip_if_no_google
+@skip_if_trio
+def test_reasoning_content_google():
+    log = eval(
+        Task(dataset=[Sample(input="Solve 3*x^3-5*x=1")]),
+        model="google/gemini-2.0-flash-thinking-exp",
+    )[0]
+    assert log.samples
+    content = log.samples[0].output.message.content
+    assert isinstance(content, list)
+    assert isinstance(content[0], ContentReasoning)
 
 
 async def check_reasoning_content(

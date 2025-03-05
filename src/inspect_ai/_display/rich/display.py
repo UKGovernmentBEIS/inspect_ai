@@ -162,9 +162,12 @@ class RichDisplay(Display):
             self.live.update(r, refresh=True)
 
     async def _update_display_loop(self) -> None:
-        while True:
-            await anyio.sleep(1)
-            self._update_display()
+        try:
+            while True:
+                await anyio.sleep(1)
+                self._update_display()
+        except Exception:
+            pass
 
     @override
     def display_counter(self, caption: str, value: str) -> None:
