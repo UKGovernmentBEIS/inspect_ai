@@ -134,6 +134,7 @@ export type Input =
       | ChatMessageAssistant
       | ChatMessageTool
     )[];
+export type Id1 = string;
 export type Content =
   | string
   | (
@@ -160,6 +161,7 @@ export type Video = string;
 export type Format1 = "mp4" | "mpeg" | "mov";
 export type Source = ("input" | "generate") | null;
 export type Role = "system";
+export type Id2 = string;
 export type Content1 =
   | string
   | (
@@ -172,6 +174,7 @@ export type Content1 =
 export type Source1 = ("input" | "generate") | null;
 export type Role1 = "user";
 export type ToolCallId = string[] | null;
+export type Id3 = string;
 export type Content2 =
   | string
   | (
@@ -184,13 +187,14 @@ export type Content2 =
 export type Source2 = ("input" | "generate") | null;
 export type Role2 = "assistant";
 export type ToolCalls = ToolCall[] | null;
-export type Id1 = string;
+export type Id4 = string;
 export type Function = string;
 export type Type7 = "function";
 export type ParseError = string | null;
 export type Title = string | null;
 export type Format2 = "text" | "markdown";
 export type Content3 = string;
+export type Id5 = string;
 export type Content4 =
   | string
   | (
@@ -273,7 +277,7 @@ export type Input1 =
     )[];
 export type Choices2 = string[] | null;
 export type Target1 = string | string[];
-export type Id2 = number | string | null;
+export type Id6 = number | string | null;
 export type Metadata8 = {} | null;
 export type Files1 = {
   [k: string]: string;
@@ -360,7 +364,7 @@ export type WorkingStart6 = number;
 export type Pending6 = boolean | null;
 export type Event6 = "tool";
 export type Type12 = "function";
-export type Id3 = string;
+export type Id7 = string;
 export type Function2 = string;
 export type Result1 =
   | string
@@ -805,6 +809,7 @@ export interface EvalSample {
  * System chat message.
  */
 export interface ChatMessageSystem {
+  id: Id1;
   content: Content;
   source: Source;
   role: Role;
@@ -855,6 +860,7 @@ export interface ContentVideo {
  * User chat message.
  */
 export interface ChatMessageUser {
+  id: Id2;
   content: Content1;
   source: Source1;
   role: Role1;
@@ -864,13 +870,14 @@ export interface ChatMessageUser {
  * Assistant chat message.
  */
 export interface ChatMessageAssistant {
+  id: Id3;
   content: Content2;
   source: Source2;
   role: Role2;
   tool_calls: ToolCalls;
 }
 export interface ToolCall {
-  id: Id1;
+  id: Id4;
   function: Function;
   arguments: Arguments;
   type: Type7;
@@ -890,6 +897,7 @@ export interface ToolCallContent {
  * Tool chat message.
  */
 export interface ChatMessageTool {
+  id: Id5;
   content: Content4;
   source: Source3;
   role: Role3;
@@ -972,7 +980,7 @@ export interface Sample {
   input: Input1;
   choices: Choices2;
   target: Target1;
-  id: Id2;
+  id: Id6;
   metadata: Metadata8;
   sandbox: SandboxEnvironmentSpec | null;
   files: Files1;
@@ -1176,7 +1184,7 @@ export interface ToolEvent {
   pending: Pending6;
   event: Event6;
   type: Type12;
-  id: Id3;
+  id: Id7;
   function: Function2;
   arguments: Arguments1;
   view: ToolCallContent | null;

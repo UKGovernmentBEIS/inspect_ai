@@ -6,7 +6,7 @@ from inspect_ai._util.content import Content, ContentAudio, ContentImage, Conten
 from inspect_ai._util.images import file_as_data_uri
 from inspect_ai._util.url import is_data_uri
 from inspect_ai.dataset import Sample
-from inspect_ai.model import ChatMessage, ChatMessageUser
+from inspect_ai.model import ChatMessage
 from inspect_ai.solver import TaskState
 
 
@@ -66,27 +66,31 @@ def messages_without_base64_content(messages: list[ChatMessage]) -> list[ChatMes
 
 
 async def message_with_base64_content(message: ChatMessage) -> ChatMessage:
-    if isinstance(message, ChatMessageUser) and not isinstance(message.content, str):
-        return ChatMessageUser(
-            content=[
-                await chat_content_with_base64_content(content)
-                for content in message.content
-            ],
-            source=message.source,
+    if not isinstance(message.content, str):
+        return message.model_copy(
+            update=dict(
+                content=[
+                    await chat_content_with_base64_content(content)
+                    for content in message.content
+                ]
+            )
         )
+
     else:
         return message
 
 
 def message_without_base64_content(message: ChatMessage) -> ChatMessage:
-    if isinstance(message, ChatMessageUser) and not isinstance(message.content, str):
-        return ChatMessageUser(
-            content=[
-                chat_content_without_base64_content(content)
-                for content in message.content
-            ],
-            source=message.source,
+    if not isinstance(message.content, str):
+        return message.model_copy(
+            update=dict(
+                content=[
+                    chat_content_without_base64_content(content)
+                    for content in message.content
+                ]
+            )
         )
+
     else:
         return message
 

@@ -107,7 +107,7 @@ def chat_messages(
 ) -> list[ChatCompletionMessageParam]:
     # o1 does not allow system messages so convert system -> user
     messages: list[ChatMessage] = [
-        ChatMessageUser(content=message.content)
+        ChatMessageUser(id=message.id, content=message.content)
         if message.role == "system"
         else message
         for message in input
