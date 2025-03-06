@@ -142,26 +142,10 @@ export const createSampleSlice = (
 
 export const initializeSampleSlice = (
   set: (fn: (state: StoreState) => void) => void,
-  restoreState?: Partial<SampleState>,
 ) => {
   set((state) => {
-    state.sample = { ...initialState };
-    if (restoreState) {
-      if (restoreState.selectedSample) {
-        state.sample.selectedSample = restoreState.selectedSample;
-      }
-
-      if (restoreState.sampleError) {
-        state.sample.sampleError = restoreState.sampleError;
-      }
-
-      if (restoreState.sampleStatus) {
-        state.sample.sampleStatus = restoreState.sampleStatus;
-      }
-
-      if (restoreState.runningSampleData) {
-        state.sample.runningSampleData = restoreState.runningSampleData;
-      }
+    if (!state.sample) {
+      state.sample = initialState;
     }
   });
 };

@@ -1353,10 +1353,10 @@ var require_assets = __commonJS({
         } catch (err2) {
         }
     }
-    var clz32 = Math.clz32 ? Math.clz32 : clz32Fallback, log$6 = Math.log, LN2 = Math.LN2;
+    var clz32 = Math.clz32 ? Math.clz32 : clz32Fallback, log$7 = Math.log, LN2 = Math.LN2;
     function clz32Fallback(x2) {
       x2 >>>= 0;
-      return 0 === x2 ? 32 : 31 - (log$6(x2) / LN2 | 0) | 0;
+      return 0 === x2 ? 32 : 31 - (log$7(x2) / LN2 | 0) | 0;
     }
     var nextTransitionLane = 128, nextRetryLane = 4194304;
     function getHighestPriorityLanes(lanes) {
@@ -16817,46 +16817,6 @@ self.onmessage = function (e) {
         }
       ) });
     };
-    function throttle$1(func, wait, options2 = {}) {
-      let context;
-      let args;
-      let result2;
-      let timeout = null;
-      let previous = 0;
-      const later = function() {
-        previous = options2.leading === false ? 0 : Date.now();
-        timeout = null;
-        result2 = func.apply(context, args === null ? [] : args);
-        if (!timeout) {
-          context = null;
-          args = null;
-        }
-      };
-      return function(...callArgs) {
-        const now2 = Date.now();
-        if (!previous && options2.leading === false) {
-          previous = now2;
-        }
-        const remaining = wait - (now2 - previous);
-        context = this;
-        args = callArgs;
-        if (remaining <= 0 || remaining > wait) {
-          if (timeout) {
-            clearTimeout(timeout);
-            timeout = null;
-          }
-          previous = now2;
-          result2 = func.apply(context, args);
-          if (!timeout) {
-            context = null;
-            args = null;
-          }
-        } else if (!timeout && options2.trailing !== false) {
-          timeout = setTimeout(later, remaining);
-        }
-        return result2;
-      };
-    }
     function debounce$1(func, wait, options2 = {}) {
       let timeout = null;
       let context;
@@ -16933,10 +16893,215 @@ self.onmessage = function (e) {
       return useBoundStore;
     };
     const create$2 = (createState) => createImpl;
-    function createJSONStorage(getStorage, options2) {
-      let storage;
+    const __vite_import_meta_env__ = { "BASE_URL": "./", "DEV": false, "MODE": "development", "PROD": true, "SSR": false };
+    const trackedConnections = /* @__PURE__ */ new Map();
+    const getTrackedConnectionState = (name2) => {
+      const api2 = trackedConnections.get(name2);
+      if (!api2) return {};
+      return Object.fromEntries(
+        Object.entries(api2.stores).map(([key2, api22]) => [key2, api22.getState()])
+      );
+    };
+    const extractConnectionInformation = (store, extensionConnector, options2) => {
+      if (store === void 0) {
+        return {
+          type: "untracked",
+          connection: extensionConnector.connect(options2)
+        };
+      }
+      const existingConnection = trackedConnections.get(options2.name);
+      if (existingConnection) {
+        return { type: "tracked", store, ...existingConnection };
+      }
+      const newConnection = {
+        connection: extensionConnector.connect(options2),
+        stores: {}
+      };
+      trackedConnections.set(options2.name, newConnection);
+      return { type: "tracked", store, ...newConnection };
+    };
+    const devtoolsImpl = (fn2, devtoolsOptions = {}) => (set2, get2, api2) => {
+      const { enabled, anonymousActionType, store, ...options2 } = devtoolsOptions;
+      let extensionConnector;
       try {
-        storage = getStorage();
+        extensionConnector = (enabled != null ? enabled : (__vite_import_meta_env__ ? "development" : void 0) !== "production") && window.__REDUX_DEVTOOLS_EXTENSION__;
+      } catch (e) {
+      }
+      if (!extensionConnector) {
+        return fn2(set2, get2, api2);
+      }
+      const { connection, ...connectionInformation } = extractConnectionInformation(store, extensionConnector, options2);
+      let isRecording = true;
+      api2.setState = (state, replace2, nameOrAction) => {
+        const r2 = set2(state, replace2);
+        if (!isRecording) return r2;
+        const action = nameOrAction === void 0 ? { type: anonymousActionType || "anonymous" } : typeof nameOrAction === "string" ? { type: nameOrAction } : nameOrAction;
+        if (store === void 0) {
+          connection == null ? void 0 : connection.send(action, get2());
+          return r2;
+        }
+        connection == null ? void 0 : connection.send(
+          {
+            ...action,
+            type: `${store}/${action.type}`
+          },
+          {
+            ...getTrackedConnectionState(options2.name),
+            [store]: api2.getState()
+          }
+        );
+        return r2;
+      };
+      const setStateFromDevtools = (...a) => {
+        const originalIsRecording = isRecording;
+        isRecording = false;
+        set2(...a);
+        isRecording = originalIsRecording;
+      };
+      const initialState2 = fn2(api2.setState, get2, api2);
+      if (connectionInformation.type === "untracked") {
+        connection == null ? void 0 : connection.init(initialState2);
+      } else {
+        connectionInformation.stores[connectionInformation.store] = api2;
+        connection == null ? void 0 : connection.init(
+          Object.fromEntries(
+            Object.entries(connectionInformation.stores).map(([key2, store2]) => [
+              key2,
+              key2 === connectionInformation.store ? initialState2 : store2.getState()
+            ])
+          )
+        );
+      }
+      if (api2.dispatchFromDevtools && typeof api2.dispatch === "function") {
+        let didWarnAboutReservedActionType = false;
+        const originalDispatch = api2.dispatch;
+        api2.dispatch = (...a) => {
+          if ((__vite_import_meta_env__ ? "development" : void 0) !== "production" && a[0].type === "__setState" && !didWarnAboutReservedActionType) {
+            console.warn(
+              '[zustand devtools middleware] "__setState" action type is reserved to set state from the devtools. Avoid using it.'
+            );
+            didWarnAboutReservedActionType = true;
+          }
+          originalDispatch(...a);
+        };
+      }
+      connection.subscribe((message2) => {
+        var _a2;
+        switch (message2.type) {
+          case "ACTION":
+            if (typeof message2.payload !== "string") {
+              console.error(
+                "[zustand devtools middleware] Unsupported action format"
+              );
+              return;
+            }
+            return parseJsonThen(
+              message2.payload,
+              (action) => {
+                if (action.type === "__setState") {
+                  if (store === void 0) {
+                    setStateFromDevtools(action.state);
+                    return;
+                  }
+                  if (Object.keys(action.state).length !== 1) {
+                    console.error(
+                      `
+                    [zustand devtools middleware] Unsupported __setState action format.
+                    When using 'store' option in devtools(), the 'state' should have only one key, which is a value of 'store' that was passed in devtools(),
+                    and value of this only key should be a state object. Example: { "type": "__setState", "state": { "abc123Store": { "foo": "bar" } } }
+                    `
+                    );
+                  }
+                  const stateFromDevtools = action.state[store];
+                  if (stateFromDevtools === void 0 || stateFromDevtools === null) {
+                    return;
+                  }
+                  if (JSON.stringify(api2.getState()) !== JSON.stringify(stateFromDevtools)) {
+                    setStateFromDevtools(stateFromDevtools);
+                  }
+                  return;
+                }
+                if (!api2.dispatchFromDevtools) return;
+                if (typeof api2.dispatch !== "function") return;
+                api2.dispatch(action);
+              }
+            );
+          case "DISPATCH":
+            switch (message2.payload.type) {
+              case "RESET":
+                setStateFromDevtools(initialState2);
+                if (store === void 0) {
+                  return connection == null ? void 0 : connection.init(api2.getState());
+                }
+                return connection == null ? void 0 : connection.init(getTrackedConnectionState(options2.name));
+              case "COMMIT":
+                if (store === void 0) {
+                  connection == null ? void 0 : connection.init(api2.getState());
+                  return;
+                }
+                return connection == null ? void 0 : connection.init(getTrackedConnectionState(options2.name));
+              case "ROLLBACK":
+                return parseJsonThen(message2.state, (state) => {
+                  if (store === void 0) {
+                    setStateFromDevtools(state);
+                    connection == null ? void 0 : connection.init(api2.getState());
+                    return;
+                  }
+                  setStateFromDevtools(state[store]);
+                  connection == null ? void 0 : connection.init(getTrackedConnectionState(options2.name));
+                });
+              case "JUMP_TO_STATE":
+              case "JUMP_TO_ACTION":
+                return parseJsonThen(message2.state, (state) => {
+                  if (store === void 0) {
+                    setStateFromDevtools(state);
+                    return;
+                  }
+                  if (JSON.stringify(api2.getState()) !== JSON.stringify(state[store])) {
+                    setStateFromDevtools(state[store]);
+                  }
+                });
+              case "IMPORT_STATE": {
+                const { nextLiftedState } = message2.payload;
+                const lastComputedState = (_a2 = nextLiftedState.computedStates.slice(-1)[0]) == null ? void 0 : _a2.state;
+                if (!lastComputedState) return;
+                if (store === void 0) {
+                  setStateFromDevtools(lastComputedState);
+                } else {
+                  setStateFromDevtools(lastComputedState[store]);
+                }
+                connection == null ? void 0 : connection.send(
+                  null,
+                  // FIXME no-any
+                  nextLiftedState
+                );
+                return;
+              }
+              case "PAUSE_RECORDING":
+                return isRecording = !isRecording;
+            }
+            return;
+        }
+      });
+      return initialState2;
+    };
+    const devtools = devtoolsImpl;
+    const parseJsonThen = (stringified, f) => {
+      let parsed;
+      try {
+        parsed = JSON.parse(stringified);
+      } catch (e) {
+        console.error(
+          "[zustand devtools middleware] Could not parse the received json",
+          e
+        );
+      }
+      if (parsed !== void 0) f(parsed);
+    };
+    function createJSONStorage(getStorage, options2) {
+      let storage2;
+      try {
+        storage2 = getStorage();
       } catch (e) {
         return;
       }
@@ -16949,17 +17114,17 @@ self.onmessage = function (e) {
             }
             return JSON.parse(str22, void 0);
           };
-          const str2 = (_a2 = storage.getItem(name2)) != null ? _a2 : null;
+          const str2 = (_a2 = storage2.getItem(name2)) != null ? _a2 : null;
           if (str2 instanceof Promise) {
             return str2.then(parse2);
           }
           return parse2(str2);
         },
-        setItem: (name2, newValue) => storage.setItem(
+        setItem: (name2, newValue) => storage2.setItem(
           name2,
           JSON.stringify(newValue, void 0)
         ),
-        removeItem: (name2) => storage.removeItem(name2)
+        removeItem: (name2) => storage2.removeItem(name2)
       };
       return persistStorage;
     }
@@ -17002,8 +17167,8 @@ self.onmessage = function (e) {
       let hasHydrated = false;
       const hydrationListeners = /* @__PURE__ */ new Set();
       const finishHydrationListeners = /* @__PURE__ */ new Set();
-      let storage = options2.storage;
-      if (!storage) {
+      let storage2 = options2.storage;
+      if (!storage2) {
         return config2(
           (...args) => {
             console.warn(
@@ -17017,7 +17182,7 @@ self.onmessage = function (e) {
       }
       const setItem = () => {
         const state = options2.partialize({ ...get2() });
-        return storage.setItem(options2.name, {
+        return storage2.setItem(options2.name, {
           state,
           version: options2.version
         });
@@ -17039,14 +17204,14 @@ self.onmessage = function (e) {
       let stateFromStorage;
       const hydrate = () => {
         var _a2, _b2;
-        if (!storage) return;
+        if (!storage2) return;
         hasHydrated = false;
         hydrationListeners.forEach((cb) => {
           var _a22;
           return cb((_a22 = get2()) != null ? _a22 : configResult);
         });
         const postRehydrationCallback = ((_b2 = options2.onRehydrateStorage) == null ? void 0 : _b2.call(options2, (_a2 = get2()) != null ? _a2 : configResult)) || void 0;
-        return toThenable(storage.getItem.bind(storage))(options2.name).then((deserializedStorageValue) => {
+        return toThenable(storage2.getItem.bind(storage2))(options2.name).then((deserializedStorageValue) => {
           if (deserializedStorageValue) {
             if (typeof deserializedStorageValue.version === "number" && deserializedStorageValue.version !== options2.version) {
               if (options2.migrate) {
@@ -17094,11 +17259,11 @@ self.onmessage = function (e) {
             ...newOptions
           };
           if (newOptions.storage) {
-            storage = newOptions.storage;
+            storage2 = newOptions.storage;
           }
         },
         clearStorage: () => {
-          storage == null ? void 0 : storage.removeItem(options2.name);
+          storage2 == null ? void 0 : storage2.removeItem(options2.name);
         },
         getOptions: () => options2,
         rehydrate: () => hydrate(),
@@ -17757,6 +17922,28 @@ self.onmessage = function (e) {
       return initializer(store.setState, get2, store);
     };
     const immer = immerImpl;
+    const createLogger = (namespace) => {
+      const logger = {
+        debug: (message2, ...args) => {
+          if (__DEV_WATCH__) console.debug(`[${namespace}] ${message2}`, ...args);
+        },
+        info: (message2, ...args) => {
+          if (__DEV_WATCH__) console.info(`[${namespace}] ${message2}`, ...args);
+        },
+        warn: (message2, ...args) => {
+          if (__DEV_WATCH__) console.warn(`[${namespace}] ${message2}`, ...args);
+        },
+        // Always log errors, even in production
+        error: (message2, ...args) => {
+          console.error(`[${namespace}] ${message2}`, ...args);
+        },
+        // Lazy evaluation for expensive logs
+        debugIf: (fn2) => {
+          if (__DEV_WATCH__) console.debug(`[${namespace}] ${fn2()}`);
+        }
+      };
+      return logger;
+    };
     const kModelNone = "none/none";
     const kEvalWorkspaceTabId = "eval-tab";
     const kJsonWorkspaceTabId = "json-tab";
@@ -17792,7 +17979,7 @@ self.onmessage = function (e) {
     };
     const kDefaultWorkspaceTab = kEvalWorkspaceTabId;
     const kDefaultSampleTab = kSampleTranscriptTabId;
-    const initialState$4 = {
+    const initialState$3 = {
       status: { loading: false },
       offcanvas: false,
       showFind: false,
@@ -17807,7 +17994,7 @@ self.onmessage = function (e) {
     const createAppSlice = (set2, get2, _store) => {
       const slice = {
         // State
-        app: initialState$4,
+        app: initialState$3,
         capabilities: {},
         // Actions
         appActions: {
@@ -17862,33 +18049,13 @@ self.onmessage = function (e) {
       };
       return [slice, cleanup];
     };
-    const initializeAppSlice = (set2, capabilities2, restoreState) => {
+    const initializeAppSlice = (set2, capabilities2) => {
       set2((state) => {
         state.capabilities = capabilities2;
-        state.app = { ...initialState$4 };
-      });
-    };
-    const createLogger = (namespace) => {
-      const logger = {
-        debug: (message2, ...args) => {
-          if (__DEV_WATCH__) console.debug(`[${namespace}] ${message2}`, ...args);
-        },
-        info: (message2, ...args) => {
-          if (__DEV_WATCH__) console.info(`[${namespace}] ${message2}`, ...args);
-        },
-        warn: (message2, ...args) => {
-          if (__DEV_WATCH__) console.warn(`[${namespace}] ${message2}`, ...args);
-        },
-        // Always log errors, even in production
-        error: (message2, ...args) => {
-          console.error(`[${namespace}] ${message2}`, ...args);
-        },
-        // Lazy evaluation for expensive logs
-        debugIf: (fn2) => {
-          if (__DEV_WATCH__) console.debug(`[${namespace}] ${fn2()}`);
+        if (!state.app) {
+          state.app = initialState$3;
         }
-      };
-      return logger;
+      });
     };
     const createPolling = (name2, callback, options2) => {
       const log2 = createLogger(`Polling ${name2}`);
@@ -17953,7 +18120,7 @@ self.onmessage = function (e) {
       };
       return { start, stop };
     };
-    const log$5 = createLogger("logPolling");
+    const log$6 = createLogger("logPolling");
     function createLogPolling(get2, set2) {
       let currentPolling = null;
       let isActive = true;
@@ -17968,14 +18135,14 @@ self.onmessage = function (e) {
           async () => {
             var _a3;
             if (!isActive) {
-              log$5.debug(`Component unmounted, stopping poll for: ${logFileName}`);
+              log$6.debug(`Component unmounted, stopping poll for: ${logFileName}`);
               return false;
             }
             const state = get2();
             const api2 = state.api;
             if (!(api2 == null ? void 0 : api2.get_log_pending_samples)) return false;
             const currentEtag = (_a3 = get2().log.pendingSampleSummaries) == null ? void 0 : _a3.etag;
-            log$5.debug(`POLL RUNNING SAMPLES: ${logFileName}`);
+            log$6.debug(`POLL RUNNING SAMPLES: ${logFileName}`);
             if (!isActive) {
               return false;
             }
@@ -17993,7 +18160,7 @@ self.onmessage = function (e) {
               get2().logActions.refreshLog();
               return true;
             } else if (pendingSamples.status === "NotFound") {
-              log$5.debug(`STOP POLLING RUNNING SAMPLES: ${logFileName}`);
+              log$6.debug(`STOP POLLING RUNNING SAMPLES: ${logFileName}`);
               clearPendingSummaries(logFileName);
               return false;
             }
@@ -18012,7 +18179,7 @@ self.onmessage = function (e) {
         }
         const pendingSampleSummaries = get2().log.pendingSampleSummaries;
         if (((pendingSampleSummaries == null ? void 0 : pendingSampleSummaries.samples.length) || 0) > 0) {
-          log$5.debug(`CLEAR PENDING: ${logFileName}`);
+          log$6.debug(`CLEAR PENDING: ${logFileName}`);
           set2((state) => {
             state.log.pendingSampleSummaries = {
               samples: [],
@@ -18029,7 +18196,7 @@ self.onmessage = function (e) {
         }
       };
       const cleanup = () => {
-        log$5.debug(`CLEANUP`);
+        log$6.debug(`CLEANUP`);
         isActive = false;
         stopPolling();
       };
@@ -18040,13 +18207,13 @@ self.onmessage = function (e) {
         cleanup
       };
     }
-    const log$4 = createLogger("logSlice");
-    const initialState$3 = {
+    const log$5 = createLogger("logSlice");
+    const initialState$2 = {
       // Log state
       selectedSampleIndex: -1,
       selectedLogSummary: void 0,
       pendingSampleSummaries: void 0,
-      api: null,
+      loadedLog: void 0,
       // Filter state
       filter: {},
       epoch: "all",
@@ -18058,7 +18225,7 @@ self.onmessage = function (e) {
       const logPolling = createLogPolling(get2, set2);
       const slice = {
         // State
-        log: initialState$3,
+        log: initialState$2,
         // Actions
         logActions: {
           selectSample: (index2) => set2((state) => {
@@ -18103,12 +18270,11 @@ self.onmessage = function (e) {
               console.error("API not initialized in Store");
               return;
             }
-            log$4.debug(`LOAD LOG: ${logFileName}`);
+            log$5.debug(`LOAD LOG: ${logFileName}`);
             try {
               const logContents = await api2.get_log_summary(logFileName);
               state.logActions.setSelectedLogSummary(logContents);
-              state.logActions.selectSample(0);
-              state.logActions.resetFiltering();
+              state.logActions.setEpoch;
               const header2 = {
                 [logFileName]: {
                   version: logContents.version,
@@ -18121,9 +18287,12 @@ self.onmessage = function (e) {
                 }
               };
               state.logsActions.updateLogHeaders(header2);
+              set2((state2) => {
+                state2.log.loadedLog = logFileName;
+              }), // Start polling for pending samples
               logPolling.startPolling(logFileName);
             } catch (error2) {
-              log$4.error("Error loading log:", error2);
+              log$5.error("Error loading log:", error2);
             }
           },
           refreshLog: async () => {
@@ -18133,12 +18302,12 @@ self.onmessage = function (e) {
             if (!api2 || !selectedLogFile) {
               return;
             }
-            log$4.debug(`REFRESH: ${selectedLogFile}`);
+            log$5.debug(`REFRESH: ${selectedLogFile}`);
             try {
               const logContents = await api2.get_log_summary(selectedLogFile);
               state.logActions.setSelectedLogSummary(logContents);
             } catch (error2) {
-              log$4.error("Error refreshing log:", error2);
+              log$5.error("Error refreshing log:", error2);
             }
           }
         }
@@ -18148,12 +18317,14 @@ self.onmessage = function (e) {
       };
       return [slice, cleanup];
     };
-    const initalializeLogSlice = (set2, restoreState) => {
+    const initalializeLogSlice = (set2) => {
       set2((state) => {
-        state.log = { ...initialState$3 };
+        if (!state.log) {
+          state.log = initialState$2;
+        }
       });
     };
-    const log$3 = createLogger("logsPolling");
+    const log$4 = createLogger("logsPolling");
     function createLogsPolling(get2, _set) {
       let currentPolling = null;
       let isActive = true;
@@ -18166,7 +18337,7 @@ self.onmessage = function (e) {
           currentPolling.stop();
         }
         isActive = true;
-        log$3.debug("LOADING HEADERS");
+        log$4.debug("LOADING HEADERS");
         get2().logsActions.setHeadersLoading(true);
         const chunkSize = 8;
         const fileLists = [];
@@ -18182,10 +18353,10 @@ self.onmessage = function (e) {
               get2().logsActions.setHeadersLoading(false);
               return false;
             }
-            log$3.debug(`POLL HEADERS`);
+            log$4.debug(`POLL HEADERS`);
             const currentFileList = fileLists.shift();
             if (currentFileList) {
-              log$3.debug(
+              log$4.debug(
                 `LOADING ${totalLen - fileLists.length} of ${totalLen} CHUNKS`
               );
               const headers = await api2.get_log_headers(currentFileList);
@@ -18219,7 +18390,7 @@ self.onmessage = function (e) {
         }
       };
       const cleanup = () => {
-        log$3.debug(`CLEANUP`);
+        log$4.debug(`CLEANUP`);
         isActive = false;
         stopPolling();
       };
@@ -18229,8 +18400,8 @@ self.onmessage = function (e) {
         cleanup
       };
     }
-    const log$2 = createLogger("Log Slice");
-    const initialState$2 = {
+    const log$3 = createLogger("Log Slice");
+    const initialState$1 = {
       logs: { log_dir: "", files: [] },
       logHeaders: {},
       headersLoading: false,
@@ -18240,7 +18411,7 @@ self.onmessage = function (e) {
       const logsPolling = createLogsPolling(get2);
       const slice = {
         // State
-        logs: initialState$2,
+        logs: initialState$1,
         // Actions
         logsActions: {
           setLogs: (logs) => {
@@ -18262,9 +18433,11 @@ self.onmessage = function (e) {
           setHeadersLoading: (loading) => set2((state) => {
             state.logs.headersLoading = loading;
           }),
-          setSelectedLogIndex: (selectedLogIndex) => set2((state) => {
-            state.logs.selectedLogIndex = selectedLogIndex;
-          }),
+          setSelectedLogIndex: (selectedLogIndex) => {
+            set2((state) => {
+              state.logs.selectedLogIndex = selectedLogIndex;
+            });
+          },
           updateLogHeaders: (headers) => set2((state) => {
             state.logs.logHeaders = { ...get2().logs.logHeaders, ...headers };
           }),
@@ -18285,7 +18458,7 @@ self.onmessage = function (e) {
               return { log_dir: "", files: [] };
             }
             try {
-              log$2.debug("LOADING LOG FILES");
+              log$3.debug("LOADING LOG FILES");
               return await api2.get_log_paths();
             } catch (e) {
               console.log(e);
@@ -18294,7 +18467,7 @@ self.onmessage = function (e) {
             }
           },
           refreshLogs: async () => {
-            log$2.debug("REFRESH LOGS");
+            log$3.debug("REFRESH LOGS");
             const state = get2();
             const refreshedLogs = await state.logsActions.loadLogs();
             state.logsActions.setLogs(refreshedLogs || { log_dir: "", files: [] });
@@ -18338,9 +18511,11 @@ self.onmessage = function (e) {
       };
       return [slice, cleanup];
     };
-    const initializeLogsSlice = (set2, restoreState) => {
+    const initializeLogsSlice = (set2) => {
       set2((state) => {
-        state.logs = { ...initialState$2 };
+        if (!state.logs) {
+          state.logs = initialState$1;
+        }
       });
     };
     const resolveAttachments = (value2, attachments) => {
@@ -18392,7 +18567,7 @@ self.onmessage = function (e) {
         }
       };
     };
-    const log$1 = createLogger("samplePolling");
+    const log$2 = createLogger("samplePolling");
     function createSamplePolling(get2, _set) {
       let currentPolling = null;
       let isActive = true;
@@ -18401,10 +18576,10 @@ self.onmessage = function (e) {
           currentPolling.stop();
         }
         isActive = true;
-        log$1.debug(`POLLING RUNNING SAMPLE: ${summary2.id}-${summary2.epoch}`);
+        log$2.debug(`POLLING RUNNING SAMPLE: ${summary2.id}-${summary2.epoch}`);
         const pollCallback = async () => {
           if (!isActive) {
-            log$1.debug(
+            log$2.debug(
               `Component unmounted, stopping poll for: ${summary2.id}-${summary2.epoch}`
             );
             return false;
@@ -18416,7 +18591,7 @@ self.onmessage = function (e) {
           if (!api2.get_log_sample_data) {
             return false;
           }
-          log$1.debug(`GET RUNNING SAMPLE: ${summary2.id}-${summary2.epoch}`);
+          log$2.debug(`GET RUNNING SAMPLE: ${summary2.id}-${summary2.epoch}`);
           if (!isActive) {
             return false;
           }
@@ -18439,7 +18614,7 @@ self.onmessage = function (e) {
             adapter.addData(sampleDataResponse.sampleData);
             const events = adapter.resolvedEvents();
             const runningData = { events, summary: summary2 };
-            log$1.debug(`EVENTS: ${events.length}`);
+            log$2.debug(`EVENTS: ${events.length}`);
             get2().sampleActions.setRunningSampleData(runningData);
           }
           return true;
@@ -18459,7 +18634,7 @@ self.onmessage = function (e) {
         }
       };
       const cleanup = () => {
-        log$1.debug(`CLEANUP`);
+        log$2.debug(`CLEANUP`);
         isActive = false;
         stopPolling();
       };
@@ -18469,8 +18644,8 @@ self.onmessage = function (e) {
         cleanup
       };
     }
-    const log = createLogger("sampleSlice");
-    const initialState$1 = {
+    const log$1 = createLogger("sampleSlice");
+    const initialState = {
       selectedSample: void 0,
       sampleStatus: "ok",
       sampleError: void 0,
@@ -18493,7 +18668,7 @@ self.onmessage = function (e) {
       const samplePolling = createSamplePolling(get2);
       const slice = {
         // Actions
-        sample: initialState$1,
+        sample: initialState,
         sampleActions: {
           setSelectedSample: (sample2) => {
             set2((state) => {
@@ -18525,7 +18700,7 @@ self.onmessage = function (e) {
             sampleActions.setSampleStatus("loading");
             try {
               if (sampleSummary.completed !== false) {
-                log.debug(
+                log$1.debug(
                   `LOADING COMPLETED SAMPLE: ${sampleSummary.id}-${sampleSummary.epoch}`
                 );
                 const sample2 = await ((_a2 = get2().api) == null ? void 0 : _a2.get_log_sample(
@@ -18542,7 +18717,7 @@ self.onmessage = function (e) {
                   );
                 }
               } else {
-                log.debug(
+                log$1.debug(
                   `POLLING RUNNING SAMPLE: ${sampleSummary.id}-${sampleSummary.epoch}`
                 );
                 samplePolling.startPolling(logFile, sampleSummary);
@@ -18560,63 +18735,105 @@ self.onmessage = function (e) {
       };
       return [slice, cleanup];
     };
-    const initializeSampleSlice = (set2, restoreState) => {
+    const initializeSampleSlice = (set2) => {
       set2((state) => {
-        state.sample = { ...initialState$1 };
+        if (!state.sample) {
+          state.sample = initialState;
+        }
       });
     };
-    const useStore = create$2()(
-      persist(
-        immer((set2, get2, store) => {
-          const [appSlice, appCleanup] = createAppSlice(set2, get2);
-          const [logsSlice, logsCleanup] = createLogsSlice(set2, get2);
-          const [logSlice, logCleanup] = createLogSlice(set2, get2);
-          const [sampleSlice, sampleCleanup] = createSampleSlice(set2, get2);
-          return {
-            // Shared state
-            api: null,
-            // Initialize
-            initialize: (api2, capabilities2) => {
-              set2((state) => {
-                state.api = api2;
-              });
-              initializeAppSlice(set2, capabilities2);
-              initializeLogsSlice(set2);
-              initalializeLogSlice(set2);
-              initializeSampleSlice(set2);
-            },
-            // Create the slices and merge them in
-            ...appSlice,
-            ...logsSlice,
-            ...logSlice,
-            ...sampleSlice,
-            cleanup: () => {
-              appCleanup();
-              logsCleanup();
-              logCleanup();
-              sampleCleanup();
-            }
-          };
-        }),
-        {
-          name: "app-storage",
-          partialize: (state) => ({
-            // TODO: Partialize state
-            // Thing out state to only store the parts that
-            // should be stored
-            app: {
-              offcanvas: state.app.offcanvas,
-              showFind: state.app.showFind
-              // Don't persist status
-            },
-            logs: {},
-            log: {}
-          })
+    const log = createLogger("store");
+    let storeImplementation = null;
+    const useStore = (selector) => {
+      if (!storeImplementation) {
+        throw new Error(
+          "Store accessed before initialization. Call initializeStore first."
+        );
+      }
+      return selector ? storeImplementation(selector) : storeImplementation();
+    };
+    const initializeStore = (api2, capabilities2, storage2) => {
+      const storageImplementation = {
+        getItem: (name2) => {
+          return storage2 ? storage2.getItem(name2) : null;
+        },
+        setItem: (name2, value2) => {
+          if (storage2) {
+            storage2.setItem(name2, value2);
+          }
+        },
+        removeItem: (name2) => {
+          if (storage2) {
+            storage2.removeItem(name2);
+          }
         }
-      )
-    );
-    const initializeStore = (api2, capabilities2) => {
-      useStore.getState().initialize(api2, capabilities2);
+      };
+      const store = create$2()(
+        devtools(
+          persist(
+            immer((set2, get2, store2) => {
+              const [appSlice, appCleanup] = createAppSlice(set2, get2);
+              const [logsSlice, logsCleanup] = createLogsSlice(set2, get2);
+              const [logSlice, logCleanup] = createLogSlice(set2, get2);
+              const [sampleSlice, sampleCleanup] = createSampleSlice(
+                set2,
+                get2
+              );
+              return {
+                // Shared state
+                api: null,
+                // Initialize
+                initialize: (api22, capabilities22) => {
+                  set2((state) => {
+                    state.api = api22;
+                  });
+                  initializeAppSlice(set2, capabilities22);
+                  initializeLogsSlice(set2);
+                  initalializeLogSlice(set2);
+                  initializeSampleSlice(set2);
+                },
+                // Create the slices and merge them in
+                ...appSlice,
+                ...logsSlice,
+                ...logSlice,
+                ...sampleSlice,
+                cleanup: () => {
+                  appCleanup();
+                  logsCleanup();
+                  logCleanup();
+                  sampleCleanup();
+                }
+              };
+            }),
+            {
+              name: "app-storage",
+              storage: storageImplementation,
+              partialize: (state) => {
+                const persisted = {
+                  app: state.app,
+                  log: state.log,
+                  logs: state.logs,
+                  sample: state.sample
+                };
+                return persisted;
+              },
+              version: 1,
+              onRehydrateStorage: (state) => {
+                return (hydrationState, error2) => {
+                  log.debug("REHYDRATING STATE");
+                  if (error2) {
+                    log.debug("ERROR", { error: error2 });
+                  } else {
+                    log.debug("STATE", { state, hydrationState });
+                  }
+                };
+              }
+            }
+          )
+        )
+      );
+      storeImplementation = store;
+      store.getState().initialize(api2, capabilities2);
     };
     const FindBand = () => {
       const searchBoxRef = reactExports.useRef(null);
@@ -64253,13 +64470,18 @@ ${events}
       });
       return rootNodes;
     }
-    const SampleTranscript = ({
-      id,
-      evalEvents,
-      scrollRef
-    }) => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsx(TranscriptVirtualList, { id, events: evalEvents, scrollRef });
-    };
+    const SampleTranscript = reactExports.memo(
+      ({ id, evalEvents, scrollRef }) => {
+        return /* @__PURE__ */ jsxRuntimeExports.jsx(
+          TranscriptVirtualList,
+          {
+            id,
+            events: evalEvents,
+            scrollRef
+          }
+        );
+      }
+    );
     const SampleDisplay = ({
       id,
       sample: sample2,
@@ -64565,7 +64787,7 @@ ${events}
       const sampleData = useSampleData();
       const logSelection = useLogSelection();
       reactExports.useEffect(() => {
-        if (logSelection.logFile) {
+        if (logSelection.logFile && logSelection.sample) {
           sampleData.loadSample(logSelection.logFile, logSelection.sample);
         }
       }, [logSelection.logFile, logSelection.sample]);
@@ -64738,8 +64960,11 @@ ${events}
       const sampleData = useSampleData();
       const logSelection = useLogSelection();
       reactExports.useEffect(() => {
+        var _a2;
         if (logSelection.logFile && logSelection.sample) {
-          sampleData.loadSample(logSelection.logFile, logSelection.sample);
+          if (((_a2 = sampleData.sample) == null ? void 0 : _a2.id) !== logSelection.sample.id || sampleData.sample.epoch !== logSelection.sample.epoch) {
+            sampleData.loadSample(logSelection.logFile, logSelection.sample);
+          }
         }
       }, [logSelection.logFile, logSelection.sample]);
       const tools2 = reactExports.useMemo(() => {
@@ -67712,14 +67937,14 @@ ${events}
     })(clipboard);
     var clipboardExports = clipboard.exports;
     const ClipboardJS = /* @__PURE__ */ getDefaultExportFromCjs(clipboardExports);
-    const App = ({ api: api2, applicationState }) => {
+    const App = ({ api: api2 }) => {
       var _a2;
       const appStatus = useStore((state) => state.app.status);
       const setAppStatus = useStore((state) => state.appActions.setStatus);
       const offCanvas = useStore((state) => state.app.offcanvas);
       const setOffCanvas = useStore((state) => state.appActions.setOffcanvas);
-      const setSelectedWorkspaceTab = useStore(
-        (state) => state.appActions.setWorkspaceTab
+      const clearWorkspaceTab = useStore(
+        (state) => state.appActions.clearWorkspaceTab
       );
       const clearSampleTab = useStore((state) => state.appActions.clearSampleTab);
       const nativeFind = useStore((state) => state.capabilities.nativeFind);
@@ -67740,6 +67965,7 @@ ${events}
       const refreshLogs = useStore((state) => state.logsActions.refreshLogs);
       const selectLogFile = useStore((state) => state.logsActions.selectLogFile);
       const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
+      const loadedLogFile = useStore((state) => state.log.loadedLog);
       const runningMetrics = useStore(
         (state) => {
           var _a3;
@@ -67749,16 +67975,10 @@ ${events}
       const resetFiltering = useStore((state) => state.logActions.resetFiltering);
       const loadLog = useStore((state) => state.logActions.loadLog);
       const refreshLog = useStore((state) => state.logActions.refreshLog);
-      const clearSelectedSample = useStore(
-        (state) => state.sampleActions.clearSelectedSample
-      );
+      const selectSample = useStore((state) => state.logActions.selectSample);
       const mainAppRef = reactExports.useRef(null);
-      const workspaceTabScrollPosition = reactExports.useRef(
-        (applicationState == null ? void 0 : applicationState.workspaceTabScrollPosition) || {}
-      );
-      const sampleScrollPosition = reactExports.useRef(
-        (applicationState == null ? void 0 : applicationState.sampleScrollPosition) || 0
-      );
+      const workspaceTabScrollPosition = reactExports.useRef({});
+      const sampleScrollPosition = reactExports.useRef(0);
       const setSampleScrollPosition = reactExports.useCallback(
         debounce$1((position) => {
           sampleScrollPosition.current = position;
@@ -67778,10 +67998,11 @@ ${events}
       );
       reactExports.useEffect(() => {
         const loadSpecificLog = async () => {
-          if (selectedLogFile) {
+          if (selectedLogFile && selectedLogFile !== loadedLogFile) {
             try {
               setAppStatus({ loading: true, error: void 0 });
               await loadLog(selectedLogFile);
+              selectSample(0);
               setAppStatus({ loading: false, error: void 0 });
             } catch (e) {
               console.log(e);
@@ -67790,13 +68011,7 @@ ${events}
           }
         };
         loadSpecificLog();
-      }, [selectedLogFile, loadLog, setAppStatus]);
-      reactExports.useEffect(() => {
-        setSelectedWorkspaceTab(kEvalWorkspaceTabId);
-        clearSampleTab();
-        workspaceTabScrollPosition.current = {};
-        clearSelectedSample();
-      }, [selectedLogSummary == null ? void 0 : selectedLogSummary.eval.task_id, clearSelectedSample]);
+      }, [selectedLogFile, loadedLogFile, loadLog, setAppStatus]);
       reactExports.useEffect(() => {
         if (logs.log_dir && logs.files.length === 0) {
           setAppStatus({
@@ -67894,6 +68109,10 @@ ${events}
             onSelectedIndexChanged: (index2) => {
               setSelectedLogIndex(index2);
               setOffCanvas(false);
+              resetFiltering();
+              clearSampleTab();
+              clearWorkspaceTab();
+              selectSample(0);
             }
           }
         ) : void 0,
@@ -67986,52 +68205,26 @@ ${events}
         return this.props.children;
       }
     }
-    const vscode = getVscodeApi();
-    const resolvedApi = api;
-    let initialState = void 0;
-    let capabilities = {
-      downloadFiles: true,
-      webWorkers: true,
-      streamSamples: !!resolvedApi.get_log_pending_samples,
-      streamSampleData: !!resolvedApi.get_log_sample_data,
-      nativeFind: !vscode
-    };
-    if (vscode) {
-      initialState = filterState(vscode.getState());
-      const extensionVersionEl = document.querySelector(
-        'meta[name="inspect-extension:version"]'
-      );
-      const extensionVersion = extensionVersionEl ? extensionVersionEl.getAttribute("content") : void 0;
-      if (!extensionVersion) {
-        capabilities.downloadFiles = false;
-        capabilities.webWorkers = false;
+    const resolveStorage = () => {
+      const vscodeApi2 = getVscodeApi();
+      if (vscodeApi2) {
+        return {
+          getItem: (_name) => {
+            const state = vscodeApi2.getState();
+            return filterState(state);
+          },
+          setItem: (_name, value2) => {
+            const valObj = value2;
+            valObj.state = filterState(valObj.state);
+            vscodeApi2.setState(valObj);
+          },
+          removeItem: (_name) => {
+            vscodeApi2.setState(null);
+          }
+        };
       }
-    }
-    initializeStore(resolvedApi, capabilities);
-    const containerId = "app";
-    const container = document.getElementById(containerId);
-    if (!container) {
-      console.error("Root container not found");
-      throw new Error(
-        `Expected a container element with Id '${containerId}' but no such container element was present.`
-      );
-    }
-    const root = clientExports.createRoot(container);
-    root.render(
-      /* @__PURE__ */ jsxRuntimeExports.jsx(AppErrorBoundary, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-        App,
-        {
-          api: resolvedApi,
-          applicationState: initialState,
-          saveApplicationState: throttle$1((state) => {
-            const vscode2 = getVscodeApi();
-            if (vscode2) {
-              vscode2.setState(filterState(state));
-            }
-          }, 1e3)
-        }
-      ) })
-    );
+      return void 0;
+    };
     function filterState(state) {
       if (!state) {
         return state;
@@ -68043,25 +68236,30 @@ ${events}
       );
     }
     function filterLargeSample(state) {
-      if (!state || !state.selectedSample) {
+      if (!state || !state.sample || !state.sample.selectedSample) {
         return state;
       }
-      const estimatedTotalSize = estimateSize(state.selectedSample.messages);
-      if (estimatedTotalSize > 4e5) {
-        const { selectedSample, ...filteredState } = state;
-        return filteredState;
+      const estimatedTotalSize = estimateSize(state.sample.selectedSample.messages);
+      if (estimatedTotalSize > 25e4) {
+        return {
+          ...state,
+          sample: {
+            ...state.sample,
+            selectedSample: void 0
+          }
+        };
       } else {
         return state;
       }
     }
     function filterLargeLogSummary(state) {
-      if (!state || !state.log.selectedLogSummary) {
+      if (!state || !state.log || !state.log.selectedLogSummary) {
         return state;
       }
       const estimatedSize = estimateSize(
         state.log.selectedLogSummary.sampleSummaries
       );
-      if (estimatedSize > 4e5) {
+      if (estimatedSize > 25e4) {
         return {
           ...state,
           log: {
@@ -68089,6 +68287,40 @@ ${events}
       const estimatedTotalSize = totalSize / sampleSize * list2.length;
       return estimatedTotalSize;
     }
+    const storage = resolveStorage();
+    const applicationApi = api;
+    const applicationStorage = storage;
+    const vscode = getVscodeApi();
+    let capabilities = {
+      downloadFiles: true,
+      webWorkers: true,
+      streamSamples: !!applicationApi.get_log_pending_samples,
+      streamSampleData: !!applicationApi.get_log_sample_data,
+      nativeFind: !vscode
+    };
+    if (vscode) {
+      const extensionVersionEl = document.querySelector(
+        'meta[name="inspect-extension:version"]'
+      );
+      const extensionVersion = extensionVersionEl ? extensionVersionEl.getAttribute("content") : void 0;
+      if (!extensionVersion) {
+        capabilities.downloadFiles = false;
+        capabilities.webWorkers = false;
+      }
+    }
+    initializeStore(applicationApi, capabilities, applicationStorage);
+    const containerId = "app";
+    const container = document.getElementById(containerId);
+    if (!container) {
+      console.error("Root container not found");
+      throw new Error(
+        `Expected a container element with Id '${containerId}' but no such container element was present.`
+      );
+    }
+    const root = clientExports.createRoot(container);
+    root.render(
+      /* @__PURE__ */ jsxRuntimeExports.jsx(AppErrorBoundary, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(App, { api: applicationApi }) })
+    );
   }
 });
 export default require_assets();
