@@ -47,21 +47,22 @@ export const SandboxEventView: FC<SandboxEventViewProps> = ({
       }}
     >
       {event.action === "exec" ? (
-        <ExecView event={event} />
+        <ExecView id={`${id}-exec`} event={event} />
       ) : event.action === "read_file" ? (
-        <ReadFileView event={event} />
+        <ReadFileView id={`${id}-read-file`} event={event} />
       ) : (
-        <WriteFileView event={event} />
+        <WriteFileView id={`${id}-write-file`} event={event} />
       )}
     </EventPanel>
   );
 };
 
 interface ExecViewProps {
+  id: string;
   event: SandboxEvent;
 }
 
-const ExecView: FC<ExecViewProps> = ({ event }) => {
+const ExecView: FC<ExecViewProps> = ({ id, event }) => {
   if (event.cmd === null) {
     return undefined;
   }
@@ -92,7 +93,7 @@ const ExecView: FC<ExecViewProps> = ({ event }) => {
       </EventSection>
       <EventSection title={`Result`}>
         {output ? (
-          <ExpandablePanel collapse={false}>
+          <ExpandablePanel id={`${id}-output`} collapse={false}>
             <MarkdownDiv markdown={output} />
           </ExpandablePanel>
         ) : undefined}
@@ -103,38 +104,41 @@ const ExecView: FC<ExecViewProps> = ({ event }) => {
 };
 
 interface ReadFileViewProps {
+  id: string;
   event: SandboxEvent;
 }
 
-const ReadFileView: FC<ReadFileViewProps> = ({ event }) => {
+const ReadFileView: FC<ReadFileViewProps> = ({ id, event }) => {
   if (event.file === null) {
     return undefined;
   }
   const file = event.file;
   const output = event.output;
-  return <FileView file={file} contents={output?.trim()} />;
+  return <FileView id={id} file={file} contents={output?.trim()} />;
 };
 
 interface WriteFileViewProps {
+  id: string;
   event: SandboxEvent;
 }
 
-const WriteFileView: FC<WriteFileViewProps> = ({ event }) => {
+const WriteFileView: FC<WriteFileViewProps> = ({ id, event }) => {
   if (event.file === null) {
     return undefined;
   }
   const file = event.file;
   const input = event.input;
 
-  return <FileView file={file} contents={input?.trim()} />;
+  return <FileView id={id} file={file} contents={input?.trim()} />;
 };
 
 interface FileViewProps {
+  id: string;
   file: string;
   contents?: string;
 }
 
-const FileView: FC<FileViewProps> = ({ file, contents }) => {
+const FileView: FC<FileViewProps> = ({ id, file, contents }) => {
   return (
     <div>
       <EventSection title="File">
@@ -143,7 +147,7 @@ const FileView: FC<FileViewProps> = ({ file, contents }) => {
 
       {contents ? (
         <EventSection title="Contents">
-          <ExpandablePanel collapse={false}>
+          <ExpandablePanel id={`${id}-file`} collapse={false}>
             <pre>{contents}</pre>
           </ExpandablePanel>
         </EventSection>
