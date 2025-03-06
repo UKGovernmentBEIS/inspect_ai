@@ -1,9 +1,9 @@
-# Structured Outputs
+# Structured Output
 
 
 > [!NOTE]
 >
-> The structured outputs feature described below is currently available
+> The structured output feature described below is currently available
 > only in the development version of Inspect. To install the development
 > version from GitHub:
 >
@@ -13,22 +13,21 @@
 
 ## Overview
 
-Structured outputs are a feature supported by some model providers to
+Structured output is a feature supported by some model providers to
 ensure that models generate responses which adhere to a supplied JSON
-Schema. Structured outputs are currently supported in Inspect for the
+Schema. Structured output is currently supported in Inspect for the
 OpenAI, Google, and Mistral providers.
 
-While structured outputs may seem like they could be a robust solution
-to model unreliability, it’s important to keep in mind that by
-specifying a JSON schema you are also introducing unknown effects on
-model task performance. There is even some early literature indicating
-that [models perform worse with structured
-outputs](https://dylancastillo.co/posts/say-what-you-mean-sometimes.html).
+While structured output may seem like a robust solution to model
+unreliability, it’s important to keep in mind that by specifying a JSON
+schema you are also introducing unknown effects on model task
+performance. There is even some early literature indicating that [models
+perform worse with structured
+output](https://dylancastillo.co/posts/say-what-you-mean-sometimes.html).
 
-You should therefore test the use of structured outputs as an
-elicitation technique like you would any other, and only proceed if you
-feel confident that it has made a genuine improvement in your overall
-task.
+You should therefore test the use of structured output as an elicitation
+technique like you would any other, and only proceed if you feel
+confident that it has made a genuine improvement in your overall task.
 
 ## Example
 

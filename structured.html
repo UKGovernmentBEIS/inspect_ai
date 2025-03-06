@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 
-<title>Inspect - Structured Outputs</title>
+<title>Inspect - Structured Output</title>
 <style>
 code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
@@ -182,7 +182,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
 <header id="title-block-header" class="quarto-title-block default">
 <div class="quarto-title">
-<h1 class="title">Structured Outputs</h1>
+<h1 class="title">Structured Output</h1>
 </div>
 
 
@@ -205,16 +205,16 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <i class="callout-icon"></i>
 </div>
 <div class="callout-body-container">
-<p>The structured outputs feature described below is currently available only in the development version of Inspect. To install the development version from GitHub:</p>
+<p>The structured output feature described below is currently available only in the development version of Inspect. To install the development version from GitHub:</p>
 <div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install git+https://github.com/UKGovernmentBEIS/inspect_ai</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 </div>
 </div>
 <section id="overview" class="level2">
 <h2 class="anchored" data-anchor-id="overview">Overview</h2>
-<p>Structured outputs are a feature supported by some model providers to ensure that models generate responses which adhere to a supplied JSON Schema. Structured outputs are currently supported in Inspect for the OpenAI, Google, and Mistral providers.</p>
-<p>While structured outputs may seem like they could be a robust solution to model unreliability, it’s important to keep in mind that by specifying a JSON schema you are also introducing unknown effects on model task performance. There is even some early literature indicating that <a href="https://dylancastillo.co/posts/say-what-you-mean-sometimes.html">models perform worse with structured outputs</a>.</p>
-<p>You should therefore test the use of structured outputs as an elicitation technique like you would any other, and only proceed if you feel confident that it has made a genuine improvement in your overall task.</p>
+<p>Structured output is a feature supported by some model providers to ensure that models generate responses which adhere to a supplied JSON Schema. Structured output is currently supported in Inspect for the OpenAI, Google, and Mistral providers.</p>
+<p>While structured output may seem like a robust solution to model unreliability, it’s important to keep in mind that by specifying a JSON schema you are also introducing unknown effects on model task performance. There is even some early literature indicating that <a href="https://dylancastillo.co/posts/say-what-you-mean-sometimes.html">models perform worse with structured output</a>.</p>
+<p>You should therefore test the use of structured output as an elicitation technique like you would any other, and only proceed if you feel confident that it has made a genuine improvement in your overall task.</p>
 </section>
 <section id="example" class="level2">
 <h2 class="anchored" data-anchor-id="example">Example</h2>
