@@ -21,8 +21,8 @@ from tenacity import (
     wait_exponential_jitter,
 )
 
-from _util._common_types import JSONRPCResponseJSON, ToolException
-from _util._validation import pretty_validation_error, validate_params
+from multi_tool._util._common_types import JSONRPCResponseJSON, ToolException
+from multi_tool._util._validation import pretty_validation_error, validate_params
 
 BaseModelT = TypeVar("BaseModelT", bound=BaseModel)
 

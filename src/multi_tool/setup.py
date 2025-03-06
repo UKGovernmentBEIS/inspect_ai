@@ -1,5 +1,5 @@
 import os
-from setuptools import setup, find_packages
+from setuptools import setup, find_namespace_packages
 
 # Read requirements from container/pyproject.toml if it exists
 requirements = []
@@ -18,9 +18,12 @@ setup(
     package_dir={
         'inspect_multi_tool': '.',
         'inspect_multi_tool.container': 'container',
+        'inspect_multi_tool.container._in_process_tools': 'container/_in_process_tools',
+        'inspect_multi_tool.container._remote_tools': 'container/_remote_tools',
+        'inspect_multi_tool.container._util': 'container/_util',
         'inspect_multi_tool.web_browser_back_compat': 'web_browser_back_compat',
     },
-    packages=['inspect_multi_tool', 'inspect_multi_tool.container', 'inspect_multi_tool.web_browser_back_compat'],
+    packages=find_namespace_packages(include=['inspect_multi_tool', 'inspect_multi_tool.*']),
     install_requires=requirements + [
         "aiohttp",
         "jsonrpcserver",
