@@ -2,7 +2,7 @@
 """
 Post-installation script for inspect-multi-tool package.
 
-Copies the container files to /opt/inspect and the web_browser_back_compat files to /app/web_browser.
+Copies the multi_tool files to /opt/inspect and the back_compat/web_browser files to /app/web_browser.
 """
 
 import os
@@ -21,48 +21,87 @@ def copy_files():
         # If not installed, use the script's location
         src_dir = Path(__file__).parent.absolute()
 
-    # Copy container files to /opt/inspect
-    container_src = src_dir / "container"
-    container_dest = Path("/opt/inspect")
+    # Copy multi_tool files to /opt/inspect
+    multi_tool_dest = Path("/opt/inspect")
 
-    # Copy web_browser_back_compat files to /app/web_browser
-    web_browser_src = src_dir / "web_browser_back_compat"
+    # Copy back_compat/web_browser files to /app/web_browser
+    web_browser_src = src_dir / "back_compat" / "web_browser"
     web_browser_dest = Path("/app/web_browser")
 
     # Create destination directories if they don't exist
-    os.makedirs(container_dest, exist_ok=True)
+    os.makedirs(multi_tool_dest, exist_ok=True)
     os.makedirs(web_browser_dest, exist_ok=True)
 
-    # Copy container files
-    print(f"Copying files from {container_src} to {container_dest}")
-    for item in container_src.glob("**/*"):
-        if item.is_file() and not any(part.startswith('.') for part in item.parts):
-            rel_path = item.relative_to(container_src)
-            dest_file = container_dest / rel_path
-            os.makedirs(dest_file.parent, exist_ok=True)
-            shutil.copy2(item, dest_file)
-            print(f"Copied {item} to {dest_file}")
+    # Copy multi_tool files - copying all Python files and related modules
+    print(f"Copying files from {src_dir} to {multi_tool_dest}")
+    
+    # List of files to copy directly
+    files_to_copy = [
+        "__init__.py",
+        "_constants.py",
+        "_load_tools.py",
+        "multi_tool_v1.py",
+        "server.py"
+    ]
+    
+    # List of directories to copy recursively
+    dirs_to_copy = [
+        "_in_process_tools",
+        "_remote_tools",
+        "_util"
+    ]
+    
+    # Copy individual files
+    for file_name in files_to_copy:
+        src_file = src_dir / file_name
+        if src_file.exists():
+            dest_file = multi_tool_dest / file_name
+            shutil.copy2(src_file, dest_file)
+            print(f"Copied {src_file} to {dest_file}")
             
             # Make Python files executable
             if dest_file.suffix == '.py':
                 os.chmod(dest_file, 0o755)
+    
+    # Copy directories recursively
+    for dir_name in dirs_to_copy:
+        dir_src = src_dir / dir_name
+        dir_dest = multi_tool_dest / dir_name
+        
+        if dir_src.exists():
+            # Create destination directory
+            os.makedirs(dir_dest, exist_ok=True)
+            
+            # Copy files recursively
+            for item in dir_src.glob("**/*"):
+                if item.is_file() and not any(part.startswith('.') for part in item.parts):
+                    rel_path = item.relative_to(dir_src)
+                    dest_file = dir_dest / rel_path
+                    os.makedirs(dest_file.parent, exist_ok=True)
+                    shutil.copy2(item, dest_file)
+                    print(f"Copied {item} to {dest_file}")
+                    
+                    # Make Python files executable
+                    if dest_file.suffix == '.py':
+                        os.chmod(dest_file, 0o755)
 
     # Copy web_browser_back_compat files
     print(f"Copying files from {web_browser_src} to {web_browser_dest}")
-    for item in web_browser_src.glob("**/*"):
-        if item.is_file() and not any(part.startswith('.') for part in item.parts):
-            rel_path = item.relative_to(web_browser_src)
-            dest_file = web_browser_dest / rel_path
-            os.makedirs(dest_file.parent, exist_ok=True)
-            shutil.copy2(item, dest_file)
-            print(f"Copied {item} to {dest_file}")
-            
-            # Make Python files executable
-            if dest_file.suffix == '.py':
-                os.chmod(dest_file, 0o755)
+    if web_browser_src.exists():
+        for item in web_browser_src.glob("**/*"):
+            if item.is_file() and not any(part.startswith('.') for part in item.parts):
+                rel_path = item.relative_to(web_browser_src)
+                dest_file = web_browser_dest / rel_path
+                os.makedirs(dest_file.parent, exist_ok=True)
+                shutil.copy2(item, dest_file)
+                print(f"Copied {item} to {dest_file}")
+                
+                # Make Python files executable
+                if dest_file.suffix == '.py':
+                    os.chmod(dest_file, 0o755)
 
     # Create necessary __init__.py files in target directories
-    for base_dir in [container_dest, web_browser_dest]:
+    for base_dir in [multi_tool_dest, web_browser_dest]:
         for root, dirs, _ in os.walk(base_dir):
             root_path = Path(root)
             for dir_name in dirs:

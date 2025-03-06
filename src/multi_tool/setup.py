@@ -1,15 +1,14 @@
 import os
 from setuptools import setup, find_namespace_packages
 
-# Read requirements from container/pyproject.toml if it exists
-requirements = []
-try:
-    import tomli
-    with open(os.path.join("container", "pyproject.toml"), "rb") as f:
-        pyproject = tomli.load(f)
-        requirements = pyproject.get("project", {}).get("dependencies", [])
-except (ImportError, FileNotFoundError):
-    pass
+# Define dependencies directly
+requirements = [
+    "aiohttp",
+    "jsonrpcserver",
+    "pydantic",
+    "tomli",
+    "playwright",  # For web browser functionality
+]
 
 setup(
     name="inspect-multi-tool",
@@ -17,22 +16,18 @@ setup(
     description="Multi-tool container for inspect_ai",
     package_dir={
         'inspect_multi_tool': '.',
-        'inspect_multi_tool.container': 'container',
-        'inspect_multi_tool.container._in_process_tools': 'container/_in_process_tools',
-        'inspect_multi_tool.container._remote_tools': 'container/_remote_tools',
-        'inspect_multi_tool.container._util': 'container/_util',
-        'inspect_multi_tool.web_browser_back_compat': 'web_browser_back_compat',
+        'inspect_multi_tool._in_process_tools': '_in_process_tools',
+        'inspect_multi_tool._remote_tools': '_remote_tools',
+        'inspect_multi_tool._util': '_util',
+        'inspect_multi_tool.back_compat': 'back_compat',
     },
     packages=find_namespace_packages(include=['inspect_multi_tool', 'inspect_multi_tool.*']),
-    install_requires=requirements + [
-        "aiohttp",
-        "jsonrpcserver",
-    ],
+    install_requires=requirements,
     python_requires=">=3.8",
     entry_points={
         "console_scripts": [
-            "multi-tool=inspect_multi_tool.container.multi_tool_v1:main",
-            "multi-tool-server=inspect_multi_tool.container.server:main",
+            "multi-tool=inspect_multi_tool.multi_tool_v1:main",
+            "multi-tool-server=inspect_multi_tool.server:main",
         ],
     },
     data_files=[
