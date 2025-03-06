@@ -226,6 +226,11 @@ class GoogleGenAIAPI(ModelAPI):
                 self.client, input
             ),
         )
+        if config.response_schema is not None:
+            parameters.response_mime_type = "application/json"
+            parameters.response_schema = schema_from_param(
+                config.response_schema.json_schema, nullable=None
+            )
 
         response: GenerateContentResponse | None = None
 
@@ -486,7 +491,9 @@ def chat_tools(tools: list[ToolInfo]) -> list[Tool]:
 
 
 # https://ai.google.dev/gemini-api/tutorials/extract_structured_data#define_the_schema
-def schema_from_param(param: ToolParam | ToolParams, nullable: bool = False) -> Schema:
+def schema_from_param(
+    param: ToolParam | ToolParams, nullable: bool | None = False
+) -> Schema:
     if isinstance(param, ToolParams):
         param = ToolParam(
             type=param.type, properties=param.properties, required=param.required

@@ -15,9 +15,7 @@ from openai import (
     RateLimitError,
 )
 from openai._types import NOT_GIVEN
-from openai.types.chat import (
-    ChatCompletion,
-)
+from openai.types.chat import ChatCompletion
 from typing_extensions import override
 
 from inspect_ai._util.error import PrerequisiteError
@@ -326,6 +324,18 @@ class OpenAIAPI(ModelAPI):
             and not self.is_o1_mini()
         ):
             params["reasoning_effort"] = config.reasoning_effort
+        if config.response_schema is not None:
+            params["response_format"] = dict(
+                type="json_schema",
+                json_schema=dict(
+                    name=config.response_schema.name,
+                    schema=config.response_schema.json_schema.model_dump(
+                        exclude_none=True
+                    ),
+                    description=config.response_schema.description,
+                    strict=config.response_schema.strict,
+                ),
+            )
 
         return params
 
