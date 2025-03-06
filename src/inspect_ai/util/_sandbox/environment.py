@@ -3,18 +3,19 @@ from __future__ import annotations
 import abc
 from dataclasses import dataclass, field
 from typing import (
+    Annotated,
     Any,
     Awaitable,
     Callable,
     Literal,
-    NamedTuple,
     Type,
     TypeVar,
     Union,
+    cast,
     overload,
 )
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from .._subprocess import ExecResult
 
@@ -38,6 +39,7 @@ SampleCleanup = Callable[
     ],
     Awaitable[None],
 ]
+ConfigDeserialize = Callable[[dict[str, Any]], BaseModel]
 
 
 class HostMapping(BaseModel):
@@ -212,11 +214,6 @@ class SandboxEnvironment(abc.ABC):
             )
 
     @classmethod
-    def config_files(cls) -> list[str]:
-        """Standard config files for this provider (used for automatic discovery)"""
-        return []
-
-    @classmethod
     def default_concurrency(cls) -> int | None:
         """Default max_sandboxes for this provider (`None` means no maximum)"""
         return None
@@ -296,6 +293,30 @@ class SandboxEnvironment(abc.ABC):
         """
         pass
 
+    @classmethod
+    def config_files(cls) -> list[str]:
+        """Standard config files for this provider (used for automatic discovery)"""
+        return []
+
+    @classmethod
+    def config_deserialize(cls, config: dict[str, Any]) -> BaseModel:
+        """Deserialize a sandbox-specific configuration model from a dict.
+
+        Override this method if you support a custom configuration model.
+
+        A basic implementation would be: `return MySandboxEnvironmentConfig(**config)`
+
+        Args:
+          config: Configuration dictionary produced by serializing the configuration
+            model.
+
+        Returns:
+          The sandbox-specific configuration model.
+        """
+        raise NotImplementedError(
+            "The SandboxEnvironment provider has not implemented config_deserialize."
+        )
+
 
 @dataclass
 class SandboxEnvironments:
@@ -311,14 +332,29 @@ class SandboxEnvironments:
     """
 
 
-class SandboxEnvironmentSpec(NamedTuple):
+class SandboxEnvironmentSpec(BaseModel, frozen=True):
     """Specification of a SandboxEnvironment."""
 
     type: str
     """Sandbox type (e.g. 'local', 'docker')"""
 
-    config: SandboxEnvironmentConfigType | None = None
+    # Any is used to prevent Pydantic from trying to initialise a BaseModel.
+    config: Annotated[Any, "BaseModel, str or None"] = None
     """Sandbox configuration (filename or config object)."""
+
+    def __init__(self, type: str, config: BaseModel | str | None = None):
+        super().__init__(type=type, config=config)
+
+    @model_validator(mode="before")
+    @classmethod
+    def load_config_model(cls, data: dict[str, Any]) -> dict[str, Any]:
+        type = data["type"]
+        config = data.get("config")
+        # Pydantic won't know what concrete type to instantiate for config, so
+        # ask the relevant sandbox environment to deserialize it.
+        if isinstance(config, dict) and len(config) > 0:
+            data["config"] = deserialize_sandbox_specific_config(type, config)
+        return data
 
 
 SandboxEnvironmentConfigType = BaseModel | str
@@ -343,3 +379,14 @@ def resolve_sandbox_environment(
         return SandboxEnvironmentSpec(sandbox[0], sandbox[1])
     else:
         return None
+
+
+def deserialize_sandbox_specific_config(type: str, config: dict[str, Any]) -> BaseModel:
+    # Avoid circular import
+    from inspect_ai.util._sandbox.registry import registry_find_sandboxenv
+
+    sandboxenv_type = registry_find_sandboxenv(type)
+    config_deserialize = cast(
+        ConfigDeserialize, getattr(sandboxenv_type, "config_deserialize")
+    )
+    return config_deserialize(config)
