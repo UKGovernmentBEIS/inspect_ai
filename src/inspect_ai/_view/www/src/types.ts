@@ -29,6 +29,8 @@ export interface LogsState {
 }
 
 export interface LogState {
+  loadedLog?: string;
+
   selectedSampleIndex: number;
   selectedLogSummary?: EvalSummary;
   pendingSampleSummaries?: PendingSamples;
@@ -47,21 +49,6 @@ export interface SampleState {
   sampleStatus: SampleStatus;
   sampleError: Error | undefined;
   runningSampleData: RunningSampleData | undefined;
-}
-
-export interface ApplicationState {
-  app: AppState;
-  logs: LogsState;
-  log: LogState;
-  sample: SampleState;
-
-  selectedWorkspaceTab?: string;
-  workspaceTabScrollPosition?: Record<string, number>;
-
-  // Sample Context
-  selectedSampleTab?: string;
-  sampleScrollPosition?: number;
-  showingSampleDialog?: boolean;
 }
 
 export interface AppStatus {
