@@ -64,7 +64,7 @@ Below are sections for the various categories of options supported by `inspect e
 ## Model Generation
 
 |                         |                                                                                                                                                                                                                                                         |
-|------------------------------------|------------------------------------|
+|------------------|------------------------------------|
 | `--max-tokens`          | The maximum number of tokens that can be generated in the completion (default is model specific)                                                                                                                                                        |
 | `--system-message`      | Override the default system message.                                                                                                                                                                                                                    |
 | `--temperature`         | What sampling temperature to use, between 0 and 2. Higher values like 0.8 will make the output more random, while lower values like 0.2 will make it more focused and deterministic.                                                                    |
@@ -83,11 +83,12 @@ Below are sections for the various categories of options supported by `inspect e
 | `--reasoning-effort`    | Values: `low`, `medium`, or `high`. Constrains effort on reasoning for reasoning models. Open AI o-series models only.                                                                                                                                  |
 | `--reasoning-tokens`    | Maximum number of tokens to use for reasoning. Anthropic Claude models only.                                                                                                                                                                            |
 | `--reasoning-history`   | Values: `none`, `all`, `last`, or `auto`. Include reasoning in chat message history sent to generate (defaults to "auto", which uses the recommended default for each provider)                                                                         |
+| `--response-format`     | JSON schema for desired response format (output should still be validated). OpenAI, Google, and Mistral only.                                                                                                                                  |
 | `--parallel-tool-calls` | Whether to enable calling multiple functions during tool use (defaults to True) OpenAI and Groq only.                                                                                                                                                   |
 | `--max-tool-output`     | Maximum size of tool output (in bytes). Defaults to 16 \* 1024.                                                                                                                                                                                         |
 | `--internal-tools`      | Whether to automatically map tools to model internal implementations (e.g. 'computer' for Anthropic).                                                                                                                                                   |
-| `--max-retries`         | Maximum number of times to retry generate request (defaults to unlimited)                                                                                                                                                                                                |
-| `--timeout`             | Generate timeout in seconds (defaults to no timeout)                                                                                                                                                                                                                           |
+| `--max-retries`         | Maximum number of times to retry generate request (defaults to unlimited)                                                                                                                                                                               |
+| `--timeout`             | Generate timeout in seconds (defaults to no timeout)                                                                                                                                                                                                    |
 
 ## Tasks and Solvers
 

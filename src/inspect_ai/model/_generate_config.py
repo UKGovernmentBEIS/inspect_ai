@@ -5,6 +5,23 @@ from typing import Any, Literal, Union
 from pydantic import BaseModel, Field, model_validator
 from typing_extensions import TypedDict
 
+from inspect_ai.util._json import JSONSchema
+
+
+class ResponseSchema(BaseModel):
+    name: str
+    """The name of the response schema. Must be a-z, A-Z, 0-9, or contain underscores and dashes, with a maximum length of 64."""
+
+    json_schema: JSONSchema
+    """The schema for the response format, described as a JSON Schema object."""
+
+    description: str | None = Field(default=None)
+    """A description of what the response format is for, used by the model to determine how to respond in the format."""
+
+    strict: bool | None = Field(default=None)
+    """Whether to enable strict schema adherence when generating the output. If set to true, the model will always follow the exact schema defined in the schema field.
+    OpenAI and Mistral only."""
+
 
 class GenerateConfigArgs(TypedDict, total=False):
     """Type for kwargs that selectively override GenerateConfig."""
@@ -80,6 +97,9 @@ class GenerateConfigArgs(TypedDict, total=False):
 
     reasoning_history: Literal["none", "all", "last", "auto"] | None
     """Include reasoning in chat message history sent to generate."""
+
+    response_schema: ResponseSchema | None
+    """Request a response format as JSONSchema (output should still be validated). OpenAI, Google, and Mistral only."""
 
 
 class GenerateConfig(BaseModel):
@@ -158,6 +178,9 @@ class GenerateConfig(BaseModel):
         default=None
     )
     """Include reasoning in chat message history sent to generate."""
+
+    response_schema: ResponseSchema | None = Field(default=None)
+    """Request a response format as JSONSchema (output should still be validated). OpenAI, Google, and Mistral only."""
 
     # migrate reasoning_history as a bool
     @model_validator(mode="before")

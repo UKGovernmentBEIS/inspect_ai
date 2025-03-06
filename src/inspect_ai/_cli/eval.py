@@ -16,6 +16,7 @@ from inspect_ai._util.file import filesystem
 from inspect_ai._util.samples import parse_sample_id, parse_samples_limit
 from inspect_ai.log._file import log_file_info
 from inspect_ai.model import GenerateConfigArgs
+from inspect_ai.model._generate_config import ResponseSchema
 from inspect_ai.scorer._reducer import create_reducers
 from inspect_ai.solver._solver import SolverSpec
 
@@ -405,6 +406,12 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         envvar="INSPECT_EVAL_REASONING_HISTORY",
     )
     @click.option(
+        "--response-schema",
+        type=str,
+        help="JSON schema for desired response format (output should still be validated). OpenAI, Google, and Mistral only.",
+        envvar="INSPECT_EVAL_RESPONSE_SCHEMA",
+    )
+    @click.option(
         "--log-format",
         type=click.Choice(["eval", "json"], case_sensitive=False),
         envvar=["INSPECT_LOG_FORMAT", "INSPECT_EVAL_LOG_FORMAT"],
@@ -475,6 +482,7 @@ def eval_command(
     reasoning_effort: str | None,
     reasoning_tokens: int | None,
     reasoning_history: Literal["none", "all", "last", "auto"] | None,
+    response_schema: ResponseSchema | None,
     message_limit: int | None,
     token_limit: int | None,
     time_limit: int | None,
@@ -639,6 +647,7 @@ def eval_set_command(
     reasoning_effort: str | None,
     reasoning_tokens: int | None,
     reasoning_history: Literal["none", "all", "last", "auto"] | None,
+    response_schema: ResponseSchema | None,
     message_limit: int | None,
     token_limit: int | None,
     time_limit: int | None,
@@ -888,6 +897,9 @@ def config_from_locals(locals: dict[str, Any]) -> GenerateConfigArgs:
             if key == "reasoning_history":
                 if value is not False:
                     value = None
+            if key == "response_schema":
+                if value is not None:
+                    value = ResponseSchema.model_validate_json(value)
             config[key] = value  # type: ignore
     return config
 

@@ -5,35 +5,33 @@ from pydantic import BaseModel, Field
 
 from inspect_ai.tool._tool_info import (
     parse_docstring,
-    parse_object,
     parse_tool_info,
-    parse_type,
 )
-from inspect_ai.tool._tool_params import ToolParam
+from inspect_ai.util._json import JSONSchema, cls_json_schema, json_schema
 
 
 # Test helper functions
-def test_parse_type():
-    assert parse_type(int) == ToolParam(type="integer")
-    assert parse_type(float) == ToolParam(type="number")
-    assert parse_type(str) == ToolParam(type="string")
-    assert parse_type(bool) == ToolParam(type="boolean")
-    assert parse_type(Any) == ToolParam()
-    assert parse_type(List[int]) == ToolParam(
-        type="array", items=ToolParam(type="integer")
+def test_json_schema():
+    assert json_schema(int) == JSONSchema(type="integer")
+    assert json_schema(float) == JSONSchema(type="number")
+    assert json_schema(str) == JSONSchema(type="string")
+    assert json_schema(bool) == JSONSchema(type="boolean")
+    assert json_schema(Any) == JSONSchema()
+    assert json_schema(List[int]) == JSONSchema(
+        type="array", items=JSONSchema(type="integer")
     )
-    assert parse_type(Dict[str, int]) == ToolParam(
-        type="object", additionalProperties=ToolParam(type="integer")
+    assert json_schema(Dict[str, int]) == JSONSchema(
+        type="object", additionalProperties=JSONSchema(type="integer")
     )
-    assert parse_type(Optional[str]) == ToolParam(
-        anyOf=[ToolParam(type="string"), ToolParam(type="null")]
+    assert json_schema(Optional[str]) == JSONSchema(
+        anyOf=[JSONSchema(type="string"), JSONSchema(type="null")]
     )
-    assert parse_type(Union[int, str]) == ToolParam(
-        anyOf=[ToolParam(type="integer"), ToolParam(type="string")]
+    assert json_schema(Union[int, str]) == JSONSchema(
+        anyOf=[JSONSchema(type="integer"), JSONSchema(type="string")]
     )
 
 
-def test_parse_object() -> None:
+def test_cls_json_schema() -> None:
     @dataclass
     class TestDataclass:
         field1: int
@@ -43,14 +41,14 @@ def test_parse_object() -> None:
         field1: int
         field2: str = Field(default="default")
 
-    dataclass_result = parse_object(TestDataclass)
+    dataclass_result = cls_json_schema(TestDataclass)
     assert dataclass_result.type == "object"
     assert dataclass_result.properties
     assert "field1" in dataclass_result.properties
     assert "field2" in dataclass_result.properties
     assert dataclass_result.required == ["field1"]
 
-    pydantic_result = parse_object(TestPydantic)
+    pydantic_result = cls_json_schema(TestPydantic)
     assert pydantic_result.type == "object"
     assert pydantic_result.properties
     assert "field1" in pydantic_result.properties
@@ -307,7 +305,7 @@ def test_dict_with_list_of_pydantic_models() -> None:
     info = parse_tool_info(func_with_dict_list_pydantic)
     assert info.parameters.properties["data"].type == "object"
     assert isinstance(
-        info.parameters.properties["data"].additionalProperties, ToolParam
+        info.parameters.properties["data"].additionalProperties, JSONSchema
     )
 
     assert info.parameters.properties["data"].additionalProperties.type == "array"

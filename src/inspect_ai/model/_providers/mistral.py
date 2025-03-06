@@ -22,6 +22,12 @@ from mistralai.models import (
     ChatCompletionChoice as MistralChatCompletionChoice,
 )
 from mistralai.models import Function as MistralFunction
+from mistralai.models import (
+    JSONSchema as MistralJSONSchema,
+)
+from mistralai.models import (
+    ResponseFormat as MistralResponseFormat,
+)
 from mistralai.models import SDKError
 from mistralai.models import SystemMessage as MistralSystemMessage
 from mistralai.models import Tool as MistralTool
@@ -148,6 +154,18 @@ class MistralAPI(ModelAPI):
                 request["max_tokens"] = config.max_tokens
             if config.seed is not None:
                 request["random_seed"] = config.seed
+            if config.response_schema is not None:
+                request["response_format"] = MistralResponseFormat(
+                    type="json_schema",
+                    json_schema=MistralJSONSchema(
+                        name=config.response_schema.name,
+                        description=config.response_schema.description,
+                        schema_definition=config.response_schema.json_schema.model_dump(
+                            exclude_none=True
+                        ),
+                        strict=config.response_schema.strict,
+                    ),
+                )
 
             # prepare response for inclusion in model call
             response: dict[str, Any] = {}
