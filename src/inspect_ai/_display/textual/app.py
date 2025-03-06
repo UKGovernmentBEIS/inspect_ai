@@ -1,16 +1,18 @@
-import asyncio
 import contextlib
 from asyncio import CancelledError
 from typing import (
     Any,
     AsyncIterator,
+    Awaitable,
+    Callable,
     ClassVar,
-    Coroutine,
     Generic,
     Iterator,
     cast,
 )
 
+import anyio
+import anyio.from_thread
 import rich
 from rich.console import Console
 from textual.app import App, ComposeResult
@@ -103,9 +105,8 @@ class TaskScreenApp(App[TR]):
         if focus and self.app._driver:
             textual_enable_mouse_support(self.app._driver)
 
-    def run_app(self, main: Coroutine[Any, Any, TR]) -> TaskScreenResult[TR]:
-        # create the worker
-        self._worker = self.run_worker(main, start=False, exit_on_error=False)
+    def run_app(self, main: Callable[[], Awaitable[TR]]) -> TaskScreenResult[TR]:
+        self._worker = self.run_worker(main(), start=False, exit_on_error=False)
 
         # run the app
         self.run()
@@ -123,8 +124,8 @@ class TaskScreenApp(App[TR]):
 
     async def on_load(self) -> None:
         # events used to synchronise loading
-        self._on_load_app = asyncio.Event()
-        self._on_app_loaded = asyncio.Event()
+        self._on_load_app = anyio.Event()
+        self._on_app_loaded = anyio.Event()
 
         # run the workers
         self.workers.start_all()
@@ -136,7 +137,7 @@ class TaskScreenApp(App[TR]):
         while not self._on_load_app.is_set():
             if len(self.workers._workers) == 0:
                 return
-            await asyncio.sleep(0.1)
+            await anyio.sleep(0.1)
 
     @contextlib.contextmanager
     def suspend_app(self) -> Iterator[None]:
@@ -422,7 +423,7 @@ class TaskScreenApp(App[TR]):
 class TextualTaskScreen(TaskScreen, Generic[TR]):
     def __init__(self, app: TaskScreenApp[TR]) -> None:
         self.app = app
-        self.lock = asyncio.Lock()
+        self.lock = anyio.Lock()
 
     def __exit__(self, *excinfo: Any) -> None:
         pass

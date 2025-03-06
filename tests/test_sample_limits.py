@@ -1,6 +1,6 @@
-import asyncio
 from random import randint
 
+import anyio
 from test_helpers.utils import skip_if_no_openai, sleep_for_solver
 
 from inspect_ai import Task, eval
@@ -31,7 +31,7 @@ def looping_solver(check_tokens: bool = False, sleep_for: float | None = None):
         # keep generating until we hit a limit
         while True:
             if sleep_for:
-                await asyncio.sleep(sleep_for)
+                await anyio.sleep(sleep_for)
             state.messages.append(state.user_prompt)
             state = await generate(state)
 
@@ -45,7 +45,7 @@ def looping_concurrecy_solver():
     async def solve(state: TaskState, generate: Generate):
         # simulate waiting for shared resource
         async with concurrency("shared-resource", 1):
-            await asyncio.sleep(1)
+            await anyio.sleep(1)
 
         return state
 
@@ -80,7 +80,7 @@ def overwriting_solver(messages: int):
 def slow_scorer(seconds: int | None = 10) -> Scorer:
     async def score(state: TaskState, target: Target) -> Score:
         if seconds is not None:
-            await asyncio.sleep(seconds)
+            await anyio.sleep(seconds)
 
         return Score(value=1)
 

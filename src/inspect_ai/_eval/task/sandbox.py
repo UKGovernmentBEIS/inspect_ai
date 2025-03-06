@@ -1,9 +1,9 @@
-import asyncio
 import base64
 import contextlib
 from random import random
 from typing import AsyncGenerator, Callable, NamedTuple, cast
 
+import anyio
 import httpx
 from tenacity import (
     retry,
@@ -61,7 +61,7 @@ async def sandboxenv_context(
     # in and grab all of the sandboxes). Therefore, in this case we wait a random
     # delay so that all tasks/samples have an equal shot at getting scheduled.
     if max_sandboxes is not None:
-        await asyncio.sleep(random())
+        await anyio.sleep(random())
 
     # enforce concurrency if required
     sandboxes_cm = (
@@ -102,7 +102,7 @@ async def sandboxenv_context(
             # run sample
             yield
 
-        except asyncio.CancelledError as ex:
+        except anyio.get_cancelled_exc_class() as ex:
             interrupted = True
             raise ex
 

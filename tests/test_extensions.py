@@ -13,7 +13,7 @@ from inspect_ai.solver import generate, use_tools
 from inspect_ai.util import SandboxEnvironmentSpec
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_extension_model():
     # ensure the package is installed
     ensure_test_package_installed()
@@ -24,7 +24,7 @@ async def test_extension_model():
     assert result.completion == "Hello from gpt7"
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_extension_sandboxenv():
     # ensure the package is installed
     ensure_test_package_installed()
@@ -43,7 +43,7 @@ async def test_extension_sandboxenv():
     await eval_async(task, model="mockllm/model")
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_extension_sandboxenv_with_specialised_config():
     # ensure the package is installed
     ensure_test_package_installed()

@@ -5,9 +5,10 @@ from typing import Any, Literal, Tuple, Union, cast
 from pydantic import BaseModel, Field
 from typing_extensions import override
 
+from inspect_ai._util._async import current_async_backend
 from inspect_ai._util.constants import DEFAULT_MAX_TOKENS
 from inspect_ai._util.content import Content, ContentImage, ContentText
-from inspect_ai._util.error import pip_dependency_error
+from inspect_ai._util.error import PrerequisiteError, pip_dependency_error
 from inspect_ai._util.images import file_as_data
 from inspect_ai._util.version import verify_required_version
 from inspect_ai.tool import ToolChoice, ToolInfo
@@ -243,6 +244,12 @@ class BedrockAPI(ModelAPI):
             api_key_vars=[],
             config=config,
         )
+
+        # raise if we are using trio
+        if current_async_backend() == "trio":
+            raise PrerequisiteError(
+                "ERROR: The bedrock provider does not work with the trio async backend."
+            )
 
         # save model_args
         self.model_args = model_args

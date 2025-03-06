@@ -1,4 +1,3 @@
-import asyncio
 import json
 from logging import getLogger
 from pathlib import PurePosixPath
@@ -9,8 +8,10 @@ from typing import (
     cast,
 )
 
+import anyio
 from pydantic import JsonValue
 
+from inspect_ai._util._async import coro_log_exceptions
 from inspect_ai.util._subprocess import ExecResult
 
 from .environment import SandboxEnvironment
@@ -59,7 +60,7 @@ async def sandbox_service(
 
     # wait for and process methods
     while not until():
-        await asyncio.sleep(POLLING_INTERVAL)
+        await anyio.sleep(POLLING_INTERVAL)
         await service.handle_requests()
 
 
@@ -141,9 +142,15 @@ class SandboxService:
         if result.success:
             request_files = result.stdout.strip().splitlines()
             if request_files:
-                await asyncio.gather(
-                    *[self._handle_request(file) for file in request_files]
-                )
+                async with anyio.create_task_group() as tg:
+                    for file in request_files:
+                        tg.start_soon(
+                            coro_log_exceptions,
+                            logger,
+                            "handling sandbox service request",
+                            self._handle_request,
+                            file,
+                        )
 
     async def _handle_request(self, request_file: str) -> None:
         # read request

@@ -25,6 +25,13 @@ def task_run_dir(task: Task) -> str:
     return getattr(task, TASK_RUN_DIR_ATTR, os.getcwd())
 
 
+def task_chdir(task: Task) -> str | None:
+    if task.attribs.get("chdir", False) is True:
+        return task_run_dir(task)
+    else:
+        return None
+
+
 def task_file(task: Task, relative: bool = False) -> str | None:
     file = cast(str | None, getattr(task, TASK_FILE_ATTR, None))
     if file:

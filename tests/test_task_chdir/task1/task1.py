@@ -6,13 +6,11 @@ from inspect_ai.scorer import includes
 from inspect_ai.solver import generate
 
 
-@task
-def task2():
+@task(chdir=True)
+def task1():
     return Task(
-        dataset=[
-            Sample(id=id, input="What is 1+1?", target="2") for id in range(0, 10)
-        ],
-        solver=[file_check("task2.py"), generate()],
+        dataset=[Sample(input="What is 1+1?", target="2")],
+        solver=[file_check("task1.py"), generate()],
         scorer=includes(),
-        metadata={"task_idx": 2},
+        metadata={"task_idx": 1},
     )

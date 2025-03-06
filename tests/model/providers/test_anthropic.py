@@ -4,7 +4,7 @@ from test_helpers.utils import skip_if_no_anthropic
 from inspect_ai.model import GenerateConfig, get_model
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 @skip_if_no_anthropic
 async def test_anthropic_api() -> None:
     model = get_model(

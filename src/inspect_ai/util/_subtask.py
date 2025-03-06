@@ -1,4 +1,3 @@
-import asyncio
 import inspect
 from datetime import datetime
 from functools import wraps
@@ -13,7 +12,7 @@ from typing import (
     runtime_checkable,
 )
 
-from inspect_ai._util._async import is_callable_coroutine
+from inspect_ai._util._async import is_callable_coroutine, tg_collect
 from inspect_ai._util.content import Content
 from inspect_ai._util.trace import trace_action
 from inspect_ai._util.working import sample_waiting_time
@@ -139,8 +138,7 @@ def subtask(
             transcript()._event(event)
 
             # create and run the task as a coroutine
-            asyncio_task = asyncio.create_task(run())
-            result, events = await asyncio_task
+            result, events = (await tg_collect([run]))[0]
 
             # time accounting
             completed = datetime.now()

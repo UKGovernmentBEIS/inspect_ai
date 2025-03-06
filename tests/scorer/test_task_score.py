@@ -3,7 +3,7 @@ import os
 import pytest
 
 from inspect_ai._eval.score import task_score
-from inspect_ai.log._file import read_eval_log
+from inspect_ai.log._file import read_eval_log_async
 
 LOG_SCORED = os.path.join(
     "tests",
@@ -20,9 +20,9 @@ LOG_UNSCORED = os.path.join(
 )
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_score_unscored():
-    unscored_log = read_eval_log(LOG_UNSCORED)
+    unscored_log = await read_eval_log_async(LOG_UNSCORED)
     scored_log = await task_score(log=unscored_log)
     assert len(scored_log.results.scores) == 1
     assert scored_log.results.scores[0].name == "match"
@@ -31,9 +31,9 @@ async def test_score_unscored():
     assert len(metrics.items()) == 2
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_score_unscored_new_scorer():
-    unscored_log = read_eval_log(LOG_UNSCORED)
+    unscored_log = await read_eval_log_async(LOG_UNSCORED)
     scored_log = await task_score(
         log=unscored_log, scorer="f1", scorer_args={"stop_words": ["roasted"]}
     )
@@ -45,9 +45,9 @@ async def test_score_unscored_new_scorer():
     assert len(metrics.items()) == 2
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_score_scored_append():
-    unscored_log = read_eval_log(LOG_SCORED)
+    unscored_log = await read_eval_log_async(LOG_SCORED)
     scored_log = await task_score(
         log=unscored_log, scorer="f1", scorer_args={"stop_words": ["woah"]}
     )
@@ -63,9 +63,9 @@ async def test_score_scored_append():
     assert len(metrics.items()) == 2
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_score_scored_overwrite():
-    unscored_log = read_eval_log(LOG_SCORED)
+    unscored_log = await read_eval_log_async(LOG_SCORED)
     scored_log = await task_score(
         log=unscored_log,
         scorer="f1",
