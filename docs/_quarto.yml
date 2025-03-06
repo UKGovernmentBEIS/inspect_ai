@@ -78,6 +78,7 @@ website:
                - caching.qmd
                - multimodal.qmd
                - reasoning.qmd
+               - structrued.qmd
 
          - section: "Agents"
            contents:

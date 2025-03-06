@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Constrain model output to a particular JSON schema using [Structured Outputs](https://inspect.ai-safety-institute.org.uk/structured.html) (supported for OpenAI, Google, and Mistral).
 - New "HTTP Retries" display (replacing the "HTTP Rate Limits" display) which counts all retries and does so much more consistently and accurately across providers.
 - The `ModelAPI` class now has a `should_retry()` method that replaces the deprecated `is_rate_limit()` method.
 - The "Generate..." progress message in the Running Samples view now shows the number of retries for the active call to `generate()`.
