@@ -1,11 +1,12 @@
-import { FC, RefObject, useState } from "react";
+import { FC, RefObject, useRef, useState } from "react";
 import { Messages } from "../../types/log";
 
 import clsx from "clsx";
-import { Virtuoso } from "react-virtuoso";
+import { Virtuoso, VirtuosoHandle } from "react-virtuoso";
 import { ChatMessageRow } from "./ChatMessageRow";
 import { ResolvedMessage, resolveMessages } from "./messages";
 
+import { useVirtuosoState } from "../../state/scrolling";
 import styles from "./ChatViewVirtualList.module.css";
 
 interface ChatViewVirtualListProps {
@@ -33,6 +34,12 @@ export const ChatViewVirtualList: FC<ChatViewVirtualListProps> = ({
   const collapsedMessages = resolveMessages(messages);
   const [followOutput, setFollowOutput] = useState(false);
 
+  const listHandle = useRef<VirtuosoHandle>(null);
+  const { restoreState, isScrolling } = useVirtuosoState(
+    listHandle,
+    "chat-view",
+  );
+
   const renderRow = (item: ResolvedMessage, index: number) => {
     const number =
       collapsedMessages.length > 1 && numbered ? index + 1 : undefined;
@@ -49,6 +56,7 @@ export const ChatViewVirtualList: FC<ChatViewVirtualListProps> = ({
 
   const result = (
     <Virtuoso
+      ref={listHandle}
       customScrollParent={scrollRef?.current ? scrollRef.current : undefined}
       style={{ height: "100%", width: "100%" }}
       data={collapsedMessages}
@@ -66,6 +74,8 @@ export const ChatViewVirtualList: FC<ChatViewVirtualListProps> = ({
       }}
       skipAnimationFrameInResizeObserver={true}
       className={clsx(styles.list, className)}
+      restoreStateFrom={restoreState()}
+      isScrolling={isScrolling}
     />
   );
 

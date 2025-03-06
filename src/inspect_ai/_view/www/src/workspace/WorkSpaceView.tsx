@@ -10,7 +10,6 @@ import {
   EvalStats,
   Status,
 } from "../types/log";
-import { debounce } from "../utils/sync";
 import { Navbar } from "./navbar/Navbar";
 import { TabDescriptor } from "./types";
 
@@ -27,8 +26,6 @@ interface WorkSpaceViewProps {
   showToggle: boolean;
   tabs: Record<string, TabDescriptor>;
   divRef: RefObject<HTMLDivElement | null>;
-  workspaceTabScrollPositionRef: RefObject<Record<string, number>>;
-  setWorkspaceTabScrollPosition: (tab: string, pos: number) => void;
 }
 
 export const WorkSpaceView: FC<WorkSpaceViewProps> = ({
@@ -41,8 +38,6 @@ export const WorkSpaceView: FC<WorkSpaceViewProps> = ({
   showToggle,
   tabs,
   divRef,
-  workspaceTabScrollPositionRef,
-  setWorkspaceTabScrollPosition,
 }) => {
   const selectedTab = useStore((state) => state.app.tabs.workspace);
   const setSelectedTab = useStore((state) => state.appActions.setWorkspaceTab);
@@ -55,13 +50,6 @@ export const WorkSpaceView: FC<WorkSpaceViewProps> = ({
       }
     },
     [setSelectedTab],
-  );
-
-  const handleScroll = useCallback(
-    debounce((tabId: string, position: number) => {
-      setWorkspaceTabScrollPosition(tabId, position);
-    }, 100),
-    [setWorkspaceTabScrollPosition],
   );
 
   if (evalSpec === undefined) {
@@ -116,12 +104,6 @@ export const WorkSpaceView: FC<WorkSpaceViewProps> = ({
                     selected={selectedTab === tab.id}
                     scrollable={!!tab.scrollable}
                     scrollRef={tab.scrollRef}
-                    scrollPosition={
-                      workspaceTabScrollPositionRef.current?.[tab.id]
-                    }
-                    setScrollPosition={(position: number) => {
-                      handleScroll(tab.id, position);
-                    }}
                   >
                     {tab.content()}
                   </TabPanel>

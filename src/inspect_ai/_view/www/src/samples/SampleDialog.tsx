@@ -1,17 +1,10 @@
 import { ApplicationIcons } from "../appearance/icons";
 import { LargeModal, ModalTool, ModalTools } from "../components/LargeModal";
 
-import {
-  FC,
-  Ref,
-  RefObject,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-} from "react";
+import { FC, Ref, useCallback, useEffect, useMemo, useRef } from "react";
 import { ErrorPanel } from "../components/ErrorPanel";
 import { useLogSelection, useSampleData } from "../state/hooks";
+import { useStatefulScrollPosition } from "../state/scrolling";
 import { SampleDisplay } from "./SampleDisplay";
 
 interface SampleDialogProps {
@@ -23,8 +16,6 @@ interface SampleDialogProps {
   setShowingSampleDialog: (showing: boolean) => void;
   nextSample: () => void;
   prevSample: () => void;
-  sampleScrollPositionRef: RefObject<number>;
-  setSampleScrollPosition: (position: number) => void;
 }
 
 /**
@@ -39,10 +30,9 @@ export const SampleDialog: FC<SampleDialogProps> = ({
   setShowingSampleDialog,
   selectedTab,
   setSelectedTab,
-  sampleScrollPositionRef,
-  setSampleScrollPosition,
 }) => {
   const scrollRef: Ref<HTMLDivElement> = useRef(null);
+  useStatefulScrollPosition(scrollRef, "sample-dialog");
 
   const sampleData = useSampleData();
   const logSelection = useLogSelection();
@@ -114,8 +104,6 @@ export const SampleDialog: FC<SampleDialogProps> = ({
       visible={showingSampleDialog}
       onHide={onHide}
       showProgress={sampleData.status === "loading"}
-      initialScrollPositionRef={sampleScrollPositionRef}
-      setInitialScrollPosition={setSampleScrollPosition}
       scrollRef={scrollRef}
     >
       {sampleData.error ? (
