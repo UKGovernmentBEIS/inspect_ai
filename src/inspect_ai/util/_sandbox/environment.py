@@ -7,7 +7,6 @@ from typing import (
     Any,
     Awaitable,
     Callable,
-    Iterator,
     Literal,
     Type,
     TypeVar,
@@ -40,7 +39,7 @@ SampleCleanup = Callable[
     ],
     Awaitable[None],
 ]
-DeserializeConfig = Callable[[dict[str, Any]], BaseModel]
+ConfigDeserialize = Callable[[dict[str, Any]], BaseModel]
 
 
 class HostMapping(BaseModel):
@@ -215,11 +214,6 @@ class SandboxEnvironment(abc.ABC):
             )
 
     @classmethod
-    def config_files(cls) -> list[str]:
-        """Standard config files for this provider (used for automatic discovery)"""
-        return []
-
-    @classmethod
     def default_concurrency(cls) -> int | None:
         """Default max_sandboxes for this provider (`None` means no maximum)"""
         return None
@@ -300,7 +294,12 @@ class SandboxEnvironment(abc.ABC):
         pass
 
     @classmethod
-    def deserialize_config(cls, config: dict[str, Any]) -> BaseModel:
+    def config_files(cls) -> list[str]:
+        """Standard config files for this provider (used for automatic discovery)"""
+        return []
+
+    @classmethod
+    def config_deserialize(cls, config: dict[str, Any]) -> BaseModel:
         """Deserialize a sandbox-specific configuration model from a dict.
 
         Override this method if you support a custom configuration model.
@@ -315,7 +314,7 @@ class SandboxEnvironment(abc.ABC):
           The sandbox-specific configuration model.
         """
         raise NotImplementedError(
-            "The SandboxEnvironment provider has not implemented deserialize_config."
+            "The SandboxEnvironment provider has not implemented config_deserialize."
         )
 
 
@@ -334,11 +333,7 @@ class SandboxEnvironments:
 
 
 class SandboxEnvironmentSpec(BaseModel, frozen=True):
-    """Specification of a SandboxEnvironment.
-
-    Used to be a NamedTuple, so some tuple functionality is maintained for backward
-    compatibility.
-    """
+    """Specification of a SandboxEnvironment."""
 
     type: str
     """Sandbox type (e.g. 'local', 'docker')"""
@@ -360,17 +355,6 @@ class SandboxEnvironmentSpec(BaseModel, frozen=True):
         if isinstance(config, dict) and len(config) > 0:
             data["config"] = deserialize_sandbox_specific_config(type, config)
         return data
-
-    def __getitem__(self, key: int | str) -> Any:
-        if isinstance(key, int):
-            # Convert to a tuple and use integer indexing.
-            values_tuple = tuple(self.__dict__.values())
-            return values_tuple[key]
-        return getattr(self, key)
-
-    def __iter__(self) -> Iterator[Any]:  # type: ignore
-        for name in self.__annotations__:
-            yield getattr(self, name)
 
 
 SandboxEnvironmentConfigType = BaseModel | str
@@ -402,7 +386,7 @@ def deserialize_sandbox_specific_config(type: str, config: dict[str, Any]) -> Ba
     from inspect_ai.util._sandbox.registry import registry_find_sandboxenv
 
     sandboxenv_type = registry_find_sandboxenv(type)
-    deserialize_config = cast(
-        DeserializeConfig, getattr(sandboxenv_type, "deserialize_config")
+    config_deserialize = cast(
+        ConfigDeserialize, getattr(sandboxenv_type, "config_deserialize")
     )
-    return deserialize_config(config)
+    return config_deserialize(config)

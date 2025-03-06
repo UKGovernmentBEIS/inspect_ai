@@ -59,7 +59,7 @@ class PodmanSandboxEnvironment(SandboxEnvironment):
         return ""
 
     @classmethod
-    def deserialize_config(cls, config: dict[str, Any]) -> BaseModel:
+    def config_deserialize(cls, config: dict[str, Any]) -> BaseModel:
         return PodmanSandboxEnvironmentConfig(**config)
 
 

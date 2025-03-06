@@ -30,20 +30,17 @@ async def test_extension_sandboxenv():
     ensure_test_package_installed()
 
     # run a task using the sandboxenv
-    try:
-        task = Task(
-            dataset=[
-                Sample(
-                    input="Please use the list_files tool to list the files in the current directory"
-                )
-            ],
-            solver=[use_tools(list_files()), generate()],
-            scorer=includes(),
-            sandbox="podman",
-        )
-        await eval_async(task, model="mockllm/model")
-    except Exception as ex:
-        pytest.fail(f"Exception raised: {ex}")
+    task = Task(
+        dataset=[
+            Sample(
+                input="Please use the list_files tool to list the files in the current directory"
+            )
+        ],
+        solver=[use_tools(list_files()), generate()],
+        scorer=includes(),
+        sandbox="podman",
+    )
+    await eval_async(task, model="mockllm/model")
 
 
 @pytest.mark.asyncio
@@ -54,25 +51,22 @@ async def test_extension_sandboxenv_with_specialised_config():
     PodmanSandboxEnvironmentConfig = module.PodmanSandboxEnvironmentConfig
 
     # run a task using the sandboxenv
-    try:
-        task = Task(
-            dataset=[
-                Sample(
-                    input="Please use the list_files tool to list the files in the current directory"
-                )
-            ],
-            solver=[use_tools(list_files()), generate()],
-            scorer=includes(),
-            sandbox=SandboxEnvironmentSpec(
-                "podman", PodmanSandboxEnvironmentConfig(socket_path="/path/to/socket")
-            ),
-        )
-        logs = await eval_async(task, model="mockllm/model")
+    task = Task(
+        dataset=[
+            Sample(
+                input="Please use the list_files tool to list the files in the current directory"
+            )
+        ],
+        solver=[use_tools(list_files()), generate()],
+        scorer=includes(),
+        sandbox=SandboxEnvironmentSpec(
+            "podman", PodmanSandboxEnvironmentConfig(socket_path="/path/to/socket")
+        ),
+    )
+    logs = await eval_async(task, model="mockllm/model")
 
-        # Ensure that the PodmanSandboxEnvironmentConfig object is serializable.
-        to_jsonable_python(logs[0].eval, exclude_none=True, fallback=lambda _x: None)
-    except Exception as ex:
-        pytest.fail(f"Exception raised: {ex}")
+    # Ensure that the PodmanSandboxEnvironmentConfig object is serializable.
+    to_jsonable_python(logs[0].eval, exclude_none=True, fallback=lambda _x: None)
 
 
 def test_can_roundtrip_specialised_config():
