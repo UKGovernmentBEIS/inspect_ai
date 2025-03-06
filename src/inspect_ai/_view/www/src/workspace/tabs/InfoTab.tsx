@@ -1,4 +1,4 @@
-import { FC, useEffect, useState } from "react";
+import { FC } from "react";
 import { SampleSummary } from "../../api/types";
 import { MessageBand } from "../../components/MessageBand";
 import { PlanCard } from "../../plan/PlanCard";
@@ -32,11 +32,6 @@ export const InfoTab: FC<PlanTabProps> = ({
   evalError,
   sampleCount,
 }) => {
-  const [hidden, setHidden] = useState(false);
-  useEffect(() => {
-    setHidden(false);
-  }, [evalSpec, evalPlan, evalResults, evalStats]);
-
   const showWarning =
     sampleCount === 0 &&
     evalStatus === "success" &&
@@ -47,9 +42,8 @@ export const InfoTab: FC<PlanTabProps> = ({
     <div style={{ width: "100%" }}>
       {showWarning ? (
         <MessageBand
+          id="sample-too-large"
           message="Unable to display samples (this evaluation log may be too large)."
-          hidden={hidden}
-          setHidden={setHidden}
           type="warning"
         />
       ) : (
