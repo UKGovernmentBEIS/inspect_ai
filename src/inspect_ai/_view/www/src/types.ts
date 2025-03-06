@@ -19,6 +19,8 @@ export interface AppState {
   dialogs: {
     sample: boolean;
   };
+  scrollPositions: Record<string, number>;
+  listPositions: Record<string, StateSnapshot>;
 }
 
 export interface LogsState {

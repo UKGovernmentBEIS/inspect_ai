@@ -28,15 +28,11 @@ import { ListItem } from "./types.ts";
 interface SamplesTabProps {
   // Required props
   running: boolean;
-  sampleScrollPositionRef: RefObject<number>;
-  setSampleScrollPosition: (position: number) => void;
   sampleTabScrollRef: RefObject<HTMLDivElement | null>;
 }
 
 export const SamplesTab: FC<SamplesTabProps> = ({
   running,
-  sampleScrollPositionRef,
-  setSampleScrollPosition,
   sampleTabScrollRef,
 }) => {
   const selectSample = useStore((state) => state.logActions.selectSample);
@@ -201,8 +197,6 @@ export const SamplesTab: FC<SamplesTabProps> = ({
             setSelectedTab={setSelectedSampleTab}
             nextSample={nextSample}
             prevSample={previousSample}
-            sampleScrollPositionRef={sampleScrollPositionRef}
-            setSampleScrollPosition={setSampleScrollPosition}
           />
         ) : undefined}
       </Fragment>

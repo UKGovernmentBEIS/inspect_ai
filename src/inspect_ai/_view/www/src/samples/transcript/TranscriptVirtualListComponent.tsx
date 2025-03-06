@@ -1,9 +1,10 @@
 import clsx from "clsx";
-import { FC, RefObject, useCallback, useState } from "react";
-import { Virtuoso } from "react-virtuoso";
+import { FC, memo, RefObject, useCallback, useRef, useState } from "react";
+import { Virtuoso, VirtuosoHandle } from "react-virtuoso";
 import { RenderedEventNode } from "./TranscriptView";
 import { EventNode, TranscriptEventState, TranscriptState } from "./types";
 
+import { useVirtuosoState } from "../../state/scrolling";
 import styles from "./TranscriptVirtualListComponent.module.css";
 
 interface TranscriptVirtualListComponentProps {
@@ -17,57 +18,65 @@ interface TranscriptVirtualListComponentProps {
 /**
  * Renders the Transcript component.
  */
-export const TranscriptVirtualListComponent: FC<
-  TranscriptVirtualListComponentProps
-> = ({ id, eventNodes, scrollRef, transcriptState, setTranscriptState }) => {
-  const setEventState = useCallback(
-    (eventId: string, state: TranscriptEventState) => {
-      setTranscriptState({ ...transcriptState, [eventId]: state });
-    },
-    [transcriptState, setTranscriptState],
-  );
+export const TranscriptVirtualListComponent: FC<TranscriptVirtualListComponentProps> =
+  memo(({ id, eventNodes, scrollRef, transcriptState, setTranscriptState }) => {
+    const setEventState = useCallback(
+      (eventId: string, state: TranscriptEventState) => {
+        setTranscriptState({ ...transcriptState, [eventId]: state });
+      },
+      [transcriptState, setTranscriptState],
+    );
 
-  const [followOutput, setFollowOutput] = useState(false);
+    const listHandle = useRef<VirtuosoHandle>(null);
+    const { restoreState, isScrolling } = useVirtuosoState(
+      listHandle,
+      "transcript",
+    );
 
-  const renderRow = (item: EventNode, index: number) => {
-    const bgClass = item.depth % 2 == 0 ? styles.darkenedBg : styles.normalBg;
-    const paddingClass = index === 0 ? styles.first : undefined;
+    const [followOutput, setFollowOutput] = useState(false);
 
-    const eventId = `${id}-event${index}`;
+    const renderRow = (item: EventNode, index: number) => {
+      const bgClass = item.depth % 2 == 0 ? styles.darkenedBg : styles.normalBg;
+      const paddingClass = index === 0 ? styles.first : undefined;
+
+      const eventId = `${id}-event${index}`;
+
+      return (
+        <div key={eventId} className={clsx(styles.node, paddingClass)}>
+          <RenderedEventNode
+            id={eventId}
+            node={item}
+            className={clsx(bgClass)}
+            scrollRef={scrollRef}
+            eventState={transcriptState[eventId] || {}}
+            setEventState={(state) => setEventState(eventId, state)}
+          />
+        </div>
+      );
+    };
 
     return (
-      <div key={eventId} className={clsx(styles.node, paddingClass)}>
-        <RenderedEventNode
-          id={eventId}
-          node={item}
-          className={clsx(bgClass)}
-          scrollRef={scrollRef}
-          eventState={transcriptState[eventId] || {}}
-          setEventState={(state) => setEventState(eventId, state)}
-        />
-      </div>
+      <Virtuoso
+        ref={listHandle}
+        customScrollParent={scrollRef?.current ? scrollRef.current : undefined}
+        style={{ height: "100%", width: "100%" }}
+        data={eventNodes}
+        itemContent={(index: number, data: EventNode) => {
+          return renderRow(data, index);
+        }}
+        increaseViewportBy={{ top: 1000, bottom: 1000 }}
+        overscan={{
+          main: 10,
+          reverse: 10,
+        }}
+        followOutput={followOutput}
+        atBottomStateChange={(atBottom: boolean) => {
+          setFollowOutput(atBottom);
+        }}
+        skipAnimationFrameInResizeObserver={true}
+        className={clsx("transcript")}
+        isScrolling={isScrolling}
+        restoreStateFrom={restoreState()}
+      />
     );
-  };
-
-  return (
-    <Virtuoso
-      customScrollParent={scrollRef?.current ? scrollRef.current : undefined}
-      style={{ height: "100%", width: "100%" }}
-      data={eventNodes}
-      itemContent={(index: number, data: EventNode) => {
-        return renderRow(data, index);
-      }}
-      increaseViewportBy={{ top: 1000, bottom: 1000 }}
-      overscan={{
-        main: 10,
-        reverse: 10,
-      }}
-      followOutput={followOutput}
-      atBottomStateChange={(atBottom: boolean) => {
-        setFollowOutput(atBottom);
-      }}
-      skipAnimationFrameInResizeObserver={true}
-      className={clsx("transcript")}
-    />
-  );
-};
+  });
