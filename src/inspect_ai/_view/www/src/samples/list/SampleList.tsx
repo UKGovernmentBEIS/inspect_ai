@@ -4,7 +4,6 @@ import {
   memo,
   RefObject,
   useCallback,
-  useEffect,
   useMemo,
   useState,
 } from "react";
@@ -58,11 +57,6 @@ export const SampleList: FC<SampleListProps> = memo((props) => {
   );
   const samplesDescriptor = useSampleDescriptor();
   const [followOutput, setFollowOutput] = useState(false);
-
-  const [hidden, setHidden] = useState(false);
-  useEffect(() => {
-    setHidden(false);
-  }, [items]);
 
   const onkeydown = useCallback(
     (e: KeyboardEvent<HTMLDivElement>) => {
@@ -157,15 +151,14 @@ export const SampleList: FC<SampleListProps> = memo((props) => {
       ? `INFO: ${errorCount} of ${sampleCount} samples (${formatNoDecimal(percentError)}%) had errors and were not scored.`
       : limitCount
         ? `INFO: ${limitCount} of ${sampleCount} samples (${formatNoDecimal(percentLimit)}%) completed due to exceeding a limit.`
-        : undefined;
+        : "IGNORE THIS BRUH";
 
   return (
     <div className={styles.mainLayout}>
       {warningMessage ? (
         <MessageBand
+          id={"sample-warning-message"}
           message={warningMessage}
-          hidden={hidden}
-          setHidden={setHidden}
           type="info"
         />
       ) : undefined}
