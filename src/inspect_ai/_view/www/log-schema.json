@@ -156,11 +156,6 @@
       "title": "ApproverPolicyConfig",
       "type": "object"
     },
-    "BaseModel": {
-      "properties": {},
-      "title": "BaseModel",
-      "type": "object"
-    },
     "ChatCompletionChoice": {
       "description": "Choice generated for completion.",
       "properties": {
@@ -204,12 +199,6 @@
     "ChatMessageAssistant": {
       "description": "Assistant chat message.",
       "properties": {
-        "role": {
-          "const": "assistant",
-          "default": "assistant",
-          "title": "Role",
-          "type": "string"
-        },
         "content": {
           "anyOf": [
             {
@@ -255,6 +244,12 @@
           ],
           "default": null,
           "title": "Source"
+        },
+        "role": {
+          "const": "assistant",
+          "default": "assistant",
+          "title": "Role",
+          "type": "string"
         },
         "tool_calls": {
           "anyOf": [
@@ -273,9 +268,9 @@
         }
       },
       "required": [
-        "role",
         "content",
         "source",
+        "role",
         "tool_calls"
       ],
       "title": "ChatMessageAssistant",
@@ -285,12 +280,6 @@
     "ChatMessageSystem": {
       "description": "System chat message.",
       "properties": {
-        "role": {
-          "const": "system",
-          "default": "system",
-          "title": "Role",
-          "type": "string"
-        },
         "content": {
           "anyOf": [
             {
@@ -336,12 +325,18 @@
           ],
           "default": null,
           "title": "Source"
+        },
+        "role": {
+          "const": "system",
+          "default": "system",
+          "title": "Role",
+          "type": "string"
         }
       },
       "required": [
-        "role",
         "content",
-        "source"
+        "source",
+        "role"
       ],
       "title": "ChatMessageSystem",
       "type": "object",
@@ -350,12 +345,6 @@
     "ChatMessageTool": {
       "description": "Tool chat message.",
       "properties": {
-        "role": {
-          "const": "tool",
-          "default": "tool",
-          "title": "Role",
-          "type": "string"
-        },
         "content": {
           "anyOf": [
             {
@@ -401,6 +390,12 @@
           ],
           "default": null,
           "title": "Source"
+        },
+        "role": {
+          "const": "tool",
+          "default": "tool",
+          "title": "Role",
+          "type": "string"
         },
         "tool_call_id": {
           "anyOf": [
@@ -439,9 +434,9 @@
         }
       },
       "required": [
-        "role",
         "content",
         "source",
+        "role",
         "tool_call_id",
         "function",
         "error"
@@ -453,12 +448,6 @@
     "ChatMessageUser": {
       "description": "User chat message.",
       "properties": {
-        "role": {
-          "const": "user",
-          "default": "user",
-          "title": "Role",
-          "type": "string"
-        },
         "content": {
           "anyOf": [
             {
@@ -505,6 +494,12 @@
           "default": null,
           "title": "Source"
         },
+        "role": {
+          "const": "user",
+          "default": "user",
+          "title": "Role",
+          "type": "string"
+        },
         "tool_call_id": {
           "anyOf": [
             {
@@ -522,9 +517,9 @@
         }
       },
       "required": [
-        "role",
         "content",
         "source",
+        "role",
         "tool_call_id"
       ],
       "title": "ChatMessageUser",
@@ -3544,30 +3539,24 @@
       "additionalProperties": false
     },
     "SandboxEnvironmentSpec": {
-      "maxItems": 2,
-      "minItems": 1,
-      "prefixItems": [
-        {
+      "description": "Specification of a SandboxEnvironment.",
+      "properties": {
+        "type": {
           "title": "Type",
           "type": "string"
         },
-        {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/BaseModel"
-            },
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
+        "config": {
           "default": null,
           "title": "Config"
         }
+      },
+      "required": [
+        "type",
+        "config"
       ],
-      "type": "array"
+      "title": "SandboxEnvironmentSpec",
+      "type": "object",
+      "additionalProperties": false
     },
     "SandboxEvent": {
       "description": "Sandbox execution or I/O",
