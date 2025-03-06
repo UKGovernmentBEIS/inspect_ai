@@ -54,6 +54,18 @@ class JSONSchema(BaseModel):
 
 
 def json_schema(t: Type[Any]) -> JSONSchema:
+    """Provide a JSON Schema for the specified type.
+
+    Schemas can be automatically inferred for a wide variety of
+    Python class types including Pydantic BaseModel, dataclasses,
+    and typed dicts.
+
+    Args:
+        t: Python type
+
+    Returns:
+        JSON Schema for type.
+    """
     origin = get_origin(t)
     args = get_args(t)
 

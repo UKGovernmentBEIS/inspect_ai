@@ -107,8 +107,6 @@ website:
           href: reference/inspect_ai.tool.qmd#toolparams
         - text: ToolParam
           href: reference/inspect_ai.tool.qmd#toolparam
-        - text: JSONType
-          href: reference/inspect_ai.tool.qmd#jsontype
         - text: tool
           href: reference/inspect_ai.tool.qmd#tool
       - section: inspect_ai.scorer
@@ -189,6 +187,8 @@ website:
           href: reference/inspect_ai.model.qmd#generateconfig
         - text: GenerateConfigArgs
           href: reference/inspect_ai.model.qmd#generateconfigargs
+        - text: ResponseSchema
+          href: reference/inspect_ai.model.qmd#responseschema
         - text: ModelOutput
           href: reference/inspect_ai.model.qmd#modeloutput
         - text: ModelUsage
@@ -427,6 +427,12 @@ website:
           href: reference/inspect_ai.util.qmd#sandboxconnection
         - text: sandboxenv
           href: reference/inspect_ai.util.qmd#sandboxenv
+        - text: JSONType
+          href: reference/inspect_ai.util.qmd#jsontype
+        - text: JSONSchema
+          href: reference/inspect_ai.util.qmd#jsonschema
+        - text: json_schema
+          href: reference/inspect_ai.util.qmd#json_schema
     - section: Inspect CLI
       href: reference/inspect_eval.qmd
       contents:

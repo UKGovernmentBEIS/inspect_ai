@@ -9,6 +9,8 @@ from inspect_ai.util._json import JSONSchema
 
 
 class ResponseSchema(BaseModel):
+    """Schema for model response when using Structured Output."""
+
     name: str
     """The name of the response schema. Must be a-z, A-Z, 0-9, or contain underscores and dashes, with a maximum length of 64."""
 
