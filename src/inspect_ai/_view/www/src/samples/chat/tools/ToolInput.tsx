@@ -29,15 +29,17 @@ export const ToolInput: FC<ToolInputProps> = memo((props) => {
   const toolViewRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (toolCallView?.content && toolViewRef.current) {
+    if (toolCallView?.content) {
       requestAnimationFrame(() => {
-        const codeBlocks = toolViewRef.current!.querySelectorAll("pre code");
-        codeBlocks.forEach((block) => {
-          if (block.className.includes("language-")) {
-            block.classList.add("sourceCode");
-            highlightElement(block as HTMLElement);
-          }
-        });
+        if (toolViewRef.current) {
+          const codeBlocks = toolViewRef.current!.querySelectorAll("pre code");
+          codeBlocks.forEach((block) => {
+            if (block.className.includes("language-")) {
+              block.classList.add("sourceCode");
+              highlightElement(block as HTMLElement);
+            }
+          });
+        }
       });
     }
   }, [toolCallView?.content]);

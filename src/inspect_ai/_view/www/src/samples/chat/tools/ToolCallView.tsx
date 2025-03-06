@@ -14,6 +14,7 @@ import { ToolInput } from "./ToolInput";
 import { ToolTitle } from "./ToolTitle";
 
 interface ToolCallViewProps {
+  id: string;
   functionCall: string;
   input?: string;
   highlightLanguage?: string;
@@ -43,6 +44,7 @@ interface ToolCallViewProps {
  * Renders the ToolCallView component.
  */
 export const ToolCallView: FC<ToolCallViewProps> = ({
+  id,
   functionCall,
   input,
   highlightLanguage,
@@ -99,7 +101,12 @@ export const ToolCallView: FC<ToolCallViewProps> = ({
             contents={contents}
             toolCallView={view}
           />
-          <ExpandablePanel collapse={collapse} border={true} lines={15}>
+          <ExpandablePanel
+            id={`${id}-tool-input`}
+            collapse={collapse}
+            border={true}
+            lines={15}
+          >
             <MessageContent contents={normalizedContent} />
           </ExpandablePanel>
         </div>

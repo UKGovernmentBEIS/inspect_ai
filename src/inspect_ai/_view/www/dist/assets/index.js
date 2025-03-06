@@ -2155,9 +2155,9 @@ var require_assets = __commonJS({
      * LICENSE file in the root directory of this source tree.
      */
     (function() {
-      function findHook(fiber, id) {
-        for (fiber = fiber.memoizedState; null !== fiber && 0 < id; )
-          fiber = fiber.next, id--;
+      function findHook(fiber, id2) {
+        for (fiber = fiber.memoizedState; null !== fiber && 0 < id2; )
+          fiber = fiber.next, id2--;
         return fiber;
       }
       function copyWithSetImpl(obj, path, index, value2) {
@@ -9836,12 +9836,12 @@ var require_assets = __commonJS({
           else ref.current = null;
       }
       function commitProfiler(finishedWork, current22, commitStartTime2, effectDuration) {
-        var _finishedWork$memoize = finishedWork.memoizedProps, id = _finishedWork$memoize.id, onCommit = _finishedWork$memoize.onCommit;
+        var _finishedWork$memoize = finishedWork.memoizedProps, id2 = _finishedWork$memoize.id, onCommit = _finishedWork$memoize.onCommit;
         _finishedWork$memoize = _finishedWork$memoize.onRender;
         current22 = null === current22 ? "mount" : "update";
         currentUpdateIsNested && (current22 = "nested-update");
         "function" === typeof _finishedWork$memoize && _finishedWork$memoize(
-          id,
+          id2,
           current22,
           finishedWork.actualDuration,
           finishedWork.treeBaseDuration,
@@ -19507,17 +19507,17 @@ var require_assets = __commonJS({
       }, badgeFormat = "%c%s%c ", badgeStyle = "background: #e6e6e6;background: light-dark(rgba(0,0,0,0.1), rgba(255,255,255,0.25));color: #000000;color: light-dark(#000000, #ffffff);border-radius: 2px", resetStyle = "", pad = " ", bind = Function.prototype.bind;
       var didWarnAboutNestedUpdates = false;
       var overrideHookState = null, overrideHookStateDeletePath = null, overrideHookStateRenamePath = null, overrideProps = null, overridePropsDeletePath = null, overridePropsRenamePath = null, scheduleUpdate = null, setErrorHandler = null, setSuspenseHandler = null;
-      overrideHookState = function(fiber, id, path, value2) {
-        id = findHook(fiber, id);
-        null !== id && (path = copyWithSetImpl(id.memoizedState, path, 0, value2), id.memoizedState = path, id.baseState = path, fiber.memoizedProps = assign2({}, fiber.memoizedProps), path = enqueueConcurrentRenderForLane(fiber, 2), null !== path && scheduleUpdateOnFiber(path, fiber, 2));
+      overrideHookState = function(fiber, id2, path, value2) {
+        id2 = findHook(fiber, id2);
+        null !== id2 && (path = copyWithSetImpl(id2.memoizedState, path, 0, value2), id2.memoizedState = path, id2.baseState = path, fiber.memoizedProps = assign2({}, fiber.memoizedProps), path = enqueueConcurrentRenderForLane(fiber, 2), null !== path && scheduleUpdateOnFiber(path, fiber, 2));
       };
-      overrideHookStateDeletePath = function(fiber, id, path) {
-        id = findHook(fiber, id);
-        null !== id && (path = copyWithDeleteImpl(id.memoizedState, path, 0), id.memoizedState = path, id.baseState = path, fiber.memoizedProps = assign2({}, fiber.memoizedProps), path = enqueueConcurrentRenderForLane(fiber, 2), null !== path && scheduleUpdateOnFiber(path, fiber, 2));
+      overrideHookStateDeletePath = function(fiber, id2, path) {
+        id2 = findHook(fiber, id2);
+        null !== id2 && (path = copyWithDeleteImpl(id2.memoizedState, path, 0), id2.memoizedState = path, id2.baseState = path, fiber.memoizedProps = assign2({}, fiber.memoizedProps), path = enqueueConcurrentRenderForLane(fiber, 2), null !== path && scheduleUpdateOnFiber(path, fiber, 2));
       };
-      overrideHookStateRenamePath = function(fiber, id, oldPath, newPath) {
-        id = findHook(fiber, id);
-        null !== id && (oldPath = copyWithRename(id.memoizedState, oldPath, newPath), id.memoizedState = oldPath, id.baseState = oldPath, fiber.memoizedProps = assign2({}, fiber.memoizedProps), oldPath = enqueueConcurrentRenderForLane(fiber, 2), null !== oldPath && scheduleUpdateOnFiber(oldPath, fiber, 2));
+      overrideHookStateRenamePath = function(fiber, id2, oldPath, newPath) {
+        id2 = findHook(fiber, id2);
+        null !== id2 && (oldPath = copyWithRename(id2.memoizedState, oldPath, newPath), id2.memoizedState = oldPath, id2.baseState = oldPath, fiber.memoizedProps = assign2({}, fiber.memoizedProps), oldPath = enqueueConcurrentRenderForLane(fiber, 2), null !== oldPath && scheduleUpdateOnFiber(oldPath, fiber, 2));
       };
       overrideProps = function(fiber, path, value2) {
         fiber.pendingProps = copyWithSetImpl(fiber.memoizedProps, path, 0, value2);
@@ -19904,10 +19904,10 @@ self.onmessage = function (e) {
       )).parsed;
       return result2;
     }
-    async function eval_log_sample_data(log_file, id, epoch, last_event, last_attachment) {
+    async function eval_log_sample_data(log_file, id2, epoch, last_event, last_attachment) {
       const params2 = new URLSearchParams();
       params2.append("log", log_file);
-      params2.append("id", String(id));
+      params2.append("id", String(id2));
       params2.append("epoch", String(epoch));
       if (last_event) {
         params2.append("last-event-id", String(last_event));
@@ -20042,8 +20042,8 @@ self.onmessage = function (e) {
       eval_log_sample_data
     };
     var ch2 = {};
-    var wk = function(c2, id, msg, transfer, cb) {
-      var w2 = new Worker(ch2[id] || (ch2[id] = URL.createObjectURL(new Blob([
+    var wk = function(c2, id2, msg, transfer, cb) {
+      var w2 = new Worker(ch2[id2] || (ch2[id2] = URL.createObjectURL(new Blob([
         c2 + ';addEventListener("error",function(e){e=e.error;postMessage({$e$:[e.message,e.code,e.stack]})})'
       ], { type: "text/javascript" }))));
       w2.onmessage = function(e) {
@@ -20442,15 +20442,15 @@ self.onmessage = function (e) {
       }
       return tl;
     };
-    var wrkr = function(fns, init, id, cb) {
-      if (!ch[id]) {
+    var wrkr = function(fns, init, id2, cb) {
+      if (!ch[id2]) {
         var fnStr = "", td_1 = {}, m = fns.length - 1;
         for (var i2 = 0; i2 < m; ++i2)
           fnStr = wcln(fns[i2], fnStr, td_1);
-        ch[id] = { c: wcln(fns[m], fnStr, td_1), e: td_1 };
+        ch[id2] = { c: wcln(fns[m], fnStr, td_1), e: td_1 };
       }
-      var td2 = mrg({}, ch[id].e);
-      return wk(ch[id].c + ";onmessage=function(e){for(var k in e.data)self[k]=e.data[k];onmessage=" + init.toString() + "}", id, td2, cbfs(td2), cb);
+      var td2 = mrg({}, ch[id2].e);
+      return wk(ch[id2].c + ";onmessage=function(e){for(var k in e.data)self[k]=e.data[k];onmessage=" + init.toString() + "}", id2, td2, cbfs(td2), cb);
     };
     var bInflt = function() {
       return [u8, u16, i32, fleb, fdeb, clim, fl, fd, flrm, fdrm, rev, ec, hMap, max$1, bits, bits16, shft, slc, err, inflt, inflateSync, pbf, gopt];
@@ -20470,8 +20470,8 @@ self.onmessage = function (e) {
         dictionary: o.dictionary
       };
     };
-    var cbify = function(dat, opts, fns, init, id, cb) {
-      var w2 = wrkr(fns, init, id, function(err2, dat2) {
+    var cbify = function(dat, opts, fns, init, id2, cb) {
+      var w2 = wrkr(fns, init, id2, function(err2, dat2) {
         w2.terminate();
         cb(err2, dat2);
       });
@@ -22302,16 +22302,16 @@ self.onmessage = function (e) {
       return file.endsWith(".eval");
     };
     class SampleSizeLimitedExceededError extends Error {
-      constructor(id, epoch, maxBytes) {
+      constructor(id2, epoch, maxBytes) {
         super(
-          `Sample ${id} in epoch ${epoch} exceeds the maximum supported size (${maxBytes / 1024 / 1024}MB) and cannot be loaded.`
+          `Sample ${id2} in epoch ${epoch} exceeds the maximum supported size (${maxBytes / 1024 / 1024}MB) and cannot be loaded.`
         );
         __publicField(this, "id");
         __publicField(this, "epoch");
         __publicField(this, "maxBytes");
         __publicField(this, "displayStack");
         this.name = "SampleSizeLimitedExceededError";
-        this.id = id;
+        this.id = id2;
         this.epoch = epoch;
         this.maxBytes = maxBytes;
         this.displayStack = false;
@@ -22391,19 +22391,19 @@ self.onmessage = function (e) {
           };
         }
       };
-      const get_log_sample = async (log_file2, id, epoch) => {
+      const get_log_sample = async (log_file2, id2, epoch) => {
         if (isEvalFile(log_file2)) {
           const remoteLogFile = await remoteEvalFile(log_file2, true);
           try {
             if (remoteLogFile) {
-              const sample2 = await remoteLogFile.readSample(String(id), epoch);
+              const sample2 = await remoteLogFile.readSample(String(id2), epoch);
               return sample2;
             } else {
               throw new Error(`Unable to read remove eval file ${log_file2}`);
             }
           } catch (error2) {
             if (error2 instanceof FileSizeLimitError) {
-              throw new SampleSizeLimitedExceededError(id, epoch, error2.maxBytes);
+              throw new SampleSizeLimitedExceededError(id2, epoch, error2.maxBytes);
             } else {
               throw error2;
             }
@@ -22412,7 +22412,7 @@ self.onmessage = function (e) {
           const logContents = await get_log(log_file2, true);
           if (logContents.parsed.samples && logContents.parsed.samples.length > 0) {
             return logContents.parsed.samples.find((sample2) => {
-              return sample2.id === id && sample2.epoch === epoch;
+              return sample2.id === id2 && sample2.epoch === epoch;
             });
           }
         }
@@ -22485,13 +22485,13 @@ self.onmessage = function (e) {
         }
         return api2.eval_pending_samples(log_file2, etag);
       };
-      const get_log_sample_data = (log_file2, id, epoch, last_event, last_attachment) => {
+      const get_log_sample_data = (log_file2, id2, epoch, last_event, last_attachment) => {
         if (!api2.eval_log_sample_data) {
           throw new Error("API doesn't supported streamed sample data");
         }
         return api2.eval_log_sample_data(
           log_file2,
-          id,
+          id2,
           epoch,
           last_event,
           last_attachment
@@ -22671,16 +22671,16 @@ self.onmessage = function (e) {
             clone: function deepClone(o, visited) {
               visited = visited || {};
               var clone2;
-              var id;
+              var id2;
               switch (_.util.type(o)) {
                 case "Object":
-                  id = _.util.objId(o);
-                  if (visited[id]) {
-                    return visited[id];
+                  id2 = _.util.objId(o);
+                  if (visited[id2]) {
+                    return visited[id2];
                   }
                   clone2 = /** @type {Record<string, any>} */
                   {};
-                  visited[id] = clone2;
+                  visited[id2] = clone2;
                   for (var key2 in o) {
                     if (o.hasOwnProperty(key2)) {
                       clone2[key2] = deepClone(o[key2], visited);
@@ -22691,12 +22691,12 @@ self.onmessage = function (e) {
                     clone2
                   );
                 case "Array":
-                  id = _.util.objId(o);
-                  if (visited[id]) {
-                    return visited[id];
+                  id2 = _.util.objId(o);
+                  if (visited[id2]) {
+                    return visited[id2];
                   }
                   clone2 = [];
-                  visited[id] = clone2;
+                  visited[id2] = clone2;
                   /** @type {Array} */
                   /** @type {any} */
                   o.forEach(function(v, i2) {
@@ -22848,8 +22848,8 @@ self.onmessage = function (e) {
              *     'color': /\b(?:red|green|blue)\b/
              * });
              */
-            extend: function(id, redef) {
-              var lang2 = _.util.clone(_.languages[id]);
+            extend: function(id2, redef) {
+              var lang2 = _.util.clone(_.languages[id2]);
               for (var key2 in redef) {
                 lang2[key2] = redef[key2];
               }
@@ -25858,7 +25858,8 @@ self.onmessage = function (e) {
         sample: kDefaultSampleTab
       },
       scrollPositions: {},
-      listPositions: {}
+      listPositions: {},
+      collapsed: {}
     };
     const createAppSlice = (set2, get2, _store) => {
       const slice = {
@@ -25932,6 +25933,19 @@ self.onmessage = function (e) {
           setListPosition: (name2, position) => {
             set2((state) => {
               state.app.listPositions[name2] = position;
+            });
+          },
+          getCollapsed: (name2, defaultValue) => {
+            const state = get2();
+            if (Object.keys(state.app.collapsed).includes(name2)) {
+              return state.app.collapsed[name2];
+            } else {
+              return defaultValue || false;
+            }
+          },
+          setCollapsed: (name2, value2) => {
+            set2((state) => {
+              state.app.collapsed[name2] = value2;
             });
           }
         }
@@ -26011,7 +26025,7 @@ self.onmessage = function (e) {
       };
       return { start, stop };
     };
-    const log$7 = createLogger("logPolling");
+    const log$8 = createLogger("logPolling");
     function createLogPolling(get2, set2) {
       let currentPolling = null;
       let isActive = true;
@@ -26026,14 +26040,14 @@ self.onmessage = function (e) {
           async () => {
             var _a3;
             if (!isActive) {
-              log$7.debug(`Component unmounted, stopping poll for: ${logFileName}`);
+              log$8.debug(`Component unmounted, stopping poll for: ${logFileName}`);
               return false;
             }
             const state = get2();
             const api2 = state.api;
             if (!(api2 == null ? void 0 : api2.get_log_pending_samples)) return false;
             const currentEtag = (_a3 = get2().log.pendingSampleSummaries) == null ? void 0 : _a3.etag;
-            log$7.debug(`POLL RUNNING SAMPLES: ${logFileName}`);
+            log$8.debug(`POLL RUNNING SAMPLES: ${logFileName}`);
             if (!isActive) {
               return false;
             }
@@ -26051,7 +26065,7 @@ self.onmessage = function (e) {
               get2().logActions.refreshLog();
               return true;
             } else if (pendingSamples.status === "NotFound") {
-              log$7.debug(`STOP POLLING RUNNING SAMPLES: ${logFileName}`);
+              log$8.debug(`STOP POLLING RUNNING SAMPLES: ${logFileName}`);
               clearPendingSummaries(logFileName);
               return false;
             }
@@ -26070,7 +26084,7 @@ self.onmessage = function (e) {
         }
         const pendingSampleSummaries = get2().log.pendingSampleSummaries;
         if (((pendingSampleSummaries == null ? void 0 : pendingSampleSummaries.samples.length) || 0) > 0) {
-          log$7.debug(`CLEAR PENDING: ${logFileName}`);
+          log$8.debug(`CLEAR PENDING: ${logFileName}`);
           set2((state) => {
             state.log.pendingSampleSummaries = {
               samples: [],
@@ -26087,7 +26101,7 @@ self.onmessage = function (e) {
         }
       };
       const cleanup = () => {
-        log$7.debug(`CLEANUP`);
+        log$8.debug(`CLEANUP`);
         isActive = false;
         stopPolling();
       };
@@ -26098,7 +26112,7 @@ self.onmessage = function (e) {
         cleanup
       };
     }
-    const log$6 = createLogger("logSlice");
+    const log$7 = createLogger("logSlice");
     const initialState$2 = {
       // Log state
       selectedSampleIndex: -1,
@@ -26161,7 +26175,7 @@ self.onmessage = function (e) {
               console.error("API not initialized in Store");
               return;
             }
-            log$6.debug(`LOAD LOG: ${logFileName}`);
+            log$7.debug(`LOAD LOG: ${logFileName}`);
             try {
               const logContents = await api2.get_log_summary(logFileName);
               state.logActions.setSelectedLogSummary(logContents);
@@ -26183,7 +26197,7 @@ self.onmessage = function (e) {
               }), // Start polling for pending samples
               logPolling.startPolling(logFileName);
             } catch (error2) {
-              log$6.error("Error loading log:", error2);
+              log$7.error("Error loading log:", error2);
             }
           },
           refreshLog: async () => {
@@ -26193,12 +26207,12 @@ self.onmessage = function (e) {
             if (!api2 || !selectedLogFile) {
               return;
             }
-            log$6.debug(`REFRESH: ${selectedLogFile}`);
+            log$7.debug(`REFRESH: ${selectedLogFile}`);
             try {
               const logContents = await api2.get_log_summary(selectedLogFile);
               state.logActions.setSelectedLogSummary(logContents);
             } catch (error2) {
-              log$6.error("Error refreshing log:", error2);
+              log$7.error("Error refreshing log:", error2);
             }
           }
         }
@@ -26215,7 +26229,7 @@ self.onmessage = function (e) {
         }
       });
     };
-    const log$5 = createLogger("logsPolling");
+    const log$6 = createLogger("logsPolling");
     function createLogsPolling(get2, _set) {
       let currentPolling = null;
       let isActive = true;
@@ -26228,7 +26242,7 @@ self.onmessage = function (e) {
           currentPolling.stop();
         }
         isActive = true;
-        log$5.debug("LOADING HEADERS");
+        log$6.debug("LOADING HEADERS");
         get2().logsActions.setHeadersLoading(true);
         const chunkSize = 8;
         const fileLists = [];
@@ -26244,10 +26258,10 @@ self.onmessage = function (e) {
               get2().logsActions.setHeadersLoading(false);
               return false;
             }
-            log$5.debug(`POLL HEADERS`);
+            log$6.debug(`POLL HEADERS`);
             const currentFileList = fileLists.shift();
             if (currentFileList) {
-              log$5.debug(
+              log$6.debug(
                 `LOADING ${totalLen - fileLists.length} of ${totalLen} CHUNKS`
               );
               const headers = await api2.get_log_headers(currentFileList);
@@ -26281,7 +26295,7 @@ self.onmessage = function (e) {
         }
       };
       const cleanup = () => {
-        log$5.debug(`CLEANUP`);
+        log$6.debug(`CLEANUP`);
         isActive = false;
         stopPolling();
       };
@@ -26291,7 +26305,7 @@ self.onmessage = function (e) {
         cleanup
       };
     }
-    const log$4 = createLogger("Log Slice");
+    const log$5 = createLogger("Log Slice");
     const initialState$1 = {
       logs: { log_dir: "", files: [] },
       logHeaders: {},
@@ -26349,7 +26363,7 @@ self.onmessage = function (e) {
               return { log_dir: "", files: [] };
             }
             try {
-              log$4.debug("LOADING LOG FILES");
+              log$5.debug("LOADING LOG FILES");
               return await api2.get_log_paths();
             } catch (e) {
               console.log(e);
@@ -26358,7 +26372,7 @@ self.onmessage = function (e) {
             }
           },
           refreshLogs: async () => {
-            log$4.debug("REFRESH LOGS");
+            log$5.debug("REFRESH LOGS");
             const state = get2();
             const refreshedLogs = await state.logsActions.loadLogs();
             state.logsActions.setLogs(refreshedLogs || { log_dir: "", files: [] });
@@ -26458,7 +26472,7 @@ self.onmessage = function (e) {
         }
       };
     };
-    const log$3 = createLogger("samplePolling");
+    const log$4 = createLogger("samplePolling");
     function createSamplePolling(get2, _set) {
       let currentPolling = null;
       let isActive = true;
@@ -26467,10 +26481,10 @@ self.onmessage = function (e) {
           currentPolling.stop();
         }
         isActive = true;
-        log$3.debug(`POLLING RUNNING SAMPLE: ${summary2.id}-${summary2.epoch}`);
+        log$4.debug(`POLLING RUNNING SAMPLE: ${summary2.id}-${summary2.epoch}`);
         const pollCallback = async () => {
           if (!isActive) {
-            log$3.debug(
+            log$4.debug(
               `Component unmounted, stopping poll for: ${summary2.id}-${summary2.epoch}`
             );
             return false;
@@ -26482,7 +26496,7 @@ self.onmessage = function (e) {
           if (!api2.get_log_sample_data) {
             return false;
           }
-          log$3.debug(`GET RUNNING SAMPLE: ${summary2.id}-${summary2.epoch}`);
+          log$4.debug(`GET RUNNING SAMPLE: ${summary2.id}-${summary2.epoch}`);
           if (!isActive) {
             return false;
           }
@@ -26505,7 +26519,7 @@ self.onmessage = function (e) {
             adapter.addData(sampleDataResponse.sampleData);
             const events = adapter.resolvedEvents();
             const runningData = { events, summary: summary2 };
-            log$3.debug(`EVENTS: ${events.length}`);
+            log$4.debug(`EVENTS: ${events.length}`);
             get2().sampleActions.setRunningSampleData(runningData);
           }
           return true;
@@ -26525,7 +26539,7 @@ self.onmessage = function (e) {
         }
       };
       const cleanup = () => {
-        log$3.debug(`CLEANUP`);
+        log$4.debug(`CLEANUP`);
         isActive = false;
         stopPolling();
       };
@@ -26535,7 +26549,7 @@ self.onmessage = function (e) {
         cleanup
       };
     }
-    const log$2 = createLogger("sampleSlice");
+    const log$3 = createLogger("sampleSlice");
     const initialState = {
       selectedSample: void 0,
       sampleStatus: "ok",
@@ -26591,7 +26605,7 @@ self.onmessage = function (e) {
             sampleActions.setSampleStatus("loading");
             try {
               if (sampleSummary.completed !== false) {
-                log$2.debug(
+                log$3.debug(
                   `LOADING COMPLETED SAMPLE: ${sampleSummary.id}-${sampleSummary.epoch}`
                 );
                 const sample2 = await ((_a2 = get2().api) == null ? void 0 : _a2.get_log_sample(
@@ -26608,7 +26622,7 @@ self.onmessage = function (e) {
                   );
                 }
               } else {
-                log$2.debug(
+                log$3.debug(
                   `POLLING RUNNING SAMPLE: ${sampleSummary.id}-${sampleSummary.epoch}`
                 );
                 samplePolling.startPolling(logFile, sampleSummary);
@@ -26633,7 +26647,7 @@ self.onmessage = function (e) {
         }
       });
     };
-    const log$1 = createLogger("store");
+    const log$2 = createLogger("store");
     let storeImplementation = null;
     const useStore = (selector) => {
       if (!storeImplementation) {
@@ -26711,11 +26725,11 @@ self.onmessage = function (e) {
               version: 1,
               onRehydrateStorage: (state) => {
                 return (hydrationState, error2) => {
-                  log$1.debug("REHYDRATING STATE");
+                  log$2.debug("REHYDRATING STATE");
                   if (error2) {
-                    log$1.debug("ERROR", { error: error2 });
+                    log$2.debug("ERROR", { error: error2 });
                   } else {
-                    log$1.debug("STATE", { state, hydrationState });
+                    log$2.debug("STATE", { state, hydrationState });
                   }
                 };
               }
@@ -29831,83 +29845,76 @@ self.onmessage = function (e) {
       }, [callback]);
       return elementRef;
     };
-    const ExpandablePanel = ({
-      collapse,
-      border,
-      lines = 15,
-      children: children2,
-      className: className2
-    }) => {
-      const [isCollapsed, setIsCollapsed] = reactExports.useState(collapse);
-      const [showToggle, setShowToggle] = reactExports.useState(false);
-      const lineHeightRef = reactExports.useRef(0);
-      reactExports.useEffect(() => {
-        setIsCollapsed(collapse);
-      }, [collapse]);
-      const checkOverflow = reactExports.useCallback(
-        (entry2) => {
-          const element = entry2.target;
-          if (!lineHeightRef.current) {
-            const computedStyle = window.getComputedStyle(element);
-            lineHeightRef.current = parseInt(computedStyle.lineHeight) || 16;
+    const ExpandablePanel = reactExports.memo(
+      ({ id: id2, collapse, border, lines = 15, children: children2, className: className2 }) => {
+        const [collapsed, setCollapsed] = useCollapsedState(id2, collapse);
+        const [showToggle, setShowToggle] = reactExports.useState(false);
+        const lineHeightRef = reactExports.useRef(0);
+        const checkOverflow = reactExports.useCallback(
+          (entry2) => {
+            const element = entry2.target;
+            if (!lineHeightRef.current) {
+              const computedStyle = window.getComputedStyle(element);
+              lineHeightRef.current = parseInt(computedStyle.lineHeight) || 16;
+            }
+            const maxCollapsedHeight = lines * lineHeightRef.current;
+            const contentHeight = element.scrollHeight;
+            setShowToggle(contentHeight > maxCollapsedHeight);
+          },
+          [lines]
+        );
+        const contentRef = useResizeObserver(checkOverflow);
+        const baseStyles = {
+          overflow: "hidden",
+          ...collapsed && {
+            maxHeight: `${lines}em`
           }
-          const maxCollapsedHeight = lines * lineHeightRef.current;
-          const contentHeight = element.scrollHeight;
-          setShowToggle(contentHeight > maxCollapsedHeight);
-        },
-        [lines]
-      );
-      const contentRef = useResizeObserver(checkOverflow);
-      const baseStyles = {
-        overflow: "hidden",
-        ...isCollapsed && {
-          maxHeight: `${lines}em`
-        }
-      };
-      return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: clsx(className2), children: [
-        /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
-          "div",
-          {
-            style: baseStyles,
-            ref: contentRef,
-            className: clsx(
-              "expandable-panel",
-              isCollapsed ? "expandable-collapsed" : void 0,
-              border ? "expandable-bordered" : void 0
-            ),
-            children: children2
-          },
-          void 0,
-          false,
-          {
-            fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/ExpandablePanel.tsx",
-            lineNumber: 67,
-            columnNumber: 7
-          },
-          void 0
-        ),
-        showToggle && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
-          MoreToggle,
-          {
-            collapsed: isCollapsed,
-            setCollapsed: setIsCollapsed,
-            border: !border
-          },
-          void 0,
-          false,
-          {
-            fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/ExpandablePanel.tsx",
-            lineNumber: 80,
-            columnNumber: 9
-          },
-          void 0
-        )
-      ] }, void 0, true, {
-        fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/ExpandablePanel.tsx",
-        lineNumber: 66,
-        columnNumber: 5
-      }, void 0);
-    };
+        };
+        return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: clsx(className2), children: [
+          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+            "div",
+            {
+              style: baseStyles,
+              ref: contentRef,
+              className: clsx(
+                "expandable-panel",
+                collapsed ? "expandable-collapsed" : void 0,
+                border ? "expandable-bordered" : void 0
+              ),
+              children: children2
+            },
+            void 0,
+            false,
+            {
+              fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/ExpandablePanel.tsx",
+              lineNumber: 60,
+              columnNumber: 9
+            },
+            void 0
+          ),
+          showToggle && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+            MoreToggle,
+            {
+              collapsed,
+              setCollapsed,
+              border: !border
+            },
+            void 0,
+            false,
+            {
+              fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/ExpandablePanel.tsx",
+              lineNumber: 73,
+              columnNumber: 11
+            },
+            void 0
+          )
+        ] }, void 0, true, {
+          fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/ExpandablePanel.tsx",
+          lineNumber: 59,
+          columnNumber: 7
+        }, void 0);
+      }
+    );
     const MoreToggle = ({
       collapsed,
       border,
@@ -29916,35 +29923,27 @@ self.onmessage = function (e) {
     }) => {
       const text2 = collapsed ? "more" : "less";
       const icon2 = collapsed ? ApplicationIcons["expand-down"] : ApplicationIcons.collapse.up;
-      return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: `more-toggle ${border ? "bordered" : ""}`, style: style2, children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "more-toggle-container", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
-        "button",
-        {
-          className: "btn more-toggle-button",
-          onClick: () => setCollapsed(!collapsed),
-          children: [
-            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("i", { className: icon2 }, void 0, false, {
-              fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/ExpandablePanel.tsx",
-              lineNumber: 115,
-              columnNumber: 11
-            }, void 0),
-            text2
-          ]
-        },
-        void 0,
-        true,
-        {
+      const handleClick = reactExports.useCallback(() => {
+        setCollapsed(!collapsed);
+      }, [setCollapsed, collapsed]);
+      return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: `more-toggle ${border ? "bordered" : ""}`, style: style2, children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "more-toggle-container", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("button", { className: "btn more-toggle-button", onClick: handleClick, children: [
+        /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("i", { className: icon2 }, void 0, false, {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/ExpandablePanel.tsx",
-          lineNumber: 111,
-          columnNumber: 9
-        },
-        void 0
-      ) }, void 0, false, {
+          lineNumber: 110,
+          columnNumber: 11
+        }, void 0),
+        text2
+      ] }, void 0, true, {
         fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/ExpandablePanel.tsx",
-        lineNumber: 110,
+        lineNumber: 109,
+        columnNumber: 9
+      }, void 0) }, void 0, false, {
+        fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/ExpandablePanel.tsx",
+        lineNumber: 108,
         columnNumber: 7
       }, void 0) }, void 0, false, {
         fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/ExpandablePanel.tsx",
-        lineNumber: 109,
+        lineNumber: 107,
         columnNumber: 5
       }, void 0);
     };
@@ -35383,7 +35382,7 @@ self.onmessage = function (e) {
               },
               void 0
             ),
-            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(ExpandablePanel, { collapse: true, children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(ExpandablePanel, { id: `${id}-reasoning`, collapse: true, children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
               MarkdownDiv,
               {
                 markdown: r2.redacted ? "Reasoning encrypted by model provider." : r2.reasoning
@@ -35558,15 +35557,17 @@ self.onmessage = function (e) {
       const codeRef = useCodeHighlight(highlightLanguage);
       const toolViewRef = reactExports.useRef(null);
       reactExports.useEffect(() => {
-        if ((toolCallView == null ? void 0 : toolCallView.content) && toolViewRef.current) {
+        if (toolCallView == null ? void 0 : toolCallView.content) {
           requestAnimationFrame(() => {
-            const codeBlocks = toolViewRef.current.querySelectorAll("pre code");
-            codeBlocks.forEach((block2) => {
-              if (block2.className.includes("language-")) {
-                block2.classList.add("sourceCode");
-                prismExports.highlightElement(block2);
-              }
-            });
+            if (toolViewRef.current) {
+              const codeBlocks = toolViewRef.current.querySelectorAll("pre code");
+              codeBlocks.forEach((block2) => {
+                if (block2.className.includes("language-")) {
+                  block2.classList.add("sourceCode");
+                  prismExports.highlightElement(block2);
+                }
+              });
+            }
           });
         }
       }, [toolCallView == null ? void 0 : toolCallView.content]);
@@ -35583,7 +35584,7 @@ self.onmessage = function (e) {
           false,
           {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/chat/tools/ToolInput.tsx",
-            lineNumber: 49,
+            lineNumber: 51,
             columnNumber: 7
           },
           void 0
@@ -35606,13 +35607,13 @@ self.onmessage = function (e) {
         false,
         {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/chat/tools/ToolInput.tsx",
-          lineNumber: 62,
+          lineNumber: 64,
           columnNumber: 7
         },
         void 0
       ) }, void 0, false, {
         fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/chat/tools/ToolInput.tsx",
-        lineNumber: 61,
+        lineNumber: 63,
         columnNumber: 5
       }, void 0);
     });
@@ -35639,6 +35640,7 @@ self.onmessage = function (e) {
       }, void 0);
     };
     const ToolCallView = ({
+      id: id2,
       functionCall,
       input: input2,
       highlightLanguage,
@@ -35664,7 +35666,7 @@ self.onmessage = function (e) {
       return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { children: [
         mode !== "compact" && (!view || view.title) ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(ToolTitle, { title: (view == null ? void 0 : view.title) || functionCall }, void 0, false, {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/chat/tools/ToolCallView.tsx",
-          lineNumber: 91,
+          lineNumber: 93,
           columnNumber: 9
         }, void 0) : "",
         /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { children: [
@@ -35679,32 +35681,45 @@ self.onmessage = function (e) {
             false,
             {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/chat/tools/ToolCallView.tsx",
-              lineNumber: 97,
+              lineNumber: 99,
               columnNumber: 11
             },
             void 0
           ),
-          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(ExpandablePanel, { collapse, border: true, lines: 15, children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(MessageContent, { contents: normalizedContent }, void 0, false, {
-            fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/chat/tools/ToolCallView.tsx",
-            lineNumber: 103,
-            columnNumber: 13
-          }, void 0) }, void 0, false, {
-            fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/chat/tools/ToolCallView.tsx",
-            lineNumber: 102,
-            columnNumber: 11
-          }, void 0)
+          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+            ExpandablePanel,
+            {
+              id: `${id2}-tool-input`,
+              collapse,
+              border: true,
+              lines: 15,
+              children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(MessageContent, { contents: normalizedContent }, void 0, false, {
+                fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/chat/tools/ToolCallView.tsx",
+                lineNumber: 110,
+                columnNumber: 13
+              }, void 0)
+            },
+            void 0,
+            false,
+            {
+              fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/chat/tools/ToolCallView.tsx",
+              lineNumber: 104,
+              columnNumber: 11
+            },
+            void 0
+          )
         ] }, void 0, true, {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/chat/tools/ToolCallView.tsx",
-          lineNumber: 96,
+          lineNumber: 98,
           columnNumber: 9
         }, void 0) }, void 0, false, {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/chat/tools/ToolCallView.tsx",
-          lineNumber: 95,
+          lineNumber: 97,
           columnNumber: 7
         }, void 0)
       ] }, void 0, true, {
         fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/chat/tools/ToolCallView.tsx",
-        lineNumber: 89,
+        lineNumber: 91,
         columnNumber: 5
       }, void 0);
     };
@@ -35730,6 +35745,7 @@ self.onmessage = function (e) {
       content: content$2
     };
     const MessageContents = ({
+      id: id2,
       message: message2,
       toolMessages,
       toolCallStyle
@@ -35755,17 +35771,18 @@ self.onmessage = function (e) {
               functionCall
             ] }, void 0, true, {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/chat/MessageContents.tsx",
-              lineNumber: 53,
+              lineNumber: 55,
               columnNumber: 13
             }, void 0) }, `tool-call-${idx}`, false, {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/chat/MessageContents.tsx",
-              lineNumber: 52,
+              lineNumber: 54,
               columnNumber: 11
             }, void 0);
           } else {
             return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
               ToolCallView,
               {
+                id: `${id2}-tool-call`,
                 functionCall,
                 input: input2,
                 highlightLanguage,
@@ -35775,7 +35792,7 @@ self.onmessage = function (e) {
               false,
               {
                 fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/chat/MessageContents.tsx",
-                lineNumber: 58,
+                lineNumber: 60,
                 columnNumber: 11
               },
               void 0
@@ -35785,23 +35802,23 @@ self.onmessage = function (e) {
         return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(reactExports.Fragment, { children: [
           /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: styles$W.content, children: message2.content ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(MessageContent, { contents: message2.content }, void 0, false, {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/chat/MessageContents.tsx",
-            lineNumber: 73,
+            lineNumber: 76,
             columnNumber: 13
           }, void 0) : void 0 }, void 0, false, {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/chat/MessageContents.tsx",
-            lineNumber: 71,
+            lineNumber: 74,
             columnNumber: 9
           }, void 0),
           toolCalls
         ] }, void 0, true, {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/chat/MessageContents.tsx",
-          lineNumber: 70,
+          lineNumber: 73,
           columnNumber: 7
         }, void 0);
       } else {
         return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(MessageContent, { contents: message2.content }, void 0, false, {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/chat/MessageContents.tsx",
-          lineNumber: 80,
+          lineNumber: 83,
           columnNumber: 12
         }, void 0);
       }
@@ -35911,7 +35928,7 @@ self.onmessage = function (e) {
       }
     };
     const ChatMessage = ({
-      id,
+      id: id2,
       message: message2,
       toolMessages,
       indented: indented2,
@@ -35947,14 +35964,15 @@ self.onmessage = function (e) {
                   styles$$.messageContents,
                   indented2 ? styles$$.indented : void 0
                 ),
-                children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(ExpandablePanel, { collapse, lines: 30, children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+                children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(ExpandablePanel, { id: `${id2}-message`, collapse, lines: 30, children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
                   MessageContents,
                   {
+                    id: `${id2}-contents`,
                     message: message2,
                     toolMessages,
                     toolCallStyle
                   },
-                  `${id}-contents`,
+                  `${id2}-contents`,
                   false,
                   {
                     fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/chat/ChatMessage.tsx",
@@ -36068,7 +36086,7 @@ self.onmessage = function (e) {
       }
     };
     const ChatView = ({
-      id,
+      id: id2,
       messages,
       toolCallStyle = "complete",
       indented: indented2,
@@ -36081,13 +36099,13 @@ self.onmessage = function (e) {
         return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
           ChatMessageRow,
           {
-            parentName: id || "chat-view",
+            parentName: id2 || "chat-view",
             number: number2,
             resolvedMessage: msg,
             indented: indented2,
             toolCallStyle
           },
-          `${id}-msg-${index}`,
+          `${id2}-msg-${index}`,
           false,
           {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/chat/ChatView.tsx",
@@ -36110,15 +36128,15 @@ self.onmessage = function (e) {
         const val = entry2.value;
         return Array.isArray(val) && val.length > 0 && ((_a2 = val[0]) == null ? void 0 : _a2.role) !== void 0 && ((_b2 = val[0]) == null ? void 0 : _b2.content) !== void 0;
       },
-      render: (id, entry2) => {
+      render: (id2, entry2) => {
         return {
           rendered: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(NavPills, { children: [
-            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(ChatSummary, { title: "Last Turn", id, messages: entry2.value }, void 0, false, {
+            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(ChatSummary, { title: "Last Turn", id: id2, messages: entry2.value }, void 0, false, {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/chat/ChatMessageRenderer.tsx",
               lineNumber: 30,
               columnNumber: 11
             }, void 0),
-            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(ChatView, { title: "All", id, messages: entry2.value }, void 0, false, {
+            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(ChatView, { title: "All", id: id2, messages: entry2.value }, void 0, false, {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/chat/ChatMessageRenderer.tsx",
               lineNumber: 31,
               columnNumber: 11
@@ -36131,7 +36149,7 @@ self.onmessage = function (e) {
         };
       }
     };
-    const ChatSummary = ({ id, messages }) => {
+    const ChatSummary = ({ id: id2, messages }) => {
       const summaryMessages = [];
       for (const message2 of messages.slice().reverse()) {
         summaryMessages.unshift(message2);
@@ -36139,7 +36157,7 @@ self.onmessage = function (e) {
           break;
         }
       }
-      return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(ChatView, { id, messages: summaryMessages }, void 0, false, {
+      return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(ChatView, { id: id2, messages: summaryMessages }, void 0, false, {
         fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/chat/ChatMessageRenderer.tsx",
         lineNumber: 60,
         columnNumber: 10
@@ -36160,7 +36178,7 @@ self.onmessage = function (e) {
       cellValue
     };
     const MetaDataView = ({
-      id,
+      id: id2,
       style: style2,
       entries,
       tableOptions,
@@ -36174,7 +36192,7 @@ self.onmessage = function (e) {
       });
       const coercedEntries = toNameValues(entries);
       const entryEls = (coercedEntries || []).map((entry2, index) => {
-        const id2 = `${baseId}-value-${index}`;
+        const id22 = `${baseId}-value-${index}`;
         return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("tr", { children: [
           /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
             "td",
@@ -36196,7 +36214,7 @@ self.onmessage = function (e) {
             },
             void 0
           ),
-          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("td", { className: clsx(styles$U.cell, styles$U.cellValue, "text-size-small"), children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(RenderedContent, { id: id2, entry: entry2 }, void 0, false, {
+          /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("td", { className: clsx(styles$U.cell, styles$U.cellValue, "text-size-small"), children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(RenderedContent, { id: id22, entry: entry2 }, void 0, false, {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/metadata/MetaDataView.tsx",
             lineNumber: 51,
             columnNumber: 11
@@ -36205,7 +36223,7 @@ self.onmessage = function (e) {
             lineNumber: 50,
             columnNumber: 9
           }, void 0)
-        ] }, id2, true, {
+        ] }, id22, true, {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/metadata/MetaDataView.tsx",
           lineNumber: 39,
           columnNumber: 7
@@ -36214,7 +36232,7 @@ self.onmessage = function (e) {
       return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
         "table",
         {
-          id,
+          id: id2,
           className: clsx(
             "table",
             tblClz,
@@ -36269,7 +36287,7 @@ self.onmessage = function (e) {
     };
     const kPrismRenderMaxSize = 25e4;
     const JSONPanel = ({
-      id,
+      id: id2,
       json,
       data,
       simple = false,
@@ -36293,7 +36311,7 @@ self.onmessage = function (e) {
           children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
             "code",
             {
-              id,
+              id: id2,
               ref: codeRef,
               className: clsx("source-code", "language-javascript"),
               children: sourceCode
@@ -36371,7 +36389,7 @@ self.onmessage = function (e) {
       preWrap
     };
     const RenderedContent = ({
-      id,
+      id: id2,
       entry: entry2
     }) => {
       if (entry2.value === null) {
@@ -36389,7 +36407,7 @@ self.onmessage = function (e) {
         return renderer2.canRender(entry2);
       });
       if (renderer) {
-        const { rendered } = renderer.render(id, entry2);
+        const { rendered } = renderer.render(id2, entry2);
         if (rendered !== void 0 && reactExports.isValidElement(rendered)) {
           return rendered;
         }
@@ -36472,9 +36490,9 @@ self.onmessage = function (e) {
         canRender: (entry2) => {
           return typeof entry2.value === "boolean";
         },
-        render: (id, entry2) => {
+        render: (id2, entry2) => {
           entry2.value = entry2.value.toString();
-          return contentRenderers.String.render(id, entry2);
+          return contentRenderers.String.render(id2, entry2);
         }
       },
       Number: {
@@ -36482,9 +36500,9 @@ self.onmessage = function (e) {
         canRender: (entry2) => {
           return typeof entry2.value === "number";
         },
-        render: (id, entry2) => {
+        render: (id2, entry2) => {
           entry2.value = formatNumber(entry2.value);
-          return contentRenderers.String.render(id, entry2);
+          return contentRenderers.String.render(id2, entry2);
         }
       },
       String: {
@@ -36514,7 +36532,7 @@ self.onmessage = function (e) {
             return false;
           }
         },
-        render: (id, entry2) => {
+        render: (id2, entry2) => {
           const arrayMap = {};
           entry2.value.forEach((e, index) => {
             arrayMap[`[${index}]`] = e;
@@ -36522,7 +36540,7 @@ self.onmessage = function (e) {
           const arrayRendered = /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
             MetaDataView,
             {
-              id,
+              id: id2,
               className: "font-size-small",
               entries: arrayMap,
               tableOptions: "borderless,sm",
@@ -36637,12 +36655,12 @@ self.onmessage = function (e) {
         canRender: (entry2) => {
           return typeof entry2.value === "object";
         },
-        render: (id, entry2) => {
+        render: (id2, entry2) => {
           return {
             rendered: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
               MetaDataView,
               {
-                id,
+                id: id2,
                 className: "text-size-smaller",
                 entries: entry2.value,
                 tableOptions: "borderless,sm",
@@ -39939,6 +39957,7 @@ categories: ${categories.join(" ")}`;
       });
       return [...logSamples, ...uniquePendingSamples];
     };
+    const log$1 = createLogger("hooks");
     const useSampleSummaries = () => {
       const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
       const pendingSampleSummaries = useStore(
@@ -40082,6 +40101,19 @@ categories: ${categories.join(" ")}`;
           sample: selectedSampleSummary
         };
       }, [selectedLogFile, selectedSampleSummary]);
+    };
+    const useCollapsedState = (id2, defaultValue) => {
+      const collapsed = useStore(
+        (state) => state.appActions.getCollapsed(id2, defaultValue)
+      );
+      const setCollapsed = useStore((state) => state.appActions.setCollapsed);
+      return reactExports.useMemo(() => {
+        const set2 = (value2) => {
+          log$1.debug("Set collapsed", id2, value2);
+          setCollapsed(id2, value2);
+        };
+        return [collapsed, set2];
+      }, [collapsed, setCollapsed]);
     };
     const container$9 = "_container_15b4r_1";
     const label$5 = "_label_15b4r_5";
@@ -41704,7 +41736,7 @@ categories: ${categories.join(" ")}`;
         var _a2;
         let getter = this.value;
         let compare2 = this.facet.compareInput;
-        let id = this.id, idx = addresses[id] >> 1, multi = this.type == 2;
+        let id2 = this.id, idx = addresses[id2] >> 1, multi = this.type == 2;
         let depDoc = false, depSel = false, depAddrs = [];
         for (let dep of this.dependencies) {
           if (dep == "doc")
@@ -41730,7 +41762,7 @@ categories: ${categories.join(" ")}`;
             return 0;
           },
           reconfigure: (state, oldState) => {
-            let newVal, oldAddr = oldState.config.address[id];
+            let newVal, oldAddr = oldState.config.address[id2];
             if (oldAddr != null) {
               let oldVal = getAddr(oldState, oldAddr);
               if (this.dependencies.every((dep) => {
@@ -41815,8 +41847,8 @@ categories: ${categories.join(" ")}`;
     }
     const initField = /* @__PURE__ */ Facet.define({ static: true });
     class StateField {
-      constructor(id, createF, updateF, compareF, spec) {
-        this.id = id;
+      constructor(id2, createF, updateF, compareF, spec) {
+        this.id = id2;
         this.createF = createF;
         this.updateF = updateF;
         this.compareF = compareF;
@@ -41983,9 +42015,9 @@ categories: ${categories.join(" ")}`;
           dynamicSlots.push((a) => field.slot(a));
         }
         let oldFacets = oldState === null || oldState === void 0 ? void 0 : oldState.config.facets;
-        for (let id in facets) {
-          let providers = facets[id], facet = providers[0].facet;
-          let oldProviders = oldFacets && oldFacets[id] || [];
+        for (let id2 in facets) {
+          let providers = facets[id2], facet = providers[0].facet;
+          let oldProviders = oldFacets && oldFacets[id2] || [];
           if (providers.every(
             (p) => p.type == 0
             /* Provider.Static */
@@ -43608,9 +43640,9 @@ categories: ${categories.join(" ")}`;
       // :: () → string
       // Generate a new unique CSS class name.
       static newName() {
-        let id = top[COUNT] || 1;
-        top[COUNT] = id + 1;
-        return C + id.toString(36);
+        let id2 = top[COUNT] || 1;
+        top[COUNT] = id2 + 1;
+        return C + id2.toString(36);
       }
       // :: (union<Document, ShadowRoot>, union<[StyleModule], StyleModule>, ?{nonce: ?string})
       //
@@ -46022,8 +46054,8 @@ categories: ${categories.join(" ")}`;
     let nextPluginID = 0;
     const viewPlugin = /* @__PURE__ */ Facet.define();
     class ViewPlugin {
-      constructor(id, create2, domEventHandlers, domEventObservers, buildExtensions) {
-        this.id = id;
+      constructor(id2, create2, domEventHandlers, domEventObservers, buildExtensions) {
+        this.id = id2;
         this.create = create2;
         this.domEventHandlers = domEventHandlers;
         this.domEventObservers = domEventObservers;
@@ -53153,10 +53185,10 @@ categories: ${categories.join(" ")}`;
       /**
       @internal
       */
-      constructor(name2, props, id, flags = 0) {
+      constructor(name2, props, id2, flags = 0) {
         this.name = name2;
         this.props = props;
-        this.id = id;
+        this.id = id2;
         this.flags = flags;
       }
       /**
@@ -53435,8 +53467,8 @@ categories: ${categories.join(" ")}`;
       get propValues() {
         let result2 = [];
         if (this.props)
-          for (let id in this.props)
-            result2.push([+id, this.props[id]]);
+          for (let id2 in this.props)
+            result2.push([+id2, this.props[id2]]);
         return result2;
       }
       /**
@@ -53513,8 +53545,8 @@ categories: ${categories.join(" ")}`;
       @internal
       */
       childString(index) {
-        let id = this.buffer[index], endIndex = this.buffer[index + 3];
-        let type = this.set.types[id], result2 = type.name;
+        let id2 = this.buffer[index], endIndex = this.buffer[index + 3];
+        let type = this.set.types[id2], result2 = type.name;
         if (/\W/.test(result2) && !type.isError)
           result2 = JSON.stringify(result2);
         index += 4;
@@ -54320,26 +54352,26 @@ categories: ${categories.join(" ")}`;
       let types2 = nodeSet2.types;
       let contextHash = 0, lookAhead = 0;
       function takeNode(parentStart, minPos, children3, positions2, inRepeat, depth) {
-        let { id, start, end, size } = cursor;
+        let { id: id2, start, end, size } = cursor;
         let lookAheadAtStart = lookAhead, contextAtStart = contextHash;
         while (size < 0) {
           cursor.next();
           if (size == -1) {
-            let node3 = reused[id];
+            let node3 = reused[id2];
             children3.push(node3);
             positions2.push(start - parentStart);
             return;
           } else if (size == -3) {
-            contextHash = id;
+            contextHash = id2;
             return;
           } else if (size == -4) {
-            lookAhead = id;
+            lookAhead = id2;
             return;
           } else {
             throw new RangeError(`Unrecognized record size: ${size}`);
           }
         }
-        let type = types2[id], node2, buffer3;
+        let type = types2[id2], node2, buffer3;
         let startPos = start - parentStart;
         if (end - start <= maxBufferLength && (buffer3 = findBufferSize(cursor.pos - minPos, inRepeat))) {
           let data2 = new Uint16Array(buffer3.size - buffer3.skip);
@@ -54352,7 +54384,7 @@ categories: ${categories.join(" ")}`;
           let endPos = cursor.pos - size;
           cursor.next();
           let localChildren = [], localPositions = [];
-          let localInRepeat = id >= minRepeatType ? id : -1;
+          let localInRepeat = id2 >= minRepeatType ? id2 : -1;
           let lastGroup = 0, lastEnd = end;
           while (cursor.pos > endPos) {
             if (localInRepeat >= 0 && cursor.id == localInRepeat && cursor.size >= 0) {
@@ -54386,7 +54418,7 @@ categories: ${categories.join(" ")}`;
         let nodes2 = [];
         let nodeCount = 0, stopAt = -1;
         while (cursor.pos > minPos) {
-          let { id, start, end, size } = cursor;
+          let { id: id2, start, end, size } = cursor;
           if (size > 4) {
             cursor.next();
           } else if (stopAt > -1 && start < stopAt) {
@@ -54394,7 +54426,7 @@ categories: ${categories.join(" ")}`;
           } else {
             if (stopAt < 0)
               stopAt = end - maxBufferLength;
-            nodes2.push(id, start, end);
+            nodes2.push(id2, start, end);
             nodeCount++;
             cursor.next();
           }
@@ -54488,9 +54520,9 @@ categories: ${categories.join(" ")}`;
         return result2.size > 4 ? result2 : void 0;
       }
       function copyToBuffer(bufferStart, buffer3, index) {
-        let { id, start, end, size } = cursor;
+        let { id: id2, start, end, size } = cursor;
         cursor.next();
-        if (size >= 0 && id < minRepeatType) {
+        if (size >= 0 && id2 < minRepeatType) {
           let startIndex = index;
           if (size > 4) {
             let endPos = cursor.pos - (size - 4);
@@ -54500,11 +54532,11 @@ categories: ${categories.join(" ")}`;
           buffer3[--index] = startIndex;
           buffer3[--index] = end - bufferStart;
           buffer3[--index] = start - bufferStart;
-          buffer3[--index] = id;
+          buffer3[--index] = id2;
         } else if (size == -3) {
-          contextHash = id;
+          contextHash = id2;
         } else if (size == -4) {
-          lookAhead = id;
+          lookAhead = id2;
         }
         return index;
       }
@@ -56837,7 +56869,7 @@ categories: ${categories.join(" ")}`;
         while (this.ranges[this.rangeIndex].to < this.parsedPos)
           this.rangeIndex++;
       }
-      emitToken(id, from, to2, offset) {
+      emitToken(id2, from, to2, offset) {
         let size = 4;
         if (this.ranges.length > 1) {
           offset = this.skipGapsTo(from, offset, 1);
@@ -56848,10 +56880,10 @@ categories: ${categories.join(" ")}`;
           size += this.chunk.length - len0;
         }
         let last = this.chunk.length - 4;
-        if (size == 4 && last >= 0 && this.chunk[last] == id && this.chunk[last + 2] == from)
+        if (size == 4 && last >= 0 && this.chunk[last] == id2 && this.chunk[last + 2] == from)
           this.chunk[last + 2] = to2;
         else
-          this.chunk.push(id, from, to2, size);
+          this.chunk.push(id2, from, to2, size);
         return offset;
       }
       parseLine(context) {
@@ -57433,10 +57465,10 @@ categories: ${categories.join(" ")}`;
       mount() {
         this.updateSel();
       }
-      showOptions(options, id) {
+      showOptions(options, id2) {
         if (this.list)
           this.list.remove();
-        this.list = this.dom.appendChild(this.createListBox(options, id, this.range));
+        this.list = this.dom.appendChild(this.createListBox(options, id2, this.range));
         this.list.addEventListener("scroll", () => {
           if (this.info)
             this.view.requestMeasure(this.placeInfoReq);
@@ -57561,9 +57593,9 @@ categories: ${categories.join(" ")}`;
           }
         }
       }
-      createListBox(options, id, range) {
+      createListBox(options, id2, range) {
         const ul = document.createElement("ul");
-        ul.id = id;
+        ul.id = id2;
         ul.setAttribute("role", "listbox");
         ul.setAttribute("aria-expanded", "true");
         ul.setAttribute("aria-label", this.view.state.phrase("Completions"));
@@ -57583,7 +57615,7 @@ categories: ${categories.join(" ")}`;
             }
           }
           const li = ul.appendChild(document.createElement("li"));
-          li.id = id + "-" + i2;
+          li.id = id2 + "-" + i2;
           li.setAttribute("role", "option");
           let cls = this.optionClass(completion);
           if (cls)
@@ -57696,10 +57728,10 @@ categories: ${categories.join(" ")}`;
         this.selected = selected2;
         this.disabled = disabled;
       }
-      setSelected(selected2, id) {
-        return selected2 == this.selected || selected2 >= this.options.length ? this : new CompletionDialog(this.options, makeAttrs(id, selected2), this.tooltip, this.timestamp, selected2, this.disabled);
+      setSelected(selected2, id2) {
+        return selected2 == this.selected || selected2 >= this.options.length ? this : new CompletionDialog(this.options, makeAttrs(id2, selected2), this.tooltip, this.timestamp, selected2, this.disabled);
       }
-      static build(active2, state, id, prev2, conf, didSetActive) {
+      static build(active2, state, id2, prev2, conf, didSetActive) {
         if (prev2 && !didSetActive && active2.some((s) => s.isPending))
           return prev2.setDisabled();
         let options = sortOptions(active2, state);
@@ -57714,7 +57746,7 @@ categories: ${categories.join(" ")}`;
               break;
             }
         }
-        return new CompletionDialog(options, makeAttrs(id, selected2), {
+        return new CompletionDialog(options, makeAttrs(id2, selected2), {
           pos: active2.reduce((a, b) => b.hasResult() ? Math.min(a, b.from) : a, 1e8),
           create: createTooltip,
           above: conf.aboveCursor
@@ -57728,9 +57760,9 @@ categories: ${categories.join(" ")}`;
       }
     }
     class CompletionState {
-      constructor(active2, id, open2) {
+      constructor(active2, id2, open2) {
         this.active = active2;
-        this.id = id;
+        this.id = id2;
         this.open = open2;
       }
       static start() {
@@ -57796,14 +57828,14 @@ categories: ${categories.join(" ")}`;
       "aria-autocomplete": "list"
     };
     const noAttrs = {};
-    function makeAttrs(id, selected2) {
+    function makeAttrs(id2, selected2) {
       let result2 = {
         "aria-autocomplete": "list",
         "aria-haspopup": "listbox",
-        "aria-controls": id
+        "aria-controls": id2
       };
       if (selected2 > -1)
-        result2["aria-activedescendant"] = id + "-" + selected2;
+        result2["aria-activedescendant"] = id2 + "-" + selected2;
       return result2;
     }
     const none$1 = [];
@@ -61136,7 +61168,7 @@ Supported expressions:
       tabTools
     };
     const TabSet = ({
-      id,
+      id: id2,
       type = "tabs",
       className: className2,
       tabPanelsClassName,
@@ -61150,7 +61182,7 @@ Supported expressions:
         /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
           "ul",
           {
-            id,
+            id: id2,
             className: clsx("nav", `nav-${type}`, className2, moduleStyles.tabs),
             role: "tablist",
             "aria-orientation": "horizontal",
@@ -61188,7 +61220,7 @@ Supported expressions:
           },
           void 0
         ),
-        /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(TabPanels, { id, tabs: validTabs, className: tabPanelsClassName }, void 0, false, {
+        /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(TabPanels, { id: id2, tabs: validTabs, className: tabPanelsClassName }, void 0, false, {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/TabSet.tsx",
           lineNumber: 74,
           columnNumber: 7
@@ -61243,7 +61275,7 @@ Supported expressions:
         columnNumber: 5
       }, void 0);
     };
-    const TabPanels = ({ id, tabs: tabs2, className: className2 }) => /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: clsx("tab-content", className2), id: `${id}-content`, children: tabs2.map((tab2, index) => /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(TabPanel, { ...tab2.props, index }, tab2.props.id, false, {
+    const TabPanels = ({ id: id2, tabs: tabs2, className: className2 }) => /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: clsx("tab-content", className2), id: `${id2}-content`, children: tabs2.map((tab2, index) => /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(TabPanel, { ...tab2.props, index }, tab2.props.id, false, {
       fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/TabSet.tsx",
       lineNumber: 125,
       columnNumber: 7
@@ -61253,7 +61285,7 @@ Supported expressions:
       columnNumber: 3
     }, void 0);
     const TabPanel = ({
-      id,
+      id: id2,
       selected: selected2,
       style: style2,
       scrollable: scrollable2 = true,
@@ -61261,7 +61293,7 @@ Supported expressions:
       className: className2,
       children: children2
     }) => {
-      const tabContentsId = computeTabContentsId(id);
+      const tabContentsId = computeTabContentsId(id2);
       const panelRef = reactExports.useRef(null);
       const tabContentsRef = scrollRef || panelRef;
       useStatefulScrollPosition(tabContentsRef, tabContentsId, 1e3, scrollable2);
@@ -61295,8 +61327,8 @@ Supported expressions:
       lineNumber: 167,
       columnNumber: 3
     }, void 0);
-    const computeTabId = (id, index) => `${id}-${index}`;
-    const computeTabContentsId = (id) => `${id}-contents`;
+    const computeTabId = (id2, index) => `${id2}-${index}`;
+    const computeTabContentsId = (id2) => `${id2}-contents`;
     const flattenChildren = (children2) => {
       return reactExports.Children.toArray(children2).flatMap((child) => {
         if (reactExports.isValidElement(child)) {
@@ -61309,11 +61341,11 @@ Supported expressions:
         return [];
       });
     };
-    function escapeSelector(id) {
-      return id.replace(/([ #.;,?!+*~'":^$[\]()=>|/\\])/g, "\\$1");
+    function escapeSelector(id2) {
+      return id2.replace(/([ #.;,?!+*~'":^$[\]()=>|/\\])/g, "\\$1");
     }
     const CardHeader = ({
-      id,
+      id: id2,
       icon: icon2,
       label: label2,
       className: className2,
@@ -61323,7 +61355,7 @@ Supported expressions:
         "div",
         {
           className: clsx("card-header-container", "text-style-label", className2),
-          id: id || "",
+          id: id2 || "",
           children: [
             icon2 ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("i", { className: clsx("card-header-icon", icon2) }, void 0, false, {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/Card.tsx",
@@ -61349,15 +61381,15 @@ Supported expressions:
         void 0
       );
     };
-    const CardBody = ({ id, children: children2 }) => {
-      return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "card-body", id: id || "", children: children2 }, void 0, false, {
+    const CardBody = ({ id: id2, children: children2 }) => {
+      return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "card-body", id: id2 || "", children: children2 }, void 0, false, {
         fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/Card.tsx",
         lineNumber: 56,
         columnNumber: 5
       }, void 0);
     };
-    const Card = ({ id, children: children2 }) => {
-      return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "card", id, children: children2 }, void 0, false, {
+    const Card = ({ id: id2, children: children2 }) => {
+      return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "card", id: id2, children: children2 }, void 0, false, {
         fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/Card.tsx",
         lineNumber: 64,
         columnNumber: 5
@@ -61372,7 +61404,7 @@ Supported expressions:
       value: value$1
     };
     const MetaDataGrid = ({
-      id,
+      id: id2,
       entries,
       className: className2,
       style: style2,
@@ -61380,7 +61412,7 @@ Supported expressions:
     }) => {
       const baseId = "metadata-grid";
       const entryEls = entryRecords(entries).map((entry2, index) => {
-        const id2 = `${baseId}-value-${index}`;
+        const id22 = `${baseId}-value-${index}`;
         return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(reactExports.Fragment, { children: [
           index !== 0 ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
             "div",
@@ -61424,7 +61456,7 @@ Supported expressions:
             "div",
             {
               className: clsx(styles$M.value, `${baseId}-value`, "text-size-small"),
-              children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(RenderedContent, { id: id2, entry: entry2 }, void 0, false, {
+              children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(RenderedContent, { id: id22, entry: entry2 }, void 0, false, {
                 fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/metadata/MetaDataGrid.tsx",
                 lineNumber: 52,
                 columnNumber: 11
@@ -61445,7 +61477,7 @@ Supported expressions:
           columnNumber: 7
         }, void 0);
       });
-      return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { id, className: clsx(className2, styles$M.grid), style: style2, children: entryEls }, void 0, false, {
+      return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { id: id2, className: clsx(className2, styles$M.grid), style: style2, children: entryEls }, void 0, false, {
         fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/metadata/MetaDataGrid.tsx",
         lineNumber: 59,
         columnNumber: 5
@@ -65190,7 +65222,7 @@ Supported expressions:
       list: list$1
     };
     const ChatViewVirtualList = ({
-      id,
+      id: id2,
       messages,
       toolCallStyle,
       className: className2,
@@ -65210,7 +65242,7 @@ Supported expressions:
         return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
           ChatMessageRow,
           {
-            parentName: id || "chat-virtual-list",
+            parentName: id2 || "chat-virtual-list",
             number: number2,
             resolvedMessage: item2,
             indented: indented2,
@@ -65730,7 +65762,7 @@ Supported expressions:
       hidden: hidden$1
     };
     const EventPanel = ({
-      id,
+      id: id2,
       className: className2,
       title: title2,
       subTitle,
@@ -65746,7 +65778,7 @@ Supported expressions:
       const hasCollapse = collapse !== void 0;
       const isCollapsed = collapsed === void 0 ? collapse : collapsed;
       const pillId = (index) => {
-        return `${id}-nav-pill-${index}`;
+        return `${id2}-nav-pill-${index}`;
       };
       const filteredArrChildren = (Array.isArray(children2) ? children2 : [children2]).filter((child) => !!child);
       const defaultPillId = pillId(0);
@@ -65869,7 +65901,7 @@ Supported expressions:
                   const defaultTitle = `Tab ${index}`;
                   const title22 = child && reactExports.isValidElement(child) ? child.props["data-name"] || defaultTitle : defaultTitle;
                   return {
-                    id: `eventpanel-${id}-${index}`,
+                    id: `eventpanel-${id2}-${index}`,
                     title: title22,
                     target: pillId(index)
                   };
@@ -65901,7 +65933,7 @@ Supported expressions:
         },
         void 0
       ) : "";
-      const card2 = /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { id, className: clsx(className2, styles$A.card), children: [
+      const card2 = /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { id: id2, className: clsx(className2, styles$A.card), children: [
         titleEl,
         /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
           "div",
@@ -65912,16 +65944,16 @@ Supported expressions:
               hasCollapse && isCollapsed ? styles$A.hidden : void 0
             ),
             children: filteredArrChildren == null ? void 0 : filteredArrChildren.map((child, index) => {
-              const id2 = pillId(index);
-              const isSelected = selectedNav ? id2 === selectedNav : id2 === defaultPillId;
+              const id22 = pillId(index);
+              const isSelected = selectedNav ? id22 === selectedNav : id22 === defaultPillId;
               return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
                 "div",
                 {
-                  id: id2,
+                  id: id22,
                   className: clsx("tab-pane", "show", isSelected ? "active" : ""),
                   children: child
                 },
-                `children-${id2}-${index}`,
+                `children-${id22}-${index}`,
                 false,
                 {
                   fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/event/EventPanel.tsx",
@@ -65949,7 +65981,7 @@ Supported expressions:
       return card2;
     };
     const ErrorEventView = ({
-      id,
+      id: id2,
       event,
       eventState,
       setEventState,
@@ -65958,7 +65990,7 @@ Supported expressions:
       return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
         EventPanel,
         {
-          id,
+          id: id2,
           title: "Error",
           className: className2,
           subTitle: formatDateTime(new Date(event.timestamp)),
@@ -66005,7 +66037,7 @@ Supported expressions:
       panel
     };
     const InfoEventView = ({
-      id,
+      id: id2,
       event,
       eventState,
       setEventState,
@@ -66028,7 +66060,7 @@ Supported expressions:
       return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
         EventPanel,
         {
-          id,
+          id: id2,
           title: "Info" + (event.source ? ": " + event.source : ""),
           className: className2,
           subTitle: formatDateTime(new Date(event.timestamp)),
@@ -66054,7 +66086,7 @@ Supported expressions:
       );
     };
     const InputEventView = ({
-      id,
+      id: id2,
       event,
       eventState,
       setEventState,
@@ -66063,7 +66095,7 @@ Supported expressions:
       return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
         EventPanel,
         {
-          id,
+          id: id2,
           title: "Input",
           className: className2,
           subTitle: formatDateTime(new Date(event.timestamp)),
@@ -66346,7 +66378,7 @@ Supported expressions:
       return `${title2}${subtitle}`;
     };
     const ModelEventView = ({
-      id,
+      id: id2,
       event,
       eventState,
       setEventState,
@@ -66372,7 +66404,7 @@ Supported expressions:
       return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
         EventPanel,
         {
-          id,
+          id: id2,
           className: className2,
           title: formatTitle(`Model Call: ${event.model}`, totalUsage, callTime),
           subTitle: formatTiming(event.timestamp, event.working_start),
@@ -66389,7 +66421,7 @@ Supported expressions:
             /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { "data-name": "Summary", className: styles$w.container, children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
               ChatView,
               {
-                id: `${id}-model-output`,
+                id: `${id2}-model-output`,
                 messages: [...userMessages, ...outputMessages || []],
                 className: clsx(styles$w.output),
                 numbered: false,
@@ -66477,7 +66509,7 @@ Supported expressions:
               /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(EventSection, { title: "Messages", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
                 ChatView,
                 {
-                  id: `${id}-model-input-full`,
+                  id: `${id2}-model-input-full`,
                   messages: [...event.input, ...outputMessages || []]
                 },
                 void 0,
@@ -66555,7 +66587,7 @@ Supported expressions:
         columnNumber: 5
       }, void 0);
     };
-    const APICodeCell = ({ id, contents: contents2 }) => {
+    const APICodeCell = ({ id: id2, contents: contents2 }) => {
       const codeRef = reactExports.useRef(null);
       const sourceCode = reactExports.useMemo(() => {
         return JSON.stringify(contents2, void 0, 2);
@@ -66571,7 +66603,7 @@ Supported expressions:
       return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: clsx("model-call"), children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("pre", { className: clsx(styles$w.codePre), children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
         "code",
         {
-          id,
+          id: id2,
           ref: codeRef,
           className: clsx("language-json", styles$w.code, "text-size-small"),
           children: sourceCode
@@ -66632,7 +66664,7 @@ Supported expressions:
       metadata: metadata$1
     };
     const SampleInitEventView = ({
-      id,
+      id: id2,
       event,
       eventState,
       setEventState,
@@ -66648,7 +66680,7 @@ Supported expressions:
               lineNumber: 42,
               columnNumber: 13
             }, void 0);
-          }) }, `sample-${id}-init-files`, false, {
+          }) }, `sample-${id2}-init-files`, false, {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/SampleInitEventView.tsx",
             lineNumber: 39,
             columnNumber: 7
@@ -66665,7 +66697,7 @@ Supported expressions:
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/SampleInitEventView.tsx",
             lineNumber: 54,
             columnNumber: 9
-          }, void 0) }, `sample-${id}-init-setup`, false, {
+          }, void 0) }, `sample-${id2}-init-setup`, false, {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/SampleInitEventView.tsx",
             lineNumber: 53,
             columnNumber: 7
@@ -66675,7 +66707,7 @@ Supported expressions:
       return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
         EventPanel,
         {
-          id,
+          id: id2,
           className: className2,
           title: "Sample",
           icon: ApplicationIcons.sample,
@@ -66762,7 +66794,7 @@ Supported expressions:
       );
     };
     const SampleLimitEventView = ({
-      id,
+      id: id2,
       event,
       eventState,
       setEventState,
@@ -66805,7 +66837,7 @@ Supported expressions:
       return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
         EventPanel,
         {
-          id,
+          id: id2,
           title: title2,
           icon: icon2,
           className: className2,
@@ -66844,7 +66876,7 @@ Supported expressions:
       wrapPre
     };
     const SandboxEventView = ({
-      id,
+      id: id2,
       event,
       eventState,
       setEventState,
@@ -66853,7 +66885,7 @@ Supported expressions:
       return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
         EventPanel,
         {
-          id,
+          id: id2,
           className: className2,
           title: `Sandbox: ${event.action}`,
           icon: ApplicationIcons.sandbox,
@@ -66866,15 +66898,15 @@ Supported expressions:
           setCollapsed: (collapsed) => {
             setEventState({ ...eventState, collapsed });
           },
-          children: event.action === "exec" ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(ExecView, { event }, void 0, false, {
+          children: event.action === "exec" ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(ExecView, { id: `${id2}-exec`, event }, void 0, false, {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/SandboxEventView.tsx",
             lineNumber: 50,
             columnNumber: 9
-          }, void 0) : event.action === "read_file" ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(ReadFileView, { event }, void 0, false, {
+          }, void 0) : event.action === "read_file" ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(ReadFileView, { id: `${id2}-read-file`, event }, void 0, false, {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/SandboxEventView.tsx",
             lineNumber: 52,
             columnNumber: 9
-          }, void 0) : /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(WriteFileView, { event }, void 0, false, {
+          }, void 0) : /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(WriteFileView, { id: `${id2}-write-file`, event }, void 0, false, {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/SandboxEventView.tsx",
             lineNumber: 54,
             columnNumber: 9
@@ -66890,7 +66922,7 @@ Supported expressions:
         void 0
       );
     };
-    const ExecView = ({ event }) => {
+    const ExecView = ({ id: id2, event }) => {
       if (event.cmd === null) {
         return void 0;
       }
@@ -66903,12 +66935,12 @@ Supported expressions:
         /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(EventSection, { title: `Command`, children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: clsx(styles$t.twoColumn), children: [
           /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("pre", { className: clsx(styles$t.wrapPre), children: cmd2 }, void 0, false, {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/SandboxEventView.tsx",
-            lineNumber: 78,
+            lineNumber: 79,
             columnNumber: 11
           }, void 0),
           /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("pre", { className: clsx(styles$t.wrapPre), children: input2 !== null ? input2 == null ? void 0 : input2.trim() : void 0 }, void 0, false, {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/SandboxEventView.tsx",
-            lineNumber: 79,
+            lineNumber: 80,
             columnNumber: 11
           }, void 0),
           options !== null ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(EventSection, { title: `Options`, children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
@@ -66921,32 +66953,32 @@ Supported expressions:
             false,
             {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/SandboxEventView.tsx",
-              lineNumber: 85,
+              lineNumber: 86,
               columnNumber: 15
             },
             void 0
           ) }, void 0, false, {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/SandboxEventView.tsx",
-            lineNumber: 84,
+            lineNumber: 85,
             columnNumber: 13
           }, void 0) : void 0
         ] }, void 0, true, {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/SandboxEventView.tsx",
-          lineNumber: 77,
+          lineNumber: 78,
           columnNumber: 9
         }, void 0) }, void 0, false, {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/SandboxEventView.tsx",
-          lineNumber: 76,
+          lineNumber: 77,
           columnNumber: 7
         }, void 0),
         /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(EventSection, { title: `Result`, children: [
-          output2 ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(ExpandablePanel, { collapse: false, children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(MarkdownDiv, { markdown: output2 }, void 0, false, {
+          output2 ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(ExpandablePanel, { id: `${id2}-output`, collapse: false, children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(MarkdownDiv, { markdown: output2 }, void 0, false, {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/SandboxEventView.tsx",
-            lineNumber: 96,
+            lineNumber: 97,
             columnNumber: 13
           }, void 0) }, void 0, false, {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/SandboxEventView.tsx",
-            lineNumber: 95,
+            lineNumber: 96,
             columnNumber: 11
           }, void 0) : void 0,
           /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: clsx(styles$t.result), children: [
@@ -66954,71 +66986,71 @@ Supported expressions:
             result2
           ] }, void 0, true, {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/SandboxEventView.tsx",
-            lineNumber: 99,
+            lineNumber: 100,
             columnNumber: 9
           }, void 0)
         ] }, void 0, true, {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/SandboxEventView.tsx",
-          lineNumber: 93,
+          lineNumber: 94,
           columnNumber: 7
         }, void 0)
       ] }, void 0, true, {
         fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/SandboxEventView.tsx",
-        lineNumber: 75,
+        lineNumber: 76,
         columnNumber: 5
       }, void 0);
     };
-    const ReadFileView = ({ event }) => {
+    const ReadFileView = ({ id: id2, event }) => {
       if (event.file === null) {
         return void 0;
       }
       const file = event.file;
       const output2 = event.output;
-      return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(FileView, { file, contents: output2 == null ? void 0 : output2.trim() }, void 0, false, {
+      return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(FileView, { id: id2, file, contents: output2 == null ? void 0 : output2.trim() }, void 0, false, {
         fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/SandboxEventView.tsx",
-        lineNumber: 115,
+        lineNumber: 117,
         columnNumber: 10
       }, void 0);
     };
-    const WriteFileView = ({ event }) => {
+    const WriteFileView = ({ id: id2, event }) => {
       if (event.file === null) {
         return void 0;
       }
       const file = event.file;
       const input2 = event.input;
-      return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(FileView, { file, contents: input2 == null ? void 0 : input2.trim() }, void 0, false, {
+      return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(FileView, { id: id2, file, contents: input2 == null ? void 0 : input2.trim() }, void 0, false, {
         fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/SandboxEventView.tsx",
-        lineNumber: 129,
+        lineNumber: 132,
         columnNumber: 10
       }, void 0);
     };
-    const FileView = ({ file, contents: contents2 }) => {
+    const FileView = ({ id: id2, file, contents: contents2 }) => {
       return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { children: [
         /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(EventSection, { title: "File", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("pre", { className: clsx(styles$t.fileLabel), children: file }, void 0, false, {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/SandboxEventView.tsx",
-          lineNumber: 141,
+          lineNumber: 145,
           columnNumber: 9
         }, void 0) }, void 0, false, {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/SandboxEventView.tsx",
-          lineNumber: 140,
+          lineNumber: 144,
           columnNumber: 7
         }, void 0),
-        contents2 ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(EventSection, { title: "Contents", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(ExpandablePanel, { collapse: false, children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("pre", { children: contents2 }, void 0, false, {
+        contents2 ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(EventSection, { title: "Contents", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(ExpandablePanel, { id: `${id2}-file`, collapse: false, children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("pre", { children: contents2 }, void 0, false, {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/SandboxEventView.tsx",
-          lineNumber: 147,
+          lineNumber: 151,
           columnNumber: 13
         }, void 0) }, void 0, false, {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/SandboxEventView.tsx",
-          lineNumber: 146,
+          lineNumber: 150,
           columnNumber: 11
         }, void 0) }, void 0, false, {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/SandboxEventView.tsx",
-          lineNumber: 145,
+          lineNumber: 149,
           columnNumber: 9
         }, void 0) : void 0
       ] }, void 0, true, {
         fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/SandboxEventView.tsx",
-        lineNumber: 139,
+        lineNumber: 143,
         columnNumber: 5
       }, void 0);
     };
@@ -67031,7 +67063,7 @@ Supported expressions:
       metadata
     };
     const ScoreEventView = ({
-      id,
+      id: id2,
       event,
       eventState,
       setEventState,
@@ -67041,7 +67073,7 @@ Supported expressions:
       return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
         EventPanel,
         {
-          id,
+          id: id2,
           title: (event.intermediate ? "Intermediate " : "") + "Score",
           className: clsx(className2, "text-size-small"),
           subTitle: formatDateTime(new Date(event.timestamp)),
@@ -73450,7 +73482,7 @@ ${events}
       return metrics;
     }
     const AsciinemaPlayer = ({
-      id,
+      id: id2,
       rows,
       cols,
       inputUrl,
@@ -73504,7 +73536,7 @@ ${events}
       return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
         "div",
         {
-          id: `asciinema-player-${id || "default"}`,
+          id: `asciinema-player-${id2 || "default"}`,
           ref: playerContainerRef,
           style: { ...style2 }
         },
@@ -74154,7 +74186,7 @@ ${events}
       summary: summary$2
     };
     const StateEventView = ({
-      id,
+      id: id2,
       event,
       eventState,
       setEventState,
@@ -74174,7 +74206,7 @@ ${events}
       return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
         EventPanel,
         {
-          id,
+          id: id2,
           title: title2,
           className: className2,
           subTitle: formatDateTime(new Date(event.timestamp)),
@@ -74416,7 +74448,7 @@ ${events}
       node: node$1,
       first: first$1
     };
-    const TranscriptVirtualListComponent = reactExports.memo(({ id, eventNodes, scrollRef, transcriptState, setTranscriptState }) => {
+    const TranscriptVirtualListComponent = reactExports.memo(({ id: id2, eventNodes, scrollRef, transcriptState, setTranscriptState }) => {
       const setEventState = reactExports.useCallback(
         (eventId, state) => {
           setTranscriptState({ ...transcriptState, [eventId]: state });
@@ -74432,7 +74464,7 @@ ${events}
       const renderRow = (item2, index) => {
         const bgClass = item2.depth % 2 == 0 ? styles$o.darkenedBg : styles$o.normalBg;
         const paddingClass = index === 0 ? styles$o.first : void 0;
-        const eventId = `${id}-event${index}`;
+        const eventId = `${id2}-event${index}`;
         return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: clsx(styles$o.node, paddingClass), children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
           RenderedEventNode,
           {
@@ -74655,7 +74687,7 @@ ${events}
       subtaskLabel
     };
     const SubtaskEventView = ({
-      id,
+      id: id2,
       event,
       eventState,
       setEventState,
@@ -74688,7 +74720,7 @@ ${events}
             event.events.length > 0 ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
               TranscriptView,
               {
-                id: `${id}-subtask`,
+                id: `${id2}-subtask`,
                 "data-name": "Transcript",
                 events: event.events,
                 depth: depth + 1
@@ -74736,7 +74768,7 @@ ${events}
             /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
               TranscriptView,
               {
-                id: `${id}-subtask`,
+                id: `${id2}-subtask`,
                 "data-name": "Transcript",
                 events: event.events,
                 depth: depth + 1
@@ -74757,7 +74789,7 @@ ${events}
       return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
         EventPanel,
         {
-          id,
+          id: id2,
           className: className2,
           title: formatTitle(
             `${type}: ${event.name}`,
@@ -74874,7 +74906,7 @@ ${events}
       approval
     };
     const ToolEventView = ({
-      id,
+      id: id2,
       event,
       eventState,
       setEventState,
@@ -74893,7 +74925,7 @@ ${events}
       return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
         EventPanel,
         {
-          id,
+          id: id2,
           title: formatTitle(title2, void 0, event.working_time),
           className: className2,
           subTitle: formatTiming(event.timestamp, event.working_start),
@@ -74911,6 +74943,7 @@ ${events}
               /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
                 ToolCallView,
                 {
+                  id: `${id2}-tool-call`,
                   functionCall,
                   input: input2,
                   highlightLanguage,
@@ -74937,7 +74970,7 @@ ${events}
                 false,
                 {
                   fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/ToolEventView.tsx",
-                  lineNumber: 72,
+                  lineNumber: 73,
                   columnNumber: 11
                 },
                 void 0
@@ -74950,7 +74983,7 @@ ${events}
             event.events.length > 0 ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
               TranscriptView,
               {
-                id: `${id}-subtask`,
+                id: `${id2}-subtask`,
                 "data-name": "Transcript",
                 events: event.events,
                 depth: depth + 1
@@ -74959,7 +74992,7 @@ ${events}
               false,
               {
                 fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/ToolEventView.tsx",
-                lineNumber: 81,
+                lineNumber: 82,
                 columnNumber: 9
               },
               void 0
@@ -75010,7 +75043,7 @@ ${events}
       noBottom
     };
     const TranscriptView = ({
-      id,
+      id: id2,
       events,
       depth
     }) => {
@@ -75029,7 +75062,7 @@ ${events}
       return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
         TranscriptComponent,
         {
-          id,
+          id: id2,
           eventNodes,
           transcriptState,
           setTranscriptState: onTranscriptState
@@ -75045,7 +75078,7 @@ ${events}
       );
     };
     const TranscriptVirtualList = (props) => {
-      let { id, scrollRef, events, depth } = props;
+      let { id: id2, scrollRef, events, depth } = props;
       const eventNodes = reactExports.useMemo(() => {
         const resolvedEvents = fixupEventStream(events);
         const eventNodes2 = treeifyEvents(resolvedEvents, depth || 0);
@@ -75061,7 +75094,7 @@ ${events}
       return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
         TranscriptVirtualListComponent,
         {
-          id,
+          id: id2,
           eventNodes,
           scrollRef,
           transcriptState,
@@ -75078,7 +75111,7 @@ ${events}
       );
     };
     const TranscriptComponent = ({
-      id,
+      id: id2,
       transcriptState,
       setTranscriptState,
       eventNodes
@@ -75097,7 +75130,7 @@ ${events}
         if (index === eventNodes.length - 1) {
           clz.push(styles$l.lastNode);
         }
-        const eventId = `${id}-event${index}`;
+        const eventId = `${id2}-event${index}`;
         const row2 = /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
           "div",
           {
@@ -75140,7 +75173,7 @@ ${events}
       return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
         "div",
         {
-          id,
+          id: id2,
           className: clsx("text-size-small", styles$l.transcriptComponent),
           children: rows
         },
@@ -75155,7 +75188,7 @@ ${events}
       );
     };
     const RenderedEventNode = ({
-      id,
+      id: id2,
       node: node2,
       scrollRef,
       eventState,
@@ -75167,7 +75200,7 @@ ${events}
           return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
             SampleInitEventView,
             {
-              id,
+              id: id2,
               event: node2.event,
               eventState,
               setEventState,
@@ -75186,7 +75219,7 @@ ${events}
           return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
             SampleLimitEventView,
             {
-              id,
+              id: id2,
               event: node2.event,
               eventState,
               setEventState,
@@ -75205,7 +75238,7 @@ ${events}
           return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
             InfoEventView,
             {
-              id,
+              id: id2,
               event: node2.event,
               eventState,
               setEventState,
@@ -75230,7 +75263,7 @@ ${events}
           return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
             ModelEventView,
             {
-              id,
+              id: id2,
               event: node2.event,
               eventState,
               setEventState,
@@ -75249,7 +75282,7 @@ ${events}
           return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
             ScoreEventView,
             {
-              id,
+              id: id2,
               event: node2.event,
               eventState,
               setEventState,
@@ -75268,7 +75301,7 @@ ${events}
           return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
             StateEventView,
             {
-              id,
+              id: id2,
               event: node2.event,
               eventState,
               setEventState,
@@ -75307,7 +75340,7 @@ ${events}
           return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
             StateEventView,
             {
-              id,
+              id: id2,
               event: node2.event,
               eventState,
               setEventState,
@@ -75327,7 +75360,7 @@ ${events}
           return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
             SubtaskEventView,
             {
-              id,
+              id: id2,
               event: node2.event,
               eventState,
               setEventState,
@@ -75347,7 +75380,7 @@ ${events}
           return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
             ToolEventView,
             {
-              id,
+              id: id2,
               event: node2.event,
               eventState,
               setEventState,
@@ -75367,7 +75400,7 @@ ${events}
           return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
             InputEventView,
             {
-              id,
+              id: id2,
               event: node2.event,
               eventState,
               setEventState,
@@ -75386,7 +75419,7 @@ ${events}
           return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
             ErrorEventView,
             {
-              id,
+              id: id2,
               event: node2.event,
               eventState,
               setEventState,
@@ -75411,7 +75444,7 @@ ${events}
           return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
             SandboxEventView,
             {
-              id,
+              id: id2,
               event: node2.event,
               className: className2,
               eventState,
@@ -75490,11 +75523,11 @@ ${events}
       return rootNodes;
     }
     const SampleTranscript = reactExports.memo(
-      ({ id, evalEvents, scrollRef }) => {
+      ({ id: id2, evalEvents, scrollRef }) => {
         return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
           TranscriptVirtualList,
           {
-            id,
+            id: id2,
             events: evalEvents,
             scrollRef
           },
@@ -75510,7 +75543,7 @@ ${events}
       }
     );
     const SampleDisplay = ({
-      id,
+      id: id2,
       sample: sample2,
       selectedTab,
       setSelectedTab,
@@ -75526,13 +75559,13 @@ ${events}
       const sampleEvents = (sample2 == null ? void 0 : sample2.events) || (runningSampleData == null ? void 0 : runningSampleData.events);
       const onSelectedTab = (e) => {
         const el = e.currentTarget;
-        const id2 = el.id;
-        setSelectedTab(id2);
+        const id22 = el.id;
+        setSelectedTab(id22);
         return false;
       };
       const scorerNames = Object.keys((sample2 == null ? void 0 : sample2.scores) || {});
-      const sampleMetadatas = metadataViewsForSample(`${baseId}-${id}`, sample2);
-      const tabsetId = `task-sample-details-tab-${id}`;
+      const sampleMetadatas = metadataViewsForSample(`${baseId}-${id2}`, sample2);
+      const tabsetId = `task-sample-details-tab-${id2}`;
       const targetId = `${tabsetId}-content`;
       const tools2 = [];
       if (!isVscode()) {
@@ -75543,7 +75576,7 @@ ${events}
               label: "Print",
               icon: ApplicationIcons.copy,
               onClick: () => {
-                printSample(id, targetId);
+                printSample(id2, targetId);
               }
             },
             "sample-print-tool",
@@ -75558,7 +75591,7 @@ ${events}
         );
       }
       return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(reactExports.Fragment, { children: [
-        sample2 || sampleSummary ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(SampleSummaryView, { parent_id: id, sample: sample2 || sampleSummary }, void 0, false, {
+        sample2 || sampleSummary ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(SampleSummaryView, { parent_id: id2, sample: sample2 || sampleSummary }, void 0, false, {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SampleDisplay.tsx",
           lineNumber: 97,
           columnNumber: 9
@@ -75583,11 +75616,11 @@ ${events}
                   children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
                     SampleTranscript,
                     {
-                      id: `${baseId}-transcript-display-${id}`,
+                      id: `${baseId}-transcript-display-${id2}`,
                       evalEvents: sampleEvents,
                       scrollRef
                     },
-                    `${baseId}-transcript-display-${id}`,
+                    `${baseId}-transcript-display-${id2}`,
                     false,
                     {
                       fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SampleDisplay.tsx",
@@ -75618,13 +75651,13 @@ ${events}
                   children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
                     ChatViewVirtualList,
                     {
-                      id: `${baseId}-chat-${id}`,
+                      id: `${baseId}-chat-${id2}`,
                       messages: sample2.messages,
                       indented: true,
                       scrollRef,
                       toolCallStyle: "complete"
                     },
-                    `${baseId}-chat-${id}`,
+                    `${baseId}-chat-${id2}`,
                     false,
                     {
                       fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SampleDisplay.tsx",
@@ -75810,7 +75843,7 @@ ${events}
         columnNumber: 5
       }, void 0);
     };
-    const metadataViewsForSample = (id, sample2) => {
+    const metadataViewsForSample = (id2, sample2) => {
       if (!sample2) {
         return [];
       }
@@ -75842,7 +75875,7 @@ ${events}
               lineNumber: 237,
               columnNumber: 9
             }, void 0)
-          ] }, `sample-usage-${id}`, true, {
+          ] }, `sample-usage-${id2}`, true, {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SampleDisplay.tsx",
             lineNumber: 235,
             columnNumber: 7
@@ -75887,7 +75920,7 @@ ${events}
               lineNumber: 256,
               columnNumber: 9
             }, void 0)
-          ] }, `sample-time-${id}`, true, {
+          ] }, `sample-time-${id2}`, true, {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SampleDisplay.tsx",
             lineNumber: 254,
             columnNumber: 7
@@ -75922,7 +75955,7 @@ ${events}
               lineNumber: 276,
               columnNumber: 9
             }, void 0)
-          ] }, `sample-metadata-${id}`, true, {
+          ] }, `sample-metadata-${id2}`, true, {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SampleDisplay.tsx",
             lineNumber: 274,
             columnNumber: 7
@@ -75957,7 +75990,7 @@ ${events}
               lineNumber: 291,
               columnNumber: 9
             }, void 0)
-          ] }, `sample-store-${id}`, true, {
+          ] }, `sample-store-${id2}`, true, {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SampleDisplay.tsx",
             lineNumber: 289,
             columnNumber: 7
@@ -75966,14 +75999,14 @@ ${events}
       }
       return sampleMetadatas;
     };
-    const printSample = (id, targetId) => {
+    const printSample = (id2, targetId) => {
       const targetTabEl = document.querySelector(
         `#${escapeSelector(targetId)} .sample-tab.tab-pane.show.active`
       );
       if (targetTabEl) {
         const targetEl = targetTabEl.firstElementChild;
         if (targetEl) {
-          const headingId = `sample-heading-${id}`;
+          const headingId = `sample-heading-${id2}`;
           const headingEl = document.getElementById(headingId);
           const headingHtml = printHeadingHtml();
           const css = `
@@ -76027,7 +76060,7 @@ ${events}
       body: body$2
     };
     const InlineSampleDisplay = ({
-      id,
+      id: id2,
       selectedTab,
       setSelectedTab,
       scrollRef
@@ -76052,7 +76085,7 @@ ${events}
         }, void 0) : /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
           SampleDisplay,
           {
-            id,
+            id: id2,
             sample: sampleData.sample,
             runningSampleData: sampleData.running,
             selectedTab,
@@ -76101,7 +76134,7 @@ ${events}
       titleTool
     };
     const LargeModal = ({
-      id,
+      id: id2,
       title: title2,
       detail: detail2,
       detailTools,
@@ -76123,7 +76156,7 @@ ${events}
       return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
         "div",
         {
-          id,
+          id: id2,
           className: clsx(
             "modal",
             styles$j.modal,
@@ -76292,7 +76325,7 @@ ${events}
       );
     };
     const SampleDialog = ({
-      id,
+      id: id2,
       title: title2,
       nextSample,
       prevSample,
@@ -76357,7 +76390,7 @@ ${events}
       return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
         LargeModal,
         {
-          id,
+          id: id2,
           detail: title2,
           detailTools: tools2,
           onkeyup: handleKeyUp,
@@ -76372,7 +76405,7 @@ ${events}
           }, void 0) : /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
             SampleDisplay,
             {
-              id,
+              id: id2,
               sample: sampleData.sample,
               runningSampleData: sampleData.running,
               selectedTab,
@@ -76562,7 +76595,7 @@ ${events}
       spinner: spinner$1
     };
     const SampleRow = ({
-      id,
+      id: id2,
       index,
       sample: sample2,
       answer: answer2,
@@ -76586,7 +76619,7 @@ ${events}
       return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
         "div",
         {
-          id: `sample-${id}`,
+          id: `sample-${id2}`,
           onClick: handleClick,
           className: clsx(
             styles$h.grid,
@@ -76723,14 +76756,14 @@ ${events}
       row: row$1
     };
     const SampleSeparator = ({
-      id,
+      id: id2,
       title: title2,
       height
     }) => {
       return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
         "div",
         {
-          id,
+          id: id2,
           className: clsx("text-style-secondary", "text-size-smaller", styles$g.row),
           style: { height: `${height}px` },
           children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { children: title2 }, void 0, false, {
@@ -77088,15 +77121,15 @@ ${events}
       }, void 0);
     });
     const gridColumnsValue = (sampleDescriptor) => {
-      const { input: input2, target: target2, answer: answer2, limit, id, score: score2 } = gridColumns(sampleDescriptor);
-      return `${id} ${input2} ${target2} ${answer2} ${limit} ${score2}`;
+      const { input: input2, target: target2, answer: answer2, limit, id: id2, score: score2 } = gridColumns(sampleDescriptor);
+      return `${id2} ${input2} ${target2} ${answer2} ${limit} ${score2}`;
     };
     const gridColumns = (sampleDescriptor) => {
       const input2 = sampleDescriptor && sampleDescriptor.messageShape.normalized.input > 0 ? Math.max(0.15, sampleDescriptor.messageShape.normalized.input) : 0;
       const target2 = sampleDescriptor && sampleDescriptor.messageShape.normalized.target > 0 ? Math.max(0.15, sampleDescriptor.messageShape.normalized.target) : 0;
       const answer2 = sampleDescriptor && sampleDescriptor.messageShape.normalized.answer > 0 ? Math.max(0.15, sampleDescriptor.messageShape.normalized.answer) : 0;
       const limit = sampleDescriptor && sampleDescriptor.messageShape.normalized.limit > 0 ? Math.max(0.15, sampleDescriptor.messageShape.normalized.limit) : 0;
-      const id = Math.max(
+      const id2 = Math.max(
         2,
         Math.min(10, (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.raw.id) || 0)
       );
@@ -77116,7 +77149,7 @@ ${events}
         target: frSize(target2),
         answer: frSize(answer2),
         limit: frSize(limit),
-        id: `${id}rem`,
+        id: `${id2}rem`,
         score: `${score2}rem`
       };
     };
@@ -79122,6 +79155,7 @@ ${events}
       return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
         ExpandablePanel,
         {
+          id: "secondary-nav-bar",
           className: clsx(styles$1.container, "text-size-small"),
           collapse: true,
           lines: 4,
@@ -79142,7 +79176,7 @@ ${events}
             false,
             {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/SecondaryBar.tsx",
-              lineNumber: 128,
+              lineNumber: 129,
               columnNumber: 7
             },
             void 0
@@ -79168,7 +79202,7 @@ ${events}
       }
       return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { children: sampleCount ? formatDataset(sampleCount, epochs, dataset.name) : "" }, void 0, false, {
         fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/SecondaryBar.tsx",
-        lineNumber: 165,
+        lineNumber: 166,
         columnNumber: 5
       }, void 0);
     };
@@ -79180,17 +79214,17 @@ ${events}
       return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("span", { style: { position: "relative" }, children: Array.from(items).map((item2, index, array) => /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("span", { children: [
         /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("span", { title: item2.tooltip, children: item2.canonicalName }, void 0, false, {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/SecondaryBar.tsx",
-          lineNumber: 188,
+          lineNumber: 189,
           columnNumber: 11
         }, void 0),
         index < array.length - 1 ? ", " : ""
       ] }, index, true, {
         fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/SecondaryBar.tsx",
-        lineNumber: 187,
+        lineNumber: 188,
         columnNumber: 9
       }, void 0)) }, void 0, false, {
         fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/SecondaryBar.tsx",
-        lineNumber: 185,
+        lineNumber: 186,
         columnNumber: 5
       }, void 0);
     };
@@ -79209,7 +79243,7 @@ ${events}
       if (paraValues.length > 0) {
         return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("code", { style: { padding: 0, color: "var(--bs-body-color)" }, children: paraValues.join(", ") }, void 0, false, {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/SecondaryBar.tsx",
-          lineNumber: 217,
+          lineNumber: 218,
           columnNumber: 7
         }, void 0);
       } else {
@@ -79299,9 +79333,9 @@ ${events}
       const onSelected = reactExports.useCallback(
         (e) => {
           var _a2;
-          const id = (_a2 = e.currentTarget) == null ? void 0 : _a2.id;
-          if (id) {
-            setSelectedTab(id);
+          const id2 = (_a2 = e.currentTarget) == null ? void 0 : _a2.id;
+          if (id2) {
+            setSelectedTab(id2);
           }
         },
         [setSelectedTab]

@@ -61,6 +61,7 @@ export const ToolEventView: FC<ToolEventViewProps> = ({
     >
       <div data-name="Summary" className={styles.summary}>
         <ToolCallView
+          id={`${id}-tool-call`}
           functionCall={functionCall}
           input={input}
           highlightLanguage={highlightLanguage}

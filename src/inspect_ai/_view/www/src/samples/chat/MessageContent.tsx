@@ -115,7 +115,7 @@ const messageRenderers: Record<string, MessageRenderer> = {
           >
             Reasoning
           </div>
-          <ExpandablePanel collapse={true}>
+          <ExpandablePanel id={`${id}-reasoning`} collapse={true}>
             <MarkdownDiv
               markdown={
                 r.redacted

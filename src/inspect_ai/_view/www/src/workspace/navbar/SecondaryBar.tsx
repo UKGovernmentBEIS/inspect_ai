@@ -121,6 +121,7 @@ export const SecondaryBar: FC<SecondaryBarProps> = ({
 
   return (
     <ExpandablePanel
+      id={"secondary-nav-bar"}
       className={clsx(styles.container, "text-size-small")}
       collapse={true}
       lines={4}
