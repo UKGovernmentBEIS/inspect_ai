@@ -7,7 +7,11 @@
 
 ### write_eval_log
 
+### write_eval_log_async
+
 ### read_eval_log
+
+### read_eval_log_async
 
 ### read_eval_log_sample
 

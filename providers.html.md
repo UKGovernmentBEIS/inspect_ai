@@ -7,12 +7,12 @@ Inspect has support for a wide variety of language model APIs and can be
 extended to support arbitrary additional ones. Support for the following
 providers is built in to Inspect:
 
-|               |                                                                                                                                                                    |
-|---------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Lab APIs      | [OpenAI](providers.qmd#openai), [Anthropic](providers.qmd#anthropic), [Google](providers.qmd#google), [Grok](providers.qmd#grok), [Mistral](providers.qmd#mistral) |
-| Cloud APIs    | [AWS Bedrock](providers.qmd#aws-bedrock), [Azure AI](providers.qmd#azure-ai), [Vertex AI](providers.qmd#vertex-ai)                                                 |
-| Open (Hosted) | [Groq](providers.qmd#groq), [Together AI](providers.qmd#together-ai), [Cloudflare](providers.qmd#cloudflare), [Goodfire](providers.qmd#goodfire)                   |
-| Open (Local)  | [Hugging Face](providers.qmd#hugging-face), [vLLM](providers.qmd#vllm), [Ollama](providers.qmd#ollama), [Lllama-cpp-python](providers.qmd#llama-cpp-python)        |
+|               |                                                                                                                                                                                                        |
+|---------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Lab APIs      | [OpenAI](providers.qmd#openai), [Anthropic](providers.qmd#anthropic), [Google](providers.qmd#google), [Grok](providers.qmd#grok), [Mistral](providers.qmd#mistral), [DeepSeek](providers.qmd#deepseek) |
+| Cloud APIs    | [AWS Bedrock](providers.qmd#aws-bedrock), [Azure AI](providers.qmd#azure-ai), [Vertex AI](providers.qmd#vertex-ai)                                                                                     |
+| Open (Hosted) | [Groq](providers.qmd#groq), [Together AI](providers.qmd#together-ai), [Cloudflare](providers.qmd#cloudflare), [Goodfire](providers.qmd#goodfire)                                                       |
+| Open (Local)  | [Hugging Face](providers.qmd#hugging-face), [vLLM](providers.qmd#vllm), [Ollama](providers.qmd#ollama), [Lllama-cpp-python](providers.qmd#llama-cpp-python)                                            |
 
 If the provider you are using is not listed above, you may still be able
 to use it if:
@@ -268,6 +268,20 @@ of your model. For example, if your deployment model name was
 export AZUREAI_MISTRAL_API_KEY=key
 export AZUREAI_MISTRAL_BASE_URL=https://your-url-at.azure.com
 inspect eval --model mistral/mistral-large-ctwi
+```
+
+## DeepSeek
+
+To use [DeepSeek](https://www.deepseek.com/) models, install the
+`openai` package (which DeepSeek provides a compatible backend for) and
+set your credentials using the `OPENAI_API_KEY` environment variable.
+Then, when running inspect, use the `--model-base-url` option to point
+to DeepSeek’s base URL, and the `--model` option to specify a model:
+
+``` bash
+pip install openai
+export OPENAI_API_KEY=your-deepseek-api-key
+inspect eval arc.py --model-base-url https://api.deepseek.com --model openai/deepseek-reasoner 
 ```
 
 ## Grok
