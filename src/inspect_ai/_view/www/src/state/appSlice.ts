@@ -26,6 +26,9 @@ export interface AppSlice {
 
     getListPosition: (name: string) => StateSnapshot | undefined;
     setListPosition: (name: string, state: StateSnapshot) => void;
+
+    getCollapsed: (name: string, defaultValue?: boolean) => boolean;
+    setCollapsed: (name: string, value: boolean) => void;
   };
 }
 
@@ -45,6 +48,7 @@ const initialState: AppState = {
   },
   scrollPositions: {},
   listPositions: {},
+  collapsed: {},
 };
 
 export const createAppSlice = (
@@ -130,6 +134,19 @@ export const createAppSlice = (
       setListPosition: (name: string, position: StateSnapshot) => {
         set((state) => {
           state.app.listPositions[name] = position;
+        });
+      },
+      getCollapsed: (name: string, defaultValue?: boolean) => {
+        const state = get();
+        if (Object.keys(state.app.collapsed).includes(name)) {
+          return state.app.collapsed[name];
+        } else {
+          return defaultValue || false;
+        }
+      },
+      setCollapsed: (name: string, value: boolean) => {
+        set((state) => {
+          state.app.collapsed[name] = value;
         });
       },
     },
