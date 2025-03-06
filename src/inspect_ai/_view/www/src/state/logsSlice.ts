@@ -71,10 +71,11 @@ export const createLogsSlice = (
         set((state) => {
           state.logs.headersLoading = loading;
         }),
-      setSelectedLogIndex: (selectedLogIndex: number) =>
+      setSelectedLogIndex: (selectedLogIndex: number) => {
         set((state) => {
           state.logs.selectedLogIndex = selectedLogIndex;
-        }),
+        });
+      },
       updateLogHeaders: (headers: Record<string, EvalLogHeader>) =>
         set((state) => {
           state.logs.logHeaders = { ...get().logs.logHeaders, ...headers };
@@ -171,26 +172,10 @@ export const createLogsSlice = (
 
 export const initializeLogsSlice = <T extends LogsSlice>(
   set: (fn: (state: T) => void) => void,
-  restoreState?: Partial<LogsState>,
 ) => {
   set((state) => {
-    state.logs = { ...initialState };
-    if (restoreState) {
-      if (restoreState.selectedLogIndex) {
-        state.logs.selectedLogIndex = restoreState.selectedLogIndex;
-      }
-
-      if (restoreState.logHeaders !== undefined) {
-        state.logs.logHeaders = restoreState.logHeaders;
-      }
-
-      if (restoreState.logs !== undefined) {
-        state.logs.logs = restoreState.logs;
-      }
-
-      if (restoreState.headersLoading !== undefined) {
-        state.logs.headersLoading = restoreState.headersLoading;
-      }
+    if (!state.logs) {
+      state.logs = initialState;
     }
   });
 };

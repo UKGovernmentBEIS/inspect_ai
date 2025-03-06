@@ -25,7 +25,7 @@ export const InlineSampleDisplay: FC<InlineSampleDisplayProps> = ({
   const sampleData = useSampleData();
   const logSelection = useLogSelection();
   useEffect(() => {
-    if (logSelection.logFile) {
+    if (logSelection.logFile && logSelection.sample) {
       sampleData.loadSample(logSelection.logFile, logSelection.sample);
     }
   }, [logSelection.logFile, logSelection.sample]);

@@ -51,7 +51,7 @@ const initialState = {
   selectedSampleIndex: -1,
   selectedLogSummary: undefined,
   pendingSampleSummaries: undefined,
-  api: null,
+  loadedLog: undefined,
 
   // Filter state
   filter: {},
@@ -93,7 +93,6 @@ export const createLogSlice = (
           get().appActions.setWorkspaceTab(kInfoWorkspaceTabId);
         }
       },
-
       setPendingSampleSummaries: (pendingSampleSummaries: PendingSamples) =>
         set((state) => {
           state.log.pendingSampleSummaries = pendingSampleSummaries;
@@ -140,8 +139,7 @@ export const createLogSlice = (
         try {
           const logContents = await api.get_log_summary(logFileName);
           state.logActions.setSelectedLogSummary(logContents);
-          state.logActions.selectSample(0);
-          state.logActions.resetFiltering();
+          state.logActions.setEpoch;
 
           // Push the updated header information up
           const header = {
@@ -158,9 +156,11 @@ export const createLogSlice = (
           };
 
           state.logsActions.updateLogHeaders(header);
-
-          // Start polling for pending samples
-          logPolling.startPolling(logFileName);
+          set((state) => {
+            state.log.loadedLog = logFileName;
+          }),
+            // Start polling for pending samples
+            logPolling.startPolling(logFileName);
         } catch (error) {
           log.error("Error loading log:", error);
         }
@@ -196,33 +196,10 @@ export const createLogSlice = (
 // Initialize app slice with StoreState
 export const initalializeLogSlice = (
   set: (fn: (state: StoreState) => void) => void,
-  restoreState?: Partial<LogState>,
 ) => {
   set((state) => {
-    state.log = { ...initialState };
-    if (restoreState) {
-      if (restoreState.epoch) {
-        state.log.epoch = restoreState.epoch;
-      }
-
-      if (restoreState.filter) {
-        state.log.filter = restoreState.filter;
-      }
-
-      if (restoreState.score) {
-        state.log.score = restoreState.score;
-      }
-
-      if (restoreState.selectedSampleIndex) {
-        state.log.selectedSampleIndex = restoreState.selectedSampleIndex;
-      }
-
-      if (restoreState.scores) {
-        state.log.scores = restoreState.scores;
-      }
-      if (restoreState.selectedLogSummary) {
-        state.log.selectedLogSummary = restoreState.selectedLogSummary;
-      }
+    if (!state.log) {
+      state.log = initialState;
     }
   });
 };

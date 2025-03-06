@@ -112,23 +112,11 @@ export const createAppSlice = (
 export const initializeAppSlice = (
   set: (fn: (state: StoreState) => void) => void,
   capabilities: Capabilities,
-  restoreState?: Partial<AppState>,
 ) => {
   set((state) => {
     state.capabilities = capabilities;
-    state.app = { ...initialState };
-    if (restoreState) {
-      if (restoreState.status) {
-        state.app.status = restoreState.status;
-      }
-
-      if (restoreState.offcanvas !== undefined) {
-        state.app.offcanvas = restoreState.offcanvas;
-      }
-
-      if (restoreState.showFind !== undefined) {
-        state.app.showFind = restoreState.showFind;
-      }
+    if (!state.app) {
+      state.app = initialState;
     }
   });
 };

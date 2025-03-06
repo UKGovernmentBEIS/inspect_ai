@@ -167,6 +167,12 @@ export interface ClientAPI {
   ) => Promise<SampleDataResponse | undefined>;
 }
 
+export interface ClientStorage {
+  getItem: (name: string) => unknown;
+  setItem: (name: string, value: unknown) => void;
+  removeItem: (name: string) => void;
+}
+
 export interface FetchResponse {
   raw: string;
   parsed: Record<string, any>;
