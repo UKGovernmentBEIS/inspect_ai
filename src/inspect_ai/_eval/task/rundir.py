@@ -50,11 +50,15 @@ def task_run_dir_switching() -> Iterator[None]:
 
 @contextmanager
 def set_task_chdir(task: Task) -> Iterator[None]:
-    token = _task_chdir.set(task_chdir(task))
-    try:
+    chdir = task_chdir(task)
+    if chdir is not None:
+        token = _task_chdir.set(chdir)
+        try:
+            yield
+        finally:
+            _task_chdir.reset(token)
+    else:
         yield
-    finally:
-        _task_chdir.reset(token)
 
 
 if sys.platform == "win32":

@@ -286,8 +286,12 @@ website:
           href: reference/inspect_ai.log.qmd#list_eval_logs
         - text: write_eval_log
           href: reference/inspect_ai.log.qmd#write_eval_log
+        - text: write_eval_log_async
+          href: reference/inspect_ai.log.qmd#write_eval_log_async
         - text: read_eval_log
           href: reference/inspect_ai.log.qmd#read_eval_log
+        - text: read_eval_log_async
+          href: reference/inspect_ai.log.qmd#read_eval_log_async
         - text: read_eval_log_sample
           href: reference/inspect_ai.log.qmd#read_eval_log_sample
         - text: read_eval_log_samples

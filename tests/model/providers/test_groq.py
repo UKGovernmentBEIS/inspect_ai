@@ -8,7 +8,7 @@ from inspect_ai.model import (
 )
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 @skip_if_no_groq
 async def test_groq_api() -> None:
     model = get_model(

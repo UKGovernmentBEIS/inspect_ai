@@ -26,7 +26,7 @@ async def generate_with_logprobs(model_name, **model_kwargs) -> ModelOutput:
     return await model.generate(input=[message])
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 @skip_if_no_openai
 async def test_openai_logprobs() -> None:
     response = await generate_with_logprobs("openai/gpt-3.5-turbo")
@@ -35,7 +35,7 @@ async def test_openai_logprobs() -> None:
     assert len(response.choices[0].logprobs.content[0].top_logprobs) == 2
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 @skip_if_no_grok
 async def test_grok_logprobs() -> None:
     response = await generate_with_logprobs("grok/grok-beta")
@@ -43,7 +43,7 @@ async def test_grok_logprobs() -> None:
     assert response.choices[0].logprobs.content[0].top_logprobs is not None
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 @skip_if_no_together
 async def test_together_logprobs() -> None:
     response = await generate_with_logprobs(
@@ -56,7 +56,7 @@ async def test_together_logprobs() -> None:
     )
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 @skip_if_github_action
 @skip_if_no_transformers
 @skip_if_no_accelerate
@@ -72,7 +72,7 @@ async def test_hf_logprobs() -> None:
     assert len(response.choices[0].logprobs.content[0].top_logprobs) == 2
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 @skip_if_github_action
 @skip_if_no_vllm
 async def test_vllm_logprobs() -> None:
@@ -87,7 +87,7 @@ async def test_vllm_logprobs() -> None:
     assert len(response.choices[0].logprobs.content[0].top_logprobs) == 2
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 @skip_if_github_action
 @skip_if_no_llama_cpp_python
 async def test_llama_cpp_python_logprobs() -> None:

@@ -1,8 +1,9 @@
-import asyncio
 import contextlib
 import time
 from dataclasses import dataclass
 from typing import AsyncIterator
+
+import anyio
 
 from inspect_ai._util.working import report_sample_waiting_time
 
@@ -45,9 +46,7 @@ async def concurrency(
     # do we have an existing semaphore? if not create one and store it
     semaphore = _concurrency_semaphores.get(key, None)
     if semaphore is None:
-        semaphore = ConcurencySempahore(
-            name, concurrency, asyncio.Semaphore(concurrency)
-        )
+        semaphore = ConcurencySempahore(name, concurrency, anyio.Semaphore(concurrency))
         _concurrency_semaphores[key] = semaphore
 
     # wait and yield to protected code
@@ -60,7 +59,7 @@ async def concurrency(
 def concurrency_status() -> dict[str, tuple[int, int]]:
     status: dict[str, tuple[int, int]] = {}
     for c in _concurrency_semaphores.values():
-        status[c.name] = (c.concurrency - c.semaphore._value, c.concurrency)
+        status[c.name] = (c.concurrency - c.semaphore.value, c.concurrency)
     return status
 
 
@@ -72,7 +71,7 @@ def init_concurrency() -> None:
 class ConcurencySempahore:
     name: str
     concurrency: int
-    semaphore: asyncio.Semaphore
+    semaphore: anyio.Semaphore
 
 
 _concurrency_semaphores: dict[str, ConcurencySempahore] = {}

@@ -1,10 +1,10 @@
-import asyncio
 import contextlib
 from contextvars import ContextVar
 from datetime import datetime
 from logging import getLogger
 from typing import (
     Any,
+    Callable,
     Iterator,
     Literal,
     Sequence,
@@ -210,15 +210,15 @@ class ToolEvent(BaseEvent):
 
     # mechanism for operator to cancel the tool call
 
-    def _set_task(self, task: asyncio.Task[Any]) -> None:
+    def _set_cancel_fn(self, cancel_fn: Callable[[], None]) -> None:
         """Set the tool task (for possible cancellation)"""
-        self._task = task
+        self._cancel_fn = cancel_fn
 
     def _cancel(self) -> None:
         """Cancel the tool task."""
-        if self._task:
+        if self._cancel_fn and not self.cancelled:
             self._cancelled = True
-            self._task.cancel()
+            self._cancel_fn()
 
     @property
     def cancelled(self) -> bool:
@@ -228,11 +228,11 @@ class ToolEvent(BaseEvent):
     _cancelled: bool | None = None
     """Was this tool call cancelled?"""
 
-    _task: asyncio.Task[Any] | None = None
-    """Handle to task (used for cancellation)"""
+    _cancel_fn: Callable[[], None] | None = None
+    """Function which can be used to cancel the tool call."""
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
-    """Required so that we can include '_task' as a member."""
+    """Required so that we can include '_cancel_fn' as a member."""
 
     @field_serializer("completed")
     def serialize_completed(self, dt: datetime) -> str:

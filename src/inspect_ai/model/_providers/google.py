@@ -1,4 +1,3 @@
-import asyncio
 import functools
 import hashlib
 import json
@@ -9,6 +8,7 @@ from logging import getLogger
 from typing import Any
 
 # SDK Docs: https://googleapis.github.io/python-genai/
+import anyio
 from google.genai import Client  # type: ignore
 from google.genai.errors import APIError, ClientError  # type: ignore
 from google.genai.types import (  # type: ignore
@@ -797,7 +797,7 @@ async def file_for_content(
             file=BytesIO(content_bytes), config=dict(mime_type=mime_type)
         )
         while upload.state.name == "PROCESSING":
-            await asyncio.sleep(3)
+            await anyio.sleep(3)
             upload = client.files.get(name=upload.name)
         if upload.state.name == "FAILED":
             trace(f"Failed to upload file '{upload.name}: {upload.error}")

@@ -16,6 +16,8 @@ There are a progression of concurrency concerns, and while most evaluations can 
 3.  Sandbox environment concurrency.
 4.  Writing parallel code in custom tools, solvers, and scorers.
 
+Inspect uses [asyncio](https://docs.python.org/3/library/asyncio.html) as its async backend by default, but can also be configured to run against [trio](https://trio.readthedocs.io/en/stable/). See the section on [Async Backends](#async-backends) for additional details.
+
 ## Model Connections
 
 ### Max Connections
@@ -290,3 +292,50 @@ except TimeoutError:
 ```
 
 If a timeout occurs, then a `TimeoutError` will be thrown (which your code should generally handle in whatever manner is appropriate).
+
+
+## Async Backends
+
+::: {.callout-note appearance="simple"}
+Note that the ability to configure an alternate async backend is currently available only in the development version of Inspect. To install the development version from GitHub:
+
+``` bash
+pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+```
+:::
+
+
+Inspect asynchronous code is written using the [AnyIO](https://anyio.readthedocs.io/en/stable/) library, which is an async backend independent implementation of async primitives (e.g. tasks, synchronization, subprocesses, streams, etc.).
+
+AnyIO in turn supports two backends: Python's built-in [asyncio](https://docs.python.org/3/library/asyncio.html) library as well as the [Trio](https://trio.readthedocs.io/en/stable/) async framework. By default, Inspect uses asyncio and is compatible with user code that uses native asyncio functions.
+
+### Using Trio
+
+To configure Inspect to use Trio, set the `INSPECT_ASYNC_BACKEND` environment variable:
+
+```bash
+export INSPECT_ASYNC_BACKEND=trio
+inspect eval math.py
+```
+
+Note that there are some features of Inspect that do not yet work when using Trio, including:
+
+1. Full screen task display uses the [textual](https://textual.textualize.io/) framework, which currently works only with asyncio. Inspect will automatically switch to "rich" task display (which is less interactive) when using Trio.
+
+2. Interaction with AWS S3 (e.g. for log storage) uses the [s3fs](https://s3fs.readthedocs.io/en/latest/) package, which currently works only with asyncio.
+
+3. The [Google](providers.qmd#google) and [Bedrock](providers.qmd#aws-bedrock) providers both depend on asyncio so cannot be used with the Trio backend.
+
+
+### Portable Async
+
+If you are writing async code in your Inspect solvers, tools, scorers, or extensions, you should whenever possible use the [AnyIO](https://anyio.readthedocs.io/en/stable/) library rather than asyncio. If you do this, your Inspect code will work correctly no matter what async backend is in use.
+
+AnyIO implements Trio-like [structured concurrency](https://en.wikipedia.org/wiki/Structured_concurrency) (SC) on top of asyncio and works in harmony with the native SC of Trio itself.
+
+To learn more about AnyIO see the following resources:
+
+- <https://anyio.readthedocs.io/>
+
+- <https://lewoudar.medium.com/anyio-all-you-need-for-async-programming-stuff-4cd084d0f6bd>
+

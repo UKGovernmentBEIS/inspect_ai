@@ -1,5 +1,6 @@
-import asyncio
 from typing import cast
+
+import anyio
 
 from inspect_ai.util import display_type, input_panel, sandbox
 from inspect_ai.util._sandbox.events import SandboxEnvironmentProxy
@@ -42,7 +43,7 @@ def human_agent(
        Solver: Human agent solver.
     """
     # we can only run one human agent interaction at a time (use lock to enforce)
-    agent_lock = asyncio.Lock()
+    agent_lock = anyio.Lock()
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         async with agent_lock:

@@ -1,5 +1,5 @@
-import asyncio
 import contextlib
+import functools
 import sys
 import time
 from copy import deepcopy
@@ -9,6 +9,7 @@ from logging import getLogger
 from pathlib import PurePath
 from typing import Callable, Literal
 
+import anyio
 from typing_extensions import Unpack
 
 from inspect_ai._display import (
@@ -19,6 +20,7 @@ from inspect_ai._display import (
     display,
 )
 from inspect_ai._display.core.display import TaskDisplay, TaskDisplayMetric
+from inspect_ai._util._async import tg_collect
 from inspect_ai._util.constants import (
     DEFAULT_EPOCHS,
     DEFAULT_MAX_CONNECTIONS,
@@ -32,7 +34,6 @@ from inspect_ai._util.registry import (
     registry_log_name,
     registry_unqualified_name,
 )
-from inspect_ai._util.timeouts import Timeout, timeout
 from inspect_ai._util.working import (
     init_sample_working_limit,
     sample_waiting_time,
@@ -286,35 +287,6 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                             task.metrics,
                         )
 
-                    # create sample coroutines
-                    sample_coroutines = [
-                        task_run_sample(
-                            task_name=task.name,
-                            sample=sample,
-                            state=state,
-                            sandbox=sandbox,
-                            max_sandboxes=config.max_sandboxes,
-                            sandbox_cleanup=sandbox_cleanup,
-                            plan=plan,
-                            scorers=scorers,
-                            generate=generate,
-                            progress=progress,
-                            logger=logger if log_samples else None,
-                            log_images=log_images,
-                            sample_source=sample_source,
-                            sample_error=sample_error_handler,
-                            sample_complete=sample_complete,
-                            fails_on_error=(
-                                config.fail_on_error is None
-                                or config.fail_on_error is True
-                            ),
-                            time_limit=config.time_limit,
-                            working_limit=config.working_limit,
-                            semaphore=sample_semaphore,
-                        )
-                        for (sample, state) in zip(samples, states)
-                    ]
-
                     # initial progress
                     td.sample_complete(complete=0, total=len(samples))
 
@@ -327,7 +299,36 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                         task.metrics,
                     )
 
-                    sample_results = await asyncio.gather(*sample_coroutines)
+                    sample_results = await tg_collect(
+                        [
+                            functools.partial(
+                                task_run_sample,
+                                task_name=task.name,
+                                sample=sample,
+                                state=state,
+                                sandbox=sandbox,
+                                max_sandboxes=config.max_sandboxes,
+                                sandbox_cleanup=sandbox_cleanup,
+                                plan=plan,
+                                scorers=scorers,
+                                generate=generate,
+                                progress=progress,
+                                logger=logger if log_samples else None,
+                                log_images=log_images,
+                                sample_source=sample_source,
+                                sample_error=sample_error_handler,
+                                sample_complete=sample_complete,
+                                fails_on_error=(
+                                    config.fail_on_error is None
+                                    or config.fail_on_error is True
+                                ),
+                                time_limit=config.time_limit,
+                                working_limit=config.working_limit,
+                                semaphore=sample_semaphore,
+                            )
+                            for (sample, state) in zip(samples, states)
+                        ]
+                    )
 
                 # compute and record metrics if we have scores
                 completed_scores = [
@@ -362,17 +363,18 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                     )
                 )
 
-            except asyncio.CancelledError:
-                # collect eval data
-                collect_eval_data(stats)
+            except anyio.get_cancelled_exc_class():
+                with anyio.CancelScope(shield=True):
+                    # collect eval data
+                    collect_eval_data(stats)
 
-                # finish w/ cancelled status
-                eval_log = await logger.log_finish(
-                    "cancelled", stats, results, reductions
-                )
+                    # finish w/ cancelled status
+                    eval_log = await logger.log_finish(
+                        "cancelled", stats, results, reductions
+                    )
 
-                # display task cancelled
-                td.complete(TaskCancelled(logger.samples_completed, stats))
+                    # display task cancelled
+                    td.complete(TaskCancelled(logger.samples_completed, stats))
 
             except BaseException as ex:
                 if options.debug_errors:
@@ -503,7 +505,7 @@ async def task_run_sample(
     fails_on_error: bool,
     time_limit: int | None,
     working_limit: int | None,
-    semaphore: asyncio.Semaphore | None,
+    semaphore: anyio.Semaphore | None,
 ) -> dict[str, SampleScore] | None:
     # if there is an existing sample then tick off its progress, log it, and return it
     if sample_source and sample.id is not None:
@@ -533,7 +535,7 @@ async def task_run_sample(
             return sample_scores
 
     # use semaphore if provided
-    semaphore_cm: asyncio.Semaphore | contextlib.AbstractAsyncContextManager[None] = (
+    semaphore_cm: anyio.Semaphore | contextlib.AbstractAsyncContextManager[None] = (
         semaphore if semaphore else contextlib.nullcontext()
     )
 
@@ -606,7 +608,7 @@ async def task_run_sample(
 
                     # initialise timeout context manager
                     timeout_cm = (
-                        timeout(time_limit)
+                        anyio.fail_after(time_limit)
                         if time_limit is not None
                         else contextlib.nullcontext()
                     )
@@ -616,7 +618,7 @@ async def task_run_sample(
                     init_sample_working_limit(start_time, working_limit)
 
                     # run sample w/ optional timeout
-                    async with timeout_cm:
+                    with timeout_cm:
                         # mark started
                         active.started = datetime.now().timestamp()
 
@@ -640,9 +642,9 @@ async def task_run_sample(
                     # capture most recent state for scoring
                     state = sample_state() or state
 
-                except asyncio.CancelledError as ex:
+                except anyio.get_cancelled_exc_class() as ex:
                     if active.interrupt_action:
-                        # record eve t
+                        # record event
                         transcript()._event(
                             SampleLimitEvent(
                                 type="operator",
@@ -660,6 +662,8 @@ async def task_run_sample(
                                 error, raise_error = handle_error(ex)
 
                     else:
+                        # task group provided by tg_collect will automatically
+                        # handle the cancel exception
                         raise
 
                 except SampleLimitExceededError as ex:
@@ -687,9 +691,8 @@ async def task_run_sample(
                 # the cause of the timeout is a hung container and scoring requires
                 # interacting with the container). as a middle ground we use half
                 # of the original timeout value for scoring.
-                if isinstance(timeout_cm, Timeout):
-                    assert time_limit
-                    timeout_cm = timeout(time_limit / 2)
+                if time_limit is not None:
+                    timeout_cm = anyio.fail_after(time_limit / 2)
 
                 # turn off message and token limits
                 state.message_limit = None
@@ -699,7 +702,7 @@ async def task_run_sample(
                 # scoring
                 try:
                     # timeout during scoring will result in an ordinary sample error
-                    async with timeout_cm:
+                    with timeout_cm:
                         if error is None:
                             for scorer in scorers or []:
                                 scorer_name = unique_scorer_name(
@@ -740,7 +743,7 @@ async def task_run_sample(
                             # propagate results into scores
                             state.scores = {k: v.score for k, v in results.items()}
 
-                except asyncio.CancelledError:
+                except anyio.get_cancelled_exc_class():
                     if active.interrupt_action:
                         transcript()._event(
                             SampleLimitEvent(
@@ -970,10 +973,10 @@ def create_sample_semaphore(
     config: EvalConfig,
     generate_config: GenerateConfig,
     modelapi: ModelAPI | None = None,
-) -> asyncio.Semaphore:
+) -> anyio.Semaphore:
     # if the user set max_samples then use that
     if config.max_samples is not None:
-        return asyncio.Semaphore(config.max_samples)
+        return anyio.Semaphore(config.max_samples)
 
     # use max_connections
     max_samples = (
@@ -985,4 +988,4 @@ def create_sample_semaphore(
     )
 
     # return the semaphore
-    return asyncio.Semaphore(max_samples)
+    return anyio.Semaphore(max_samples)

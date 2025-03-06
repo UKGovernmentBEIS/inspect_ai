@@ -26,7 +26,7 @@ def generate_for_multiple_correct(answers: str):
     return generate
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_raises_exception_if_no_choices():
     solver = multiple_choice()
     state = simple_task_state()
@@ -36,7 +36,7 @@ async def test_raises_exception_if_no_choices():
         await solver(state=state, generate=generate)
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_single_multiple_choice():
     solver = multiple_choice()
     state = simple_task_state(
@@ -53,7 +53,7 @@ async def test_single_multiple_choice():
     assert new_state.choices[0].correct is True
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_maps_choices_without_shuffling():
     solver = multiple_choice()
     state = simple_task_state(
@@ -76,7 +76,7 @@ async def test_maps_choices_without_shuffling():
     ]
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_custom_template():
     solver = multiple_choice(template="Do this thing: {question} {choices}")
     state = simple_task_state(
@@ -94,7 +94,7 @@ async def test_custom_template():
     )
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_custom_template_raises_with_missing_fields():
     with pytest.raises(
         ValueError,
@@ -103,7 +103,7 @@ async def test_custom_template_raises_with_missing_fields():
         multiple_choice(template="This template lacks substance")
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_can_shuffle_choices_when_calling_the_model():
     async def generate_shuffled(state: TaskState):
         # Ensure that the choices are shuffled before we call the model
@@ -142,7 +142,7 @@ async def test_can_shuffle_choices_when_calling_the_model():
     )
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_multiple_correct():
     generate = generate_for_multiple_correct(answers="ANSWER: AB")
     solver = multiple_choice(multiple_correct=True)
@@ -173,7 +173,7 @@ async def test_multiple_correct():
     )
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_multiple_correct_model_generated_commas():
     generate = generate_for_multiple_correct(answers="ANSWER: B, C")
     solver = multiple_choice(multiple_correct=True)
@@ -204,7 +204,7 @@ async def test_multiple_correct_model_generated_commas():
     )
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_multiple_shuffled_answers_one_answer():
     # Given the shuffling before calling generate, the actual answer is actually A
     actual_generate = generate_for_multiple_correct(answers="ANSWER: C")
@@ -245,7 +245,7 @@ async def test_multiple_shuffled_answers_one_answer():
     )
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_multiple_shuffled_answers_more():
     # Given the shuffling before calling generate, the actual answers are B, C
     actual_generate = generate_for_multiple_correct(answers="ANSWER: A, D")
@@ -318,7 +318,7 @@ Therefore, the most likely main cause of zygote mortality in this scenario would
 ANSWER: D"""
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_cot_complex_text():
     # Tests and end to end multiple choice generate and score
     # with a real cot response that can trick our answer parsing

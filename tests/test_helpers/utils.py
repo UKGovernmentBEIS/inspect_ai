@@ -1,4 +1,3 @@
-import asyncio
 import contextlib
 import importlib.util
 import os
@@ -10,9 +9,11 @@ from random import random
 from types import FrameType
 from typing import Generator, Sequence
 
+import anyio
 import pytest
 
 from inspect_ai import Task, eval, task
+from inspect_ai._util._async import configured_async_backend
 from inspect_ai.dataset import Sample
 from inspect_ai.model import ChatMessage, ModelName, ModelOutput
 from inspect_ai.scorer import match
@@ -135,6 +136,21 @@ def skip_if_no_docker(func):
     )(func)
 
 
+def skip_if_async_backend(backend):
+    return pytest.mark.skipif(
+        configured_async_backend() == backend,
+        reason=f"Test not compatible with {backend} async backend.",
+    )
+
+
+def skip_if_trio(func):
+    return skip_if_async_backend("trio")(func)
+
+
+def skip_if_asyncio(func):
+    return skip_if_async_backend("asyncio")(func)
+
+
 def run_example(example: str, model: str):
     example_file = os.path.join("examples", example)
     return eval(example_file, model=model, limit=1)
@@ -223,7 +239,7 @@ def failing_task_deterministic(should_fail: Sequence[bool]) -> Task:
 @solver
 def sleep_for_solver(seconds: int):
     async def solve(state: TaskState, generate: Generate):
-        await asyncio.sleep(seconds)
+        await anyio.sleep(seconds)
         return state
 
     return solve

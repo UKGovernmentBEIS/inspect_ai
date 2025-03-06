@@ -1,7 +1,7 @@
-import asyncio
-
+import anyio
 import click
 
+from inspect_ai._util._async import configured_async_backend
 from inspect_ai.util._sandbox.registry import registry_find_sandboxenv
 
 
@@ -27,4 +27,4 @@ def sandbox_cleanup(type: str, environment_id: str | None) -> None:
     """
     sandboxenv_type = registry_find_sandboxenv(type)
     cli_cleanup = getattr(sandboxenv_type, "cli_cleanup")
-    asyncio.run(cli_cleanup(environment_id))
+    anyio.run(cli_cleanup, environment_id, backend=configured_async_backend())

@@ -6,7 +6,7 @@ from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model import get_model
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 @skip_if_no_goodfire
 async def test_goodfire_api() -> None:
     """Test the Goodfire API provider."""

@@ -18,7 +18,7 @@ def null_generate(
     return state
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_use_tools():
     state = simple_task_state()
 
@@ -45,7 +45,7 @@ async def test_use_tools():
     assert state.tool_choice == "auto"
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_use_tools_append():
     state = simple_task_state()
 

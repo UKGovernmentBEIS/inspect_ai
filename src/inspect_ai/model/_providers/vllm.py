@@ -1,13 +1,15 @@
-import asyncio
+import concurrent.futures
 import functools
 import gc
 import os
 import time
+from concurrent.futures import Future
 from dataclasses import dataclass
 from queue import Empty, Queue
 from threading import Thread
 from typing import Any, cast
 
+import anyio
 from typing_extensions import override
 from vllm import LLM, CompletionOutput, RequestOutput, SamplingParams  # type: ignore
 
@@ -280,8 +282,7 @@ class VLLMAPI(ModelAPI):
 @dataclass
 class _QueueItem:
     input: GenerateInput
-    future: asyncio.Future[list[GenerateOutput]]
-    loop: asyncio.AbstractEventLoop
+    future: Future[list[GenerateOutput]]
 
 
 batch_thread: Thread | None = None
@@ -297,15 +298,16 @@ async def batched_generate(input: GenerateInput) -> list[GenerateOutput]:
         batch_thread.start()
 
     # enqueue the job
-    loop = asyncio.get_event_loop()
-    future: asyncio.Future[list[GenerateOutput]] = loop.create_future()
-    batch_queue.put(_QueueItem(input=input, future=future, loop=loop))
+    future = Future[list[GenerateOutput]]()
+    batch_queue.put(_QueueItem(input=input, future=future))
 
-    # await the job
-    await future
-
-    # return it
-    return future.result()
+    # await the future
+    while True:
+        try:
+            return future.result(timeout=0.01)
+        except concurrent.futures.TimeoutError:
+            pass
+        await anyio.sleep(1)
 
 
 def string_to_bytes(string: str) -> list[int]:
@@ -397,13 +399,12 @@ def post_process_outputs(
 def process_batches() -> None:
     while True:
         # drain the queue (wait until no new messages have shown up for 2 seconds)
-        inputs: list[tuple[GenerateInput, asyncio.Future[list[GenerateOutput]]]] = []
+        inputs: list[tuple[GenerateInput, Future[list[GenerateOutput]]]] = []
         while True:
             try:
                 input = batch_queue.get(
                     timeout=2
                 )  # wait 2 seconds max TODO: what's optimal wait time?
-                loop = input.loop
                 inputs.append((input.input, input.future))
                 if len(inputs) >= input.input.batch_size:
                     # max batch size reached
@@ -429,14 +430,10 @@ def process_batches() -> None:
             for i, output in enumerate(outputs):
                 future = inputs[i][1]
 
-                # asyncio futures are not thread safe, so we need to pass the event loop
-                # down to this point, so we can mark the future as done in a thread safe manner.
-                # see: https://docs.python.org/3/library/asyncio-dev.html#concurrency-and-multithreading
-                loop.call_soon_threadsafe(
-                    future.set_result,
+                future.set_result(
                     post_process_outputs(output, num_top_logprobs, total_time),
                 )
 
         except Exception as e:
             for _, future in inputs:
-                loop.call_soon_threadsafe(future.set_exception, e)
+                future.set_exception(e)
