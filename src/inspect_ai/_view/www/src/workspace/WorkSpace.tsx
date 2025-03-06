@@ -43,10 +43,6 @@ interface WorkSpaceProps {
   log?: CurrentLog;
   showToggle: boolean;
   refreshLog: () => void;
-  sampleScrollPositionRef: RefObject<number>;
-  setSampleScrollPosition: (position: number) => void;
-  workspaceTabScrollPositionRef: RefObject<Record<string, number>>;
-  setWorkspaceTabScrollPosition: (tab: string, position: number) => void;
 }
 
 /**
@@ -62,8 +58,6 @@ export const WorkSpace: FC<WorkSpaceProps> = (props) => {
     evalResults,
     runningMetrics,
     showToggle,
-    workspaceTabScrollPositionRef,
-    setWorkspaceTabScrollPosition,
   } = props;
 
   const divRef = useRef<HTMLDivElement>(null);
@@ -92,8 +86,6 @@ export const WorkSpace: FC<WorkSpaceProps> = (props) => {
       status={evalStatus}
       tabs={resolvedTabs}
       showToggle={showToggle}
-      workspaceTabScrollPositionRef={workspaceTabScrollPositionRef}
-      setWorkspaceTabScrollPosition={setWorkspaceTabScrollPosition}
     />
   );
 };
@@ -122,8 +114,6 @@ const copyFeedback = (e: MouseEvent<HTMLElement>) => {
 // Individual hook for Samples tab
 export const useSamplesTabConfig = (
   evalStatus: Status | undefined,
-  sampleScrollPositionRef: RefObject<number>,
-  setSampleScrollPosition: (position: number) => void,
   refreshLog: () => void,
   sampleTabScrollRef: RefObject<HTMLDivElement | null>,
 ) => {
@@ -141,8 +131,6 @@ export const useSamplesTabConfig = (
       content: () => (
         <SamplesTab
           running={evalStatus === "started"}
-          sampleScrollPositionRef={sampleScrollPositionRef}
-          setSampleScrollPosition={setSampleScrollPosition}
           sampleTabScrollRef={sampleTabScrollRef}
         />
       ),
@@ -166,8 +154,6 @@ export const useSamplesTabConfig = (
     };
   }, [
     evalStatus,
-    sampleScrollPositionRef,
-    setSampleScrollPosition,
     refreshLog,
     sampleTabScrollRef,
     sampleSummaries,
@@ -271,8 +257,6 @@ export const useResolvedTabs = (props: WorkSpaceProps) => {
   const {
     evalVersion,
     evalStatus,
-    sampleScrollPositionRef,
-    setSampleScrollPosition,
     evalSpec,
     evalPlan,
     evalResults,
@@ -286,8 +270,6 @@ export const useResolvedTabs = (props: WorkSpaceProps) => {
   // Use individual tab config hooks
   const samplesTabConfig = useSamplesTabConfig(
     evalStatus,
-    sampleScrollPositionRef,
-    setSampleScrollPosition,
     refreshLog,
     sampleTabScrollRef,
   );

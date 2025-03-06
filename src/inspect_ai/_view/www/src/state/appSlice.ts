@@ -1,3 +1,4 @@
+import { StateSnapshot } from "react-virtuoso";
 import { Capabilities } from "../api/types";
 import { kEvalWorkspaceTabId, kSampleTranscriptTabId } from "../constants";
 import { AppState, AppStatus } from "../types";
@@ -19,6 +20,12 @@ export interface AppSlice {
 
     setSampleTab: (tab: string) => void;
     clearSampleTab: () => void;
+
+    getScrollPosition: (name: string) => number | undefined;
+    setScrollPosition: (name: string, value: number) => void;
+
+    getListPosition: (name: string) => StateSnapshot | undefined;
+    setListPosition: (name: string, state: StateSnapshot) => void;
   };
 }
 
@@ -36,6 +43,8 @@ const initialState: AppState = {
     workspace: kDefaultWorkspaceTab,
     sample: kDefaultSampleTab,
   },
+  scrollPositions: {},
+  listPositions: {},
 };
 
 export const createAppSlice = (
@@ -99,6 +108,28 @@ export const createAppSlice = (
       clearSampleTab: () => {
         set((state) => {
           state.app.tabs.sample = kDefaultSampleTab;
+        });
+      },
+      getScrollPosition: (name: string) => {
+        const state = get();
+        return state.app.scrollPositions[name];
+      },
+      setScrollPosition: (name: string, position: number) => {
+        set((state) => {
+          state.app.scrollPositions[name] = position;
+        });
+      },
+      getListPosition: (name: string) => {
+        const state = get();
+        if (Object.keys(state.app.listPositions).includes(name)) {
+          return state.app.listPositions[name];
+        } else {
+          return undefined;
+        }
+      },
+      setListPosition: (name: string, position: StateSnapshot) => {
+        set((state) => {
+          state.app.listPositions[name] = position;
         });
       },
     },

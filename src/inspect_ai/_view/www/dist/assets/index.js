@@ -24683,43 +24683,6 @@ self.onmessage = function (e) {
         columnNumber: 5
       }, void 0);
     };
-    function debounce$1(func, wait, options = {}) {
-      let timeout = null;
-      let context;
-      let args;
-      let result2;
-      let lastCallTime = null;
-      const later = () => {
-        const last = Date.now() - (lastCallTime || 0);
-        if (last < wait && last >= 0) {
-          timeout = setTimeout(later, wait - last);
-        } else {
-          timeout = null;
-          if (!options.leading) {
-            result2 = func.apply(context, args);
-            if (!timeout) {
-              context = null;
-              args = null;
-            }
-          }
-        }
-      };
-      return function(...callArgs) {
-        context = this;
-        args = callArgs;
-        lastCallTime = Date.now();
-        const callNow = options.leading && !timeout;
-        if (!timeout) {
-          timeout = setTimeout(later, wait);
-        }
-        if (callNow) {
-          result2 = func.apply(context, args);
-          context = null;
-          args = null;
-        }
-        return result2;
-      };
-    }
     const createStoreImpl = (createState) => {
       let state;
       const listeners = /* @__PURE__ */ new Set();
@@ -25893,7 +25856,9 @@ self.onmessage = function (e) {
       tabs: {
         workspace: kDefaultWorkspaceTab,
         sample: kDefaultSampleTab
-      }
+      },
+      scrollPositions: {},
+      listPositions: {}
     };
     const createAppSlice = (set2, get2, _store) => {
       const slice = {
@@ -25945,6 +25910,28 @@ self.onmessage = function (e) {
           clearSampleTab: () => {
             set2((state) => {
               state.app.tabs.sample = kDefaultSampleTab;
+            });
+          },
+          getScrollPosition: (name2) => {
+            const state = get2();
+            return state.app.scrollPositions[name2];
+          },
+          setScrollPosition: (name2, position) => {
+            set2((state) => {
+              state.app.scrollPositions[name2] = position;
+            });
+          },
+          getListPosition: (name2) => {
+            const state = get2();
+            if (Object.keys(state.app.listPositions).includes(name2)) {
+              return state.app.listPositions[name2];
+            } else {
+              return void 0;
+            }
+          },
+          setListPosition: (name2, position) => {
+            set2((state) => {
+              state.app.listPositions[name2] = position;
             });
           }
         }
@@ -26024,7 +26011,7 @@ self.onmessage = function (e) {
       };
       return { start, stop };
     };
-    const log$6 = createLogger("logPolling");
+    const log$7 = createLogger("logPolling");
     function createLogPolling(get2, set2) {
       let currentPolling = null;
       let isActive = true;
@@ -26039,14 +26026,14 @@ self.onmessage = function (e) {
           async () => {
             var _a3;
             if (!isActive) {
-              log$6.debug(`Component unmounted, stopping poll for: ${logFileName}`);
+              log$7.debug(`Component unmounted, stopping poll for: ${logFileName}`);
               return false;
             }
             const state = get2();
             const api2 = state.api;
             if (!(api2 == null ? void 0 : api2.get_log_pending_samples)) return false;
             const currentEtag = (_a3 = get2().log.pendingSampleSummaries) == null ? void 0 : _a3.etag;
-            log$6.debug(`POLL RUNNING SAMPLES: ${logFileName}`);
+            log$7.debug(`POLL RUNNING SAMPLES: ${logFileName}`);
             if (!isActive) {
               return false;
             }
@@ -26064,7 +26051,7 @@ self.onmessage = function (e) {
               get2().logActions.refreshLog();
               return true;
             } else if (pendingSamples.status === "NotFound") {
-              log$6.debug(`STOP POLLING RUNNING SAMPLES: ${logFileName}`);
+              log$7.debug(`STOP POLLING RUNNING SAMPLES: ${logFileName}`);
               clearPendingSummaries(logFileName);
               return false;
             }
@@ -26083,7 +26070,7 @@ self.onmessage = function (e) {
         }
         const pendingSampleSummaries = get2().log.pendingSampleSummaries;
         if (((pendingSampleSummaries == null ? void 0 : pendingSampleSummaries.samples.length) || 0) > 0) {
-          log$6.debug(`CLEAR PENDING: ${logFileName}`);
+          log$7.debug(`CLEAR PENDING: ${logFileName}`);
           set2((state) => {
             state.log.pendingSampleSummaries = {
               samples: [],
@@ -26100,7 +26087,7 @@ self.onmessage = function (e) {
         }
       };
       const cleanup = () => {
-        log$6.debug(`CLEANUP`);
+        log$7.debug(`CLEANUP`);
         isActive = false;
         stopPolling();
       };
@@ -26111,7 +26098,7 @@ self.onmessage = function (e) {
         cleanup
       };
     }
-    const log$5 = createLogger("logSlice");
+    const log$6 = createLogger("logSlice");
     const initialState$2 = {
       // Log state
       selectedSampleIndex: -1,
@@ -26174,7 +26161,7 @@ self.onmessage = function (e) {
               console.error("API not initialized in Store");
               return;
             }
-            log$5.debug(`LOAD LOG: ${logFileName}`);
+            log$6.debug(`LOAD LOG: ${logFileName}`);
             try {
               const logContents = await api2.get_log_summary(logFileName);
               state.logActions.setSelectedLogSummary(logContents);
@@ -26196,7 +26183,7 @@ self.onmessage = function (e) {
               }), // Start polling for pending samples
               logPolling.startPolling(logFileName);
             } catch (error2) {
-              log$5.error("Error loading log:", error2);
+              log$6.error("Error loading log:", error2);
             }
           },
           refreshLog: async () => {
@@ -26206,12 +26193,12 @@ self.onmessage = function (e) {
             if (!api2 || !selectedLogFile) {
               return;
             }
-            log$5.debug(`REFRESH: ${selectedLogFile}`);
+            log$6.debug(`REFRESH: ${selectedLogFile}`);
             try {
               const logContents = await api2.get_log_summary(selectedLogFile);
               state.logActions.setSelectedLogSummary(logContents);
             } catch (error2) {
-              log$5.error("Error refreshing log:", error2);
+              log$6.error("Error refreshing log:", error2);
             }
           }
         }
@@ -26228,7 +26215,7 @@ self.onmessage = function (e) {
         }
       });
     };
-    const log$4 = createLogger("logsPolling");
+    const log$5 = createLogger("logsPolling");
     function createLogsPolling(get2, _set) {
       let currentPolling = null;
       let isActive = true;
@@ -26241,7 +26228,7 @@ self.onmessage = function (e) {
           currentPolling.stop();
         }
         isActive = true;
-        log$4.debug("LOADING HEADERS");
+        log$5.debug("LOADING HEADERS");
         get2().logsActions.setHeadersLoading(true);
         const chunkSize = 8;
         const fileLists = [];
@@ -26257,10 +26244,10 @@ self.onmessage = function (e) {
               get2().logsActions.setHeadersLoading(false);
               return false;
             }
-            log$4.debug(`POLL HEADERS`);
+            log$5.debug(`POLL HEADERS`);
             const currentFileList = fileLists.shift();
             if (currentFileList) {
-              log$4.debug(
+              log$5.debug(
                 `LOADING ${totalLen - fileLists.length} of ${totalLen} CHUNKS`
               );
               const headers = await api2.get_log_headers(currentFileList);
@@ -26294,7 +26281,7 @@ self.onmessage = function (e) {
         }
       };
       const cleanup = () => {
-        log$4.debug(`CLEANUP`);
+        log$5.debug(`CLEANUP`);
         isActive = false;
         stopPolling();
       };
@@ -26304,7 +26291,7 @@ self.onmessage = function (e) {
         cleanup
       };
     }
-    const log$3 = createLogger("Log Slice");
+    const log$4 = createLogger("Log Slice");
     const initialState$1 = {
       logs: { log_dir: "", files: [] },
       logHeaders: {},
@@ -26362,7 +26349,7 @@ self.onmessage = function (e) {
               return { log_dir: "", files: [] };
             }
             try {
-              log$3.debug("LOADING LOG FILES");
+              log$4.debug("LOADING LOG FILES");
               return await api2.get_log_paths();
             } catch (e) {
               console.log(e);
@@ -26371,7 +26358,7 @@ self.onmessage = function (e) {
             }
           },
           refreshLogs: async () => {
-            log$3.debug("REFRESH LOGS");
+            log$4.debug("REFRESH LOGS");
             const state = get2();
             const refreshedLogs = await state.logsActions.loadLogs();
             state.logsActions.setLogs(refreshedLogs || { log_dir: "", files: [] });
@@ -26471,7 +26458,7 @@ self.onmessage = function (e) {
         }
       };
     };
-    const log$2 = createLogger("samplePolling");
+    const log$3 = createLogger("samplePolling");
     function createSamplePolling(get2, _set) {
       let currentPolling = null;
       let isActive = true;
@@ -26480,10 +26467,10 @@ self.onmessage = function (e) {
           currentPolling.stop();
         }
         isActive = true;
-        log$2.debug(`POLLING RUNNING SAMPLE: ${summary2.id}-${summary2.epoch}`);
+        log$3.debug(`POLLING RUNNING SAMPLE: ${summary2.id}-${summary2.epoch}`);
         const pollCallback = async () => {
           if (!isActive) {
-            log$2.debug(
+            log$3.debug(
               `Component unmounted, stopping poll for: ${summary2.id}-${summary2.epoch}`
             );
             return false;
@@ -26495,7 +26482,7 @@ self.onmessage = function (e) {
           if (!api2.get_log_sample_data) {
             return false;
           }
-          log$2.debug(`GET RUNNING SAMPLE: ${summary2.id}-${summary2.epoch}`);
+          log$3.debug(`GET RUNNING SAMPLE: ${summary2.id}-${summary2.epoch}`);
           if (!isActive) {
             return false;
           }
@@ -26518,7 +26505,7 @@ self.onmessage = function (e) {
             adapter.addData(sampleDataResponse.sampleData);
             const events = adapter.resolvedEvents();
             const runningData = { events, summary: summary2 };
-            log$2.debug(`EVENTS: ${events.length}`);
+            log$3.debug(`EVENTS: ${events.length}`);
             get2().sampleActions.setRunningSampleData(runningData);
           }
           return true;
@@ -26538,7 +26525,7 @@ self.onmessage = function (e) {
         }
       };
       const cleanup = () => {
-        log$2.debug(`CLEANUP`);
+        log$3.debug(`CLEANUP`);
         isActive = false;
         stopPolling();
       };
@@ -26548,7 +26535,7 @@ self.onmessage = function (e) {
         cleanup
       };
     }
-    const log$1 = createLogger("sampleSlice");
+    const log$2 = createLogger("sampleSlice");
     const initialState = {
       selectedSample: void 0,
       sampleStatus: "ok",
@@ -26604,7 +26591,7 @@ self.onmessage = function (e) {
             sampleActions.setSampleStatus("loading");
             try {
               if (sampleSummary.completed !== false) {
-                log$1.debug(
+                log$2.debug(
                   `LOADING COMPLETED SAMPLE: ${sampleSummary.id}-${sampleSummary.epoch}`
                 );
                 const sample2 = await ((_a2 = get2().api) == null ? void 0 : _a2.get_log_sample(
@@ -26621,7 +26608,7 @@ self.onmessage = function (e) {
                   );
                 }
               } else {
-                log$1.debug(
+                log$2.debug(
                   `POLLING RUNNING SAMPLE: ${sampleSummary.id}-${sampleSummary.epoch}`
                 );
                 samplePolling.startPolling(logFile, sampleSummary);
@@ -26646,7 +26633,7 @@ self.onmessage = function (e) {
         }
       });
     };
-    const log = createLogger("store");
+    const log$1 = createLogger("store");
     let storeImplementation = null;
     const useStore = (selector) => {
       if (!storeImplementation) {
@@ -26724,11 +26711,11 @@ self.onmessage = function (e) {
               version: 1,
               onRehydrateStorage: (state) => {
                 return (hydrationState, error2) => {
-                  log.debug("REHYDRATING STATE");
+                  log$1.debug("REHYDRATING STATE");
                   if (error2) {
-                    log.debug("ERROR", { error: error2 });
+                    log$1.debug("ERROR", { error: error2 });
                   } else {
-                    log.debug("STATE", { state, hydrationState });
+                    log$1.debug("STATE", { state, hydrationState });
                   }
                 };
               }
@@ -61008,6 +60995,130 @@ Supported expressions:
         columnNumber: 5
       }, void 0);
     };
+    function debounce$1(func, wait, options = {}) {
+      let timeout = null;
+      let context;
+      let args;
+      let result2;
+      let lastCallTime = null;
+      const later = () => {
+        const last = Date.now() - (lastCallTime || 0);
+        if (last < wait && last >= 0) {
+          timeout = setTimeout(later, wait - last);
+        } else {
+          timeout = null;
+          if (!options.leading) {
+            result2 = func.apply(context, args);
+            if (!timeout) {
+              context = null;
+              args = null;
+            }
+          }
+        }
+      };
+      return function(...callArgs) {
+        context = this;
+        args = callArgs;
+        lastCallTime = Date.now();
+        const callNow = options.leading && !timeout;
+        if (!timeout) {
+          timeout = setTimeout(later, wait);
+        }
+        if (callNow) {
+          result2 = func.apply(context, args);
+          context = null;
+          args = null;
+        }
+        return result2;
+      };
+    }
+    const log = createLogger("scrolling");
+    function useStatefulScrollPosition(elementRef, elementKey, delay = 500, scrollable2 = true) {
+      const getScrollPosition = useStore(
+        (state) => state.appActions.getScrollPosition
+      );
+      const setScrollPosition = useStore(
+        (state) => state.appActions.setScrollPosition
+      );
+      const handleScroll = reactExports.useCallback(
+        debounce$1((e) => {
+          const target2 = e.target;
+          const position = target2.scrollTop;
+          log.debug(`Storing scroll position`, elementKey, position);
+          setScrollPosition(elementKey, position);
+        }, delay),
+        [elementKey, setScrollPosition, delay]
+      );
+      const restoreScrollPosition = reactExports.useCallback(() => {
+        const element = elementRef.current;
+        const savedPosition = getScrollPosition(elementKey);
+        if (element && savedPosition !== void 0) {
+          requestAnimationFrame(() => {
+            element.scrollTop = savedPosition;
+            requestAnimationFrame(() => {
+              if (element.scrollTop !== savedPosition) {
+                element.scrollTop = savedPosition;
+              }
+            });
+          });
+        }
+      }, [elementKey, getScrollPosition, elementRef]);
+      reactExports.useEffect(() => {
+        const element = elementRef.current;
+        if (!element || !scrollable2) {
+          return;
+        }
+        log.debug(`Restore Scroll Hook`, elementKey);
+        const savedPosition = getScrollPosition(elementKey);
+        if (savedPosition !== void 0) {
+          log.debug(`Restoring scroll position`, savedPosition);
+          requestAnimationFrame(() => {
+            if (element.scrollTop !== savedPosition) {
+              element.scrollTop = savedPosition;
+            }
+          });
+        }
+        if (element.addEventListener) {
+          element.addEventListener("scroll", handleScroll);
+        } else {
+          log.warn("Element has no way to add event listener", element);
+        }
+        return () => {
+          if (element.removeEventListener) {
+            element.removeEventListener("scroll", handleScroll);
+          } else {
+            log.warn("Element has no way to remove event listener", element);
+          }
+        };
+      }, [elementKey, elementRef, handleScroll]);
+      return { restoreScrollPosition };
+    }
+    const useVirtuosoState = (virtuosoRef, elementKey, delay = 500) => {
+      const getListPosition = useStore((state) => state.appActions.getListPosition);
+      const setListPosition = useStore((state) => state.appActions.setListPosition);
+      const handleStateChange = reactExports.useCallback(
+        (state) => {
+          log.debug(`Storing list state: [${elementKey}]`, state);
+          setListPosition(elementKey, state);
+        },
+        [elementKey, setListPosition, delay]
+      );
+      const restoreState = reactExports.useCallback(() => {
+        return getListPosition(elementKey);
+      }, [getListPosition]);
+      const isScrolling = reactExports.useCallback(
+        debounce$1((isScrolling2) => {
+          log.debug("List scroll", isScrolling2);
+          const element = virtuosoRef.current;
+          if (!element) {
+            return;
+          }
+          element.getState(handleStateChange);
+        }, delay),
+        [setListPosition, handleStateChange]
+      );
+      return { restoreState, isScrolling };
+    };
     const tabs$1 = "_tabs_1qj7d_1";
     const tabContents = "_tabContents_1qj7d_5";
     const scrollable = "_scrollable_1qj7d_10";
@@ -61056,14 +61167,14 @@ Supported expressions:
                 false,
                 {
                   fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/TabSet.tsx",
-                  lineNumber: 68,
+                  lineNumber: 64,
                   columnNumber: 11
                 },
                 void 0
               )),
               tools2 && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(TabTools, { tools: tools2 }, void 0, false, {
                 fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/TabSet.tsx",
-                lineNumber: 76,
+                lineNumber: 72,
                 columnNumber: 19
               }, void 0)
             ]
@@ -61072,19 +61183,19 @@ Supported expressions:
           true,
           {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/TabSet.tsx",
-            lineNumber: 61,
+            lineNumber: 57,
             columnNumber: 7
           },
           void 0
         ),
         /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(TabPanels, { id, tabs: validTabs, className: tabPanelsClassName }, void 0, false, {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/TabSet.tsx",
-          lineNumber: 78,
+          lineNumber: 74,
           columnNumber: 7
         }, void 0)
       ] }, void 0, true, {
         fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/TabSet.tsx",
-        lineNumber: 60,
+        lineNumber: 56,
         columnNumber: 5
       }, void 0);
     };
@@ -61112,7 +61223,7 @@ Supported expressions:
           children: [
             tab2.props.icon && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("i", { className: clsx(tab2.props.icon, moduleStyles.tabIcon) }, void 0, false, {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/TabSet.tsx",
-              lineNumber: 113,
+              lineNumber: 109,
               columnNumber: 11
             }, void 0),
             tab2.props.title
@@ -61122,23 +61233,23 @@ Supported expressions:
         true,
         {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/TabSet.tsx",
-          lineNumber: 96,
+          lineNumber: 92,
           columnNumber: 7
         },
         void 0
       ) }, void 0, false, {
         fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/TabSet.tsx",
-        lineNumber: 95,
+        lineNumber: 91,
         columnNumber: 5
       }, void 0);
     };
     const TabPanels = ({ id, tabs: tabs2, className: className2 }) => /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: clsx("tab-content", className2), id: `${id}-content`, children: tabs2.map((tab2, index) => /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(TabPanel, { ...tab2.props, index }, tab2.props.id, false, {
       fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/TabSet.tsx",
-      lineNumber: 129,
+      lineNumber: 125,
       columnNumber: 7
     }, void 0)) }, void 0, false, {
       fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/TabSet.tsx",
-      lineNumber: 127,
+      lineNumber: 123,
       columnNumber: 3
     }, void 0);
     const TabPanel = ({
@@ -61148,36 +61259,12 @@ Supported expressions:
       scrollable: scrollable2 = true,
       scrollRef,
       className: className2,
-      scrollPosition,
-      setScrollPosition,
       children: children2
     }) => {
       const tabContentsId = computeTabContentsId(id);
       const panelRef = reactExports.useRef(null);
       const tabContentsRef = scrollRef || panelRef;
-      reactExports.useEffect(() => {
-        if (!selected2 || scrollPosition === void 0 || !tabContentsRef.current)
-          return;
-        const observer = new MutationObserver(() => {
-          if (tabContentsRef.current) {
-            tabContentsRef.current.scrollTop = scrollPosition;
-          }
-          observer.disconnect();
-        });
-        observer.observe(tabContentsRef.current, {
-          childList: true,
-          subtree: true
-        });
-        return () => observer.disconnect();
-      }, []);
-      const onScroll = reactExports.useCallback(
-        (e) => {
-          if (setScrollPosition) {
-            setScrollPosition(e.currentTarget.scrollTop);
-          }
-        },
-        [setScrollPosition]
-      );
+      useStatefulScrollPosition(tabContentsRef, tabContentsId, 1e3, scrollable2);
       return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
         "div",
         {
@@ -61191,14 +61278,13 @@ Supported expressions:
             scrollable2 && moduleStyles.scrollable
           ),
           style: style2,
-          onScroll,
           children: children2
         },
         void 0,
         false,
         {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/TabSet.tsx",
-          lineNumber: 180,
+          lineNumber: 148,
           columnNumber: 5
         },
         void 0
@@ -61206,7 +61292,7 @@ Supported expressions:
     };
     const TabTools = ({ tools: tools2 }) => /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: clsx("tab-tools", moduleStyles.tabTools), children: tools2 }, void 0, false, {
       fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/TabSet.tsx",
-      lineNumber: 200,
+      lineNumber: 167,
       columnNumber: 3
     }, void 0);
     const computeTabId = (id, index) => `${id}-${index}`;
@@ -65114,6 +65200,11 @@ Supported expressions:
     }) => {
       const collapsedMessages = resolveMessages(messages);
       const [followOutput, setFollowOutput] = reactExports.useState(false);
+      const listHandle = reactExports.useRef(null);
+      const { restoreState, isScrolling } = useVirtuosoState(
+        listHandle,
+        "chat-view"
+      );
       const renderRow = (item2, index) => {
         const number2 = collapsedMessages.length > 1 && numbered ? index + 1 : void 0;
         return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
@@ -65129,7 +65220,7 @@ Supported expressions:
           false,
           {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/chat/ChatViewVirtualList.tsx",
-            lineNumber: 40,
+            lineNumber: 47,
             columnNumber: 7
           },
           void 0
@@ -65138,6 +65229,7 @@ Supported expressions:
       const result2 = /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
         $r,
         {
+          ref: listHandle,
           customScrollParent: (scrollRef == null ? void 0 : scrollRef.current) ? scrollRef.current : void 0,
           style: { height: "100%", width: "100%" },
           data: collapsedMessages,
@@ -65154,13 +65246,15 @@ Supported expressions:
             setFollowOutput(atBottom);
           },
           skipAnimationFrameInResizeObserver: true,
-          className: clsx(styles$H.list, className2)
+          className: clsx(styles$H.list, className2),
+          restoreStateFrom: restoreState(),
+          isScrolling
         },
         void 0,
         false,
         {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/chat/ChatViewVirtualList.tsx",
-          lineNumber: 51,
+          lineNumber: 58,
           columnNumber: 5
         },
         void 0
@@ -74322,12 +74416,17 @@ ${events}
       node: node$1,
       first: first$1
     };
-    const TranscriptVirtualListComponent = ({ id, eventNodes, scrollRef, transcriptState, setTranscriptState }) => {
+    const TranscriptVirtualListComponent = reactExports.memo(({ id, eventNodes, scrollRef, transcriptState, setTranscriptState }) => {
       const setEventState = reactExports.useCallback(
         (eventId, state) => {
           setTranscriptState({ ...transcriptState, [eventId]: state });
         },
         [transcriptState, setTranscriptState]
+      );
+      const listHandle = reactExports.useRef(null);
+      const { restoreState, isScrolling } = useVirtuosoState(
+        listHandle,
+        "transcript"
       );
       const [followOutput, setFollowOutput] = reactExports.useState(false);
       const renderRow = (item2, index) => {
@@ -74348,19 +74447,20 @@ ${events}
           false,
           {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/TranscriptVirtualListComponent.tsx",
-            lineNumber: 40,
-            columnNumber: 9
+            lineNumber: 46,
+            columnNumber: 11
           },
           void 0
         ) }, eventId, false, {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/TranscriptVirtualListComponent.tsx",
-          lineNumber: 39,
-          columnNumber: 7
+          lineNumber: 45,
+          columnNumber: 9
         }, void 0);
       };
       return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
         $r,
         {
+          ref: listHandle,
           customScrollParent: (scrollRef == null ? void 0 : scrollRef.current) ? scrollRef.current : void 0,
           style: { height: "100%", width: "100%" },
           data: eventNodes,
@@ -74377,18 +74477,20 @@ ${events}
             setFollowOutput(atBottom);
           },
           skipAnimationFrameInResizeObserver: true,
-          className: clsx("transcript")
+          className: clsx("transcript"),
+          isScrolling,
+          restoreStateFrom: restoreState()
         },
         void 0,
         false,
         {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/TranscriptVirtualListComponent.tsx",
-          lineNumber: 53,
-          columnNumber: 5
+          lineNumber: 59,
+          columnNumber: 7
         },
         void 0
       );
-    };
+    });
     const StepEventView = ({
       event,
       eventState,
@@ -76009,32 +76111,15 @@ ${events}
       visible: visible2,
       onHide,
       showProgress,
-      initialScrollPositionRef,
-      setInitialScrollPosition,
       scrollRef
     }) => {
       const modalFooter = footer2 ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "modal-footer", children: footer2 }, void 0, false, {
         fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/LargeModal.tsx",
-        lineNumber: 60,
+        lineNumber: 48,
         columnNumber: 5
       }, void 0) : "";
       const modalRef = reactExports.useRef(null);
       scrollRef = scrollRef || modalRef;
-      reactExports.useEffect(() => {
-        if (scrollRef.current) {
-          setTimeout(() => {
-            if (scrollRef.current && initialScrollPositionRef.current && scrollRef.current.scrollTop !== (initialScrollPositionRef == null ? void 0 : initialScrollPositionRef.current)) {
-              scrollRef.current.scrollTop = initialScrollPositionRef.current;
-            }
-          }, 0);
-        }
-      }, []);
-      const onScroll = reactExports.useCallback(
-        (e) => {
-          setInitialScrollPosition(e.currentTarget.scrollTop);
-        },
-        [setInitialScrollPosition]
-      );
       return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
         "div",
         {
@@ -76068,7 +76153,7 @@ ${events}
                     false,
                     {
                       fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/LargeModal.tsx",
-                      lineNumber: 113,
+                      lineNumber: 80,
                       columnNumber: 13
                     },
                     void 0
@@ -76077,29 +76162,29 @@ ${events}
                     (detailTools == null ? void 0 : detailTools.left) ? detailTools.left.map((tool2, idx) => {
                       return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(TitleTool, { ...tool2 }, `tool-left-${idx}`, false, {
                         fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/LargeModal.tsx",
-                        lineNumber: 123,
+                        lineNumber: 90,
                         columnNumber: 30
                       }, void 0);
                     }) : "",
                     /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: clsx("text-size-smaller", styles$j.detailText), children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { children: detail2 }, void 0, false, {
                       fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/LargeModal.tsx",
-                      lineNumber: 127,
+                      lineNumber: 94,
                       columnNumber: 19
                     }, void 0) }, void 0, false, {
                       fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/LargeModal.tsx",
-                      lineNumber: 126,
+                      lineNumber: 93,
                       columnNumber: 17
                     }, void 0),
                     (detailTools == null ? void 0 : detailTools.right) ? detailTools.right.map((tool2, idx) => {
                       return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(TitleTool, { ...tool2 }, `tool-right-${idx}`, false, {
                         fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/LargeModal.tsx",
-                        lineNumber: 132,
+                        lineNumber: 99,
                         columnNumber: 30
                       }, void 0);
                     }) : ""
                   ] }, void 0, true, {
                     fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/LargeModal.tsx",
-                    lineNumber: 120,
+                    lineNumber: 87,
                     columnNumber: 15
                   }, void 0) : void 0,
                   /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
@@ -76116,7 +76201,7 @@ ${events}
                       "aria-label": "Close",
                       children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(HtmlEntity, { html: "&times;" }, void 0, false, {
                         fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/LargeModal.tsx",
-                        lineNumber: 148,
+                        lineNumber: 115,
                         columnNumber: 15
                       }, void 0)
                     },
@@ -76124,30 +76209,30 @@ ${events}
                     false,
                     {
                       fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/LargeModal.tsx",
-                      lineNumber: 137,
+                      lineNumber: 104,
                       columnNumber: 13
                     },
                     void 0
                   )
                 ] }, void 0, true, {
                   fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/LargeModal.tsx",
-                  lineNumber: 112,
+                  lineNumber: 79,
                   columnNumber: 11
                 }, void 0),
                 /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(ProgressBar, { animating: showProgress }, void 0, false, {
                   fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/LargeModal.tsx",
-                  lineNumber: 151,
+                  lineNumber: 118,
                   columnNumber: 11
                 }, void 0),
-                /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "modal-body", ref: scrollRef, onScroll, children: children2 }, void 0, false, {
+                /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "modal-body", ref: scrollRef, children: children2 }, void 0, false, {
                   fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/LargeModal.tsx",
-                  lineNumber: 152,
+                  lineNumber: 119,
                   columnNumber: 11
                 }, void 0),
                 modalFooter
               ] }, void 0, true, {
                 fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/LargeModal.tsx",
-                lineNumber: 111,
+                lineNumber: 78,
                 columnNumber: 9
               }, void 0)
             },
@@ -76155,7 +76240,7 @@ ${events}
             false,
             {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/LargeModal.tsx",
-              lineNumber: 103,
+              lineNumber: 70,
               columnNumber: 7
             },
             void 0
@@ -76165,7 +76250,7 @@ ${events}
         false,
         {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/LargeModal.tsx",
-          lineNumber: 92,
+          lineNumber: 59,
           columnNumber: 5
         },
         void 0
@@ -76173,7 +76258,7 @@ ${events}
     };
     const HtmlEntity = ({ html }) => /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("span", { dangerouslySetInnerHTML: { __html: html } }, void 0, false, {
       fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/LargeModal.tsx",
-      lineNumber: 167,
+      lineNumber: 134,
       columnNumber: 3
     }, void 0);
     const TitleTool = ({ label: label2, icon: icon2, enabled, onClick }) => {
@@ -76192,7 +76277,7 @@ ${events}
           disabled: !enabled,
           children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("i", { className: icon2 }, void 0, false, {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/LargeModal.tsx",
-            lineNumber: 191,
+            lineNumber: 158,
             columnNumber: 7
           }, void 0)
         },
@@ -76200,7 +76285,7 @@ ${events}
         false,
         {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/LargeModal.tsx",
-          lineNumber: 179,
+          lineNumber: 146,
           columnNumber: 5
         },
         void 0
@@ -76214,11 +76299,10 @@ ${events}
       showingSampleDialog,
       setShowingSampleDialog,
       selectedTab,
-      setSelectedTab,
-      sampleScrollPositionRef,
-      setSampleScrollPosition
+      setSelectedTab
     }) => {
       const scrollRef = reactExports.useRef(null);
+      useStatefulScrollPosition(scrollRef, "sample-dialog");
       const sampleData = useSampleData();
       const logSelection = useLogSelection();
       reactExports.useEffect(() => {
@@ -76280,12 +76364,10 @@ ${events}
           visible: showingSampleDialog,
           onHide,
           showProgress: sampleData.status === "loading",
-          initialScrollPositionRef: sampleScrollPositionRef,
-          setInitialScrollPosition: setSampleScrollPosition,
           scrollRef,
           children: sampleData.error ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(ErrorPanel, { title: "Sample Error", error: sampleData.error }, void 0, false, {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SampleDialog.tsx",
-            lineNumber: 122,
+            lineNumber: 110,
             columnNumber: 9
           }, void 0) : /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
             SampleDisplay,
@@ -76301,7 +76383,7 @@ ${events}
             false,
             {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SampleDialog.tsx",
-              lineNumber: 124,
+              lineNumber: 112,
               columnNumber: 9
             },
             void 0
@@ -76311,7 +76393,7 @@ ${events}
         false,
         {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/SampleDialog.tsx",
-          lineNumber: 109,
+          lineNumber: 99,
           columnNumber: 5
         },
         void 0
@@ -76814,6 +76896,10 @@ ${events}
         className: className2,
         listHandle
       } = props;
+      const { restoreState, isScrolling } = useVirtuosoState(
+        listHandle,
+        "sample-list"
+      );
       const selectedSampleIndex = useStore(
         (state) => state.log.selectedSampleIndex
       );
@@ -76868,7 +76954,7 @@ ${events}
               false,
               {
                 fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/list/SampleList.tsx",
-                lineNumber: 92,
+                lineNumber: 98,
                 columnNumber: 11
               },
               void 0
@@ -76885,7 +76971,7 @@ ${events}
               false,
               {
                 fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/list/SampleList.tsx",
-                lineNumber: 106,
+                lineNumber: 112,
                 columnNumber: 11
               },
               void 0
@@ -76933,7 +77019,7 @@ ${events}
           false,
           {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/list/SampleList.tsx",
-            lineNumber: 159,
+            lineNumber: 165,
             columnNumber: 9
           },
           void 0
@@ -76951,7 +77037,7 @@ ${events}
           false,
           {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/list/SampleList.tsx",
-            lineNumber: 166,
+            lineNumber: 172,
             columnNumber: 7
           },
           void 0
@@ -76977,25 +77063,27 @@ ${events}
             },
             className: clsx(className2),
             onKeyDown: onkeydown,
-            skipAnimationFrameInResizeObserver: true
+            skipAnimationFrameInResizeObserver: true,
+            isScrolling,
+            restoreStateFrom: restoreState()
           },
           void 0,
           false,
           {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/list/SampleList.tsx",
-            lineNumber: 173,
+            lineNumber: 179,
             columnNumber: 7
           },
           void 0
         ),
         /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(SampleFooter, { sampleCount, running: running2 }, void 0, false, {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/list/SampleList.tsx",
-          lineNumber: 194,
+          lineNumber: 202,
           columnNumber: 7
         }, void 0)
       ] }, void 0, true, {
         fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/list/SampleList.tsx",
-        lineNumber: 157,
+        lineNumber: 163,
         columnNumber: 5
       }, void 0);
     });
@@ -77179,8 +77267,6 @@ ${events}
     };
     const SamplesTab = ({
       running: running2,
-      sampleScrollPositionRef,
-      setSampleScrollPosition,
       sampleTabScrollRef
     }) => {
       var _a2, _b2;
@@ -77283,11 +77369,11 @@ ${events}
       if (totalSampleCount === 0) {
         return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(EmptyPanel, { children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { children: "No samples" }, void 0, false, {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/tabs/SamplesTab.tsx",
-          lineNumber: 170,
+          lineNumber: 166,
           columnNumber: 9
         }, void 0) }, void 0, false, {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/tabs/SamplesTab.tsx",
-          lineNumber: 169,
+          lineNumber: 165,
           columnNumber: 7
         }, void 0);
       } else {
@@ -77304,7 +77390,7 @@ ${events}
             false,
             {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/tabs/SamplesTab.tsx",
-              lineNumber: 177,
+              lineNumber: 173,
               columnNumber: 11
             },
             void 0
@@ -77323,7 +77409,7 @@ ${events}
             false,
             {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/tabs/SamplesTab.tsx",
-              lineNumber: 185,
+              lineNumber: 181,
               columnNumber: 11
             },
             void 0
@@ -77338,22 +77424,20 @@ ${events}
               selectedTab: selectedSampleTab,
               setSelectedTab: setSelectedSampleTab,
               nextSample,
-              prevSample: previousSample,
-              sampleScrollPositionRef,
-              setSampleScrollPosition
+              prevSample: previousSample
             },
             void 0,
             false,
             {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/tabs/SamplesTab.tsx",
-              lineNumber: 195,
+              lineNumber: 191,
               columnNumber: 11
             },
             void 0
           ) : void 0
         ] }, void 0, true, {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/tabs/SamplesTab.tsx",
-          lineNumber: 175,
+          lineNumber: 171,
           columnNumber: 7
         }, void 0);
       }
@@ -79208,9 +79292,7 @@ ${events}
       status: status2,
       showToggle,
       tabs: tabs2,
-      divRef,
-      workspaceTabScrollPositionRef,
-      setWorkspaceTabScrollPosition
+      divRef
     }) => {
       const selectedTab = useStore((state) => state.app.tabs.workspace);
       const setSelectedTab = useStore((state) => state.appActions.setWorkspaceTab);
@@ -79224,16 +79306,10 @@ ${events}
         },
         [setSelectedTab]
       );
-      const handleScroll = reactExports.useCallback(
-        debounce$1((tabId, position) => {
-          setWorkspaceTabScrollPosition(tabId, position);
-        }, 100),
-        [setWorkspaceTabScrollPosition]
-      );
       if (evalSpec === void 0) {
         return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(EmptyPanel, {}, void 0, false, {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/WorkSpaceView.tsx",
-          lineNumber: 68,
+          lineNumber: 56,
           columnNumber: 12
         }, void 0);
       } else {
@@ -79266,7 +79342,7 @@ ${events}
             false,
             {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/WorkSpaceView.tsx",
-              lineNumber: 89,
+              lineNumber: 77,
               columnNumber: 9
             },
             void 0
@@ -79281,7 +79357,6 @@ ${events}
               tabControlsClassName: clsx(styles.tabs, "text-size-smaller"),
               tabPanelsClassName: clsx(styles.tabPanels),
               children: Object.keys(tabs2).map((key2) => {
-                var _a2;
                 const tab2 = tabs2[key2];
                 return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
                   TabPanel,
@@ -79292,17 +79367,13 @@ ${events}
                     selected: selectedTab === tab2.id,
                     scrollable: !!tab2.scrollable,
                     scrollRef: tab2.scrollRef,
-                    scrollPosition: (_a2 = workspaceTabScrollPositionRef.current) == null ? void 0 : _a2[tab2.id],
-                    setScrollPosition: (position) => {
-                      handleScroll(tab2.id, position);
-                    },
                     children: tab2.content()
                   },
                   tab2.id,
                   false,
                   {
                     fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/WorkSpaceView.tsx",
-                    lineNumber: 111,
+                    lineNumber: 99,
                     columnNumber: 19
                   },
                   void 0
@@ -79313,22 +79384,22 @@ ${events}
             false,
             {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/WorkSpaceView.tsx",
-              lineNumber: 100,
+              lineNumber: 88,
               columnNumber: 13
             },
             void 0
           ) }, void 0, false, {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/WorkSpaceView.tsx",
-            lineNumber: 99,
+            lineNumber: 87,
             columnNumber: 11
           }, void 0) }, void 0, false, {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/WorkSpaceView.tsx",
-            lineNumber: 98,
+            lineNumber: 86,
             columnNumber: 9
           }, void 0)
         ] }, void 0, true, {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/WorkSpaceView.tsx",
-          lineNumber: 88,
+          lineNumber: 76,
           columnNumber: 7
         }, void 0);
       }
@@ -79342,9 +79413,7 @@ ${events}
         evalStats,
         evalResults,
         runningMetrics,
-        showToggle,
-        workspaceTabScrollPositionRef,
-        setWorkspaceTabScrollPosition
+        showToggle
       } = props;
       const divRef = reactExports.useRef(null);
       reactExports.useEffect(() => {
@@ -79367,15 +79436,13 @@ ${events}
           evalStats,
           status: evalStatus,
           tabs: resolvedTabs,
-          showToggle,
-          workspaceTabScrollPositionRef,
-          setWorkspaceTabScrollPosition
+          showToggle
         },
         void 0,
         false,
         {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/WorkSpace.tsx",
-          lineNumber: 85,
+          lineNumber: 79,
           columnNumber: 5
         },
         void 0
@@ -79401,7 +79468,7 @@ ${events}
         }, 1250);
       }
     };
-    const useSamplesTabConfig = (evalStatus, sampleScrollPositionRef, setSampleScrollPosition, refreshLog, sampleTabScrollRef) => {
+    const useSamplesTabConfig = (evalStatus, refreshLog, sampleTabScrollRef) => {
       const totalSampleCount = useTotalSampleCount();
       const samplesDescriptor = useSampleDescriptor();
       const sampleSummaries = useFilteredSamples();
@@ -79416,15 +79483,13 @@ ${events}
             SamplesTab,
             {
               running: evalStatus === "started",
-              sampleScrollPositionRef,
-              setSampleScrollPosition,
               sampleTabScrollRef
             },
             void 0,
             false,
             {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/WorkSpace.tsx",
-              lineNumber: 142,
+              lineNumber: 132,
               columnNumber: 9
             },
             void 0
@@ -79439,7 +79504,7 @@ ${events}
               false,
               {
                 fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/WorkSpace.tsx",
-                lineNumber: 153,
+                lineNumber: 141,
                 columnNumber: 15
               },
               void 0
@@ -79455,7 +79520,7 @@ ${events}
               false,
               {
                 fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/WorkSpace.tsx",
-                lineNumber: 158,
+                lineNumber: 146,
                 columnNumber: 17
               },
               void 0
@@ -79464,8 +79529,6 @@ ${events}
         };
       }, [
         evalStatus,
-        sampleScrollPositionRef,
-        setSampleScrollPosition,
         refreshLog,
         sampleTabScrollRef,
         sampleSummaries,
@@ -79494,7 +79557,7 @@ ${events}
             false,
             {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/WorkSpace.tsx",
-              lineNumber: 194,
+              lineNumber: 180,
               columnNumber: 9
             },
             void 0
@@ -79533,7 +79596,7 @@ ${events}
               false,
               {
                 fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/WorkSpace.tsx",
-                lineNumber: 238,
+                lineNumber: 224,
                 columnNumber: 11
               },
               void 0
@@ -79553,7 +79616,7 @@ ${events}
               false,
               {
                 fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/WorkSpace.tsx",
-                lineNumber: 246,
+                lineNumber: 232,
                 columnNumber: 9
               },
               void 0
@@ -79576,8 +79639,6 @@ ${events}
       const {
         evalVersion,
         evalStatus,
-        sampleScrollPositionRef,
-        setSampleScrollPosition,
         evalSpec,
         evalPlan,
         evalResults,
@@ -79588,8 +79649,6 @@ ${events}
       const sampleTabScrollRef = reactExports.useRef(null);
       const samplesTabConfig = useSamplesTabConfig(
         evalStatus,
-        sampleScrollPositionRef,
-        setSampleScrollPosition,
         refreshLog,
         sampleTabScrollRef
       );
@@ -80301,25 +80360,6 @@ ${events}
       const refreshLog = useStore((state) => state.logActions.refreshLog);
       const selectSample = useStore((state) => state.logActions.selectSample);
       const mainAppRef = reactExports.useRef(null);
-      const workspaceTabScrollPosition = reactExports.useRef({});
-      const sampleScrollPosition = reactExports.useRef(0);
-      const setSampleScrollPosition = reactExports.useCallback(
-        debounce$1((position) => {
-          sampleScrollPosition.current = position;
-        }, 1e3),
-        []
-      );
-      const setWorkspaceTabScrollPosition = reactExports.useCallback(
-        debounce$1((tab2, position) => {
-          if (workspaceTabScrollPosition.current[tab2] !== position) {
-            workspaceTabScrollPosition.current = {
-              ...workspaceTabScrollPosition.current,
-              [tab2]: position
-            };
-          }
-        }, 1e3),
-        []
-      );
       reactExports.useEffect(() => {
         const loadSpecificLog = async () => {
           if (selectedLogFile && selectedLogFile !== loadedLogFile) {
@@ -80443,7 +80483,7 @@ ${events}
           false,
           {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/App.tsx",
-            lineNumber: 244,
+            lineNumber: 218,
             columnNumber: 9
           },
           void 0
@@ -80471,12 +80511,12 @@ ${events}
             children: [
               !nativeFind && showFind ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(FindBand, {}, void 0, false, {
                 fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/App.tsx",
-                lineNumber: 280,
+                lineNumber: 254,
                 columnNumber: 36
               }, void 0) : "",
               /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(ProgressBar, { animating: appStatus.loading }, void 0, false, {
                 fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/App.tsx",
-                lineNumber: 281,
+                lineNumber: 255,
                 columnNumber: 9
               }, void 0),
               appStatus.error ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
@@ -80489,7 +80529,7 @@ ${events}
                 false,
                 {
                   fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/App.tsx",
-                  lineNumber: 283,
+                  lineNumber: 257,
                   columnNumber: 11
                 },
                 void 0
@@ -80506,17 +80546,13 @@ ${events}
                   evalResults: filterNull(selectedLogSummary == null ? void 0 : selectedLogSummary.results),
                   runningMetrics,
                   showToggle,
-                  refreshLog: appRefreshLog,
-                  sampleScrollPositionRef: sampleScrollPosition,
-                  setSampleScrollPosition,
-                  workspaceTabScrollPositionRef: workspaceTabScrollPosition,
-                  setWorkspaceTabScrollPosition
+                  refreshLog: appRefreshLog
                 },
                 void 0,
                 false,
                 {
                   fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/App.tsx",
-                  lineNumber: 288,
+                  lineNumber: 262,
                   columnNumber: 11
                 },
                 void 0
@@ -80527,14 +80563,14 @@ ${events}
           true,
           {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/App.tsx",
-            lineNumber: 259,
+            lineNumber: 233,
             columnNumber: 7
           },
           void 0
         )
       ] }, void 0, true, {
         fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/App.tsx",
-        lineNumber: 242,
+        lineNumber: 216,
         columnNumber: 5
       }, void 0);
     };

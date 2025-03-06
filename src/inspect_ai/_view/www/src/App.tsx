@@ -13,7 +13,6 @@ import "../App.css";
 
 import { ErrorPanel } from "./components/ErrorPanel";
 import { ProgressBar } from "./components/ProgressBar";
-import { debounce } from "./utils/sync";
 
 import { FindBand } from "./components/FindBand";
 import { Sidebar } from "./workspace/sidebar/Sidebar.tsx";
@@ -77,31 +76,6 @@ export const App: FC<AppProps> = ({ api }) => {
 
   // The main application reference
   const mainAppRef = useRef<HTMLDivElement>(null);
-
-  // TODO: deal with scrolling
-  const workspaceTabScrollPosition = useRef<Record<string, number>>({});
-  const sampleScrollPosition = useRef<number>(0);
-  const setSampleScrollPosition = useCallback(
-    debounce((position) => {
-      sampleScrollPosition.current = position;
-      // TODO Save state somehow
-      // saveStateRef.current();
-    }, 1000),
-    [],
-  );
-
-  const setWorkspaceTabScrollPosition = useCallback(
-    debounce((tab, position) => {
-      if (workspaceTabScrollPosition.current[tab] !== position) {
-        workspaceTabScrollPosition.current = {
-          ...workspaceTabScrollPosition.current,
-          [tab]: position,
-        };
-        // TODO Save state somehow
-      }
-    }, 1000),
-    [],
-  );
 
   // Load a specific log
   useEffect(() => {
@@ -297,10 +271,6 @@ export const App: FC<AppProps> = ({ api }) => {
             runningMetrics={runningMetrics}
             showToggle={showToggle}
             refreshLog={appRefreshLog}
-            sampleScrollPositionRef={sampleScrollPosition}
-            setSampleScrollPosition={setSampleScrollPosition}
-            workspaceTabScrollPositionRef={workspaceTabScrollPosition}
-            setWorkspaceTabScrollPosition={setWorkspaceTabScrollPosition}
           />
         )}
       </div>

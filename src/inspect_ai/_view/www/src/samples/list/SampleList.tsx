@@ -18,6 +18,7 @@ import { SampleSeparator } from "./SampleSeparator";
 
 import clsx from "clsx";
 import { useSampleDescriptor } from "../../state/hooks";
+import { useVirtuosoState } from "../../state/scrolling";
 import { useStore } from "../../state/store";
 import { SampleFooter } from "./SampleFooter";
 import { SampleHeader } from "./SampleHeader";
@@ -46,6 +47,11 @@ export const SampleList: FC<SampleListProps> = memo((props) => {
     className,
     listHandle,
   } = props;
+
+  const { restoreState, isScrolling } = useVirtuosoState(
+    listHandle,
+    "sample-list",
+  );
 
   const selectedSampleIndex = useStore(
     (state) => state.log.selectedSampleIndex,
@@ -190,6 +196,8 @@ export const SampleList: FC<SampleListProps> = memo((props) => {
         className={clsx(className)}
         onKeyDown={onkeydown}
         skipAnimationFrameInResizeObserver={true}
+        isScrolling={isScrolling}
+        restoreStateFrom={restoreState()}
       />
       <SampleFooter sampleCount={sampleCount} running={running} />
     </div>
