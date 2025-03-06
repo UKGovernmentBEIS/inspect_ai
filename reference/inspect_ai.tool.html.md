@@ -39,8 +39,6 @@
 
 ### ToolParam
 
-### JSONType
-
 ## Decorator
 
 ### tool

@@ -498,12 +498,6 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.tool.html#jsontype" class="sidebar-item-text sidebar-link">
- <span class="menu-text">JSONType</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.tool.html#tool" class="sidebar-item-text sidebar-link">
  <span class="menu-text">tool</span></a>
   </div>
@@ -744,6 +738,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.model.html#generateconfigargs" class="sidebar-item-text sidebar-link">
  <span class="menu-text">GenerateConfigArgs</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#responseschema" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ResponseSchema</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -1468,6 +1468,24 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
  <span class="menu-text">sandboxenv</span></a>
   </div>
 </li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#jsontype" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">JSONType</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#jsonschema" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">JSONSchema</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#json_schema" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">json_schema</span></a>
+  </div>
+</li>
       </ul>
   </li>
       </ul>
@@ -1583,7 +1601,6 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#toolinfo" id="toc-toolinfo" class="nav-link" data-scroll-target="#toolinfo">ToolInfo</a></li>
   <li><a href="#toolparams" id="toc-toolparams" class="nav-link" data-scroll-target="#toolparams">ToolParams</a></li>
   <li><a href="#toolparam" id="toc-toolparam" class="nav-link" data-scroll-target="#toolparam">ToolParam</a></li>
-  <li><a href="#jsontype" id="toc-jsontype" class="nav-link" data-scroll-target="#jsontype">JSONType</a></li>
   </ul></li>
   <li><a href="#decorator" id="toc-decorator" class="nav-link" data-scroll-target="#decorator">Decorator</a>
   <ul class="collapse">
@@ -1621,7 +1638,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Bash shell command execution tool.</p>
 <p>Execute bash shell commands using a sandbox environment (e.g.&nbsp;“docker”).</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/d4ed881af92c3d8620a36309fcc6a919338545b5/src/inspect_ai/tool/_tools/_execute.py#L22">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/731c01a2245c57feb8d6704ebb1703e002873ed9/src/inspect_ai/tool/_tools/_execute.py#L22">Source</a>
 </div>
 <div class="sourceCode" id="cb1"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="at">@tool</span>(viewer<span class="op">=</span>code_viewer(<span class="st">"bash"</span>, <span class="st">"cmd"</span>))</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> bash(</span>
@@ -1647,7 +1664,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Python code execution tool.</p>
 <p>Execute Python code using a sandbox environment (e.g.&nbsp;“docker”).</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/d4ed881af92c3d8620a36309fcc6a919338545b5/src/inspect_ai/tool/_tools/_execute.py#L62">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/731c01a2245c57feb8d6704ebb1703e002873ed9/src/inspect_ai/tool/_tools/_execute.py#L62">Source</a>
 </div>
 <div class="sourceCode" id="cb2"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="at">@tool</span>(viewer<span class="op">=</span>code_viewer(<span class="st">"python"</span>, <span class="st">"code"</span>))</span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> python(</span>
@@ -1675,7 +1692,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>A web search is conducted using the specified provider, the results are parsed for relevance using the specified model, and the top ‘num_results’ relevant pages are returned.</p>
 <p>See further documentation at <a href="https://inspect.ai-safety-institute.org.uk/tools.html#sec-web-search" class="uri">https://inspect.ai-safety-institute.org.uk/tools.html#sec-web-search</a>.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/d4ed881af92c3d8620a36309fcc6a919338545b5/src/inspect_ai/tool/_tools/_web_search.py#L39">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/731c01a2245c57feb8d6704ebb1703e002873ed9/src/inspect_ai/tool/_tools/_web_search.py#L39">Source</a>
 </div>
 <div class="sourceCode" id="cb3"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="at">@tool</span></span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> web_search(</span>
@@ -1713,7 +1730,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Tools used for web browser navigation.</p>
 <p>See documentation at <a href="https://inspect.ai-safety-institute.org.uk/tools.html#sec-web-browser" class="uri">https://inspect.ai-safety-institute.org.uk/tools.html#sec-web-browser</a>.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/d4ed881af92c3d8620a36309fcc6a919338545b5/src/inspect_ai/tool/_tools/_web_browser/_web_browser.py#L17">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/731c01a2245c57feb8d6704ebb1703e002873ed9/src/inspect_ai/tool/_tools/_web_browser/_web_browser.py#L17">Source</a>
 </div>
 <div class="sourceCode" id="cb4"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> web_browser(interactive: <span class="bu">bool</span> <span class="op">=</span> <span class="va">True</span>) <span class="op">-&gt;</span> <span class="bu">list</span>[Tool]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <dl>
@@ -1728,7 +1745,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Desktop computer tool.</p>
 <p>See documentation at <a href="https://inspect.ai-safety-institute.org.uk/tools.html#sec-computer" class="uri">https://inspect.ai-safety-institute.org.uk/tools.html#sec-computer</a>.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/d4ed881af92c3d8620a36309fcc6a919338545b5/src/inspect_ai/tool/_tools/_computer/_computer.py#L14">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/731c01a2245c57feb8d6704ebb1703e002873ed9/src/inspect_ai/tool/_tools/_computer/_computer.py#L14">Source</a>
 </div>
 <div class="sourceCode" id="cb5"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="at">@tool</span></span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> computer(max_screenshots: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="dv">1</span>, timeout: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="dv">180</span>) <span class="op">-&gt;</span> Tool</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
@@ -1750,7 +1767,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="tool_with">tool_with</h3>
 <p>Tool with modifications to name and descriptions.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/d4ed881af92c3d8620a36309fcc6a919338545b5/src/inspect_ai/tool/_tool_with.py#L16">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/731c01a2245c57feb8d6704ebb1703e002873ed9/src/inspect_ai/tool/_tool_with.py#L16">Source</a>
 </div>
 <div class="sourceCode" id="cb6"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> tool_with(</span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>    tool: Tool,</span>
@@ -1796,7 +1813,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="tooldef">ToolDef</h3>
 <p>Tool definition.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/d4ed881af92c3d8620a36309fcc6a919338545b5/src/inspect_ai/tool/_tool_def.py#L27">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/731c01a2245c57feb8d6704ebb1703e002873ed9/src/inspect_ai/tool/_tool_def.py#L27">Source</a>
 </div>
 <div class="sourceCode" id="cb7"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ToolDef</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
@@ -1839,7 +1856,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>Create a tool definition.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/d4ed881af92c3d8620a36309fcc6a919338545b5/src/inspect_ai/tool/_tool_def.py#L30">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/731c01a2245c57feb8d6704ebb1703e002873ed9/src/inspect_ai/tool/_tool_def.py#L30">Source</a>
 </div>
 <div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> <span class="fu">__init__</span>(</span>
 <span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>    <span class="va">self</span>,</span>
@@ -1886,7 +1903,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>Convert a ToolDef to a Tool.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/d4ed881af92c3d8620a36309fcc6a919338545b5/src/inspect_ai/tool/_tool_def.py#L129">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/731c01a2245c57feb8d6704ebb1703e002873ed9/src/inspect_ai/tool/_tool_def.py#L129">Source</a>
 </div>
 <div class="sourceCode" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> as_tool(<span class="va">self</span>) <span class="op">-&gt;</span> Tool</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div>
@@ -1903,7 +1920,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="tool">Tool</h3>
 <p>Additional tool that an agent can use to solve a task.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/d4ed881af92c3d8620a36309fcc6a919338545b5/src/inspect_ai/tool/_tool.py#L80">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/731c01a2245c57feb8d6704ebb1703e002873ed9/src/inspect_ai/tool/_tool.py#L80">Source</a>
 </div>
 <div class="sourceCode" id="cb10"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Tool(Protocol):</span>
 <span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> <span class="fu">__call__</span>(</span>
@@ -1935,7 +1952,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="toolresult">ToolResult</h3>
 <p>Valid types for results from tool calls.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/d4ed881af92c3d8620a36309fcc6a919338545b5/src/inspect_ai/tool/_tool.py#L33">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/731c01a2245c57feb8d6704ebb1703e002873ed9/src/inspect_ai/tool/_tool.py#L33">Source</a>
 </div>
 <div class="sourceCode" id="cb12"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>ToolResult <span class="op">=</span> (</span>
 <span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>    <span class="bu">str</span></span>
@@ -1955,7 +1972,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Exception thrown from tool call.</p>
 <p>If you throw a <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.tool.html#toolerror">ToolError</a></span> form within a tool call, the error will be reported to the model for further processing (rather than ending the sample). If you want to raise a fatal error from a tool call use an appropriate standard exception type (e.g.&nbsp;<code>RuntimeError</code>, <code>ValueError</code>, etc.)</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/d4ed881af92c3d8620a36309fcc6a919338545b5/src/inspect_ai/tool/_tool.py#L48">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/731c01a2245c57feb8d6704ebb1703e002873ed9/src/inspect_ai/tool/_tool.py#L48">Source</a>
 </div>
 <div class="sourceCode" id="cb13"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ToolError(<span class="pp">Exception</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4 class-methods">
@@ -1965,7 +1982,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>Create a ToolError.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/d4ed881af92c3d8620a36309fcc6a919338545b5/src/inspect_ai/tool/_tool.py#L58">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/731c01a2245c57feb8d6704ebb1703e002873ed9/src/inspect_ai/tool/_tool.py#L58">Source</a>
 </div>
 <div class="sourceCode" id="cb14"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> <span class="fu">__init__</span>(<span class="va">self</span>, message: <span class="bu">str</span>) <span class="op">-&gt;</span> <span class="va">None</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <dl>
@@ -1982,7 +1999,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="toolcallerror">ToolCallError</h3>
 <p>Error raised by a tool call.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/d4ed881af92c3d8620a36309fcc6a919338545b5/src/inspect_ai/tool/_tool_call.py#L57">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/731c01a2245c57feb8d6704ebb1703e002873ed9/src/inspect_ai/tool/_tool_call.py#L57">Source</a>
 </div>
 <div class="sourceCode" id="cb15"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span></span>
 <span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ToolCallError</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
@@ -2005,7 +2022,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Specify which tool to call.</p>
 <p>“auto” means the model decides; “any” means use at least one tool, “none” means never call a tool; ToolFunction instructs the model to call a specific function.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/d4ed881af92c3d8620a36309fcc6a919338545b5/src/inspect_ai/tool/_tool_choice.py#L13">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/731c01a2245c57feb8d6704ebb1703e002873ed9/src/inspect_ai/tool/_tool_choice.py#L13">Source</a>
 </div>
 <div class="sourceCode" id="cb16"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a>ToolChoice <span class="op">=</span> Union[Literal[<span class="st">"auto"</span>, <span class="st">"any"</span>, <span class="st">"none"</span>], ToolFunction]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
@@ -2013,7 +2030,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="toolfunction">ToolFunction</h3>
 <p>Indicate that a specific tool function should be called.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/d4ed881af92c3d8620a36309fcc6a919338545b5/src/inspect_ai/tool/_tool_choice.py#L5">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/731c01a2245c57feb8d6704ebb1703e002873ed9/src/inspect_ai/tool/_tool_choice.py#L5">Source</a>
 </div>
 <div class="sourceCode" id="cb17"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span></span>
 <span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ToolFunction</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
@@ -2042,7 +2059,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb19-4"><a href="#cb19-4" aria-hidden="true" tabindex="-1"></a>    input_schema<span class="op">=</span>tool.parameters.model_dump(exclude_none<span class="op">=</span><span class="va">True</span>),</span>
 <span id="cb19-5"><a href="#cb19-5" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/d4ed881af92c3d8620a36309fcc6a919338545b5/src/inspect_ai/tool/_tool_info.py#L27">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/731c01a2245c57feb8d6704ebb1703e002873ed9/src/inspect_ai/tool/_tool_info.py#L19">Source</a>
 </div>
 <div class="sourceCode" id="cb20"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ToolInfo(BaseModel)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
@@ -2067,7 +2084,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="toolparams">ToolParams</h3>
 <p>Description of tool parameters object in JSON Schema format.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/d4ed881af92c3d8620a36309fcc6a919338545b5/src/inspect_ai/tool/_tool_params.py#L44">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/731c01a2245c57feb8d6704ebb1703e002873ed9/src/inspect_ai/tool/_tool_params.py#L14">Source</a>
 </div>
 <div class="sourceCode" id="cb21"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ToolParams(BaseModel)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
@@ -2096,58 +2113,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="toolparam">ToolParam</h3>
 <p>Description of tool parameter in JSON Schema format.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/d4ed881af92c3d8620a36309fcc6a919338545b5/src/inspect_ai/tool/_tool_params.py#L13">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/731c01a2245c57feb8d6704ebb1703e002873ed9/src/inspect_ai/tool/_tool_params.py#L10">Source</a>
 </div>
-<div class="sourceCode" id="cb22"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ToolParam(BaseModel)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<section class="level4">
-<h4 class="anchored" data-anchor-id="">Attributes</h4>
-<dl>
-<dt><code class="ref-definition">type</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.tool.html#jsontype">JSONType</a></span> | <span class="element-type-name">None</span></span></dt>
-<dd>
-<p>JSON type of tool parameter.</p>
-</dd>
-<dt><code class="ref-definition">description</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
-<dd>
-<p>Parameter description.</p>
-</dd>
-<dt><code class="ref-definition">default</code> <span class="element-type"><span class="element-type-name">Any</span></span></dt>
-<dd>
-<p>Default value for parameter.</p>
-</dd>
-<dt><code class="ref-definition">enum</code> <span class="element-type">list[<span class="element-type-name">Any</span>] | <span class="element-type-name">None</span></span></dt>
-<dd>
-<p>Valid values for enum parameters.</p>
-</dd>
-<dt><code class="ref-definition">items</code> <span class="element-type"><span class="element-type-name">Optional</span>[<span class="element-type-name"><a href="../reference/inspect_ai.tool.html#toolparam">ToolParam</a></span>]</span></dt>
-<dd>
-<p>Valid type for array parameters.</p>
-</dd>
-<dt><code class="ref-definition">properties</code> <span class="element-type">dict[<span class="element-type-name">str</span>, <span class="element-type-name"><a href="../reference/inspect_ai.tool.html#toolparam">ToolParam</a></span>] | <span class="element-type-name">None</span></span></dt>
-<dd>
-<p>Valid fields for object parametrs.</p>
-</dd>
-<dt><code class="ref-definition">additionalProperties</code> <span class="element-type"><span class="element-type-name">Optional</span>[<span class="element-type-name"><a href="../reference/inspect_ai.tool.html#toolparam">ToolParam</a></span>] | <span class="element-type-name">bool</span> | <span class="element-type-name">None</span></span></dt>
-<dd>
-<p>Are additional properties allowed?</p>
-</dd>
-<dt><code class="ref-definition">anyOf</code> <span class="element-type">list[<span class="element-type-name"><a href="../reference/inspect_ai.tool.html#toolparam">ToolParam</a></span>] | <span class="element-type-name">None</span></span></dt>
-<dd>
-<p>Valid types for union parameters.</p>
-</dd>
-<dt><code class="ref-definition">required</code> <span class="element-type">list[<span class="element-type-name">str</span>] | <span class="element-type-name">None</span></span></dt>
-<dd>
-<p>Required fields for object parameters.</p>
-</dd>
-</dl>
-</section>
-</section>
-<section id="jsontype" class="level3">
-<h3 class="anchored" data-anchor-id="jsontype">JSONType</h3>
-<p>Validate types within JSON schema.</p>
-<div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/d4ed881af92c3d8620a36309fcc6a919338545b5/src/inspect_ai/tool/_tool_params.py#L9">Source</a>
-</div>
-<div class="sourceCode" id="cb23"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a>JSONType <span class="op">=</span> Literal[<span class="st">"string"</span>, <span class="st">"integer"</span>, <span class="st">"number"</span>, <span class="st">"boolean"</span>, <span class="st">"array"</span>, <span class="st">"object"</span>, <span class="st">"null"</span>]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb22"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a>ToolParam: TypeAlias <span class="op">=</span> JSONSchema</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
 </section>
 <section id="decorator" class="level2">
@@ -2156,17 +2124,17 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="tool-1">tool</h3>
 <p>Decorator for registering tools.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/d4ed881af92c3d8620a36309fcc6a919338545b5/src/inspect_ai/tool/_tool.py#L148">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/731c01a2245c57feb8d6704ebb1703e002873ed9/src/inspect_ai/tool/_tool.py#L148">Source</a>
 </div>
-<div class="sourceCode" id="cb24"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> tool(</span>
-<span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a>    func: Callable[P, Tool] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb24-3"><a href="#cb24-3" aria-hidden="true" tabindex="-1"></a>    <span class="op">*</span>,</span>
-<span id="cb24-4"><a href="#cb24-4" aria-hidden="true" tabindex="-1"></a>    name: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb24-5"><a href="#cb24-5" aria-hidden="true" tabindex="-1"></a>    viewer: ToolCallViewer <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb24-6"><a href="#cb24-6" aria-hidden="true" tabindex="-1"></a>    model_input: ToolCallModelInput <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb24-7"><a href="#cb24-7" aria-hidden="true" tabindex="-1"></a>    parallel: <span class="bu">bool</span> <span class="op">=</span> <span class="va">True</span>,</span>
-<span id="cb24-8"><a href="#cb24-8" aria-hidden="true" tabindex="-1"></a>    prompt: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb24-9"><a href="#cb24-9" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> Callable[P, Tool] <span class="op">|</span> Callable[[Callable[P, Tool]], Callable[P, Tool]]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb23"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> tool(</span>
+<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a>    func: Callable[P, Tool] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a>    <span class="op">*</span>,</span>
+<span id="cb23-4"><a href="#cb23-4" aria-hidden="true" tabindex="-1"></a>    name: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb23-5"><a href="#cb23-5" aria-hidden="true" tabindex="-1"></a>    viewer: ToolCallViewer <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb23-6"><a href="#cb23-6" aria-hidden="true" tabindex="-1"></a>    model_input: ToolCallModelInput <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb23-7"><a href="#cb23-7" aria-hidden="true" tabindex="-1"></a>    parallel: <span class="bu">bool</span> <span class="op">=</span> <span class="va">True</span>,</span>
+<span id="cb23-8"><a href="#cb23-8" aria-hidden="true" tabindex="-1"></a>    prompt: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb23-9"><a href="#cb23-9" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> Callable[P, Tool] <span class="op">|</span> Callable[[Callable[P, Tool]], Callable[P, Tool]]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <dl>
 <dt><code class="ref-definition">func</code> <span class="element-type"><span class="element-type-name">Callable</span>[<span class="element-type-name">P</span>, <span class="element-type-name"><a href="../reference/inspect_ai.tool.html#tool">Tool</a></span>] | <span class="element-type-name">None</span></span></dt>
 <dd>
@@ -2195,12 +2163,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </dl>
 <section class="level4">
 <h4 class="anchored" data-anchor-id="">Examples</h4>
-<div class="sourceCode" id="cb25"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="at">@tool</span></span>
-<span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> add() <span class="op">-&gt;</span> Tool:</span>
-<span id="cb25-3"><a href="#cb25-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> execute(x: <span class="bu">int</span>, y: <span class="bu">int</span>) <span class="op">-&gt;</span> <span class="bu">int</span>:</span>
-<span id="cb25-4"><a href="#cb25-4" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> x <span class="op">+</span> y</span>
-<span id="cb25-5"><a href="#cb25-5" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb25-6"><a href="#cb25-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> execute</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb24"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="at">@tool</span></span>
+<span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> add() <span class="op">-&gt;</span> Tool:</span>
+<span id="cb24-3"><a href="#cb24-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> execute(x: <span class="bu">int</span>, y: <span class="bu">int</span>) <span class="op">-&gt;</span> <span class="bu">int</span>:</span>
+<span id="cb24-4"><a href="#cb24-4" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> x <span class="op">+</span> y</span>
+<span id="cb24-5"><a href="#cb24-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-6"><a href="#cb24-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> execute</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 
 
 </section>

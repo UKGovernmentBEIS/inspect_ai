@@ -301,6 +301,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
  <span class="menu-text">Reasoning</span></a>
   </div>
 </li>
+          <li class="sidebar-item">
+ <span class="menu-text">structrued.qmd</span>
+  </li>
       </ul>
   </li>
         <li class="sidebar-item sidebar-item-section">
@@ -642,22 +645,26 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <td>Values: <code>none</code>, <code>all</code>, <code>last</code>, or <code>auto</code>. Include reasoning in chat message history sent to generate (defaults to “auto”, which uses the recommended default for each provider)</td>
 </tr>
 <tr class="odd">
+<td><code>--response-format</code></td>
+<td>JSON schema for desired response format (output should still be validated). OpenAI, Google, and Mistral only.</td>
+</tr>
+<tr class="even">
 <td><code>--parallel-tool-calls</code></td>
 <td>Whether to enable calling multiple functions during tool use (defaults to True) OpenAI and Groq only.</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--max-tool-output</code></td>
 <td>Maximum size of tool output (in bytes). Defaults to 16 * 1024.</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--internal-tools</code></td>
 <td>Whether to automatically map tools to model internal implementations (e.g.&nbsp;‘computer’ for Anthropic).</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--max-retries</code></td>
 <td>Maximum number of times to retry generate request (defaults to unlimited)</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--timeout</code></td>
 <td>Generate timeout in seconds (defaults to no timeout)</td>
 </tr>

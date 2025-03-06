@@ -11,6 +11,8 @@
 
 ### GenerateConfigArgs
 
+### ResponseSchema
+
 ### ModelOutput
 
 ### ModelUsage

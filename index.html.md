@@ -274,6 +274,9 @@ These sections cover how to use varoius language models with Inspect:
 - [Reasoning](reasoning.qmd) documents the additional options and data
   available for reasoning models.
 
+- [Structured Output](structured.qmd) explains how to constrain model
+  output to a particular JSON schema.
+
 These sections describe how to create agent evaluations with Inspect:
 
 - [Agents](agents.qmd) combine planning, memory, and tool usage to

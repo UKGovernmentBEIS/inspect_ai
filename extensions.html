@@ -300,6 +300,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
  <span class="menu-text">Reasoning</span></a>
   </div>
 </li>
+          <li class="sidebar-item">
+ <span class="menu-text">structrued.qmd</span>
+  </li>
       </ul>
   </li>
         <li class="sidebar-item sidebar-item-section">
@@ -648,39 +651,44 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </thead>
 <tbody>
 <tr class="odd">
+<td><code>default_concurrency()</code></td>
+<td>Called once to determine the default maximum number of sandboxes to run in parallel. Return <code>None</code> for no limit (the default behaviour).</td>
+<td></td>
+</tr>
+<tr class="even">
+<td><code>task_init()</code></td>
+<td>Called once for each unique sandbox environment config before executing the tasks in an <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span> run.</td>
+<td>Expensive initialisation operations (e.g.&nbsp;pulling or building images)</td>
+</tr>
+<tr class="odd">
+<td><code>sample_init()</code></td>
+<td>Called at the beginning of each <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.dataset.html#sample">Sample</a></span>.</td>
+<td>Create <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#sandboxenvironment">SandboxEnvironment</a></span> instances for the sample.</td>
+</tr>
+<tr class="even">
+<td><code>sample_cleanup()</code></td>
+<td>Called at the end of each <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.dataset.html#sample">Sample</a></span></td>
+<td>Cleanup <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#sandboxenvironment">SandboxEnvironment</a></span> instances for the sample.</td>
+</tr>
+<tr class="odd">
+<td><code>task_cleanup()</code></td>
+<td>Called once for each unique sandbox environment config after executing the tasks in an <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span> run.</td>
+<td>Last chance handler for any resources not yet cleaned up (see also discussion below).</td>
+</tr>
+<tr class="even">
+<td><code>cli_cleanup()</code></td>
+<td>Called via <code>inspect sandbox cleanup</code></td>
+<td>CLI invoked manual cleanup of resources created by this <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#sandboxenvironment">SandboxEnvironment</a></span>.</td>
+</tr>
+<tr class="odd">
 <td><code>config_files()</code></td>
 <td>Called once to determine the names of ‘default’ config files for this provider (e.g.&nbsp;‘compose.yaml’).</td>
 <td></td>
 </tr>
 <tr class="even">
-<td><code>default_concurrency()</code></td>
-<td>Called once to determine the default maximum number of sandboxes to run in parallel. Return <code>None</code> for no limit (the default behavior).</td>
-<td></td>
-</tr>
-<tr class="odd">
-<td><code>task_init()</code></td>
-<td>Called once for each unique sandbox environment config before executing the tasks in an <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span> run.</td>
-<td>Expensive initialisation operations (e.g.&nbsp;pulling or building images)</td>
-</tr>
-<tr class="even">
-<td><code>sample_init()</code></td>
-<td>Called at the beginning of each <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.dataset.html#sample">Sample</a></span>.</td>
-<td>Create <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#sandboxenvironment">SandboxEnvironment</a></span> instances for the sample.</td>
-</tr>
-<tr class="odd">
-<td><code>sample_cleanup()</code></td>
-<td>Called at the end of each <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.dataset.html#sample">Sample</a></span></td>
-<td>Cleanup <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#sandboxenvironment">SandboxEnvironment</a></span> instances for the sample.</td>
-</tr>
-<tr class="even">
-<td><code>task_cleanup()</code></td>
-<td>Called once for each unique sandbox environment config after executing the tasks in an <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span> run.</td>
-<td>Last chance handler for any resources not yet cleaned up (see also discussion below).</td>
-</tr>
-<tr class="odd">
-<td><code>cli_cleanup()</code></td>
-<td>Called via <code>inspect sandbox cleanup</code></td>
-<td>CLI invoked manual cleanup of resources created by this <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#sandboxenvironment">SandboxEnvironment</a></span>.</td>
+<td><code>config_deserialize()</code></td>
+<td>Called when a custom sandbox config type is read from a log file.</td>
+<td>Only required if a sandbox supports custom config types.</td>
 </tr>
 </tbody>
 </table>

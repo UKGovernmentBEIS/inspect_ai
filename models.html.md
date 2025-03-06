@@ -179,3 +179,6 @@ async with get_model("openai/gpt-4o") as model:
 
 - [Reasoning](reasoning.qmd) documents the additional options and data
   available for reasoning models.
+
+- [Structured Output](structured.qmd) explains how to constrain model
+  output to a particular JSON schema.

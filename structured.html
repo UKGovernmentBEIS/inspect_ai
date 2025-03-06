@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 
-<title>Inspect - Reasoning</title>
+<title>Inspect - Structured Outputs</title>
 <style>
 code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
@@ -64,8 +64,6 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="site_libs/quarto-search/fuse.min.js"></script>
 <script src="site_libs/quarto-search/quarto-search.js"></script>
 <meta name="quarto:offset" content="./">
-<link href="./agents.html" rel="next">
-<link href="./multimodal.html" rel="prev">
 <script src="site_libs/quarto-html/quarto.js"></script>
 <script src="site_libs/quarto-html/popper.min.js"></script>
 <script src="site_libs/quarto-html/tippy.umd.min.js"></script>
@@ -118,7 +116,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <meta name="twitter:image-width" content="2400">
 </head>
 
-<body class="nav-sidebar docked nav-fixed">
+<body class="nav-fixed">
 
 <div id="quarto-search-results"></div>
   <header id="quarto-header" class="headroom fixed-top">
@@ -139,7 +137,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
           <div class="collapse navbar-collapse" id="navbarCollapse">
             <ul class="navbar-nav navbar-nav-scroll me-auto">
   <li class="nav-item">
-    <a class="nav-link active" href="./index.html" aria-current="page"> 
+    <a class="nav-link" href="./index.html"> 
 <span class="menu-text">User Guide</span></a>
   </li>  
   <li class="nav-item">
@@ -163,259 +161,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </div>
       </div> <!-- /container-fluid -->
     </nav>
-  <nav class="quarto-secondary-nav">
-    <div class="container-fluid d-flex">
-      <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
-        <i class="bi bi-layout-text-sidebar-reverse"></i>
-      </button>
-        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./models.html">Models</a></li><li class="breadcrumb-item"><a href="./reasoning.html">Reasoning</a></li></ol></nav>
-        <a class="flex-grow-1" role="button" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
-        </a>
-    </div>
-  </nav>
 </header>
 <!-- content -->
 <div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article page-navbar">
 <!-- sidebar -->
-  <nav id="quarto-sidebar" class="sidebar collapse collapse-horizontal quarto-sidebar-collapse-item sidebar-navigation docked overflow-auto">
-    <div class="sidebar-menu-container"> 
-    <ul class="list-unstyled mt-1">
-        <li class="sidebar-item sidebar-item-section">
-      <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" aria-expanded="true">
- <span class="menu-text">Basics</span></a>
-          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" aria-expanded="true" aria-label="Toggle section">
-            <i class="bi bi-chevron-right ms-2"></i>
-          </a> 
-      </div>
-      <ul id="quarto-sidebar-section-1" class="collapse list-unstyled sidebar-section depth1 show">  
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="./index.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Welcome</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="./tutorial.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Tutorial</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="./options.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Options</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="./log-viewer.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Log Viewer</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="./vscode.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">VS Code</span></a>
-  </div>
-</li>
-      </ul>
-  </li>
-        <li class="sidebar-item sidebar-item-section">
-      <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" aria-expanded="true">
- <span class="menu-text">Components</span></a>
-          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" aria-expanded="true" aria-label="Toggle section">
-            <i class="bi bi-chevron-right ms-2"></i>
-          </a> 
-      </div>
-      <ul id="quarto-sidebar-section-2" class="collapse list-unstyled sidebar-section depth1 show">  
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="./tasks.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Tasks</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="./datasets.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Datasets</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="./solvers.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Solvers</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="./tools.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Tools</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="./scorers.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Scorers</span></a>
-  </div>
-</li>
-      </ul>
-  </li>
-        <li class="sidebar-item sidebar-item-section">
-      <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" aria-expanded="true">
- <span class="menu-text">Models</span></a>
-          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" aria-expanded="true" aria-label="Toggle section">
-            <i class="bi bi-chevron-right ms-2"></i>
-          </a> 
-      </div>
-      <ul id="quarto-sidebar-section-3" class="collapse list-unstyled sidebar-section depth1 show">  
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="./models.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Using Models</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="./providers.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Providers</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="./caching.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Caching</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="./multimodal.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Multimodal</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="./reasoning.html" class="sidebar-item-text sidebar-link active">
- <span class="menu-text">Reasoning</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
- <span class="menu-text">structrued.qmd</span>
-  </li>
-      </ul>
-  </li>
-        <li class="sidebar-item sidebar-item-section">
-      <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" aria-expanded="true">
- <span class="menu-text">Agents</span></a>
-          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" aria-expanded="true" aria-label="Toggle section">
-            <i class="bi bi-chevron-right ms-2"></i>
-          </a> 
-      </div>
-      <ul id="quarto-sidebar-section-4" class="collapse list-unstyled sidebar-section depth1 show">  
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="./agents.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Agent Basics</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="./sandboxing.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Sandboxing</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="./agents-api.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Agent API</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="./agent-bridge.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Agent Bridge</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="./human-agent.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Human Agent</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="./approval.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Approval</span></a>
-  </div>
-</li>
-      </ul>
-  </li>
-        <li class="sidebar-item sidebar-item-section">
-      <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" aria-expanded="true">
- <span class="menu-text">Advanced</span></a>
-          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" aria-expanded="true" aria-label="Toggle section">
-            <i class="bi bi-chevron-right ms-2"></i>
-          </a> 
-      </div>
-      <ul id="quarto-sidebar-section-5" class="collapse list-unstyled sidebar-section depth1 show">  
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="./eval-logs.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Eval Logs</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="./eval-sets.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Eval Sets</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="./errors-and-limits.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Errors &amp; Limits</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="./typing.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Typing</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="./tracing.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Tracing</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="./parallelism.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Parallelism</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="./interactivity.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Interactivity</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="./extensions.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Extensions</span></a>
-  </div>
-</li>
-      </ul>
-  </li>
-    </ul>
-    </div>
-</nav>
-<div id="quarto-sidebar-glass" class="quarto-sidebar-collapse-item" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item"></div>
 <!-- margin-sidebar -->
     <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
         <nav id="TOC" role="doc-toc" class="toc-active">
@@ -423,21 +172,17 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
    
   <ul>
   <li><a href="#overview" id="toc-overview" class="nav-link active" data-scroll-target="#overview">Overview</a></li>
-  <li><a href="#reasoning-content" id="toc-reasoning-content" class="nav-link" data-scroll-target="#reasoning-content">Reasoning Content</a></li>
-  <li><a href="#reasoning-options" id="toc-reasoning-options" class="nav-link" data-scroll-target="#reasoning-options">Reasoning Options</a></li>
-  <li><a href="#openai-o1o3" id="toc-openai-o1o3" class="nav-link" data-scroll-target="#openai-o1o3">OpenAI o1/o3</a></li>
-  <li><a href="#claude-3.7-sonnet" id="toc-claude-3.7-sonnet" class="nav-link" data-scroll-target="#claude-3.7-sonnet">Claude 3.7 Sonnet</a></li>
-  <li><a href="#google-flash-thinking" id="toc-google-flash-thinking" class="nav-link" data-scroll-target="#google-flash-thinking">Google Flash Thinking</a></li>
-  <li><a href="#deepseek-r1" id="toc-deepseek-r1" class="nav-link" data-scroll-target="#deepseek-r1">DeepSeek-R1</a></li>
+  <li><a href="#example" id="toc-example" class="nav-link" data-scroll-target="#example">Example</a></li>
+  <li><a href="#schema" id="toc-schema" class="nav-link" data-scroll-target="#schema">Schema</a></li>
   </ul>
 <div class="toc-actions"><ul><li><a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div></nav>
     </div>
 <!-- main -->
 <main class="content" id="quarto-document-content">
 
-<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./models.html">Models</a></li><li class="breadcrumb-item"><a href="./reasoning.html">Reasoning</a></li></ol></nav>
+<header id="title-block-header" class="quarto-title-block default">
 <div class="quarto-title">
-<h1 class="title">Reasoning</h1>
+<h1 class="title">Structured Outputs</h1>
 </div>
 
 
@@ -454,129 +199,119 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </header>
 
 
+<div class="callout callout-style-simple callout-note">
+<div class="callout-body d-flex">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-body-container">
+<p>The structured outputs feature described below is currently available only in the development version of Inspect. To install the development version from GitHub:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install git+https://github.com/UKGovernmentBEIS/inspect_ai</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</div>
+</div>
 <section id="overview" class="level2">
 <h2 class="anchored" data-anchor-id="overview">Overview</h2>
-<p>Reasoning models like OpenAI o1 and o3, Anthropic’s Claude Sonnet 3.7, Google’s Gemini 2.0 Flash Thinking, and DeepSeek’s r1 have some additional options that can be used to tailor their behaviour. They also in some cases make available full or partial reasoning traces for the chains of thought that led to their response.</p>
-<p>In this article we’ll first cover the basics of <a href="#reasoning-content">Reasoning Content</a> and <a href="#reasoning-options">Reasoning Options</a>, then cover the usage and options supported by various reasoning models.</p>
+<p>Structured outputs are a feature supported by some model providers to ensure that models generate responses which adhere to a supplied JSON Schema. Structured outputs are currently supported in Inspect for the OpenAI, Google, and Mistral providers.</p>
+<p>While structured outputs may seem like they could be a robust solution to model unreliability, it’s important to keep in mind that by specifying a JSON schema you are also introducing unknown effects on model task performance. There is even some early literature indicating that <a href="https://dylancastillo.co/posts/say-what-you-mean-sometimes.html">models perform worse with structured outputs</a>.</p>
+<p>You should therefore test the use of structured outputs as an elicitation technique like you would any other, and only proceed if you feel confident that it has made a genuine improvement in your overall task.</p>
 </section>
-<section id="reasoning-content" class="level2">
-<h2 class="anchored" data-anchor-id="reasoning-content">Reasoning Content</h2>
-<p>Many reasoning models allow you to see their underlying chain of thought in a special “thinking” or reasoning block. While reasoning is presented in different ways depending on the model, in the Inspect API it is normalised into <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#contentreasoning">ContentReasoning</a></span> blocks which are parallel to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#contenttext">ContentText</a></span>, <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#contentimage">ContentImage</a></span>, etc.</p>
-<p>Reasoning blocks are presented in their own region in both Inspect View and in terminal conversation views.</p>
-<p>While reasoning content isn’t made available in a standard fashion across models, Inspect does attempt to capture it using several heuristics, including responses that include a <code>reasoning</code> or <code>reasoning_content</code> field in the assistant message, assistant content that includes <code>&lt;think&gt;&lt;/think&gt;</code> tags, as well as using explicit APIs for models that support them (e.g.&nbsp;Claude 3.7).</p>
+<section id="example" class="level2">
+<h2 class="anchored" data-anchor-id="example">Example</h2>
+<p>Below we’ll walk through a simple example of using structured output to constrain model output to a <code>Color</code> type that provides red, green, and blue components. If you want to experiment with it further, see the <a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/examples/structured.py">source code</a> in the Inspect GitHub repository.</p>
+<p>Imagine first that we have the following dataset:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.dataset <span class="im">import</span> Sample</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>colors_dataset<span class="op">=</span>[</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>    Sample(</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>        <span class="bu">input</span><span class="op">=</span><span class="st">"What is the RGB color for white?"</span>,</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>        target<span class="op">=</span><span class="st">"255,255,255"</span>,</span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>    ),</span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>    Sample(</span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>        <span class="bu">input</span><span class="op">=</span><span class="st">"What is the RGB color for black?"</span>,</span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>        target<span class="op">=</span><span class="st">"0,0,0"</span>,</span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>    ),</span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>We want the model to give us the RGB values for the colors, but it might choose to output these colors in a wide variety of formats—parsing these formats in our scorer could be laborious and error prone.</p>
+<p>Here we define a <a href="https://docs.pydantic.dev/">Pydantic</a> <code>Color</code> type that we’d like to get back from the model:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pydantic <span class="im">import</span> BaseModel</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Color(BaseModel):</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>    red: <span class="bu">int</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>    green: <span class="bu">int</span></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>    blue: <span class="bu">int</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>To instruct the model to return output in this type, we use the <code>response_schema</code> generate config option, using the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#json_schema">json_schema()</a></span> function to produce a schema for our type. Here is complete task definition which uses the dataset and color type from above:</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> Task, task</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.model <span class="im">import</span> GenerateConfig, ResponseSchema</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.solver <span class="im">import</span> generate</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.util <span class="im">import</span> json_schema</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a><span class="at">@task</span></span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> rgb_color():</span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> Task(</span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>        dataset<span class="op">=</span>colors_dataset,</span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>        solver<span class="op">=</span>generate(),</span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>        scorer<span class="op">=</span>score_color(),</span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a>        config<span class="op">=</span>GenerateConfig(</span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a>            response_schema<span class="op">=</span>ResponseSchema(</span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a>              name<span class="op">=</span><span class="st">"color"</span>, </span>
+<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a>              json_schema<span class="op">=</span>json_schema(Color)</span>
+<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a>            )</span>
+<span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a>        ),</span>
+<span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a>    )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>We use the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#json_schema">json_schema()</a></span> function to create a JSON schema for our <code>Color</code> type, then wrap that in a <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#responseschema">ResponseSchema</a></span> where we also assign it a name.</p>
+<p>You’ll also notice that we have specified a custom scorer. We need this to both parse and evaluate our custom type (as models still return JSON output as a string). Here is the scorer:</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.scorer <span class="im">import</span> (</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>    CORRECT,</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>    INCORRECT,</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>    Score,</span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>    Target,</span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>    accuracy,</span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>    scorer,</span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>    stderr,</span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.solver <span class="im">import</span> TaskState</span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a><span class="at">@scorer</span>(metrics<span class="op">=</span>[accuracy(), stderr()])</span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> score_color():</span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> score(state: TaskState, target: Target):</span>
+<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a>        <span class="cf">try</span>:</span>
+<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a>            color <span class="op">=</span> Color.model_validate_json(state.output.completion)</span>
+<span id="cb5-17"><a href="#cb5-17" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> <span class="ss">f"</span><span class="sc">{</span>color<span class="sc">.</span>red<span class="sc">}</span><span class="ss">,</span><span class="sc">{</span>color<span class="sc">.</span>green<span class="sc">}</span><span class="ss">,</span><span class="sc">{</span>color<span class="sc">.</span>blue<span class="sc">}</span><span class="ss">"</span> <span class="op">==</span> target.text:</span>
+<span id="cb5-18"><a href="#cb5-18" aria-hidden="true" tabindex="-1"></a>                value <span class="op">=</span> CORRECT</span>
+<span id="cb5-19"><a href="#cb5-19" aria-hidden="true" tabindex="-1"></a>            <span class="cf">else</span>:</span>
+<span id="cb5-20"><a href="#cb5-20" aria-hidden="true" tabindex="-1"></a>                value <span class="op">=</span> INCORRECT</span>
+<span id="cb5-21"><a href="#cb5-21" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span> Score(</span>
+<span id="cb5-22"><a href="#cb5-22" aria-hidden="true" tabindex="-1"></a>                value<span class="op">=</span>value,</span>
+<span id="cb5-23"><a href="#cb5-23" aria-hidden="true" tabindex="-1"></a>                answer<span class="op">=</span>state.output.completion,</span>
+<span id="cb5-24"><a href="#cb5-24" aria-hidden="true" tabindex="-1"></a>            )</span>
+<span id="cb5-25"><a href="#cb5-25" aria-hidden="true" tabindex="-1"></a>        <span class="cf">except</span> ValidationError <span class="im">as</span> ex:</span>
+<span id="cb5-26"><a href="#cb5-26" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span> Score(</span>
+<span id="cb5-27"><a href="#cb5-27" aria-hidden="true" tabindex="-1"></a>                value<span class="op">=</span>INCORRECT,</span>
+<span id="cb5-28"><a href="#cb5-28" aria-hidden="true" tabindex="-1"></a>                answer<span class="op">=</span>state.output.completion,</span>
+<span id="cb5-29"><a href="#cb5-29" aria-hidden="true" tabindex="-1"></a>                explanation<span class="op">=</span><span class="ss">f"Error parsing response: </span><span class="sc">{</span>ex<span class="sc">}</span><span class="ss">"</span>,</span>
+<span id="cb5-30"><a href="#cb5-30" aria-hidden="true" tabindex="-1"></a>            )</span>
+<span id="cb5-31"><a href="#cb5-31" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-32"><a href="#cb5-32" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> score</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>The Pydantic <code>Color</code> type has a convenient <code>model_validate_json()</code> method which we can use to read the model’s output (being sure to catch the <code>ValidationError</code> if the model produces incorrect output).</p>
 </section>
-<section id="reasoning-options" class="level2">
-<h2 class="anchored" data-anchor-id="reasoning-options">Reasoning Options</h2>
-<p>The following reasoning options are available from the CLI and within <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#generateconfig">GenerateConfig</a></span>:</p>
-<table class="caption-top table">
-<colgroup>
-<col style="width: 24%">
-<col style="width: 27%">
-<col style="width: 24%">
-<col style="width: 24%">
-</colgroup>
-<thead>
-<tr class="header">
-<th>Option</th>
-<th>Description</th>
-<th>Default</th>
-<th>Models</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td><code>reasoning_effort</code></td>
-<td>Constrains effort on reasoning for reasoning models (<code>low</code>, <code>medium</code>, or <code>high</code>)</td>
-<td><code>medium</code></td>
-<td>OpenAI o1/o3</td>
-</tr>
-<tr class="even">
-<td><code>reasoning_tokens</code></td>
-<td>Maximum number of tokens to use for reasoning.</td>
-<td>(none)</td>
-<td>Claude 3.7</td>
-</tr>
-<tr class="odd">
-<td><code>reasoning_history</code></td>
-<td>Include reasoning in message history sent to model (<code>none</code>, <code>all</code>, <code>last</code>, or <code>auto</code>)</td>
-<td><code>auto</code></td>
-<td>All models</td>
-</tr>
-</tbody>
-</table>
-<p>As you can see from above, models have different means of specifying the tokens to allocate for reasoning (<code>reasoning_effort</code> and <code>reasoning_tokens</code>). The two options don’t map precisely into each other, so if you are doing an evaluation with multiple reasoning models you should specify both. For example:</p>
-<div class="sourceCode" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a> <span class="bu">eval</span>(</span>
-<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    task,</span>
-<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    model<span class="op">=</span>[<span class="st">"openai/o3-mini"</span>,<span class="st">"anthropic/anthropic/claude-3-7-sonnet-20250219"</span>],</span>
-<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>    reasoning_effort<span class="op">=</span><span class="st">"medium"</span>,</span>
-<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    reasoning_tokens<span class="op">=</span><span class="dv">4096</span></span>
-<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a> )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>The <code>reasoning_history</code> option lets you control how much of the model’s previous reasoning is presented in the message history sent to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#generate">generate()</a></span>. The default is <code>auto</code>, which uses a provider-specific recommended default (normally <code>all</code>). Use <code>last</code> to not let the reasoning overwhelm the context window.</p>
-</section>
-<section id="openai-o1o3" class="level2">
-<h2 class="anchored" data-anchor-id="openai-o1o3">OpenAI o1/o3</h2>
-<p>OpenAI has several reasoning models available including the o1 and o3 series (<code>openai/o1</code>, <code>openai/o1-mini</code>, and <code>openai/o3-mini</code>). Learn more about the specific models available in the <a href="https://platform.openai.com/docs/models">OpenAI Models</a> documentation.</p>
-<p>You can condition the amount of reasoning done via the <a href="https://platform.openai.com/docs/guides/reasoning#reasoning-effort"><code>reasoning_effort</code></a> option, which can be set to <code>low</code>, <code>medium</code>, or <code>high</code> (the default is <code>medium</code> if not specified).</p>
-<p>OpenAI models currently do not have provision for displaying reasoning content or replaying it to the model.</p>
-</section>
-<section id="claude-3.7-sonnet" class="level2">
-<h2 class="anchored" data-anchor-id="claude-3.7-sonnet">Claude 3.7 Sonnet</h2>
-<p>Anthropic’s Claude 3.7 Sonnet model includes optional support for <a href="https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking">extended thinking</a>. Unlike other reasoning models 3.7 Sonnet is a hybrid model that supports both normal and reasoning modes. This means that you need to explicitly request reasoning by specifying the <code>reasoning_tokens</code> option, for example:</p>
-<div class="sourceCode" id="cb2"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval math.py <span class="dt">\</span></span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">--model</span> anthropic/claude-3-7-sonnet-latest <span class="dt">\</span></span>
-<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">--reasoning-tokens</span> 4096</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<section id="tokens" class="level4">
-<h4 class="anchored" data-anchor-id="tokens">Tokens</h4>
-<p>The <code>max_tokens</code> for any given request is determined as follows:</p>
-<ol type="1">
-<li>If you only specify <code>reasoning_tokens</code>, then the <code>max_tokens</code> will be set to <code>4096 + reasoning_tokens</code> (as 4096 is the standard Inspect default for Anthropic max tokens).</li>
-<li>If you explicitly specify a <code>max_tokens</code>, that value will be used as the max tokens without modification (so should accomodate sufficient space for both your <code>reasoning_tokens</code> and normal output).</li>
-</ol>
-<p>Inspect will automatically use <a href="https://docs.anthropic.com/en/api/messages-streaming">response streaming</a> whenever extended thinking is enabled to mitigate against networking issue that can occur for long running requests.</p>
-</section>
-<section id="history" class="level4">
-<h4 class="anchored" data-anchor-id="history">History</h4>
-<p>Note that Anthropic requests that all reasoning blocks and played back to the model in chat conversations (although they will only use the last reasoning block and will not bill for tokens on previous ones). Consquently, the <code>reasoning_history</code> option has no effect for Claude 3.7 models (it effectively always uses <code>last</code>).</p>
-</section>
-<section id="tools" class="level4">
-<h4 class="anchored" data-anchor-id="tools">Tools</h4>
-<p>When using tools, you should read Anthropic’s documentation on <a href="https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking#extended-thinking-with-tool-use">extended thinking with tool use</a>. In short, thinking occurs on the first assistant turn and then the normal tool loop is run without additional thinking. Thinking is re-triggered when the tool loop is exited (i.e.&nbsp;a user message without a tool result is received).</p>
-</section>
-</section>
-<section id="google-flash-thinking" class="level2">
-<h2 class="anchored" data-anchor-id="google-flash-thinking">Google Flash Thinking</h2>
-<p>Google currently makes available a single experimental reasoning model (<a href="https://deepmind.google/technologies/gemini/flash-thinking/">Gemini Flash Thinking</a>) which you can access using the model name <code>google/gemini-2.0-flash-thinking-exp</code>.</p>
-<p>There aren’t currently options for reasoning effort or reasoning tokens. By default Gemini currently includes all reasoning in the model history and recommends that it all be included in subsequent requests in a conversation.</p>
-<p>Inspect captures reasoning blocks from Gemini using the “Final Answer:” delimiter currently used by Gemini 2.0 Flash Thinking (the API has a separate field for `thinking` but it is not currently used in responses).</p>
-</section>
-<section id="deepseek-r1" class="level2">
-<h2 class="anchored" data-anchor-id="deepseek-r1">DeepSeek-R1</h2>
-<p><a href="https://github.com/deepseek-ai/DeepSeek-R1">DeepSeek-R1</a> is an open-weights reasoning model from DeepSeek. It is generally available either in its original form or as a distillation of R1 based on another open weights model (e.g.&nbsp;Qwen or Llama-based models).</p>
-<p>DeepSeek models can be accessed directly using their <a href="https://api-docs.deepseek.com/">OpenAI interface</a>. Further, a number of model hosting providers supported by Inspect make DeepSeek available, for example:</p>
-<table class="caption-top table">
-<thead>
-<tr class="header">
-<th>Provider</th>
-<th>Model</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td><a href="./providers.html#together-ai">Together AI</a></td>
-<td><code>together/deepseek-ai/DeepSeek-R1</code> (<a href="https://www.together.ai/models/deepseek-r1">docs</a>)</td>
-</tr>
-<tr class="even">
-<td><a href="./providers.html#groq">Groq</a></td>
-<td><code>groq/deepseek-r1-distill-llama-70b</code> (<a href="https://console.groq.com/docs/reasoning">docs</a>)</td>
-</tr>
-<tr class="odd">
-<td><a href="./providers.html#ollama">Ollama</a></td>
-<td><code>ollama/deepseek-r1:&lt;tag&gt;</code> (<a href="https://ollama.com/library/deepseek-r1">docs</a>)</td>
-</tr>
-</tbody>
-</table>
-<p>There isn’t currently a way to customise the <code>reasoning_effort</code> of DeepSeek models, although they have indicated that this will be <a href="https://api-docs.deepseek.com/guides/reasoning_model">available soon</a>.</p>
-<p>Reasoning content from DeepSeek models is captured using either the <code>reasoning_content</code> field made available by the hosted DeepSeek API or the <code>&lt;think&gt;</code> tags used by various hosting providers.</p>
+<section id="schema" class="level2">
+<h2 class="anchored" data-anchor-id="schema">Schema</h2>
+<p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#json_schema">json_schema()</a></span> function supports creating schemas for any Python type including Pydantic models, dataclasses, and typed dicts. That said, Pydantic models are highly recommended as they provide additional parsing and validation which is generally required for scorers.</p>
+<p>The <code>response_schema</code> generation config option takes a <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#responseschema">ResponseSchema</a></span> object which includes the schema and some additional fields:</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.model <span class="im">import</span> ResponseSchema</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.util <span class="im">import</span> json_schema</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>config <span class="op">=</span> GenerateConfig(</span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>  response_schema<span class="op">=</span>ResponseSchema(</span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>    name<span class="op">=</span><span class="st">"color"</span>,                   <span class="co"># required name field </span></span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>    json_schema<span class="op">=</span>json_schema(Color), <span class="co"># schema for custom type</span></span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>    description<span class="op">=</span><span class="st">"description"</span>,      <span class="co"># optional field with more context</span></span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>    strict<span class="op">=</span><span class="va">False</span>                    <span class="co"># force model to adhere to schema</span></span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a>  )</span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Note that not all model providers support all of these options. In particular, only the Mistral and OpenAI providers support the <code>name</code>, <code>description</code>, and <code>strict</code> fields (the Google provider takes the <code>json_schema</code> only).</p>
+<p>You should therefore never assume that specifying <code>strict</code> gets your scorer off the hook for parsing and validating the model output as some models won’t respect <code>strict</code>. Using <code>strict</code> may also impact task performance—as always it’s best to experiment and measure!</p>
 
 
 </section>
@@ -1032,18 +767,6 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
   }
 });
 </script>
-<nav class="page-navigation">
-  <div class="nav-page nav-page-previous">
-      <a href="./multimodal.html" class="pagination-link" aria-label="Multimodal">
-        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">Multimodal</span>
-      </a>          
-  </div>
-  <div class="nav-page nav-page-next">
-      <a href="./agents.html" class="pagination-link" aria-label="Agent Basics">
-        <span class="nav-page-text">Agent Basics</span> <i class="bi bi-arrow-right-short"></i>
-      </a>
-  </div>
-</nav>
 </div> <!-- /content -->
 <footer class="footer">
   <div class="nav-footer">

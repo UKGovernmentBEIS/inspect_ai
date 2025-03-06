@@ -31,7 +31,7 @@ ul.task-list li input[type="checkbox"] {
 <script src="../site_libs/quarto-search/quarto-search.js"></script>
 <meta name="quarto:offset" content="../">
 <link href="../reference/inspect_eval-retry.html" rel="next">
-<link href="../reference/inspect_ai.util.qmd#sandboxenv" rel="prev">
+<link href="../reference/inspect_ai.util.qmd#json_schema" rel="prev">
 <script src="../site_libs/quarto-html/quarto.js"></script>
 <script src="../site_libs/quarto-html/popper.min.js"></script>
 <script src="../site_libs/quarto-html/tippy.umd.min.js"></script>
@@ -464,12 +464,6 @@ ul.task-list li input[type="checkbox"] {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.tool.html#jsontype" class="sidebar-item-text sidebar-link">
- <span class="menu-text">JSONType</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.tool.html#tool" class="sidebar-item-text sidebar-link">
  <span class="menu-text">tool</span></a>
   </div>
@@ -710,6 +704,12 @@ ul.task-list li input[type="checkbox"] {
   <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.model.html#generateconfigargs" class="sidebar-item-text sidebar-link">
  <span class="menu-text">GenerateConfigArgs</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#responseschema" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ResponseSchema</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -1434,6 +1434,24 @@ ul.task-list li input[type="checkbox"] {
  <span class="menu-text">sandboxenv</span></a>
   </div>
 </li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#jsontype" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">JSONType</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#jsonschema" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">JSONSchema</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#json_schema" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">json_schema</span></a>
+  </div>
+</li>
       </ul>
   </li>
       </ul>
@@ -1907,54 +1925,60 @@ ul.task-list li input[type="checkbox"] {
 <td>None</td>
 </tr>
 <tr class="odd">
+<td><code>--response-schema</code></td>
+<td>text</td>
+<td>JSON schema for desired response format (output should still be validated). OpenAI, Google, and Mistral only.</td>
+<td>None</td>
+</tr>
+<tr class="even">
 <td><code>--log-format</code></td>
 <td>choice (<code>eval</code> | <code>json</code>)</td>
 <td>Format for writing log files.</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--log-level-transcript</code></td>
 <td>choice (<code>debug</code> | <code>trace</code> | <code>http</code> | <code>info</code> | <code>warning</code> | <code>error</code> | <code>critical</code>)</td>
 <td>Set the log level of the transcript (defaults to ‘info’)</td>
 <td><code>info</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--log-level</code></td>
 <td>choice (<code>debug</code> | <code>trace</code> | <code>http</code> | <code>info</code> | <code>warning</code> | <code>error</code> | <code>critical</code>)</td>
 <td>Set the log level (defaults to ‘warning’)</td>
 <td><code>warning</code></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--log-dir</code></td>
 <td>text</td>
 <td>Directory for log files.</td>
 <td><code>./logs</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--display</code></td>
 <td>choice (<code>full</code> | <code>conversation</code> | <code>rich</code> | <code>plain</code> | <code>none</code>)</td>
 <td>Set the display type (defaults to ‘full’)</td>
 <td><code>full</code></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--debug</code></td>
 <td>boolean</td>
 <td>Wait to attach debugger</td>
 <td><code>False</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--debug-port</code></td>
 <td>integer</td>
 <td>Port number for debugger</td>
 <td><code>5678</code></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--debug-errors</code></td>
 <td>boolean</td>
 <td>Raise task errors (rather than logging them) so they can be debugged.</td>
 <td><code>False</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--help</code></td>
 <td>boolean</td>
 <td>Show this message and exit.</td>
@@ -2417,8 +2441,8 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
 </script>
 <nav class="page-navigation">
   <div class="nav-page nav-page-previous">
-      <a href="../reference/inspect_ai.util.html#sandboxenv" class="pagination-link" aria-label="sandboxenv">
-        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">sandboxenv</span>
+      <a href="../reference/inspect_ai.util.html#json_schema" class="pagination-link" aria-label="json_schema">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">json_schema</span>
       </a>          
   </div>
   <div class="nav-page nav-page-next">
