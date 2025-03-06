@@ -1094,6 +1094,7 @@ def tool_result_images_reducer(
             messages
             + [
                 ChatMessageTool(
+                    id=message.id,
                     content=edited_tool_message_content,
                     tool_call_id=message.tool_call_id,
                     function=message.function,
@@ -1200,13 +1201,13 @@ def combine_messages(
     a: ChatMessage, b: ChatMessage, message_type: Type[ChatMessage]
 ) -> ChatMessage:
     if isinstance(a.content, str) and isinstance(b.content, str):
-        return message_type(content=f"{a.content}\n{b.content}")
+        return message_type(id=a.id, content=f"{a.content}\n{b.content}")
     elif isinstance(a.content, list) and isinstance(b.content, list):
-        return message_type(content=a.content + b.content)
+        return message_type(id=a.id, content=a.content + b.content)
     elif isinstance(a.content, str) and isinstance(b.content, list):
-        return message_type(content=[ContentText(text=a.content), *b.content])
+        return message_type(id=a.id, content=[ContentText(text=a.content), *b.content])
     elif isinstance(a.content, list) and isinstance(b.content, str):
-        return message_type(content=a.content + [ContentText(text=b.content)])
+        return message_type(id=a.id, content=a.content + [ContentText(text=b.content)])
     else:
         raise TypeError(
             f"Cannot combine messages with invalid content types: {a.content!r}, {b.content!r}"

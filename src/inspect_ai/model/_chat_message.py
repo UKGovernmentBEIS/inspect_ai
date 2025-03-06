@@ -2,6 +2,7 @@ from logging import getLogger
 from typing import Any, Literal, Type, Union
 
 from pydantic import BaseModel, Field, model_validator
+from shortuuid import uuid
 
 from inspect_ai._util.content import Content, ContentReasoning, ContentText
 from inspect_ai.tool import ToolCall
@@ -14,6 +15,9 @@ logger = getLogger(__name__)
 
 class ChatMessageBase(BaseModel):
     """Base class for chat messages."""
+
+    id: str = Field(default_factory=uuid)
+    """Unique identifer for message."""
 
     content: str | list[Content]
     """Content (simple string or list of content objects)"""

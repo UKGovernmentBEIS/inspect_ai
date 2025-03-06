@@ -6,6 +6,7 @@
 - New `inspect trace http` command which will show all HTTP requests for a run.
 - More consistent use of `max_retries` and `timeout` configuration options. These options now exclusively control Inspect's outer retry handler; model providers use their default behaviour for the inner request, which is typically 2-4 retries and a service-appropriate timeout.
 - Improved async implementation using AnyIO (can now optionally run Trio rather than asyncio as the [async backend](https://inspect.ai-safety-institute.org.uk/parallelism.html#async-backends)).
+- Model API: `ChatMessage` now includes an `id` field (defaults to auto-generated uuid).
 - Logging: Inspect no longer sets the global log level nor does it allow its own messages to propagate to the global handler (eliminating the possiblity of duplicate display). This should improve compatibility with applications that have their own custom logging configured. 
 - Tasks: For filesystem based tasks, no longer switch to the task file's directory during execution (directory switching still occurs during task loading). Specify `@task(chdir=True)` to preserve the previous behavior.
 - Bugfix: Fix issue with deserializing custom sandbox configuration objects.

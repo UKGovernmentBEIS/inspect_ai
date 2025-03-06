@@ -63,12 +63,13 @@ def message_with_resolved_content(
     message: ChatMessage, resolver: Callable[[str], str]
 ) -> ChatMessage:
     if isinstance(message, ChatMessageUser) and not isinstance(message.content, str):
-        return ChatMessageUser(
-            content=[
-                chat_content_with_resolved_content(content, resolver)
-                for content in message.content
-            ],
-            source=message.source,
+        return message.model_copy(
+            update=dict(
+                content=[
+                    chat_content_with_resolved_content(content, resolver)
+                    for content in message.content
+                ],
+            )
         )
     else:
         return message
