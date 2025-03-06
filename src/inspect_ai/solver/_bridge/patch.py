@@ -114,6 +114,8 @@ async def inspect_model_request(
             )
         )
 
+    tool_choice = json_data.get("tool_choice", None)
+
     # resolve model
     if model_name == "inspect":
         model = get_model()
@@ -123,6 +125,7 @@ async def inspect_model_request(
     output = await model.generate(
         input=input,
         tools=inspect_tools,
+        tool_choice=tool_choice,
         config=generate_config_from_openai(options),
     )
 
