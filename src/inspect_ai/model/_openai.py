@@ -396,7 +396,11 @@ def content_from_openai(
     content: ChatCompletionContentPartParam | ChatCompletionContentPartRefusalParam,
     parse_reasoning: bool = False,
 ) -> list[Content]:
-    if content["type"] == "text":
+    # Some providers omit the type tag and use "object-with-a-single-field" encoding
+    keys = list(content) if isinstance(content, dict) else []
+    fallback = keys[0] if len(keys) == 1 else None
+    type = content.get("type", fallback)
+    if type == "text":
         text = content["text"]
         if parse_reasoning:
             result = parse_content_with_reasoning(text)
@@ -413,20 +417,22 @@ def content_from_openai(
                 return [ContentText(text=text)]
         else:
             return [ContentText(text=text)]
-    elif content["type"] == "image_url":
+    elif type == "reasoning":
+        return [ContentReasoning(reasoning=content["reasoning"])]
+    elif type == "image_url":
         return [
             ContentImage(
                 image=content["image_url"]["url"], detail=content["image_url"]["detail"]
             )
         ]
-    elif content["type"] == "input_audio":
+    elif type == "input_audio":
         return [
             ContentAudio(
                 audio=content["input_audio"]["data"],
                 format=content["input_audio"]["format"],
             )
         ]
-    elif content["type"] == "refusal":
+    elif type == "refusal":
         return [ContentText(text=content["refusal"])]
 
 
