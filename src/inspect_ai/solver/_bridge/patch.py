@@ -15,7 +15,7 @@ from openai.types.chat import (
 )
 from shortuuid import uuid
 
-from inspect_ai.model._generate_config import GenerateConfig
+from inspect_ai.model._generate_config import GenerateConfig, ResponseSchema
 from inspect_ai.model._model import get_model
 from inspect_ai.model._openai import (
     chat_messages_from_openai,
@@ -25,6 +25,7 @@ from inspect_ai.model._openai import (
 from inspect_ai.solver._task_state import sample_state
 from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.tool._tool_params import ToolParams
+from inspect_ai.util._json import JSONSchema
 
 
 @contextlib.asynccontextmanager
@@ -164,5 +165,17 @@ def generate_config_from_openai(options: FinalRequestOptions) -> GenerateConfig:
     config.logit_bias = json_data.get("logit_bias", None)
     config.parallel_tool_calls = json_data.get("parallel_tool_calls", None)
     config.reasoning_effort = json_data.get("reasoning_effort", None)
+
+    # response format
+    response_format: dict[str, Any] | None = json_data.get("response_format", None)
+    if response_format is not None:
+        json_schema: dict[str, Any] | None = response_format.get("json_schema", None)
+        if json_schema is not None:
+            config.response_schema = ResponseSchema(
+                name=json_schema.get("name", "schema"),
+                description=json_schema.get("description", None),
+                json_schema=JSONSchema.model_validate(json_schema.get("schema", {})),
+                strict=json_schema.get("strict", None),
+            )
 
     return config
