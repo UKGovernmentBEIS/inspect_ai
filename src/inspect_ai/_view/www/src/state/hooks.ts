@@ -12,8 +12,11 @@ import {
   sortSamples,
 } from "../samples/sample-tools/SortFilter";
 import { getAvailableScorers, getDefaultScorer } from "../scoring/utils";
+import { createLogger } from "../utils/logger";
 import { useStore } from "./store";
 import { mergeSampleSummaries } from "./utils";
+
+const log = createLogger("hooks");
 
 // Fetches all samples summaries (both completed and incomplete)
 // without applying any filtering
@@ -209,4 +212,21 @@ export const useLogSelection = () => {
       sample: selectedSampleSummary,
     };
   }, [selectedLogFile, selectedSampleSummary]);
+};
+
+export const useCollapsedState = (
+  id: string,
+  defaultValue?: boolean,
+): [boolean, (value: boolean) => void] => {
+  const collapsed = useStore((state) =>
+    state.appActions.getCollapsed(id, defaultValue),
+  );
+  const setCollapsed = useStore((state) => state.appActions.setCollapsed);
+  return useMemo(() => {
+    const set = (value: boolean) => {
+      log.debug("Set collapsed", id, value);
+      setCollapsed(id, value);
+    };
+    return [collapsed, set];
+  }, [collapsed, setCollapsed]);
 };

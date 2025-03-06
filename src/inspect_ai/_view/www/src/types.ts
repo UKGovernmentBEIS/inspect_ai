@@ -1,3 +1,4 @@
+import { StateSnapshot } from "react-virtuoso";
 import {
   EvalLogHeader,
   EvalSummary,
@@ -21,6 +22,7 @@ export interface AppState {
   };
   scrollPositions: Record<string, number>;
   listPositions: Record<string, StateSnapshot>;
+  collapsed: Record<string, boolean>;
 }
 
 export interface LogsState {
