@@ -25859,9 +25859,17 @@ self.onmessage = function (e) {
       },
       scrollPositions: {},
       listPositions: {},
-      collapsed: {}
+      collapsed: {},
+      messages: {}
     };
     const createAppSlice = (set2, get2, _store) => {
+      const getBoolRecord = (record, name2, defaultValue) => {
+        if (Object.keys(record).includes(name2)) {
+          return record[name2];
+        } else {
+          return defaultValue || false;
+        }
+      };
       const slice = {
         // State
         app: initialState$3,
@@ -25936,16 +25944,24 @@ self.onmessage = function (e) {
             });
           },
           getCollapsed: (name2, defaultValue) => {
-            const state = get2();
-            if (Object.keys(state.app.collapsed).includes(name2)) {
-              return state.app.collapsed[name2];
-            } else {
-              return defaultValue || false;
-            }
+            return getBoolRecord(get2().app.collapsed, name2, defaultValue);
           },
           setCollapsed: (name2, value2) => {
             set2((state) => {
               state.app.collapsed[name2] = value2;
+            });
+          },
+          getMessageVisible: (name2, defaultValue) => {
+            return getBoolRecord(get2().app.messages, name2, defaultValue);
+          },
+          setMessageVisible: (name2, value2) => {
+            set2((state) => {
+              state.app.messages[name2] = value2;
+            });
+          },
+          clearMessageVisible: (name2) => {
+            set2((state) => {
+              delete state.app.messages[name2];
             });
           }
         }
@@ -40114,6 +40130,47 @@ categories: ${categories.join(" ")}`;
         };
         return [collapsed, set2];
       }, [collapsed, setCollapsed]);
+    };
+    const useMessageVisibility = (id2, scope) => {
+      const visible2 = useStore(
+        (state) => state.appActions.getMessageVisible(id2, true)
+      );
+      const setVisible = useStore((state) => state.appActions.setMessageVisible);
+      const clearVisible = useStore(
+        (state) => state.appActions.clearMessageVisible
+      );
+      const isFirstRender = reactExports.useRef(true);
+      const selectedLogFile = useStore(
+        (state) => state.logsActions.getSelectedLogFile()
+      );
+      reactExports.useEffect(() => {
+        if (isFirstRender.current) {
+          isFirstRender.current = false;
+          return;
+        }
+        log$1.debug("clear message (eval)", id2);
+        clearVisible(id2);
+      }, [selectedLogFile, clearVisible, id2]);
+      const selectedSampleIndex = useStore(
+        (state) => state.log.selectedSampleIndex
+      );
+      reactExports.useEffect(() => {
+        if (isFirstRender.current) {
+          return;
+        }
+        if (scope === "sample") {
+          log$1.debug("clear message (sample)", id2);
+          clearVisible(id2);
+        }
+      }, [selectedSampleIndex, clearVisible, id2, scope]);
+      return reactExports.useMemo(() => {
+        log$1.debug("visibility", id2, visible2);
+        const set2 = (visible22) => {
+          log$1.debug("set visiblity", id2);
+          setVisible(id2, visible22);
+        };
+        return [visible2, set2];
+      }, [visible2, setVisible, id2]);
     };
     const container$9 = "_container_15b4r_1";
     const label$5 = "_label_15b4r_5";
@@ -76433,19 +76490,23 @@ ${events}
       );
     };
     const MessageBand = ({
+      id: id2,
       message: message2,
-      hidden: hidden2,
-      setHidden,
-      type
+      type,
+      scope = "eval"
     }) => {
       const className2 = [type];
-      if (hidden2) {
+      const [visible2, setVisible] = useMessageVisibility(id2, scope);
+      const handleClick = reactExports.useCallback(() => {
+        setVisible(false);
+      }, [setVisible]);
+      if (!visible2) {
         className2.push("hidden");
       }
       return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: clsx("message-band", className2), children: [
         /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("i", { className: ApplicationIcons.logging[type] }, void 0, false, {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/MessageBand.tsx",
-          lineNumber: 27,
+          lineNumber: 34,
           columnNumber: 7
         }, void 0),
         message2,
@@ -76454,12 +76515,10 @@ ${events}
           {
             className: clsx("btn", "message-band-btn", type),
             title: "Close",
-            onClick: () => {
-              setHidden(true);
-            },
+            onClick: handleClick,
             children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("i", { className: ApplicationIcons.close }, void 0, false, {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/MessageBand.tsx",
-              lineNumber: 36,
+              lineNumber: 41,
               columnNumber: 9
             }, void 0)
           },
@@ -76467,14 +76526,14 @@ ${events}
           false,
           {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/MessageBand.tsx",
-            lineNumber: 29,
+            lineNumber: 36,
             columnNumber: 7
           },
           void 0
         )
       ] }, void 0, true, {
         fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/MessageBand.tsx",
-        lineNumber: 26,
+        lineNumber: 33,
         columnNumber: 5
       }, void 0);
     };
@@ -76938,10 +76997,6 @@ ${events}
       );
       const samplesDescriptor = useSampleDescriptor();
       const [followOutput, setFollowOutput] = reactExports.useState(false);
-      const [hidden2, setHidden] = reactExports.useState(false);
-      reactExports.useEffect(() => {
-        setHidden(false);
-      }, [items]);
       const onkeydown = reactExports.useCallback(
         (e) => {
           switch (e.key) {
@@ -76987,7 +77042,7 @@ ${events}
               false,
               {
                 fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/list/SampleList.tsx",
-                lineNumber: 98,
+                lineNumber: 92,
                 columnNumber: 11
               },
               void 0
@@ -77004,7 +77059,7 @@ ${events}
               false,
               {
                 fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/list/SampleList.tsx",
-                lineNumber: 112,
+                lineNumber: 106,
                 columnNumber: 11
               },
               void 0
@@ -77038,21 +77093,20 @@ ${events}
       }, 0);
       const percentError = errorCount / sampleCount * 100;
       const percentLimit = limitCount / sampleCount * 100;
-      const warningMessage = errorCount > 0 ? `INFO: ${errorCount} of ${sampleCount} samples (${formatNoDecimal(percentError)}%) had errors and were not scored.` : limitCount ? `INFO: ${limitCount} of ${sampleCount} samples (${formatNoDecimal(percentLimit)}%) completed due to exceeding a limit.` : void 0;
+      const warningMessage = errorCount > 0 ? `INFO: ${errorCount} of ${sampleCount} samples (${formatNoDecimal(percentError)}%) had errors and were not scored.` : limitCount ? `INFO: ${limitCount} of ${sampleCount} samples (${formatNoDecimal(percentLimit)}%) completed due to exceeding a limit.` : "IGNORE THIS BRUH";
       return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: styles$d.mainLayout, children: [
         warningMessage ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
           MessageBand,
           {
+            id: "sample-warning-message",
             message: warningMessage,
-            hidden: hidden2,
-            setHidden,
             type: "info"
           },
           void 0,
           false,
           {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/list/SampleList.tsx",
-            lineNumber: 165,
+            lineNumber: 159,
             columnNumber: 9
           },
           void 0
@@ -77070,7 +77124,7 @@ ${events}
           false,
           {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/list/SampleList.tsx",
-            lineNumber: 172,
+            lineNumber: 165,
             columnNumber: 7
           },
           void 0
@@ -77104,19 +77158,19 @@ ${events}
           false,
           {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/list/SampleList.tsx",
-            lineNumber: 179,
+            lineNumber: 172,
             columnNumber: 7
           },
           void 0
         ),
         /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(SampleFooter, { sampleCount, running: running2 }, void 0, false, {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/list/SampleList.tsx",
-          lineNumber: 202,
+          lineNumber: 195,
           columnNumber: 7
         }, void 0)
       ] }, void 0, true, {
         fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/list/SampleList.tsx",
-        lineNumber: 163,
+        lineNumber: 157,
         columnNumber: 5
       }, void 0);
     });
@@ -78175,25 +78229,20 @@ ${events}
       evalError,
       sampleCount
     }) => {
-      const [hidden2, setHidden] = reactExports.useState(false);
-      reactExports.useEffect(() => {
-        setHidden(false);
-      }, [evalSpec, evalPlan, evalResults, evalStats]);
       const showWarning = sampleCount === 0 && evalStatus === "success" && (evalSpec == null ? void 0 : evalSpec.dataset.samples) && evalSpec.dataset.samples > 0;
       return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { style: { width: "100%" }, children: [
         showWarning ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
           MessageBand,
           {
+            id: "sample-too-large",
             message: "Unable to display samples (this evaluation log may be too large).",
-            hidden: hidden2,
-            setHidden,
             type: "warning"
           },
           void 0,
           false,
           {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/tabs/InfoTab.tsx",
-            lineNumber: 49,
+            lineNumber: 44,
             columnNumber: 9
           },
           void 0
@@ -78210,29 +78259,29 @@ ${events}
             false,
             {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/tabs/InfoTab.tsx",
-              lineNumber: 59,
+              lineNumber: 53,
               columnNumber: 9
             },
             void 0
           ),
           evalStatus !== "started" ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(UsageCard, { stats: evalStats }, void 0, false, {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/tabs/InfoTab.tsx",
-            lineNumber: 64,
+            lineNumber: 58,
             columnNumber: 37
           }, void 0) : void 0,
           evalStatus === "error" && evalError ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(TaskErrorCard, { error: evalError }, void 0, false, {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/tabs/InfoTab.tsx",
-            lineNumber: 66,
+            lineNumber: 60,
             columnNumber: 11
           }, void 0) : void 0
         ] }, void 0, true, {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/tabs/InfoTab.tsx",
-          lineNumber: 58,
+          lineNumber: 52,
           columnNumber: 7
         }, void 0)
       ] }, void 0, true, {
         fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/tabs/InfoTab.tsx",
-        lineNumber: 47,
+        lineNumber: 42,
         columnNumber: 5
       }, void 0);
     };

@@ -29,6 +29,10 @@ export interface AppSlice {
 
     getCollapsed: (name: string, defaultValue?: boolean) => boolean;
     setCollapsed: (name: string, value: boolean) => void;
+
+    getMessageVisible: (name: string, defaultValue?: boolean) => boolean;
+    setMessageVisible: (name: string, value: boolean) => void;
+    clearMessageVisible: (name: string) => void;
   };
 }
 
@@ -49,6 +53,7 @@ const initialState: AppState = {
   scrollPositions: {},
   listPositions: {},
   collapsed: {},
+  messages: {},
 };
 
 export const createAppSlice = (
@@ -56,6 +61,18 @@ export const createAppSlice = (
   get: () => StoreState,
   _store: any,
 ): [AppSlice, () => void] => {
+  const getBoolRecord = (
+    record: Record<string, boolean>,
+    name: string,
+    defaultValue?: boolean,
+  ) => {
+    if (Object.keys(record).includes(name)) {
+      return record[name];
+    } else {
+      return defaultValue || false;
+    }
+  };
+
   const slice = {
     // State
     app: initialState,
@@ -137,16 +154,24 @@ export const createAppSlice = (
         });
       },
       getCollapsed: (name: string, defaultValue?: boolean) => {
-        const state = get();
-        if (Object.keys(state.app.collapsed).includes(name)) {
-          return state.app.collapsed[name];
-        } else {
-          return defaultValue || false;
-        }
+        return getBoolRecord(get().app.collapsed, name, defaultValue);
       },
       setCollapsed: (name: string, value: boolean) => {
         set((state) => {
           state.app.collapsed[name] = value;
+        });
+      },
+      getMessageVisible: (name: string, defaultValue?: boolean) => {
+        return getBoolRecord(get().app.messages, name, defaultValue);
+      },
+      setMessageVisible: (name: string, value: boolean) => {
+        set((state) => {
+          state.app.messages[name] = value;
+        });
+      },
+      clearMessageVisible: (name: string) => {
+        set((state) => {
+          delete state.app.messages[name];
         });
       },
     },

@@ -23,6 +23,7 @@ export interface AppState {
   scrollPositions: Record<string, number>;
   listPositions: Record<string, StateSnapshot>;
   collapsed: Record<string, boolean>;
+  messages: Record<string, boolean>;
 }
 
 export interface LogsState {

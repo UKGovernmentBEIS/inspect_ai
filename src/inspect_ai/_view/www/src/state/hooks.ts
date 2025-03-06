@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { SampleSummary } from "../api/types";
 import { kEpochAscVal, kSampleAscVal, kScoreAscVal } from "../constants";
 import {
@@ -229,4 +229,60 @@ export const useCollapsedState = (
     };
     return [collapsed, set];
   }, [collapsed, setCollapsed]);
+};
+
+export const useMessageVisibility = (
+  id: string,
+  scope: "sample" | "eval",
+): [boolean, (visible: boolean) => void] => {
+  const visible = useStore((state) =>
+    state.appActions.getMessageVisible(id, true),
+  );
+  const setVisible = useStore((state) => state.appActions.setMessageVisible);
+  const clearVisible = useStore(
+    (state) => state.appActions.clearMessageVisible,
+  );
+
+  // Track if this is the first render (rehydrate)
+  const isFirstRender = useRef(true);
+
+  // Reset state if the eval changes, but not during initialization
+  const selectedLogFile = useStore((state) =>
+    state.logsActions.getSelectedLogFile(),
+  );
+  useEffect(() => {
+    // Skip the first effect run
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+
+    log.debug("clear message (eval)", id);
+    clearVisible(id);
+  }, [selectedLogFile, clearVisible, id]);
+
+  // Maybe reset state if sample changes
+  const selectedSampleIndex = useStore(
+    (state) => state.log.selectedSampleIndex,
+  );
+  useEffect(() => {
+    // Skip the first effect run for sample changes too
+    if (isFirstRender.current) {
+      return;
+    }
+
+    if (scope === "sample") {
+      log.debug("clear message (sample)", id);
+      clearVisible(id);
+    }
+  }, [selectedSampleIndex, clearVisible, id, scope]);
+
+  return useMemo(() => {
+    log.debug("visibility", id, visible);
+    const set = (visible: boolean) => {
+      log.debug("set visiblity", id);
+      setVisible(id, visible);
+    };
+    return [visible, set];
+  }, [visible, setVisible, id]);
 };
