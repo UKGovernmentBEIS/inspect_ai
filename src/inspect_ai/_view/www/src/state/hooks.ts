@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { SampleSummary } from "../api/types";
 import { kEpochAscVal, kSampleAscVal, kScoreAscVal } from "../constants";
 import {
   createEvalDescriptor,
@@ -165,7 +166,7 @@ export const useGroupByOrder = () => {
 };
 
 // Provides the currently selected sample summary
-export const useSelectedSampleSummary = () => {
+export const useSelectedSampleSummary = (): SampleSummary | undefined => {
   const filteredSamples = useFilteredSamples();
   const selectedIndex = useStore((state) => state.log.selectedSampleIndex);
   return useMemo(() => {

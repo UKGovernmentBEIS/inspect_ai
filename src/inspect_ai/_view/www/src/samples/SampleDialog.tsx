@@ -46,9 +46,15 @@ export const SampleDialog: FC<SampleDialogProps> = ({
 
   const sampleData = useSampleData();
   const logSelection = useLogSelection();
+
   useEffect(() => {
     if (logSelection.logFile && logSelection.sample) {
-      sampleData.loadSample(logSelection.logFile, logSelection.sample);
+      if (
+        sampleData.sample?.id !== logSelection.sample.id ||
+        sampleData.sample.epoch !== logSelection.sample.epoch
+      ) {
+        sampleData.loadSample(logSelection.logFile, logSelection.sample);
+      }
     }
   }, [logSelection.logFile, logSelection.sample]);
 

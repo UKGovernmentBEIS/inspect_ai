@@ -23,27 +23,23 @@ import ClipboardJS from "clipboard";
 import clsx from "clsx";
 import { FC, useCallback, useEffect, useRef } from "react";
 import { ClientAPI, HostMessage } from "./api/types.ts";
-import { kEvalWorkspaceTabId } from "./constants";
 import { useStore } from "./state/store.ts";
-import { ApplicationState } from "./types.ts";
 
 interface AppProps {
   api: ClientAPI;
-  applicationState?: ApplicationState;
-  saveApplicationState?: (state: ApplicationState) => void;
 }
 
 /**
  * Renders the Main Application
  */
-export const App: FC<AppProps> = ({ api, applicationState }) => {
+export const App: FC<AppProps> = ({ api }) => {
   // App layout and state
   const appStatus = useStore((state) => state.app.status);
   const setAppStatus = useStore((state) => state.appActions.setStatus);
   const offCanvas = useStore((state) => state.app.offcanvas);
   const setOffCanvas = useStore((state) => state.appActions.setOffcanvas);
-  const setSelectedWorkspaceTab = useStore(
-    (state) => state.appActions.setWorkspaceTab,
+  const clearWorkspaceTab = useStore(
+    (state) => state.appActions.clearWorkspaceTab,
   );
   const clearSampleTab = useStore((state) => state.appActions.clearSampleTab);
 
@@ -70,29 +66,21 @@ export const App: FC<AppProps> = ({ api, applicationState }) => {
 
   // Log Data
   const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
+  const loadedLogFile = useStore((state) => state.log.loadedLog);
   const runningMetrics = useStore(
     (state) => state.log.pendingSampleSummaries?.metrics,
   );
   const resetFiltering = useStore((state) => state.logActions.resetFiltering);
   const loadLog = useStore((state) => state.logActions.loadLog);
   const refreshLog = useStore((state) => state.logActions.refreshLog);
-
-  // Sample Data
-  const clearSelectedSample = useStore(
-    (state) => state.sampleActions.clearSelectedSample,
-  );
+  const selectSample = useStore((state) => state.logActions.selectSample);
 
   // The main application reference
   const mainAppRef = useRef<HTMLDivElement>(null);
 
-  const workspaceTabScrollPosition = useRef<Record<string, number>>(
-    applicationState?.workspaceTabScrollPosition || {},
-  );
-
-  const sampleScrollPosition = useRef<number>(
-    applicationState?.sampleScrollPosition || 0,
-  );
-
+  // TODO: deal with scrolling
+  const workspaceTabScrollPosition = useRef<Record<string, number>>({});
+  const sampleScrollPosition = useRef<number>(0);
   const setSampleScrollPosition = useCallback(
     debounce((position) => {
       sampleScrollPosition.current = position;
@@ -118,13 +106,14 @@ export const App: FC<AppProps> = ({ api, applicationState }) => {
   // Load a specific log
   useEffect(() => {
     const loadSpecificLog = async () => {
-      if (selectedLogFile) {
+      if (selectedLogFile && selectedLogFile !== loadedLogFile) {
         try {
           // Set loading first and wait for it to update
           setAppStatus({ loading: true, error: undefined });
 
           // Then load the log
           await loadLog(selectedLogFile);
+          selectSample(0);
 
           // Finally set loading to false
           setAppStatus({ loading: false, error: undefined });
@@ -134,21 +123,9 @@ export const App: FC<AppProps> = ({ api, applicationState }) => {
         }
       }
     };
+
     loadSpecificLog();
-  }, [selectedLogFile, loadLog, setAppStatus]);
-
-  useEffect(() => {
-    // Reset the workspace
-
-    setSelectedWorkspaceTab(kEvalWorkspaceTabId);
-
-    // Reset the sample tab
-    clearSampleTab();
-
-    workspaceTabScrollPosition.current = {};
-
-    clearSelectedSample();
-  }, [selectedLogSummary?.eval.task_id, clearSelectedSample]);
+  }, [selectedLogFile, loadedLogFile, loadLog, setAppStatus]);
 
   useEffect(() => {
     if (logs.log_dir && logs.files.length === 0) {
@@ -272,6 +249,10 @@ export const App: FC<AppProps> = ({ api, applicationState }) => {
           onSelectedIndexChanged={(index) => {
             setSelectedLogIndex(index);
             setOffCanvas(false);
+            resetFiltering();
+            clearSampleTab();
+            clearWorkspaceTab();
+            selectSample(0);
           }}
         />
       ) : undefined}
