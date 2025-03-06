@@ -13,11 +13,11 @@ pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
 
 ## Overview
 
-Structured outputs are a feature supported by some model providers to ensure that models generate responses which adhere to a supplied JSON Schema. Structured outputs are currrently supported in Inspect for the OpenAI, Google, and Mistral providers.
+Structured outputs are a feature supported by some model providers to ensure that models generate responses which adhere to a supplied JSON Schema. Structured outputs are currently supported in Inspect for the OpenAI, Google, and Mistral providers.
 
 While structured outputs may seem like they could be a robust solution to model unreliability, it's important to keep in mind that by specifying a JSON schema you are also introducing unknown effects on model task performance. There is even some early literature indicating that [models perform worse with structured outputs](https://dylancastillo.co/posts/say-what-you-mean-sometimes.html).
 
-You should therefore test the use of structured outputs as an eliciation technique like you would any other, and only proceed if you feel confident that it has made a genuine improvement in your overall task.
+You should therefore test the use of structured outputs as an elicitation technique like you would any other, and only proceed if you feel confident that it has made a genuine improvement in your overall task.
 
 ## Example
 
@@ -53,7 +53,7 @@ class Color(BaseModel):
     blue: int
 ```
 
-To instruct the model to return output in this type, we use the `response_schema` generate config option, using the `json_schema()` function to produce a schema for our type. Here is complete task definition which uses the datset and color type from above:
+To instruct the model to return output in this type, we use the `response_schema` generate config option, using the `json_schema()` function to produce a schema for our type. Here is complete task definition which uses the dataset and color type from above:
 
 ```python
 from inspect_ai import Task, task
