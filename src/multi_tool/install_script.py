@@ -51,6 +51,11 @@ def copy_files():
         "_util"
     ]
     
+    # Directories to exclude from copying to /opt/inspect
+    dirs_to_exclude = [
+        "back_compat"
+    ]
+    
     # Copy individual files
     for file_name in files_to_copy:
         src_file = src_dir / file_name
@@ -75,15 +80,17 @@ def copy_files():
             # Copy files recursively
             for item in dir_src.glob("**/*"):
                 if item.is_file() and not any(part.startswith('.') for part in item.parts):
-                    rel_path = item.relative_to(dir_src)
-                    dest_file = dir_dest / rel_path
-                    os.makedirs(dest_file.parent, exist_ok=True)
-                    shutil.copy2(item, dest_file)
-                    print(f"Copied {item} to {dest_file}")
-                    
-                    # Make Python files executable
-                    if dest_file.suffix == '.py':
-                        os.chmod(dest_file, 0o755)
+                    # Skip files from excluded directories
+                    if not any(excluded in str(item) for excluded in dirs_to_exclude):
+                        rel_path = item.relative_to(dir_src)
+                        dest_file = dir_dest / rel_path
+                        os.makedirs(dest_file.parent, exist_ok=True)
+                        shutil.copy2(item, dest_file)
+                        print(f"Copied {item} to {dest_file}")
+                        
+                        # Make Python files executable
+                        if dest_file.suffix == '.py':
+                            os.chmod(dest_file, 0o755)
 
     # Copy web_browser_back_compat files
     print(f"Copying files from {web_browser_src} to {web_browser_dest}")
