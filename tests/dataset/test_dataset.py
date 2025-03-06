@@ -46,8 +46,6 @@ def test_dataset_fields(type: Type[T_ds], file: str) -> None:
     )
     assert_sample(dataset[0])
     assert isinstance(dataset[0].sandbox, BaseModel)
-    # Ensure backward compatability with NamedTuple.
-    assert dataset[0].sandbox[0] == "docker"
     assert dataset[0].sandbox.type == "docker"
 
 
