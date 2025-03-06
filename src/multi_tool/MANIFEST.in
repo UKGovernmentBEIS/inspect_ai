@@ -1,0 +1,6 @@
+include multi-tool-server.service
+include install_script.py
+include install_service.py
+include __init__.py
+recursive-include container *
+recursive-include web_browser_back_compat *

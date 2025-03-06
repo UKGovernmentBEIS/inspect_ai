@@ -2,6 +2,37 @@
 
 ![diagram](images/shared_tool_container_design.svg)
 
+## Installation as a Python Package
+
+This code can now be installed as a proper Python package with pip:
+
+```bash
+# Install the package
+pip install .
+
+# Run the post-installation script to copy files to the correct locations
+# This will copy:
+# - container files to /opt/inspect
+# - web_browser_back_compat files to /app/web_browser
+sudo python install_script.py
+
+# Install and start the systemd service for the server
+sudo python install_service.py
+```
+
+### Features
+
+1. CLI tool (`multi-tool`) for executing specified tools with given parameters
+2. HTTP server (`multi-tool-server`) that runs automatically on startup
+3. Tools for web browser, bash, and editor functionality
+
+### Package Structure
+
+After installation:
+- All container code will be in `/opt/inspect`
+- All web browser compatibility code will be in `/app/web_browser`
+- Server will start automatically on boot
+
 ## Stateless / Stateful Design
 
 Inspect calls into the sandboxed image are done statelessly via `docker exec python multi-tool.py`.

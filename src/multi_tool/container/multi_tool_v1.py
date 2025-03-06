@@ -23,10 +23,23 @@ import json
 
 from jsonrpcserver import async_dispatch
 
-from _constants import SERVER_PORT
-from _load_tools import load_tools
-from _util._common_types import JSONRPCResponseJSON
-from _util._json_rpc_helpers import json_rpc_http_call
+import os
+import sys
+
+# Add the directory to the path if we're running as a console script
+if __package__ is None or __package__ == '':
+    # This means the module was executed directly (e.g., `python multi_tool_v1.py`), 
+    # need relative imports
+    from _constants import SERVER_PORT
+    from _load_tools import load_tools
+    from _util._common_types import JSONRPCResponseJSON
+    from _util._json_rpc_helpers import json_rpc_http_call
+else:
+    # We're in a package context, use package imports
+    from inspect_multi_tool.container._constants import SERVER_PORT
+    from inspect_multi_tool.container._load_tools import load_tools
+    from inspect_multi_tool.container._util._common_types import JSONRPCResponseJSON
+    from inspect_multi_tool.container._util._json_rpc_helpers import json_rpc_http_call
 
 _SERVER_URL = f"http://localhost:{SERVER_PORT}/"
 
@@ -35,7 +48,14 @@ _SERVER_URL = f"http://localhost:{SERVER_PORT}/"
 # {"jsonrpc": "2.0", "method": "editor", "id": 666, "params": {"command": "view", "path": "/tmp"}}
 # {"jsonrpc": "2.0", "method": "bash", "id": 666, "params": {"command": "ls ~/Downloads"}}
 async def main() -> None:
-    in_process_tools = load_tools("_in_process_tools")
+    # If installed as a package and running in /opt/inspect, use that as the working directory
+    if os.path.exists('/opt/inspect') and __package__ is not None:
+        os.chdir('/opt/inspect')
+    
+    # Use the appropriate tools directory based on the context
+    tools_dir = "_in_process_tools" if __package__ is None else "in_process_tools"
+    
+    in_process_tools = load_tools(tools_dir)
     args: argparse.Namespace = parser.parse_args()
     json_rpc_request_str = args.request
     tool_name = json.loads(json_rpc_request_str)["method"]
