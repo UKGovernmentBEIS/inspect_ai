@@ -4,7 +4,10 @@ import uuid
 from asyncio import Task
 from asyncio.subprocess import Process
 
-from _remote_tools._bash.tool_types import BashCommandResult, BashRestartResult
+from multi_tool._remote_tools._bash.tool_types import (
+    BashCommandResult,
+    BashRestartResult,
+)
 
 
 class Controller:
@@ -142,6 +145,9 @@ class Controller:
         try:
             process.terminate()
             await asyncio.wait_for(process.wait(), timeout=1)
+        except asyncio.TimeoutError:
+            process.kill()
+            await process.wait()
         except asyncio.TimeoutError:
             process.kill()
             await process.wait()

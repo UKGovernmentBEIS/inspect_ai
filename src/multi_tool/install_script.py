@@ -16,6 +16,7 @@ def copy_files():
     try:
         # First try to import from the installed package
         import inspect_multi_tool
+
         src_dir = Path(inspect_multi_tool.__file__).parent.absolute()
     except ImportError:
         # If not installed, use the script's location
@@ -34,28 +35,22 @@ def copy_files():
 
     # Copy multi_tool files - copying all Python files and related modules
     print(f"Copying files from {src_dir} to {multi_tool_dest}")
-    
+
     # List of files to copy directly
     files_to_copy = [
         "__init__.py",
         "_constants.py",
         "_load_tools.py",
         "multi_tool_v1.py",
-        "server.py"
+        "server.py",
     ]
-    
+
     # List of directories to copy recursively
-    dirs_to_copy = [
-        "_in_process_tools",
-        "_remote_tools",
-        "_util"
-    ]
-    
+    dirs_to_copy = ["_in_process_tools", "_remote_tools", "_util"]
+
     # Directories to exclude from copying to /opt/inspect
-    dirs_to_exclude = [
-        "back_compat"
-    ]
-    
+    dirs_to_exclude = ["back_compat"]
+
     # Copy individual files
     for file_name in files_to_copy:
         src_file = src_dir / file_name
@@ -63,23 +58,25 @@ def copy_files():
             dest_file = multi_tool_dest / file_name
             shutil.copy2(src_file, dest_file)
             print(f"Copied {src_file} to {dest_file}")
-            
+
             # Make Python files executable
-            if dest_file.suffix == '.py':
+            if dest_file.suffix == ".py":
                 os.chmod(dest_file, 0o755)
-    
+
     # Copy directories recursively
     for dir_name in dirs_to_copy:
         dir_src = src_dir / dir_name
         dir_dest = multi_tool_dest / dir_name
-        
+
         if dir_src.exists():
             # Create destination directory
             os.makedirs(dir_dest, exist_ok=True)
-            
+
             # Copy files recursively
             for item in dir_src.glob("**/*"):
-                if item.is_file() and not any(part.startswith('.') for part in item.parts):
+                if item.is_file() and not any(
+                    part.startswith(".") for part in item.parts
+                ):
                     # Skip files from excluded directories
                     if not any(excluded in str(item) for excluded in dirs_to_exclude):
                         rel_path = item.relative_to(dir_src)
@@ -87,24 +84,24 @@ def copy_files():
                         os.makedirs(dest_file.parent, exist_ok=True)
                         shutil.copy2(item, dest_file)
                         print(f"Copied {item} to {dest_file}")
-                        
+
                         # Make Python files executable
-                        if dest_file.suffix == '.py':
+                        if dest_file.suffix == ".py":
                             os.chmod(dest_file, 0o755)
 
     # Copy web_browser_back_compat files
     print(f"Copying files from {web_browser_src} to {web_browser_dest}")
     if web_browser_src.exists():
         for item in web_browser_src.glob("**/*"):
-            if item.is_file() and not any(part.startswith('.') for part in item.parts):
+            if item.is_file() and not any(part.startswith(".") for part in item.parts):
                 rel_path = item.relative_to(web_browser_src)
                 dest_file = web_browser_dest / rel_path
                 os.makedirs(dest_file.parent, exist_ok=True)
                 shutil.copy2(item, dest_file)
                 print(f"Copied {item} to {dest_file}")
-                
+
                 # Make Python files executable
-                if dest_file.suffix == '.py':
+                if dest_file.suffix == ".py":
                     os.chmod(dest_file, 0o755)
 
     # Create necessary __init__.py files in target directories

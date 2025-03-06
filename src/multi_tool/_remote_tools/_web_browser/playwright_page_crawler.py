@@ -11,14 +11,16 @@ from typing import Literal
 
 from playwright.async_api import CDPSession, Frame, Page
 
-from _remote_tools._web_browser.accessibility_tree import (
+from multi_tool._remote_tools._web_browser.accessibility_tree import (
     AccessibilityTree,
     create_accessibility_tree,
 )
-from _remote_tools._web_browser.accessibility_tree_node import AccessibilityTreeNode
-from _remote_tools._web_browser.cdp.a11y import AXNodeId, AXTree
-from _remote_tools._web_browser.cdp.dom_snapshot import DOMSnapshot
-from _remote_tools._web_browser.rectangle import Rectangle
+from multi_tool._remote_tools._web_browser.accessibility_tree_node import (
+    AccessibilityTreeNode,
+)
+from multi_tool._remote_tools._web_browser.cdp.a11y import AXNodeId, AXTree
+from multi_tool._remote_tools._web_browser.cdp.dom_snapshot import DOMSnapshot
+from multi_tool._remote_tools._web_browser.rectangle import Rectangle
 
 # Number of seconds to wait for possible click induced navigation before proceeding
 _WAIT_FOR_NAVIGATION_TIME = 2.0
@@ -287,6 +289,9 @@ class PageCrawler:
         try:
             await asyncio.wait_for(future, timeout=_WAIT_FOR_NAVIGATION_TIME)
             # a navigation of some sort has occurred and gotten to domcontentloaded
+        except (asyncio.TimeoutError, TimeoutError):
+            # No navigation occurred within the timeout period
+            pass
         except (asyncio.TimeoutError, TimeoutError):
             # No navigation occurred within the timeout period
             pass

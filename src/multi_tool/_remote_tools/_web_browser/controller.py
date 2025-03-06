@@ -1,12 +1,12 @@
 import threading
 from typing import Awaitable, Callable, Literal
 
-from _remote_tools._web_browser.constants import DEFAULT_SESSION_NAME
-from _remote_tools._web_browser.playwright_browser import PlaywrightBrowser
-from _remote_tools._web_browser.playwright_crawler import PlaywrightCrawler
-from _remote_tools._web_browser.playwright_page_crawler import PageCrawler
-from _remote_tools._web_browser.scale_factor import get_screen_scale_factor
-from _remote_tools._web_browser.tool_types import CrawlerResult
+from multi_tool._remote_tools._web_browser.constants import DEFAULT_SESSION_NAME
+from multi_tool._remote_tools._web_browser.playwright_browser import PlaywrightBrowser
+from multi_tool._remote_tools._web_browser.playwright_crawler import PlaywrightCrawler
+from multi_tool._remote_tools._web_browser.playwright_page_crawler import PageCrawler
+from multi_tool._remote_tools._web_browser.scale_factor import get_screen_scale_factor
+from multi_tool._remote_tools._web_browser.tool_types import CrawlerResult
 
 
 class Controller:

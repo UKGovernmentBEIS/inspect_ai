@@ -1,13 +1,15 @@
 from functools import reduce
 from typing import Iterable, TypedDict
 
-from _remote_tools._web_browser.accessibility_tree_node import AccessibilityTreeNode
-from _remote_tools._web_browser.cdp.a11y import AXNode, AXNodeId
-from _remote_tools._web_browser.cdp.dom_snapshot import (
+from multi_tool._remote_tools._web_browser.accessibility_tree_node import (
+    AccessibilityTreeNode,
+)
+from multi_tool._remote_tools._web_browser.cdp.a11y import AXNode, AXNodeId
+from multi_tool._remote_tools._web_browser.cdp.dom_snapshot import (
     DOMSnapshot,
     create_snapshot_context,
 )
-from _remote_tools._web_browser.rectangle import Rectangle
+from multi_tool._remote_tools._web_browser.rectangle import Rectangle
 
 _AccType = tuple[
     AXNode | None,

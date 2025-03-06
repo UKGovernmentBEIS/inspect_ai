@@ -22,14 +22,17 @@ classifiers = [
 ]
 dependencies = [
     "aiohttp",
+    "httpx",
+    "jsonrpcclient",
     "jsonrpcserver",
     "pydantic",
-    "tomli",
-    "playwright",  # For web browser functionality
+    "returns",
+    "tenacity",
+    "playwright",
 ]
 
 [project.scripts]
-multi-tool = "inspect_multi_tool.multi_tool_v1:main"
+multi-tool = "inspect_multi_tool.multi_tool_v1:run"
 multi-tool-server = "inspect_multi_tool.server:main"
 
 [tool.setuptools]

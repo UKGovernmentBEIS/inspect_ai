@@ -1,7 +1,8 @@
 import jsonrpcserver
+from _util._json_rpc_helpers import with_validated_rpc_method_params
 
-from _remote_tools._web_browser.controller import Controller
-from _remote_tools._web_browser.tool_types import (
+from multi_tool._remote_tools._web_browser.controller import Controller
+from multi_tool._remote_tools._web_browser.tool_types import (
     ClickParams,
     CrawlerBaseParams,
     CrawlerResult,
@@ -11,7 +12,6 @@ from _remote_tools._web_browser.tool_types import (
     ScrollParams,
     TypeOrSubmitParams,
 )
-from _util._json_rpc_helpers import with_validated_rpc_method_params
 
 controller = Controller()
 

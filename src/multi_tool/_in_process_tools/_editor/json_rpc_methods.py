@@ -1,5 +1,3 @@
-from jsonrpcserver import method
-
 from _in_process_tools._editor.editor import (
     create,
     insert,
@@ -16,6 +14,7 @@ from _in_process_tools._editor.tool_types import (
     ViewParams,
 )
 from _util._json_rpc_helpers import with_validated_rpc_method_params
+from jsonrpcserver import method
 
 
 @method

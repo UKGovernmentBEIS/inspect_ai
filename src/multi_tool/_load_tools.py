@@ -13,9 +13,9 @@ def load_tools(subdir_name: str) -> set[str]:
       set[str]: A set of the names of the tools that were loaded.
     """
     result: set[str] = set()
-    
+
     # Handle different import contexts
-    if __package__ is None or __package__ == '':
+    if __package__ is None or __package__ == "":
         # Direct development execution
         tools_dir = os.path.join(os.path.dirname(__file__), subdir_name)
         package_prefix = subdir_name
@@ -23,7 +23,7 @@ def load_tools(subdir_name: str) -> set[str]:
         # Installed package context
         tools_dir = os.path.join(os.path.dirname(__file__), subdir_name)
         package_prefix = f"{__package__}.{subdir_name}"
-    
+
     # Always keep the subdirectory name with its leading underscore
     for entry in os.listdir(tools_dir):
         entry_path = os.path.join(tools_dir, entry)
@@ -39,8 +39,10 @@ def load_tools(subdir_name: str) -> set[str]:
                 # Fallback to direct import if package import fails
                 if __package__:
                     try:
-                        importlib.import_module(f"{subdir_name}.{entry}.json_rpc_methods")
+                        importlib.import_module(
+                            f"{subdir_name}.{entry}.json_rpc_methods"
+                        )
                     except ImportError:
                         raise
-    
+
     return result

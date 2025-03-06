@@ -1,7 +1,7 @@
 from functools import reduce
 from typing import Optional
 
-from _remote_tools._web_browser.cdp.a11y import (
+from multi_tool._remote_tools._web_browser.cdp.a11y import (
     AXNode,
     AXNodeId,
     AXProperty,
@@ -9,14 +9,14 @@ from _remote_tools._web_browser.cdp.a11y import (
     node_has_property,
     string_from_ax_value,
 )
-from _remote_tools._web_browser.cdp.dom_snapshot import (
+from multi_tool._remote_tools._web_browser.cdp.dom_snapshot import (
     DOMSnapshotContext,
     bounds_for_node_index,
     current_url_src_for_node_index,
     index_for_node_id,
     text_value_for_node_index,
 )
-from _remote_tools._web_browser.rectangle import Rectangle
+from multi_tool._remote_tools._web_browser.rectangle import Rectangle
 
 # Properties to ignore when printing out the accessibility tree.
 _IGNORED_AT_PROPERTIES: set[AXPropertyName] = {

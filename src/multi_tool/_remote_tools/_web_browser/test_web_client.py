@@ -2,7 +2,7 @@ import sys
 
 from web_client import _parse_args
 
-from _remote_tools._web_browser.tool_types import GoParams
+from multi_tool._remote_tools._web_browser.tool_types import GoParams
 
 
 def test_parse_args_session_name_handling() -> None:
@@ -42,4 +42,5 @@ def test_parse_args_session_name_handling() -> None:
         sys.argv = argv
         cmd, params = _parse_args()
         assert cmd == expected_cmd
+        assert params == expected_params
         assert params == expected_params

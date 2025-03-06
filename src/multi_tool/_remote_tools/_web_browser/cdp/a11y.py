@@ -8,7 +8,7 @@ from typing import Literal, NewType, Optional
 
 from pydantic import BaseModel
 
-from _remote_tools._web_browser.cdp.dom import DOMBackendNodeId
+from multi_tool._remote_tools._web_browser.cdp.dom import DOMBackendNodeId
 
 # brand these str's so that we don't confuse them with other str's
 PageFrameId = NewType("PageFrameId", str)
@@ -276,4 +276,5 @@ def node_str_property(node: AXNode, property_name: AXPropertyName) -> str | None
     if prop is None:
         return None
     v = prop.value
+    return v.value if isinstance(v.value, str) else None
     return v.value if isinstance(v.value, str) else None

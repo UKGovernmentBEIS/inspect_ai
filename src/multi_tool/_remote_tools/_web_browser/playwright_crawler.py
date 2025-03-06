@@ -9,7 +9,7 @@ from asyncio.futures import Future
 
 from playwright.async_api import BrowserContext, Page
 
-from _remote_tools._web_browser.playwright_page_crawler import PageCrawler
+from multi_tool._remote_tools._web_browser.playwright_page_crawler import PageCrawler
 
 
 class PlaywrightCrawler:
