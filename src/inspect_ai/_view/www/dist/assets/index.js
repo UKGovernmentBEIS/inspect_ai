@@ -17955,9 +17955,17 @@ self.onmessage = function (e) {
       },
       scrollPositions: {},
       listPositions: {},
-      collapsed: {}
+      collapsed: {},
+      messages: {}
     };
     const createAppSlice = (set2, get2, _store) => {
+      const getBoolRecord = (record, name2, defaultValue) => {
+        if (Object.keys(record).includes(name2)) {
+          return record[name2];
+        } else {
+          return defaultValue || false;
+        }
+      };
       const slice = {
         // State
         app: initialState$3,
@@ -18032,16 +18040,24 @@ self.onmessage = function (e) {
             });
           },
           getCollapsed: (name2, defaultValue) => {
-            const state = get2();
-            if (Object.keys(state.app.collapsed).includes(name2)) {
-              return state.app.collapsed[name2];
-            } else {
-              return defaultValue || false;
-            }
+            return getBoolRecord(get2().app.collapsed, name2, defaultValue);
           },
           setCollapsed: (name2, value2) => {
             set2((state) => {
               state.app.collapsed[name2] = value2;
+            });
+          },
+          getMessageVisible: (name2, defaultValue) => {
+            return getBoolRecord(get2().app.messages, name2, defaultValue);
+          },
+          setMessageVisible: (name2, value2) => {
+            set2((state) => {
+              state.app.messages[name2] = value2;
+            });
+          },
+          clearMessageVisible: (name2) => {
+            set2((state) => {
+              delete state.app.messages[name2];
             });
           }
         }
@@ -30865,6 +30881,43 @@ categories: ${categories.join(" ")}`;
         };
         return [collapsed, set2];
       }, [collapsed, setCollapsed]);
+    };
+    const useMessageVisibility = (id2, scope) => {
+      const visible2 = useStore(
+        (state) => state.appActions.getMessageVisible(id2, true)
+      );
+      const setVisible = useStore((state) => state.appActions.setMessageVisible);
+      const clearVisible = useStore(
+        (state) => state.appActions.clearMessageVisible
+      );
+      const isFirstRender = reactExports.useRef(true);
+      const selectedLogFile = useStore(
+        (state) => state.logsActions.getSelectedLogFile()
+      );
+      reactExports.useEffect(() => {
+        if (isFirstRender.current) {
+          isFirstRender.current = false;
+          return;
+        }
+        clearVisible(id2);
+      }, [selectedLogFile, clearVisible, id2]);
+      const selectedSampleIndex = useStore(
+        (state) => state.log.selectedSampleIndex
+      );
+      reactExports.useEffect(() => {
+        if (isFirstRender.current) {
+          return;
+        }
+        if (scope === "sample") {
+          clearVisible(id2);
+        }
+      }, [selectedSampleIndex, clearVisible, id2, scope]);
+      return reactExports.useMemo(() => {
+        const set2 = (visible22) => {
+          setVisible(id2, visible22);
+        };
+        return [visible2, set2];
+      }, [visible2, setVisible, id2]);
     };
     const container$9 = "_container_15b4r_1";
     const label$5 = "_label_15b4r_5";
@@ -65151,13 +65204,17 @@ ${events}
       );
     };
     const MessageBand = ({
+      id: id2,
       message: message2,
-      hidden: hidden2,
-      setHidden,
-      type
+      type,
+      scope = "eval"
     }) => {
       const className2 = [type];
-      if (hidden2) {
+      const [visible2, setVisible] = useMessageVisibility(id2, scope);
+      const handleClick = reactExports.useCallback(() => {
+        setVisible(false);
+      }, [setVisible]);
+      if (!visible2) {
         className2.push("hidden");
       }
       return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("message-band", className2), children: [
@@ -65168,9 +65225,7 @@ ${events}
           {
             className: clsx("btn", "message-band-btn", type),
             title: "Close",
-            onClick: () => {
-              setHidden(true);
-            },
+            onClick: handleClick,
             children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.close })
           }
         )
@@ -65462,10 +65517,6 @@ ${events}
       );
       const samplesDescriptor = useSampleDescriptor();
       const [followOutput, setFollowOutput] = reactExports.useState(false);
-      const [hidden2, setHidden] = reactExports.useState(false);
-      reactExports.useEffect(() => {
-        setHidden(false);
-      }, [items]);
       const onkeydown = reactExports.useCallback(
         (e) => {
           switch (e.key) {
@@ -65546,14 +65597,13 @@ ${events}
       }, 0);
       const percentError = errorCount / sampleCount * 100;
       const percentLimit = limitCount / sampleCount * 100;
-      const warningMessage = errorCount > 0 ? `INFO: ${errorCount} of ${sampleCount} samples (${formatNoDecimal(percentError)}%) had errors and were not scored.` : limitCount ? `INFO: ${limitCount} of ${sampleCount} samples (${formatNoDecimal(percentLimit)}%) completed due to exceeding a limit.` : void 0;
+      const warningMessage = errorCount > 0 ? `INFO: ${errorCount} of ${sampleCount} samples (${formatNoDecimal(percentError)}%) had errors and were not scored.` : limitCount ? `INFO: ${limitCount} of ${sampleCount} samples (${formatNoDecimal(percentLimit)}%) completed due to exceeding a limit.` : "IGNORE THIS BRUH";
       return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$d.mainLayout, children: [
         warningMessage ? /* @__PURE__ */ jsxRuntimeExports.jsx(
           MessageBand,
           {
+            id: "sample-warning-message",
             message: warningMessage,
-            hidden: hidden2,
-            setHidden,
             type: "info"
           }
         ) : void 0,
@@ -66371,18 +66421,13 @@ ${events}
       evalError,
       sampleCount
     }) => {
-      const [hidden2, setHidden] = reactExports.useState(false);
-      reactExports.useEffect(() => {
-        setHidden(false);
-      }, [evalSpec, evalPlan, evalResults, evalStats]);
       const showWarning = sampleCount === 0 && evalStatus === "success" && (evalSpec == null ? void 0 : evalSpec.dataset.samples) && evalSpec.dataset.samples > 0;
       return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { style: { width: "100%" }, children: [
         showWarning ? /* @__PURE__ */ jsxRuntimeExports.jsx(
           MessageBand,
           {
+            id: "sample-too-large",
             message: "Unable to display samples (this evaluation log may be too large).",
-            hidden: hidden2,
-            setHidden,
             type: "warning"
           }
         ) : "",
