@@ -558,10 +558,13 @@ def chat_tool_config(tool_choice: ToolChoice) -> ToolConfig:
 
 
 def completion_choice_from_candidate(candidate: Candidate) -> ChatCompletionChoice:
-    # check for completion text
-    content = ""
     # content can be None when the finish_reason is SAFETY
-    if candidate.content is not None:
+    if candidate.content is None:
+        content = ""
+    # content.parts can be None when the finish_reason is MALFORMED_FUNCTION_CALL
+    elif candidate.content.parts is None:
+        content = ""
+    else:
         content = " ".join(
             [
                 part.text
@@ -709,6 +712,8 @@ def finish_reason_to_stop_reason(finish_reason: FinishReason) -> StopReason:
         ):
             return "content_filter"
         case _:
+            # Note: to avoid adding another option to StopReason,
+            # this includes FinishReason.MALFORMED_FUNCTION_CALL
             return "unknown"
 
 
