@@ -7,6 +7,7 @@ from httpcore import ReadTimeout
 from httpx import ReadTimeout as AsyncReadTimeout
 from mistralai import (
     ContentChunk,
+    DocumentURLChunk,
     FunctionCall,
     FunctionName,
     ImageURL,
@@ -475,6 +476,8 @@ def completion_content_chunk(content: ContentChunk) -> Content:
         raise TypeError("ReferenceChunk content is not supported by Inspect.")
     elif isinstance(content, TextChunk):
         return ContentText(text=content.text)
+    elif isinstance(content, DocumentURLChunk):
+        return ContentText(text=content.document_url)
     else:
         if isinstance(content.image_url, str):
             return ContentImage(image=content.image_url)
