@@ -1,9 +1,9 @@
 import clsx from "clsx";
-import { FC, isValidElement, ReactNode, useCallback } from "react";
+import { FC, isValidElement, ReactNode } from "react";
 import { ApplicationIcons } from "../../../appearance/icons";
 import { EventNavs } from "./EventNavs";
 
-import { useStore } from "../../../state/store";
+import { useProperty } from "../../../state/hooks";
 import styles from "./EventPanel.module.css";
 
 interface EventPanelProps {
@@ -21,9 +21,6 @@ interface ChildProps {
   "data-name"?: string;
 }
 
-const kCollapsed = "collapsed";
-const kSelectedNav = "selectedNav";
-
 /**
  * Renders the StateEventView component.
  */
@@ -37,18 +34,10 @@ export const EventPanel: FC<EventPanelProps> = ({
   collapse,
   children,
 }) => {
-  const setPropertyValue = useStore(
-    (state) => state.appActions.setPropertyValue,
-  );
-  const isCollapsed = useStore((state) =>
-    state.appActions.getPropertyValue<boolean>(id, kCollapsed, !!collapse),
-  );
-  const setCollapsed = useCallback(
-    (collapsed: boolean) => {
-      setPropertyValue(id, kCollapsed, collapsed);
-    },
-    [setPropertyValue],
-  );
+  const [isCollapsed, setCollapsed] = useProperty(id, "collapsed", {
+    defaultValue: !!collapse,
+  });
+
   const hasCollapse = collapse !== undefined;
 
   const pillId = (index: number) => {
@@ -59,15 +48,9 @@ export const EventPanel: FC<EventPanelProps> = ({
   ).filter((child) => !!child);
   const defaultPillId = pillId(0);
 
-  const selectedNav = useStore((state) =>
-    state.appActions.getPropertyValue<string>(id, kSelectedNav, defaultPillId),
-  );
-  const setSelectedNav = useCallback(
-    (nav: string) => {
-      setPropertyValue(id, kSelectedNav, nav);
-    },
-    [setPropertyValue],
-  );
+  const [selectedNav, setSelectedNav] = useProperty(id, "selectedNav", {
+    defaultValue: defaultPillId,
+  });
 
   const gridColumns = [];
 
