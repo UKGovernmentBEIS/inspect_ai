@@ -1276,7 +1276,8 @@
             "cache_prompt": null,
             "reasoning_effort": null,
             "reasoning_tokens": null,
-            "reasoning_history": null
+            "reasoning_history": null,
+            "response_schema": null
           }
         }
       },
@@ -2574,6 +2575,17 @@
           ],
           "default": null,
           "title": "Reasoning History"
+        },
+        "response_schema": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ResponseSchema"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "title": "GenerateConfig",
@@ -2602,7 +2614,8 @@
         "cache_prompt",
         "reasoning_effort",
         "reasoning_tokens",
-        "reasoning_history"
+        "reasoning_history",
+        "response_schema"
       ],
       "additionalProperties": false
     },
@@ -2713,6 +2726,146 @@
       ],
       "title": "InputEvent",
       "type": "object",
+      "additionalProperties": false
+    },
+    "JSONSchema": {
+      "description": "JSON Schema for type.",
+      "properties": {
+        "type": {
+          "anyOf": [
+            {
+              "enum": [
+                "string",
+                "integer",
+                "number",
+                "boolean",
+                "array",
+                "object",
+                "null"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Type"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        },
+        "default": {
+          "default": null,
+          "title": "Default"
+        },
+        "enum": {
+          "anyOf": [
+            {
+              "items": {},
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Enum"
+        },
+        "items": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/JSONSchema"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "properties": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "$ref": "#/$defs/JSONSchema"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Properties"
+        },
+        "additionalProperties": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/JSONSchema"
+            },
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Additionalproperties"
+        },
+        "anyOf": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/JSONSchema"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Anyof"
+        },
+        "required": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Required"
+        }
+      },
+      "title": "JSONSchema",
+      "type": "object",
+      "required": [
+        "type",
+        "description",
+        "default",
+        "enum",
+        "items",
+        "properties",
+        "additionalProperties",
+        "anyOf",
+        "required"
+      ],
       "additionalProperties": false
     },
     "JsonChange": {
@@ -3296,6 +3449,51 @@
         "input_tokens_cache_read",
         "reasoning_tokens"
       ],
+      "additionalProperties": false
+    },
+    "ResponseSchema": {
+      "description": "Schema for model response when using Structured Output.",
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "json_schema": {
+          "$ref": "#/$defs/JSONSchema"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        },
+        "strict": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Strict"
+        }
+      },
+      "required": [
+        "name",
+        "json_schema",
+        "description",
+        "strict"
+      ],
+      "title": "ResponseSchema",
+      "type": "object",
       "additionalProperties": false
     },
     "Sample": {
@@ -4661,146 +4859,6 @@
       "type": "object",
       "additionalProperties": false
     },
-    "ToolParam": {
-      "description": "Description of tool parameter in JSON Schema format.",
-      "properties": {
-        "type": {
-          "anyOf": [
-            {
-              "enum": [
-                "string",
-                "integer",
-                "number",
-                "boolean",
-                "array",
-                "object",
-                "null"
-              ],
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Type"
-        },
-        "description": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Description"
-        },
-        "default": {
-          "default": null,
-          "title": "Default"
-        },
-        "enum": {
-          "anyOf": [
-            {
-              "items": {},
-              "type": "array"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Enum"
-        },
-        "items": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/ToolParam"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
-        },
-        "properties": {
-          "anyOf": [
-            {
-              "additionalProperties": {
-                "$ref": "#/$defs/ToolParam"
-              },
-              "type": "object"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Properties"
-        },
-        "additionalProperties": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/ToolParam"
-            },
-            {
-              "type": "boolean"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Additionalproperties"
-        },
-        "anyOf": {
-          "anyOf": [
-            {
-              "items": {
-                "$ref": "#/$defs/ToolParam"
-              },
-              "type": "array"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Anyof"
-        },
-        "required": {
-          "anyOf": [
-            {
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Required"
-        }
-      },
-      "title": "ToolParam",
-      "type": "object",
-      "required": [
-        "type",
-        "description",
-        "default",
-        "enum",
-        "items",
-        "properties",
-        "additionalProperties",
-        "anyOf",
-        "required"
-      ],
-      "additionalProperties": false
-    },
     "ToolParams": {
       "description": "Description of tool parameters object in JSON Schema format.",
       "properties": {
@@ -4813,7 +4871,7 @@
         "properties": {
           "type": "object",
           "additionalProperties": {
-            "$ref": "#/$defs/ToolParam"
+            "$ref": "#/$defs/JSONSchema"
           },
           "title": "Properties"
         },
