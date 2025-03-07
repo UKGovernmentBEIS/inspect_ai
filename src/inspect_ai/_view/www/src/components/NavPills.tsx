@@ -1,6 +1,6 @@
 import { clsx } from "clsx";
-import { FC, ReactElement, ReactNode, useCallback } from "react";
-import { useStore } from "../state/store";
+import { FC, ReactElement, ReactNode } from "react";
+import { useProperty } from "../state/hooks";
 import styles from "./NavPills.module.css";
 
 interface NavPillChildProps {
@@ -15,20 +15,9 @@ interface NavPillsProps {
 
 export const NavPills: FC<NavPillsProps> = ({ id, children }) => {
   const defaultNav = children ? children[0].props["title"] : "";
-  const setPropertyValue = useStore(
-    (state) => state.appActions.setPropertyValue,
-  );
-
-  const activeItem = useStore((state) =>
-    state.appActions.getPropertyValue(id, "active", defaultNav),
-  );
-
-  const setActiveItem = useCallback(
-    (active: string) => {
-      setPropertyValue(id, "active", active);
-    },
-    [setPropertyValue],
-  );
+  const [activeItem, setActiveItem] = useProperty(id, "active", {
+    defaultValue: defaultNav,
+  });
 
   if (!activeItem || !children) {
     return undefined;
