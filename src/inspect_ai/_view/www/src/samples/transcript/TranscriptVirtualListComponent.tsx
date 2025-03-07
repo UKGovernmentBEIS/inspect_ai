@@ -1,8 +1,8 @@
 import clsx from "clsx";
-import { FC, memo, RefObject, useCallback, useRef, useState } from "react";
+import { FC, memo, RefObject, useRef, useState } from "react";
 import { Virtuoso, VirtuosoHandle } from "react-virtuoso";
 import { RenderedEventNode } from "./TranscriptView";
-import { EventNode, TranscriptEventState, TranscriptState } from "./types";
+import { EventNode } from "./types";
 
 import { useVirtuosoState } from "../../state/scrolling";
 import styles from "./TranscriptVirtualListComponent.module.css";
@@ -10,8 +10,6 @@ import styles from "./TranscriptVirtualListComponent.module.css";
 interface TranscriptVirtualListComponentProps {
   id: string;
   eventNodes: EventNode[];
-  transcriptState: TranscriptState;
-  setTranscriptState: (state: TranscriptState) => void;
   scrollRef?: RefObject<HTMLDivElement | null>;
 }
 
@@ -19,14 +17,7 @@ interface TranscriptVirtualListComponentProps {
  * Renders the Transcript component.
  */
 export const TranscriptVirtualListComponent: FC<TranscriptVirtualListComponentProps> =
-  memo(({ id, eventNodes, scrollRef, transcriptState, setTranscriptState }) => {
-    const setEventState = useCallback(
-      (eventId: string, state: TranscriptEventState) => {
-        setTranscriptState({ ...transcriptState, [eventId]: state });
-      },
-      [transcriptState, setTranscriptState],
-    );
-
+  memo(({ id, eventNodes, scrollRef }) => {
     const listHandle = useRef<VirtuosoHandle>(null);
     const { restoreState, isScrolling } = useVirtuosoState(
       listHandle,
@@ -48,8 +39,6 @@ export const TranscriptVirtualListComponent: FC<TranscriptVirtualListComponentPr
             node={item}
             className={clsx(bgClass)}
             scrollRef={scrollRef}
-            eventState={transcriptState[eventId] || {}}
-            setEventState={(state) => setEventState(eventId, state)}
           />
         </div>
       );

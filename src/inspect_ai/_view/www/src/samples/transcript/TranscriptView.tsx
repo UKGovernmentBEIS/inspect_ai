@@ -1,4 +1,4 @@
-import { FC, RefObject, useCallback, useMemo, useState } from "react";
+import { FC, RefObject, useMemo } from "react";
 import { Events } from "../../types/log";
 import { ApprovalEventView } from "./ApprovalEventView";
 import { ErrorEventView } from "./ErrorEventView";
@@ -14,7 +14,7 @@ import { StateEventView } from "./state/StateEventView";
 import { StepEventView } from "./StepEventView";
 import { SubtaskEventView } from "./SubtaskEventView";
 import { ToolEventView } from "./ToolEventView";
-import { EventNode, EventType, TranscriptEventState } from "./types";
+import { EventNode, EventType } from "./types";
 
 import clsx from "clsx";
 import styles from "./TranscriptView.module.css";
@@ -26,8 +26,6 @@ interface TranscriptViewProps {
   depth: number;
 }
 
-type TranscriptState = Record<string, TranscriptEventState>;
-
 /**
  * Renders the TranscriptView component.
  */
@@ -36,28 +34,13 @@ export const TranscriptView: FC<TranscriptViewProps> = ({
   events,
   depth,
 }) => {
-  const [transcriptState, setTranscriptState] = useState<TranscriptState>({});
-  const onTranscriptState = useCallback(
-    (state: TranscriptState) => {
-      setTranscriptState(state);
-    },
-    [setTranscriptState],
-  );
-
   // Normalize Events themselves
   const resolvedEvents = fixupEventStream(events);
   const eventNodes = treeifyEvents(
     resolvedEvents,
     depth !== undefined ? depth : 0,
   );
-  return (
-    <TranscriptComponent
-      id={id}
-      eventNodes={eventNodes}
-      transcriptState={transcriptState}
-      setTranscriptState={onTranscriptState}
-    />
-  );
+  return <TranscriptComponent id={id} eventNodes={eventNodes} />;
 };
 
 interface TranscriptVirtualListProps {
@@ -83,29 +66,17 @@ export const TranscriptVirtualList: FC<TranscriptVirtualListProps> = (
     return eventNodes;
   }, [events, depth]);
 
-  const [transcriptState, setTranscriptState] = useState({});
-  const onTranscriptState = useCallback(
-    (state: TranscriptEventState) => {
-      setTranscriptState(state);
-    },
-    [setTranscriptState],
-  );
-
   return (
     <TranscriptVirtualListComponent
       id={id}
       eventNodes={eventNodes}
       scrollRef={scrollRef}
-      transcriptState={transcriptState}
-      setTranscriptState={onTranscriptState}
     />
   );
 };
 
 interface TranscriptComponentProps {
   id: string;
-  transcriptState: TranscriptState;
-  setTranscriptState: (state: TranscriptState) => void;
   eventNodes: EventNode[];
 }
 /**
@@ -113,17 +84,8 @@ interface TranscriptComponentProps {
  */
 export const TranscriptComponent: FC<TranscriptComponentProps> = ({
   id,
-  transcriptState,
-  setTranscriptState,
   eventNodes,
 }) => {
-  const setEventState = useCallback(
-    (state: TranscriptEventState, eventId: string) => {
-      setTranscriptState({ ...transcriptState, [eventId]: state });
-    },
-    [setTranscriptState, transcriptState],
-  );
-
   const rows = eventNodes.map((eventNode, index) => {
     const clz = [styles.eventNode];
     if (eventNode.depth % 2 == 0) {
@@ -147,10 +109,6 @@ export const TranscriptComponent: FC<TranscriptComponentProps> = ({
           id={eventId}
           node={eventNode}
           className={clsx(clz)}
-          eventState={transcriptState[eventId] || {}}
-          setEventState={(state: TranscriptEventState) => {
-            setEventState(state, eventId);
-          }}
         />
       </div>
     );
@@ -171,8 +129,6 @@ interface RenderedEventNodeProps {
   id: string;
   node: EventNode;
   scrollRef?: RefObject<HTMLDivElement | null>;
-  eventState: TranscriptEventState;
-  setEventState: (state: TranscriptEventState) => void;
   className?: string | string[];
 }
 /**
@@ -182,20 +138,12 @@ export const RenderedEventNode: FC<RenderedEventNodeProps> = ({
   id,
   node,
   scrollRef,
-  eventState,
-  setEventState,
   className,
 }) => {
   switch (node.event.event) {
     case "sample_init":
       return (
-        <SampleInitEventView
-          id={id}
-          event={node.event}
-          eventState={eventState}
-          setEventState={setEventState}
-          className={className}
-        />
+        <SampleInitEventView id={id} event={node.event} className={className} />
       );
 
     case "sample_limit":
@@ -203,65 +151,35 @@ export const RenderedEventNode: FC<RenderedEventNodeProps> = ({
         <SampleLimitEventView
           id={id}
           event={node.event}
-          eventState={eventState}
-          setEventState={setEventState}
           className={className}
         />
       );
 
     case "info":
-      return (
-        <InfoEventView
-          id={id}
-          event={node.event}
-          eventState={eventState}
-          setEventState={setEventState}
-          className={className}
-        />
-      );
+      return <InfoEventView id={id} event={node.event} className={className} />;
 
     case "logger":
       return <LoggerEventView event={node.event} className={className} />;
 
     case "model":
       return (
-        <ModelEventView
-          id={id}
-          event={node.event}
-          eventState={eventState}
-          setEventState={setEventState}
-          className={className}
-        />
+        <ModelEventView id={id} event={node.event} className={className} />
       );
 
     case "score":
       return (
-        <ScoreEventView
-          id={id}
-          event={node.event}
-          eventState={eventState}
-          setEventState={setEventState}
-          className={className}
-        />
+        <ScoreEventView id={id} event={node.event} className={className} />
       );
 
     case "state":
       return (
-        <StateEventView
-          id={id}
-          event={node.event}
-          eventState={eventState}
-          setEventState={setEventState}
-          className={className}
-        />
+        <StateEventView id={id} event={node.event} className={className} />
       );
 
     case "step":
       return (
         <StepEventView
           event={node.event}
-          eventState={eventState}
-          setEventState={setEventState}
           children={node.children}
           scrollRef={scrollRef}
           className={className}
@@ -273,8 +191,6 @@ export const RenderedEventNode: FC<RenderedEventNodeProps> = ({
         <StateEventView
           id={id}
           event={node.event}
-          eventState={eventState}
-          setEventState={setEventState}
           className={className}
           isStore={true}
         />
@@ -285,8 +201,6 @@ export const RenderedEventNode: FC<RenderedEventNodeProps> = ({
         <SubtaskEventView
           id={id}
           event={node.event}
-          eventState={eventState}
-          setEventState={setEventState}
           className={className}
           depth={node.depth}
         />
@@ -297,8 +211,6 @@ export const RenderedEventNode: FC<RenderedEventNodeProps> = ({
         <ToolEventView
           id={id}
           event={node.event}
-          eventState={eventState}
-          setEventState={setEventState}
           className={className}
           depth={node.depth}
         />
@@ -306,24 +218,12 @@ export const RenderedEventNode: FC<RenderedEventNodeProps> = ({
 
     case "input":
       return (
-        <InputEventView
-          id={id}
-          event={node.event}
-          eventState={eventState}
-          setEventState={setEventState}
-          className={className}
-        />
+        <InputEventView id={id} event={node.event} className={className} />
       );
 
     case "error":
       return (
-        <ErrorEventView
-          id={id}
-          event={node.event}
-          eventState={eventState}
-          setEventState={setEventState}
-          className={className}
-        />
+        <ErrorEventView id={id} event={node.event} className={className} />
       );
 
     case "approval":
@@ -331,13 +231,7 @@ export const RenderedEventNode: FC<RenderedEventNodeProps> = ({
 
     case "sandbox":
       return (
-        <SandboxEventView
-          id={id}
-          event={node.event}
-          className={className}
-          eventState={eventState}
-          setEventState={setEventState}
-        />
+        <SandboxEventView id={id} event={node.event} className={className} />
       );
 
     default:

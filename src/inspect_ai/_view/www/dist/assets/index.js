@@ -7399,9 +7399,9 @@ var require_assets = __commonJS({
             );
             finishedRoot = finishedWork.stateNode;
             try {
-              var _finishedWork$memoize2 = finishedWork.memoizedProps, id2 = _finishedWork$memoize2.id, onPostCommit = _finishedWork$memoize2.onPostCommit;
+              var _finishedWork$memoize2 = finishedWork.memoizedProps, id = _finishedWork$memoize2.id, onPostCommit = _finishedWork$memoize2.onPostCommit;
               "function" === typeof onPostCommit && onPostCommit(
-                id2,
+                id,
                 null === finishedWork.alternate ? "mount" : "update",
                 finishedRoot.passiveEffectDuration,
                 -0
@@ -12058,10 +12058,10 @@ self.onmessage = function (e) {
       )).parsed;
       return result2;
     }
-    async function eval_log_sample_data(log_file, id2, epoch, last_event, last_attachment) {
+    async function eval_log_sample_data(log_file, id, epoch, last_event, last_attachment) {
       const params2 = new URLSearchParams();
       params2.append("log", log_file);
-      params2.append("id", String(id2));
+      params2.append("id", String(id));
       params2.append("epoch", String(epoch));
       if (last_event) {
         params2.append("last-event-id", String(last_event));
@@ -12196,8 +12196,8 @@ self.onmessage = function (e) {
       eval_log_sample_data
     };
     var ch2 = {};
-    var wk = function(c2, id2, msg, transfer, cb) {
-      var w2 = new Worker(ch2[id2] || (ch2[id2] = URL.createObjectURL(new Blob([
+    var wk = function(c2, id, msg, transfer, cb) {
+      var w2 = new Worker(ch2[id] || (ch2[id] = URL.createObjectURL(new Blob([
         c2 + ';addEventListener("error",function(e){e=e.error;postMessage({$e$:[e.message,e.code,e.stack]})})'
       ], { type: "text/javascript" }))));
       w2.onmessage = function(e) {
@@ -12596,15 +12596,15 @@ self.onmessage = function (e) {
       }
       return tl;
     };
-    var wrkr = function(fns, init, id2, cb) {
-      if (!ch[id2]) {
+    var wrkr = function(fns, init, id, cb) {
+      if (!ch[id]) {
         var fnStr = "", td_1 = {}, m = fns.length - 1;
         for (var i2 = 0; i2 < m; ++i2)
           fnStr = wcln(fns[i2], fnStr, td_1);
-        ch[id2] = { c: wcln(fns[m], fnStr, td_1), e: td_1 };
+        ch[id] = { c: wcln(fns[m], fnStr, td_1), e: td_1 };
       }
-      var td2 = mrg({}, ch[id2].e);
-      return wk(ch[id2].c + ";onmessage=function(e){for(var k in e.data)self[k]=e.data[k];onmessage=" + init.toString() + "}", id2, td2, cbfs(td2), cb);
+      var td2 = mrg({}, ch[id].e);
+      return wk(ch[id].c + ";onmessage=function(e){for(var k in e.data)self[k]=e.data[k];onmessage=" + init.toString() + "}", id, td2, cbfs(td2), cb);
     };
     var bInflt = function() {
       return [u8, u16, i32, fleb, fdeb, clim, fl, fd, flrm, fdrm, rev, ec, hMap, max$1, bits, bits16, shft, slc, err, inflt, inflateSync, pbf, gopt];
@@ -12624,8 +12624,8 @@ self.onmessage = function (e) {
         dictionary: o.dictionary
       };
     };
-    var cbify = function(dat, opts, fns, init, id2, cb) {
-      var w2 = wrkr(fns, init, id2, function(err2, dat2) {
+    var cbify = function(dat, opts, fns, init, id, cb) {
+      var w2 = wrkr(fns, init, id, function(err2, dat2) {
         w2.terminate();
         cb(err2, dat2);
       });
@@ -14456,16 +14456,16 @@ self.onmessage = function (e) {
       return file.endsWith(".eval");
     };
     class SampleSizeLimitedExceededError extends Error {
-      constructor(id2, epoch, maxBytes) {
+      constructor(id, epoch, maxBytes) {
         super(
-          `Sample ${id2} in epoch ${epoch} exceeds the maximum supported size (${maxBytes / 1024 / 1024}MB) and cannot be loaded.`
+          `Sample ${id} in epoch ${epoch} exceeds the maximum supported size (${maxBytes / 1024 / 1024}MB) and cannot be loaded.`
         );
         __publicField(this, "id");
         __publicField(this, "epoch");
         __publicField(this, "maxBytes");
         __publicField(this, "displayStack");
         this.name = "SampleSizeLimitedExceededError";
-        this.id = id2;
+        this.id = id;
         this.epoch = epoch;
         this.maxBytes = maxBytes;
         this.displayStack = false;
@@ -14545,19 +14545,19 @@ self.onmessage = function (e) {
           };
         }
       };
-      const get_log_sample = async (log_file2, id2, epoch) => {
+      const get_log_sample = async (log_file2, id, epoch) => {
         if (isEvalFile(log_file2)) {
           const remoteLogFile = await remoteEvalFile(log_file2, true);
           try {
             if (remoteLogFile) {
-              const sample2 = await remoteLogFile.readSample(String(id2), epoch);
+              const sample2 = await remoteLogFile.readSample(String(id), epoch);
               return sample2;
             } else {
               throw new Error(`Unable to read remove eval file ${log_file2}`);
             }
           } catch (error2) {
             if (error2 instanceof FileSizeLimitError) {
-              throw new SampleSizeLimitedExceededError(id2, epoch, error2.maxBytes);
+              throw new SampleSizeLimitedExceededError(id, epoch, error2.maxBytes);
             } else {
               throw error2;
             }
@@ -14566,7 +14566,7 @@ self.onmessage = function (e) {
           const logContents = await get_log(log_file2, true);
           if (logContents.parsed.samples && logContents.parsed.samples.length > 0) {
             return logContents.parsed.samples.find((sample2) => {
-              return sample2.id === id2 && sample2.epoch === epoch;
+              return sample2.id === id && sample2.epoch === epoch;
             });
           }
         }
@@ -14639,13 +14639,13 @@ self.onmessage = function (e) {
         }
         return api2.eval_pending_samples(log_file2, etag);
       };
-      const get_log_sample_data = (log_file2, id2, epoch, last_event, last_attachment) => {
+      const get_log_sample_data = (log_file2, id, epoch, last_event, last_attachment) => {
         if (!api2.eval_log_sample_data) {
           throw new Error("API doesn't supported streamed sample data");
         }
         return api2.eval_log_sample_data(
           log_file2,
-          id2,
+          id,
           epoch,
           last_event,
           last_attachment
@@ -14825,16 +14825,16 @@ self.onmessage = function (e) {
             clone: function deepClone(o, visited) {
               visited = visited || {};
               var clone2;
-              var id2;
+              var id;
               switch (_.util.type(o)) {
                 case "Object":
-                  id2 = _.util.objId(o);
-                  if (visited[id2]) {
-                    return visited[id2];
+                  id = _.util.objId(o);
+                  if (visited[id]) {
+                    return visited[id];
                   }
                   clone2 = /** @type {Record<string, any>} */
                   {};
-                  visited[id2] = clone2;
+                  visited[id] = clone2;
                   for (var key2 in o) {
                     if (o.hasOwnProperty(key2)) {
                       clone2[key2] = deepClone(o[key2], visited);
@@ -14845,12 +14845,12 @@ self.onmessage = function (e) {
                     clone2
                   );
                 case "Array":
-                  id2 = _.util.objId(o);
-                  if (visited[id2]) {
-                    return visited[id2];
+                  id = _.util.objId(o);
+                  if (visited[id]) {
+                    return visited[id];
                   }
                   clone2 = [];
-                  visited[id2] = clone2;
+                  visited[id] = clone2;
                   /** @type {Array} */
                   /** @type {any} */
                   o.forEach(function(v, i2) {
@@ -15002,8 +15002,8 @@ self.onmessage = function (e) {
              *     'color': /\b(?:red|green|blue)\b/
              * });
              */
-            extend: function(id2, redef) {
-              var lang2 = _.util.clone(_.languages[id2]);
+            extend: function(id, redef) {
+              var lang2 = _.util.clone(_.languages[id]);
               for (var key2 in redef) {
                 lang2[key2] = redef[key2];
               }
@@ -21082,8 +21082,8 @@ self.onmessage = function (e) {
       return elementRef;
     };
     const ExpandablePanel = reactExports.memo(
-      ({ id: id2, collapse, border, lines = 15, children: children2, className: className2 }) => {
-        const [collapsed, setCollapsed] = useCollapsedState(id2, collapse);
+      ({ id, collapse, border, lines = 15, children: children2, className: className2 }) => {
+        const [collapsed, setCollapsed] = useCollapsedState(id, collapse);
         const [showToggle, setShowToggle] = reactExports.useState(false);
         const lineHeightRef = reactExports.useRef(0);
         const checkOverflow = reactExports.useCallback(
@@ -26528,7 +26528,7 @@ self.onmessage = function (e) {
                 children: "Reasoning"
               }
             ),
-            /* @__PURE__ */ jsxRuntimeExports.jsx(ExpandablePanel, { id: `${id}-reasoning`, collapse: true, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+            /* @__PURE__ */ jsxRuntimeExports.jsx(ExpandablePanel, { id: `${key2}-reasoning`, collapse: true, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
               MarkdownDiv,
               {
                 markdown: r2.redacted ? "Reasoning encrypted by model provider." : r2.reasoning
@@ -26710,7 +26710,7 @@ self.onmessage = function (e) {
       ] });
     };
     const ToolCallView = ({
-      id: id2,
+      id,
       functionCall,
       input: input2,
       highlightLanguage,
@@ -26747,7 +26747,7 @@ self.onmessage = function (e) {
           /* @__PURE__ */ jsxRuntimeExports.jsx(
             ExpandablePanel,
             {
-              id: `${id2}-tool-input`,
+              id: `${id}-tool-input`,
               collapse,
               border: true,
               lines: 15,
@@ -26779,7 +26779,7 @@ self.onmessage = function (e) {
       content: content$2
     };
     const MessageContents = ({
-      id: id2,
+      id,
       message: message2,
       toolMessages,
       toolCallStyle
@@ -26808,7 +26808,7 @@ self.onmessage = function (e) {
             return /* @__PURE__ */ jsxRuntimeExports.jsx(
               ToolCallView,
               {
-                id: `${id2}-tool-call`,
+                id: `${id}-tool-call`,
                 functionCall,
                 input: input2,
                 highlightLanguage,
@@ -26931,7 +26931,7 @@ self.onmessage = function (e) {
       }
     };
     const ChatMessage = ({
-      id: id2,
+      id,
       message: message2,
       toolMessages,
       indented: indented2,
@@ -26959,15 +26959,15 @@ self.onmessage = function (e) {
                   styles$$.messageContents,
                   indented2 ? styles$$.indented : void 0
                 ),
-                children: /* @__PURE__ */ jsxRuntimeExports.jsx(ExpandablePanel, { id: `${id2}-message`, collapse, lines: 30, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+                children: /* @__PURE__ */ jsxRuntimeExports.jsx(ExpandablePanel, { id: `${id}-message`, collapse, lines: 30, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
                   MessageContents,
                   {
-                    id: `${id2}-contents`,
+                    id: `${id}-contents`,
                     message: message2,
                     toolMessages,
                     toolCallStyle
                   },
-                  `${id2}-contents`
+                  `${id}-contents`
                 ) })
               }
             )
@@ -27026,7 +27026,7 @@ self.onmessage = function (e) {
       }
     };
     const ChatView = ({
-      id: id2,
+      id,
       messages,
       toolCallStyle = "complete",
       indented: indented2,
@@ -27039,13 +27039,13 @@ self.onmessage = function (e) {
         return /* @__PURE__ */ jsxRuntimeExports.jsx(
           ChatMessageRow,
           {
-            parentName: id2 || "chat-view",
+            parentName: id || "chat-view",
             number: number2,
             resolvedMessage: msg,
             indented: indented2,
             toolCallStyle
           },
-          `${id2}-msg-${index2}`
+          `${id}-msg-${index2}`
         );
       }) });
       return result2;
@@ -27057,16 +27057,16 @@ self.onmessage = function (e) {
         const val = entry2.value;
         return Array.isArray(val) && val.length > 0 && ((_a2 = val[0]) == null ? void 0 : _a2.role) !== void 0 && ((_b2 = val[0]) == null ? void 0 : _b2.content) !== void 0;
       },
-      render: (id2, entry2) => {
+      render: (id, entry2) => {
         return {
           rendered: /* @__PURE__ */ jsxRuntimeExports.jsxs(NavPills, { children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx(ChatSummary, { title: "Last Turn", id: id2, messages: entry2.value }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx(ChatView, { title: "All", id: id2, messages: entry2.value })
+            /* @__PURE__ */ jsxRuntimeExports.jsx(ChatSummary, { title: "Last Turn", id, messages: entry2.value }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx(ChatView, { title: "All", id, messages: entry2.value })
           ] })
         };
       }
     };
-    const ChatSummary = ({ id: id2, messages }) => {
+    const ChatSummary = ({ id, messages }) => {
       const summaryMessages = [];
       for (const message2 of messages.slice().reverse()) {
         summaryMessages.unshift(message2);
@@ -27074,7 +27074,7 @@ self.onmessage = function (e) {
           break;
         }
       }
-      return /* @__PURE__ */ jsxRuntimeExports.jsx(ChatView, { id: id2, messages: summaryMessages });
+      return /* @__PURE__ */ jsxRuntimeExports.jsx(ChatView, { id, messages: summaryMessages });
     };
     const table$1 = "_table_1memb_1";
     const th = "_th_1memb_7";
@@ -27091,7 +27091,7 @@ self.onmessage = function (e) {
       cellValue
     };
     const MetaDataView = ({
-      id: id2,
+      id,
       style: style2,
       entries,
       tableOptions,
@@ -27105,7 +27105,7 @@ self.onmessage = function (e) {
       });
       const coercedEntries = toNameValues(entries);
       const entryEls = (coercedEntries || []).map((entry2, index2) => {
-        const id22 = `${baseId}-value-${index2}`;
+        const id2 = `${baseId}-value-${index2}`;
         return /* @__PURE__ */ jsxRuntimeExports.jsxs("tr", { children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx(
             "td",
@@ -27119,13 +27119,13 @@ self.onmessage = function (e) {
               children: entry2.name
             }
           ),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("td", { className: clsx(styles$U.cell, styles$U.cellValue, "text-size-small"), children: /* @__PURE__ */ jsxRuntimeExports.jsx(RenderedContent, { id: id22, entry: entry2 }) })
-        ] }, id22);
+          /* @__PURE__ */ jsxRuntimeExports.jsx("td", { className: clsx(styles$U.cell, styles$U.cellValue, "text-size-small"), children: /* @__PURE__ */ jsxRuntimeExports.jsx(RenderedContent, { id: id2, entry: entry2 }) })
+        ] }, id2);
       });
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(
         "table",
         {
-          id: id2,
+          id,
           className: clsx(
             "table",
             tblClz,
@@ -27156,7 +27156,7 @@ self.onmessage = function (e) {
     };
     const kPrismRenderMaxSize = 25e4;
     const JSONPanel = ({
-      id: id2,
+      id,
       json,
       data,
       simple = false,
@@ -27180,7 +27180,7 @@ self.onmessage = function (e) {
           children: /* @__PURE__ */ jsxRuntimeExports.jsx(
             "code",
             {
-              id: id2,
+              id,
               ref: codeRef,
               className: clsx("source-code", "language-javascript"),
               children: sourceCode
@@ -27242,7 +27242,7 @@ self.onmessage = function (e) {
       preWrap
     };
     const RenderedContent = ({
-      id: id2,
+      id,
       entry: entry2
     }) => {
       if (entry2.value === null) {
@@ -27256,7 +27256,7 @@ self.onmessage = function (e) {
         return renderer2.canRender(entry2);
       });
       if (renderer) {
-        const { rendered } = renderer.render(id2, entry2);
+        const { rendered } = renderer.render(id, entry2);
         if (rendered !== void 0 && reactExports.isValidElement(rendered)) {
           return rendered;
         }
@@ -27319,9 +27319,9 @@ self.onmessage = function (e) {
         canRender: (entry2) => {
           return typeof entry2.value === "boolean";
         },
-        render: (id2, entry2) => {
+        render: (id, entry2) => {
           entry2.value = entry2.value.toString();
-          return contentRenderers.String.render(id2, entry2);
+          return contentRenderers.String.render(id, entry2);
         }
       },
       Number: {
@@ -27329,9 +27329,9 @@ self.onmessage = function (e) {
         canRender: (entry2) => {
           return typeof entry2.value === "number";
         },
-        render: (id2, entry2) => {
+        render: (id, entry2) => {
           entry2.value = formatNumber(entry2.value);
-          return contentRenderers.String.render(id2, entry2);
+          return contentRenderers.String.render(id, entry2);
         }
       },
       String: {
@@ -27361,7 +27361,7 @@ self.onmessage = function (e) {
             return false;
           }
         },
-        render: (id2, entry2) => {
+        render: (id, entry2) => {
           const arrayMap = {};
           entry2.value.forEach((e, index2) => {
             arrayMap[`[${index2}]`] = e;
@@ -27369,7 +27369,7 @@ self.onmessage = function (e) {
           const arrayRendered = /* @__PURE__ */ jsxRuntimeExports.jsx(
             MetaDataView,
             {
-              id: id2,
+              id,
               className: "font-size-small",
               entries: arrayMap,
               tableOptions: "borderless,sm",
@@ -27448,12 +27448,12 @@ self.onmessage = function (e) {
         canRender: (entry2) => {
           return typeof entry2.value === "object";
         },
-        render: (id2, entry2) => {
+        render: (id, entry2) => {
           return {
             rendered: /* @__PURE__ */ jsxRuntimeExports.jsx(
               MetaDataView,
               {
-                id: id2,
+                id,
                 className: "text-size-smaller",
                 entries: entry2.value,
                 tableOptions: "borderless,sm",
@@ -30826,21 +30826,21 @@ categories: ${categories.join(" ")}`;
         };
       }, [selectedLogFile, selectedSampleSummary]);
     };
-    const useCollapsedState = (id2, defaultValue) => {
+    const useCollapsedState = (id, defaultValue) => {
       const collapsed = useStore(
-        (state) => state.appActions.getCollapsed(id2, defaultValue)
+        (state) => state.appActions.getCollapsed(id, defaultValue)
       );
       const setCollapsed = useStore((state) => state.appActions.setCollapsed);
       return reactExports.useMemo(() => {
         const set2 = (value2) => {
-          setCollapsed(id2, value2);
+          setCollapsed(id, value2);
         };
         return [collapsed, set2];
       }, [collapsed, setCollapsed]);
     };
-    const useMessageVisibility = (id2, scope) => {
+    const useMessageVisibility = (id, scope) => {
       const visible2 = useStore(
-        (state) => state.appActions.getMessageVisible(id2, true)
+        (state) => state.appActions.getMessageVisible(id, true)
       );
       const setVisible = useStore((state) => state.appActions.setMessageVisible);
       const clearVisible = useStore(
@@ -30855,8 +30855,8 @@ categories: ${categories.join(" ")}`;
           isFirstRender.current = false;
           return;
         }
-        clearVisible(id2);
-      }, [selectedLogFile, clearVisible, id2]);
+        clearVisible(id);
+      }, [selectedLogFile, clearVisible, id]);
       const selectedSampleIndex = useStore(
         (state) => state.log.selectedSampleIndex
       );
@@ -30865,15 +30865,15 @@ categories: ${categories.join(" ")}`;
           return;
         }
         if (scope === "sample") {
-          clearVisible(id2);
+          clearVisible(id);
         }
-      }, [selectedSampleIndex, clearVisible, id2, scope]);
+      }, [selectedSampleIndex, clearVisible, id, scope]);
       return reactExports.useMemo(() => {
         const set2 = (visible22) => {
-          setVisible(id2, visible22);
+          setVisible(id, visible22);
         };
         return [visible2, set2];
-      }, [visible2, setVisible, id2]);
+      }, [visible2, setVisible, id]);
     };
     const container$9 = "_container_15b4r_1";
     const label$5 = "_label_15b4r_5";
@@ -32472,7 +32472,7 @@ categories: ${categories.join(" ")}`;
         var _a2;
         let getter = this.value;
         let compare2 = this.facet.compareInput;
-        let id2 = this.id, idx = addresses[id2] >> 1, multi = this.type == 2;
+        let id = this.id, idx = addresses[id] >> 1, multi = this.type == 2;
         let depDoc = false, depSel = false, depAddrs = [];
         for (let dep of this.dependencies) {
           if (dep == "doc")
@@ -32498,7 +32498,7 @@ categories: ${categories.join(" ")}`;
             return 0;
           },
           reconfigure: (state, oldState) => {
-            let newVal, oldAddr = oldState.config.address[id2];
+            let newVal, oldAddr = oldState.config.address[id];
             if (oldAddr != null) {
               let oldVal = getAddr(oldState, oldAddr);
               if (this.dependencies.every((dep) => {
@@ -32583,8 +32583,8 @@ categories: ${categories.join(" ")}`;
     }
     const initField = /* @__PURE__ */ Facet.define({ static: true });
     class StateField {
-      constructor(id2, createF, updateF, compareF, spec) {
-        this.id = id2;
+      constructor(id, createF, updateF, compareF, spec) {
+        this.id = id;
         this.createF = createF;
         this.updateF = updateF;
         this.compareF = compareF;
@@ -32751,9 +32751,9 @@ categories: ${categories.join(" ")}`;
           dynamicSlots.push((a) => field.slot(a));
         }
         let oldFacets = oldState === null || oldState === void 0 ? void 0 : oldState.config.facets;
-        for (let id2 in facets) {
-          let providers = facets[id2], facet = providers[0].facet;
-          let oldProviders = oldFacets && oldFacets[id2] || [];
+        for (let id in facets) {
+          let providers = facets[id], facet = providers[0].facet;
+          let oldProviders = oldFacets && oldFacets[id] || [];
           if (providers.every(
             (p) => p.type == 0
             /* Provider.Static */
@@ -34376,9 +34376,9 @@ categories: ${categories.join(" ")}`;
       // :: () → string
       // Generate a new unique CSS class name.
       static newName() {
-        let id2 = top[COUNT] || 1;
-        top[COUNT] = id2 + 1;
-        return C + id2.toString(36);
+        let id = top[COUNT] || 1;
+        top[COUNT] = id + 1;
+        return C + id.toString(36);
       }
       // :: (union<Document, ShadowRoot>, union<[StyleModule], StyleModule>, ?{nonce: ?string})
       //
@@ -36790,8 +36790,8 @@ categories: ${categories.join(" ")}`;
     let nextPluginID = 0;
     const viewPlugin = /* @__PURE__ */ Facet.define();
     class ViewPlugin {
-      constructor(id2, create2, domEventHandlers, domEventObservers, buildExtensions) {
-        this.id = id2;
+      constructor(id, create2, domEventHandlers, domEventObservers, buildExtensions) {
+        this.id = id;
         this.create = create2;
         this.domEventHandlers = domEventHandlers;
         this.domEventObservers = domEventObservers;
@@ -43921,10 +43921,10 @@ categories: ${categories.join(" ")}`;
       /**
       @internal
       */
-      constructor(name2, props, id2, flags = 0) {
+      constructor(name2, props, id, flags = 0) {
         this.name = name2;
         this.props = props;
-        this.id = id2;
+        this.id = id;
         this.flags = flags;
       }
       /**
@@ -44203,8 +44203,8 @@ categories: ${categories.join(" ")}`;
       get propValues() {
         let result2 = [];
         if (this.props)
-          for (let id2 in this.props)
-            result2.push([+id2, this.props[id2]]);
+          for (let id in this.props)
+            result2.push([+id, this.props[id]]);
         return result2;
       }
       /**
@@ -44281,8 +44281,8 @@ categories: ${categories.join(" ")}`;
       @internal
       */
       childString(index2) {
-        let id2 = this.buffer[index2], endIndex = this.buffer[index2 + 3];
-        let type = this.set.types[id2], result2 = type.name;
+        let id = this.buffer[index2], endIndex = this.buffer[index2 + 3];
+        let type = this.set.types[id], result2 = type.name;
         if (/\W/.test(result2) && !type.isError)
           result2 = JSON.stringify(result2);
         index2 += 4;
@@ -45088,26 +45088,26 @@ categories: ${categories.join(" ")}`;
       let types2 = nodeSet2.types;
       let contextHash = 0, lookAhead = 0;
       function takeNode(parentStart, minPos, children3, positions2, inRepeat, depth) {
-        let { id: id2, start, end, size } = cursor;
+        let { id, start, end, size } = cursor;
         let lookAheadAtStart = lookAhead, contextAtStart = contextHash;
         while (size < 0) {
           cursor.next();
           if (size == -1) {
-            let node3 = reused[id2];
+            let node3 = reused[id];
             children3.push(node3);
             positions2.push(start - parentStart);
             return;
           } else if (size == -3) {
-            contextHash = id2;
+            contextHash = id;
             return;
           } else if (size == -4) {
-            lookAhead = id2;
+            lookAhead = id;
             return;
           } else {
             throw new RangeError(`Unrecognized record size: ${size}`);
           }
         }
-        let type = types2[id2], node2, buffer3;
+        let type = types2[id], node2, buffer3;
         let startPos = start - parentStart;
         if (end - start <= maxBufferLength && (buffer3 = findBufferSize(cursor.pos - minPos, inRepeat))) {
           let data2 = new Uint16Array(buffer3.size - buffer3.skip);
@@ -45120,7 +45120,7 @@ categories: ${categories.join(" ")}`;
           let endPos = cursor.pos - size;
           cursor.next();
           let localChildren = [], localPositions = [];
-          let localInRepeat = id2 >= minRepeatType ? id2 : -1;
+          let localInRepeat = id >= minRepeatType ? id : -1;
           let lastGroup = 0, lastEnd = end;
           while (cursor.pos > endPos) {
             if (localInRepeat >= 0 && cursor.id == localInRepeat && cursor.size >= 0) {
@@ -45154,7 +45154,7 @@ categories: ${categories.join(" ")}`;
         let nodes2 = [];
         let nodeCount = 0, stopAt = -1;
         while (cursor.pos > minPos) {
-          let { id: id2, start, end, size } = cursor;
+          let { id, start, end, size } = cursor;
           if (size > 4) {
             cursor.next();
           } else if (stopAt > -1 && start < stopAt) {
@@ -45162,7 +45162,7 @@ categories: ${categories.join(" ")}`;
           } else {
             if (stopAt < 0)
               stopAt = end - maxBufferLength;
-            nodes2.push(id2, start, end);
+            nodes2.push(id, start, end);
             nodeCount++;
             cursor.next();
           }
@@ -45256,9 +45256,9 @@ categories: ${categories.join(" ")}`;
         return result2.size > 4 ? result2 : void 0;
       }
       function copyToBuffer(bufferStart, buffer3, index2) {
-        let { id: id2, start, end, size } = cursor;
+        let { id, start, end, size } = cursor;
         cursor.next();
-        if (size >= 0 && id2 < minRepeatType) {
+        if (size >= 0 && id < minRepeatType) {
           let startIndex = index2;
           if (size > 4) {
             let endPos = cursor.pos - (size - 4);
@@ -45268,11 +45268,11 @@ categories: ${categories.join(" ")}`;
           buffer3[--index2] = startIndex;
           buffer3[--index2] = end - bufferStart;
           buffer3[--index2] = start - bufferStart;
-          buffer3[--index2] = id2;
+          buffer3[--index2] = id;
         } else if (size == -3) {
-          contextHash = id2;
+          contextHash = id;
         } else if (size == -4) {
-          lookAhead = id2;
+          lookAhead = id;
         }
         return index2;
       }
@@ -47605,7 +47605,7 @@ categories: ${categories.join(" ")}`;
         while (this.ranges[this.rangeIndex].to < this.parsedPos)
           this.rangeIndex++;
       }
-      emitToken(id2, from, to2, offset) {
+      emitToken(id, from, to2, offset) {
         let size = 4;
         if (this.ranges.length > 1) {
           offset = this.skipGapsTo(from, offset, 1);
@@ -47616,10 +47616,10 @@ categories: ${categories.join(" ")}`;
           size += this.chunk.length - len0;
         }
         let last = this.chunk.length - 4;
-        if (size == 4 && last >= 0 && this.chunk[last] == id2 && this.chunk[last + 2] == from)
+        if (size == 4 && last >= 0 && this.chunk[last] == id && this.chunk[last + 2] == from)
           this.chunk[last + 2] = to2;
         else
-          this.chunk.push(id2, from, to2, size);
+          this.chunk.push(id, from, to2, size);
         return offset;
       }
       parseLine(context) {
@@ -48201,10 +48201,10 @@ categories: ${categories.join(" ")}`;
       mount() {
         this.updateSel();
       }
-      showOptions(options2, id2) {
+      showOptions(options2, id) {
         if (this.list)
           this.list.remove();
-        this.list = this.dom.appendChild(this.createListBox(options2, id2, this.range));
+        this.list = this.dom.appendChild(this.createListBox(options2, id, this.range));
         this.list.addEventListener("scroll", () => {
           if (this.info)
             this.view.requestMeasure(this.placeInfoReq);
@@ -48329,9 +48329,9 @@ categories: ${categories.join(" ")}`;
           }
         }
       }
-      createListBox(options2, id2, range) {
+      createListBox(options2, id, range) {
         const ul = document.createElement("ul");
-        ul.id = id2;
+        ul.id = id;
         ul.setAttribute("role", "listbox");
         ul.setAttribute("aria-expanded", "true");
         ul.setAttribute("aria-label", this.view.state.phrase("Completions"));
@@ -48351,7 +48351,7 @@ categories: ${categories.join(" ")}`;
             }
           }
           const li = ul.appendChild(document.createElement("li"));
-          li.id = id2 + "-" + i2;
+          li.id = id + "-" + i2;
           li.setAttribute("role", "option");
           let cls = this.optionClass(completion);
           if (cls)
@@ -48464,10 +48464,10 @@ categories: ${categories.join(" ")}`;
         this.selected = selected2;
         this.disabled = disabled;
       }
-      setSelected(selected2, id2) {
-        return selected2 == this.selected || selected2 >= this.options.length ? this : new CompletionDialog(this.options, makeAttrs(id2, selected2), this.tooltip, this.timestamp, selected2, this.disabled);
+      setSelected(selected2, id) {
+        return selected2 == this.selected || selected2 >= this.options.length ? this : new CompletionDialog(this.options, makeAttrs(id, selected2), this.tooltip, this.timestamp, selected2, this.disabled);
       }
-      static build(active2, state, id2, prev2, conf, didSetActive) {
+      static build(active2, state, id, prev2, conf, didSetActive) {
         if (prev2 && !didSetActive && active2.some((s) => s.isPending))
           return prev2.setDisabled();
         let options2 = sortOptions(active2, state);
@@ -48482,7 +48482,7 @@ categories: ${categories.join(" ")}`;
               break;
             }
         }
-        return new CompletionDialog(options2, makeAttrs(id2, selected2), {
+        return new CompletionDialog(options2, makeAttrs(id, selected2), {
           pos: active2.reduce((a, b) => b.hasResult() ? Math.min(a, b.from) : a, 1e8),
           create: createTooltip,
           above: conf.aboveCursor
@@ -48496,9 +48496,9 @@ categories: ${categories.join(" ")}`;
       }
     }
     class CompletionState {
-      constructor(active2, id2, open2) {
+      constructor(active2, id, open2) {
         this.active = active2;
-        this.id = id2;
+        this.id = id;
         this.open = open2;
       }
       static start() {
@@ -48564,14 +48564,14 @@ categories: ${categories.join(" ")}`;
       "aria-autocomplete": "list"
     };
     const noAttrs = {};
-    function makeAttrs(id2, selected2) {
+    function makeAttrs(id, selected2) {
       let result2 = {
         "aria-autocomplete": "list",
         "aria-haspopup": "listbox",
-        "aria-controls": id2
+        "aria-controls": id
       };
       if (selected2 > -1)
-        result2["aria-activedescendant"] = id2 + "-" + selected2;
+        result2["aria-activedescendant"] = id + "-" + selected2;
       return result2;
     }
     const none$1 = [];
@@ -51698,7 +51698,7 @@ Supported expressions:
       tabTools
     };
     const TabSet = ({
-      id: id2,
+      id,
       type = "tabs",
       className: className2,
       tabPanelsClassName,
@@ -51712,7 +51712,7 @@ Supported expressions:
         /* @__PURE__ */ jsxRuntimeExports.jsxs(
           "ul",
           {
-            id: id2,
+            id,
             className: clsx("nav", `nav-${type}`, className2, moduleStyles.tabs),
             role: "tablist",
             "aria-orientation": "horizontal",
@@ -51731,7 +51731,7 @@ Supported expressions:
             ]
           }
         ),
-        /* @__PURE__ */ jsxRuntimeExports.jsx(TabPanels, { id: id2, tabs: validTabs, className: tabPanelsClassName })
+        /* @__PURE__ */ jsxRuntimeExports.jsx(TabPanels, { id, tabs: validTabs, className: tabPanelsClassName })
       ] });
     };
     const Tab = ({ type = "tabs", tab: tab2, index: index2, className: className2 }) => {
@@ -51762,9 +51762,9 @@ Supported expressions:
         }
       ) });
     };
-    const TabPanels = ({ id: id2, tabs: tabs2, className: className2 }) => /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("tab-content", className2), id: `${id2}-content`, children: tabs2.map((tab2, index2) => /* @__PURE__ */ jsxRuntimeExports.jsx(TabPanel, { ...tab2.props, index: index2 }, tab2.props.id)) });
+    const TabPanels = ({ id, tabs: tabs2, className: className2 }) => /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("tab-content", className2), id: `${id}-content`, children: tabs2.map((tab2, index2) => /* @__PURE__ */ jsxRuntimeExports.jsx(TabPanel, { ...tab2.props, index: index2 }, tab2.props.id)) });
     const TabPanel = ({
-      id: id2,
+      id,
       selected: selected2,
       style: style2,
       scrollable: scrollable2 = true,
@@ -51772,7 +51772,7 @@ Supported expressions:
       className: className2,
       children: children2
     }) => {
-      const tabContentsId = computeTabContentsId(id2);
+      const tabContentsId = computeTabContentsId(id);
       const panelRef = reactExports.useRef(null);
       const tabContentsRef = scrollRef || panelRef;
       useStatefulScrollPosition(tabContentsRef, tabContentsId, 1e3, scrollable2);
@@ -51794,8 +51794,8 @@ Supported expressions:
       );
     };
     const TabTools = ({ tools: tools2 }) => /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("tab-tools", moduleStyles.tabTools), children: tools2 });
-    const computeTabId = (id2, index2) => `${id2}-${index2}`;
-    const computeTabContentsId = (id2) => `${id2}-contents`;
+    const computeTabId = (id, index2) => `${id}-${index2}`;
+    const computeTabContentsId = (id) => `${id}-contents`;
     const flattenChildren = (children2) => {
       return reactExports.Children.toArray(children2).flatMap((child) => {
         if (reactExports.isValidElement(child)) {
@@ -51808,11 +51808,11 @@ Supported expressions:
         return [];
       });
     };
-    function escapeSelector(id2) {
-      return id2.replace(/([ #.;,?!+*~'":^$[\]()=>|/\\])/g, "\\$1");
+    function escapeSelector(id) {
+      return id.replace(/([ #.;,?!+*~'":^$[\]()=>|/\\])/g, "\\$1");
     }
     const CardHeader = ({
-      id: id2,
+      id,
       icon: icon2,
       label: label2,
       className: className2,
@@ -51822,7 +51822,7 @@ Supported expressions:
         "div",
         {
           className: clsx("card-header-container", "text-style-label", className2),
-          id: id2 || "",
+          id: id || "",
           children: [
             icon2 ? /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx("card-header-icon", icon2) }) : /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "card-header-icon" }),
             label2 ? label2 : "",
@@ -51832,11 +51832,11 @@ Supported expressions:
         }
       );
     };
-    const CardBody = ({ id: id2, children: children2 }) => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "card-body", id: id2 || "", children: children2 });
+    const CardBody = ({ id, children: children2 }) => {
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "card-body", id: id || "", children: children2 });
     };
-    const Card = ({ id: id2, children: children2 }) => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "card", id: id2, children: children2 });
+    const Card = ({ id, children: children2 }) => {
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "card", id, children: children2 });
     };
     const grid$5 = "_grid_ktnsp_1";
     const cell$1 = "_cell_ktnsp_8";
@@ -51847,7 +51847,7 @@ Supported expressions:
       value: value$1
     };
     const MetaDataGrid = ({
-      id: id2,
+      id,
       entries,
       className: className2,
       style: style2,
@@ -51855,7 +51855,7 @@ Supported expressions:
     }) => {
       const baseId = "metadata-grid";
       const entryEls = entryRecords(entries).map((entry2, index2) => {
-        const id22 = `${baseId}-value-${index2}`;
+        const id2 = `${baseId}-value-${index2}`;
         return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
           index2 !== 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
             "div",
@@ -51883,12 +51883,12 @@ Supported expressions:
             "div",
             {
               className: clsx(styles$M.value, `${baseId}-value`, "text-size-small"),
-              children: /* @__PURE__ */ jsxRuntimeExports.jsx(RenderedContent, { id: id22, entry: entry2 })
+              children: /* @__PURE__ */ jsxRuntimeExports.jsx(RenderedContent, { id: id2, entry: entry2 })
             }
           )
         ] }, `${baseId}-record-${index2}`);
       });
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { id: id2, className: clsx(className2, styles$M.grid), style: style2, children: entryEls });
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { id, className: clsx(className2, styles$M.grid), style: style2, children: entryEls });
     };
     const entryRecords = (entries) => {
       if (!entries) {
@@ -55338,7 +55338,7 @@ Supported expressions:
       list: list$1
     };
     const ChatViewVirtualList = ({
-      id: id2,
+      id,
       messages,
       toolCallStyle,
       className: className2,
@@ -55358,7 +55358,7 @@ Supported expressions:
         return /* @__PURE__ */ jsxRuntimeExports.jsx(
           ChatMessageRow,
           {
-            parentName: id2 || "chat-virtual-list",
+            parentName: id || "chat-virtual-list",
             number: number2,
             resolvedMessage: item2,
             indented: indented2,
@@ -55752,27 +55752,45 @@ Supported expressions:
       cardContent,
       hidden: hidden$1
     };
+    const kCollapsed = "collapsed";
+    const kSelectedNav = "selectedNav";
     const EventPanel = ({
-      id: id2,
+      id,
       className: className2,
       title: title2,
       subTitle,
       text: text2,
       icon: icon2,
       collapse,
-      collapsed,
-      setCollapsed,
-      children: children2,
-      setSelectedNav,
-      selectedNav
+      children: children2
     }) => {
+      const setPropertyValue = useStore(
+        (state) => state.appActions.setPropertyValue
+      );
+      const isCollapsed = useStore(
+        (state) => state.appActions.getPropertyValue(id, kCollapsed, !!collapse)
+      );
+      const setCollapsed = reactExports.useCallback(
+        (collapsed) => {
+          setPropertyValue(id, kCollapsed, collapsed);
+        },
+        [setPropertyValue]
+      );
       const hasCollapse = collapse !== void 0;
-      const isCollapsed = collapsed === void 0 ? collapse : collapsed;
       const pillId = (index2) => {
-        return `${id2}-nav-pill-${index2}`;
+        return `${id}-nav-pill-${index2}`;
       };
       const filteredArrChildren = (Array.isArray(children2) ? children2 : [children2]).filter((child) => !!child);
       const defaultPillId = pillId(0);
+      const selectedNav = useStore(
+        (state) => state.appActions.getPropertyValue(id, kSelectedNav, defaultPillId)
+      );
+      const setSelectedNav = reactExports.useCallback(
+        (nav2) => {
+          setPropertyValue(id, kSelectedNav, nav2);
+        },
+        [setPropertyValue]
+      );
       const gridColumns2 = [];
       if (hasCollapse) {
         gridColumns2.push("minmax(0, max-content)");
@@ -55842,7 +55860,7 @@ Supported expressions:
                 onClick: () => {
                   setCollapsed(!isCollapsed);
                 },
-                children: collapsed ? text2 : ""
+                children: isCollapsed ? text2 : ""
               }
             ),
             /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$A.navs, children: (!hasCollapse || !isCollapsed) && filteredArrChildren && filteredArrChildren.length > 1 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -55852,19 +55870,19 @@ Supported expressions:
                   const defaultTitle = `Tab ${index2}`;
                   const title22 = child && reactExports.isValidElement(child) ? child.props["data-name"] || defaultTitle : defaultTitle;
                   return {
-                    id: `eventpanel-${id2}-${index2}`,
+                    id: `eventpanel-${id}-${index2}`,
                     title: title22,
                     target: pillId(index2)
                   };
                 }),
-                selectedNav: selectedNav || defaultPillId,
+                selectedNav,
                 setSelectedNav
               }
             ) : "" })
           ]
         }
       ) : "";
-      const card2 = /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { id: id2, className: clsx(className2, styles$A.card), children: [
+      const card2 = /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { id, className: clsx(className2, styles$A.card), children: [
         titleEl,
         /* @__PURE__ */ jsxRuntimeExports.jsx(
           "div",
@@ -55875,16 +55893,16 @@ Supported expressions:
               hasCollapse && isCollapsed ? styles$A.hidden : void 0
             ),
             children: filteredArrChildren == null ? void 0 : filteredArrChildren.map((child, index2) => {
-              const id22 = pillId(index2);
-              const isSelected = selectedNav ? id22 === selectedNav : id22 === defaultPillId;
+              const id2 = pillId(index2);
+              const isSelected = id2 === selectedNav;
               return /* @__PURE__ */ jsxRuntimeExports.jsx(
                 "div",
                 {
-                  id: id22,
+                  id: id2,
                   className: clsx("tab-pane", "show", isSelected ? "active" : ""),
                   children: child
                 },
-                `children-${id22}-${index2}`
+                `children-${id2}-${index2}`
               );
             })
           }
@@ -55893,28 +55911,18 @@ Supported expressions:
       return card2;
     };
     const ErrorEventView = ({
-      id: id2,
+      id,
       event,
-      eventState,
-      setEventState,
       className: className2
     }) => {
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
         EventPanel,
         {
-          id: id2,
+          id,
           title: "Error",
           className: className2,
           subTitle: formatDateTime(new Date(event.timestamp)),
           icon: ApplicationIcons.error,
-          selectedNav: eventState.selectedNav || "",
-          setSelectedNav: (selectedNav) => {
-            setEventState({ ...eventState, selectedNav });
-          },
-          collapsed: eventState.collapsed,
-          setCollapsed: (collapsed) => {
-            setEventState({ ...eventState, collapsed });
-          },
           children: /* @__PURE__ */ jsxRuntimeExports.jsx(
             ANSIDisplay,
             {
@@ -55933,10 +55941,8 @@ Supported expressions:
       panel
     };
     const InfoEventView = ({
-      id: id2,
+      id,
       event,
-      eventState,
-      setEventState,
       className: className2
     }) => {
       const panels = [];
@@ -55948,46 +55954,28 @@ Supported expressions:
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
         EventPanel,
         {
-          id: id2,
+          id,
           title: "Info" + (event.source ? ": " + event.source : ""),
           className: className2,
           subTitle: formatDateTime(new Date(event.timestamp)),
           icon: ApplicationIcons.info,
-          selectedNav: eventState.selectedNav || "",
-          setSelectedNav: (selectedNav) => {
-            setEventState({ ...eventState, selectedNav });
-          },
-          collapsed: eventState.collapsed,
-          setCollapsed: (collapsed) => {
-            setEventState({ ...eventState, collapsed });
-          },
           children: panels
         }
       );
     };
     const InputEventView = ({
-      id: id2,
+      id,
       event,
-      eventState,
-      setEventState,
       className: className2
     }) => {
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
         EventPanel,
         {
-          id: id2,
+          id,
           title: "Input",
           className: className2,
           subTitle: formatDateTime(new Date(event.timestamp)),
           icon: ApplicationIcons.input,
-          selectedNav: eventState.selectedNav || "",
-          setSelectedNav: (selectedNav) => {
-            setEventState({ ...eventState, selectedNav });
-          },
-          collapsed: eventState.collapsed,
-          setCollapsed: (collapsed) => {
-            setEventState({ ...eventState, collapsed });
-          },
           children: /* @__PURE__ */ jsxRuntimeExports.jsx(
             ANSIDisplay,
             {
@@ -56182,10 +56170,8 @@ Supported expressions:
       return `${title2}${subtitle}`;
     };
     const ModelEventView = ({
-      id: id2,
+      id,
       event,
-      eventState,
-      setEventState,
       className: className2
     }) => {
       var _a2, _b2;
@@ -56208,24 +56194,16 @@ Supported expressions:
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(
         EventPanel,
         {
-          id: id2,
+          id,
           className: className2,
           title: formatTitle(`Model Call: ${event.model}`, totalUsage, callTime),
           subTitle: formatTiming(event.timestamp, event.working_start),
           icon: ApplicationIcons.model,
-          selectedNav: eventState.selectedNav || "",
-          setSelectedNav: (selectedNav) => {
-            setEventState({ ...eventState, selectedNav });
-          },
-          collapsed: eventState.collapsed,
-          setCollapsed: (collapsed) => {
-            setEventState({ ...eventState, collapsed });
-          },
           children: [
             /* @__PURE__ */ jsxRuntimeExports.jsx("div", { "data-name": "Summary", className: styles$w.container, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
               ChatView,
               {
-                id: `${id2}-model-output`,
+                id: `${id}-model-output`,
                 messages: [...userMessages, ...outputMessages || []],
                 className: clsx(styles$w.output),
                 numbered: false,
@@ -56257,7 +56235,7 @@ Supported expressions:
               /* @__PURE__ */ jsxRuntimeExports.jsx(EventSection, { title: "Messages", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
                 ChatView,
                 {
-                  id: `${id2}-model-input-full`,
+                  id: `${id}-model-input-full`,
                   messages: [...event.input, ...outputMessages || []]
                 }
               ) })
@@ -56283,7 +56261,7 @@ Supported expressions:
         /* @__PURE__ */ jsxRuntimeExports.jsx(EventSection, { title: "Response", children: /* @__PURE__ */ jsxRuntimeExports.jsx(APICodeCell, { contents: call.response }) })
       ] });
     };
-    const APICodeCell = ({ id: id2, contents: contents2 }) => {
+    const APICodeCell = ({ id, contents: contents2 }) => {
       const codeRef = reactExports.useRef(null);
       const sourceCode = reactExports.useMemo(() => {
         return JSON.stringify(contents2, void 0, 2);
@@ -56299,7 +56277,7 @@ Supported expressions:
       return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("model-call"), children: /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: clsx(styles$w.codePre), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
         "code",
         {
-          id: id2,
+          id,
           ref: codeRef,
           className: clsx("language-json", styles$w.code, "text-size-small"),
           children: sourceCode
@@ -56328,10 +56306,8 @@ Supported expressions:
       metadata: metadata$1
     };
     const SampleInitEventView = ({
-      id: id2,
+      id,
       event,
-      eventState,
-      setEventState,
       className: className2
     }) => {
       const stateObj = event.state;
@@ -56340,30 +56316,22 @@ Supported expressions:
         sections.push(
           /* @__PURE__ */ jsxRuntimeExports.jsx(EventSection, { title: "Files", children: Object.keys(event.sample.files).map((file) => {
             return /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: styles$u.noMargin, children: file }, `sample-init-file-${file}`);
-          }) }, `sample-${id2}-init-files`)
+          }) }, `sample-${id}-init-files`)
         );
       }
       if (event.sample.setup) {
         sections.push(
-          /* @__PURE__ */ jsxRuntimeExports.jsx(EventSection, { title: "Setup", children: /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: styles$u.code, children: /* @__PURE__ */ jsxRuntimeExports.jsx("code", { className: "sourceCode", children: event.sample.setup }) }) }, `sample-${id2}-init-setup`)
+          /* @__PURE__ */ jsxRuntimeExports.jsx(EventSection, { title: "Setup", children: /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: styles$u.code, children: /* @__PURE__ */ jsxRuntimeExports.jsx("code", { className: "sourceCode", children: event.sample.setup }) }) }, `sample-${id}-init-setup`)
         );
       }
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(
         EventPanel,
         {
-          id: id2,
+          id,
           className: className2,
           title: "Sample",
           icon: ApplicationIcons.sample,
           subTitle: formatDateTime(new Date(event.timestamp)),
-          selectedNav: eventState.selectedNav || "",
-          setSelectedNav: (selectedNav) => {
-            setEventState({ ...eventState, selectedNav });
-          },
-          collapsed: eventState.collapsed,
-          setCollapsed: (collapsed) => {
-            setEventState({ ...eventState, collapsed });
-          },
           children: [
             /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { "data-name": "Sample", className: styles$u.sample, children: [
               /* @__PURE__ */ jsxRuntimeExports.jsx(ChatView, { messages: stateObj["messages"] }),
@@ -56394,10 +56362,8 @@ Supported expressions:
       );
     };
     const SampleLimitEventView = ({
-      id: id2,
+      id,
       event,
-      eventState,
-      setEventState,
       className: className2
     }) => {
       const resolve_title = (type) => {
@@ -56434,24 +56400,7 @@ Supported expressions:
       };
       const title2 = resolve_title(event.type);
       const icon2 = resolve_icon(event.type);
-      return /* @__PURE__ */ jsxRuntimeExports.jsx(
-        EventPanel,
-        {
-          id: id2,
-          title: title2,
-          icon: icon2,
-          className: className2,
-          selectedNav: eventState.selectedNav || "",
-          setSelectedNav: (selectedNav) => {
-            setEventState({ ...eventState, selectedNav });
-          },
-          collapsed: eventState.collapsed,
-          setCollapsed: (collapsed) => {
-            setEventState({ ...eventState, collapsed });
-          },
-          children: event.message
-        }
-      );
+      return /* @__PURE__ */ jsxRuntimeExports.jsx(EventPanel, { id, title: title2, icon: icon2, className: className2, children: event.message });
     };
     const contents = "_contents_iwnfd_1";
     const twoColumn = "_twoColumn_iwnfd_9";
@@ -56468,33 +56417,23 @@ Supported expressions:
       wrapPre
     };
     const SandboxEventView = ({
-      id: id2,
+      id,
       event,
-      eventState,
-      setEventState,
       className: className2
     }) => {
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
         EventPanel,
         {
-          id: id2,
+          id,
           className: className2,
           title: `Sandbox: ${event.action}`,
           icon: ApplicationIcons.sandbox,
           subTitle: formatTiming(event.timestamp, event.working_start),
-          selectedNav: eventState.selectedNav || "",
-          setSelectedNav: (selectedNav) => {
-            setEventState({ ...eventState, selectedNav });
-          },
-          collapsed: eventState.collapsed,
-          setCollapsed: (collapsed) => {
-            setEventState({ ...eventState, collapsed });
-          },
-          children: event.action === "exec" ? /* @__PURE__ */ jsxRuntimeExports.jsx(ExecView, { id: `${id2}-exec`, event }) : event.action === "read_file" ? /* @__PURE__ */ jsxRuntimeExports.jsx(ReadFileView, { id: `${id2}-read-file`, event }) : /* @__PURE__ */ jsxRuntimeExports.jsx(WriteFileView, { id: `${id2}-write-file`, event })
+          children: event.action === "exec" ? /* @__PURE__ */ jsxRuntimeExports.jsx(ExecView, { id: `${id}-exec`, event }) : event.action === "read_file" ? /* @__PURE__ */ jsxRuntimeExports.jsx(ReadFileView, { id: `${id}-read-file`, event }) : /* @__PURE__ */ jsxRuntimeExports.jsx(WriteFileView, { id: `${id}-write-file`, event })
         }
       );
     };
-    const ExecView = ({ id: id2, event }) => {
+    const ExecView = ({ id, event }) => {
       if (event.cmd === null) {
         return void 0;
       }
@@ -56516,7 +56455,7 @@ Supported expressions:
           ) }) : void 0
         ] }) }),
         /* @__PURE__ */ jsxRuntimeExports.jsxs(EventSection, { title: `Result`, children: [
-          output2 ? /* @__PURE__ */ jsxRuntimeExports.jsx(ExpandablePanel, { id: `${id2}-output`, collapse: false, children: /* @__PURE__ */ jsxRuntimeExports.jsx(MarkdownDiv, { markdown: output2 }) }) : void 0,
+          output2 ? /* @__PURE__ */ jsxRuntimeExports.jsx(ExpandablePanel, { id: `${id}-output`, collapse: false, children: /* @__PURE__ */ jsxRuntimeExports.jsx(MarkdownDiv, { markdown: output2 }) }) : void 0,
           /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$t.result), children: [
             "Exited with code ",
             result2
@@ -56524,26 +56463,26 @@ Supported expressions:
         ] })
       ] });
     };
-    const ReadFileView = ({ id: id2, event }) => {
+    const ReadFileView = ({ id, event }) => {
       if (event.file === null) {
         return void 0;
       }
       const file = event.file;
       const output2 = event.output;
-      return /* @__PURE__ */ jsxRuntimeExports.jsx(FileView, { id: id2, file, contents: output2 == null ? void 0 : output2.trim() });
+      return /* @__PURE__ */ jsxRuntimeExports.jsx(FileView, { id, file, contents: output2 == null ? void 0 : output2.trim() });
     };
-    const WriteFileView = ({ id: id2, event }) => {
+    const WriteFileView = ({ id, event }) => {
       if (event.file === null) {
         return void 0;
       }
       const file = event.file;
       const input2 = event.input;
-      return /* @__PURE__ */ jsxRuntimeExports.jsx(FileView, { id: id2, file, contents: input2 == null ? void 0 : input2.trim() });
+      return /* @__PURE__ */ jsxRuntimeExports.jsx(FileView, { id, file, contents: input2 == null ? void 0 : input2.trim() });
     };
-    const FileView = ({ id: id2, file, contents: contents2 }) => {
+    const FileView = ({ id, file, contents: contents2 }) => {
       return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx(EventSection, { title: "File", children: /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: clsx(styles$t.fileLabel), children: file }) }),
-        contents2 ? /* @__PURE__ */ jsxRuntimeExports.jsx(EventSection, { title: "Contents", children: /* @__PURE__ */ jsxRuntimeExports.jsx(ExpandablePanel, { id: `${id2}-file`, collapse: false, children: /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { children: contents2 }) }) }) : void 0
+        contents2 ? /* @__PURE__ */ jsxRuntimeExports.jsx(EventSection, { title: "Contents", children: /* @__PURE__ */ jsxRuntimeExports.jsx(ExpandablePanel, { id: `${id}-file`, collapse: false, children: /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { children: contents2 }) }) }) : void 0
       ] });
     };
     const explanation = "_explanation_1ww42_1";
@@ -56555,29 +56494,19 @@ Supported expressions:
       metadata
     };
     const ScoreEventView = ({
-      id: id2,
+      id,
       event,
-      eventState,
-      setEventState,
       className: className2
     }) => {
       const resolvedTarget = event.target ? Array.isArray(event.target) ? event.target.join("\n") : event.target : void 0;
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(
         EventPanel,
         {
-          id: id2,
+          id,
           title: (event.intermediate ? "Intermediate " : "") + "Score",
           className: clsx(className2, "text-size-small"),
           subTitle: formatDateTime(new Date(event.timestamp)),
           icon: ApplicationIcons.scorer,
-          selectedNav: eventState.selectedNav || "",
-          setSelectedNav: (selectedNav) => {
-            setEventState({ ...eventState, selectedNav });
-          },
-          collapsed: eventState.collapsed,
-          setCollapsed: (collapsed) => {
-            setEventState({ ...eventState, collapsed });
-          },
           children: [
             /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { "data-name": "Explanation", className: clsx(styles$s.explanation), children: [
               event.target ? /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
@@ -62870,7 +62799,7 @@ ${events}
       return metrics;
     }
     const AsciinemaPlayer = ({
-      id: id2,
+      id,
       rows,
       cols,
       inputUrl,
@@ -62924,7 +62853,7 @@ ${events}
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
         "div",
         {
-          id: `asciinema-player-${id2 || "default"}`,
+          id: `asciinema-player-${id || "default"}`,
           ref: playerContainerRef,
           style: { ...style2 }
         }
@@ -62959,15 +62888,15 @@ ${events}
     const kIsOpen = "isOpen";
     const kShowOverlay = "showOverlay";
     const kCurrentIndex = "currentIndex";
-    const LightboxCarousel = ({ id: id2, slides }) => {
+    const LightboxCarousel = ({ id, slides }) => {
       const isOpen = useStore(
-        (state) => state.appActions.getPropertyValue(id2, kIsOpen, false)
+        (state) => state.appActions.getPropertyValue(id, kIsOpen, false)
       );
       const showOverlay = useStore(
-        (state) => state.appActions.getPropertyValue(id2, kShowOverlay, false)
+        (state) => state.appActions.getPropertyValue(id, kShowOverlay, false)
       );
       const currentIndex = useStore(
-        (state) => state.appActions.getPropertyValue(id2, kCurrentIndex, 0)
+        (state) => state.appActions.getPropertyValue(id, kCurrentIndex, 0)
       );
       const setPropertyValue = useStore(
         (state) => state.appActions.setPropertyValue
@@ -62978,35 +62907,35 @@ ${events}
       reactExports.useEffect(() => {
         return () => {
           [kIsOpen, kShowOverlay, kCurrentIndex].forEach(
-            (p) => removePropertyValue(id2, p)
+            (p) => removePropertyValue(id, p)
           );
         };
       }, []);
       const openLightbox = reactExports.useCallback(
         (index2) => {
-          setPropertyValue(id2, kCurrentIndex, index2);
-          setPropertyValue(id2, kShowOverlay, true);
-          setTimeout(() => setPropertyValue(id2, kIsOpen, true), 10);
+          setPropertyValue(id, kCurrentIndex, index2);
+          setPropertyValue(id, kShowOverlay, true);
+          setTimeout(() => setPropertyValue(id, kIsOpen, true), 10);
         },
         [setPropertyValue]
       );
       const closeLightbox = reactExports.useCallback(() => {
-        setPropertyValue(id2, kIsOpen, false);
+        setPropertyValue(id, kIsOpen, false);
       }, [setPropertyValue]);
       reactExports.useEffect(() => {
         if (!isOpen && showOverlay) {
           const timer = setTimeout(() => {
-            setPropertyValue(id2, kShowOverlay, false);
+            setPropertyValue(id, kShowOverlay, false);
           }, 300);
           return () => clearTimeout(timer);
         }
       }, [isOpen, showOverlay, setPropertyValue]);
       const showNext = reactExports.useCallback(() => {
-        setPropertyValue(id2, kCurrentIndex, currentIndex + 1);
+        setPropertyValue(id, kCurrentIndex, currentIndex + 1);
       }, [slides, setPropertyValue]);
       const showPrev = reactExports.useCallback(() => {
         setPropertyValue(
-          id2,
+          id,
           kCurrentIndex,
           (currentIndex - 1 + slides.length) % slides.length
         );
@@ -63383,10 +63312,8 @@ ${events}
       summary: summary$2
     };
     const StateEventView = ({
-      id: id2,
+      id,
       event,
-      eventState,
-      setEventState,
       isStore = false,
       className: className2
     }) => {
@@ -63403,20 +63330,12 @@ ${events}
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(
         EventPanel,
         {
-          id: id2,
+          id,
           title: title2,
           className: className2,
           subTitle: formatDateTime(new Date(event.timestamp)),
           text: !changePreview ? summary2 : void 0,
           collapse: changePreview === void 0 ? true : void 0,
-          selectedNav: eventState.selectedNav || "",
-          setSelectedNav: (selectedNav) => {
-            setEventState({ ...eventState, selectedNav });
-          },
-          collapsed: eventState.collapsed,
-          setCollapsed: (collapsed) => {
-            setEventState({ ...eventState, collapsed });
-          },
           children: [
             changePreview ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { "data-name": "Summary", className: clsx(styles$p.summary), children: changePreview }) : void 0,
             /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -63617,8 +63536,6 @@ ${events}
     }
     const StepEventView = ({
       event,
-      eventState,
-      setEventState,
       children: children2,
       scrollRef,
       className: className2
@@ -63626,13 +63543,6 @@ ${events}
       const descriptor = stepDescriptor(event);
       const title2 = descriptor.name || `${event.type ? event.type + ": " : "Step: "}${event.name}`;
       const text2 = summarize(children2);
-      const [transcriptState, setTranscriptState] = reactExports.useState({});
-      const onTranscriptState = reactExports.useCallback(
-        (state) => {
-          setTranscriptState({ ...state });
-        },
-        [setTranscriptState]
-      );
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
         EventPanel,
         {
@@ -63643,21 +63553,11 @@ ${events}
           icon: descriptor.icon,
           collapse: descriptor.collapse,
           text: text2,
-          selectedNav: eventState.selectedNav || "",
-          setSelectedNav: (selectedNav) => {
-            setEventState({ ...eventState, selectedNav });
-          },
-          collapsed: eventState.collapsed,
-          setCollapsed: (collapsed) => {
-            setEventState({ ...eventState, collapsed });
-          },
           children: /* @__PURE__ */ jsxRuntimeExports.jsx(
             TranscriptComponent,
             {
               id: `step-${event.name}-transcript`,
-              eventNodes: children2,
-              transcriptState,
-              setTranscriptState: onTranscriptState
+              eventNodes: children2
             }
           )
         }
@@ -63762,10 +63662,8 @@ ${events}
       subtaskLabel
     };
     const SubtaskEventView = ({
-      id: id2,
+      id,
       event,
-      eventState,
-      setEventState,
       depth,
       className: className2
     }) => {
@@ -63779,7 +63677,7 @@ ${events}
             event.events.length > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
               TranscriptView,
               {
-                id: `${id2}-subtask`,
+                id: `${id}-subtask`,
                 "data-name": "Transcript",
                 events: event.events,
                 depth: depth + 1
@@ -63803,7 +63701,7 @@ ${events}
             /* @__PURE__ */ jsxRuntimeExports.jsx(
               TranscriptView,
               {
-                id: `${id2}-subtask`,
+                id: `${id}-subtask`,
                 "data-name": "Transcript",
                 events: event.events,
                 depth: depth + 1
@@ -63816,7 +63714,7 @@ ${events}
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
         EventPanel,
         {
-          id: id2,
+          id,
           className: className2,
           title: formatTitle(
             `${type}: ${event.name}`,
@@ -63825,14 +63723,6 @@ ${events}
           ),
           subTitle: formatTiming(event.timestamp, event.working_start),
           collapse: false,
-          selectedNav: eventState.selectedNav || "",
-          setSelectedNav: (selectedNav) => {
-            setEventState({ ...eventState, selectedNav });
-          },
-          collapsed: eventState.collapsed,
-          setCollapsed: (collapsed) => {
-            setEventState({ ...eventState, collapsed });
-          },
           children: body2
         }
       );
@@ -63873,10 +63763,8 @@ ${events}
       approval
     };
     const ToolEventView = ({
-      id: id2,
+      id,
       event,
-      eventState,
-      setEventState,
       depth,
       className: className2
     }) => {
@@ -63892,25 +63780,17 @@ ${events}
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(
         EventPanel,
         {
-          id: id2,
+          id,
           title: formatTitle(title2, void 0, event.working_time),
           className: className2,
           subTitle: formatTiming(event.timestamp, event.working_start),
           icon: ApplicationIcons.solvers.use_tools,
-          selectedNav: eventState.selectedNav || "",
-          setSelectedNav: (selectedNav) => {
-            setEventState({ ...eventState, selectedNav });
-          },
-          collapsed: eventState.collapsed,
-          setCollapsed: (collapsed) => {
-            setEventState({ ...eventState, collapsed });
-          },
           children: [
             /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { "data-name": "Summary", className: styles$n.summary, children: [
               /* @__PURE__ */ jsxRuntimeExports.jsx(
                 ToolCallView,
                 {
-                  id: `${id2}-tool-call`,
+                  id: `${id}-tool-call`,
                   functionCall,
                   input: input2,
                   highlightLanguage,
@@ -63930,7 +63810,7 @@ ${events}
             event.events.length > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
               TranscriptView,
               {
-                id: `${id2}-subtask`,
+                id: `${id}-subtask`,
                 "data-name": "Transcript",
                 events: event.events,
                 depth: depth + 1
@@ -63983,13 +63863,7 @@ ${events}
       node,
       first
     };
-    const TranscriptVirtualListComponent = reactExports.memo(({ id: id2, eventNodes, scrollRef, transcriptState, setTranscriptState }) => {
-      const setEventState = reactExports.useCallback(
-        (eventId, state) => {
-          setTranscriptState({ ...transcriptState, [eventId]: state });
-        },
-        [transcriptState, setTranscriptState]
-      );
+    const TranscriptVirtualListComponent = reactExports.memo(({ id, eventNodes, scrollRef }) => {
       const listHandle = reactExports.useRef(null);
       const { restoreState, isScrolling } = useVirtuosoState(
         listHandle,
@@ -63999,16 +63873,14 @@ ${events}
       const renderRow = (item2, index2) => {
         const bgClass = item2.depth % 2 == 0 ? styles$l.darkenedBg : styles$l.normalBg;
         const paddingClass = index2 === 0 ? styles$l.first : void 0;
-        const eventId = `${id2}-event${index2}`;
+        const eventId = `${id}-event${index2}`;
         return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$l.node, paddingClass), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
           RenderedEventNode,
           {
             id: eventId,
             node: item2,
             className: clsx(bgClass),
-            scrollRef,
-            eventState: transcriptState[eventId] || {},
-            setEventState: (state) => setEventState(eventId, state)
+            scrollRef
           }
         ) }, eventId);
       };
@@ -64039,69 +63911,37 @@ ${events}
       );
     });
     const TranscriptView = ({
-      id: id2,
+      id,
       events,
       depth
     }) => {
-      const [transcriptState, setTranscriptState] = reactExports.useState({});
-      const onTranscriptState = reactExports.useCallback(
-        (state) => {
-          setTranscriptState(state);
-        },
-        [setTranscriptState]
-      );
       const resolvedEvents = fixupEventStream(events);
       const eventNodes = treeifyEvents(
         resolvedEvents,
         depth !== void 0 ? depth : 0
       );
-      return /* @__PURE__ */ jsxRuntimeExports.jsx(
-        TranscriptComponent,
-        {
-          id: id2,
-          eventNodes,
-          transcriptState,
-          setTranscriptState: onTranscriptState
-        }
-      );
+      return /* @__PURE__ */ jsxRuntimeExports.jsx(TranscriptComponent, { id, eventNodes });
     };
     const TranscriptVirtualList = (props) => {
-      let { id: id2, scrollRef, events, depth } = props;
+      let { id, scrollRef, events, depth } = props;
       const eventNodes = reactExports.useMemo(() => {
         const resolvedEvents = fixupEventStream(events);
         const eventNodes2 = treeifyEvents(resolvedEvents, depth || 0);
         return eventNodes2;
       }, [events, depth]);
-      const [transcriptState, setTranscriptState] = reactExports.useState({});
-      const onTranscriptState = reactExports.useCallback(
-        (state) => {
-          setTranscriptState(state);
-        },
-        [setTranscriptState]
-      );
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
         TranscriptVirtualListComponent,
         {
-          id: id2,
+          id,
           eventNodes,
-          scrollRef,
-          transcriptState,
-          setTranscriptState: onTranscriptState
+          scrollRef
         }
       );
     };
     const TranscriptComponent = ({
-      id: id2,
-      transcriptState,
-      setTranscriptState,
+      id,
       eventNodes
     }) => {
-      const setEventState = reactExports.useCallback(
-        (state, eventId) => {
-          setTranscriptState({ ...transcriptState, [eventId]: state });
-        },
-        [setTranscriptState, transcriptState]
-      );
       const rows = eventNodes.map((eventNode2, index2) => {
         const clz = [styles$m.eventNode];
         if (eventNode2.depth % 2 == 0) {
@@ -64110,7 +63950,7 @@ ${events}
         if (index2 === eventNodes.length - 1) {
           clz.push(styles$m.lastNode);
         }
-        const eventId = `${id2}-event${index2}`;
+        const eventId = `${id}-event${index2}`;
         const row2 = /* @__PURE__ */ jsxRuntimeExports.jsx(
           "div",
           {
@@ -64123,11 +63963,7 @@ ${events}
               {
                 id: eventId,
                 node: eventNode2,
-                className: clsx(clz),
-                eventState: transcriptState[eventId] || {},
-                setEventState: (state) => {
-                  setEventState(state, eventId);
-                }
+                className: clsx(clz)
               }
             )
           },
@@ -64138,96 +63974,45 @@ ${events}
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
         "div",
         {
-          id: id2,
+          id,
           className: clsx("text-size-small", styles$m.transcriptComponent),
           children: rows
         }
       );
     };
     const RenderedEventNode = ({
-      id: id2,
+      id,
       node: node2,
       scrollRef,
-      eventState,
-      setEventState,
       className: className2
     }) => {
       switch (node2.event.event) {
         case "sample_init":
-          return /* @__PURE__ */ jsxRuntimeExports.jsx(
-            SampleInitEventView,
-            {
-              id: id2,
-              event: node2.event,
-              eventState,
-              setEventState,
-              className: className2
-            }
-          );
+          return /* @__PURE__ */ jsxRuntimeExports.jsx(SampleInitEventView, { id, event: node2.event, className: className2 });
         case "sample_limit":
           return /* @__PURE__ */ jsxRuntimeExports.jsx(
             SampleLimitEventView,
             {
-              id: id2,
+              id,
               event: node2.event,
-              eventState,
-              setEventState,
               className: className2
             }
           );
         case "info":
-          return /* @__PURE__ */ jsxRuntimeExports.jsx(
-            InfoEventView,
-            {
-              id: id2,
-              event: node2.event,
-              eventState,
-              setEventState,
-              className: className2
-            }
-          );
+          return /* @__PURE__ */ jsxRuntimeExports.jsx(InfoEventView, { id, event: node2.event, className: className2 });
         case "logger":
           return /* @__PURE__ */ jsxRuntimeExports.jsx(LoggerEventView, { event: node2.event, className: className2 });
         case "model":
-          return /* @__PURE__ */ jsxRuntimeExports.jsx(
-            ModelEventView,
-            {
-              id: id2,
-              event: node2.event,
-              eventState,
-              setEventState,
-              className: className2
-            }
-          );
+          return /* @__PURE__ */ jsxRuntimeExports.jsx(ModelEventView, { id, event: node2.event, className: className2 });
         case "score":
-          return /* @__PURE__ */ jsxRuntimeExports.jsx(
-            ScoreEventView,
-            {
-              id: id2,
-              event: node2.event,
-              eventState,
-              setEventState,
-              className: className2
-            }
-          );
+          return /* @__PURE__ */ jsxRuntimeExports.jsx(ScoreEventView, { id, event: node2.event, className: className2 });
         case "state":
-          return /* @__PURE__ */ jsxRuntimeExports.jsx(
-            StateEventView,
-            {
-              id: id2,
-              event: node2.event,
-              eventState,
-              setEventState,
-              className: className2
-            }
-          );
+          return /* @__PURE__ */ jsxRuntimeExports.jsx(StateEventView, { id, event: node2.event, className: className2 });
         case "step":
           return /* @__PURE__ */ jsxRuntimeExports.jsx(
             StepEventView,
             {
               event: node2.event,
-              eventState,
-              setEventState,
               children: node2.children,
               scrollRef,
               className: className2
@@ -64237,10 +64022,8 @@ ${events}
           return /* @__PURE__ */ jsxRuntimeExports.jsx(
             StateEventView,
             {
-              id: id2,
+              id,
               event: node2.event,
-              eventState,
-              setEventState,
               className: className2,
               isStore: true
             }
@@ -64249,10 +64032,8 @@ ${events}
           return /* @__PURE__ */ jsxRuntimeExports.jsx(
             SubtaskEventView,
             {
-              id: id2,
+              id,
               event: node2.event,
-              eventState,
-              setEventState,
               className: className2,
               depth: node2.depth
             }
@@ -64261,49 +64042,20 @@ ${events}
           return /* @__PURE__ */ jsxRuntimeExports.jsx(
             ToolEventView,
             {
-              id: id2,
+              id,
               event: node2.event,
-              eventState,
-              setEventState,
               className: className2,
               depth: node2.depth
             }
           );
         case "input":
-          return /* @__PURE__ */ jsxRuntimeExports.jsx(
-            InputEventView,
-            {
-              id: id2,
-              event: node2.event,
-              eventState,
-              setEventState,
-              className: className2
-            }
-          );
+          return /* @__PURE__ */ jsxRuntimeExports.jsx(InputEventView, { id, event: node2.event, className: className2 });
         case "error":
-          return /* @__PURE__ */ jsxRuntimeExports.jsx(
-            ErrorEventView,
-            {
-              id: id2,
-              event: node2.event,
-              eventState,
-              setEventState,
-              className: className2
-            }
-          );
+          return /* @__PURE__ */ jsxRuntimeExports.jsx(ErrorEventView, { id, event: node2.event, className: className2 });
         case "approval":
           return /* @__PURE__ */ jsxRuntimeExports.jsx(ApprovalEventView, { event: node2.event, className: className2 });
         case "sandbox":
-          return /* @__PURE__ */ jsxRuntimeExports.jsx(
-            SandboxEventView,
-            {
-              id: id2,
-              event: node2.event,
-              className: className2,
-              eventState,
-              setEventState
-            }
-          );
+          return /* @__PURE__ */ jsxRuntimeExports.jsx(SandboxEventView, { id, event: node2.event, className: className2 });
         default:
           return null;
       }
@@ -64368,11 +64120,11 @@ ${events}
       return rootNodes;
     }
     const SampleTranscript = reactExports.memo(
-      ({ id: id2, evalEvents, scrollRef }) => {
+      ({ id, evalEvents, scrollRef }) => {
         return /* @__PURE__ */ jsxRuntimeExports.jsx(
           TranscriptVirtualList,
           {
-            id: id2,
+            id,
             events: evalEvents,
             scrollRef
           }
@@ -64380,7 +64132,7 @@ ${events}
       }
     );
     const SampleDisplay = ({
-      id: id2,
+      id,
       sample: sample2,
       selectedTab,
       setSelectedTab,
@@ -64396,13 +64148,13 @@ ${events}
       const sampleEvents = (sample2 == null ? void 0 : sample2.events) || (runningSampleData == null ? void 0 : runningSampleData.events);
       const onSelectedTab = (e) => {
         const el = e.currentTarget;
-        const id22 = el.id;
-        setSelectedTab(id22);
+        const id2 = el.id;
+        setSelectedTab(id2);
         return false;
       };
       const scorerNames = Object.keys((sample2 == null ? void 0 : sample2.scores) || {});
-      const sampleMetadatas = metadataViewsForSample(`${baseId}-${id2}`, sample2);
-      const tabsetId = `task-sample-details-tab-${id2}`;
+      const sampleMetadatas = metadataViewsForSample(`${baseId}-${id}`, sample2);
+      const tabsetId = `task-sample-details-tab-${id}`;
       const targetId = `${tabsetId}-content`;
       const tools2 = [];
       if (!isVscode()) {
@@ -64413,7 +64165,7 @@ ${events}
               label: "Print",
               icon: ApplicationIcons.copy,
               onClick: () => {
-                printSample(id2, targetId);
+                printSample(id, targetId);
               }
             },
             "sample-print-tool"
@@ -64421,7 +64173,7 @@ ${events}
         );
       }
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
-        sample2 || sampleSummary ? /* @__PURE__ */ jsxRuntimeExports.jsx(SampleSummaryView, { parent_id: id2, sample: sample2 || sampleSummary }) : void 0,
+        sample2 || sampleSummary ? /* @__PURE__ */ jsxRuntimeExports.jsx(SampleSummaryView, { parent_id: id, sample: sample2 || sampleSummary }) : void 0,
         /* @__PURE__ */ jsxRuntimeExports.jsxs(
           TabSet,
           {
@@ -64442,11 +64194,11 @@ ${events}
                   children: /* @__PURE__ */ jsxRuntimeExports.jsx(
                     SampleTranscript,
                     {
-                      id: `${baseId}-transcript-display-${id2}`,
+                      id: `${baseId}-transcript-display-${id}`,
                       evalEvents: sampleEvents,
                       scrollRef
                     },
-                    `${baseId}-transcript-display-${id2}`
+                    `${baseId}-transcript-display-${id}`
                   )
                 },
                 kSampleTranscriptTabId
@@ -64463,13 +64215,13 @@ ${events}
                   children: /* @__PURE__ */ jsxRuntimeExports.jsx(
                     ChatViewVirtualList,
                     {
-                      id: `${baseId}-chat-${id2}`,
+                      id: `${baseId}-chat-${id}`,
                       messages: sample2.messages,
                       indented: true,
                       scrollRef,
                       toolCallStyle: "complete"
                     },
-                    `${baseId}-chat-${id2}`
+                    `${baseId}-chat-${id}`
                   )
                 },
                 kSampleMessagesTabId
@@ -64551,7 +64303,7 @@ ${events}
         )
       ] });
     };
-    const metadataViewsForSample = (id2, sample2) => {
+    const metadataViewsForSample = (id, sample2) => {
       if (!sample2) {
         return [];
       }
@@ -64567,7 +64319,7 @@ ${events}
                 className: clsx(styles$G.noTop)
               }
             ) })
-          ] }, `sample-usage-${id2}`)
+          ] }, `sample-usage-${id}`)
         );
       }
       if (sample2.total_time !== void 0 && sample2.total_time !== null && sample2.working_time !== void 0 && sample2.working_time !== null) {
@@ -64580,7 +64332,7 @@ ${events}
               /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-label", "text-style-secondary"), children: "Total" }),
               /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: formatTime$1(sample2.total_time) })
             ] }) })
-          ] }, `sample-time-${id2}`)
+          ] }, `sample-time-${id}`)
         );
       }
       if (Object.keys(sample2 == null ? void 0 : sample2.metadata).length > 0) {
@@ -64595,7 +64347,7 @@ ${events}
                 className: clsx("tab-pane", styles$G.noTop)
               }
             ) })
-          ] }, `sample-metadata-${id2}`)
+          ] }, `sample-metadata-${id}`)
         );
       }
       if (Object.keys(sample2 == null ? void 0 : sample2.store).length > 0) {
@@ -64610,19 +64362,19 @@ ${events}
                 className: clsx("tab-pane", styles$G.noTop)
               }
             ) })
-          ] }, `sample-store-${id2}`)
+          ] }, `sample-store-${id}`)
         );
       }
       return sampleMetadatas;
     };
-    const printSample = (id2, targetId) => {
+    const printSample = (id, targetId) => {
       const targetTabEl = document.querySelector(
         `#${escapeSelector(targetId)} .sample-tab.tab-pane.show.active`
       );
       if (targetTabEl) {
         const targetEl = targetTabEl.firstElementChild;
         if (targetEl) {
-          const headingId = `sample-heading-${id2}`;
+          const headingId = `sample-heading-${id}`;
           const headingEl = document.getElementById(headingId);
           const headingHtml = printHeadingHtml();
           const css = `
@@ -64676,7 +64428,7 @@ ${events}
       body: body$2
     };
     const InlineSampleDisplay = ({
-      id: id2,
+      id,
       selectedTab,
       setSelectedTab,
       scrollRef
@@ -64693,7 +64445,7 @@ ${events}
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$k.body, children: sampleData.error ? /* @__PURE__ */ jsxRuntimeExports.jsx(ErrorPanel, { title: "Unable to load sample", error: sampleData.error }) : /* @__PURE__ */ jsxRuntimeExports.jsx(
           SampleDisplay,
           {
-            id: id2,
+            id,
             sample: sampleData.sample,
             runningSampleData: sampleData.running,
             selectedTab,
@@ -64726,7 +64478,7 @@ ${events}
       titleTool
     };
     const LargeModal = ({
-      id: id2,
+      id,
       title: title2,
       detail: detail2,
       detailTools,
@@ -64744,7 +64496,7 @@ ${events}
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
         "div",
         {
-          id: id2,
+          id,
           className: clsx(
             "modal",
             styles$j.modal,
@@ -64825,7 +64577,7 @@ ${events}
       );
     };
     const SampleDialog = ({
-      id: id2,
+      id,
       title: title2,
       nextSample,
       prevSample,
@@ -64890,7 +64642,7 @@ ${events}
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
         LargeModal,
         {
-          id: id2,
+          id,
           detail: title2,
           detailTools: tools2,
           onkeyup: handleKeyUp,
@@ -64901,7 +64653,7 @@ ${events}
           children: sampleData.error ? /* @__PURE__ */ jsxRuntimeExports.jsx(ErrorPanel, { title: "Sample Error", error: sampleData.error }) : /* @__PURE__ */ jsxRuntimeExports.jsx(
             SampleDisplay,
             {
-              id: id2,
+              id,
               sample: sampleData.sample,
               runningSampleData: sampleData.running,
               selectedTab,
@@ -64913,13 +64665,13 @@ ${events}
       );
     };
     const MessageBand = ({
-      id: id2,
+      id,
       message: message2,
       type,
       scope = "eval"
     }) => {
       const className2 = [type];
-      const [visible2, setVisible] = useMessageVisibility(id2, scope);
+      const [visible2, setVisible] = useMessageVisibility(id, scope);
       const handleClick = reactExports.useCallback(() => {
         setVisible(false);
       }, [setVisible]);
@@ -65045,7 +64797,7 @@ ${events}
       spinner: spinner$1
     };
     const SampleRow = ({
-      id: id2,
+      id,
       index: index2,
       sample: sample2,
       answer: answer2,
@@ -65069,7 +64821,7 @@ ${events}
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(
         "div",
         {
-          id: `sample-${id2}`,
+          id: `sample-${id}`,
           onClick: handleClick,
           className: clsx(
             styles$h.grid,
@@ -65134,14 +64886,14 @@ ${events}
       row: row$1
     };
     const SampleSeparator = ({
-      id: id2,
+      id,
       title: title2,
       height
     }) => {
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
         "div",
         {
-          id: id2,
+          id,
           className: clsx("text-style-secondary", "text-size-smaller", styles$g.row),
           style: { height: `${height}px` },
           children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: title2 })
@@ -65370,15 +65122,15 @@ ${events}
       ] });
     });
     const gridColumnsValue = (sampleDescriptor) => {
-      const { input: input2, target: target2, answer: answer2, limit, id: id2, score: score2 } = gridColumns(sampleDescriptor);
-      return `${id2} ${input2} ${target2} ${answer2} ${limit} ${score2}`;
+      const { input: input2, target: target2, answer: answer2, limit, id, score: score2 } = gridColumns(sampleDescriptor);
+      return `${id} ${input2} ${target2} ${answer2} ${limit} ${score2}`;
     };
     const gridColumns = (sampleDescriptor) => {
       const input2 = sampleDescriptor && sampleDescriptor.messageShape.normalized.input > 0 ? Math.max(0.15, sampleDescriptor.messageShape.normalized.input) : 0;
       const target2 = sampleDescriptor && sampleDescriptor.messageShape.normalized.target > 0 ? Math.max(0.15, sampleDescriptor.messageShape.normalized.target) : 0;
       const answer2 = sampleDescriptor && sampleDescriptor.messageShape.normalized.answer > 0 ? Math.max(0.15, sampleDescriptor.messageShape.normalized.answer) : 0;
       const limit = sampleDescriptor && sampleDescriptor.messageShape.normalized.limit > 0 ? Math.max(0.15, sampleDescriptor.messageShape.normalized.limit) : 0;
-      const id2 = Math.max(
+      const id = Math.max(
         2,
         Math.min(10, (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.raw.id) || 0)
       );
@@ -65398,7 +65150,7 @@ ${events}
         target: frSize(target2),
         answer: frSize(answer2),
         limit: frSize(limit),
-        id: `${id2}rem`,
+        id: `${id}rem`,
         score: `${score2}rem`
       };
     };
@@ -66893,9 +66645,9 @@ ${events}
       const onSelected = reactExports.useCallback(
         (e) => {
           var _a2;
-          const id2 = (_a2 = e.currentTarget) == null ? void 0 : _a2.id;
-          if (id2) {
-            setSelectedTab(id2);
+          const id = (_a2 = e.currentTarget) == null ? void 0 : _a2.id;
+          if (id) {
+            setSelectedTab(id);
           }
         },
         [setSelectedTab]
