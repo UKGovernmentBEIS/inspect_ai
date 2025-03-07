@@ -33,6 +33,10 @@ export interface AppSlice {
     getMessageVisible: (name: string, defaultValue?: boolean) => boolean;
     setMessageVisible: (name: string, value: boolean) => void;
     clearMessageVisible: (name: string) => void;
+
+    getPropertyValue: <T>(bagName: string, key: string, defaultValue?: T) => T;
+    setPropertyValue: <T>(bagName: string, key: string, value: T) => void;
+    removePropertyValue: (bagName: string, key: string) => void;
   };
 }
 
@@ -54,6 +58,7 @@ const initialState: AppState = {
   listPositions: {},
   collapsed: {},
   messages: {},
+  propertyBags: {},
 };
 
 export const createAppSlice = (
@@ -172,6 +177,35 @@ export const createAppSlice = (
       clearMessageVisible: (name: string) => {
         set((state) => {
           delete state.app.messages[name];
+        });
+      },
+      getPropertyValue: <T>(
+        bagName: string,
+        key: string,
+        defaultValue?: T,
+      ): T => {
+        const state = get();
+        const bag = state.app.propertyBags[bagName] || {};
+        return (key in bag ? bag[key] : defaultValue) as T;
+      },
+
+      setPropertyValue: <T>(bagName: string, key: string, value: T) => {
+        set((state) => {
+          // Create the bag if it doesn't exist
+          if (!state.app.propertyBags[bagName]) {
+            state.app.propertyBags[bagName] = {};
+          }
+          // Only update the specific key
+          state.app.propertyBags[bagName][key] = value;
+        });
+      },
+
+      removePropertyValue: (bagName: string, key: string) => {
+        set((state) => {
+          if (state.app.propertyBags[bagName]) {
+            const { [key]: _, ...rest } = state.app.propertyBags[bagName];
+            state.app.propertyBags[bagName] = rest;
+          }
         });
       },
     },
