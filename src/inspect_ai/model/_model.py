@@ -233,15 +233,19 @@ class Model:
     config: GenerateConfig
     """Generation config."""
 
-    def __init__(self, api: ModelAPI, config: GenerateConfig) -> None:
+    def __init__(
+        self, api: ModelAPI, config: GenerateConfig, model_args: dict[str, Any] = {}
+    ) -> None:
         """Create a model.
 
         Args:
            api: Model API provider.
            config: Model configuration.
+           model_args: Optional model args
         """
         self.api = api
         self.config = config
+        self.model_args = model_args
 
         # state indicating whether our lifetime is bound by a context manager
         self._context_bound = False
@@ -840,7 +844,7 @@ def get_model(
             config=config,
             **model_args,
         )
-        m = Model(modelapi_instance, config)
+        m = Model(modelapi_instance, config, model_args)
         if memoize:
             _models[model_cache_key] = m
         return m
@@ -1246,7 +1250,7 @@ def active_model() -> Model | None:
 
 
 # shared contexts for asyncio tasks
-active_model_context_var: ContextVar[Model] = ContextVar("active_model")
+active_model_context_var: ContextVar[Model | None] = ContextVar("active_model")
 
 
 def handle_sample_message_limit(input: str | list[ChatMessage]) -> None:

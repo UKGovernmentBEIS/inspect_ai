@@ -2,7 +2,7 @@ import functools
 import logging
 import os
 import sys
-from typing import Any, Awaitable, Callable, Set, cast
+from typing import Awaitable, Callable, Set, cast
 
 from inspect_ai._util.trace import trace_action
 
@@ -64,7 +64,6 @@ async def eval_run(
     eval_config: EvalConfig,
     eval_sandbox: SandboxEnvironmentType | None,
     recorder: Recorder,
-    model_args: dict[str, Any],
     epochs_reducer: list[ScoreReducer] | None = None,
     solver: Solver | SolverSpec | None = None,
     tags: list[str] | None = None,
@@ -200,7 +199,7 @@ async def eval_run(
                     sandbox=resolved_task.sandbox,
                     task_attribs=task.attribs,
                     task_args=resolved_task.task_args,
-                    model_args=model_args,
+                    model_args=resolved_task.model.model_args,
                     eval_config=task_eval_config,
                     metadata=task.metadata,
                     recorder=recorder,
