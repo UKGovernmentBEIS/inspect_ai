@@ -2,13 +2,10 @@ import { FC } from "react";
 import { ApplicationIcons } from "../../appearance/icons";
 import { SampleLimitEvent, Type8 } from "../../types/log";
 import { EventPanel } from "./event/EventPanel";
-import { TranscriptEventState } from "./types";
 
 interface SampleLimitEventViewProps {
   id: string;
   event: SampleLimitEvent;
-  eventState: TranscriptEventState;
-  setEventState: (state: TranscriptEventState) => void;
   className?: string | string[];
 }
 
@@ -18,8 +15,6 @@ interface SampleLimitEventViewProps {
 export const SampleLimitEventView: FC<SampleLimitEventViewProps> = ({
   id,
   event,
-  eventState,
-  setEventState,
   className,
 }) => {
   const resolve_title = (type: Type8) => {
@@ -60,20 +55,7 @@ export const SampleLimitEventView: FC<SampleLimitEventViewProps> = ({
   const icon = resolve_icon(event.type);
 
   return (
-    <EventPanel
-      id={id}
-      title={title}
-      icon={icon}
-      className={className}
-      selectedNav={eventState.selectedNav || ""}
-      setSelectedNav={(selectedNav) => {
-        setEventState({ ...eventState, selectedNav });
-      }}
-      collapsed={eventState.collapsed}
-      setCollapsed={(collapsed) => {
-        setEventState({ ...eventState, collapsed });
-      }}
-    >
+    <EventPanel id={id} title={title} icon={icon} className={className}>
       {event.message}
     </EventPanel>
   );

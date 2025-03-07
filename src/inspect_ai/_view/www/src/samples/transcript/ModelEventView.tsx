@@ -17,7 +17,6 @@ import { ModelUsagePanel } from "../../usage/ModelUsagePanel";
 import { ChatView } from "../chat/ChatView";
 import { EventPanel } from "./event/EventPanel";
 import { EventSection } from "./event/EventSection";
-import { TranscriptEventState } from "./types";
 
 import { highlightElement } from "prismjs";
 import styles from "./ModelEventView.module.css";
@@ -27,8 +26,6 @@ import { formatTiming, formatTitle } from "./event/utils";
 interface ModelEventViewProps {
   id: string;
   event: ModelEvent;
-  eventState: TranscriptEventState;
-  setEventState: (state: TranscriptEventState) => void;
   className?: string | string[];
 }
 
@@ -38,8 +35,6 @@ interface ModelEventViewProps {
 export const ModelEventView: FC<ModelEventViewProps> = ({
   id,
   event,
-  eventState,
-  setEventState,
   className,
 }) => {
   const totalUsage = event.output.usage?.total_tokens;
@@ -74,14 +69,6 @@ export const ModelEventView: FC<ModelEventViewProps> = ({
       title={formatTitle(`Model Call: ${event.model}`, totalUsage, callTime)}
       subTitle={formatTiming(event.timestamp, event.working_start)}
       icon={ApplicationIcons.model}
-      selectedNav={eventState.selectedNav || ""}
-      setSelectedNav={(selectedNav) => {
-        setEventState({ ...eventState, selectedNav });
-      }}
-      collapsed={eventState.collapsed}
-      setCollapsed={(collapsed) => {
-        setEventState({ ...eventState, collapsed });
-      }}
     >
       <div data-name="Summary" className={styles.container}>
         <ChatView
