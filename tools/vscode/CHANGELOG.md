@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.56
+
+- Improve startup performance and task detection performance
+
 ## 0.3.55
 
 - Remove display of status icons in log listing (it causes performance issues).
