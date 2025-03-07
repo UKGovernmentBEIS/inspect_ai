@@ -80,9 +80,14 @@ export const PlanDetailView: FC<PlanDetailViewProps> = ({
   }
 
   if (evaluation?.sandbox) {
-    config["sandbox"] = evaluation.sandbox[0];
-    if (evaluation.sandbox[1]) {
-      config["sandbox_config"] = evaluation.sandbox[1];
+    if (Array.isArray(evaluation?.sandbox)) {
+      config["sandbox"] = evaluation.sandbox[0];
+      if (evaluation.sandbox[1]) {
+        config["sandbox_config"] = evaluation.sandbox[1];
+      }
+    } else {
+      config["sandbox"] = evaluation?.sandbox.type;
+      config["sandbox_config"] = evaluation?.sandbox.config;
     }
   }
 
