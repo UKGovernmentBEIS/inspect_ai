@@ -9,13 +9,13 @@ from inspect_ai.model._generate_config import GenerateConfig
 from .test_reasoning_content import check_reasoning_content
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 @skip_if_no_anthropic
 async def test_reasoning_claude():
     await check_reasoning_content("anthropic/claude-3-7-sonnet-20250219")
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 @skip_if_no_anthropic
 async def test_reasoning_claude_ignore_unsupported():
     await check_reasoning_content(
@@ -24,7 +24,7 @@ async def test_reasoning_claude_ignore_unsupported():
     )
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 @skip_if_no_anthropic
 async def test_reasoning_claude_force_history():
     await check_reasoning_content(

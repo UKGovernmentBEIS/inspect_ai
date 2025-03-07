@@ -1,4 +1,4 @@
-from typing import Literal, Union, overload
+from typing import Any, Literal, Union, overload
 
 from pydantic import BaseModel
 from typing_extensions import override
@@ -57,6 +57,10 @@ class PodmanSandboxEnvironment(SandboxEnvironment):
     @override
     async def read_file(self, file: str, text: bool = True) -> Union[str | bytes]:
         return ""
+
+    @classmethod
+    def config_deserialize(cls, config: dict[str, Any]) -> BaseModel:
+        return PodmanSandboxEnvironmentConfig(**config)
 
 
 class PodmanSandboxEnvironmentConfig(BaseModel, frozen=True):

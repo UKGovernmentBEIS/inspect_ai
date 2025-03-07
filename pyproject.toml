@@ -135,6 +135,7 @@ dev = [
     "pytest-xdist",
     "ruff==0.9.6", # match version specified in .pre-commit-config.yaml
     "textual-dev>=0.86.2",
+    "trio",
     "types-Markdown",
     "types-PyYAML",
     "types-beautifulsoup4",
@@ -147,5 +148,5 @@ dev = [
     "types-psutil",
     "types-python-dateutil"
 ]
-doc = ["quarto-cli==1.5.57", "jupyter", "panflute", "markdown"]
+doc = ["quarto-cli==1.5.57", "jupyter", "panflute", "markdown", "griffe"]
 dist = ["twine", "build"]

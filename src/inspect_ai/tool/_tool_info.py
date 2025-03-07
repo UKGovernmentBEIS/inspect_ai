@@ -1,27 +1,19 @@
 import inspect
-import types
-import typing
-from dataclasses import is_dataclass
 from typing import (
     Any,
     Callable,
     Dict,
-    List,
-    Optional,
-    Tuple,
-    Type,
-    Union,
     get_args,
-    get_origin,
     get_type_hints,
-    is_typeddict,
 )
 
 from docstring_parser import Docstring, parse
 from pydantic import BaseModel, Field
 
+from inspect_ai.util._json import JSONType, json_schema
+
 from ._tool_description import tool_description
-from ._tool_params import JSONType, ToolParam, ToolParams
+from ._tool_params import ToolParam, ToolParams
 
 
 class ToolInfo(BaseModel):
@@ -88,7 +80,7 @@ def parse_tool_info(func: Callable[..., Any]) -> ToolInfo:
 
         # Get type information from type annotations
         if param_name in type_hints:
-            tool_param = parse_type(type_hints[param_name])
+            tool_param = json_schema(type_hints[param_name])
         # as a fallback try to parse it from the docstring
         # (this is minimally necessary for backwards compatiblity
         #  with tools gen1 type parsing, which only used docstrings)
@@ -127,84 +119,6 @@ def parse_tool_info(func: Callable[..., Any]) -> ToolInfo:
             info.description = f"{info.description}\n\nExamples\n\n{examples}"
 
     return info
-
-
-def parse_type(type_hint: Type[Any]) -> ToolParam:
-    origin = get_origin(type_hint)
-    args = get_args(type_hint)
-
-    if origin is None:
-        if type_hint is int:
-            return ToolParam(type="integer")
-        elif type_hint is float:
-            return ToolParam(type="number")
-        elif type_hint is str:
-            return ToolParam(type="string")
-        elif type_hint is bool:
-            return ToolParam(type="boolean")
-        elif type_hint is list:
-            return ToolParam(type="array", items=ToolParam())
-        elif type_hint is dict:
-            return ToolParam(type="object", additionalProperties=ToolParam())
-        elif (
-            is_dataclass(type_hint)
-            or is_typeddict(type_hint)
-            or (isinstance(type_hint, type) and issubclass(type_hint, BaseModel))
-        ):
-            return parse_object(type_hint)
-        elif type_hint is type(None):
-            return ToolParam(type="null")
-        else:
-            return ToolParam()
-    elif origin is list or origin is List or origin is tuple or origin is Tuple:
-        return ToolParam(
-            type="array", items=parse_type(args[0]) if args else ToolParam()
-        )
-    elif origin is dict or origin is Dict:
-        return ToolParam(
-            type="object",
-            additionalProperties=parse_type(args[1]) if len(args) > 1 else ToolParam(),
-        )
-    elif origin is Union or origin is types.UnionType:
-        return ToolParam(anyOf=[parse_type(arg) for arg in args])
-    elif origin is Optional:
-        return ToolParam(
-            anyOf=[parse_type(arg) for arg in args] + [ToolParam(type="null")]
-        )
-    elif origin is typing.Literal:
-        return ToolParam(enum=list(args))
-
-    return ToolParam()  # Default case if we can't determine the type
-
-
-def parse_object(cls: Type[Any]) -> ToolParam:
-    properties: Dict[str, ToolParam] = {}
-    required: List[str] = []
-
-    if is_dataclass(cls):
-        fields = cls.__dataclass_fields__  # type: ignore
-        for name, field in fields.items():
-            properties[name] = parse_type(field.type)  # type: ignore
-            if field.default == field.default_factory:
-                required.append(name)
-    elif isinstance(cls, type) and issubclass(cls, BaseModel):
-        schema = cls.model_json_schema()
-        for name, prop in schema.get("properties", {}).items():
-            properties[name] = ToolParam(**prop)
-        required = schema.get("required", [])
-    elif is_typeddict(cls):
-        annotations = get_type_hints(cls)
-        for name, type_hint in annotations.items():
-            properties[name] = parse_type(type_hint)
-            if name in cls.__required_keys__:
-                required.append(name)
-
-    return ToolParam(
-        type="object",
-        properties=properties,
-        required=required if required else None,
-        additionalProperties=False,
-    )
 
 
 def parse_docstring(docstring: str | None, param_name: str) -> Dict[str, str]:

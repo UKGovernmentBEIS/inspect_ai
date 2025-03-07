@@ -1,5 +1,24 @@
 ## Unreleased
 
+- Constrain model output to a particular JSON schema using [Structured Output](https://inspect.ai-safety-institute.org.uk/structured.html) (supported for OpenAI, Google, and Mistral).
+- New "HTTP Retries" display (replacing the "HTTP Rate Limits" display) which counts all retries and does so much more consistently and accurately across providers.
+- The `ModelAPI` class now has a `should_retry()` method that replaces the deprecated `is_rate_limit()` method.
+- The "Generate..." progress message in the Running Samples view now shows the number of retries for the active call to `generate()`.
+- New `inspect trace http` command which will show all HTTP requests for a run.
+- More consistent use of `max_retries` and `timeout` configuration options. These options now exclusively control Inspect's outer retry handler; model providers use their default behaviour for the inner request, which is typically 2-4 retries and a service-appropriate timeout.
+- Improved async implementation using AnyIO (can now optionally run Trio rather than asyncio as the [async backend](https://inspect.ai-safety-institute.org.uk/parallelism.html#async-backends)).
+- Model API: `ChatMessage` now includes an `id` field (defaults to auto-generated uuid).
+- Mistral: Update to new Mistral API (v1.5.1 of `mistralai` is now required).
+- Logging: Inspect no longer sets the global log level nor does it allow its own messages to propagate to the global handler (eliminating the possiblity of duplicate display). This should improve compatibility with applications that have their own custom logging configured. 
+- Tasks: For filesystem based tasks, no longer switch to the task file's directory during execution (directory switching still occurs during task loading). Specify `@task(chdir=True)` to preserve the previous behavior.
+- Bugfix: Fix issue with deserializing custom sandbox configuration objects.
+
+## v0.3.72 (03 March 2025)
+
+- Computer: Updated tool definition to match improvements in Claude Sonnet 3.7.
+
+## v0.3.71 (01 March 2025)
+
 - Anthropic: Support for [extended thinking](https://inspect.ai-safety-institute.org.uk/reasoning.html#claude-3.7-sonnet) features of Claude Sonnet 3.7 (minimum version of `anthropic` package bumped to 0.47.1).
 - Reasoning: `ContentReasoning` type for representing model reasoning blocks.
 - Reasoning: `reasoning_tokens` for setting maximum reasoning tokens (currently only supported by Claude Sonnet 3.7)
@@ -11,6 +30,7 @@
 - OpenAI: Tolerate `None` for assistant content (can happen when there is a refusal).
 - Google: Retry requests on more HTTP status codes (selected 400 errors and all 500 errors). 
 - Event Log: Add `working_start` attribute to events and `completed` and `working_time` to model, tool, and subtask events.
+- Human Agent: Add `task quit` command for giving up on tasks.
 - Human Agent: Don't emit sandbox events for human agent
 - Inspect View: Improve rendering of JSON within logging events.
 - Inspect View: Improve virtualized rendering of Sample List, Sample Transcript, and Sample Messages.
@@ -64,7 +84,7 @@
 - Memoize calls to `get_model()` so that model instances with the same parameters are cached and re-used (pass `memoize=False` to disable).
 - Async context manager for `Model` class for optional scoped usage of model clients.
 - New `assistant_message()` solver.
-- Prompt templates: Ignore template placeholders that don't map to passed parameters in `prompt_template()`, and system/user/assistnat solvers.
+- Prompt templates: Ignore template placeholders that don't map to passed parameters in `prompt_template()`, and system/user/assistant solvers.
 - Google: Handle system messages with content lists and input with system but no user messages.
 - Google: Ensure that a completion choice is provided even when none are returned by the service.
 - Inspect View: Improve the display of subtasks with no inputs or events.

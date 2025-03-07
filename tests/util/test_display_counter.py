@@ -1,6 +1,6 @@
-import asyncio
 from typing import get_args
 
+import anyio
 import pytest
 
 from inspect_ai import Task, eval, task
@@ -31,7 +31,7 @@ def counter_solver():
         display_counter("My counter", "1")
         display_counter("My counter", "2")
         # The footer is throttled at 1 Hz, so sleep for longer than that.
-        await asyncio.sleep(1.1)
+        await anyio.sleep(1.1)
         display_counter("My counter", "3")
         return state
 

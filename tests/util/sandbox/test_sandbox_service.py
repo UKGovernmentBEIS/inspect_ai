@@ -1,11 +1,11 @@
-import asyncio
 from textwrap import dedent
 
+import anyio
 import pytest
 
 from inspect_ai import Task, eval
 from inspect_ai.solver import Generate, Solver, TaskState, solver
-from inspect_ai.util import ExecResult, sandbox
+from inspect_ai.util import sandbox
 from inspect_ai.util._sandbox.service import sandbox_service
 
 
@@ -48,13 +48,24 @@ def math_service() -> Solver:
         await sandbox().write_file(run_script, run_script_code)
 
         # run the script and the math service
-        for task in asyncio.as_completed(
-            [sandbox().exec(["python3", run_script]), run_math_service(state)]
-        ):
-            result = await task
-            if isinstance(result, ExecResult) and not result.success:
-                print(f"Error running script '{run_script}': {result.stderr}")
-                break
+        async with anyio.create_task_group() as tg:
+
+            async def run_service_script() -> None:
+                script_error = ""
+                try:
+                    result = await sandbox().exec(["python3", run_script])
+                    if not result.success:
+                        script_error = (
+                            f"Error running script '{run_script}': {result.stderr}"
+                        )
+                except Exception as e:
+                    script_error = f"Exception in script: {str(e)}"
+                if script_error:
+                    print(script_error)
+                    tg.cancel_scope.cancel()
+
+            tg.start_soon(run_math_service, state)
+            tg.start_soon(run_service_script)
 
         return state
 

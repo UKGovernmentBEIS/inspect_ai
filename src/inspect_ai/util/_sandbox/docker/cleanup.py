@@ -1,11 +1,13 @@
-import asyncio
 from contextvars import ContextVar
 from pathlib import Path
 from typing import Awaitable, Callable, Set
 
+import anyio
 from rich import box, print
 from rich.panel import Panel
 from rich.table import Table
+
+from inspect_ai._util._async import coro_print_exceptions
 
 from .compose import compose_down, compose_ls, compose_ps
 from .config import is_auto_compose_file, safe_cleanup_auto_compose
@@ -94,13 +96,15 @@ async def cleanup_projects(
     )
 
     # cleanup all of the projects in parallel
-    tasks = [cleanup_fn(project, False) for project in projects]
-    results = await asyncio.gather(*tasks, return_exceptions=True)
-
-    # report errors
-    for result in results:
-        if result is not None:
-            print(f"Error cleaning up Docker environment: {result}")
+    async with anyio.create_task_group() as tg:
+        for project in projects:
+            tg.start_soon(
+                coro_print_exceptions,
+                "cleaning up Docker environment",
+                cleanup_fn,
+                project,
+                False,
+            )
 
 
 async def cli_cleanup(project_name: str | None) -> None:
@@ -141,7 +145,7 @@ def auto_compose_files() -> Set[str]:
 
 
 _running_projects: ContextVar[list[ComposeProject]] = ContextVar(
-    "docker_running_projects"
+    "docker_running_projects", default=[]
 )
 
 _auto_compose_files: ContextVar[Set[str]] = ContextVar("docker_auto_compose_files")

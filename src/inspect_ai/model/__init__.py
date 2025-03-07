@@ -27,7 +27,7 @@ from ._chat_message import (
     ChatMessageTool,
     ChatMessageUser,
 )
-from ._generate_config import GenerateConfig, GenerateConfigArgs
+from ._generate_config import GenerateConfig, GenerateConfigArgs, ResponseSchema
 from ._model import (
     Model,
     ModelAPI,
@@ -49,6 +49,7 @@ from ._registry import modelapi
 __all__ = [
     "GenerateConfig",
     "GenerateConfigArgs",
+    "ResponseSchema",
     "CachePolicy",
     "ContentAudio",
     "ContentImage",

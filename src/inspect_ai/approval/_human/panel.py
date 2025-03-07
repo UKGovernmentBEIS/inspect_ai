@@ -1,6 +1,6 @@
-from asyncio import CancelledError
 from typing import Callable, Literal
 
+import anyio
 from rich.console import RenderableType
 from rich.text import Text
 from textual.app import ComposeResult
@@ -44,7 +44,7 @@ async def panel_approval(
     )
     try:
         return await approvals.wait_for_approval(id)
-    except CancelledError:
+    except anyio.get_cancelled_exc_class():
         approvals.withdraw_request(id)
         raise
 

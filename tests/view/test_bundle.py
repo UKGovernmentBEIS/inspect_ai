@@ -2,6 +2,7 @@ import os
 import tempfile
 
 import pytest
+from test_helpers.utils import skip_if_trio
 
 from inspect_ai import Task, eval
 from inspect_ai._util.file import filesystem
@@ -11,6 +12,7 @@ from inspect_ai.scorer import match
 
 
 @pytest.mark.slow
+@skip_if_trio
 def test_s3_bundle(mock_s3) -> None:
     # run an eval to generate a log file to this directory
     s3_fs = filesystem("s3://test-bucket/")

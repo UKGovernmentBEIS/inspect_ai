@@ -1,13 +1,11 @@
-import asyncio
 import json
 import os
 import tempfile
-from contextlib import _AsyncGeneratorContextManager
 from logging import getLogger
 from typing import Any, BinaryIO, Literal, cast
 from zipfile import ZIP_DEFLATED, ZipFile
 
-from fsspec.asyn import AsyncFileSystem  # type: ignore
+import anyio
 from pydantic import BaseModel, Field
 from pydantic_core import to_json
 from typing_extensions import override
@@ -21,7 +19,7 @@ from inspect_ai._util.content import (
     ContentVideo,
 )
 from inspect_ai._util.error import EvalError
-from inspect_ai._util.file import FileSystem, async_fileystem, dirname, file, filesystem
+from inspect_ai._util.file import FileSystem, dirname, file, filesystem
 from inspect_ai._util.json import jsonable_python
 from inspect_ai._util.trace import trace_action
 from inspect_ai.model._chat_message import ChatMessage
@@ -277,16 +275,14 @@ def text_inputs(inputs: str | list[ChatMessage]) -> str | list[ChatMessage]:
 
 
 class ZipLogFile:
-    _zip: ZipFile
+    _zip: ZipFile | None
     _temp_file: BinaryIO
     _fs: FileSystem
-    _async_fs_context: _AsyncGeneratorContextManager[AsyncFileSystem] | None = None
-    _async_fs: AsyncFileSystem | None = None
 
     def __init__(self, file: str) -> None:
         self._file = file
         self._fs = filesystem(file)
-        self._lock = asyncio.Lock()
+        self._lock = anyio.Lock()
         self._temp_file = tempfile.TemporaryFile()
         self._samples: list[EvalSample] = []
         self._summary_counter = 0
@@ -300,11 +296,6 @@ class ZipLogFile:
         summaries: list[SampleSummary],
     ) -> None:
         async with self._lock:
-            # connect to async filesystem if we can
-            if self._fs.is_async():
-                self._async_fs_context = async_fileystem(self._file)
-                self._async_fs = await self._async_fs_context.__aenter__()
-
             self._open()
             self._summary_counter = summary_counter
             self._summaries = summaries
@@ -364,7 +355,8 @@ class ZipLogFile:
     async def flush(self) -> None:
         async with self._lock:
             # close the zip file so it is flushed
-            self._zip.close()
+            if self._zip:
+                self._zip.close()
 
             # read the temp_file (leaves pointer at end for subsequent appends)
             self._temp_file.seek(0)
@@ -380,21 +372,19 @@ class ZipLogFile:
 
     async def close(self) -> EvalLog:
         async with self._lock:
-            # close the async context if we have one
-            try:
-                if self._async_fs_context:
-                    await self._async_fs_context.__aexit__(None, None, None)
-            except Exception as ex:
-                logger.warning(
-                    f"Error occurred while closing async fs for {self._file}: {ex}"
-                )
-
             # read the log from the temp file then close it
             try:
                 self._temp_file.seek(0)
                 return _read_log(self._temp_file, self._file)
             finally:
                 self._temp_file.close()
+                if self._zip:
+                    self._zip.close()
+
+    # cleanup zip file if we didn't in normal course
+    def __del__(self) -> None:
+        if self._zip:
+            self._zip.close()
 
     def _open(self) -> None:
         self._zip = ZipFile(
@@ -406,6 +396,7 @@ class ZipLogFile:
 
     # raw unsynchronized version of write
     def _zip_writestr(self, filename: str, data: Any) -> None:
+        assert self._zip
         self._zip.writestr(
             filename,
             to_json(

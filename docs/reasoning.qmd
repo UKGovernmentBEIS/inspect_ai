@@ -2,14 +2,6 @@
 title: Reasoning
 ---
 
-::: {.callout-note appearance="simple"}
-The reasoning features described below are currently available only in the development version of Inspect. To install the development version from GitHub:
-
-``` bash
-pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-```
-:::
-
 ## Overview
 
 Reasoning models like OpenAI o1 and o3, Anthropic's Claude Sonnet 3.7, Google's Gemini 2.0 Flash Thinking, and DeepSeek's r1 have some additional options that can be used to tailor their behaviour. They also in some cases make available full or partial reasoning traces for the chains of thought that led to their response.

@@ -202,6 +202,16 @@ export AZUREAI_MISTRAL_BASE_URL=https://your-url-at.azure.com
 inspect eval --model mistral/mistral-large-ctwi
 ```
 
+## DeepSeek {#deepseek}
+
+To use [DeepSeek](https://www.deepseek.com/) models, install the `openai` package (which DeepSeek provides a compatible backend for) and set your credentials using the `OPENAI_API_KEY` environment variable. Then, when running inspect, use the  `--model-base-url` option to point to DeepSeek's base URL, and the `--model` option to specify a model:
+
+```bash
+pip install openai
+export OPENAI_API_KEY=your-deepseek-api-key
+inspect eval arc.py --model-base-url https://api.deepseek.com --model openai/deepseek-reasoner 
+```
+
 ## Grok {#grok}
 
 To use the [Grok](https://x.ai/) provider, install the `openai` package (which the Grok service provides a compatible backend for), set your credentials, and specify a model using the `--model` option:

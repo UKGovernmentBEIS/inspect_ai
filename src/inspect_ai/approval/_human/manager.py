@@ -1,9 +1,8 @@
-import asyncio
 import uuid
-from asyncio import Future
 from contextvars import ContextVar
-from typing import Callable, Literal, NamedTuple, cast
+from typing import Callable, Literal, NamedTuple
 
+from inspect_ai._util.future import Future
 from inspect_ai.solver._task_state import TaskState
 from inspect_ai.tool._tool_call import ToolCall, ToolCallView
 
@@ -37,7 +36,6 @@ class HumanApprovalManager:
         from inspect_ai.log._samples import sample_active
 
         id = str(uuid.uuid4())
-        future = cast(Future[Approval], asyncio.get_event_loop().create_future())
         sample = sample_active()
         assert sample
         assert sample.sample.id is not None
@@ -48,7 +46,7 @@ class HumanApprovalManager:
             id=sample.sample.id,
             epoch=sample.epoch,
         )
-        self._approval_requests[id] = (pending, future)
+        self._approval_requests[id] = (pending, Future[Approval]())
         self._notify_change("add")
         return id
 
@@ -58,7 +56,7 @@ class HumanApprovalManager:
 
     async def wait_for_approval(self, id: str) -> Approval:
         _, future = self._approval_requests[id]
-        return await future
+        return await future.result()
 
     def on_change(
         self, callback: Callable[[Literal["add", "remove"]], None]
@@ -77,16 +75,14 @@ class HumanApprovalManager:
     def complete_approval(self, id: str, result: Approval) -> None:
         if id in self._approval_requests:
             _, future = self._approval_requests[id]
-            if not future.done():
-                future.set_result(result)
+            future.set_result(result)
             del self._approval_requests[id]
             self._notify_change("remove")
 
     def fail_approval(self, id: str, error: Exception) -> None:
         if id in self._approval_requests:
             _, future = self._approval_requests[id]
-            if not future.done():
-                future.set_exception(error)
+            future.set_exception(error)
             del self._approval_requests[id]
             self._notify_change("remove")
 

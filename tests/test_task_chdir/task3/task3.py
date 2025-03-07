@@ -7,10 +7,10 @@ from inspect_ai.solver import generate
 
 
 @task
-def task1():
+def task3():
     return Task(
         dataset=[Sample(input="What is 1+1?", target="2")],
-        solver=[file_check("task1.py"), generate()],
+        solver=[file_check("task3.py"), generate()],
         scorer=includes(),
-        metadata={"task_idx": 1},
+        metadata={"task_idx": 3},
     )

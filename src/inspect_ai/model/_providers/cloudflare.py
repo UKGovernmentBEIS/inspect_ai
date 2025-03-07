@@ -16,10 +16,10 @@ from .util import (
     chat_api_input,
     chat_api_request,
     environment_prerequisite_error,
-    is_chat_api_rate_limit,
     model_base_url,
+    should_retry_chat_api_error,
 )
-from .util.tracker import HttpxTimeTracker
+from .util.hooks import HttpxHooks
 
 # https://developers.cloudflare.com/workers-ai/models/#text-generation
 
@@ -51,7 +51,7 @@ class CloudFlareAPI(ModelAPI):
             if not self.api_key:
                 raise environment_prerequisite_error("CloudFlare", CLOUDFLARE_API_TOKEN)
         self.client = httpx.AsyncClient()
-        self._time_tracker = HttpxTimeTracker(self.client)
+        self._http_hooks = HttpxHooks(self.client)
         base_url = model_base_url(base_url, "CLOUDFLARE_BASE_URL")
         self.base_url = (
             base_url if base_url else "https://api.cloudflare.com/client/v4/accounts"
@@ -79,7 +79,7 @@ class CloudFlareAPI(ModelAPI):
         json["messages"] = chat_api_input(input, tools, self.chat_api_handler())
 
         # request_id
-        request_id = self._time_tracker.start_request()
+        request_id = self._http_hooks.start_request()
 
         # setup response
         response: dict[str, Any] = {}
@@ -88,7 +88,7 @@ class CloudFlareAPI(ModelAPI):
             return ModelCall.create(
                 request=json,
                 response=response,
-                time=self._time_tracker.end_request(request_id),
+                time=self._http_hooks.end_request(request_id),
             )
 
         # make the call
@@ -98,10 +98,9 @@ class CloudFlareAPI(ModelAPI):
             url=f"{chat_url}/{self.model_name}",
             headers={
                 "Authorization": f"Bearer {self.api_key}",
-                HttpxTimeTracker.REQUEST_ID_HEADER: request_id,
+                HttpxHooks.REQUEST_ID_HEADER: request_id,
             },
             json=json,
-            config=config,
         )
 
         # handle response
@@ -127,8 +126,8 @@ class CloudFlareAPI(ModelAPI):
             raise RuntimeError(f"Error calling {self.model_name}: {error}")
 
     @override
-    def is_rate_limit(self, ex: BaseException) -> bool:
-        return is_chat_api_rate_limit(ex)
+    def should_retry(self, ex: Exception) -> bool:
+        return should_retry_chat_api_error(ex)
 
     # cloudflare enforces rate limits by model for each account
     @override

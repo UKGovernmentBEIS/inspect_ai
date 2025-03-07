@@ -2,6 +2,7 @@ import os
 from logging import getLogger
 from typing import Literal
 
+from inspect_ai._util._async import configured_async_backend
 from inspect_ai._util.constants import DEFAULT_DISPLAY
 from inspect_ai._util.thread import is_main_thread
 
@@ -19,6 +20,11 @@ def init_display_type(display: str | None = None) -> DisplayType:
     display = (
         display or os.environ.get("INSPECT_DISPLAY", DEFAULT_DISPLAY).lower().strip()
     )
+
+    # if trio is configured as the backend then throttle down to "rich"
+    # (as textual uses asyncio directly so is not compatible with trio)
+    if configured_async_backend() == "trio" and display == "full":
+        display = "rich"
 
     # if we are on a background thread then throttle down to "plain"
     # ("full" requires textual which cannot run in a background thread
@@ -58,14 +64,6 @@ def display_type_initialized() -> bool:
 
 def display_counter(caption: str, value: str) -> None:
     """Display a counter in the UI.
-
-    ::: {.callout-note appearance="simple"}
-    The `display_counter()` function is currently available only in the development version of Inspect. To install the development version from GitHub:
-
-    ``` bash
-    pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-    ```
-    :::
 
     Args:
         caption: The counter's caption e.g. "HTTP rate limits".

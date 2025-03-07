@@ -3,7 +3,11 @@ from typing import Any, List, Literal, get_args
 
 from goodfire import AsyncClient
 from goodfire.api.chat.interfaces import ChatMessage as GoodfireChatMessage
-from goodfire.api.exceptions import InvalidRequestException, RateLimitException
+from goodfire.api.exceptions import (
+    InvalidRequestException,
+    RateLimitException,
+    ServerErrorException,
+)
 from goodfire.variants.variants import SUPPORTED_MODELS, Variant
 from typing_extensions import override
 
@@ -163,9 +167,9 @@ class GoodfireAPI(ModelAPI):
         return ex
 
     @override
-    def is_rate_limit(self, ex: BaseException) -> bool:
+    def should_retry(self, ex: Exception) -> bool:
         """Check if exception is due to rate limiting."""
-        return isinstance(ex, RateLimitException)
+        return isinstance(ex, RateLimitException | ServerErrorException)
 
     @override
     def connection_key(self) -> str:

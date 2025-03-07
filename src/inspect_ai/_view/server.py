@@ -1,24 +1,27 @@
 import asyncio
+import contextlib
 import logging
 import os
 import urllib.parse
 from logging import LogRecord, getLogger
 from pathlib import Path
-from typing import Any, Awaitable, Callable
+from typing import Any, AsyncIterator, Awaitable, Callable, Literal, cast
 
 import fsspec  # type: ignore
 from aiohttp import web
 from fsspec.asyn import AsyncFileSystem  # type: ignore
 from fsspec.core import split_protocol  # type: ignore
 from pydantic_core import to_jsonable_python
+from s3fs import S3FileSystem  # type: ignore
 
 from inspect_ai._display import display
 from inspect_ai._util.constants import DEFAULT_SERVER_HOST, DEFAULT_VIEW_PORT
-from inspect_ai._util.file import filesystem, size_in_mb
+from inspect_ai._util.file import default_fs_options, filesystem, size_in_mb
 from inspect_ai.log._file import (
     EvalLogInfo,
     eval_log_json,
-    list_eval_logs_async,
+    list_eval_logs,
+    log_files_from_ls,
     read_eval_log_async,
     read_eval_log_headers_async,
 )
@@ -297,6 +300,62 @@ def resolve_header_only(path: str, header_only: int | None) -> bool:
         return False
 
 
+async def list_eval_logs_async(
+    log_dir: str = os.environ.get("INSPECT_LOG_DIR", "./logs"),
+    formats: list[Literal["eval", "json"]] | None = None,
+    recursive: bool = True,
+    descending: bool = True,
+    fs_options: dict[str, Any] = {},
+) -> list[EvalLogInfo]:
+    """List all eval logs in a directory.
+
+    Will be async for filesystem providers that support async (e.g. s3, gcs, etc.)
+    otherwise will fallback to sync implementation.
+
+    Args:
+      log_dir (str): Log directory (defaults to INSPECT_LOG_DIR)
+      formats (Literal["eval", "json"]): Formats to list (default
+        to listing all formats)
+      recursive (bool): List log files recursively (defaults to True).
+      descending (bool): List in descending order.
+      fs_options (dict[str, Any]): Optional. Additional arguments to pass through
+          to the filesystem provider (e.g. `S3FileSystem`).
+
+    Returns:
+       List of EvalLog Info.
+    """
+    # async filesystem if we can
+    fs = filesystem(log_dir, fs_options)
+    if fs.is_async():
+        async with async_fileystem(log_dir, fs_options=fs_options) as async_fs:
+            if await async_fs._exists(log_dir):
+                # prevent caching of listings
+                async_fs.invalidate_cache(log_dir)
+                # list logs
+                if recursive:
+                    files: list[dict[str, Any]] = []
+                    async for _, _, filenames in async_fs._walk(log_dir, detail=True):
+                        files.extend(filenames.values())
+                else:
+                    files = cast(
+                        list[dict[str, Any]],
+                        await async_fs._ls(log_dir, detail=True),
+                    )
+                logs = [fs._file_info(file) for file in files]
+                # resolve to eval logs
+                return log_files_from_ls(logs, formats, descending)
+            else:
+                return []
+    else:
+        return list_eval_logs(
+            log_dir=log_dir,
+            formats=formats,
+            recursive=recursive,
+            descending=descending,
+            fs_options=fs_options,
+        )
+
+
 def filter_aiohttp_log() -> None:
     #  filter overly chatty /api/events messages
     class RequestFilter(logging.Filter):
@@ -329,3 +388,27 @@ def async_connection(log_file: str) -> AsyncFileSystem:
 
     # return async file-system
     return _async_connections.get(protocol)
+
+
+@contextlib.asynccontextmanager
+async def async_fileystem(
+    location: str, fs_options: dict[str, Any] = {}
+) -> AsyncIterator[AsyncFileSystem]:
+    # determine protocol
+    protocol, _ = split_protocol(location)
+    protocol = protocol or "file"
+
+    # build options
+    options = default_fs_options(location)
+    options.update(fs_options)
+
+    if protocol == "s3":
+        s3 = S3FileSystem(asynchronous=True, **options)
+        session = await s3.set_session()
+        try:
+            yield s3
+        finally:
+            await session.close()
+    else:
+        options.update({"asynchronous": True, "loop": asyncio.get_event_loop()})
+        yield fsspec.filesystem(protocol, **options)

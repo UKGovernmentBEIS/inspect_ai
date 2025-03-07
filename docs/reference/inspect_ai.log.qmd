@@ -6,7 +6,9 @@ title: "inspect_ai.log"
 
 ### list_eval_logs
 ### write_eval_log
+### write_eval_log_async
 ### read_eval_log
+### read_eval_log_async
 ### read_eval_log_sample
 ### read_eval_log_samples
 ### convert_eval_logs
