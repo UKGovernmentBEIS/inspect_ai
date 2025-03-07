@@ -33,6 +33,7 @@ from inspect_ai._util.content import (
 from inspect_ai._util.hooks import init_hooks, override_api_key, send_telemetry
 from inspect_ai._util.interrupt import check_sample_interrupt
 from inspect_ai._util.logger import warn_once
+from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
 from inspect_ai._util.platform import platform_init
 from inspect_ai._util.registry import (
     RegistryInfo,
@@ -773,6 +774,10 @@ def get_model(
     if isinstance(model, Model):
         return model
 
+    # next see if this is the special "none" model
+    if model == "none":
+        model = "none/none"
+
     # now try finding an 'ambient' model (active or env var)
     if model is None:
         # return active_model if there is one
@@ -860,17 +865,25 @@ def cached_model(key: str) -> Model | None:
 
 
 def resolve_models(
-    model: str | Model | list[str] | list[Model] | None,
+    model: str | Model | list[str] | list[Model] | None | NotGiven = NOT_GIVEN,
     model_base_url: str | None = None,
     model_args: dict[str, Any] = dict(),
     config: GenerateConfig = GenerateConfig(),
 ) -> list[Model]:
+    # resolve NotGiven to current INSPECT_EVAL_MODEL
+    if isinstance(model, NotGiven):
+        model = os.getenv("INSPECT_EVAL_MODEL", None)
+
+    # resolve None to NoModel
+    if model is None:
+        return [get_model("none")]
+
     # reflect back a plain model
     if isinstance(model, Model):
         return [model]
 
     # helper to resolve model of various types
-    def resolve_model(m: str | Model | None) -> Model:
+    def resolve_model(m: str | Model) -> Model:
         return get_model(
             model=m,
             base_url=model_base_url,
@@ -878,11 +891,8 @@ def resolve_models(
             **model_args,
         )
 
-    # resolve None and str to list
-    if model is None or isinstance(model, str):
-        model = model or os.getenv("INSPECT_EVAL_MODEL", None)
-        if model is None:
-            raise ValueError("No model specified (and no INSPECT_EVAL_MODEL defined)")
+    # str to list
+    if isinstance(model, str):
         model = [m.strip() for m in model.split(",")]
 
     # resolve models

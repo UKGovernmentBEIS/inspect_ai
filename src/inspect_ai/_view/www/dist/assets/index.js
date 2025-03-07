@@ -14207,6 +14207,7 @@ var require_assets = __commonJS({
         )
       ] });
     };
+    const kModelNone = "none/none";
     const kEvalWorkspaceTabId = "eval-tab";
     const kJsonWorkspaceTabId = "json-tab";
     const kInfoWorkspaceTabId = "plan-tab";
@@ -25864,7 +25865,7 @@ categories: ${categories.join(" ")}`;
           /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$P.title, children: [
             /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$P.task, "text-size-title-secondary"), children: ((_i = logHeader == null ? void 0 : logHeader.eval) == null ? void 0 : _i.task) || task2 }),
             /* @__PURE__ */ jsxRuntimeExports.jsx("small", { className: clsx("mb-1", "text-size-small"), children: timeStr }),
-            model2 ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("small", { className: clsx("mb-1", "text-size-small"), children: model2 }) }) : ""
+            model2 && model2 !== kModelNone ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("small", { className: clsx("mb-1", "text-size-small"), children: model2 }) }) : ""
           ] }),
           /* @__PURE__ */ jsxRuntimeExports.jsx(EvalStatus, { logHeader })
         ] }),
@@ -63344,7 +63345,7 @@ ${events}
       if (evaluation.tags) {
         taskInformation["Tags"] = evaluation.tags.join(", ");
       }
-      if (evaluation == null ? void 0 : evaluation.model) {
+      if ((evaluation == null ? void 0 : evaluation.model) && evaluation.model !== kModelNone) {
         config2["model"] = evaluation.model;
       }
       if (evaluation == null ? void 0 : evaluation.model_base_url) {
@@ -64033,7 +64034,7 @@ ${events}
                       children: evalSpec == null ? void 0 : evalSpec.task
                     }
                   ),
-                  /* @__PURE__ */ jsxRuntimeExports.jsx(
+                  (evalSpec == null ? void 0 : evalSpec.model) && evalSpec.model !== kModelNone ? /* @__PURE__ */ jsxRuntimeExports.jsx(
                     "div",
                     {
                       id: "task-model",
@@ -64046,7 +64047,7 @@ ${events}
                       title: evalSpec == null ? void 0 : evalSpec.model,
                       children: evalSpec == null ? void 0 : evalSpec.model
                     }
-                  )
+                  ) : ""
                 ] }),
                 /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("text-size-small", styles$4.secondaryContainer), children: [
                   /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("navbar-secondary-text", "text-truncate"), children: logFileName }),

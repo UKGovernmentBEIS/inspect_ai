@@ -17,6 +17,7 @@ from typing_extensions import Unpack
 
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.file import basename, filesystem
+from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
 from inspect_ai.approval._policy import ApprovalPolicy
 from inspect_ai.log import EvalLog
 from inspect_ai.log._bundle import bundle_log_dir
@@ -56,7 +57,7 @@ def eval_set(
     retry_wait: float | None = None,
     retry_connections: float | None = None,
     retry_cleanup: bool | None = None,
-    model: str | Model | list[str] | list[Model] | None = None,
+    model: str | Model | list[str] | list[Model] | None | NotGiven = NOT_GIVEN,
     model_base_url: str | None = None,
     model_args: dict[str, Any] | str = dict(),
     task_args: dict[str, Any] | str = dict(),
@@ -107,9 +108,9 @@ def eval_set(
             (defaults to 0.5)
         retry_cleanup: Cleanup failed log files after retries
             (defaults to True)
-        model: Model(s) for
-            evaluation. If not specified use the value of the INSPECT_EVAL_MODEL
-            environment variable.
+        model: Model(s) for evaluation. If not specified use the value of the INSPECT_EVAL_MODEL
+            environment variable. Specify `None` to define no default model(s), which will
+            leave model usage entirely up to tasks.
         model_base_url: Base URL for communicating
             with the model API.
         model_args: Model creation args
@@ -574,7 +575,7 @@ def task_identifier(task: ResolvedTask | EvalLog) -> str:
         task_file = task.eval.task_file or ""
         task_name = task.eval.task
         task_args = task.eval.task_args
-        model = task.eval.model
+        model = str(task.eval.model)
 
     # hash for task args
     task_args_hash = hashlib.sha256(

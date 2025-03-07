@@ -56,7 +56,6 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
     @click.option(
         "--model",
         type=str,
-        required=True,
         help="Model used to evaluate tasks.",
         envvar="INSPECT_EVAL_MODEL",
     )
@@ -441,7 +440,7 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
 def eval_command(
     tasks: tuple[str] | None,
     solver: str | None,
-    model: str,
+    model: str | None,
     model_base_url: str | None,
     m: tuple[str] | None,
     model_config: str | None,
@@ -608,7 +607,7 @@ def eval_set_command(
     solver: str | None,
     trace: bool | None,
     approval: str | None,
-    model: str,
+    model: str | None,
     model_base_url: str | None,
     m: tuple[str] | None,
     model_config: str | None,
@@ -741,7 +740,7 @@ def eval_exec(
     log_level_transcript: str,
     log_dir: str,
     log_format: Literal["eval", "json"] | None,
-    model: str,
+    model: str | None,
     model_base_url: str | None,
     m: tuple[str] | None,
     model_config: str | None,
