@@ -11,6 +11,7 @@ from openai._types import ResponseT
 from openai.types.chat import (
     ChatCompletion,
     ChatCompletionMessageParam,
+    ChatCompletionToolChoiceOptionParam,
     ChatCompletionToolParam,
 )
 from shortuuid import uuid
@@ -23,6 +24,7 @@ from inspect_ai.model._openai import (
     openai_completion_usage,
 )
 from inspect_ai.solver._task_state import sample_state
+from inspect_ai.tool._tool_choice import ToolChoice, ToolFunction
 from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.tool._tool_params import ToolParams
 from inspect_ai.util._json import JSONSchema
@@ -114,6 +116,20 @@ async def inspect_model_request(
             )
         )
 
+    # convert openai tool choice to inspect tool_choice
+    inspect_tool_choice: ToolChoice | None = None
+    tool_choice: ChatCompletionToolChoiceOptionParam | None = json_data.get(
+        "tool_choice", None
+    )
+    if tool_choice is not None:
+        match tool_choice:
+            case "auto" | "none":
+                inspect_tool_choice = tool_choice
+            case "required":
+                inspect_tool_choice = "any"
+            case _:
+                inspect_tool_choice = ToolFunction(name=tool_choice["function"]["name"])
+
     # resolve model
     if model_name == "inspect":
         model = get_model()
@@ -123,6 +139,7 @@ async def inspect_model_request(
     output = await model.generate(
         input=input,
         tools=inspect_tools,
+        tool_choice=inspect_tool_choice,
         config=generate_config_from_openai(options),
     )
 
