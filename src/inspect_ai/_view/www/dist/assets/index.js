@@ -21038,18 +21038,9 @@ self.onmessage = function (e) {
     };
     const NavPills = ({ id, children: children2 }) => {
       const defaultNav = children2 ? children2[0].props["title"] : "";
-      const setPropertyValue = useStore(
-        (state) => state.appActions.setPropertyValue
-      );
-      const activeItem = useStore(
-        (state) => state.appActions.getPropertyValue(id, "active", defaultNav)
-      );
-      const setActiveItem = reactExports.useCallback(
-        (active2) => {
-          setPropertyValue(id, "active", active2);
-        },
-        [setPropertyValue]
-      );
+      const [activeItem, setActiveItem] = useProperty(id, "active", {
+        defaultValue: defaultNav
+      });
       if (!activeItem || !children2) {
         return void 0;
       }
@@ -30955,6 +30946,35 @@ categories: ${categories.join(" ")}`;
         return [visible2, set2];
       }, [visible2, setVisible, id]);
     };
+    function useProperty(id, propertyName2, options2) {
+      options2 = options2 || { cleanup: true };
+      const setPropertyValue = useStore(
+        (state) => state.appActions.setPropertyValue
+      );
+      const removePropertyValue = useStore(
+        (state) => state.appActions.removePropertyValue
+      );
+      const propertyValue = useStore(
+        (state) => state.appActions.getPropertyValue(id, propertyName2, options2.defaultValue)
+      );
+      const setValue = reactExports.useCallback(
+        (value2) => {
+          setPropertyValue(id, propertyName2, value2);
+        },
+        [id, propertyName2, setPropertyValue]
+      );
+      const removeValue = reactExports.useCallback(() => {
+        removePropertyValue(id, propertyName2);
+      }, [id, propertyName2, removePropertyValue]);
+      reactExports.useEffect(() => {
+        return () => {
+          if (options2.cleanup) {
+            removePropertyValue(id, propertyName2);
+          }
+        };
+      }, [id, propertyName2, removePropertyValue]);
+      return [propertyValue, setValue, removeValue];
+    }
     const container$9 = "_container_15b4r_1";
     const label$5 = "_label_15b4r_5";
     const styles$Q = {
@@ -55493,7 +55513,9 @@ Supported expressions:
       scrollRef
     }) => {
       const collapsedMessages = resolveMessages(messages);
-      const [followOutput, setFollowOutput] = reactExports.useState(false);
+      const [followOutput, setFollowOutput] = useProperty(id, "follow", {
+        defaultValue: false
+      });
       const listHandle = reactExports.useRef(null);
       const { restoreState, isScrolling } = useVirtuosoState(
         listHandle,
@@ -55898,8 +55920,6 @@ Supported expressions:
       cardContent,
       hidden: hidden$1
     };
-    const kCollapsed = "collapsed";
-    const kSelectedNav = "selectedNav";
     const EventPanel = ({
       id,
       className: className2,
@@ -55910,33 +55930,18 @@ Supported expressions:
       collapse,
       children: children2
     }) => {
-      const setPropertyValue = useStore(
-        (state) => state.appActions.setPropertyValue
-      );
-      const isCollapsed = useStore(
-        (state) => state.appActions.getPropertyValue(id, kCollapsed, !!collapse)
-      );
-      const setCollapsed = reactExports.useCallback(
-        (collapsed) => {
-          setPropertyValue(id, kCollapsed, collapsed);
-        },
-        [setPropertyValue]
-      );
+      const [isCollapsed, setCollapsed] = useProperty(id, "collapsed", {
+        defaultValue: !!collapse
+      });
       const hasCollapse = collapse !== void 0;
       const pillId = (index2) => {
         return `${id}-nav-pill-${index2}`;
       };
       const filteredArrChildren = (Array.isArray(children2) ? children2 : [children2]).filter((child) => !!child);
       const defaultPillId = pillId(0);
-      const selectedNav = useStore(
-        (state) => state.appActions.getPropertyValue(id, kSelectedNav, defaultPillId)
-      );
-      const setSelectedNav = reactExports.useCallback(
-        (nav2) => {
-          setPropertyValue(id, kSelectedNav, nav2);
-        },
-        [setPropertyValue]
-      );
+      const [selectedNav, setSelectedNav] = useProperty(id, "selectedNav", {
+        defaultValue: defaultPillId
+      });
       const gridColumns2 = [];
       if (hasCollapse) {
         gridColumns2.push("minmax(0, max-content)");
@@ -63244,61 +63249,41 @@ ${events}
       lightboxButtonClose,
       lightboxPreviewButton
     };
-    const kIsOpen = "isOpen";
-    const kShowOverlay = "showOverlay";
-    const kCurrentIndex = "currentIndex";
     const LightboxCarousel = ({ id, slides }) => {
-      const isOpen = useStore(
-        (state) => state.appActions.getPropertyValue(id, kIsOpen, false)
-      );
-      const showOverlay = useStore(
-        (state) => state.appActions.getPropertyValue(id, kShowOverlay, false)
-      );
-      const currentIndex = useStore(
-        (state) => state.appActions.getPropertyValue(id, kCurrentIndex, 0)
-      );
-      const setPropertyValue = useStore(
-        (state) => state.appActions.setPropertyValue
-      );
-      const removePropertyValue = useStore(
-        (state) => state.appActions.removePropertyValue
-      );
-      reactExports.useEffect(() => {
-        return () => {
-          [kIsOpen, kShowOverlay, kCurrentIndex].forEach(
-            (p) => removePropertyValue(id, p)
-          );
-        };
-      }, []);
+      const [isOpen, setIsOpen] = useProperty(id, "isOpen", {
+        defaultValue: false
+      });
+      const [currentIndex, setCurrentIndex] = useProperty(id, "currentIndex", {
+        defaultValue: 0
+      });
+      const [showOverlay, setShowOverlay] = useProperty(id, "showOverlay", {
+        defaultValue: false
+      });
       const openLightbox = reactExports.useCallback(
         (index2) => {
-          setPropertyValue(id, kCurrentIndex, index2);
-          setPropertyValue(id, kShowOverlay, true);
-          setTimeout(() => setPropertyValue(id, kIsOpen, true), 10);
+          setCurrentIndex(index2);
+          setShowOverlay(true);
+          setTimeout(() => setIsOpen(true), 10);
         },
-        [setPropertyValue]
+        [setIsOpen]
       );
       const closeLightbox = reactExports.useCallback(() => {
-        setPropertyValue(id, kIsOpen, false);
-      }, [setPropertyValue]);
+        setIsOpen(false);
+      }, [setIsOpen]);
       reactExports.useEffect(() => {
         if (!isOpen && showOverlay) {
           const timer = setTimeout(() => {
-            setPropertyValue(id, kShowOverlay, false);
+            setShowOverlay(false);
           }, 300);
           return () => clearTimeout(timer);
         }
-      }, [isOpen, showOverlay, setPropertyValue]);
+      }, [isOpen, showOverlay, setShowOverlay]);
       const showNext = reactExports.useCallback(() => {
-        setPropertyValue(id, kCurrentIndex, currentIndex + 1);
-      }, [slides, setPropertyValue]);
+        setCurrentIndex(currentIndex + 1);
+      }, [slides, setCurrentIndex]);
       const showPrev = reactExports.useCallback(() => {
-        setPropertyValue(
-          id,
-          kCurrentIndex,
-          (currentIndex - 1 + slides.length) % slides.length
-        );
-      }, [slides, setPropertyValue]);
+        setCurrentIndex((currentIndex - 1 + slides.length) % slides.length);
+      }, [slides, setCurrentIndex]);
       reactExports.useEffect(() => {
         if (!isOpen) return;
         const handleKeyUp = (e) => {
@@ -64214,13 +64199,15 @@ ${events}
       node,
       first
     };
-    const TranscriptVirtualListComponent = reactExports.memo(({ id, eventNodes, scrollRef }) => {
+    const TranscriptVirtualListComponent = ({ id, eventNodes, scrollRef }) => {
       const listHandle = reactExports.useRef(null);
       const { restoreState, isScrolling } = useVirtuosoState(
         listHandle,
         "transcript"
       );
-      const [followOutput, setFollowOutput] = reactExports.useState(false);
+      const [followOutput, setFollowOutput] = useProperty(id, "follow", {
+        defaultValue: false
+      });
       const renderRow = (item2, index2) => {
         const bgClass = item2.depth % 2 == 0 ? styles$l.darkenedBg : styles$l.normalBg;
         const paddingClass = index2 === 0 ? styles$l.first : void 0;
@@ -64260,35 +64247,35 @@ ${events}
           restoreStateFrom: restoreState()
         }
       );
-    });
-    const TranscriptView = ({
-      id,
-      events,
-      depth
-    }) => {
-      const resolvedEvents = fixupEventStream(events);
-      const eventNodes = treeifyEvents(
-        resolvedEvents,
-        depth !== void 0 ? depth : 0
-      );
-      return /* @__PURE__ */ jsxRuntimeExports.jsx(TranscriptComponent, { id, eventNodes });
     };
-    const TranscriptVirtualList = (props) => {
-      let { id, scrollRef, events, depth } = props;
-      const eventNodes = reactExports.useMemo(() => {
+    const TranscriptView = reactExports.memo(
+      ({ id, events, depth }) => {
         const resolvedEvents = fixupEventStream(events);
-        const eventNodes2 = treeifyEvents(resolvedEvents, depth || 0);
-        return eventNodes2;
-      }, [events, depth]);
-      return /* @__PURE__ */ jsxRuntimeExports.jsx(
-        TranscriptVirtualListComponent,
-        {
-          id,
-          eventNodes,
-          scrollRef
-        }
-      );
-    };
+        const eventNodes = treeifyEvents(
+          resolvedEvents,
+          depth !== void 0 ? depth : 0
+        );
+        return /* @__PURE__ */ jsxRuntimeExports.jsx(TranscriptComponent, { id, eventNodes });
+      }
+    );
+    const TranscriptVirtualList = reactExports.memo(
+      (props) => {
+        let { id, scrollRef, events, depth } = props;
+        const eventNodes = reactExports.useMemo(() => {
+          const resolvedEvents = fixupEventStream(events);
+          const eventNodes2 = treeifyEvents(resolvedEvents, depth || 0);
+          return eventNodes2;
+        }, [events, depth]);
+        return /* @__PURE__ */ jsxRuntimeExports.jsx(
+          TranscriptVirtualListComponent,
+          {
+            id,
+            eventNodes,
+            scrollRef
+          }
+        );
+      }
+    );
     const TranscriptComponent = ({
       id,
       eventNodes
@@ -65328,7 +65315,9 @@ ${events}
         (state) => state.log.selectedSampleIndex
       );
       const samplesDescriptor = useSampleDescriptor();
-      const [followOutput, setFollowOutput] = reactExports.useState(false);
+      const [followOutput, setFollowOutput] = useProperty("sample-list", "follow", {
+        defaultValue: false
+      });
       const onkeydown = reactExports.useCallback(
         (e) => {
           switch (e.key) {

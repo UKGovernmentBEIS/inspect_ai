@@ -5,7 +5,6 @@ import {
   RefObject,
   useCallback,
   useMemo,
-  useState,
 } from "react";
 import { Virtuoso, VirtuosoHandle } from "react-virtuoso";
 import { MessageBand } from "../../components/MessageBand";
@@ -16,7 +15,7 @@ import { SampleRow } from "./SampleRow";
 import { SampleSeparator } from "./SampleSeparator";
 
 import clsx from "clsx";
-import { useSampleDescriptor } from "../../state/hooks";
+import { useProperty, useSampleDescriptor } from "../../state/hooks";
 import { useVirtuosoState } from "../../state/scrolling";
 import { useStore } from "../../state/store";
 import { SampleFooter } from "./SampleFooter";
@@ -56,7 +55,9 @@ export const SampleList: FC<SampleListProps> = memo((props) => {
     (state) => state.log.selectedSampleIndex,
   );
   const samplesDescriptor = useSampleDescriptor();
-  const [followOutput, setFollowOutput] = useState(false);
+  const [followOutput, setFollowOutput] = useProperty("sample-list", "follow", {
+    defaultValue: false,
+  });
 
   const onkeydown = useCallback(
     (e: KeyboardEvent<HTMLDivElement>) => {
