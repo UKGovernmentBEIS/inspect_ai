@@ -347,10 +347,11 @@ class SandboxEnvironmentSpec(BaseModel, frozen=True):
 
     @model_validator(mode="before")
     @classmethod
-    def load_config_model(cls, data: dict[str, Any]) -> dict[str, Any]:
+    def load_config_model(cls, data: dict[str, Any] | list) -> dict[str, Any]:
         if isinstance(data, list):
           # Backwards compatibility with the older schema
-          type, config = data
+          type = data[0]
+          config = data[1] if len(data) >= 1 else None
           data = {"type": type, "config": config}
         type = data["type"]
         config = data.get("config")
