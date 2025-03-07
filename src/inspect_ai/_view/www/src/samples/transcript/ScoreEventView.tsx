@@ -5,7 +5,6 @@ import { MetaDataGrid } from "../../metadata/MetaDataGrid";
 import { ScoreEvent, Value1 } from "../../types/log";
 import { formatDateTime } from "../../utils/format";
 import { EventPanel } from "./event/EventPanel";
-import { TranscriptEventState } from "./types";
 
 import clsx from "clsx";
 import styles from "./ScoreEventView.module.css";
@@ -13,8 +12,6 @@ import styles from "./ScoreEventView.module.css";
 interface ScoreEventViewProps {
   id: string;
   event: ScoreEvent;
-  eventState: TranscriptEventState;
-  setEventState: (state: TranscriptEventState) => void;
   className?: string | string[];
 }
 
@@ -24,8 +21,6 @@ interface ScoreEventViewProps {
 export const ScoreEventView: FC<ScoreEventViewProps> = ({
   id,
   event,
-  eventState,
-  setEventState,
   className,
 }) => {
   const resolvedTarget = event.target
@@ -41,14 +36,6 @@ export const ScoreEventView: FC<ScoreEventViewProps> = ({
       className={clsx(className, "text-size-small")}
       subTitle={formatDateTime(new Date(event.timestamp))}
       icon={ApplicationIcons.scorer}
-      selectedNav={eventState.selectedNav || ""}
-      setSelectedNav={(selectedNav) => {
-        setEventState({ ...eventState, selectedNav });
-      }}
-      collapsed={eventState.collapsed}
-      setCollapsed={(collapsed) => {
-        setEventState({ ...eventState, collapsed });
-      }}
     >
       <div data-name="Explanation" className={clsx(styles.explanation)}>
         {event.target ? (

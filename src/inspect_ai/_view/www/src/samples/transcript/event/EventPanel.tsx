@@ -1,8 +1,9 @@
 import clsx from "clsx";
-import { FC, isValidElement, ReactNode } from "react";
+import { FC, isValidElement, ReactNode, useCallback } from "react";
 import { ApplicationIcons } from "../../../appearance/icons";
 import { EventNavs } from "./EventNavs";
 
+import { useStore } from "../../../state/store";
 import styles from "./EventPanel.module.css";
 
 interface EventPanelProps {
@@ -13,16 +14,15 @@ interface EventPanelProps {
   text?: string;
   icon?: string;
   collapse?: boolean;
-  collapsed?: boolean;
-  setCollapsed: (collapse: boolean) => void;
-  selectedNav: string;
-  setSelectedNav: (nav: string) => void;
   children?: ReactNode | ReactNode[];
 }
 
 interface ChildProps {
   "data-name"?: string;
 }
+
+const kCollapsed = "collapsed";
+const kSelectedNav = "selectedNav";
 
 /**
  * Renders the StateEventView component.
@@ -35,23 +35,39 @@ export const EventPanel: FC<EventPanelProps> = ({
   text,
   icon,
   collapse,
-  collapsed,
-  setCollapsed,
   children,
-  setSelectedNav,
-  selectedNav,
 }) => {
+  const setPropertyValue = useStore(
+    (state) => state.appActions.setPropertyValue,
+  );
+  const isCollapsed = useStore((state) =>
+    state.appActions.getPropertyValue<boolean>(id, kCollapsed, !!collapse),
+  );
+  const setCollapsed = useCallback(
+    (collapsed: boolean) => {
+      setPropertyValue(id, kCollapsed, collapsed);
+    },
+    [setPropertyValue],
+  );
   const hasCollapse = collapse !== undefined;
-  const isCollapsed = collapsed === undefined ? collapse : collapsed;
 
   const pillId = (index: number) => {
     return `${id}-nav-pill-${index}`;
   };
-
   const filteredArrChildren = (
     Array.isArray(children) ? children : [children]
   ).filter((child) => !!child);
   const defaultPillId = pillId(0);
+
+  const selectedNav = useStore((state) =>
+    state.appActions.getPropertyValue<string>(id, kSelectedNav, defaultPillId),
+  );
+  const setSelectedNav = useCallback(
+    (nav: string) => {
+      setPropertyValue(id, kSelectedNav, nav);
+    },
+    [setPropertyValue],
+  );
 
   const gridColumns = [];
 
@@ -129,7 +145,7 @@ export const EventPanel: FC<EventPanelProps> = ({
             setCollapsed(!isCollapsed);
           }}
         >
-          {collapsed ? text : ""}
+          {isCollapsed ? text : ""}
         </div>
         <div className={styles.navs}>
           {(!hasCollapse || !isCollapsed) &&
@@ -148,7 +164,7 @@ export const EventPanel: FC<EventPanelProps> = ({
                   target: pillId(index),
                 };
               })}
-              selectedNav={selectedNav || defaultPillId}
+              selectedNav={selectedNav}
               setSelectedNav={setSelectedNav}
             />
           ) : (
@@ -172,9 +188,7 @@ export const EventPanel: FC<EventPanelProps> = ({
       >
         {filteredArrChildren?.map((child, index) => {
           const id = pillId(index);
-          const isSelected = selectedNav
-            ? id === selectedNav
-            : id === defaultPillId;
+          const isSelected = id === selectedNav;
 
           return (
             <div

@@ -1,15 +1,13 @@
 import clsx from "clsx";
-import { FC, RefObject, useCallback, useState } from "react";
+import { FC, RefObject } from "react";
 import { StepEvent } from "../../types/log";
 import { formatDateTime } from "../../utils/format";
 import { EventPanel } from "./event/EventPanel";
 import { TranscriptVirtualListComponent } from "./TranscriptVirtualListComponent";
-import { EventNode, TranscriptEventState } from "./types";
+import { EventNode } from "./types";
 
 interface StepEventViewProps {
   event: StepEvent;
-  eventState: TranscriptEventState;
-  setEventState: (state: TranscriptEventState) => void;
   children: EventNode[];
   scrollRef?: RefObject<HTMLDivElement | null>;
   className?: string | string[];
@@ -20,8 +18,6 @@ interface StepEventViewProps {
  */
 export const StepEventView: FC<StepEventViewProps> = ({
   event,
-  eventState,
-  setEventState,
   children,
   scrollRef,
   className,
@@ -32,14 +28,6 @@ export const StepEventView: FC<StepEventViewProps> = ({
     `${event.type ? event.type + ": " : "Step: "}${event.name}`;
   const text = summarize(children);
 
-  const [transcriptState, setTranscriptState] = useState({});
-  const onTranscriptState = useCallback(
-    (state: TranscriptEventState) => {
-      setTranscriptState({ ...state });
-    },
-    [setTranscriptState],
-  );
-
   return (
     <EventPanel
       id={`step-${event.name}`}
@@ -49,21 +37,11 @@ export const StepEventView: FC<StepEventViewProps> = ({
       icon={descriptor.icon}
       collapse={descriptor.collapse}
       text={text}
-      selectedNav={eventState.selectedNav || ""}
-      setSelectedNav={(selectedNav) => {
-        setEventState({ ...eventState, selectedNav });
-      }}
-      collapsed={eventState.collapsed}
-      setCollapsed={(collapsed) => {
-        setEventState({ ...eventState, collapsed });
-      }}
     >
       <TranscriptVirtualListComponent
         id={`step-${event.name}-transcript`}
         eventNodes={children}
         scrollRef={scrollRef}
-        transcriptState={transcriptState}
-        setTranscriptState={onTranscriptState}
       />
     </EventPanel>
   );
