@@ -295,7 +295,7 @@ class EvalSample(BaseModel):
             # warning will handle this)
             del values["transcript"]
 
-        return values
+        return migrate_sandbox_spec(values)
 
     # allow field model_usage
     model_config = ConfigDict(protected_namespaces=())
@@ -606,6 +606,23 @@ class EvalSpec(BaseModel):
 
     # allow field model_args
     model_config = ConfigDict(protected_namespaces=())
+
+    @model_validator(mode="before")
+    @classmethod
+    def read_sandbox_spec(
+        cls: Type["EvalSpec"], values: dict[str, Any]
+    ) -> dict[str, Any]:
+        return migrate_sandbox_spec(values)
+
+
+def migrate_sandbox_spec(values: dict[str, Any]) -> dict[str, Any]:
+    if "sandbox" in values:
+        sandbox = values.get("sandbox")
+        if isinstance(sandbox, list):
+            values["sandbox"] = SandboxEnvironmentSpec(
+                type=sandbox[0], config=sandbox[1]
+            )
+    return values
 
 
 def eval_error(

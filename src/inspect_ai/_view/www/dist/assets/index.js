@@ -63351,9 +63351,14 @@ ${events}
         config2["model_base_url"] = evaluation.model_base_url;
       }
       if (evaluation == null ? void 0 : evaluation.sandbox) {
-        config2["sandbox"] = evaluation.sandbox[0];
-        if (evaluation.sandbox[1]) {
-          config2["sandbox_config"] = evaluation.sandbox[1];
+        if (Array.isArray(evaluation == null ? void 0 : evaluation.sandbox)) {
+          config2["sandbox"] = evaluation.sandbox[0];
+          if (evaluation.sandbox[1]) {
+            config2["sandbox_config"] = evaluation.sandbox[1];
+          }
+        } else {
+          config2["sandbox"] = evaluation == null ? void 0 : evaluation.sandbox.type;
+          config2["sandbox_config"] = evaluation == null ? void 0 : evaluation.sandbox.config;
         }
       }
       const taskColumns = [];
