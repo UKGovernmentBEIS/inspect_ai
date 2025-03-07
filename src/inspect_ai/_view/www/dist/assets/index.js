@@ -21049,9 +21049,19 @@ self.onmessage = function (e) {
       pills,
       pill
     };
-    const NavPills = ({ children: children2 }) => {
-      const [activeItem, setActiveItem] = reactExports.useState(
-        children2 ? children2[0].props["title"] : null
+    const NavPills = ({ id, children: children2 }) => {
+      const defaultNav = children2 ? children2[0].props["title"] : "";
+      const setPropertyValue = useStore(
+        (state) => state.appActions.setPropertyValue
+      );
+      const activeItem = useStore(
+        (state) => state.appActions.getPropertyValue(id, "active", defaultNav)
+      );
+      const setActiveItem = reactExports.useCallback(
+        (active2) => {
+          setPropertyValue(id, "active", active2);
+        },
+        [setPropertyValue]
       );
       if (!activeItem || !children2) {
         return void 0;
@@ -27125,7 +27135,7 @@ self.onmessage = function (e) {
       },
       render: (id, entry2) => {
         return {
-          rendered: /* @__PURE__ */ jsxRuntimeExports.jsxs(NavPills, { children: [
+          rendered: /* @__PURE__ */ jsxRuntimeExports.jsxs(NavPills, { id: `${id}-navpills`, children: [
             /* @__PURE__ */ jsxRuntimeExports.jsx(ChatSummary, { title: "Last Turn", id, messages: entry2.value }),
             /* @__PURE__ */ jsxRuntimeExports.jsx(ChatView, { title: "All", id, messages: entry2.value })
           ] })
