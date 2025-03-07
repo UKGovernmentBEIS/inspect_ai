@@ -87,9 +87,8 @@ export const PlanDetailView: FC<PlanDetailViewProps> = ({
       }
     } else {
       config["sandbox"] = evaluation?.sandbox.type;
-      config["sandbox_config"] = evaluation?.sandbox.config
+      config["sandbox_config"] = evaluation?.sandbox.config;
     }
-
   }
 
   const taskColumns: {
